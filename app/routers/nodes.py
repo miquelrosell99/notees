@@ -129,6 +129,7 @@ class NodeCreateRequest(BaseModel):
     sequence: int = 0
     types: List[int] = []  # Type node IDs
     properties: Dict[int, Any] = {}  # property_id -> value
+    is_page: bool = False  # Whether to create as a page
     # For date nodes
     is_daily: bool = False
     daily_date: Optional[str] = None  # YYYY-MM-DD
@@ -407,6 +408,7 @@ async def create_node(
         sequence=request.sequence,
         types=types,
         property_values=request.properties,
+        is_page=request.is_page,
     )
     
     node = await service.create_node(data, user_id=None)  # TODO: user_id from JWT
@@ -1294,6 +1296,7 @@ async def get_text_links(
     Returns list of links parsed from [[id]] patterns in the node's content,
     including whether each link is a tag (displayed with #) or a regular link.
     """
+    from ..db.connection import get_db
     db = await get_db(user.id)
     
     cursor = await db.execute("""
@@ -1329,6 +1332,7 @@ async def add_tag_link(
     This marks a [[id]] link in the content as a tag, which will be
     displayed with a # instead of a page/block icon.
     """
+    from ..db.connection import get_db
     db = await get_db(user.id)
     
     # Verify source node exists
@@ -1391,6 +1395,7 @@ async def remove_tag_link(
     user: User = Depends(get_current_user),
 ):
     """Remove a tag from a link (converts back to regular link)."""
+    from ..db.connection import get_db
     db = await get_db(user.id)
     
     cursor = await db.execute("""

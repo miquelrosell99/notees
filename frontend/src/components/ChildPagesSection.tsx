@@ -5,11 +5,20 @@
  * Supports list, table, and card view types.
  */
 import { useState, useMemo, useCallback } from 'react';
-import { NodeSet, SelectionSwitch, type NodeSetItem, type NodeSetViewType } from './NodeSet';
+import { NodeSet, type NodeSetItem, type NodeSetViewType } from './NodeSet';
 import { NodeViewSection } from './NodeViewSection';
 import { PageIcon } from './icons';
+import { SelectionButton } from './core/SelectionButton';
+import { mdiFormatListBulleted, mdiTable, mdiViewGrid } from '@mdi/js';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
+
+// View type icon and label mapping
+const VIEW_TYPE_OPTIONS: Record<NodeSetViewType, { icon: string; label: string }> = {
+  list: { icon: mdiFormatListBulleted, label: 'List view' },
+  table: { icon: mdiTable, label: 'Table view' },
+  card: { icon: mdiViewGrid, label: 'Card view' },
+};
 
 interface ChildPagesSectionProps {
   pageId: number;
@@ -53,10 +62,15 @@ export function ChildPagesSection({
       count={count}
       defaultExpanded={true}
       headerActions={
-        <SelectionSwitch
+        <SelectionButton
+          options={['list', 'table', 'card'].map((opt) => ({
+            value: opt,
+            icon: VIEW_TYPE_OPTIONS[opt as NodeSetViewType].icon,
+            label: VIEW_TYPE_OPTIONS[opt as NodeSetViewType].label,
+          }))}
           value={viewType}
-          onChange={setViewType}
-          options={['list', 'table', 'card']}
+          onChange={(val) => setViewType(val as NodeSetViewType)}
+          size="sm"
         />
       }
     >

@@ -137,9 +137,11 @@ export function NodeLink({
           radius="sm"
           interactive={!readOnly}
         >
-          <span className="node-link__icon">
-            <NodeIcon icon={targetNode?.icon} isPage={isPage} size="xs" />
-          </span>
+          {targetNode?.icon && (
+            <span className="node-link__icon">
+              <NodeIcon icon={targetNode.icon} isPage={isPage} size="xs" />
+            </span>
+          )}
           <span className="node-link__text">{displayText}</span>
           {clickCount > 0 && (
             <span className="node-link__badge">{clickCount}</span>

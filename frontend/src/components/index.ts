@@ -192,7 +192,7 @@ export { NodeLinkSearch } from './NodeLinkSearch';
 export type { NodeLinkSearchProps, LinkSearchType } from './NodeLinkSearch';
 
 // NodeSet component
-export { NodeSet, SelectionSwitch } from './NodeSet';
+export { NodeSet } from './NodeSet';
 export type { NodeSetProps, NodeSetItem, NodeSetViewType, GroupByOption } from './NodeSet';
 
 // Icons
