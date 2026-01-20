@@ -13,6 +13,7 @@ from ..domain.repositories import (
     SQLiteNodeRepository, 
     SQLitePropertyRepository, 
     SQLiteLinkRepository,
+    SQLiteInlineTypeRepository,
 )
 from ..db.schema import (
     generate_day_uuid, 
@@ -238,9 +239,10 @@ async def _get_node_service(user: User) -> NodeService:
     node_repo = SQLiteNodeRepository(db, page_type_id, types_property_id)
     property_repo = SQLitePropertyRepository(db)
     link_repo = SQLiteLinkRepository(db)
+    inline_type_repo = SQLiteInlineTypeRepository(db)
     
     # Create services
-    link_service = LinkParsingService(node_repo, link_repo)
+    link_service = LinkParsingService(node_repo, link_repo, inline_type_repository=inline_type_repo)
     node_service = NodeService(
         node_repo, property_repo, link_service,
         page_type_id, types_property_id
@@ -776,7 +778,7 @@ async def get_node(
             placeholders = ','.join(['?' for _ in descendant_ids])
             cursor = await conn.execute(f"""
                 SELECT target_node_id, COUNT(*) as count 
-                FROM link 
+                FROM node_link 
                 WHERE target_node_id IN ({placeholders})
                 GROUP BY target_node_id
             """, descendant_ids)
@@ -1401,6 +1403,43 @@ async def get_linked_references(
         ))
     
     return {"linked_references": result}
+
+
+class InlineTypeResponse(BaseModel):
+    """Inline type reference in content."""
+    type_node_id: int
+    type_node_name: str
+    type_node_icon: Optional[str] = None
+    position: int
+
+
+@router.get("/{node_id}/inline-types")
+async def get_inline_types(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get inline type references for a node.
+    
+    Returns all {{typeId}} references in the node's content.
+    """
+    service = await _get_node_service(user)
+    
+    inline_types = await service._link_service.get_inline_types_for_node(node_id)
+    
+    result = []
+    for inline_type in inline_types:
+        type_node = await service._node_repo.get_by_id(inline_type.type_node_id)
+        if not type_node:
+            continue
+        
+        result.append(InlineTypeResponse(
+            type_node_id=inline_type.type_node_id,
+            type_node_name=type_node.name or "",
+            type_node_icon=type_node.icon,
+            position=inline_type.position,
+        ))
+    
+    return {"inline_types": result}
 
 
 class PropertyBacklinkResponse(BaseModel):

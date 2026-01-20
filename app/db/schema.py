@@ -360,6 +360,20 @@ CREATE INDEX IF NOT EXISTS idx_link_source ON node_link(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_target ON node_link(target_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_property ON node_link(property_id) WHERE property_id IS NOT NULL;
 
+-- Inline type references (parsed from node name field) - {{typeId}} format
+-- Stores inline type mentions in block content, similar to node_link but for types
+-- source_node_id = block containing {{typeId}}, type_node_id = the type node being referenced
+CREATE TABLE IF NOT EXISTS inline_type (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    position INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_inline_type_source ON inline_type(source_node_id);
+CREATE INDEX IF NOT EXISTS idx_inline_type_target ON inline_type(type_node_id);
+
 -- Node comments (comments attached to nodes - each comment is a node tree)
 CREATE TABLE IF NOT EXISTS node_comment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

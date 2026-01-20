@@ -22,7 +22,7 @@ import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from './core/SuggestionPopup';
 import { SlashCommandPopup } from './core/SlashCommandPopup';
 import { useNodes } from '@/hooks';
-import { mdiFileDocumentOutline, mdiCircleSmall } from '@mdi/js';
+import { mdiFileDocumentOutline, mdiCircleSmall, mdiTag } from '@mdi/js';
 import type { Node } from '@/types';
 
 // Task states for cycling with Shift+Enter
@@ -117,6 +117,79 @@ function parseLinks(content: string): LinkInfo[] {
   return links;
 }
 
+interface InlineTypeInfo {
+  typeId: string;  // The type node ID
+  start: number;
+  end: number;
+  raw: string;
+}
+
+/**
+ * Parse content to find all inline types - {{typeId}} format
+ */
+function parseInlineTypes(content: string): InlineTypeInfo[] {
+  const types: InlineTypeInfo[] = [];
+  
+  // Find all inline types {{id}}
+  let match;
+  const typeRegex = /\{\{([^\}]+)\}\}/g;
+  while ((match = typeRegex.exec(content)) !== null) {
+    types.push({
+      typeId: match[1],
+      start: match.index,
+      end: match.index + match[0].length,
+      raw: match[0],
+    });
+  }
+  
+  // Sort by position
+  types.sort((a, b) => a.start - b.start);
+  
+  return types;
+}
+
+interface PillInfo {
+  type: 'link' | 'inline-type';
+  id: string;
+  start: number;
+  end: number;
+  raw: string;
+}
+
+/**
+ * Parse content to find all pills (links and inline types)
+ */
+function parseAllPills(content: string): PillInfo[] {
+  const pills: PillInfo[] = [];
+  
+  // Parse links
+  for (const link of parseLinks(content)) {
+    pills.push({
+      type: 'link',
+      id: link.linkId,
+      start: link.start,
+      end: link.end,
+      raw: link.raw,
+    });
+  }
+  
+  // Parse inline types
+  for (const inlineType of parseInlineTypes(content)) {
+    pills.push({
+      type: 'inline-type',
+      id: inlineType.typeId,
+      start: inlineType.start,
+      end: inlineType.end,
+      raw: inlineType.raw,
+    });
+  }
+  
+  // Sort by position
+  pills.sort((a, b) => a.start - b.start);
+  
+  return pills;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -132,56 +205,73 @@ function escapeAttr(text: string): string {
 }
 
 /**
- * Convert plain text content with link markers to HTML with pill elements
- * @param content - The raw content with [[linkId]] markers
+ * Convert plain text content with link and inline type markers to HTML with pill elements
+ * @param content - The raw content with [[linkId]] and {{typeId}} markers
  * @param linkNames - Map of linkId -> {name, isPage, clickCount} for display
+ * @param typeNames - Map of typeId -> {name, icon} for display
  */
-function contentToHtml(content: string, linkNames: Map<string, { name: string; isPage: boolean; clickCount?: number }>): string {
-  const links = parseLinks(content);
+function contentToHtml(
+  content: string, 
+  linkNames: Map<string, { name: string; isPage: boolean; clickCount?: number }>,
+  typeNames?: Map<string, { name: string; icon?: string }>
+): string {
+  const pills = parseAllPills(content);
   
-  if (links.length === 0) {
+  if (pills.length === 0) {
     return escapeHtml(content);
   }
   
   let html = '';
   let lastEnd = 0;
   
-  for (const link of links) {
-    // Add text before this link
-    if (link.start > lastEnd) {
-      html += escapeHtml(content.substring(lastEnd, link.start));
+  for (const pill of pills) {
+    // Add text before this pill
+    if (pill.start > lastEnd) {
+      html += escapeHtml(content.substring(lastEnd, pill.start));
     }
     
-    // Look up the link info
-    const linkInfo = linkNames.get(link.linkId);
-    const displayText = linkInfo?.name || link.linkId;
-    const isPage = linkInfo?.isPage ?? true;
-    const clickCount = linkInfo?.clickCount ?? 0;
-    const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
-    // Use SVG icons matching ContentWithPills (NodeIcon renders these)
-    const iconPath = isPage ? mdiFileDocumentOutline : mdiCircleSmall;
-    const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
-    const icon = `<span class="link-pill__icon">${iconSvg}</span>`;
-    const badge = clickCount > 0 
-      ? `<span class="link-pill__badge">${clickCount}</span>` 
-      : '';
-    
-    html += `<span class="link-pill ${pillClass}" contenteditable="false" data-link-id="${escapeAttr(link.linkId)}" data-link-raw="${escapeAttr(link.raw)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+    if (pill.type === 'link') {
+      // Look up the link info
+      const linkInfo = linkNames.get(pill.id);
+      const displayText = linkInfo?.name || pill.id;
+      const isPage = linkInfo?.isPage ?? true;
+      const clickCount = linkInfo?.clickCount ?? 0;
+      const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
+      // Use SVG icons matching ContentWithPills (NodeIcon renders these)
+      const iconPath = isPage ? mdiFileDocumentOutline : mdiCircleSmall;
+      const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
+      const icon = `<span class="link-pill__icon">${iconSvg}</span>`;
+      const badge = clickCount > 0 
+        ? `<span class="link-pill__badge">${clickCount}</span>` 
+        : '';
+      
+      html += `<span class="link-pill ${pillClass}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+    } else {
+      // Inline type pill
+      const typeInfo = typeNames?.get(pill.id);
+      const displayText = typeInfo?.name || pill.id;
+      // Use tag icon for types, or custom icon if available
+      const iconPath = mdiTag;
+      const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
+      const icon = `<span class="type-pill__icon">${iconSvg}</span>`;
+      
+      html += `<span class="type-pill" contenteditable="false" data-type-id="${escapeAttr(pill.id)}" data-type-raw="${escapeAttr(pill.raw)}">${icon}<span class="type-pill__text">${escapeHtml(displayText)}</span></span>`;
+    }
     
     // Add zero-width space after pill if no text follows immediately
     // This ensures the cursor has a text node to anchor to when navigating
-    const nextChar = content[link.end];
-    if (!nextChar || nextChar === '[') {
+    const nextChar = content[pill.end];
+    if (!nextChar || nextChar === '[' || nextChar === '{') {
       html += '\u200B';
     }
     
-    lastEnd = link.end;
+    lastEnd = pill.end;
   }
   
   // Add remaining text
   if (lastEnd < content.length) {
     html += escapeHtml(content.substring(lastEnd));
-  } else if (links.length > 0) {
+  } else if (pills.length > 0) {
     // Ensure there's a ZWS at the end if content ends with a pill
     html += '\u200B';
   }
@@ -190,7 +280,7 @@ function contentToHtml(content: string, linkNames: Map<string, { name: string; i
 }
 
 /**
- * Convert HTML back to plain text content with link markers
+ * Convert HTML back to plain text content with link and type markers
  * Strips zero-width spaces that were added for cursor positioning
  */
 function htmlToContent(element: HTMLElement): string {
@@ -205,6 +295,9 @@ function htmlToContent(element: HTMLElement): string {
       if (el.classList.contains('link-pill')) {
         // Get the raw link text from data attribute
         content += el.dataset.linkRaw || '';
+      } else if (el.classList.contains('type-pill')) {
+        // Get the raw type text from data attribute
+        content += el.dataset.typeRaw || '';
       } else if (el.tagName === 'BR') {
         // Ignore BR tags - we don't allow newlines
       } else {
@@ -390,8 +483,19 @@ export function BlockEditor({
     return ids;
   }, [content]);
   
-  // Fetch all nodes to get names for links
-  const { data: allNodes } = useNodes(linkIds.length > 0 ? {} : null);
+  // Extract inline type IDs from content
+  const typeIds = useMemo(() => {
+    const ids: string[] = [];
+    const typeRegex = /\{\{([^\}]+)\}\}/g;
+    let match;
+    while ((match = typeRegex.exec(content)) !== null) {
+      ids.push(match[1]);
+    }
+    return ids;
+  }, [content]);
+  
+  // Fetch all nodes to get names for links and types
+  const { data: allNodes } = useNodes((linkIds.length > 0 || typeIds.length > 0) ? {} : null);
   
   // Build link names map from fetched nodes
   const linkNames = useMemo(() => {
@@ -415,6 +519,26 @@ export function BlockEditor({
     return map;
   }, [allNodes, linkIds]);
   
+  // Build type names map from fetched nodes
+  const typeNames = useMemo(() => {
+    const map = new Map<string, { name: string; icon?: string }>();
+    if (allNodes && typeIds.length > 0) {
+      for (const typeId of typeIds) {
+        const nodeId = parseInt(typeId, 10);
+        const node = !isNaN(nodeId) 
+          ? allNodes.find(n => n.id === nodeId)
+          : allNodes.find(n => n.uuid === typeId || n.name === typeId);
+        if (node) {
+          map.set(typeId, {
+            name: node.name || 'Untitled',
+            icon: node.icon || undefined,
+          });
+        }
+      }
+    }
+    return map;
+  }, [allNodes, typeIds]);
+  
   // Sync external ref
   useEffect(() => {
     if (externalEditorRef && internalEditorRef.current) {
@@ -422,14 +546,15 @@ export function BlockEditor({
     }
   }, [externalEditorRef]);
   
-  // Track linkNames size to detect when node data loads
+  // Track linkNames and typeNames size to detect when node data loads
   const linkNamesSize = linkNames.size;
+  const typeNamesSize = typeNames.size;
   
-  // Update HTML when content changes externally or when linkNames loads
+  // Update HTML when content changes externally or when names load
   useEffect(() => {
     if (editorRef.current && !isInternalChange.current) {
-      // Re-render if content changed OR if linkNames just loaded (for link display names)
-      const html = contentToHtml(content, linkNames);
+      // Re-render if content changed OR if names just loaded (for display names)
+      const html = contentToHtml(content, linkNames, typeNames);
       const currentHtml = editorRef.current.innerHTML;
       
       // Only update if the HTML would actually change (preserves cursor position when possible)
@@ -447,12 +572,12 @@ export function BlockEditor({
       }
     }
     isInternalChange.current = false;
-  }, [content, linkNamesSize]);
+  }, [content, linkNamesSize, typeNamesSize]);
   
   // Initialize content on mount
   useEffect(() => {
     if (editorRef.current) {
-      const html = contentToHtml(content, linkNames);
+      const html = contentToHtml(content, linkNames, typeNames);
       editorRef.current.innerHTML = html || '<br>';
       // Focus and set cursor
       editorRef.current.focus();
@@ -858,9 +983,10 @@ export function BlockEditor({
       newContent = textBeforeTrigger + linkText + ' ' + textAfterCursor;
       onLinkPage?.(node);  // Callback for any link (page or block)
     } else if (keepInline) {
+      // Use {{typeId}} format for inline types
       const inlineText = trigger.type === 'type' 
-        ? `@${node.name}` 
-        : `#${node.name}`;
+        ? `{{${node.id}}}` 
+        : `{{${node.id}}}`;
       newContent = textBeforeTrigger + inlineText + ' ' + textAfterCursor;
       
       if (trigger.type === 'type' && onAddType) {
@@ -884,7 +1010,7 @@ export function BlockEditor({
       const linkText = `[[${node.id}]]`;
       cursorTargetPos = textBeforeTrigger.length + linkText.length + 1; // +1 for space
     } else if (keepInline) {
-      const inlineText = trigger.type === 'type' ? `@${node.name}` : `#${node.name}`;
+      const inlineText = `{{${node.id}}}`;
       cursorTargetPos = textBeforeTrigger.length + inlineText.length + 1;
     } else {
       cursorTargetPos = textBeforeTrigger.length;
@@ -903,8 +1029,17 @@ export function BlockEditor({
       });
     }
     
-    // Update HTML with the updated map
-    const html = contentToHtml(newContent, updatedLinkNames);
+    // Create updated typeNames map that includes the just-inserted type
+    const updatedTypeNames = new Map(typeNames);
+    if ((trigger.type === 'type' || trigger.type === 'tag') && keepInline) {
+      updatedTypeNames.set(String(node.id), {
+        name: node.name || 'Untitled',
+        icon: node.icon || undefined,
+      });
+    }
+    
+    // Update HTML with the updated maps
+    const html = contentToHtml(newContent, updatedLinkNames, updatedTypeNames);
     editorRef.current.innerHTML = html || '<br>';
     
     setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -916,7 +1051,7 @@ export function BlockEditor({
         setCursorPosition(editorRef.current, cursorTargetPos);
       }
     }, 0);
-  }, [trigger, onChange, onAddType, onAddTag, onLinkPage, linkNames]);
+  }, [trigger, onChange, onAddType, onAddTag, onLinkPage, linkNames, typeNames]);
 
   // Handle create new type/tag/link
   const handleCreate = useCallback(async (name: string, keepInline: boolean) => {
@@ -978,7 +1113,7 @@ export function BlockEditor({
     }
     
     // Update HTML with the updated map
-    const html = contentToHtml(newContent, updatedLinkNames);
+    const html = contentToHtml(newContent, updatedLinkNames, typeNames);
     editorRef.current.innerHTML = html || '<br>';
     
     setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -1014,7 +1149,7 @@ export function BlockEditor({
       onChange(newContent);
       
       // Update HTML
-      const html = contentToHtml(newContent, linkNames);
+      const html = contentToHtml(newContent, linkNames, typeNames);
       editorRef.current.innerHTML = html || '<br>';
       
       setSlashCommand(prev => ({ ...prev, isOpen: false }));
@@ -1038,7 +1173,7 @@ export function BlockEditor({
     onChange(newContent);
     
     // Update HTML
-    const html = contentToHtml(newContent, linkNames);
+    const html = contentToHtml(newContent, linkNames, typeNames);
     editorRef.current.innerHTML = html || '<br>';
     
     // Execute the command
@@ -1055,7 +1190,7 @@ export function BlockEditor({
     setSlashCommand(prev => ({ ...prev, isOpen: false }));
     
     setTimeout(() => editorRef.current?.focus(), 0);
-  }, [slashCommand.triggerPosition, onChange, onOpenComments, onAssetUpload, linkNames]);
+  }, [slashCommand.triggerPosition, onChange, onOpenComments, onAssetUpload, linkNames, typeNames]);
 
   const handleSlashCommandClose = useCallback(() => {
     setSlashCommand(prev => ({ ...prev, isOpen: false }));

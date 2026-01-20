@@ -38,15 +38,16 @@ class NodeService:
         """Create a new node.
         
         - Computes page_id for blocks
-        - Parses content for links
+        - Parses content for links and inline types
         - Applies tag properties (SuperTags)
         """
         # Create the node
         node = await self._node_repo.create(data, user_id)
         
-        # Parse and store links from content
+        # Parse and store links and inline types from content
         if node.name and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
+            await self._link_service.update_inline_types(node.id, node.name)
         
         # Apply SuperType properties if any types have associated properties
         if node.id is not None:
@@ -121,9 +122,10 @@ class NodeService:
         if not node:
             return None
         
-        # Re-parse links if name changed
+        # Re-parse links and inline types if name changed
         if data.name is not None and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
+            await self._link_service.update_inline_types(node.id, node.name)
         
         # Update types path if parent changed (inherited types may have changed)
         if data.parent_id is not None and data.parent_id != old_parent_id:
