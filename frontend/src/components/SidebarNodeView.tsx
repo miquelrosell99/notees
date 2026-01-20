@@ -188,7 +188,7 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
           /* For blocks, show the block itself as editable */
           <div className="sidebar-node-view__block-editor">
             <BlockEditor
-              blockId={node.id}
+              nodeId={node.id}
               icon={node.icon}
               content={node.name || ''}
               onChange={handleNameChange}
@@ -224,6 +224,8 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
                   onCreateTag={handleCreateTag(child.id)}
                   onOpenComments={handleOpenComments(child.id)}
                   commentCount={child.comment_count}
+                  backlinkCount={child.backlink_count}
+                  onOpenBacklinks={() => handleBlockShiftClick(child.id)}
                 />
               </div>
             ))}

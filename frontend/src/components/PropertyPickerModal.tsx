@@ -11,7 +11,7 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyPickerModal.css';
 
 /** System property UUIDs that should be hidden from the "Add property" menu */
-const HIDDEN_PROPERTY_UUIDS = new Set([
+const HIDDEN_PROPERTY_UUIDS = new Set<string>([
   SYSTEM_PROPERTY_UUIDS.cover,
   SYSTEM_PROPERTY_UUIDS.types,
   SYSTEM_PROPERTY_UUIDS.show_hierarchy,

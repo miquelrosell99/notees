@@ -53,7 +53,7 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
     <div className="context-menu-color-row" onMouseDown={handleMouseDown}>
       <span className="context-menu-color-label">Color</span>
       <div className="context-menu-color-swatches">
-        {NODE_COLORS.map((color, index) => (
+        {NODE_COLORS.map((color) => (
           <button
             key={color || 'none'}
             className={`context-menu-color-swatch ${currentColor === color ? 'selected' : ''} ${!color ? 'no-color' : ''}`}

@@ -459,6 +459,45 @@
 .block-content-view .block-comment-badge:hover {
   opacity: 1;
 }
+
+/* Backlink count badge - right-aligned in block row */
+.block .block-backlink-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-2);
+  margin-left: var(--spacing-2);
+  height: 20px;
+  min-width: 20px;
+  font: var(--font-label-small);
+  font-size: 0.7rem;
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard);
+  flex-shrink: 0;
+}
+
+.block:hover .block-backlink-badge,
+.block:focus-within .block-backlink-badge {
+  opacity: 0.7;
+}
+
+.block .block-backlink-badge:hover {
+  opacity: 1;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-color: var(--color-primary);
+}
+
+.block .block-backlink-badge__count {
+  font-weight: 500;
+}
+
 /* Empty block - maintains width without placeholder text */
 .block-content-view--empty {
   min-height: 24px;

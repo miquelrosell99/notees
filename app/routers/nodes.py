@@ -64,6 +64,7 @@ class NodeResponse(BaseModel):
     # Backlinks
     backlinks: Optional[List["BacklinkResponse"]] = None
     linked_references: Optional[List["LinkedReferenceResponse"]] = None
+    backlink_count: int = 0  # Count of backlinks to this node
     # Comments
     comment_count: int = 0
     
@@ -170,6 +171,7 @@ def _node_to_response(
     tags: Optional[List[int]] = None,
     types: Optional[List[int]] = None,
     comment_count: int = 0,
+    backlink_count: int = 0,
 ) -> NodeResponse:
     """Convert domain Node to API response."""
     return NodeResponse(
@@ -195,6 +197,7 @@ def _node_to_response(
         tags=tags or [],
         types=types or [],
         comment_count=comment_count,
+        backlink_count=backlink_count,
         types_path=node.types_path or [],
     )
 
@@ -767,6 +770,20 @@ async def get_node(
             for row in rows:
                 comment_counts[row['node_id']] = row['count']
         
+        # Get backlink counts for all descendants in one query
+        backlink_counts: Dict[int, int] = {}
+        if descendant_ids:
+            placeholders = ','.join(['?' for _ in descendant_ids])
+            cursor = await conn.execute(f"""
+                SELECT target_node_id, COUNT(*) as count 
+                FROM link 
+                WHERE target_node_id IN ({placeholders})
+                GROUP BY target_node_id
+            """, descendant_ids)
+            rows = await cursor.fetchall()
+            for row in rows:
+                backlink_counts[row['target_node_id']] = row['count']
+        
         # Get types for all descendants in one batch (avoid N+1 queries)
         node_type_map: Dict[int, List[int]] = {nid: [] for nid in descendant_ids}
         
@@ -791,8 +808,9 @@ async def get_node(
         for d in all_descendants:
             if d.id is not None:
                 count = comment_counts.get(d.id, 0)
+                bcount = backlink_counts.get(d.id, 0)
                 d_type_ids = node_type_map.get(d.id, [])
-                node_map[d.id] = _node_to_response(d, types=d_type_ids, comment_count=count)
+                node_map[d.id] = _node_to_response(d, types=d_type_ids, comment_count=count, backlink_count=bcount)
         
         root_children = []
         
@@ -953,6 +971,20 @@ async def get_page_content(
         for row in rows:
             comment_counts[row['node_id']] = row['count']
     
+    # Get backlink counts for all blocks
+    backlink_counts: Dict[int, int] = {}
+    if block_ids:
+        placeholders = ','.join(['?' for _ in block_ids])
+        cursor = await conn.execute(f"""
+            SELECT target_node_id, COUNT(*) as count 
+            FROM link 
+            WHERE target_node_id IN ({placeholders})
+            GROUP BY target_node_id
+        """, block_ids)
+        rows = await cursor.fetchall()
+        for row in rows:
+            backlink_counts[row['target_node_id']] = row['count']
+    
     # Get types for all blocks in one batch (avoid N+1 queries)
     all_node_ids = [page_id] + block_ids
     node_type_map: Dict[int, List[int]] = {nid: [] for nid in all_node_ids}
@@ -978,8 +1010,9 @@ async def get_page_content(
     for b in blocks:
         if b.id != page_id and b.id is not None:
             count = comment_counts.get(b.id, 0)
+            bcount = backlink_counts.get(b.id, 0)
             type_ids = node_type_map.get(b.id, [])
-            block_map[b.id] = _node_to_response(b, types=type_ids, comment_count=count)
+            block_map[b.id] = _node_to_response(b, types=type_ids, comment_count=count, backlink_count=bcount)
     
     root_children = []
     

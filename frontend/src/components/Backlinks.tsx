@@ -14,7 +14,6 @@ import type { Backlink, LinkedReference, BreadcrumbSegment, Node } from '@/types
 import { LinkIcon, NodeIcon } from './icons';
 import { Block } from './Block';
 import { NodeViewSection } from './NodeViewSection';
-import { useNodesStore } from '@/stores';
 import { NodeSet, type NodeSetItem } from './NodeSet';
 import { 
   propertyBacklinkToPageItem,
@@ -189,20 +188,24 @@ interface LinkedReferenceEntryProps {
   onNavigate?: (nodeId: number, pageId?: number | null) => void;
 }
 
-function LinkedReferenceEntry({ reference, onNavigate }: LinkedReferenceEntryProps) {
+function _LinkedReferenceEntry({ reference, onNavigate }: LinkedReferenceEntryProps) {
   const updateNode = useUpdateNode();
   
   // Convert LinkedReference source_node to Node format
   const sourceNode: Node = useMemo(() => {
     return {
       id: reference.source_node.id,
+      uuid: '',
       name: reference.source_node.name || '',
       icon: reference.source_node.icon || null,
+      color: null,
       is_page: false,
       parent_id: null,
-      position: 0,
-      created_at: '',
-      updated_at: '',
+      page_id: null,
+      sequence: 0,
+      active: true,
+      create_date: '',
+      write_date: '',
       types: [],
       tags: [],
       collapsed: false,
@@ -215,7 +218,7 @@ function LinkedReferenceEntry({ reference, onNavigate }: LinkedReferenceEntryPro
   };
   
   const handleContentChange = useCallback((blockId: number, content: string) => {
-    updateNode.mutate({ nodeId: blockId, data: { name: content } });
+    updateNode.mutate({ id: blockId, data: { name: content } });
   }, [updateNode]);
 
   return (
@@ -270,14 +273,17 @@ export function LinkedReferences({
       items.push({
         node: {
           id: pageItem.sourcePage.id,
+          uuid: '',
           name: pageItem.sourcePage.name || 'Untitled',
           icon: pageItem.sourcePage.icon || null,
+          color: null,
           is_page: true,
           parent_id: null,
           page_id: null,
-          position: 0,
-          created_at: '',
-          updated_at: '',
+          sequence: 0,
+          active: true,
+          create_date: '',
+          write_date: '',
           types: [],
           tags: [],
           collapsed: false,
@@ -293,14 +299,17 @@ export function LinkedReferences({
         items.push({
           node: {
             id: ref.source_node.id,
+            uuid: '',
             name: ref.source_node.name || 'Untitled',
             icon: ref.source_node.icon || null,
+            color: null,
             is_page: false,
             parent_id: null,
             page_id: ref.source_page?.id ?? null,
-            position: 0,
-            created_at: '',
-            updated_at: '',
+            sequence: 0,
+            active: true,
+            create_date: '',
+            write_date: '',
             types: [],
             tags: [],
             collapsed: false,
@@ -308,14 +317,17 @@ export function LinkedReferences({
           },
           page: ref.source_page ? {
             id: ref.source_page.id,
+            uuid: '',
             name: ref.source_page.name || 'Untitled',
             icon: ref.source_page.icon || null,
+            color: null,
             is_page: true,
             parent_id: null,
             page_id: null,
-            position: 0,
-            created_at: '',
-            updated_at: '',
+            sequence: 0,
+            active: true,
+            create_date: '',
+            write_date: '',
             types: [],
             tags: [],
             collapsed: false,
@@ -336,14 +348,17 @@ export function LinkedReferences({
         if (ref.source_page && !map.has(ref.source_page.id)) {
           map.set(ref.source_page.id, {
             id: ref.source_page.id,
+            uuid: '',
             name: ref.source_page.name || 'Untitled',
             icon: ref.source_page.icon || null,
+            color: null,
             is_page: true,
             parent_id: null,
             page_id: null,
-            position: 0,
-            created_at: '',
-            updated_at: '',
+            sequence: 0,
+            active: true,
+            create_date: '',
+            write_date: '',
             types: [],
             tags: [],
             collapsed: false,

@@ -51,6 +51,7 @@ export interface Node {
   // For backlinks/references
   backlinks?: Backlink[];
   linked_references?: LinkedReference[];
+  backlink_count?: number; // Count of backlinks to this node
   
   // For comments
   comment_count?: number;

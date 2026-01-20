@@ -106,7 +106,7 @@ export function TextPropertyBlock({
   }, [onOpenInSidebar]);
   
   // Handle drag start - prepare for moving the block
-  const handleDragStart = useCallback((e: React.DragEvent) => {
+  const _handleDragStart = useCallback((e: React.DragEvent) => {
     if (!blockNodeId || readOnly) {
       e.preventDefault();
       return;
@@ -215,10 +215,9 @@ export function TextPropertyBlock({
       <div className="text-property-block__row">
         <div className="text-property-block__content">
           <BlockEditor
-            blockId={blockNode.id}
+            nodeId={blockNode.id}
             content={blockNode.name || ''}
             onChange={handleContentChange}
-            onShiftClick={handleShiftClick}
             readOnly={readOnly}
           />
         </div>
@@ -239,6 +238,8 @@ export function TextPropertyBlock({
               onBulletClick={handleChildBulletClick}
               onShiftClick={handleShiftClick}
               readOnly={readOnly}
+              backlinkCount={child.backlink_count}
+              onOpenBacklinks={() => handleShiftClick?.(child.id)}
             />
           ))}
         </div>
