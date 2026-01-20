@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: notees
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-5173}:5173"
     volumes:
       # Persist data directory for SQLite databases (bind mount to local folder)
       - ./data:/app/data
@@ -19,7 +19,7 @@ services:
       # Override defaults for production
       - RELOAD=false
       - HOST=0.0.0.0
-      - PORT=8000
+      - PORT=5173
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/status')"]
