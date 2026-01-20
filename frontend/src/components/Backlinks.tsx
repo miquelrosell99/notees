@@ -9,10 +9,9 @@
  */
 import { useMemo, useCallback } from 'react';
 import './Backlinks.css';
-import { useBacklinks, useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
-import type { Backlink, LinkedReference, BreadcrumbSegment, Node } from '@/types/api';
+import { useBacklinks, useLinkedReferences, usePropertyBacklinks } from '@/hooks';
+import type { Backlink, Node } from '@/types/api';
 import { LinkIcon, NodeIcon } from './icons';
-import { Block } from './Block';
 import { NodeViewSection } from './NodeViewSection';
 import { NodeSet, type NodeSetItem } from './NodeSet';
 import { 
@@ -107,73 +106,6 @@ export function Backlinks({
         ))}
       </div>
     </NodeViewSection>
-  );
-}
-
-/**
- * Inline breadcrumb component for linked references
- * Shows the path from page ancestor down to the source node's PARENT (excludes source node itself)
- */
-interface ReferenceBreadcrumbProps {
-  breadcrumbs: BreadcrumbSegment[];
-  sourceNodeId: number; // ID of the source node to exclude from breadcrumbs
-  sourcePage: { id: number; name: string; icon?: string | null } | null;
-  onNavigate?: (nodeId: number) => void;
-}
-
-function ReferenceBreadcrumb({ breadcrumbs, sourceNodeId, sourcePage, onNavigate }: ReferenceBreadcrumbProps) {
-  // Build display items from breadcrumbs, excluding the source node itself
-  const items = useMemo(() => {
-    if (breadcrumbs.length === 0 && sourcePage) {
-      // Fallback: just show the page
-      return [{
-        id: sourcePage.id,
-        name: sourcePage.name || 'Untitled',
-        icon: sourcePage.icon,
-        isProperty: false,
-      }];
-    }
-    
-    // Breadcrumbs come from the service as [source, parent, ..., page] order
-    // We want to display as [page, ..., parent] (excluding source node itself)
-    // Filter out the source node, then reverse to show page first
-    const withoutSource = breadcrumbs.filter(seg => seg.node_id !== sourceNodeId);
-    const reversed = [...withoutSource].reverse();
-    return reversed.map(seg => ({
-      id: seg.node_id,
-      name: seg.name,
-      icon: null as string | null,
-      isProperty: seg.is_property,
-    }));
-  }, [breadcrumbs, sourceNodeId, sourcePage]);
-
-  if (items.length === 0) return null;
-
-  return (
-    <div className="ref-breadcrumb">
-      {items.map((item, idx) => (
-        <span key={item.isProperty ? `prop-${idx}` : item.id ?? idx} className="ref-breadcrumb-item">
-          {item.id !== null && !item.isProperty ? (
-            <button
-              className="ref-breadcrumb-link"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (item.id !== null) onNavigate?.(item.id);
-              }}
-            >
-              <span className="ref-breadcrumb-name">{item.name}</span>
-            </button>
-          ) : (
-            <span className={`ref-breadcrumb-text ${item.isProperty ? 'ref-breadcrumb-property' : ''}`}>
-              {item.isProperty ? `#${item.name}` : item.name}
-            </span>
-          )}
-          {idx < items.length - 1 && (
-            <span className="ref-breadcrumb-separator">/</span>
-          )}
-        </span>
-      ))}
-    </div>
   );
 }
 

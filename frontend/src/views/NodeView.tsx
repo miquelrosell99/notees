@@ -400,7 +400,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
               onCreateType={handleCreateType}
               onCreateTag={handleCreateTag}
               onOpenComments={handleOpenComments}
-              commentCount={node.comment_count}
               readOnly={false}
             />
             {node.active === false && (
