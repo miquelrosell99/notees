@@ -130,7 +130,7 @@
   margin-top: var(--spacing-4);
   padding: var(--spacing-3);
   background: var(--color-error-container);
-  color: var(--color-error);
+  color: var(--color-on-error-container);
   border-radius: var(--shape-small);
   font: var(--font-body-medium);
   text-align: center;
