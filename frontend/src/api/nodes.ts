@@ -467,3 +467,87 @@ export async function addTagLink(nodeId: number, targetNodeId: number): Promise<
 export async function removeTagLink(nodeId: number, targetId: number): Promise<void> {
   await api.delete(`${BASE}/${nodeId}/tag-links/${targetId}`);
 }
+
+// ============== Page View Tracking & Recents ==============
+
+/**
+ * Mark a page as opened/viewed (updates open_date)
+ */
+export async function markPageOpened(nodeId: number): Promise<{ status: string; open_date: string }> {
+  const response = await api.patch<{ status: string; open_date: string }>(`${BASE}/${nodeId}/open`);
+  return response.data;
+}
+
+/**
+ * Recent page info
+ */
+export interface RecentPage {
+  id: number;
+  uuid: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  parent_id: number | null;
+  page_id: number | null;
+  is_page: boolean;
+  is_type: boolean;
+  is_daily: boolean;
+  is_monthly: boolean;
+  is_yearly: boolean;
+  create_date: string;
+  write_date: string;
+  open_date: string;
+}
+
+/**
+ * Get recently opened pages, ordered by open_date DESC
+ */
+export async function getRecentPages(limit: number = 10): Promise<RecentPage[]> {
+  const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/recents`, { params: { limit } });
+  return response.data.nodes;
+}
+
+// ============== Favorites (DB-backed) ==============
+
+/**
+ * Get the list of favorite page IDs
+ */
+export async function getFavorites(): Promise<number[]> {
+  const response = await api.get<{ favorites: number[] }>(`${BASE}/favorites`);
+  return response.data.favorites;
+}
+
+/**
+ * Set the entire list of favorite page IDs
+ */
+export async function setFavorites(favorites: number[]): Promise<number[]> {
+  const response = await api.put<{ status: string; favorites: number[] }>(`${BASE}/favorites`, { favorites });
+  return response.data.favorites;
+}
+
+/**
+ * Add a page to favorites
+ */
+export async function addFavorite(nodeId: number): Promise<number[]> {
+  const response = await api.post<{ status: string; favorites: number[] }>(`${BASE}/favorites/${nodeId}`);
+  return response.data.favorites;
+}
+
+/**
+ * Remove a page from favorites
+ */
+export async function removeFavorite(nodeId: number): Promise<number[]> {
+  const response = await api.delete<{ status: string; favorites: number[] }>(`${BASE}/favorites/${nodeId}`);
+  return response.data.favorites;
+}
+
+/**
+ * Reorder favorites
+ */
+export async function reorderFavorites(fromIndex: number, toIndex: number): Promise<number[]> {
+  const response = await api.put<{ status: string; favorites: number[] }>(`${BASE}/favorites/reorder`, {
+    from_index: fromIndex,
+    to_index: toIndex,
+  });
+  return response.data.favorites;
+}

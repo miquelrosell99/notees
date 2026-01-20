@@ -11,6 +11,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useNodesStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync } from '@/hooks';
+import { markPageOpened } from '@/api/nodes';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -43,18 +44,31 @@ export function Layout() {
   } = useNodesStore();
   
   const { defaultView } = useSettingsStore();
-  const { addRecent } = useFavoritesStore();
   const hasAppliedDefaultView = useRef(false);
   
   // Fetch today's note for default view
   const { data: todayNote } = useTodayNote();
   
-  // Track recently viewed pages
+  // Load favorites and recents when component mounts
+  useEffect(() => {
+    useFavoritesStore.getState().loadFavorites();
+    useFavoritesStore.getState().loadRecents();
+  }, []);
+  
+  // Track page opens by calling the API and refreshing recents
   useEffect(() => {
     if (currentNodeId && currentNodeType === 'page' && mainViewType === 'node') {
-      addRecent(currentNodeId);
+      // Mark the page as opened in the database
+      markPageOpened(currentNodeId)
+        .then(() => {
+          // Refresh recents list after marking page opened
+          useFavoritesStore.getState().loadRecents();
+        })
+        .catch((error) => {
+          console.error('Failed to mark page as opened:', error);
+        });
     }
-  }, [currentNodeId, currentNodeType, mainViewType, addRecent]);
+  }, [currentNodeId, currentNodeType, mainViewType]);
   
   // Apply default view ONLY on initial load when URL is "/" (home)
   // This ensures URL-based navigation takes precedence

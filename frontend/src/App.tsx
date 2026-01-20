@@ -84,10 +84,13 @@ function AppContent() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isAuthenticated, toggleQuickAdd, toggleCalendar]);
   
-  // Sync favorites store with current database
+  // Refresh favorites and recents when database changes
   useEffect(() => {
     if (dbData?.active) {
-      useFavoritesStore.getState().setCurrentDatabase(dbData.active);
+      // Use getState() to call actions directly without needing them in deps
+      const store = useFavoritesStore.getState();
+      store.loadFavorites();
+      store.loadRecents();
     }
   }, [dbData?.active]);
   

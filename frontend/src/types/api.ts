@@ -35,6 +35,7 @@ export interface Node {
   usable_in?: 'pages' | 'blocks' | 'both'; // Where this type can be applied (only meaningful when is_type=true)
   create_date: string;
   write_date: string;
+  open_date?: string | null; // When the page was last opened/viewed
   
   // Computed fields
   display_name?: string | null;

@@ -18,7 +18,6 @@ export const DEFAULT_SYSTEM_PAGES = [
   'Archive',
   'Trash',
   'Templates',
-  'Favorites',
   'Quick Notes',
 ];
 

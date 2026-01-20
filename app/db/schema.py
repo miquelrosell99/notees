@@ -163,6 +163,8 @@ CREATE TABLE IF NOT EXISTS node (
     cover_image_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     -- Types Path: inherited type IDs from ancestors (JSON array, for queries not backlinks)
     types_path TEXT DEFAULT '[]',
+    -- Open date: timestamp when page was last opened/viewed (NULL by default, only set for pages when viewed)
+    open_date TEXT,
     create_date TEXT NOT NULL,
     write_date TEXT NOT NULL,
     create_uid INTEGER REFERENCES user(id),
@@ -176,6 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_node_name ON node(name);
 CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = 1;
 CREATE INDEX IF NOT EXISTS idx_node_is_type ON node(is_type) WHERE is_type = 1;
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = 1;
+CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
 
 -- Property table - defines property schemas
 -- name uniqueness: Global properties must have unique names
@@ -622,6 +625,16 @@ async def run_migrations(conn: aiosqlite.Connection) -> None:
                 (banner_property_id, asset_row['id'])
             )
         
+        await conn.commit()
+    
+    # Migration: Add open_date column to node table if it doesn't exist
+    cursor = await conn.execute("PRAGMA table_info(node)")
+    columns = await cursor.fetchall()
+    column_names = [col['name'] for col in columns]
+    
+    if 'open_date' not in column_names:
+        await conn.execute("ALTER TABLE node ADD COLUMN open_date TEXT")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL")
         await conn.commit()
 
 

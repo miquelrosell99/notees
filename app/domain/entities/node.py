@@ -74,6 +74,9 @@ class Node:
     # Type-specific fields (only meaningful when is_type = True)
     usable_in: str = "both"    # Where this type can be applied: 'pages', 'blocks', 'both'
     
+    # Open date - when the page was last opened/viewed (NULL by default)
+    open_date: Optional[str] = None
+    
     # Audit - stored as ISO strings
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)

@@ -213,11 +213,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
     currentNodeId,
   } = useNodesStore();
   
-  // Use individual selectors to ensure proper reactivity
+  // Use individual selectors for data to ensure proper reactivity
   const favorites = useFavoritesStore((state) => state.favorites);
   const recents = useFavoritesStore((state) => state.recents);
-  const removeFavorite = useFavoritesStore((state) => state.removeFavorite);
-  const reorderFavorites = useFavoritesStore((state) => state.reorderFavorites);
+  
+  // Use callbacks that access store via getState() for stability
+  const handleRemoveFavorite = useCallback((nodeId: number) => {
+    useFavoritesStore.getState().removeFavorite(nodeId);
+  }, []);
+  
+  const handleReorderFavorites = useCallback((fromIndex: number, toIndex: number) => {
+    useFavoritesStore.getState().reorderFavorites(fromIndex, toIndex);
+  }, []);
   
   // Handle drag start
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
@@ -235,11 +242,11 @@ export function Sidebar({ collapsed }: SidebarProps) {
   // Handle drag end
   const handleDragEnd = useCallback(() => {
     if (dragIndexRef.current !== null && dragOverIndex !== null && dragIndexRef.current !== dragOverIndex) {
-      reorderFavorites(dragIndexRef.current, dragOverIndex);
+      handleReorderFavorites(dragIndexRef.current, dragOverIndex);
     }
     dragIndexRef.current = null;
     setDragOverIndex(null);
-  }, [dragOverIndex, reorderFavorites]);
+  }, [dragOverIndex, handleReorderFavorites]);
   
   // Handle navigating to a page
   const handleNavigateToPage = useCallback((nodeId: number) => {
@@ -307,7 +314,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                       icon={null}
                       isActive={currentNodeId === fav.nodeId && mainViewType === 'node'}
                       onClick={() => handleNavigateToPage(fav.nodeId)}
-                      onRemove={() => removeFavorite(fav.nodeId)}
+                      onRemove={() => handleRemoveFavorite(fav.nodeId)}
                       onDragStart={handleDragStart}
                       onDragOver={handleDragOver}
                       onDragEnd={handleDragEnd}
