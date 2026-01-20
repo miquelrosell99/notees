@@ -1,27 +1,38 @@
 services:
-  notees:
+  # Backend API with hot reload
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: notees
+      dockerfile: Dockerfile.dev
+    container_name: notees-backend-dev
     ports:
-      - "${PORT:-5173}:5173"
+      - "${PORT:-8000}:8000"
     volumes:
-      # Persist data directory for SQLite databases (bind mount to local folder)
+      # Mount source code for hot reload
+      - ./app:/app/app:ro
+      # Persist data
       - ./data:/app/data
-      # Persist logs
       - ./logs:/app/logs
     env_file:
       - .env
     environment:
-      # Override defaults for production
-      - RELOAD=false
+      - RELOAD=true
       - HOST=0.0.0.0
-      - PORT=5173
+      - PORT=8000
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/status')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+
+  # Frontend with Vite dev server
+  frontend:
+    image: node:20-alpine
+    container_name: notees-frontend-dev
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Anonymous volume for node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
