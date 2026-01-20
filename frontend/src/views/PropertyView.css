@@ -1,0 +1,172 @@
+/**
+ * PropertyView Styles
+ * 
+ * Styling for the property detail view page.
+ */
+
+.property-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  padding: var(--spacing-4);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.property-view.loading,
+.property-view.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-skeleton {
+  font: var(--font-body-medium);
+}
+
+/* ==================== Header ====================  */
+
+.property-view-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  padding-bottom: var(--spacing-4);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.property-view-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.property-view-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.property-view-title {
+  margin: 0;
+  font: var(--font-headline-medium);
+  color: var(--color-on-surface);
+}
+
+.property-view-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.property-view-type {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-badge {
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  font: var(--font-label-small);
+  border-radius: var(--shape-extra-small);
+}
+
+.property-view-badge.system {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* ==================== Options ====================  */
+
+.property-view-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-medium);
+}
+
+.property-view-options-title {
+  margin: 0;
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.property-view-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+}
+
+.property-view-option-icon {
+  font-size: 0.9rem;
+}
+
+/* ==================== Nodes Section ====================  */
+
+.property-view-nodes {
+  flex: 1;
+}
+
+/* ==================== Value Display ====================  */
+
+.property-view-value-empty {
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+}
+
+.property-view-value-boolean {
+  font-weight: 600;
+}
+
+.property-view-value-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.property-view-value-date {
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-value-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-extra-small);
+}
+
+.property-view-value-icon {
+  font-size: 0.9rem;
+}
+
+.property-view-value-node {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--color-primary);
+}
+
+.property-view-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}

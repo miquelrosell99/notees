@@ -1,0 +1,88 @@
+/**
+ * Context Menu Styles
+ * 
+ * Uses Card component for base styling.
+ * These styles are for context menu-specific content.
+ */
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 180px;
+  max-width: 280px;
+  padding: var(--spacing-1, 4px);
+  animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.context-menu-title {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.context-menu-item:hover:not(.disabled) {
+  background: var(--bg-hover);
+}
+
+.context-menu-item.focused {
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.context-menu-item.active {
+  background: var(--color-primary-container, rgba(var(--color-primary-rgb), 0.1));
+}
+
+.context-menu-item.danger {
+  color: var(--color-danger);
+}
+
+.context-menu-item.danger:hover:not(.disabled) {
+  background: var(--color-danger-bg);
+}
+
+.context-menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.context-menu-icon-wrapper {
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.context-menu-icon {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.context-menu-label {
+  flex: 1;
+}
+
+.context-menu-shortcut {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-left: auto;
+}

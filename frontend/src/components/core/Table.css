@@ -1,0 +1,133 @@
+/**
+ * Table Component Styles
+ */
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm, 14px);
+}
+
+.table-caption {
+  padding: var(--spacing-2, 8px);
+  font-weight: 500;
+  text-align: left;
+  color: var(--text-secondary);
+}
+
+/* Size variants */
+.table--sm .table-cell {
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  font-size: var(--text-xs, 12px);
+}
+
+.table--md .table-cell {
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+}
+
+.table--lg .table-cell {
+  padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
+  font-size: var(--text-base, 16px);
+}
+
+/* Style variants */
+.table--striped .table-body .table-row:nth-child(even) {
+  background: var(--color-surface-variant, var(--bg-secondary));
+}
+
+.table--bordered .table-cell {
+  border: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+/* Header */
+.table-header {
+  background: var(--color-surface-variant, var(--bg-secondary));
+}
+
+.table-cell--header {
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.table-cell--sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.table-cell--sortable:hover {
+  background: var(--color-surface-hover, var(--bg-hover));
+}
+
+.table-header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+}
+
+.table-sort-icon {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Body */
+.table-body .table-row {
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.table--hoverable .table-body .table-row:hover {
+  background: var(--color-surface-hover, var(--bg-hover));
+}
+
+.table--selectable .table-body .table-row {
+  cursor: pointer;
+}
+
+.table-row--selected {
+  background: var(--color-primary-container, rgba(var(--color-primary-rgb), 0.1)) !important;
+}
+
+/* Alignment */
+.table-cell--left {
+  text-align: left;
+}
+
+.table-cell--center {
+  text-align: center;
+}
+
+.table-cell--right {
+  text-align: right;
+}
+
+/* Checkbox column */
+.table-cell--checkbox {
+  width: 40px;
+  text-align: center;
+}
+
+.table-cell--checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Loading & Empty states */
+.table-cell--loading,
+.table-cell--empty {
+  text-align: center;
+  padding: var(--spacing-6, 24px);
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .table-cell--hide-mobile {
+    display: none;
+  }
+}

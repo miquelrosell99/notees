@@ -1,0 +1,355 @@
+/**
+ * CoverImage Component Styles
+ * 
+ * Small card component aligned to the right of the page header.
+ * Fixed height with adaptive width to maintain image aspect ratio.
+ * 
+ * Supports collapsible behavior:
+ * - Expanded: Full card with image, collapse arrow, and action buttons
+ * - Collapsed: Just a small arrow strip that expands on click
+ */
+
+/* Cover image card container */
+.cover-image-card {
+  position: relative;
+  flex-shrink: 0;
+  height: 100px;
+  margin-left: 0;
+  margin-right: 0;
+  transition: width 0.25s ease, margin 0.25s ease, opacity 0.2s ease;
+}
+
+/* Expand hover area to include actions and image */
+.cover-image-card--expanded {
+  /* Use padding to extend hover area for actions on the left */
+  padding-left: 4px;
+  margin-left: -4px;
+  height: auto;
+  width: fit-content;  /* Shrink to image width */
+}
+
+.cover-image-card--expanded > .card {
+  /* Offset children to account for padding */
+  margin-left: 4px;
+}
+
+/* Expanded state */
+.cover-image-card--expanded {
+  animation: cover-expand 0.25s ease forwards;
+}
+
+@keyframes cover-expand {
+  from {
+    opacity: 0.7;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Collapsed state - just the arrow */
+.cover-image-card--collapsed {
+  width: 24px;
+  margin-left: var(--spacing-2);
+  margin-right: var(--spacing-2);
+}
+
+.cover-image-card--empty {
+  opacity: 0;
+  transition: opacity 0.2s;
+  /* Extend hover area to include collapse button to the left */
+  padding-left: var(--spacing-4);
+  margin-left: 0;
+}
+
+.page-header:hover .cover-image-card--empty,
+.cover-image-card--empty:hover {
+  opacity: 1;
+}
+
+/* Empty collapsed state - just a thin strip with expand arrow */
+.cover-image-card--empty-collapsed {
+  width: 24px;
+  height: 100px;
+  margin-left: var(--spacing-2);
+  margin-right: var(--spacing-2);
+  opacity: 0;
+  transition: opacity 0.15s, width 0.25s ease;
+}
+
+.page-header:hover .cover-image-card--empty-collapsed,
+.cover-image-card--empty-collapsed:hover,
+.cover-image-card--empty-collapsed:focus-within {
+  opacity: 1;
+}
+
+/* Collapse button for empty expanded state */
+.cover-image-card__collapse-btn--empty-expanded {
+  position: absolute;
+  top: 50%;
+  left: 0;  /* In the padding area */
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-image-card--empty:hover .cover-image-card__collapse-btn--empty-expanded,
+.cover-image-card__collapse-btn--empty-expanded:focus-visible {
+  opacity: 0.5;
+}
+
+.cover-image-card__collapse-btn--empty-expanded:hover {
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+.cover-image-card__collapse-btn--empty-expanded:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.cover-image-card__add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100px;
+  padding: var(--spacing-2);
+  background: transparent;
+  border: 2px dashed var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.cover-image-card__add-btn:hover,
+.cover-image-card__add-btn:focus-visible {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border-color: var(--color-outline);
+  outline: none;
+}
+
+/* Collapsed state arrow button - always visible */
+.cover-image-card__collapse-btn--collapsed {
+  position: relative;
+  top: 0;
+  right: 0;
+  width: 24px;
+  height: 100px;
+  border-radius: var(--radius-md);
+  opacity: 0.4;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.cover-image-card__collapse-btn--collapsed:hover {
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+/* Loading state */
+.cover-image-card--loading {
+  width: 100px;
+  height: 80px;
+}
+
+.cover-image-card__placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container) 0%,
+    var(--color-surface-container-high) 50%,
+    var(--color-surface-container) 100%
+  );
+  background-size: 200% 100%;
+  animation: cover-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes cover-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Image styling - adaptive width, fixed height */
+.cover-image-card__img {
+  height: 150px;
+  width: auto;
+  max-width: 400px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  display: block;
+  transition: opacity 0.2s ease;
+}
+
+/* Preview tooltip for collapsed state */
+.cover-image-card__preview-tooltip {
+  position: absolute;
+  right: calc(100% + var(--spacing-2));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  padding: var(--spacing-1);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elevation-3);
+  animation: preview-fade-in 0.15s ease forwards;
+}
+
+@keyframes preview-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+.cover-image-card__preview-img {
+  height: 60px;
+  width: auto;
+  max-width: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+
+
+/* Responsive: auto-collapse on small widths */
+@media (max-width: 600px) {
+  .cover-image-card--expanded {
+    /* On very small screens, reduce max width */
+    max-width: 120px;
+  }
+  
+  .cover-image-card__img {
+    max-width: 120px;
+  }
+}
+
+/* Legacy styles for backwards compatibility with CardsView */
+.cover-image {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-surface-container);
+}
+
+.cover-image--empty {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--color-outline-variant);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.page-view:hover .cover-image--empty,
+.cover-image--empty:hover {
+  opacity: 1;
+}
+
+.cover-image__add-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.cover-image__add-btn:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+/* Height variants (legacy) */
+.cover-image--small {
+  height: 120px;
+}
+
+.cover-image--medium {
+  height: 200px;
+}
+
+.cover-image--large {
+  height: 300px;
+}
+
+/* Loading state (legacy) */
+.cover-image--loading {
+  background: var(--color-surface-container);
+}
+
+.cover-image__placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container) 0%,
+    var(--color-surface-container-high) 50%,
+    var(--color-surface-container) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.cover-image__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-image__actions {
+  position: absolute;
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
+  display: flex;
+  gap: var(--spacing-1);
+  background: var(--color-surface);
+  padding: var(--spacing-1);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elevation-1);
+}
+
+/* Card variant (for CardsView) */
+.cards-view__card .cover-image {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  height: 100px;
+}
+
+.cards-view__card .cover-image--empty {
+  display: none;
+}

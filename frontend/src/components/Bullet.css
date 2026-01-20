@@ -1,0 +1,179 @@
+/**
+ * Bullet Component Styles
+ * 
+ * Reusable bullet/dot element for blocks and property values.
+ * Supports interactive and decorative modes.
+ */
+
+/* ==================== Bullet Wrapper ==================== */
+
+.bullet-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Expand hover area to include collapse arrow position */
+.bullet-has-children::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  width: 16px;
+  height: 100%;
+}
+
+/* Size variants */
+.bullet-xs {
+  width: 18px;
+  height: 18px;
+}
+
+.bullet-sm {
+  width: 22px;
+  height: 22px;
+}
+
+.bullet-md {
+  width: 24px;
+  height: 24px;
+}
+
+/* Interactive bullet (clickable/draggable) */
+.bullet-interactive {
+  cursor: pointer;
+}
+
+.bullet-interactive[draggable="true"] {
+  cursor: grab;
+}
+
+.bullet-interactive[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* ==================== Bullet Container ==================== */
+
+.bullet-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+/* ==================== Bullet Dot ==================== */
+
+.bullet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.bullet-hovered .bullet-dot {
+  opacity: 1;
+}
+
+/* Hover effect: slight size increase */
+.bullet-interactive:hover .bullet-dot {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* ==================== Bullet Icon ==================== */
+
+.bullet-icon {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.bullet-has-icon .bullet-container {
+  width: 16px;
+  height: 16px;
+}
+
+/* ==================== Outer Ring (Collapsed with Children or Hover) ==================== */
+
+.bullet-outer-ring {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--color-on-surface-variant);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Show ring when collapsed with children */
+.bullet-collapsed .bullet-outer-ring {
+  opacity: 0.15;
+}
+
+.bullet-collapsed.bullet-hovered .bullet-outer-ring {
+  opacity: 0.25;
+}
+
+/* Show ring on hover for interactive bullets */
+.bullet-interactive:hover .bullet-outer-ring {
+  opacity: 0.15;
+  transform: scale(1.1);
+}
+
+.bullet-interactive.bullet-collapsed:hover .bullet-outer-ring {
+  opacity: 0.25;
+}
+
+/* ==================== Collapse Arrow ==================== */
+
+.bullet-collapse-arrow {
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: 5;
+}
+
+.bullet-collapse-arrow:hover {
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+/* ==================== Dragging State ==================== */
+
+.bullet-dragging {
+  opacity: 0.5;
+}
+
+/* ==================== Focus State ==================== */
+
+.bullet-interactive:focus {
+  outline: none;
+}
+
+.bullet-interactive:focus-visible .bullet-container {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 50%;
+}

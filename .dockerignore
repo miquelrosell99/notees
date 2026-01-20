@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env.local
+.venv
+venv/
+ENV/
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+tests/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Frontend build artifacts (we build fresh in Docker)
+frontend/node_modules
+frontend/dist
+
+# App build artifacts
+app/static/dist
+
+# Logs and data (we mount these as volumes)
+logs/
+data/
+*.log
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.docker
+
+# Misc
+.DS_Store
+Thumbs.db
+*.bak

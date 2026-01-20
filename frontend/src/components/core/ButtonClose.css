@@ -1,0 +1,20 @@
+/**
+ * ButtonClose Component Styles
+ * 
+ * Specialized styles for the close button variant.
+ */
+
+.btn-close {
+  flex-shrink: 0;
+}
+
+/* Hover state enhancement for close buttons */
+.btn-close:hover:not(:disabled) {
+  color: var(--color-error);
+}
+
+/* Active state */
+.btn-close:active:not(:disabled) {
+  color: var(--color-error);
+  background: var(--color-error-container);
+}

@@ -1,0 +1,616 @@
+/**
+ * DatabaseManagementView styles
+ * 
+ * Fullscreen database management interface
+ * Uses design system CSS variables from variables.css
+ */
+
+.db-management {
+  position: fixed;
+  inset: 0;
+  background: var(--color-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.db-management__container {
+  width: 100%;
+  max-width: 800px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+}
+
+/* Header */
+.db-management__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--color-outline-variant);
+  margin-bottom: 2rem;
+}
+
+.db-management__header-content {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.db-management__logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.db-management__logo-icon {
+  font-size: 2rem;
+}
+
+.db-management__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.db-management__close {
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.db-management__close:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.db-management__user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.db-management__username {
+  color: var(--color-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+.db-management__logout {
+  background: none;
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.db-management__logout:hover {
+  background: var(--color-error-container);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+/* Main content */
+.db-management__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.db-management__welcome {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.db-management__welcome h2 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin: 0 0 0.5rem;
+}
+
+.db-management__subtitle {
+  color: var(--color-on-surface-variant);
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Action buttons */
+.db-management__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.db-management__action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.db-management__action-btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.db-management__action-btn--primary:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+}
+
+.db-management__action-btn--secondary {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.db-management__action-btn--secondary:hover {
+  background: var(--color-surface-container-high);
+  border-color: var(--color-outline);
+}
+
+.db-management__action-icon {
+  font-size: 1.25rem;
+}
+
+/* Loading state */
+.db-management__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: var(--color-on-surface-variant);
+}
+
+.db-management__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-outline-variant);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Database list */
+.db-management__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Database grid (cards layout) */
+.db-management__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Database card */
+.db-management__card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.db-management__card:hover {
+  border-color: var(--color-outline);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--color-shadow);
+}
+
+.db-management__card--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.db-management__card-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  gap: 0.75rem;
+}
+
+.db-management__card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.db-management__card-icon {
+  font-size: 2rem;
+}
+
+.db-management__card-badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.db-management__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.db-management__card-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.db-management__card-stats {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-on-surface-variant);
+}
+
+.db-management__card-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-outline-variant);
+  margin-top: 0.5rem;
+}
+
+.db-management__card-date {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.db-management__card-date-label {
+  color: var(--color-on-surface-variant);
+}
+
+.db-management__card-date-value {
+  color: var(--color-on-surface-variant);
+}
+
+.db-management__card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-variant);
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.db-management__card-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+  border-radius: 6px;
+}
+
+.db-management__card-action:hover {
+  opacity: 1;
+  background: var(--color-surface);
+}
+
+.db-management__card-action--danger:hover {
+  background: var(--color-error-container);
+}
+
+/* Form container */
+.db-management__form-container {
+  max-width: 500px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.db-management__back-btn {
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+  margin-bottom: 1.5rem;
+  transition: color 0.15s ease;
+}
+
+.db-management__back-btn:hover {
+  color: var(--color-on-surface);
+}
+
+.db-management__form-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin: 0 0 0.5rem;
+}
+
+.db-management__form-subtitle {
+  color: var(--color-on-surface-variant);
+  font-size: 0.95rem;
+  margin: 0 0 2rem;
+  line-height: 1.5;
+}
+
+.db-management__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.db-management__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.db-management__label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.db-management__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.db-management__input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  padding-right: 2.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  color: var(--color-on-surface);
+  font-size: 1rem;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.db-management__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-hover-overlay);
+}
+
+.db-management__input--valid {
+  border-color: var(--color-success);
+}
+
+.db-management__input--error {
+  border-color: var(--color-error);
+}
+
+.db-management__input-status {
+  position: absolute;
+  right: 1rem;
+  font-size: 1rem;
+}
+
+.db-management__input-status--valid {
+  color: var(--color-success);
+}
+
+.db-management__input-status--error {
+  color: var(--color-error);
+}
+
+.db-management__field-error {
+  font-size: 0.85rem;
+  color: var(--color-error);
+  margin: 0;
+}
+
+/* Dropzone */
+.db-management__dropzone {
+  border: 2px dashed var(--color-outline-variant);
+  border-radius: 10px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.db-management__dropzone:hover {
+  border-color: var(--color-primary);
+  background: var(--color-hover-overlay);
+}
+
+.db-management__dropzone--has-file {
+  border-style: solid;
+  border-color: var(--color-success);
+  background: var(--color-success-container);
+}
+
+.db-management__dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.db-management__dropzone-icon {
+  font-size: 2rem;
+}
+
+.db-management__dropzone-text {
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.db-management__dropzone-hint {
+  color: var(--color-on-surface-variant);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.db-management__file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.db-management__file-icon {
+  font-size: 1.5rem;
+}
+
+.db-management__file-name {
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+.db-management__file-size {
+  color: var(--color-on-surface-variant);
+  font-size: 0.9rem;
+}
+
+/* Error message */
+.db-management__error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  background: var(--color-error-container);
+  border: 1px solid var(--color-error);
+  border-radius: 8px;
+  color: var(--color-error);
+  font-size: 0.9rem;
+}
+
+/* Form actions */
+.db-management__form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.db-management__btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.db-management__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.db-management__btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.db-management__btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.db-management__btn--secondary {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.db-management__btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+}
+
+.db-management__btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-on-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Footer */
+.db-management__footer {
+  text-align: center;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-outline-variant);
+  margin-top: 2rem;
+}
+
+.db-management__footer p {
+  color: var(--color-on-surface-variant);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .db-management__container {
+    padding: 1rem;
+  }
+
+  .db-management__header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .db-management__actions {
+    flex-direction: column;
+  }
+
+  .db-management__action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

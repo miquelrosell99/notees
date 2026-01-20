@@ -1,0 +1,15 @@
+/**
+ * NodeToNodeLine Component Styles
+ */
+
+.node-to-node-line {
+  pointer-events: none;
+}
+
+.node-to-node-line--highlighted line {
+  filter: drop-shadow(0 0 2px var(--color-primary));
+}
+
+.node-to-node-line--dimmed {
+  opacity: 0.3;
+}

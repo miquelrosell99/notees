@@ -1,0 +1,44 @@
+/**
+ * Filtered Graph View styles
+ */
+
+.filtered-graph-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.filtered-graph-view--empty {
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-6);
+}
+
+.filtered-graph-view__empty {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.filtered-graph-view__title {
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.filtered-graph-view__canvas-container {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+.filtered-graph-view__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.filtered-graph-view__info {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  text-align: center;
+}

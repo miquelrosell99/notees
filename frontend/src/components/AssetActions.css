@@ -1,0 +1,50 @@
+/**
+ * AssetActions Component Styles
+ * 
+ * Floating action buttons for asset components.
+ */
+
+.asset-actions {
+  position: absolute;
+  z-index: 10;
+}
+
+.asset-actions__inner {
+  display: flex;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+}
+
+/* Compact variant with reduced spacing */
+.asset-actions--compact .asset-actions__inner {
+  gap: 2px;
+  padding: 2px;
+}
+
+/* Position variants */
+.asset-actions--bottom-right {
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
+}
+
+.asset-actions--bottom-center {
+  bottom: var(--spacing-2);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.asset-actions--top-right {
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+}
+
+.asset-actions--left {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 4px;
+}
+
+.asset-actions--left .asset-actions__inner {
+  flex-direction: column;
+}

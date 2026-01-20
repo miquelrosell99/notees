@@ -1,0 +1,486 @@
+/**
+ * NodeList Styles
+ * 
+ * Comprehensive styling for the multi-view NodeList component.
+ */
+
+/* ==================== Base ====================  */
+
+.node-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.node-list--loading,
+.node-list--empty {
+  opacity: 0.8;
+}
+
+/* ==================== Header ====================  */
+
+.node-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) 0;
+}
+
+.node-list-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.node-list-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.node-list-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-collapse-btn:hover {
+  background: var(--color-surface-container);
+}
+
+.node-list-collapse-btn:not(.collapsed) {
+  transform: rotate(90deg);
+}
+
+.node-list-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+.node-list-count {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.node-list-skeleton {
+  padding: var(--spacing-4);
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+}
+
+.node-list-empty-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-6);
+  color: var(--color-on-surface-variant);
+  text-align: center;
+}
+
+.node-list-empty-message p {
+  margin: 0;
+}
+
+/* ==================== Create Button ====================  */
+
+.node-list-create-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-create-btn:hover {
+  background: var(--color-surface-container);
+  color: var(--color-primary);
+}
+
+.node-list-create-btn-large {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  border: 1px solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-create-btn-large:hover {
+  background: var(--color-surface-container);
+  border-color: var(--color-outline);
+}
+
+/* ==================== View Toggle ====================  */
+
+.node-list-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+}
+
+.node-list-view-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-extra-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-view-toggle-btn:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.node-list-view-toggle-btn.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--elevation-1);
+}
+
+/* ==================== Content ====================  */
+
+.node-list-content {
+  min-height: 100px;
+}
+
+/* ==================== List View ====================  */
+
+.node-list-view-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.node-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-item:hover {
+  background: var(--color-surface-container);
+}
+
+.node-list-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Table View ====================  */
+
+.node-list-view-table {
+  overflow-x: auto;
+}
+
+.node-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--font-body-medium);
+}
+
+.node-list-table th {
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
+  white-space: nowrap;
+}
+
+.node-list-table th .node-list-th-icon {
+  margin-right: var(--spacing-1);
+}
+
+.node-list-table td {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-surface-container);
+}
+
+.node-list-row {
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-row:hover {
+  background: var(--color-surface-container);
+}
+
+.node-list-cell-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.node-list-cell-empty {
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+}
+
+.node-list-cell-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  pointer-events: none;
+}
+
+/* ==================== Kanban View ====================  */
+
+.node-list-view-kanban {
+  display: flex;
+  gap: var(--spacing-3);
+  overflow-x: auto;
+  padding: var(--spacing-2) 0;
+}
+
+.node-list-kanban-column {
+  flex: 0 0 250px;
+  min-height: 200px;
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-medium);
+  display: flex;
+  flex-direction: column;
+}
+
+.node-list-kanban-other {
+  opacity: 0.7;
+}
+
+.node-list-kanban-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.node-list-kanban-icon {
+  font-size: 1rem;
+}
+
+.node-list-kanban-label {
+  flex: 1;
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+}
+
+.node-list-kanban-count {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  padding: 2px 6px;
+  border-radius: var(--shape-extra-small);
+}
+
+.node-list-kanban-items {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  overflow-y: auto;
+}
+
+.node-list-kanban-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  text-align: left;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-kanban-card:hover {
+  border-color: var(--color-outline);
+  box-shadow: var(--elevation-1);
+}
+
+/* ==================== Calendar View ====================  */
+
+.node-list-view-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.node-list-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2);
+}
+
+.node-list-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-calendar-nav:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.node-list-calendar-month {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+}
+
+.node-list-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small) var(--shape-small) 0 0;
+}
+
+.node-list-calendar-weekday {
+  padding: var(--spacing-2);
+  text-align: center;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface);
+}
+
+.node-list-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--color-outline-variant);
+  border-radius: 0 0 var(--shape-small) var(--shape-small);
+  overflow: hidden;
+}
+
+.node-list-calendar-day {
+  min-height: 80px;
+  padding: var(--spacing-1);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.node-list-calendar-day.empty {
+  background: var(--color-surface-container-low);
+}
+
+.node-list-calendar-day.today {
+  background: var(--color-primary-container);
+}
+
+.node-list-calendar-day.has-items {
+  background: var(--color-surface-container-lowest);
+}
+
+.node-list-calendar-day-num {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  padding: 2px 4px;
+}
+
+.node-list-calendar-day.today .node-list-calendar-day-num {
+  color: var(--color-on-primary-container);
+  font-weight: 600;
+}
+
+.node-list-calendar-day-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.node-list-calendar-item {
+  padding: 2px 4px;
+  border: none;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font: var(--font-body-small);
+  text-align: left;
+  border-radius: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-calendar-item:hover {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.node-list-calendar-more {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  padding: 2px 4px;
+}

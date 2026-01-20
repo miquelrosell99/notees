@@ -1,0 +1,85 @@
+/**
+ * NodeActivityLog Styles
+ * Now uses NodeViewSection for the collapsible header
+ */
+
+.node-activity-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.node-activity-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.node-activity-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.node-activity-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.node-activity-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.node-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.node-activity-item:hover {
+  background: var(--bg-hover);
+}
+
+.node-activity-item .bullet-wrapper {
+  margin-top: 3px;
+}
+
+.node-activity-content {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.node-activity-icon {
+  font-size: 12px;
+}
+
+.node-activity-message {
+  font-size: 12px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.node-activity-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  margin-left: auto;
+}

@@ -1,0 +1,65 @@
+/**
+ * Badge Component Styles
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* Size variants */
+.badge--xs {
+  padding: 0 var(--spacing-1);
+  font-size: 0.625rem;
+  min-width: 14px;
+  height: 14px;
+}
+
+.badge--sm {
+  padding: 2px var(--spacing-2);
+  font-size: 0.75rem;
+  min-width: 18px;
+  height: 18px;
+}
+
+.badge--md {
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: 0.875rem;
+  min-width: 22px;
+  height: 22px;
+}
+
+/* Color variants */
+.badge--primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.badge--secondary {
+  background-color: var(--color-secondary);
+  color: var(--color-on-secondary);
+}
+
+.badge--success {
+  background-color: var(--color-success);
+  color: var(--color-on-success, white);
+}
+
+.badge--warning {
+  background-color: var(--color-warning);
+  color: var(--color-on-warning, black);
+}
+
+.badge--error {
+  background-color: var(--color-error);
+  color: var(--color-on-error);
+}
+
+.badge--neutral {
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+}

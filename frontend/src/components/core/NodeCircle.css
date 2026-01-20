@@ -1,0 +1,47 @@
+/**
+ * NodeCircle Component Styles
+ */
+
+.node-circle {
+  pointer-events: all;
+  transition: transform 0.1s ease;
+}
+
+.node-circle--hovered {
+  transform: scale(1.05);
+}
+
+.node-circle--dragging {
+  cursor: grabbing;
+}
+
+.node-circle__glare {
+  pointer-events: none;
+}
+
+.node-circle__body {
+  transition: r 0.1s ease;
+}
+
+.node-circle__pin-ring {
+  pointer-events: none;
+}
+
+.node-circle__label {
+  pointer-events: none;
+  font-family: system-ui, -apple-system, sans-serif;
+  user-select: none;
+}
+
+/* State-specific styles */
+.node-circle--bright .node-circle__body {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.node-circle--current .node-circle__body {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.node-circle--dim .node-circle__body {
+  opacity: 0.4;
+}

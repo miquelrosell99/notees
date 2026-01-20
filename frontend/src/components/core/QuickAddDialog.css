@@ -1,0 +1,303 @@
+
+/* Quick Add Dialog */
+.quick-add-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 300;
+}
+
+.quick-add-dialog {
+  background: var(--color-surface);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.quick-add-dialog--large {
+  max-width: 560px;
+}
+
+.quick-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.quick-add-type-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.quick-add-type-btn {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+}
+
+.quick-add-type-btn:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+}
+
+.quick-add-type-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.quick-add-type-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-add-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 4px;
+  font-size: 1rem;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.quick-add-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.quick-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.quick-add-hint {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-on-surface-variant);
+  margin-top: 0.5rem;
+}
+
+.quick-add-hint kbd {
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 3px;
+  padding: 0.125rem 0.25rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+/* Quick Add - Page Mode */
+.quick-add-page-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+/* Quick Add - Blocks Mode */
+.quick-add-blocks-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+/* Destination picker */
+.quick-add-destination {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  position: relative;
+}
+
+.quick-add-destination-label {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.quick-add-destination-picker {
+  flex: 1;
+  position: relative;
+}
+
+.quick-add-destination-input {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  font: var(--font-body-medium);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.quick-add-destination-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.quick-add-destination-selected {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.quick-add-destination-selected:hover {
+  background: var(--color-hover-overlay);
+}
+
+.quick-add-destination-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: var(--spacing-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  box-shadow: var(--elevation-4);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.quick-add-destination-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font: var(--font-body-medium);
+}
+
+.quick-add-destination-option:hover {
+  background: var(--color-hover-overlay);
+}
+
+.quick-add-destination-empty {
+  padding: var(--spacing-3);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.quick-add-destination-clear {
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  padding: var(--spacing-1);
+  font-size: 0.75rem;
+}
+
+.quick-add-destination-clear:hover {
+  color: var(--color-on-surface);
+}
+
+/* Blocks editor */
+.quick-add-blocks-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.quick-add-block-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.quick-add-block-bullet {
+  color: var(--color-on-surface-variant);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.quick-add-block-input {
+  flex: 1;
+  padding: var(--spacing-1);
+  border: none;
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  resize: none;
+  line-height: 1.6;
+  min-height: 24px;
+}
+
+.quick-add-block-input:focus {
+  outline: none;
+}
+
+.quick-add-block-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+.quick-add-add-block-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-small);
+}
+
+.quick-add-add-block-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.quick-add-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.quick-add-btn:hover {
+  background: var(--color-hover-overlay);
+}

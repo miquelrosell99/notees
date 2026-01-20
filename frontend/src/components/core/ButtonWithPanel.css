@@ -1,0 +1,219 @@
+/**
+ * ButtonWithPanel Component Styles
+ * 
+ * Floating panel that appears beside a button.
+ * Uses Panel component for base styling.
+ */
+
+/* ==================== Container ==================== */
+.btn-panel-container {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ==================== Panel Base ==================== */
+.btn-panel {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==================== Panel Positions ==================== */
+
+/* Right of button */
+.btn-panel--right {
+  left: calc(100% + var(--spacing-2));
+}
+
+.btn-panel--right.btn-panel--align-start {
+  top: 0;
+}
+
+.btn-panel--right.btn-panel--align-center {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.btn-panel--right.btn-panel--align-end {
+  bottom: 0;
+}
+
+/* Left of button */
+.btn-panel--left {
+  right: calc(100% + var(--spacing-2));
+}
+
+.btn-panel--left.btn-panel--align-start {
+  top: 0;
+}
+
+.btn-panel--left.btn-panel--align-center {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.btn-panel--left.btn-panel--align-end {
+  bottom: 0;
+}
+
+/* Below button */
+.btn-panel--bottom {
+  top: calc(100% + var(--spacing-2));
+}
+
+.btn-panel--bottom.btn-panel--align-start {
+  left: 0;
+}
+
+.btn-panel--bottom.btn-panel--align-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.btn-panel--bottom.btn-panel--align-end {
+  right: 0;
+}
+
+/* Above button */
+.btn-panel--top {
+  bottom: calc(100% + var(--spacing-2));
+}
+
+.btn-panel--top.btn-panel--align-start {
+  left: 0;
+}
+
+.btn-panel--top.btn-panel--align-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.btn-panel--top.btn-panel--align-end {
+  right: 0;
+}
+
+/* ==================== Panel Header ==================== */
+.btn-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  flex-shrink: 0;
+}
+
+.btn-panel__title {
+  margin: 0;
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+}
+
+.btn-panel__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.btn-panel__close:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+/* ==================== Panel Content ==================== */
+.btn-panel__content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Scrollbar styling */
+.btn-panel__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.btn-panel__content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.btn-panel__content::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: 3px;
+}
+
+.btn-panel__content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-outline);
+}
+
+/* ==================== Animation ==================== */
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.btn-panel {
+  animation: panel-fade-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Adjust transform origin based on position */
+.btn-panel--right {
+  transform-origin: left center;
+}
+
+.btn-panel--left {
+  transform-origin: right center;
+}
+
+.btn-panel--bottom {
+  transform-origin: top center;
+}
+
+.btn-panel--top {
+  transform-origin: bottom center;
+}
+
+/* Keep alignment transforms when animating */
+.btn-panel--right.btn-panel--align-center,
+.btn-panel--left.btn-panel--align-center {
+  animation: panel-fade-in-y var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.btn-panel--bottom.btn-panel--align-center,
+.btn-panel--top.btn-panel--align-center {
+  animation: panel-fade-in-x var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@keyframes panel-fade-in-y {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-fade-in-x {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

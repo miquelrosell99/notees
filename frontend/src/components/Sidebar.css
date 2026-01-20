@@ -1,0 +1,489 @@
+/**
+ * Sidebar Component Styles
+ */
+
+/* ==================== Sidebar Container ==================== */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  overflow: hidden;
+  flex-shrink: 0;
+  /* Let Card component provide floating appearance with border-radius and shadow */
+  /* Animation properties for smooth open/close */
+  transform-origin: left center;
+  transition: 
+    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, opacity, transform;
+}
+
+/* Expanded state (default) */
+.sidebar--expanded {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  /* Margin handled by gap in parent, but we need to account for it when collapsed */
+  margin-right: 0;
+}
+
+/* Collapsed state with smooth animation */
+.sidebar--collapsed {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(-16px);
+  pointer-events: none;
+  /* Hide content when collapsed to prevent overflow */
+  visibility: hidden;
+  /* Negative margin to compensate for parent gap */
+  margin-right: calc(-1 * var(--container-gap));
+  transition: 
+    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    margin-right var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s var(--motion-duration-medium);
+}
+
+/* When expanding, show visibility immediately */
+.sidebar--expanded {
+  visibility: visible;
+  transition: 
+    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    margin-right var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0s 0s;
+}
+
+/* ==================== Sidebar Header (Database Switcher Area) ==================== */
+.sidebar-header {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+/* ==================== Sidebar Content ==================== */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==================== Sidebar Navigation ==================== */
+.sidebar-nav {
+  padding: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* ==================== Navigation Items ==================== */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-nav-item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.sidebar-nav-item.active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.sidebar-nav-item svg,
+.sidebar-nav-item .nav-icon {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.sidebar-nav-item.active svg,
+.sidebar-nav-item.active .nav-icon {
+  color: var(--color-on-primary-container);
+}
+
+.sidebar-nav-item span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+}
+
+.sidebar-item-icon svg {
+  flex-shrink: 0;
+}
+
+/* Nav item with search button inline */
+.sidebar-nav-item-with-search {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.sidebar-nav-item-with-search .sidebar-nav-item {
+  flex: 1;
+}
+
+.sidebar-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-search-btn:hover {
+  background: var(--color-hover-overlay);
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+/* ==================== Sidebar Sections ==================== */
+.sidebar-section {
+  margin-top: var(--spacing-2);
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-section-header:hover {
+  color: var(--color-on-surface);
+}
+
+.sidebar-section-header svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.sidebar-section-title {
+  font: var(--font-label-small);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: inherit;
+  margin: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar-empty-message {
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+/* ==================== Favorites List ==================== */
+.sidebar-favorites-list {
+  padding-top: 0;
+}
+
+.sidebar-favorite-item {
+  cursor: grab;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-favorite-item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.sidebar-favorite-item.active {
+  background: var(--color-primary-container);
+}
+
+.sidebar-favorite-item:active {
+  cursor: grabbing;
+}
+
+.sidebar-favorite-item.drag-over {
+  background: var(--color-primary-container);
+  opacity: 0.5;
+}
+
+/* Shared styles for favorites/recents items using Block */
+.sidebar-favorite-item .block,
+.sidebar-recent-item .block {
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar-favorite-item .block-row,
+.sidebar-recent-item .block-row {
+  padding: var(--spacing-2) var(--spacing-3);
+  gap: var(--spacing-2);
+}
+
+.sidebar-favorite-item .block-content,
+.sidebar-recent-item .block-content {
+  pointer-events: none;
+}
+
+.sidebar-favorite-item .block-content-view,
+.sidebar-recent-item .block-content-view {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+/* ==================== Recents List ==================== */
+.sidebar-recents-list {
+  padding-top: 0;
+}
+
+.sidebar-recent-item {
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-recent-item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.sidebar-recent-item.active {
+  background: var(--color-primary-container);
+}
+
+.sidebar-recent-item .block-content-view {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+.sidebar-recent-item.active .block-content-view {
+  color: var(--color-on-primary-container);
+}
+
+/* ==================== Context Menu ==================== */
+/* Uses Panel component for base styling */
+.sidebar-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+}
+
+.sidebar-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-context-menu-item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.sidebar-context-menu-item svg {
+  color: var(--color-on-surface-variant);
+}
+
+/* ==================== Page List ==================== */
+.page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.page-item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.page-item.active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.page-bullet {
+  color: var(--color-outline);
+  font-size: 0.75rem;
+}
+
+.page-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.page-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Sidebar Footer ==================== */
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border-top: 1px solid var(--color-outline-variant);
+  margin-top: auto;
+}
+
+.new-page-btn {
+  width: 100%;
+}
+
+.sidebar-settings-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-settings-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+/* ==================== Sidebar States ==================== */
+.sidebar-loading,
+.sidebar-error {
+  padding: var(--spacing-4);
+  text-align: center;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+/* ==================== Sidebar Graph ==================== */
+.sidebar-graph {
+  flex: 1;
+  padding: var(--spacing-2);
+  overflow: hidden;
+}
+
+.sidebar-graph .graph-view {
+  height: 100%;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+}
+
+/* ==================== Sidebar Minimap Section ==================== */
+.sidebar-minimap-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  max-height: 250px;
+  overflow: hidden;
+}
+
+.sidebar-minimap-section .mini-graph-container {
+  flex: 1;
+  margin: 0 var(--spacing-2) var(--spacing-2);
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+/* ==================== Sidebar Collapsed Icons ==================== */
+.sidebar-collapsed-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+}
+
+.sidebar-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font-size: 1.25rem;
+  color: var(--color-on-surface-variant);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-icon-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}

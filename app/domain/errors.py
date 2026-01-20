@@ -1,0 +1,169 @@
+"""Domain-specific errors.
+
+These exceptions represent domain-level error conditions,
+independent of how they're presented to users (HTTP status codes, etc.)
+"""
+
+
+class DomainError(Exception):
+    """Base class for all domain errors."""
+    
+    def __init__(self, message: str, code: str = "DOMAIN_ERROR"):
+        self.message = message
+        self.code = code
+        super().__init__(message)
+
+
+# ==================== Node Errors ====================
+
+class NodeError(DomainError):
+    """Base class for node-related errors."""
+    pass
+
+
+class NodeNotFoundError(NodeError):
+    """Raised when a node cannot be found."""
+    
+    def __init__(self, node_id: str):
+        self.node_id = node_id
+        super().__init__(
+            message=f"Node not found: {node_id}",
+            code="NODE_NOT_FOUND"
+        )
+
+
+class DuplicateNodeError(NodeError):
+    """Raised when attempting to create a duplicate node."""
+    
+    def __init__(self, title: str):
+        self.title = title
+        super().__init__(
+            message=f"A page with this title already exists: {title}",
+            code="DUPLICATE_NODE"
+        )
+
+
+class InvalidNodeHierarchyError(NodeError):
+    """Raised when a node hierarchy operation is invalid."""
+    
+    def __init__(self, message: str):
+        super().__init__(message=message, code="INVALID_HIERARCHY")
+
+
+class NodeValidationError(NodeError):
+    """Raised when node data fails validation."""
+    
+    def __init__(self, message: str, field: str = None):
+        self.field = field
+        super().__init__(message=message, code="NODE_VALIDATION_ERROR")
+
+
+class CircularReferenceError(NodeError):
+    """Raised when a circular reference would be created."""
+    
+    def __init__(self, node_id: str, parent_id: str):
+        self.node_id = node_id
+        self.parent_id = parent_id
+        super().__init__(
+            message=f"Cannot set {parent_id} as parent of {node_id}: would create circular reference",
+            code="CIRCULAR_REFERENCE"
+        )
+
+
+# ==================== User Errors ====================
+
+class UserError(DomainError):
+    """Base class for user-related errors."""
+    pass
+
+
+class UserNotFoundError(UserError):
+    """Raised when a user cannot be found."""
+    
+    def __init__(self, identifier: str):
+        self.identifier = identifier
+        super().__init__(
+            message=f"User not found: {identifier}",
+            code="USER_NOT_FOUND"
+        )
+
+
+class DuplicateUsernameError(UserError):
+    """Raised when attempting to create a user with an existing username."""
+    
+    def __init__(self, username: str):
+        self.username = username
+        super().__init__(
+            message=f"Username already exists: {username}",
+            code="DUPLICATE_USERNAME"
+        )
+
+
+class InvalidCredentialsError(UserError):
+    """Raised when authentication fails."""
+    
+    def __init__(self):
+        super().__init__(
+            message="Invalid username or password",
+            code="INVALID_CREDENTIALS"
+        )
+
+
+class InactiveUserError(UserError):
+    """Raised when an inactive user attempts to authenticate."""
+    
+    def __init__(self, username: str):
+        self.username = username
+        super().__init__(
+            message=f"User account is inactive: {username}",
+            code="INACTIVE_USER"
+        )
+
+
+# ==================== Database/Workspace Errors ====================
+
+class DatabaseError(DomainError):
+    """Base class for database/workspace errors."""
+    pass
+
+
+class DatabaseNotFoundError(DatabaseError):
+    """Raised when a database cannot be found."""
+    
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(
+            message=f"Database not found: {name}",
+            code="DATABASE_NOT_FOUND"
+        )
+
+
+class DuplicateDatabaseError(DatabaseError):
+    """Raised when attempting to create a duplicate database."""
+    
+    def __init__(self, name: str):
+        self.name = name
+        super().__init__(
+            message=f"Database already exists: {name}",
+            code="DUPLICATE_DATABASE"
+        )
+
+
+# ==================== Sync Errors ====================
+
+class SyncError(DomainError):
+    """Base class for sync-related errors."""
+    pass
+
+
+class SyncConflictError(SyncError):
+    """Raised when a sync conflict is detected."""
+    
+    def __init__(self, node_id: str, local_version: int, remote_version: int):
+        self.node_id = node_id
+        self.local_version = local_version
+        self.remote_version = remote_version
+        super().__init__(
+            message=f"Sync conflict for node {node_id}: local v{local_version} vs remote v{remote_version}",
+            code="SYNC_CONFLICT"
+        )

@@ -1,0 +1,97 @@
+/**
+ * NodeContent styles
+ */
+
+.node-content {
+  min-height: 200px;
+  position: relative;
+}
+
+/* Separator line for all content sections (bullet, document, card modes) */
+.node-content-children,
+.node-content-cards,
+.card-layout-selector {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+/* Cards section inherits separator from card-layout-selector, so remove duplicate */
+.node-content-cards {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Document mode - paragraphs without bullets, but keep separator line */
+.node-content.document .node-content-children,
+.node-content-children.document-mode {
+  /* Keep border-top separator line in all view modes */
+}
+
+.node-content-children.document-mode .block {
+  padding-left: 0;
+}
+
+/* Hide bullets in document mode */
+.node-content-children.document-mode .bullet-wrapper {
+  display: none;
+}
+
+/* Flat hierarchy in document mode - no indentation for nested blocks */
+.node-content-children.document-mode .children-container {
+  margin-left: 0;
+}
+
+.node-content-children.document-mode .nested-blocks {
+  margin-left: 0;
+}
+
+.node-content-children.document-mode .children-collapse-line {
+  display: none;
+}
+
+/* Deprecated class - kept for backwards compatibility */
+.node-content-children.document-mode .block-bullet {
+  display: none;
+}
+
+.node-content-empty {
+  padding: var(--spacing-4) 0;
+}
+
+.node-content-add {
+  padding: var(--spacing-2) 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.node-content:hover .node-content-add {
+  opacity: 1;
+}
+
+.add-block-btn {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  font: var(--font-body-medium);
+  transition: all 0.15s ease;
+}
+
+.add-block-btn:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.node-content-filter-indicator {
+  padding: var(--spacing-4);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+  margin: var(--spacing-4) 0;
+}

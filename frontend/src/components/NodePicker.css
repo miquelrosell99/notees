@@ -1,0 +1,254 @@
+/**
+ * NodePicker Styles
+ * 
+ * Streamlined, compact node selection UI
+ */
+
+/* ==================== Base Container ==================== */
+
+.node-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.node-picker--readonly {
+  pointer-events: none;
+}
+
+/* ==================== Selected Nodes Display ==================== */
+
+.node-picker__selected,
+.node-picker__selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+/* ==================== Chips (Selected Items) ==================== */
+
+.node-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  max-width: 180px;
+}
+
+.node-picker__chip--readonly {
+  cursor: pointer;
+  border: none;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-picker__chip--readonly:hover {
+  background: var(--color-surface-container-high);
+}
+
+.node-picker__chip-name {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-picker__chip-name:hover {
+  text-decoration: underline;
+}
+
+.node-picker__chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-extra-small);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-picker__chip-remove:hover {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+/* ==================== Trigger Button ==================== */
+
+.node-picker__trigger {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-1);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-picker__trigger:hover {
+  background: var(--color-surface-container);
+}
+
+.node-picker__placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
+}
+
+.node-picker__add-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  border-radius: var(--shape-extra-small);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-picker__add-more:hover {
+  background: var(--color-surface-container);
+  color: var(--color-primary);
+}
+
+/* ==================== Dropdown ==================== */
+
+.node-picker__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 240px;
+  max-width: 320px;
+  margin-top: var(--spacing-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-2);
+  z-index: 100;
+  overflow: hidden;
+}
+
+/* ==================== Search Input ==================== */
+
+.node-picker__search {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+}
+
+.node-picker__search:focus {
+  outline: none;
+}
+
+.node-picker__search::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+/* ==================== List ==================== */
+
+.node-picker__list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--spacing-1) 0;
+}
+
+.node-picker__loading,
+.node-picker__empty {
+  padding: var(--spacing-3);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+}
+
+/* ==================== List Items ==================== */
+
+.node-picker__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-picker__item:hover,
+.node-picker__item--highlighted {
+  background: var(--color-surface-container);
+}
+
+.node-picker__item--selected {
+  color: var(--color-primary);
+}
+
+.node-picker__item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.node-picker__item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-picker__item-check {
+  display: flex;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.node-picker__item--create {
+  color: var(--color-primary);
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+/* ==================== Footer ==================== */
+
+.node-picker__footer {
+  padding: var(--spacing-1) var(--spacing-3);
+  border-top: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container-lowest);
+}
+
+.node-picker__hint {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}

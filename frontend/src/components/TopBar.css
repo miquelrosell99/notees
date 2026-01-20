@@ -1,0 +1,151 @@
+/**
+ * TopBar Component Styles
+ */
+
+/* ==================== Top Bar Card Container ==================== */
+.top-bar-card {
+  background: transparent !important;
+}
+
+/* ==================== Top Bar Container ==================== */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-4);
+  background: transparent;
+  min-height: var(--topbar-height);
+  flex-shrink: 0;
+}
+
+/* ==================== Top Bar Left Section ==================== */
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.app-title {
+  font: var(--font-title-large);
+  color: var(--color-on-background);
+  margin: 0;
+}
+
+/* ==================== Top Bar Center Section ==================== */
+.top-bar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 500px;
+  margin: 0 var(--spacing-4);
+}
+
+/* ==================== Top Bar Right Section ==================== */
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* ==================== Calendar Container & Button ==================== */
+.top-bar-calendar-container {
+  position: relative;
+}
+
+.calendar-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  background: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.calendar-btn:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline);
+}
+
+/* ==================== Local Graph Button ==================== */
+.local-graph-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.local-graph-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-primary);
+}
+
+.local-graph-btn.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.local-graph-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ==================== Quick Add Button ==================== */
+.quick-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  font-size: 1.25rem;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.quick-add-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+/* ==================== Toolbar Buttons ==================== */
+/* Additional toolbar button styles work with Button component */
+.toolbar-btn.btn--active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* Today button - text button style */
+.toolbar-btn.today-btn {
+  width: auto;
+  padding: 0 var(--spacing-2);
+}
+
+/* ==================== Node View Controls ==================== */
+.top-bar-node-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* ==================== Toolbar Separator ==================== */
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--color-outline-variant);
+  margin: 0 var(--spacing-1);
+}
