@@ -297,9 +297,11 @@ export function SuggestionPopup({
         ) : (
           <>
             {/* Pages Section */}
-            {type === 'link' && pageResults.length > 0 && (
+            {type === 'link' && (pageResults.length > 0 || showCreateOption) && (
               <div className="suggestion-popup__section">
-                <div className="suggestion-popup__section-header">Pages</div>
+                {pageResults.length > 0 && (
+                  <div className="suggestion-popup__section-header">Pages</div>
+                )}
                 {pageResults.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
                   return (
