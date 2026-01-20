@@ -17,7 +17,7 @@ services:
       - .env
     environment:
       - RELOAD=true
-      - HOST=0.0.0.0
+      - HOST=localhost
       - PORT=8000
     restart: unless-stopped
 
