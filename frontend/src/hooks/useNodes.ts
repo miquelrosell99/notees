@@ -31,6 +31,7 @@ export const nodeKeys = {
   search: (query: string) => [...nodeKeys.all, 'search', query] as const,
   pages: () => [...nodeKeys.all, 'pages'] as const,
   tags: () => [...nodeKeys.all, 'tags'] as const,
+  types: () => [...nodeKeys.all, 'types'] as const,
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
 };
@@ -289,7 +290,7 @@ export function useTags() {
  */
 export function useTypes() {
   return useQuery({
-    queryKey: [...nodeKeys.all, 'types'] as const,
+    queryKey: nodeKeys.types(),
     queryFn: () => nodesApi.listTypes(),
   });
 }
@@ -299,7 +300,7 @@ export function useTypes() {
  */
 export function useSearchTypes(query: string) {
   return useQuery({
-    queryKey: [...nodeKeys.all, 'types', 'search', query] as const,
+    queryKey: [...nodeKeys.types(), 'search', query] as const,
     queryFn: () => nodesApi.searchTypes(query),
     enabled: query.length > 0,
   });
@@ -495,6 +496,9 @@ export function useUpdateNode() {
       );
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      // Also invalidate types since the updated node might be used as a type
+      // and its icon/name could have changed
+      queryClient.invalidateQueries({ queryKey: nodeKeys.types() });
     },
   });
 }
