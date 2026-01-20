@@ -17,7 +17,7 @@ services:
       # Override defaults for production
       - RELOAD=false
       - HOST=0.0.0.0
-      - PORT=8000
+      - PORT=5173
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/status')"]
