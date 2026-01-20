@@ -10,6 +10,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useSearch, usePages, useNodes } from '@/hooks';
 import type { Node, Property } from '@/types/api';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from './icons';
+import { Button } from './core/Button';
 import './NodePicker.css';
 
 interface NodePickerProps {
@@ -263,24 +264,30 @@ export function NodePicker({
             ) : (
               <BulletIcon size="xs" />
             )}
-            <button 
+            <Button 
+              variant="ghost"
+              size="xs"
               className="node-picker__chip-name"
               onClick={() => onNavigate?.(node.id)}
             >
               {node.name}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
               className="node-picker__chip-remove"
               onClick={() => handleRemove(node.id)}
               aria-label={`Remove ${node.name}`}
             >
               ×
-            </button>
+            </Button>
           </span>
         ))}
         
         {/* Input trigger */}
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           className="node-picker__trigger"
           onClick={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
@@ -291,7 +298,7 @@ export function NodePicker({
           {multi && selectedNodes.length > 0 && (
             <span className="node-picker__add-more">+</span>
           )}
-        </button>
+        </Button>
       </div>
       
       {/* Dropdown */}

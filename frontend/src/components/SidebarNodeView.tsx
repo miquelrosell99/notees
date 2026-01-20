@@ -17,6 +17,7 @@ import { BlockEditor } from './BlockEditor';
 import { Block } from './Block';
 import { LinkedReferences } from './Backlinks';
 import { NodeIcon } from './icons';
+import { Button } from './core/Button';
 import './SidebarNodeView.css';
 
 interface SidebarNodeViewProps {
@@ -161,13 +162,15 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
               placeholder="Untitled"
             />
           </div>
-          <button 
+          <Button 
             className="sidebar-node-view__expand-btn"
+            variant="ghost"
+            size="sm"
             onClick={handleOpenFull}
             title="Open in main view"
           >
             ↗
-          </button>
+          </Button>
         </header>
       ) : (
         /* Block Header - editable block style */
@@ -176,13 +179,15 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
             <span className="sidebar-node-view__bullet">•</span>
             <span className="sidebar-node-view__label">Block</span>
           </div>
-          <button 
+          <Button 
             className="sidebar-node-view__expand-btn"
+            variant="ghost"
+            size="sm"
             onClick={handleOpenFull}
             title="Open in focused view"
           >
             ↗
-          </button>
+          </Button>
         </header>
       )}
 
@@ -261,12 +266,14 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
           {new Date(node.write_date).toLocaleDateString()}
         </span>
         {nodeType === 'block' && node.page_id && (
-          <button 
+          <Button 
             className="sidebar-node-view__page-link"
+            variant="ghost"
+            size="sm"
             onClick={() => { openNode(node.page_id!, 'page'); closeSidebarNode(); }}
           >
             View page
-          </button>
+          </Button>
         )}
       </footer>
     </div>

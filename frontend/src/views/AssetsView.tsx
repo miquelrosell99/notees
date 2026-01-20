@@ -12,6 +12,7 @@ import { AssetUploadModal } from '../components/AssetUploadModal';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import { AttachmentIcon, DeleteIcon } from '../components/icons';
 import { ButtonAdd } from '../components/core/ButtonAdd';
+import { Button } from '../components/core/Button';
 import { getLogger } from '../utils/logger';
 import './AssetsView.css';
 
@@ -97,8 +98,11 @@ export function AssetsView() {
         
         <div className="assets-view__actions">
           <div className="assets-view__view-toggle">
-            <button
-              className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+            <Button
+              className="view-toggle-btn"
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              active={viewMode === 'grid'}
               onClick={() => setViewMode('grid')}
               title="Grid view"
             >
@@ -108,9 +112,12 @@ export function AssetsView() {
                 <rect x="3" y="14" width="7" height="7" rx="1"/>
                 <rect x="14" y="14" width="7" height="7" rx="1"/>
               </svg>
-            </button>
-            <button
-              className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+            </Button>
+            <Button
+              className="view-toggle-btn"
+              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              active={viewMode === 'table'}
               onClick={() => setViewMode('table')}
               title="Table view"
             >
@@ -119,7 +126,7 @@ export function AssetsView() {
                 <rect x="3" y="10" width="18" height="3" rx="1"/>
                 <rect x="3" y="16" width="18" height="3" rx="1"/>
               </svg>
-            </button>
+            </Button>
           </div>
           
           <ButtonAdd 
@@ -168,14 +175,16 @@ export function AssetsView() {
                 <span className="asset-card__size">{formatSize(asset.size_bytes)}</span>
               </div>
               <div className="asset-card__actions">
-                <button
+                <Button
                   className="asset-card__delete"
+                  variant="danger"
+                  size="xs"
                   onClick={(e) => { e.stopPropagation(); handleDeleteClick(asset); }}
                   disabled={deletingId === asset.uuid}
                   title="Delete"
                 >
                   <DeleteIcon size="sm" />
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -215,14 +224,16 @@ export function AssetsView() {
                   </td>
                   <td className="table-size">{formatSize(asset.size_bytes)}</td>
                   <td className="table-actions">
-                    <button
+                    <Button
                       className="table-action-btn table-action-btn--delete"
+                      variant="danger"
+                      size="xs"
                       onClick={(e) => { e.stopPropagation(); handleDeleteClick(asset); }}
                       disabled={deletingId === asset.uuid}
                       title="Delete"
                     >
                       <DeleteIcon size="sm" />
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}

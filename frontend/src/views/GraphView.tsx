@@ -1522,8 +1522,9 @@ export function GraphView({
                   )
                   .slice(0, 5)
                   .map((t: Node) => (
-                    <button
+                    <Button
                       key={t.id}
+                      variant="ghost"
                       className="type-search-result"
                       onClick={() => {
                         setTypeColors(prev => [...prev, {
@@ -1536,7 +1537,7 @@ export function GraphView({
                       }}
                     >
                       {t.name || 'Untitled'}
-                    </button>
+                    </Button>
                   ))}
                 {types?.filter((t: Node) => 
                   t.name?.toLowerCase().includes(typeColorSearch.toLowerCase()) &&
@@ -1634,14 +1635,15 @@ export function GraphView({
             {searchOpen && searchResults.length > 0 && (
               <div className="graph-search-results">
                 {searchResults.map((page: Node) => (
-                  <button
+                  <Button
                     key={page.id}
+                    variant="ghost"
                     className="graph-search-result"
                     onClick={() => addToSelection(page)}
                   >
                     {page.icon && <span className="result-icon">{page.icon}</span>}
                     <span className="result-name">{page.name || 'Untitled'}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}

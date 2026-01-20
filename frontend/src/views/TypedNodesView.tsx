@@ -12,6 +12,7 @@ import type { Node } from '@/types';
 import { NodeSet, type NodeSetItem } from '../components/NodeSet';
 import { NodeViewSection } from '../components/NodeViewSection';
 import { ButtonAdd } from '../components/core/ButtonAdd';
+import { Button } from '../components/core/Button';
 import { TableIcon } from '../components/icons';
 
 // Types that can only be applied to pages, not blocks
@@ -163,19 +164,21 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
               className="typed-node-name-input"
             />
             <div className="typed-node-create-actions">
-              <button 
-                className="btn btn-primary btn-sm"
+              <Button 
+                variant="primary"
+                size="sm"
                 onClick={handleCreateNode}
                 disabled={!newNodeName.trim() || createNode.isPending || createPage.isPending}
               >
                 Create
-              </button>
-              <button 
-                className="btn btn-secondary btn-sm"
+              </Button>
+              <Button 
+                variant="ghost"
+                size="sm"
                 onClick={() => { setNewNodeName(''); setIsCreating(false); }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mdiClose, mdiTrashCanOutline, mdiPin, mdiPinOff } from '@mdi/js';
 import Icon from '@mdi/react';
+import { Button } from './core/Button';
 import './Scratchpad.css';
 
 interface ScratchpadProps {
@@ -181,24 +182,29 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
         <span className="scratchpad-title">📝 Scratchpad</span>
         <span className="scratchpad-date">{getTodayDateString()}</span>
         <div className="scratchpad-actions">
-          <button
+          <Button
             className={`scratchpad-btn ${isPinned ? 'active' : ''}`}
+            variant="ghost"
+            size="xs"
+            active={isPinned}
             onClick={handleTogglePin}
             title={isPinned ? 'Unpin' : 'Pin'}
           >
             <Icon path={isPinned ? mdiPin : mdiPinOff} size={0.7} />
-          </button>
-          <button
+          </Button>
+          <Button
             className="scratchpad-btn"
+            variant="ghost"
+            size="xs"
             onClick={handleClearAll}
             title="Clear all"
             disabled={entries.length === 0}
           >
             <Icon path={mdiTrashCanOutline} size={0.7} />
-          </button>
-          <button className="scratchpad-btn" onClick={onClose} title="Close">
+          </Button>
+          <Button className="scratchpad-btn" variant="ghost" size="xs" onClick={onClose} title="Close">
             <Icon path={mdiClose} size={0.7} />
-          </button>
+          </Button>
         </div>
       </div>
       
@@ -212,13 +218,15 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
             <div key={entry.id} className="scratchpad-entry">
               <span className="scratchpad-entry-time">{entry.timestamp}</span>
               <span className="scratchpad-entry-content">{entry.content}</span>
-              <button
+              <Button
                 className="scratchpad-entry-delete"
+                variant="ghost"
+                size="xs"
                 onClick={() => handleDeleteEntry(entry.id)}
                 title="Delete"
               >
                 <Icon path={mdiClose} size={0.5} />
-              </button>
+              </Button>
             </div>
           ))
         )}

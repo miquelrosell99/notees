@@ -11,6 +11,7 @@ import { getNodesWithProperty } from '@/api/properties';
 import { useNodesStore } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon } from '../components/icons';
+import { Button } from '../components/core/Button';
 import { CardsView } from './CardsView';
 import { CalendarView } from './CalendarView';
 import { ChartView } from './ChartView';
@@ -99,13 +100,16 @@ function ViewModeSelector({
   return (
     <div className="property-nodes-view__mode-selector">
       {modes.map((m) => (
-        <button
+        <Button
           key={m.value}
-          className={`property-nodes-view__mode-btn ${mode === m.value ? 'property-nodes-view__mode-btn--active' : ''}`}
+          className="property-nodes-view__mode-btn"
+          variant={mode === m.value ? 'default' : 'ghost'}
+          size="sm"
+          active={mode === m.value}
           onClick={() => onChange(m.value)}
         >
           {m.label}
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -139,9 +143,11 @@ function PropertyNodesList({
         const isPage = node.is_page;
         
         return (
-          <button
+          <Button
             key={node.id}
             className="property-nodes-view__item"
+            variant="ghost"
+            size="sm"
             onClick={() => handleClick(node)}
           >
             <span className="property-nodes-view__item-icon">
@@ -168,7 +174,7 @@ function PropertyNodesList({
                 formatPropertyValue(propertyValue, property.type)
               )}
             </span>
-          </button>
+          </Button>
         );
       })}
     </div>

@@ -29,6 +29,7 @@ import {
 } from '../components/icons';
 import Icon from '@mdi/react';
 import { mdiExport } from '@mdi/js';
+import { Button } from '../components/core/Button';
 import './DatabaseManagementView.css';
 
 type ImportType = 'sqlite' | 'zip';
@@ -251,16 +252,16 @@ export function DatabaseManagementView({
               <h1 className="db-management__title">Notees</h1>
             </div>
             {showClose && onClose && (
-              <button className="db-management__close" onClick={onClose}>
+              <Button className="db-management__close" variant="ghost" size="sm" onClick={onClose}>
                 ← Back to app
-              </button>
+              </Button>
             )}
           </div>
           <div className="db-management__user-info">
             <span className="db-management__username">{user?.username}</span>
-            <button className="db-management__logout" onClick={logout}>
+            <Button className="db-management__logout" variant="ghost" size="sm" onClick={logout}>
               Logout
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -283,18 +284,22 @@ export function DatabaseManagementView({
 
           {/* Action buttons */}
           <div className="db-management__actions">
-            <button 
-              className="db-management__action-btn db-management__action-btn--primary"
+            <Button 
+              className="db-management__action-btn"
+              variant="primary"
+              size="md"
               onClick={() => setIsCreateModalOpen(true)}
             >
               Create New Database
-            </button>
-            <button 
-              className="db-management__action-btn db-management__action-btn--secondary"
+            </Button>
+            <Button 
+              className="db-management__action-btn"
+              variant="default"
+              size="md"
               onClick={() => setIsImportOptionsOpen(true)}
             >
               Import Database
-            </button>
+            </Button>
           </div>
 
           {/* Database list */}
@@ -310,8 +315,9 @@ export function DatabaseManagementView({
                   key={db.name} 
                   className={`db-management__card ${db.name === data?.active ? 'db-management__card--active' : ''}`}
                 >
-                  <button
+                  <Button
                     className="db-management__card-main"
+                    variant="ghost"
                     onClick={() => handleSelectDatabase(db)}
                   >
                     <div className="db-management__card-header">
@@ -343,48 +349,58 @@ export function DatabaseManagementView({
                         <span className="db-management__card-date-value">{formatRelativeTime(db.updated_at)}</span>
                       </div>
                     </div>
-                  </button>
+                  </Button>
                   <div className="db-management__card-actions">
-                    <button
+                    <Button
                       className="db-management__card-action"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleExport(db.name)}
                       title="Export"
                     >
                       <Icon path={mdiExport} size={0.75} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       className="db-management__card-action"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleOpenRename(db.name)}
                       title="Rename"
                       disabled={db.name === data?.active}
                     >
                       <EditIcon size="sm" />
-                    </button>
+                    </Button>
                     {deleteConfirm === db.name ? (
                       <>
-                        <button
+                        <Button
                           className="db-management__card-action db-management__card-action--danger"
+                          variant="danger"
+                          size="sm"
                           onClick={() => deleteMutation.mutate(db.name)}
                           title="Confirm delete"
                         >
                           <CheckIcon size="sm" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           className="db-management__card-action"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setDeleteConfirm(null)}
                           title="Cancel"
                         >
                           <CloseIcon size="sm" />
-                        </button>
+                        </Button>
                       </>
                     ) : (
-                      <button
+                      <Button
                         className="db-management__card-action db-management__card-action--danger"
+                        variant="danger"
+                        size="sm"
                         onClick={() => setDeleteConfirm(db.name)}
                         title="Delete"
                       >
                         <DeleteIcon size="sm" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

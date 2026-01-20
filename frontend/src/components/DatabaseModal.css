@@ -263,7 +263,7 @@
 }
 
 .database-modal__btn--primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .database-modal__spinner {

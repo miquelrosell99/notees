@@ -5,7 +5,7 @@
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
 import { useMemo } from 'react';
-import { useNodesStore } from '@/stores';
+import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
 import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline } from '@mdi/js';
 import { NodeBreadcrumbs } from './NodeBreadcrumbs';
@@ -21,7 +21,7 @@ import { PropertyView } from '../views/PropertyView';
 import type { Node } from '@/types';
 
 export function MainContent() {
-  const { currentNodeId, currentNodeType, currentPropertyContext, viewMode, mainViewType, currentPropertyId, openNode, openPropertyView, addSidebarCard, contentDisplayMode, setContentDisplayMode, lateNightThoughtsFilter, toggleLateNightThoughts, openLocalGraph, rightSidebarContent } = useNodesStore();
+  const { currentNodeId, currentNodeType, currentPropertyContext, viewMode, mainViewType, currentPropertyId, openNode, openPropertyView, addSidebarCard, contentDisplayMode, setContentDisplayMode, cardLayout, setCardLayout, lateNightThoughtsFilter, toggleLateNightThoughts, openLocalGraph, rightSidebarContent } = useNodesStore();
   
   // Fetch current node to get color (only for pages)
   const { data: currentNode } = useNode(currentNodeId ?? null);
@@ -140,6 +140,47 @@ export function MainContent() {
                 onChange={(val) => setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
                 size="sm"
               />
+              
+              {/* Card layout selector - only visible in card mode */}
+              {contentDisplayMode === 'card' && (
+                <div className="card-layout-selector">
+                  <Button 
+                    variant="ghost"
+                    size="xs"
+                    className={`card-layout-option ${cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
+                    onClick={() => setCardLayout('no-cover' as CardLayoutMode)}
+                    title="No cover"
+                  >
+                    <span className="layout-icon layout-icon--no-cover">
+                      <span className="layout-icon__content"></span>
+                    </span>
+                  </Button>
+                  <Button 
+                    variant="ghost"
+                    size="xs"
+                    className={`card-layout-option ${cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
+                    onClick={() => setCardLayout('cover-top' as CardLayoutMode)}
+                    title="Cover on top"
+                  >
+                    <span className="layout-icon layout-icon--cover-top">
+                      <span className="layout-icon__cover"></span>
+                      <span className="layout-icon__content"></span>
+                    </span>
+                  </Button>
+                  <Button 
+                    variant="ghost"
+                    size="xs"
+                    className={`card-layout-option ${cardLayout === 'cover-side' ? 'card-layout-option--active' : ''}`}
+                    onClick={() => setCardLayout('cover-side' as CardLayoutMode)}
+                    title="Cover on side"
+                  >
+                    <span className="layout-icon layout-icon--cover-side">
+                      <span className="layout-icon__cover"></span>
+                      <span className="layout-icon__content"></span>
+                    </span>
+                  </Button>
+                </div>
+              )}
               
               {/* Late night thoughts filter */}
               <Button

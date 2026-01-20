@@ -17,6 +17,7 @@ import type {
 } from '@/types/views';
 import { BulletIcon, NodeIcon } from '../components/icons';
 import { ButtonAdd } from '../components/core/ButtonAdd';
+import { Button } from '../components/core/Button';
 
 export interface QueryViewProps {
   /** All available nodes to query against */
@@ -464,7 +465,7 @@ function ConditionEditor({
       )}
       
       {/* Remove button */}
-      <button className="query-view__remove-btn" onClick={onRemove}>×</button>
+      <Button className="query-view__remove-btn" variant="ghost" size="xs" onClick={onRemove}>×</Button>
     </div>
   );
 }
@@ -677,8 +678,10 @@ function ResultsList({
     <ul className="query-view__results-list">
       {nodes.map(node => (
         <li key={node.id} className="query-view__result-item">
-          <button 
+          <Button 
             className="query-view__result-btn"
+            variant="ghost"
+            size="sm"
             onClick={() => onNodeClick?.(node.id)}
           >
             <span className="query-view__result-bullet">
@@ -686,7 +689,7 @@ function ResultsList({
             </span>
             <NodeIcon icon={node.icon} isPage={node.parent_id === null} isDaily={node.is_daily} isMonthly={node.is_monthly} isYearly={node.is_yearly} size="sm" />
             <span className="query-view__result-name">{node.name || 'Untitled'}</span>
-          </button>
+          </Button>
         </li>
       ))}
     </ul>
@@ -756,30 +759,38 @@ export function QueryView({
   return (
     <div className={`query-view ${className}`}>
       <div className="query-view__header">
-        <button 
+        <Button 
           className="query-view__collapse-btn"
+          variant="ghost"
+          size="xs"
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
           {isCollapsed ? '▶' : '▼'}
-        </button>
+        </Button>
         <h3 className="query-view__title">{title}</h3>
         <span className="query-view__count">{results.length} results</span>
         
         <div className="query-view__header-controls">
           {/* Query mode toggle */}
           <div className="query-view__mode-toggle">
-            <button
-              className={`query-view__mode-btn ${queryMode === 'simple' ? 'active' : ''}`}
+            <Button
+              className="query-view__mode-btn"
+              variant={queryMode === 'simple' ? 'default' : 'ghost'}
+              size="sm"
+              active={queryMode === 'simple'}
               onClick={() => setQueryMode('simple')}
             >
               Simple
-            </button>
-            <button
-              className={`query-view__mode-btn ${queryMode === 'advanced' ? 'active' : ''}`}
+            </Button>
+            <Button
+              className="query-view__mode-btn"
+              variant={queryMode === 'advanced' ? 'default' : 'ghost'}
+              size="sm"
+              active={queryMode === 'advanced'}
               onClick={() => setQueryMode('advanced')}
             >
               Advanced
-            </button>
+            </Button>
           </div>
           
           {/* View mode selector */}

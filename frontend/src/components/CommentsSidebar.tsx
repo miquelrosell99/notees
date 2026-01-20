@@ -57,13 +57,15 @@ function CommentItem({ comment, nodeId, onDelete, onUpdate }: CommentItemProps) 
         <span className="comment-date">
           {new Date(comment.create_date).toLocaleDateString()}
         </span>
-        <button 
+        <Button 
+          variant="ghost"
+          size="xs"
           className="comment-delete-btn"
           onClick={() => onDelete(comment.id)}
           title="Delete comment"
         >
           <TrashIcon size="xs" />
-        </button>
+        </Button>
       </div>
       
       <div className="comment-item-content">

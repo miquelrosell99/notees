@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { getAssetUrl, type Asset, type AssetCategory } from '../api/assets';
+import { Button } from './core/Button';
 import { getLogger } from '../utils/logger';
 import './AssetPreview.css';
 
@@ -212,7 +213,9 @@ function AudioPreview({
       />
       {controls && (
         <div className="audio-controls">
-          <button 
+          <Button 
+            variant="ghost"
+            size="xs"
             className="audio-play-btn"
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -227,7 +230,7 @@ function AudioPreview({
                 <path d="M8 5v14l11-7z"/>
               </svg>
             )}
-          </button>
+          </Button>
           <span className="audio-time">{formatTime(currentTime)}</span>
           <input
             type="range"

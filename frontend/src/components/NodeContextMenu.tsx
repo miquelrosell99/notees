@@ -12,6 +12,7 @@ import { useMemo, useCallback, useState } from 'react';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useCreatePage } from '@/hooks';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
+import { Button } from './core/Button';
 import { NodePicker } from './NodePicker';
 import { DeletionConfirmationModal } from './DeletionConfirmationModal';
 import type { Node, NodeUpdate } from '@/types';
@@ -280,7 +281,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         >
           <div className="parent-picker-header">
             <span>Select Parent Page</span>
-            <button onClick={() => { setShowParentPicker(false); onClose(); }}>✕</button>
+            <Button variant="ghost" size="xs" onClick={() => { setShowParentPicker(false); onClose(); }}>✕</Button>
           </div>
           <NodePicker
             property={{ id: 0, name: 'parent', property_type: 'node', tag_filters: [] } as any}
@@ -293,12 +294,13 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
             }}
           />
           {node.parent_id && (
-            <button 
+            <Button 
+              variant="ghost"
               className="parent-picker-clear"
               onClick={() => handleParentChange(null)}
             >
               Remove parent
-            </button>
+            </Button>
           )}
         </div>
       </div>

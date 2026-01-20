@@ -10,6 +10,7 @@ import './ImportOptionsModal.css';
 import Icon from '@mdi/react';
 import { mdiDatabaseImport, mdiFolderZipOutline } from '@mdi/js';
 import { ButtonClose } from './core/ButtonClose';
+import { Button } from './core/Button';
 
 type ImportType = 'sqlite' | 'zip';
 
@@ -71,8 +72,9 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
           </p>
 
           <div className="import-options-modal__options">
-            <button 
+            <Button 
               className="import-options-modal__option"
+              variant="ghost"
               onClick={handleSqliteClick}
             >
               <div className="import-options-modal__option-icon">
@@ -84,10 +86,11 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
                   Import a SQLite database file only
                 </span>
               </div>
-            </button>
+            </Button>
 
-            <button 
+            <Button 
               className="import-options-modal__option"
+              variant="ghost"
               onClick={handleZipClick}
             >
               <div className="import-options-modal__option-icon">
@@ -99,7 +102,7 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
                   Import a ZIP file containing db.sqlite and assets folder
                 </span>
               </div>
-            </button>
+            </Button>
           </div>
 
           {/* Hidden file inputs */}

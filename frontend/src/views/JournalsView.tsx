@@ -9,6 +9,7 @@ import { useExistingDailyPages, useNode } from '@/hooks';
 import './JournalsView.css';
 import { useNodesStore } from '@/stores';
 import { NodeView } from './NodeView';
+import { Button } from '../components/core/Button';
 
 interface JournalEntryProps {
   dailyPageId: number;
@@ -93,9 +94,9 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
             ))}
             {hasMore && (
               <div className="journals-load-more">
-                <button onClick={handleLoadMore} className="load-more-btn">
+                <Button onClick={handleLoadMore} variant="ghost" size="sm">
                   Load more ({sortedPages.length - visibleCount} remaining)
-                </button>
+                </Button>
               </div>
             )}
           </>

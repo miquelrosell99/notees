@@ -185,38 +185,3 @@
   align-items: center;
   gap: var(--spacing-3);
 }
-
-/* Layout selector */
-.cards-view__layout-selector {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1);
-  background: var(--color-surface-container);
-  border-radius: var(--shape-small);
-}
-
-.cards-view__layout-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--shape-extra-small);
-  background: transparent;
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.cards-view__layout-btn:hover {
-  background: var(--color-surface-container-high);
-}
-
-.cards-view__layout-btn--active {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
-  border-color: var(--color-primary);
-}

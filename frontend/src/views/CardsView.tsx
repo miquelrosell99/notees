@@ -10,8 +10,17 @@ import './CardsView.css';
 import type { Node, Property } from '@/types/api';
 import { CardViewCard, type CardLayout } from '../components/CardViewCard';
 import '../components/CardViewCard.css';
+import { SelectionButton } from '../components/core/SelectionButton';
+import { mdiCardTextOutline, mdiViewAgendaOutline, mdiPageLayoutSidebarRight } from '@mdi/js';
 
 export type CardsViewMode = 'cards' | 'kanban';
+
+// Card layout options for SelectionButton
+const CARD_LAYOUT_OPTIONS: { value: CardLayout; icon: string; label: string }[] = [
+  { value: 'no-cover', icon: mdiCardTextOutline, label: 'No cover' },
+  { value: 'cover-top', icon: mdiViewAgendaOutline, label: 'Cover on top' },
+  { value: 'cover-side', icon: mdiPageLayoutSidebarRight, label: 'Cover on side' },
+];
 
 export interface CardsViewProps {
   /** Nodes to display */
@@ -192,51 +201,6 @@ function GroupBySelector({
 }
 
 /**
- * Card layout selector
- */
-function CardLayoutSelector({
-  layout,
-  onChange,
-}: {
-  layout: CardLayout;
-  onChange: (layout: CardLayout) => void;
-}) {
-  return (
-    <div className="cards-view__layout-selector">
-      <button 
-        className={`cards-view__layout-btn ${layout === 'no-cover' ? 'cards-view__layout-btn--active' : ''}`}
-        onClick={() => onChange('no-cover')}
-        title="No cover"
-      >
-        <span className="layout-icon layout-icon--no-cover">
-          <span className="layout-icon__content"></span>
-        </span>
-      </button>
-      <button 
-        className={`cards-view__layout-btn ${layout === 'cover-top' ? 'cards-view__layout-btn--active' : ''}`}
-        onClick={() => onChange('cover-top')}
-        title="Cover on top"
-      >
-        <span className="layout-icon layout-icon--cover-top">
-          <span className="layout-icon__cover"></span>
-          <span className="layout-icon__content"></span>
-        </span>
-      </button>
-      <button 
-        className={`cards-view__layout-btn ${layout === 'cover-side' ? 'cards-view__layout-btn--active' : ''}`}
-        onClick={() => onChange('cover-side')}
-        title="Cover on side"
-      >
-        <span className="layout-icon layout-icon--cover-side">
-          <span className="layout-icon__cover"></span>
-          <span className="layout-icon__content"></span>
-        </span>
-      </button>
-    </div>
-  );
-}
-
-/**
  * Cards/Kanban View
  */
 export function CardsView({
@@ -286,9 +250,11 @@ export function CardsView({
       <div className="cards-view__header">
         <h3 className="cards-view__title">{title}</h3>
         <div className="cards-view__controls">
-          <CardLayoutSelector 
-            layout={effectiveCardLayout} 
-            onChange={handleCardLayoutChange} 
+          <SelectionButton
+            options={CARD_LAYOUT_OPTIONS}
+            value={effectiveCardLayout}
+            onChange={(val) => handleCardLayoutChange(val as CardLayout)}
+            size="sm"
           />
           {properties.length > 0 && (
             <GroupBySelector

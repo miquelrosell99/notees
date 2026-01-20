@@ -7,6 +7,7 @@
 import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import type { Node } from '@/types/api';
 import { Card } from './Card';
+import { Button } from './Button';
 import { Bullet } from '../Bullet';
 import { ContentWithPills } from '../ContentWithPills';
 import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '../icons';
@@ -291,9 +292,9 @@ function NodeListCoreDefaultItem<T extends Node>({
   }
 
   return (
-    <button className="node-list-core__item" onClick={onClick}>
+    <Button variant="ghost" className="node-list-core__item" onClick={onClick}>
       {itemContent}
-    </button>
+    </Button>
   );
 }
 

@@ -36,6 +36,7 @@ import { NodeActivityLog } from '../components/NodeActivityLog';
 import { LinkedReferences } from '../components/Backlinks';
 import { BlockEditor } from '../components/BlockEditor';
 import { ColorPicker } from '../components/core/ColorPicker';
+import { Button } from '../components/core/Button';
 import { NodeIcon, TagIcon } from '../components/icons';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import type { Asset } from '../api/assets';
@@ -431,30 +432,34 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
           {nodeTypeDetails.length > 0 && (
             <div className="node-types">
               {nodeTypeDetails.map((typeNode) => (
-                <button
+                <Button
                   key={typeNode.id}
+                  variant="ghost"
+                  size="xs"
                   className="node-type-chip"
                   onClick={() => handleNavigateToNode(typeNode.id)}
                   title={`Click to view ${typeNode.name}`}
                 >
                   <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
                   <span>{typeNode.name}</span>
-                </button>
+                </Button>
               ))}
             </div>
           )}
           {node.tags && node.tags.length > 0 && (
             <div className="node-tags">
               {node.tags.map((tagId) => (
-                <button
+                <Button
                   key={tagId}
+                  variant="ghost"
+                  size="xs"
                   className="node-tag-chip"
                   onClick={() => handleNavigateToNode(tagId)}
                   title="Click to view tag page"
                 >
                   <TagIcon size="xs" />
                   <span>Tag #{tagId}</span>
-                </button>
+                </Button>
               ))}
             </div>
           )}

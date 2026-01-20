@@ -14,6 +14,7 @@ import type { Node } from '@/types';
 import { useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
+import { Button } from './core/Button';
 import { ButtonWithPanel } from './core/ButtonWithPanel';
 import { SelectionButton } from './core/SelectionButton';
 import { ContentWithPills } from './ContentWithPills';
@@ -150,7 +151,9 @@ interface BlockBreadcrumbProps {
 function BlockBreadcrumb({ pageName, pageIcon, onPageClick }: BlockBreadcrumbProps) {
   return (
     <div className="node-set__breadcrumb">
-      <button 
+      <Button 
+        variant="ghost"
+        size="xs"
         className="node-set__breadcrumb-link"
         onClick={(e) => {
           e.stopPropagation();
@@ -159,7 +162,7 @@ function BlockBreadcrumb({ pageName, pageIcon, onPageClick }: BlockBreadcrumbPro
       >
         <NodeIcon icon={pageIcon} isPage={true} size="xs" />
         <span className="node-set__breadcrumb-name">{pageName}</span>
-      </button>
+      </Button>
     </div>
   );
 }
@@ -241,7 +244,8 @@ function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftCl
           onPageClick={breadcrumb.onPageClick}
         />
       )}
-      <button
+      <Button
+        variant="ghost"
         className="node-set__list-item"
         style={{ paddingLeft: `calc(var(--spacing-3) + ${depth * 20}px)` }}
         onClick={handleClick}
@@ -271,7 +275,7 @@ function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftCl
         {item.badge !== undefined && (
           <span className="node-set__item-badge">{item.badge}</span>
         )}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -287,21 +291,24 @@ interface GroupHeaderProps {
 function GroupHeader({ group, collapsed, onToggle, onGroupClick }: GroupHeaderProps) {
   return (
     <div className="node-set__group-header">
-      <button 
+      <Button 
+        variant="ghost"
+        size="xs"
         className="node-set__group-toggle"
         onClick={onToggle}
         aria-expanded={!collapsed}
       >
         {collapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
-      </button>
-      <button 
+      </Button>
+      <Button 
+        variant="ghost"
         className="node-set__group-label"
         onClick={onGroupClick}
       >
         {group.icon && <span className="node-set__group-icon">{group.icon}</span>}
         <span className="node-set__group-name">{group.label}</span>
         <span className="node-set__group-count">({group.items.length})</span>
-      </button>
+      </Button>
     </div>
   );
 }

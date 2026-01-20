@@ -6,6 +6,7 @@ import './TagList.css';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { TagIcon, NodeIcon } from './icons';
+import { Button } from './core/Button';
 
 interface TagListProps {
   className?: string;
@@ -35,13 +36,15 @@ export function TagList({ className = '', onTagClick }: TagListProps) {
     <ul className={`tag-list ${className}`}>
       {tags.map((tag: Node) => (
         <li key={tag.id} className="tag-item">
-          <button
+          <Button
             className="tag-button"
+            variant="ghost"
+            size="sm"
             onClick={() => onTagClick?.(tag.id)}
           >
             <span className="tag-icon"><TagIcon size="xs" /></span>
             <span className="tag-name">{tag.name || 'Untitled'}</span>
-          </button>
+          </Button>
         </li>
       ))}
     </ul>
@@ -86,8 +89,10 @@ export function TaggedNodes({ tagId, className = '', onNodeClick }: TaggedNodesP
     <ul className={`tagged-nodes ${className}`}>
       {nodes.map((node: Node) => (
         <li key={node.id} className="tagged-node-item">
-          <button
+          <Button
             className="tagged-node-button"
+            variant="ghost"
+            size="sm"
             onClick={() => handleNodeClick(node)}
           >
             <span className="node-icon">
@@ -96,7 +101,7 @@ export function TaggedNodes({ tagId, className = '', onNodeClick }: TaggedNodesP
             <span className="node-title">
               {node.name || 'Untitled'}
             </span>
-          </button>
+          </Button>
         </li>
       ))}
     </ul>

@@ -7,20 +7,12 @@
   position: relative;
 }
 
-/* Separator line for all content sections (bullet, document, card modes) */
+/* Separator line for content sections (bullet, document, card modes) */
 .node-content-children,
-.node-content-cards,
-.card-layout-selector {
+.node-content-cards {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--color-outline-variant);
-}
-
-/* Cards section inherits separator from card-layout-selector, so remove duplicate */
-.node-content-cards {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
 }
 
 /* Document mode - paragraphs without bullets, but keep separator line */
