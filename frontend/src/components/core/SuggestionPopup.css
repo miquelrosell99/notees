@@ -1,0 +1,269 @@
+/**
+ * Suggestion Popup styles (@ types and # tags)
+ */
+
+.suggestion-popup {
+  width: 280px;
+  max-width: 90vw;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: hidden;
+  animation: suggestion-popup-enter 150ms var(--motion-easing-standard);
+}
+
+@keyframes suggestion-popup-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestion-popup__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.suggestion-popup__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-extra-small);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.suggestion-popup__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-1);
+}
+
+.suggestion-popup__section {
+  margin-bottom: var(--spacing-1);
+}
+
+.suggestion-popup__section-header {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-1) var(--spacing-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+.suggestion-popup__loading,
+.suggestion-popup__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.suggestion-popup__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.suggestion-popup__item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.suggestion-popup__item--selected {
+  background: var(--color-surface-container-high);
+}
+
+.suggestion-popup__item--create {
+  color: var(--color-primary);
+}
+
+.suggestion-popup__item--create .suggestion-popup__item-icon {
+  color: var(--color-primary);
+}
+
+.suggestion-popup__item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.suggestion-popup__item-name {
+  flex: 1;
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-popup__item--create .suggestion-popup__item-name {
+  color: var(--color-primary);
+}
+
+.suggestion-popup__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-top: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+}
+
+.suggestion-popup__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+}
+
+.suggestion-popup__hint kbd {
+  padding: 1px 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: inherit;
+}
+
+/* Inline type/tag display in content */
+.inline-type,
+.inline-tag {
+  display: inline;
+  padding: 1px 4px;
+  border-radius: var(--shape-extra-small);
+  font: var(--font-label-medium);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.inline-type {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.inline-type:hover {
+  background: color-mix(in srgb, var(--color-secondary-container) 80%, var(--color-on-secondary-container));
+}
+
+.inline-tag {
+  background: var(--color-tertiary-container);
+  color: var(--color-on-tertiary-container);
+}
+
+.inline-tag:hover {
+  background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-on-tertiary-container));
+}
+
+/* Types and Tags property display */
+.node-types,
+.node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-1);
+}
+
+.node-type-chip,
+.node-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px 8px;
+  border-radius: var(--shape-full);
+  font: var(--font-label-small);
+  cursor: pointer;
+  border: none;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-type-chip {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.node-type-chip:hover {
+  background: color-mix(in srgb, var(--color-secondary-container) 80%, var(--color-on-secondary-container));
+}
+
+.node-tag-chip {
+  background: var(--color-tertiary-container);
+  color: var(--color-on-tertiary-container);
+}
+
+.node-tag-chip:hover {
+  background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-on-tertiary-container));
+}
+
+.node-type-chip .remove-btn,
+.node-tag-chip .remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-type-chip .remove-btn:hover,
+.node-tag-chip .remove-btn:hover {
+  opacity: 1;
+}
+
+/* Block container with metadata */
+.block-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.block-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-left: 24px; /* Align with block content (past bullet) */
+  margin-top: var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+}
+
+.block-metadata .node-types,
+.block-metadata .node-tags {
+  margin-top: 0;
+}

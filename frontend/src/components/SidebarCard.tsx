@@ -1,0 +1,127 @@
+/**
+ * SidebarCard Component
+ * 
+ * A reusable container for displaying content in the right sidebar.
+ * Used for pages, blocks, local graphs, and other sidebar content.
+ * 
+ * Built on top of the core Card component for consistent styling.
+ */
+import type { ReactNode } from 'react';
+import './SidebarCard.css';
+import { AlertIcon } from './icons';
+import { ButtonClose } from './core/ButtonClose';
+import { Button } from './core/Button';
+import { Card } from './core/Card';
+
+interface SidebarCardProps {
+  /** Card title */
+  title?: string;
+  /** Icon to display before the title */
+  icon?: ReactNode;
+  /** Optional subtitle or info text */
+  subtitle?: string;
+  /** Card content */
+  children: ReactNode;
+  /** Close handler */
+  onClose?: () => void;
+  /** Additional CSS class */
+  className?: string;
+  /** Whether to show the header */
+  showHeader?: boolean;
+  /** Whether to make content scrollable */
+  scrollable?: boolean;
+  /** Loading state */
+  loading?: boolean;
+  /** Error state */
+  error?: string;
+  /** Retry handler for error state */
+  onRetry?: () => void;
+}
+
+export function SidebarCard({
+  title,
+  icon,
+  subtitle,
+  children,
+  onClose,
+  className = '',
+  showHeader = true,
+  scrollable = true,
+  loading = false,
+  error,
+  onRetry,
+}: SidebarCardProps) {
+  if (loading) {
+    return (
+      <Card 
+        className={`sidebar-card sidebar-card--loading ${className}`}
+        elevation="none"
+        variant="default"
+        padding={false}
+        radius="none"
+      >
+        <div className="sidebar-card__loader">
+          <div className="sidebar-card__spinner" />
+          <span>Loading...</span>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card 
+        className={`sidebar-card sidebar-card--error ${className}`}
+        elevation="none"
+        variant="default"
+        padding={false}
+        radius="none"
+      >
+        <div className="sidebar-card__error">
+          <span className="sidebar-card__error-icon"><AlertIcon size="sm" /></span>
+          <p className="sidebar-card__error-message">{error}</p>
+          {onRetry && (
+            <Button variant="default" size="sm" onClick={onRetry}>
+              Retry
+            </Button>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card 
+      className={`sidebar-card ${className}`}
+      elevation="none"
+      variant="default"
+      padding={false}
+      radius="none"
+    >
+      {showHeader && (title || onClose) && (
+        <div className="sidebar-card__header">
+          <div className="sidebar-card__title-section">
+            {icon && <span className="sidebar-card__icon">{icon}</span>}
+            <div className="sidebar-card__titles">
+              {title && <h3 className="sidebar-card__title">{title}</h3>}
+              {subtitle && <p className="sidebar-card__subtitle">{subtitle}</p>}
+            </div>
+          </div>
+          {onClose && (
+            <ButtonClose
+              className="sidebar-card__close-btn"
+              onClick={onClose}
+              title="Close"
+              size="sm"
+            />
+          )}
+        </div>
+      )}
+      <div className={`sidebar-card__content ${scrollable ? 'sidebar-card__content--scrollable' : ''}`}>
+        {children}
+      </div>
+    </Card>
+  );
+}
+
+export default SidebarCard;

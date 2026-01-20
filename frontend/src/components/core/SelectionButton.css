@@ -1,0 +1,82 @@
+/**
+ * SelectionButton Component Styles
+ * 
+ * Button-style multi-option selector with animated indicator
+ */
+
+.selection-button {
+  position: relative;
+  display: inline-flex;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg, 12px);
+  padding: 4px;
+  gap: 2px;
+}
+
+.selection-button--vertical {
+  flex-direction: column;
+}
+
+.selection-button--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Animated selection indicator */
+.selection-button__indicator {
+  position: absolute;
+  top: 4px; /* Match container padding */
+  left: 4px; /* Match container padding */
+  background: var(--color-surface-container-highest);
+  border-radius: var(--radius-md, 8px);
+  transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              width 150ms cubic-bezier(0.4, 0, 0.2, 1),
+              height 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Option buttons */
+.selection-button__option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: 1;
+}
+
+.selection-button__option:hover:not(:disabled) {
+  color: var(--color-on-surface);
+}
+
+.selection-button__option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.selection-button__option--selected {
+  color: var(--color-on-surface);
+}
+
+/* Size variants */
+.selection-button--sm .selection-button__option {
+  width: 28px;
+  height: 28px;
+}
+
+.selection-button--md .selection-button__option {
+  width: 34px;
+  height: 34px;
+}
+
+.selection-button--lg .selection-button__option {
+  width: 42px;
+  height: 42px;
+}

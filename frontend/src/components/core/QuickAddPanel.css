@@ -1,0 +1,67 @@
+/* Quick Add Panel - Minified quick capture */
+
+.quick-add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  min-width: 280px;
+}
+
+/* Block editor */
+.qap-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.qap-block {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.qap-block-bullet {
+  color: var(--color-on-surface-variant);
+  font-size: 1rem;
+  line-height: 1.5;
+  padding-top: 2px;
+  user-select: none;
+}
+
+.qap-block-input {
+  flex: 1;
+  border: none;
+  background: none;
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
+  resize: none;
+  padding: 2px 0;
+  line-height: 1.5;
+  font-family: inherit;
+  min-height: 24px;
+}
+
+.qap-block-input:focus {
+  outline: none;
+}
+
+.qap-block-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+/* Actions */
+.qap-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.qap-hint {
+  font-size: 0.7rem;
+  color: var(--color-on-surface-variant);
+}

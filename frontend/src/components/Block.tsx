@@ -1,0 +1,1052 @@
+/**
+ * Block Component
+ * 
+ * Block component with 3 states: display, edit, selected (mutually exclusive)
+ * 
+ * Features:
+ * - Bullet is the drag handle and context menu anchor
+ * - Fixed width content area (adapts to container)
+ * - No text placeholder for empty blocks
+ * - Click on content enters edit mode
+ * - Click outside exits edit mode to display
+ * - Escape in edit mode selects the block
+ * - Drag selection for multi-select
+ * - Keyboard selection with Shift+arrows
+ * - Children auto-selected when parent is selected
+ * - Shift+click on bullet opens in sidebar
+ */
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useTypes, useRemoveType } from '@/hooks';
+import { useNodesStore } from '@/stores';
+import { BlockEditor, type TaskState } from './BlockEditor';
+import { ContentWithPills } from './ContentWithPills';
+import { Bullet } from './Bullet';
+import { Card } from './core/Card';
+import { ContextMenu } from './core/ContextMenu';
+import { ColorPickerRow } from './NodeContextMenu';
+import { DeletionConfirmationModal } from './DeletionConfirmationModal';
+import { NodeIcon } from './icons';
+import type { ContextMenuItem } from './core/ContextMenu';
+import type { Node } from '@/types';
+import './Block.css';
+
+/**
+ * Helper to determine if a color is light or dark
+ * Used to set contrasting text color
+ */
+function isColorLight(color: string): boolean {
+  // Handle hex colors
+  let r: number, g: number, b: number;
+  
+  if (color.startsWith('#')) {
+    const hex = color.slice(1);
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16);
+      g = parseInt(hex[1] + hex[1], 16);
+      b = parseInt(hex[2] + hex[2], 16);
+    } else {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    }
+  } else if (color.startsWith('rgb')) {
+    const match = color.match(/\d+/g);
+    if (match && match.length >= 3) {
+      r = parseInt(match[0]);
+      g = parseInt(match[1]);
+      b = parseInt(match[2]);
+    } else {
+      return true;
+    }
+  } else {
+    return true;
+  }
+  
+  // Calculate perceived brightness (YIQ formula)
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 128;
+}
+
+interface BlockProps {
+  block: Node;
+  children?: Node[];
+  /** Sibling blocks at the same level (for merge operations) */
+  siblings?: Node[];
+  depth?: number;
+  parentId: number | null;
+  /** Parent block (for merging up into parent) */
+  parentBlock?: Node | null;
+  onContentChange: (blockId: number, content: string) => void;
+  onBulletClick?: (blockId: number) => void;
+  onShiftClick?: (blockId: number) => void;
+  onAddType?: (typeNodeId: number, keepInline: boolean, typeName: string) => void;
+  onAddTag?: (tagNodeId: number, keepInline: boolean, tagName: string) => void;
+  onCreateType?: (name: string, keepInline: boolean) => void;
+  onCreateTag?: (name: string, keepInline: boolean) => void;
+  onLinkPage?: (pageNode: Node) => void;
+  onCreatePageLink?: (name: string) => Promise<string | undefined>;  // Returns the new page ID
+  onOpenComments?: () => void;
+  onAssetUpload?: (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) => void;
+  commentCount?: number;
+  readOnly?: boolean;
+  /** Callback when task state changes (Shift+Enter) */
+  onTaskStateChange?: (blockId: number, newState: string) => void;
+  /** Ref to the editor element for focus management */
+  editorRef?: React.RefObject<HTMLDivElement>;
+}
+
+export function Block({
+  block,
+  children = [],
+  siblings = [],
+  depth = 0,
+  parentId,
+  parentBlock,
+  onContentChange,
+  onBulletClick,
+  onShiftClick,
+  onAddType,
+  onAddTag,
+  onCreateType,
+  onCreateTag,
+  onLinkPage,
+  onCreatePageLink,
+  onOpenComments,
+  onAssetUpload,
+  commentCount = 0,
+  readOnly = false,
+  onTaskStateChange,
+}: BlockProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null);
+  const [isLineHovered, setIsLineHovered] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [initialCursorPosition, setInitialCursorPosition] = useState<number | undefined>(undefined);
+  
+  const moveNode = useMoveNode();
+  const updateNode = useUpdateNode();
+  const deleteNode = useDeleteNode();
+  const createNode = useCreateNode();
+  const removeType = useRemoveType();
+  const { data: allTypes } = useTypes();
+  const { openNode } = useNodesStore();
+  
+  // Resolve type details from IDs
+  const blockTypeDetails = useMemo(() => {
+    // DEBUG: Log types info
+    console.log(`Block ${block.id} types:`, block.types, 'allTypes:', allTypes?.length);
+    if (!block.types || block.types.length === 0 || !allTypes) return [];
+    return block.types
+      .map(typeId => allTypes.find(t => t.id === typeId))
+      .filter((t): t is Node => t !== undefined);
+  }, [block.types, allTypes, block.id]);
+  
+  // Determine if block has children
+  const hasChildren = children && children.length > 0;
+  const isCollapsed = block.collapsed ?? false;
+  
+  const {
+    selectedBlockIds,
+    primarySelectedBlockId,
+    selectionMode,
+    dragState,
+    selectBlock,
+    addToSelection,
+    startDrag,
+    updateDragTarget,
+    endDrag,
+    registerBlock,
+    unregisterBlock,
+    getNextBlockId,
+    getBlockState,
+    setBlockState,
+    extendSelectionKeyboard,
+    blockParentMap,
+    clearSelection,
+  } = useBlockSelectionStore();
+  
+  // Get block state (display, edit, or selected)
+  const blockState: BlockState = readOnly ? 'display' : getBlockState(block.id);
+  const isSelected = selectedBlockIds.has(block.id);
+  const isPrimarySelected = primarySelectedBlockId === block.id;
+  const isEditing = blockState === 'edit';
+  const isBeingDragged = dragState.draggedBlockIds.includes(block.id);
+  
+  // Register this block element
+  useEffect(() => {
+    if (containerRef.current) {
+      registerBlock(block.id, containerRef.current);
+    }
+    return () => unregisterBlock(block.id);
+  }, [block.id, registerBlock, unregisterBlock]);
+  
+  // Handle click outside to exit edit mode
+  useEffect(() => {
+    if (blockState !== 'edit') return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
+        setBlockState(block.id, 'display');
+      }
+    };
+    
+    // Use capture phase to ensure we get the event before other handlers
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+  }, [block.id, blockState, setBlockState]);
+  
+  // Handle drag start
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (readOnly) return;
+    
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(block.id));
+    
+    // Create custom drag image
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const dragImage = containerRef.current.cloneNode(true) as HTMLElement;
+      dragImage.style.width = `${rect.width}px`;
+      dragImage.style.position = 'absolute';
+      dragImage.style.top = '-9999px';
+      dragImage.style.opacity = '0.8';
+      dragImage.classList.add('dragging-preview');
+      document.body.appendChild(dragImage);
+      e.dataTransfer.setDragImage(dragImage, 20, 20);
+      
+      // Clean up drag image after a short delay
+      setTimeout(() => {
+        document.body.removeChild(dragImage);
+      }, 0);
+    }
+    
+    startDrag(block.id);
+  }, [block.id, readOnly, startDrag]);
+  
+  // Handle drag over
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (readOnly || isBeingDragged) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+    
+    // Determine drop position based on mouse position
+    let position: 'before' | 'after' | 'inside';
+    if (y < height * 0.25) {
+      position = 'before';
+    } else if (y > height * 0.75) {
+      position = 'after';
+    } else {
+      position = 'inside';
+    }
+    
+    setIsDragOver(true);
+    setDropPosition(position);
+    updateDragTarget(block.id, position);
+  }, [block.id, isBeingDragged, readOnly, updateDragTarget]);
+  
+  // Handle drag leave
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if we're actually leaving this element
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (containerRef.current && !containerRef.current.contains(relatedTarget)) {
+      setIsDragOver(false);
+      setDropPosition(null);
+    }
+  }, []);
+  
+  // Handle drop
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Capture the current drop position before clearing state
+    const currentDropPosition = dropPosition;
+    
+    setIsDragOver(false);
+    setDropPosition(null);
+    
+    if (readOnly || isBeingDragged) return;
+    
+    const draggedBlockId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    if (isNaN(draggedBlockId) || draggedBlockId === block.id) {
+      endDrag();
+      return;
+    }
+    
+    // Don't allow dropping onto self or descendants
+    if (!currentDropPosition) {
+      endDrag();
+      return;
+    }
+    
+    // Perform the move based on drop position
+    if (currentDropPosition === 'inside') {
+      // Move as child of target block
+      moveNode.mutate({
+        id: draggedBlockId,
+        parentId: block.id,
+        position: 0, // First child
+      });
+    } else if (currentDropPosition === 'before') {
+      // Move before target block (same parent)
+      moveNode.mutate({
+        id: draggedBlockId,
+        parentId: parentId,
+        position: block.sequence,
+      });
+    } else if (currentDropPosition === 'after') {
+      // Move after target block (same parent)
+      moveNode.mutate({
+        id: draggedBlockId,
+        parentId: parentId,
+        position: block.sequence + 1,
+      });
+    }
+    
+    endDrag();
+  }, [block.id, block.sequence, dropPosition, endDrag, isBeingDragged, moveNode, parentId, readOnly]);
+  
+  // Handle drag end
+  const handleDragEnd = useCallback(() => {
+    endDrag();
+  }, [endDrag]);
+  
+  // Handle block click (for selection)
+  const handleBlockClick = useCallback((e: React.MouseEvent) => {
+    if (readOnly) return;
+    
+    // Shift+click adds to selection
+    if (e.shiftKey) {
+      e.preventDefault();
+      addToSelection(block.id);
+      return;
+    }
+    
+    // Regular click outside content area doesn't do anything special
+    // Content area click is handled by handleContentClick
+  }, [addToSelection, block.id, readOnly]);
+  
+  // Calculate cursor position from click event
+  const getCursorPositionFromClick = useCallback((e: React.MouseEvent): number => {
+    const content = block.name || '';
+    if (!content || !contentRef.current) return content.length;
+    
+    // Find the text element within the content
+    const textElement = contentRef.current.querySelector('.block-content-pills, .content-with-pills');
+    if (!textElement) return content.length;
+    
+    const rect = textElement.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    
+    // Create a temporary span to measure text width
+    const tempSpan = document.createElement('span');
+    const computedStyle = window.getComputedStyle(textElement);
+    tempSpan.style.font = computedStyle.font;
+    tempSpan.style.fontSize = computedStyle.fontSize;
+    tempSpan.style.fontFamily = computedStyle.fontFamily;
+    tempSpan.style.letterSpacing = computedStyle.letterSpacing;
+    tempSpan.style.visibility = 'hidden';
+    tempSpan.style.position = 'absolute';
+    tempSpan.style.whiteSpace = 'pre';
+    document.body.appendChild(tempSpan);
+    
+    // Binary search to find the character position closest to click
+    let left = 0;
+    let right = content.length;
+    
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2);
+      tempSpan.textContent = content.substring(0, mid);
+      const textWidth = tempSpan.getBoundingClientRect().width;
+      
+      if (textWidth < clickX) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+    
+    // Fine-tune: check if we're closer to position left or left-1
+    if (left > 0) {
+      tempSpan.textContent = content.substring(0, left - 1);
+      const widthBefore = tempSpan.getBoundingClientRect().width;
+      tempSpan.textContent = content.substring(0, left);
+      const widthAfter = tempSpan.getBoundingClientRect().width;
+      
+      // Choose the closer position
+      if (Math.abs(clickX - widthBefore) < Math.abs(clickX - widthAfter)) {
+        left = left - 1;
+      }
+    }
+    
+    document.body.removeChild(tempSpan);
+    return left;
+  }, [block.name]);
+  
+  // Handle content area click - enters edit mode
+  const handleContentClick = useCallback((e: React.MouseEvent) => {
+    if (readOnly) return;
+    
+    e.stopPropagation();
+    
+    // Calculate cursor position from click
+    const cursorPos = getCursorPositionFromClick(e);
+    setInitialCursorPosition(cursorPos);
+    
+    // Enter edit mode
+    setBlockState(block.id, 'edit');
+  }, [block.id, readOnly, setBlockState, getCursorPositionFromClick]);
+  
+  // Reset initial cursor position when exiting edit mode
+  useEffect(() => {
+    if (blockState !== 'edit') {
+      setInitialCursorPosition(undefined);
+    }
+  }, [blockState]);
+  
+  // Handle bullet click for navigation
+  const handleBulletClickInternal = useCallback((e: React.MouseEvent) => {
+    if (e.shiftKey && onShiftClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // In selection mode, open all selected blocks in sidebar
+      if (isSelected && selectedBlockIds.size > 1) {
+        // Open all selected blocks (call onShiftClick for each)
+        selectedBlockIds.forEach(id => onShiftClick(id));
+      } else {
+        onShiftClick(block.id);
+      }
+    } else if (onBulletClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      onBulletClick(block.id);
+    }
+  }, [block.id, isSelected, onBulletClick, onShiftClick, selectedBlockIds]);
+  
+  // Handle collapse toggle (clicking the vertical line or arrow)
+  const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    updateNode.mutate({
+      id: block.id,
+      data: { collapsed: !isCollapsed }
+    });
+  }, [block.id, isCollapsed, updateNode]);
+  
+  // Handle bullet context menu (right-click)
+  const handleBulletContextMenu = useCallback((_nodeId: number, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY });
+  }, []);
+  
+  // Close context menu
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+  
+  // Context menu items for blocks
+  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+    const items: (ContextMenuItem | null)[] = [
+      {
+        id: 'open',
+        label: 'Open in focused view',
+        shortcut: 'Click',
+        onClick: () => {
+          if (onBulletClick) onBulletClick(block.id);
+          handleCloseContextMenu();
+        }
+      },
+      {
+        id: 'open-sidebar',
+        label: 'Open in sidebar',
+        shortcut: '⇧Click',
+        onClick: () => {
+          if (onShiftClick) onShiftClick(block.id);
+          handleCloseContextMenu();
+        }
+      },
+      { id: 'sep1', label: '', separator: true },
+      {
+        id: 'duplicate',
+        label: 'Duplicate',
+        shortcut: '⌘D',
+        onClick: () => {
+          // TODO: Implement duplicate node
+          handleCloseContextMenu();
+        },
+        disabled: true // Not yet implemented
+      },
+      {
+        id: 'copy-link',
+        label: 'Copy block link',
+        shortcut: '⌥⌘C',
+        onClick: () => {
+          const link = `@[[${block.uuid || block.id}]]`;
+          navigator.clipboard.writeText(link);
+          handleCloseContextMenu();
+        }
+      },
+      { id: 'sep2', label: '', separator: true },
+      {
+        id: 'indent',
+        label: 'Indent',
+        shortcut: 'Tab',
+        onClick: () => {
+          // Find previous sibling to make parent
+          // This would need access to siblings - for now just close
+          handleCloseContextMenu();
+        },
+        disabled: true // Would need sibling context
+      },
+      {
+        id: 'outdent',
+        label: 'Outdent',
+        shortcut: '⇧Tab',
+        onClick: () => {
+          // Move to parent's parent
+          handleCloseContextMenu();
+        },
+        disabled: !parentId // Can't outdent if no parent
+      },
+      { id: 'sep3', label: '', separator: true },
+      hasChildren ? {
+        id: 'collapse',
+        label: isCollapsed ? 'Expand' : 'Collapse',
+        shortcut: '⌘↓',
+        onClick: () => {
+          updateNode.mutate({
+            id: block.id,
+            data: { collapsed: !isCollapsed }
+          });
+          handleCloseContextMenu();
+        }
+      } : null,
+      {
+        id: 'delete',
+        label: 'Delete',
+        shortcut: '⌫',
+        danger: true,
+        onClick: () => {
+          if (block.is_page) {
+            setShowDeleteModal(true);
+          } else {
+            deleteNode.mutate(block.id);
+          }
+          handleCloseContextMenu();
+        }
+      }
+    ];
+    return items.filter((item): item is ContextMenuItem => item !== null);
+  }, [
+    block.id, block.uuid, block.is_page, hasChildren, isCollapsed, parentId,
+    onBulletClick, onShiftClick, updateNode, deleteNode, handleCloseContextMenu
+  ]);
+  
+  // Handle keyboard events
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Escape in edit mode selects the block
+    if (e.key === 'Escape' && isEditing) {
+      e.preventDefault();
+      setBlockState(block.id, 'selected');
+      return;
+    }
+    
+    // Escape in selected mode clears selection (returns to display)
+    if (e.key === 'Escape' && blockState === 'selected') {
+      e.preventDefault();
+      setBlockState(block.id, 'display');
+      return;
+    }
+    
+    // Only handle navigation when not editing
+    if (isEditing && e.key !== 'Escape') return;
+    
+    // Arrow key navigation with shift for selection
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const direction = e.key === 'ArrowUp' ? 'up' : 'down';
+      
+      if (e.shiftKey) {
+        // Shift+Arrow extends selection using new keyboard selection logic
+        e.preventDefault();
+        extendSelectionKeyboard(direction);
+      } else if (selectionMode === 'selected') {
+        // Arrow in selected mode navigates
+        e.preventDefault();
+        const nextId = getNextBlockId(block.id, direction);
+        if (nextId) {
+          selectBlock(nextId);
+        }
+      }
+    }
+    
+    // Enter in selected mode enters edit mode
+    if (e.key === 'Enter' && blockState === 'selected' && !e.shiftKey) {
+      e.preventDefault();
+      setBlockState(block.id, 'edit');
+    }
+    
+    // Delete/Backspace in selected mode deletes selected blocks
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectionMode === 'selected' && selectedBlockIds.size > 0) {
+      e.preventDefault();
+      // Delete blocks starting from deepest level to avoid cascade issues
+      // Sort by depth (blocks with more ancestors first)
+      const blockIdsToDelete = Array.from(selectedBlockIds);
+      
+      // Sort by depth: blocks that are children of other selected blocks should be deleted first
+      // Actually, we should NOT delete children separately if their parent is being deleted
+      // Filter out blocks whose ancestors are also in the selection (they'll be cascade deleted)
+      const rootBlocksToDelete = blockIdsToDelete.filter(id => {
+        // Check if any ancestor of this block is also selected
+        let currentParentId = blockParentMap.get(id);
+        while (currentParentId !== null && currentParentId !== undefined) {
+          if (selectedBlockIds.has(currentParentId)) {
+            // This block's parent is selected, it will be cascade deleted
+            return false;
+          }
+          currentParentId = blockParentMap.get(currentParentId);
+        }
+        return true;
+      });
+      
+      // Delete each root block (children will cascade)
+      rootBlocksToDelete.forEach(id => {
+        deleteNode.mutate(id);
+      });
+      
+      // Clear selection after deletion
+      clearSelection();
+    }
+  }, [block.id, blockState, extendSelectionKeyboard, getNextBlockId, isEditing, selectBlock, selectionMode, setBlockState, selectedBlockIds, blockParentMap, deleteNode, clearSelection]);
+  
+  // Handle focus (enter edit mode)
+  const handleFocus = useCallback(() => {
+    if (!readOnly && blockState !== 'edit') {
+      setBlockState(block.id, 'edit');
+    }
+  }, [block.id, blockState, readOnly, setBlockState]);
+  
+  // Compute class names
+  const classNames = useMemo(() => {
+    const classes = ['block', `block-state--${blockState}`];
+    if (isSelected) classes.push('selected');
+    if (isPrimarySelected) classes.push('primary-selected');
+    if (isEditing) classes.push('editing');
+    if (isBeingDragged) classes.push('dragging');
+    if (isDragOver) classes.push('drag-over');
+    if (dropPosition) classes.push(`drop-${dropPosition}`);
+    if (depth > 0) classes.push('nested');
+    if (block.color) classes.push('has-color');
+    if (hasChildren) classes.push('has-children');
+    if (isCollapsed) classes.push('collapsed');
+    if (readOnly) classes.push('readonly');
+    return classes.join(' ');
+  }, [blockState, isSelected, isPrimarySelected, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, isCollapsed, readOnly]);
+  
+  // Indentation style (color now applied to block-content only)
+  const blockStyle = useMemo(() => {
+    const style: React.CSSProperties = {};
+    // Note: Nested indentation is now handled by children-container CSS
+    return style;
+  }, []);
+  
+  // Color style for block content Card
+  const contentColorStyle = useMemo(() => {
+    if (!block.color) return undefined;
+    return {
+      backgroundColor: block.color,
+      '--block-text-color': isColorLight(block.color) ? 'var(--color-on-surface)' : 'var(--color-on-primary)',
+    } as React.CSSProperties;
+  }, [block.color]);
+  
+  // Handlers for deletion modal
+  const handleConfirmDelete = useCallback(() => {
+    deleteNode.mutate(block.id);
+    setShowDeleteModal(false);
+  }, [block.id, deleteNode]);
+  
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteModal(false);
+  }, []);
+  
+  // Handle Enter key creating a new block
+  const handleEnterCreateBlock = useCallback((textBefore: string, textAfter: string) => {
+    // Update current block with text before cursor
+    if (textBefore !== block.name) {
+      updateNode.mutate({
+        id: block.id,
+        data: { name: textBefore }
+      });
+    }
+    
+    // Determine where to create the new block:
+    // - If current block has children, create as first child (sequence 0)
+    // - Otherwise, create as sibling after current block
+    const newBlockParentId = hasChildren ? block.id : parentId;
+    const newBlockSequence = hasChildren ? 0 : block.sequence + 1;
+    
+    createNode.mutate(
+      {
+        name: textAfter,
+        parent_id: newBlockParentId,
+        sequence: newBlockSequence,
+      },
+      {
+        onSuccess: (newNode) => {
+          // Set the new block to edit mode
+          setBlockState(newNode.id, 'edit');
+        },
+      }
+    );
+  }, [block.id, block.name, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState]);
+  
+  // Handle Backspace at start of block - merge text with block above
+  const handleBackspaceAtStart = useCallback((remainingText: string) => {
+    // Find the block above us: first try previous sibling, then parent
+    const currentIndex = siblings.findIndex(s => s.id === block.id);
+    const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+    
+    // Target is either previous sibling or parent block
+    const targetBlock = prevSibling || parentBlock;
+    
+    if (!targetBlock) {
+      // No block above to merge into
+      return;
+    }
+    
+    // Append remaining text to target block's content
+    const targetContent = targetBlock.name || '';
+    const mergedContent = targetContent + remainingText;
+    
+    // Update target block with merged content
+    updateNode.mutate({
+      id: targetBlock.id,
+      data: { name: mergedContent }
+    });
+    
+    // Delete current block
+    deleteNode.mutate(block.id);
+    
+    // Set target block to edit mode (cursor will be at end due to content change)
+    setBlockState(targetBlock.id, 'edit');
+  }, [block.id, siblings, parentBlock, updateNode, deleteNode, setBlockState]);
+  
+  // Handle Delete at end of block - merge next sibling's text into current
+  const handleDeleteAtEnd = useCallback(() => {
+    // Find the next sibling
+    const currentIndex = siblings.findIndex(s => s.id === block.id);
+    const nextSibling = currentIndex >= 0 && currentIndex < siblings.length - 1 
+      ? siblings[currentIndex + 1] 
+      : null;
+    
+    if (!nextSibling) {
+      // No sibling to merge
+      return;
+    }
+    
+    // Check if the next sibling has children
+    const nextSiblingHasChildren = nextSibling.children && nextSibling.children.length > 0;
+    if (nextSiblingHasChildren) {
+      // Next sibling has children, don't merge
+      return;
+    }
+    
+    // Append next sibling's content to current block
+    const currentContent = block.name || '';
+    const siblingContent = nextSibling.name || '';
+    const mergedContent = currentContent + siblingContent;
+    
+    // Update current block with merged content
+    updateNode.mutate({
+      id: block.id,
+      data: { name: mergedContent }
+    });
+    
+    // Delete the next sibling
+    deleteNode.mutate(nextSibling.id);
+  }, [block.id, block.name, siblings, updateNode, deleteNode]);
+  
+  // Handle Tab - indent block (move as child of previous sibling)
+  const handleIndent = useCallback(() => {
+    const currentIndex = siblings.findIndex(s => s.id === block.id);
+    const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+    
+    if (!prevSibling) {
+      // No previous sibling to indent into
+      return;
+    }
+    
+    // Move block as last child of previous sibling
+    // Get the number of children the previous sibling has to determine position
+    const prevSiblingChildCount = prevSibling.children?.length || 0;
+    
+    moveNode.mutate({
+      id: block.id,
+      parentId: prevSibling.id,
+      position: prevSiblingChildCount, // Add as last child
+    });
+  }, [block.id, siblings, moveNode]);
+  
+  // Handle Shift+Tab - outdent block (move to parent's level after parent)
+  const handleOutdent = useCallback(() => {
+    if (!parentId || !parentBlock) {
+      // Can't outdent if no parent
+      return;
+    }
+    
+    // If parent is a page, we're at top level - can't outdent further
+    if (parentBlock.is_page) {
+      return;
+    }
+    
+    // Get the parent's parent and the parent's sequence to position correctly
+    // grandparentId could be a page (for top-level blocks) or another block
+    const grandparentId = parentBlock.parent_id;
+    if (grandparentId === null || grandparentId === undefined) {
+      // Parent has no parent - shouldn't happen for blocks, but guard anyway
+      return;
+    }
+    
+    const parentSequence = parentBlock.sequence || 0;
+    
+    moveNode.mutate({
+      id: block.id,
+      parentId: grandparentId,
+      position: parentSequence + 1, // After parent
+    });
+  }, [block.id, parentId, parentBlock, moveNode]);
+  
+  return (
+    <div
+      ref={containerRef}
+      className={classNames}
+      style={blockStyle}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onDragEnd={handleDragEnd}
+      onClick={handleBlockClick}
+      onKeyDown={handleKeyDown}
+      data-block-id={block.id}
+      data-block-state={blockState}
+    >
+      {/* Drop indicator - before */}
+      {isDragOver && dropPosition === 'before' && (
+        <div className="drop-indicator drop-indicator-before" />
+      )}
+      
+      {/* Block row - contains bullet and content on same line */}
+      <div className="block-row">
+        {/* Bullet - drag handle, context menu anchor, collapse toggle */}
+        <Bullet
+          nodeId={block.id}
+          icon={block.icon}
+          isPage={false}
+          interactive={!readOnly}
+          hasChildren={hasChildren}
+          collapsed={isCollapsed}
+          onDragStart={handleDragStart}
+          draggable={!readOnly && blockState !== 'edit'}
+          onClick={handleBulletClickInternal}
+          onContextMenu={handleBulletContextMenu}
+          onCollapseToggle={handleCollapseToggle}
+          showCollapseArrow={hasChildren}
+        />
+        
+        {/* Block content - fixed width, no placeholder for empty blocks */}
+        <Card 
+          className={`block-content${block.color ? ' block-content--colored' : ''}`}
+          style={contentColorStyle} 
+          onClick={handleContentClick}
+          onFocus={handleFocus}
+          elevation={block.color ? 'low' : 'none'}
+          variant={block.color ? 'default' : 'transparent'}
+          padding={false}
+          radius={block.color ? 'md' : 'none'}
+        >
+          {blockState === 'edit' ? (
+            <BlockEditor
+              nodeId={block.id}
+              isPage={block.is_page}
+              nodeUuid={block.uuid}
+              content={block.name || ''}
+              onChange={(content) => onContentChange(block.id, content)}
+              initialCursorPosition={initialCursorPosition}
+              editorRef={editorRef}
+              onAddType={onAddType}
+              onAddTag={onAddTag}
+              onCreateType={onCreateType}
+              onCreateTag={onCreateTag}
+              onLinkPage={onLinkPage}
+              onCreatePageLink={onCreatePageLink}
+              onOpenComments={onOpenComments}
+              onAssetUpload={onAssetUpload}
+              readOnly={readOnly}
+              isTask={Boolean(block.properties?.state)}
+              taskState={(block.properties?.state as TaskState) || 'todo'}
+              onTaskStateChange={onTaskStateChange ? (newState) => onTaskStateChange(block.id, newState) : undefined}
+              onEscape={() => setBlockState(block.id, 'selected')}
+              onExtendSelection={extendSelectionKeyboard}
+              onEnterCreateBlock={handleEnterCreateBlock}
+              onBackspaceAtStart={handleBackspaceAtStart}
+              onDeleteAtEnd={handleDeleteAtEnd}
+              onIndent={handleIndent}
+              onOutdent={handleOutdent}
+            />
+          ) : (
+            <div 
+              ref={contentRef}
+              className={`block-content-view${!block.name ? ' block-content-view--empty' : ''}`}
+            >
+              {block.name ? (
+                <ContentWithPills
+                  content={block.name}
+                  blockId={block.id}
+                  className="block-content-pills"
+                />
+              ) : (
+                /* Empty block - no placeholder, just maintain width */
+                <span className="block-content-empty">&nbsp;</span>
+              )}
+              {/* Comment indicator in view mode */}
+              {commentCount > 0 && (
+                <button 
+                  className="block-comment-badge"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenComments?.();
+                  }}
+                  title={`${commentCount} comment${commentCount > 1 ? 's' : ''}`}
+                >
+                  💬 {commentCount}
+                </button>
+              )}
+            </div>
+          )}
+        </Card>
+        
+        {/* Block types - right-aligned */}
+        {blockTypeDetails.length > 0 && (
+          <div className="block-types">
+            {blockTypeDetails.map((typeNode) => (
+              <div key={typeNode.id} className="block-type-chip">
+                <button
+                  className="block-type-chip__label"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openNode(typeNode.id, 'page');
+                  }}
+                  title={`Click to view ${typeNode.name}`}
+                >
+                  <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
+                  <span>{typeNode.name}</span>
+                </button>
+                {!readOnly && (
+                  <button
+                    className="block-type-chip__close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeType.mutate({ nodeId: block.id, typeId: typeNode.id });
+                    }}
+                    title={`Remove ${typeNode.name} type`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Drop indicator - inside (visual cue) */}
+      {isDragOver && dropPosition === 'inside' && (
+        <div className="drop-indicator drop-indicator-inside" />
+      )}
+      
+      {/* Drop indicator - after */}
+      {isDragOver && dropPosition === 'after' && (
+        <div className="drop-indicator drop-indicator-after" />
+      )}
+      
+      {/* Children blocks with vertical collapse line */}
+      {hasChildren && !isCollapsed && (
+        <div className="children-container">
+          {/* Vertical line for collapsing children */}
+          <div 
+            className={`children-collapse-line ${isLineHovered ? 'hovered' : ''}`}
+            onClick={handleCollapseToggle}
+            onMouseEnter={() => setIsLineHovered(true)}
+            onMouseLeave={() => setIsLineHovered(false)}
+            title="Click to collapse children"
+          />
+          <div className="nested-blocks">
+            {children.map((child) => (
+              <Block
+                key={child.id}
+                block={child}
+                children={child.children}
+                siblings={children}
+                depth={depth + 1}
+                parentId={block.id}
+                parentBlock={block}
+                onContentChange={onContentChange}
+                onBulletClick={onBulletClick}
+                onShiftClick={onShiftClick}
+                onAddType={onAddType}
+                onAddTag={onAddTag}
+                onCreateType={onCreateType}
+                onCreateTag={onCreateTag}
+                onLinkPage={onLinkPage}
+                onCreatePageLink={onCreatePageLink}
+                onOpenComments={onOpenComments}
+                onAssetUpload={onAssetUpload}
+                commentCount={child.comment_count}
+                readOnly={readOnly}
+                onTaskStateChange={onTaskStateChange}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Context menu for bullet right-click */}
+      {contextMenu && (
+        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000 }}>
+          <ColorPickerRow 
+            currentColor={block.color ?? null} 
+            onColorChange={(color) => {
+              updateNode.mutate({ id: block.id, data: { color } });
+            }} 
+          />
+          <ContextMenu
+            items={contextMenuItems}
+            position={{ x: 0, y: 0 }}
+            onClose={handleCloseContextMenu}
+          />
+        </div>
+      )}
+      
+      {/* Deletion confirmation modal */}
+      <DeletionConfirmationModal
+        isOpen={showDeleteModal}
+        node={block}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
+    </div>
+  );
+}
+
+export default Block;

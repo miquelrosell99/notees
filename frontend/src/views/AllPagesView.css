@@ -1,0 +1,53 @@
+/**
+ * All Pages View styles
+ */
+
+.all-pages-view {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.all-pages-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.all-pages-header h2 {
+  margin: 0;
+}
+
+.page-count {
+  font-size: 0.875rem;
+  color: var(--color-on-surface-variant);
+}
+
+.all-pages-search {
+  margin-bottom: 1rem;
+}
+
+.all-pages-search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.all-pages-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.all-pages-list {
+  padding: 0.5rem 0;
+}
+
+.all-pages-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-on-surface-variant);
+}

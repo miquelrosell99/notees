@@ -1,0 +1,120 @@
+/**
+ * Local Graph Card styles
+ */
+
+.local-graph-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+  min-height: 200px;
+}
+
+.local-graph-card.loading,
+.local-graph-card.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  min-height: 120px;
+}
+
+.local-graph-loading,
+.local-graph-empty {
+  color: var(--color-outline);
+  font-size: 0.85rem;
+}
+
+.local-graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.local-graph-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-on-surface);
+  overflow: hidden;
+}
+
+.local-graph-icon {
+  flex-shrink: 0;
+}
+
+.local-graph-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.local-graph-close {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.local-graph-close:hover {
+  background: var(--color-error);
+  color: white;
+}
+
+.local-graph-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container);
+}
+
+.local-graph-canvas {
+  display: block;
+  background: var(--color-surface);
+  width: 100%;
+}
+
+/* Local Graph Button in TopBar */
+.local-graph-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: all 0.15s ease;
+}
+
+.local-graph-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-primary);
+}
+
+.local-graph-btn.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.local-graph-btn svg {
+  width: 18px;
+  height: 18px;
+}

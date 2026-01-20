@@ -1,0 +1,43 @@
+/**
+ * DraggedBlock Component Styles
+ */
+
+.dragged-block {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  max-width: 300px;
+  animation: draggedBlockFadeIn 0.1s ease;
+}
+
+@keyframes draggedBlockFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dragged-block__card {
+  background: var(--color-surface);
+  opacity: 0.95;
+}
+
+.dragged-block__content {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2, 8px);
+}
+
+.dragged-block__text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm, 14px);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,45 @@
+# Docker Compose for Development
+# Runs backend and frontend separately with hot-reload support
+#
+# Usage: docker-compose -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  # Backend API with hot reload
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: notees-backend-dev
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app/app:ro
+      # Persist data
+      - ./data:/app/data
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - RELOAD=true
+      - HOST=0.0.0.0
+      - PORT=8000
+    restart: unless-stopped
+
+  # Frontend with Vite dev server
+  frontend:
+    image: node:20-alpine
+    container_name: notees-frontend-dev
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Anonymous volume for node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend

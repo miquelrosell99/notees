@@ -1,0 +1,71 @@
+/**
+ * Image Block styles
+ */
+
+.image-block {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: var(--spacing-2) 0;
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.image-block:hover {
+  box-shadow: var(--elevation-2);
+}
+
+.image-block--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  background: var(--color-error-container);
+  color: var(--color-error);
+  font: var(--font-body-medium);
+}
+
+.image-block__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.image-block__caption {
+  padding: var(--spacing-2);
+  background: var(--color-surface-variant);
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  text-align: center;
+}
+
+.image-block__delete {
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-error);
+  color: var(--color-on-error);
+  border: none;
+  border-radius: var(--shape-full);
+  cursor: pointer;
+  opacity: 0.9;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.image-block__delete:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.image-block__delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

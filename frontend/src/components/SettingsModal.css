@@ -1,0 +1,411 @@
+/**
+ * Settings Modal Component Styles
+ */
+
+/* ==================== Settings Modal Container ==================== */
+.settings-modal {
+  width: 90%;
+  max-width: 640px;
+  height: 70vh;
+  min-height: 400px;
+  max-height: 700px;
+  background: var(--color-surface);
+  border-radius: var(--shape-extra-large);
+  box-shadow: var(--elevation-5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp var(--motion-duration-medium) var(--motion-easing-emphasized);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==================== Settings Header ==================== */
+.settings-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-6);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.settings-modal__title {
+  font: var(--font-headline-small);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.settings-modal__close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-full);
+  font-size: 1.5rem;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-modal__close:hover {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+/* ==================== Settings Body ==================== */
+.settings-modal__body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ==================== Settings Navigation ==================== */
+.settings-modal__nav {
+  width: 180px;
+  padding: var(--spacing-3);
+  border-right: 1px solid var(--color-outline-variant);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.settings-modal__nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-modal__nav-item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.settings-modal__nav-item--active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.settings-modal__nav-icon {
+  font-size: 1rem;
+}
+
+/* ==================== Settings Content ==================== */
+.settings-modal__content {
+  flex: 1;
+  padding: var(--spacing-4) var(--spacing-6);
+  overflow-y: auto;
+}
+
+/* ==================== Settings Section ==================== */
+.settings-section {
+  margin-bottom: var(--spacing-6);
+}
+
+.settings-section__title {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-4) 0;
+}
+
+/* ==================== Settings Item ==================== */
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-3) 0;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.settings-item__info {
+  flex: 1;
+}
+
+.settings-item__label {
+  display: block;
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  margin-bottom: var(--spacing-1);
+}
+
+.settings-item__description {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.settings-item__select {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+.settings-item__select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-item__loading {
+  font: var(--font-body-small);
+  color: var(--color-primary);
+  margin-left: var(--spacing-2);
+}
+
+/* ==================== Settings Toggle ==================== */
+.settings-toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settings-toggle__slider {
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-container-highest);
+  border-radius: var(--shape-full);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-toggle__slider::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-1);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-toggle input:checked + .settings-toggle__slider {
+  background: var(--color-primary);
+}
+
+.settings-toggle input:checked + .settings-toggle__slider::before {
+  transform: translateX(20px);
+}
+
+/* ==================== Theme Buttons ==================== */
+.settings-theme-buttons {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.settings-theme-btn {
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  border-radius: var(--shape-small);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-theme-btn:hover {
+  border-color: var(--color-outline);
+}
+
+.settings-theme-btn--active {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
+/* ==================== User Info ==================== */
+.settings-user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+  margin-bottom: var(--spacing-4);
+}
+
+.settings-user-avatar {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--shape-full);
+  font: var(--font-headline-medium);
+}
+
+.settings-user-details {
+  flex: 1;
+}
+
+.settings-user-name {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.settings-user-id {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* ==================== Settings Buttons ==================== */
+.settings-divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: var(--spacing-4) 0;
+}
+
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: none;
+  border-radius: var(--shape-small);
+  font: var(--font-label-large);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-btn--danger {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+.settings-btn--danger:hover {
+  background: var(--color-error);
+  color: var(--color-on-error);
+}
+
+/* ==================== About Section ==================== */
+.settings-about {
+  text-align: center;
+  padding: var(--spacing-4);
+}
+
+.settings-about__logo {
+  font-size: 3rem;
+  margin-bottom: var(--spacing-2);
+}
+
+.settings-about__name {
+  font: var(--font-headline-medium);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.settings-about__version {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: 0 0 var(--spacing-3) 0;
+}
+
+.settings-about__description {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* ==================== Settings Links ==================== */
+.settings-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--shape-small);
+  font: var(--font-label-large);
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-link:hover {
+  background: var(--color-primary-container);
+}
+
+/* ==================== Tag Colors Section ==================== */
+.tag-colors-section {
+  padding: var(--spacing-4);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+  margin-top: var(--spacing-4);
+}
+
+.tag-colors-title {
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-3) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tag-colors-empty {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+  margin-bottom: var(--spacing-3);
+}
+
+.tag-color-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.tag-color-action-btn {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  border-radius: var(--shape-small);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.tag-color-action-btn:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline);
+}

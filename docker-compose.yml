@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  notees:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notees
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      # Persist data directory for SQLite databases (bind mount to local folder)
+      - ./data:/app/data
+      # Persist logs
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      # Override defaults for production
+      - RELOAD=false
+      - HOST=0.0.0.0
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/status')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

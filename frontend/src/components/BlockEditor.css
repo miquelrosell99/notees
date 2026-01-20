@@ -1,0 +1,123 @@
+/* Block Editor */
+.block-editor {
+  width: 100%;
+  position: relative;
+}
+
+.block-editor-input {
+  width: 100%;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.6;
+  outline: none;
+}
+
+.block-editor-input:focus {
+  outline: none;
+}
+
+/* Link Pills (in contenteditable) */
+.link-pill {
+  display: inline;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  margin: 0;
+  border-radius: var(--shape-small);
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+  font-size: 0.9em;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: baseline;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.link-pill:hover {
+  background: var(--color-hover-overlay);
+}
+
+.link-pill--page {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.link-pill--block {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+.link-pill--selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--color-primary-container);
+}
+
+/* Hide caret when a pill is selected */
+.block-editor-input:has(.link-pill--selected) {
+  caret-color: transparent;
+}
+
+.link-pill__icon {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.link-pill__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+/* Click count badge */
+.link-pill__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 4px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+
+.link-pill--block .link-pill__badge {
+  background: var(--color-secondary);
+  color: var(--color-on-secondary);
+}
+
+/* Block Editor - Simplified Mode */
+.block-editor--simplified {
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block-editor--simplified:hover {
+  background: var(--color-hover-overlay);
+}
+
+/* Hide properties and types in simplified mode */
+.block-editor--simplified .suggestion-popup,
+.block-editor--simplified .slash-command-popup,
+.block-editor--simplified .block-comment-indicator {
+  display: none;
+}
+
+/* Make textarea look like display text in simplified mode */
+.block-editor--simplified .block-editor-input {
+  pointer-events: none;
+  background: transparent;
+}

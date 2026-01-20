@@ -1,0 +1,273 @@
+/**
+ * Nodes store using Zustand
+ * 
+ * Manages the current node state and selection.
+ */
+import { create } from 'zustand';
+import type { Node } from '@/types';
+
+export type ViewMode = 'default' | 'focus' | 'zen';
+export type MainViewType = 'node' | 'all-pages' | 'journals' | 'graph' | 'archived' | 'assets' | 'property';
+export type NodeViewType = 'page' | 'block';
+export type SidebarTab = 'pages' | 'graph';
+export type SidebarNodeType = 'page' | 'block';
+export type RightSidebarContent = 'node' | 'localGraph' | 'activity' | null;
+
+/** Display mode for node content: document (prose), bullet (outline), or card (blocks as cards) */
+export type ContentDisplayMode = 'document' | 'bullet' | 'card';
+
+/** Card layout when in card display mode */
+export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-side';
+
+interface SidebarNode {
+  id: number;
+  type: SidebarNodeType;
+}
+
+/** A card in the right sidebar */
+export interface SidebarCard {
+  id: number;
+  nodeId: number;
+  nodeType: SidebarNodeType;
+  addedAt: number; // timestamp for ordering
+}
+
+interface NodesState {
+  // Currently selected/active node
+  activeNode: Node | null;
+  activeNodeId: number | null;
+  
+  // Current node being viewed (can be page or block)
+  currentNodeId: number | null;
+  currentNodeType: NodeViewType;
+  
+  // Property context for when viewing a block that comes from a text property
+  // Used to show property name in breadcrumbs
+  currentPropertyContext: { propertyId: number; propertyName: string } | null;
+  
+  // Sidebar state
+  sidebarOpen: boolean;
+  rightSidebarOpen: boolean;
+  isSidebarCollapsed: boolean;
+  sidebarTab: SidebarTab;
+  
+  // Right sidebar content
+  rightSidebarContent: RightSidebarContent;
+  sidebarNode: SidebarNode | null;
+  sidebarCards: SidebarCard[]; // List of cards in sidebar
+  localGraphNodeId: number | null;
+  
+  // Comments sidebar state
+  commentsSidebarOpen: boolean;
+  commentsNodeId: number | null;
+  
+  // View mode
+  viewMode: ViewMode;
+  
+  // Main view type (what's displayed in the main content area)
+  mainViewType: MainViewType;
+  
+  // Current property being viewed (when mainViewType is 'property')
+  currentPropertyId: number | null;
+  
+  // UI state
+  isCalendarOpen: boolean;
+  isQuickAddOpen: boolean;
+  isCommandPaletteOpen: boolean;
+  showDbManagement: boolean;
+  isMinimapOpen: boolean;
+  
+  // New features state
+  contentDisplayMode: ContentDisplayMode;
+  cardLayout: CardLayoutMode;
+  isScratchpadOpen: boolean;
+  lateNightThoughtsFilter: boolean;
+  
+  // Actions
+  setActiveNode: (node: Node | null) => void;
+  setActiveNodeId: (id: number | null) => void;
+  /** Navigate to a node (page or block), optionally with property context */
+  openNode: (nodeId: number, nodeType: NodeViewType, propertyContext?: { propertyId: number; propertyName: string }) => void;
+  toggleSidebar: () => void;
+  toggleRightSidebar: () => void;
+  setViewMode: (mode: ViewMode) => void;
+  setMainViewType: (viewType: MainViewType) => void;
+  /** Open a property view */
+  openPropertyView: (propertyId: number) => void;
+  setSidebarTab: (tab: SidebarTab) => void;
+  setCalendarOpen: (open: boolean) => void;
+  toggleCalendar: () => void;
+  setQuickAddOpen: (open: boolean) => void;
+  toggleQuickAdd: () => void;
+  setCommandPaletteOpen: (open: boolean) => void;
+  toggleCommandPalette: () => void;
+  openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
+  closeSidebarNode: () => void;
+  /** Add a card to the sidebar (shift-click behavior) */
+  addSidebarCard: (nodeId: number, nodeType: SidebarNodeType) => void;
+  /** Remove a specific card from the sidebar */
+  removeSidebarCard: (cardId: number) => void;
+  /** Clear all sidebar cards */
+  clearSidebarCards: () => void;
+  openLocalGraph: (nodeId: number) => void;
+  closeLocalGraph: () => void;
+  openCommentsForNode: (nodeId: number) => void;
+  closeCommentsSidebar: () => void;
+  toggleCommentsSidebar: () => void;
+  setShowDbManagement: (show: boolean) => void;
+  toggleMinimap: () => void;
+  setMinimapOpen: (open: boolean) => void;
+  // New feature actions
+  toggleContentDisplayMode: () => void;
+  setContentDisplayMode: (mode: ContentDisplayMode) => void;
+  setCardLayout: (layout: CardLayoutMode) => void;
+  toggleScratchpad: () => void;
+  setScratchpadOpen: (open: boolean) => void;
+  toggleLateNightThoughts: () => void;
+  setLateNightThoughtsFilter: (enabled: boolean) => void;
+}
+
+export const useNodesStore = create<NodesState>()((set) => ({
+  activeNode: null,
+  activeNodeId: null,
+  currentNodeId: null,
+  currentNodeType: 'page' as NodeViewType,
+  currentPropertyContext: null,
+  sidebarOpen: true,
+  rightSidebarOpen: false,
+  isSidebarCollapsed: false,
+  sidebarTab: 'pages',
+  rightSidebarContent: null,
+  sidebarNode: null,
+  sidebarCards: [],
+  localGraphNodeId: null,
+  commentsSidebarOpen: false,
+  commentsNodeId: null,
+  viewMode: 'default',
+  mainViewType: 'node' as MainViewType,
+  currentPropertyId: null,
+  isCalendarOpen: false,
+  isQuickAddOpen: false,
+  isCommandPaletteOpen: false,
+  showDbManagement: false,
+  isMinimapOpen: false,
+  // New features state
+  contentDisplayMode: 'bullet' as ContentDisplayMode,
+  cardLayout: 'cover-top' as CardLayoutMode,
+  isScratchpadOpen: false,
+  lateNightThoughtsFilter: false,
+  
+  setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
+  setActiveNodeId: (id) => set({ activeNodeId: id }),
+  openNode: (nodeId, nodeType, propertyContext) => set({ 
+    currentNodeId: nodeId, 
+    currentNodeType: nodeType,
+    currentPropertyContext: propertyContext ?? null,
+    mainViewType: 'node' 
+  }),
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen, isSidebarCollapsed: !state.isSidebarCollapsed })),
+  toggleRightSidebar: () => set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen })),
+  setViewMode: (mode) => set({ viewMode: mode }),
+  setMainViewType: (viewType) => set({ mainViewType: viewType }),
+  openPropertyView: (propertyId) => set({ mainViewType: 'property', currentPropertyId: propertyId }),
+  setSidebarTab: (tab) => set({ sidebarTab: tab }),
+  setCalendarOpen: (open) => set({ isCalendarOpen: open }),
+  toggleCalendar: () => set((state) => ({ isCalendarOpen: !state.isCalendarOpen })),
+  setQuickAddOpen: (open) => set({ isQuickAddOpen: open }),
+  toggleQuickAdd: () => set((state) => ({ isQuickAddOpen: !state.isQuickAddOpen })),
+  setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
+  toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
+  openNodeInSidebar: (nodeId, nodeType) => set({ 
+    rightSidebarOpen: true, 
+    rightSidebarContent: 'node',
+    sidebarNode: { id: nodeId, type: nodeType },
+  }),
+  closeSidebarNode: () => set({
+    rightSidebarOpen: false,
+    rightSidebarContent: null,
+    sidebarNode: null,
+  }),
+  addSidebarCard: (nodeId, nodeType) => set((state) => {
+    // Check if card already exists for this node
+    const existingIndex = state.sidebarCards.findIndex(c => c.nodeId === nodeId);
+    if (existingIndex >= 0) {
+      // Move existing card to the top
+      const existing = state.sidebarCards[existingIndex];
+      const newCards = [
+        { ...existing, addedAt: Date.now() },
+        ...state.sidebarCards.slice(0, existingIndex),
+        ...state.sidebarCards.slice(existingIndex + 1),
+      ];
+      return { sidebarCards: newCards, rightSidebarOpen: true, rightSidebarContent: 'node' };
+    }
+    // Add new card at the top
+    const newCard: SidebarCard = {
+      id: Date.now(),
+      nodeId,
+      nodeType,
+      addedAt: Date.now(),
+    };
+    return { 
+      sidebarCards: [newCard, ...state.sidebarCards],
+      rightSidebarOpen: true,
+      rightSidebarContent: 'node',
+    };
+  }),
+  removeSidebarCard: (cardId) => set((state) => {
+    const newCards = state.sidebarCards.filter(c => c.id !== cardId);
+    // If no cards left, close the sidebar
+    if (newCards.length === 0) {
+      return { 
+        sidebarCards: newCards, 
+        rightSidebarOpen: false, 
+        rightSidebarContent: null 
+      };
+    }
+    return { sidebarCards: newCards };
+  }),
+  clearSidebarCards: () => set({
+    sidebarCards: [],
+    rightSidebarOpen: false,
+    rightSidebarContent: null,
+  }),
+  openLocalGraph: (nodeId) => set((state) => ({
+    rightSidebarOpen: true,
+    rightSidebarContent: 'localGraph',
+    localGraphNodeId: nodeId,
+    // Keep sidebar node if switching from node view
+    sidebarNode: state.rightSidebarContent === 'node' ? state.sidebarNode : null,
+  })),
+  closeLocalGraph: () => set({
+    rightSidebarOpen: false,
+    rightSidebarContent: null,
+    localGraphNodeId: null,
+  }),
+  openCommentsForNode: (nodeId) => set({
+    commentsSidebarOpen: true,
+    commentsNodeId: nodeId,
+  }),
+  closeCommentsSidebar: () => set({
+    commentsSidebarOpen: false,
+    commentsNodeId: null,
+  }),
+  toggleCommentsSidebar: () => set((state) => ({
+    commentsSidebarOpen: !state.commentsSidebarOpen,
+  })),
+  setShowDbManagement: (show) => set({ showDbManagement: show }),
+  toggleMinimap: () => set((state) => ({ isMinimapOpen: !state.isMinimapOpen })),
+  setMinimapOpen: (open) => set({ isMinimapOpen: open }),
+  // New feature actions
+  toggleContentDisplayMode: () => set((state) => ({ 
+    contentDisplayMode: state.contentDisplayMode === 'bullet' 
+      ? 'document' 
+      : state.contentDisplayMode === 'document' 
+        ? 'card' 
+        : 'bullet' 
+  })),
+  setContentDisplayMode: (mode) => set({ contentDisplayMode: mode }),
+  setCardLayout: (layout) => set({ cardLayout: layout }),
+  toggleScratchpad: () => set((state) => ({ isScratchpadOpen: !state.isScratchpadOpen })),
+  setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
+  toggleLateNightThoughts: () => set((state) => ({ lateNightThoughtsFilter: !state.lateNightThoughtsFilter })),
+  setLateNightThoughtsFilter: (enabled) => set({ lateNightThoughtsFilter: enabled }),
+}));

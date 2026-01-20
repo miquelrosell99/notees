@@ -1,0 +1,44 @@
+/**
+ * Mini Graph View (Minimap) Styles
+ */
+
+.mini-graph-view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mini-graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+}
+
+.mini-graph-header h4 {
+  margin: 0;
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
+}
+
+.mini-graph-hint {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+}
+
+.mini-graph-container {
+  height: 200px;
+  position: relative;
+}
+
+.mini-graph-canvas {
+  height: 100%;
+}
+
+/* Override graph-view styles for minimap */
+.mini-graph-view .graph-view.minimap {
+  border: none;
+  border-radius: 0;
+}

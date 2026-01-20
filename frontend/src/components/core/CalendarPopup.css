@@ -1,0 +1,210 @@
+/**
+ * Calendar Popup Component Styles
+ */
+
+/* ==================== Calendar Popup Container ==================== */
+.calendar-popup {
+  position: fixed;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-4);
+  padding: var(--spacing-3);
+  z-index: var(--z-popover);
+  min-width: 280px;
+}
+
+/* ==================== Calendar Header ==================== */
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-3);
+}
+
+.calendar-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.calendar-nav-btn:hover {
+  background: var(--color-hover-overlay);
+}
+
+.calendar-title {
+  display: flex;
+  gap: var(--spacing-1);
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+}
+
+.calendar-month-btn,
+.calendar-year-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.calendar-month-btn {
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.calendar-year-btn {
+  color: var(--color-on-surface-variant);
+}
+
+.calendar-month-btn:hover,
+.calendar-year-btn:hover {
+  background: var(--color-hover-overlay);
+}
+
+.calendar-month-btn:active,
+.calendar-year-btn:active {
+  background: var(--color-primary-container);
+}
+
+/* ==================== Weekdays Header ==================== */
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: var(--spacing-1);
+}
+
+.calendar-weekday {
+  text-align: center;
+  font: var(--font-label-small);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-1);
+}
+
+/* ==================== Days Grid ==================== */
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.calendar-day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-day {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  position: relative;
+}
+
+.calendar-day:hover {
+  background: var(--color-hover-overlay);
+}
+
+.calendar-day.today {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.calendar-day.today:hover {
+  background: var(--color-primary-hover);
+}
+
+.calendar-day.has-note::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.calendar-day.today.has-note::after {
+  background: var(--color-on-primary);
+}
+
+/* ==================== Calendar Footer ==================== */
+.calendar-footer {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--color-outline-variant);
+  text-align: center;
+}
+
+.calendar-today-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  font: var(--font-label-medium);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.calendar-today-btn:hover {
+  background: var(--color-primary-container);
+}
+
+/* ==================== Tag Filter ==================== */
+.calendar-tag-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+}
+
+.calendar-tag-filter-btn {
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  font: var(--font-label-small);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.calendar-tag-filter-btn:hover {
+  border-color: var(--color-outline);
+}
+
+.calendar-tag-filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}

@@ -1,0 +1,276 @@
+/**
+ * Database Modal styles
+ */
+
+.database-modal {
+  width: 90%;
+  max-width: 480px;
+  background: var(--color-surface);
+  border-radius: var(--shape-extra-large);
+  box-shadow: var(--elevation-5);
+  overflow: hidden;
+  animation: slideUp var(--motion-duration-medium) var(--motion-easing-emphasized);
+}
+
+.database-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-6);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.database-modal__title {
+  font: var(--font-headline-small);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.database-modal__close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-full);
+  font-size: 1.5rem;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.database-modal__close:hover {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+.database-modal__tabs {
+  display: flex;
+  padding: var(--spacing-2) var(--spacing-4);
+  gap: var(--spacing-2);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.database-modal__tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  background: transparent;
+  border-radius: var(--shape-small);
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.database-modal__tab:hover {
+  background: var(--color-hover-overlay);
+}
+
+.database-modal__tab--active {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
+.database-modal__form {
+  padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+}
+
+.database-modal__field {
+  margin-bottom: var(--spacing-4);
+}
+
+.database-modal__label {
+  display: block;
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  margin-bottom: var(--spacing-2);
+}
+
+.database-modal__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.database-modal__input {
+  width: 100%;
+  padding: var(--spacing-3) var(--spacing-4);
+  padding-right: var(--spacing-10);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  font: var(--font-body-large);
+  color: var(--color-on-surface);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.database-modal__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.database-modal__input--error {
+  border-color: var(--color-error);
+}
+
+.database-modal__input--valid {
+  border-color: var(--color-success);
+}
+
+.database-modal__input-status {
+  position: absolute;
+  right: var(--spacing-3);
+  font-size: 0.875rem;
+}
+
+.database-modal__input-status--loading {
+  animation: spin 1s linear infinite;
+}
+
+.database-modal__input-status--valid {
+  color: var(--color-success);
+}
+
+.database-modal__input-status--error {
+  color: var(--color-error);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.database-modal__field-error {
+  font: var(--font-body-small);
+  color: var(--color-error);
+  margin: var(--spacing-1) 0 0 0;
+}
+
+.database-modal__dropzone {
+  border: 2px dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: var(--spacing-6);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.database-modal__dropzone:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.database-modal__dropzone--has-file {
+  border-style: solid;
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.database-modal__dropzone-icon {
+  font-size: 2rem;
+  margin-bottom: var(--spacing-2);
+}
+
+.database-modal__dropzone-text {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.database-modal__dropzone-hint {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.database-modal__file-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+}
+
+.database-modal__file-icon {
+  font-size: 1.25rem;
+}
+
+.database-modal__file-name {
+  font: var(--font-label-large);
+  color: var(--color-on-primary-container);
+}
+
+.database-modal__file-size {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.database-modal__error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: var(--color-error-container);
+  border-radius: var(--shape-small);
+  font: var(--font-body-medium);
+  color: var(--color-error);
+  margin-bottom: var(--spacing-4);
+}
+
+.database-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-4);
+}
+
+.database-modal__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-5);
+  border: none;
+  border-radius: var(--shape-small);
+  font: var(--font-label-large);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.database-modal__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.database-modal__btn--secondary {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.database-modal__btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+}
+
+.database-modal__btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.database-modal__btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.database-modal__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: var(--shape-full);
+  animation: spin 0.6s linear infinite;
+}

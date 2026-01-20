@@ -1,0 +1,89 @@
+/**
+ * Journals View styles
+ */
+
+.journals-view {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.journals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.journal-entry {
+  background: transparent;
+  border-bottom: 1px solid var(--color-outline-variant);
+  padding-bottom: 2rem;
+}
+
+.journal-entry:last-child {
+  border-bottom: none;
+}
+
+.journal-entry.loading {
+  opacity: 0.5;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.journal-entry.loading {
+  opacity: 0.5;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.journals-load-more {
+  text-align: center;
+  padding: 2rem;
+}
+
+.load-more-btn {
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  color: var(--color-on-surface);
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.load-more-btn:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.journals-loading,
+.journals-error,
+.journals-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--color-on-surface-variant);
+}
+
+.journals-error {
+  color: var(--color-error);
+}
+
+/* Override NodeView styles for journal context */
+.journal-entry .node-view {
+  padding: 0;
+  background: transparent;
+}
+
+.journal-entry .page-header {
+  padding: 0.5rem 0 1rem;
+}
+
+.journal-entry .node-breadcrumbs {
+  display: none;
+}

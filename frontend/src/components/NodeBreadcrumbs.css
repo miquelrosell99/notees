@@ -1,0 +1,70 @@
+/**
+ * NodeBreadcrumbs styles
+ */
+
+.node-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-2) 0;
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.node-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.node-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: all 0.15s ease;
+  font: inherit;
+}
+
+.node-breadcrumb-link:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.node-breadcrumb-bullet {
+  font-size: 10px;
+  color: var(--color-on-surface-variant);
+}
+
+.node-breadcrumb-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-breadcrumb-separator {
+  color: var(--color-outline);
+  flex-shrink: 0;
+}
+/* Property breadcrumb styles */
+.node-breadcrumb-property {
+  color: var(--color-primary);
+}
+
+.node-breadcrumb-property:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.node-breadcrumb-property-icon {
+  font-size: 10px;
+  opacity: 0.8;
+}

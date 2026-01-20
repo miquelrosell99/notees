@@ -1,0 +1,193 @@
+/**
+ * Scratchpad Styles
+ */
+.scratchpad {
+  position: fixed;
+  z-index: 1000;
+  width: 320px;
+  max-height: 400px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: scratchpadFadeIn 0.2s ease-out;
+}
+
+@keyframes scratchpadFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scratchpad.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.scratchpad.pinned {
+  border-color: var(--color-accent);
+  box-shadow: 0 8px 32px rgba(var(--color-accent-rgb), 0.2);
+}
+
+.scratchpad-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: grab;
+  user-select: none;
+}
+
+.scratchpad.dragging .scratchpad-header {
+  cursor: grabbing;
+}
+
+.scratchpad-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.scratchpad-date {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.scratchpad-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.scratchpad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.scratchpad-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.scratchpad-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scratchpad-btn.active {
+  color: var(--color-accent);
+}
+
+.scratchpad-entries {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 100px;
+  max-height: 250px;
+}
+
+.scratchpad-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+.scratchpad-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  margin-bottom: 6px;
+}
+
+.scratchpad-entry:hover {
+  background: var(--bg-hover);
+}
+
+.scratchpad-entry-time {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.scratchpad-entry-content {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.scratchpad-entry-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.scratchpad-entry:hover .scratchpad-entry-delete {
+  opacity: 1;
+}
+
+.scratchpad-entry-delete:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.scratchpad-input-area {
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.scratchpad-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+  transition: border-color 0.15s ease;
+}
+
+.scratchpad-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.scratchpad-input::placeholder {
+  color: var(--text-tertiary);
+}

@@ -1,0 +1,191 @@
+/**
+ * Button Component Styles
+ * 
+ * Unified button styling with variants, sizes, and states.
+ * Updated to match modern rounded style with subtle borders.
+ */
+
+/* ==================== Base Button ==================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg, 12px);
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border-color: var(--color-outline);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ==================== Sizes ==================== */
+.btn--xs {
+  height: 28px;
+  padding: 0 var(--spacing-2);
+  font-size: 0.6875rem;
+  gap: var(--spacing-1);
+}
+
+.btn--sm {
+  height: 32px;
+  padding: 0 var(--spacing-3);
+  font-size: 0.75rem;
+  gap: var(--spacing-1);
+}
+
+.btn--md {
+  height: 38px;
+  padding: 0 var(--spacing-4);
+  font-size: 0.8125rem;
+  gap: var(--spacing-2);
+}
+
+.btn--lg {
+  height: 46px;
+  padding: 0 var(--spacing-5);
+  font-size: 0.875rem;
+  gap: var(--spacing-2);
+}
+
+/* Icon-only buttons */
+.btn--icon-only {
+  padding: 0;
+  aspect-ratio: 1;
+}
+
+.btn--icon-only.btn--xs {
+  width: 28px;
+}
+
+.btn--icon-only.btn--sm {
+  width: 32px;
+}
+
+.btn--icon-only.btn--md {
+  width: 38px;
+}
+
+.btn--icon-only.btn--lg {
+  width: 46px;
+}
+
+/* ==================== Variants ==================== */
+
+/* Default variant */
+.btn--default {
+  background: var(--color-surface-container);
+  border-color: var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+}
+
+.btn--default:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
+.btn--default.btn--active,
+.btn--default:active:not(:disabled) {
+  background: var(--color-surface-container-highest);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
+/* Primary variant */
+.btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn--primary.btn--active,
+.btn--primary:active:not(:disabled) {
+  background: var(--color-primary-pressed);
+  border-color: var(--color-primary-pressed);
+}
+
+/* Ghost variant - transparent background with border on hover */
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-container);
+  border-color: var(--color-outline-variant);
+  color: var(--color-on-surface);
+}
+
+.btn--ghost.btn--active,
+.btn--ghost:active:not(:disabled) {
+  background: var(--color-surface-container-high);
+  border-color: var(--color-outline-variant);
+  color: var(--color-on-surface);
+}
+
+/* Danger variant */
+.btn--danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-error);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-error-container);
+}
+
+.btn--danger.btn--active,
+.btn--danger:active:not(:disabled) {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+/* ==================== States ==================== */
+.btn--disabled,
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--full-width {
+  width: 100%;
+}
+
+/* ==================== Icon Styles ==================== */
+.btn__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

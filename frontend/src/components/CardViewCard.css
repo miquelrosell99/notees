@@ -1,0 +1,199 @@
+/**
+ * CardViewCard styles
+ * 
+ * Styles for the card component with different layouts:
+ * - no-cover: Simple card without cover
+ * - cover-top: Cover image on top
+ * - cover-side: Cover image on the left side
+ */
+
+.card-view-card {
+  display: flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  overflow: hidden;
+  width: 100%;
+}
+
+.card-view-card:hover {
+  border-color: var(--color-outline);
+  box-shadow: var(--elevation-1);
+}
+
+.card-view-card:active {
+  transform: scale(0.99);
+}
+
+/* Color variant - when node has a color property */
+.card-view-card--has-color {
+  border-left-style: solid;
+}
+
+.card-view-card--has-color:hover {
+  border-left-color: var(--card-color);
+}
+
+/* No cover layout - simple vertical card */
+.card-view-card--no-cover {
+  flex-direction: column;
+}
+
+/* Cover top layout - cover on top, content below */
+.card-view-card--cover-top {
+  flex-direction: column;
+}
+
+/* Cover side layout - cover on left, content on right */
+.card-view-card--cover-side {
+  flex-direction: row;
+}
+
+/* Cover container */
+.card-view-card__cover {
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--color-surface-container);
+}
+
+.card-view-card--cover-top .card-view-card__cover {
+  width: 100%;
+  height: 140px;
+}
+
+.card-view-card--cover-side .card-view-card__cover {
+  width: 120px;
+  min-height: 100%;
+}
+
+.card-view-card__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Card body */
+.card-view-card__body {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Block content inside card - override hover since card already has it */
+.card-view-card__content.block-content-preview {
+  padding: 0;
+}
+
+.card-view-card__content.block-content-preview:hover {
+  background: transparent;
+}
+
+/* Grid container for card mode in NodeContent */
+.node-content-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+}
+
+/* Card layout selector */
+.card-layout-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  margin-bottom: var(--spacing-3);
+}
+
+.card-layout-selector__label {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+}
+
+.card-layout-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--shape-small);
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.card-layout-option:hover {
+  background: var(--color-surface-container-high);
+}
+
+.card-layout-option--active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-color: var(--color-primary);
+}
+
+/* Mini layout icons */
+.layout-icon {
+  width: 20px;
+  height: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+.layout-icon--no-cover .layout-icon__content {
+  flex: 1;
+  background: currentColor;
+  opacity: 0.3;
+  border-radius: 1px;
+}
+
+.layout-icon--cover-top {
+  flex-direction: column;
+}
+
+.layout-icon--cover-top .layout-icon__cover {
+  height: 40%;
+  background: currentColor;
+  opacity: 0.6;
+  border-radius: 1px;
+}
+
+.layout-icon--cover-top .layout-icon__content {
+  flex: 1;
+  background: currentColor;
+  opacity: 0.2;
+  border-radius: 1px;
+}
+
+.layout-icon--cover-side {
+  flex-direction: row;
+}
+
+.layout-icon--cover-side .layout-icon__cover {
+  width: 35%;
+  background: currentColor;
+  opacity: 0.6;
+  border-radius: 1px;
+}
+
+.layout-icon--cover-side .layout-icon__content {
+  flex: 1;
+  background: currentColor;
+  opacity: 0.2;
+  border-radius: 1px;
+}

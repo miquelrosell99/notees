@@ -1,0 +1,189 @@
+/**
+ * PageHeader styles
+ * 
+ * The PageHeader now just contains the title section.
+ * The two-column layout (with cover image) is handled by NodeView.
+ */
+
+.page-header {
+  margin-bottom: var(--spacing-2);
+}
+
+/* Title row: Icon + Title horizontally */
+.page-header__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+}
+
+/* Properties row: Types and Tags */
+.page-header__properties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  padding-left: calc(48px + var(--spacing-3));  /* Align with title, after icon */
+}
+
+.page-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.page-icon-btn:hover {
+  background: var(--color-surface-container);
+}
+
+.page-icon-large {
+  font-size: 3rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Override NodeIcon size in page header */
+.page-icon-btn .page-icon-large {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.page-icon-btn .page-icon-large svg {
+  width: 40px !important;
+  height: 40px !important;
+}
+
+.page-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 2px dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  font-size: 1.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.page-header:hover .page-icon-placeholder,
+.page-icon-btn:focus .page-icon-placeholder {
+  opacity: 0.6;
+}
+
+.page-icon-btn:hover .page-icon-placeholder {
+  opacity: 1;
+}
+
+.page-title-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 200px;
+}
+
+.page-title-input {
+  flex: 1;
+  min-width: 150px;
+  font-size: 2rem;
+  font-weight: 700;
+  border: none;
+  background: none;
+  padding: 0;
+  outline: none;
+  color: inherit;
+}
+
+.page-title-input:focus {
+  outline: none;
+}
+
+/* Read-only page title (system pages) */
+.page-title-input.readonly {
+  cursor: default;
+  color: var(--color-on-surface);
+}
+
+.page-title-input.readonly:focus {
+  outline: none;
+}
+
+/* Clickable page title (journal compact mode) */
+.page-title-clickable {
+  cursor: pointer;
+  margin: 0;
+  transition: color 0.15s;
+}
+
+.page-title-clickable:hover {
+  color: var(--color-primary);
+}
+
+.archived-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-on-error-container);
+  background: var(--color-error-container);
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.page-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Type and Tag chips (inside page-header__properties) */
+.node-types,
+.node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.node-type-chip,
+.node-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  transition: all 0.15s ease;
+}
+
+.node-type-chip:hover,
+.node-tag-chip:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.node-type-chip {
+  border: 1px solid var(--color-primary-container);
+}
+
+.node-tag-chip {
+  border: 1px solid var(--color-secondary-container);
+}

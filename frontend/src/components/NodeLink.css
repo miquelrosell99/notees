@@ -1,0 +1,80 @@
+/**
+ * NodeLink Component Styles
+ */
+
+.node-link {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  cursor: pointer;
+  user-select: none;
+}
+
+.node-link__card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-2);
+  font-size: 0.875em;
+  line-height: 1.4;
+  max-width: 200px;
+}
+
+.node-link__icon {
+  flex-shrink: 0;
+  font-size: 0.75em;
+}
+
+.node-link__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-primary);
+}
+
+.node-link__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--spacing-1);
+  padding: 0 var(--spacing-1);
+  min-width: 14px;
+  height: 14px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  border-radius: var(--radius-full);
+}
+
+/* Page link style */
+.node-link--page-link .node-link__card {
+  border-color: var(--color-primary);
+}
+
+.node-link--page-link:hover .node-link__card {
+  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+/* Block link style */
+.node-link--block-link .node-link__card {
+  border-color: var(--color-secondary);
+}
+
+.node-link--block-link .node-link__text {
+  color: var(--color-secondary);
+}
+
+.node-link--block-link:hover .node-link__card {
+  background-color: color-mix(in srgb, var(--color-secondary) 10%, transparent);
+}
+
+/* Readonly state */
+.node-link[aria-readonly="true"] {
+  cursor: default;
+}
+
+.node-link[aria-readonly="true"] .node-link__card {
+  opacity: 0.7;
+}

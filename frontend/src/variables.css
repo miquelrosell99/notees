@@ -1,0 +1,281 @@
+/**
+ * Design System Variables
+ * 
+ * Minimal monochrome design tokens for the Notees app.
+ * Clean black/grey/white palette for both light and dark modes.
+ */
+
+:root {
+  /* ==================== Primary (Monochrome) ==================== */
+  --color-primary: #171717;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #e5e5e5;
+  --color-on-primary-container: #171717;
+  --color-primary-hover: #262626;
+  --color-primary-pressed: #404040;
+
+  /* ==================== Secondary ==================== */
+  --color-secondary: #525252;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #f5f5f5;
+  --color-on-secondary-container: #262626;
+  --color-secondary-hover: #404040;
+  --color-secondary-pressed: #525252;
+
+  /* ==================== Tertiary ==================== */
+  --color-tertiary: #737373;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #e5e5e5;
+  --color-on-tertiary-container: #262626;
+  --color-tertiary-hover: #525252;
+  --color-tertiary-pressed: #404040;
+
+  /* ==================== Error ==================== */
+  --color-error: #525252;
+  --color-on-error: #ffffff;
+  --color-error-container: #e5e5e5;
+  --color-on-error-container: #171717;
+  --color-error-hover: #404040;
+  --color-error-pressed: #262626;
+
+  /* ==================== Warning ==================== */
+  --color-warning: #525252;
+  --color-on-warning: #ffffff;
+  --color-warning-container: #f5f5f5;
+  --color-on-warning-container: #262626;
+
+  /* ==================== Success ==================== */
+  --color-success: #404040;
+  --color-on-success: #ffffff;
+  --color-success-container: #e5e5e5;
+  --color-on-success-container: #171717;
+
+  /* ==================== Background & Surface ==================== */
+  --color-background: #fafafa;
+  --color-on-background: #171717;
+  --color-surface: #ffffff;
+  --color-on-surface: #171717;
+  --color-surface-variant: #f5f5f5;
+  --color-on-surface-variant: #525252;
+  --color-surface-dim: #e5e5e5;
+  --color-surface-bright: #ffffff;
+  --color-surface-container: #fafafa;
+  --color-surface-container-low: #f5f5f5;
+  --color-surface-container-high: #e5e5e5;
+  --color-surface-container-highest: #d4d4d4;
+  --color-surface-container-lowest: #ffffff;
+  --color-inverse-surface: #171717;
+  --color-inverse-on-surface: #fafafa;
+  --color-inverse-primary: #a3a3a3;
+
+  /* ==================== Outline & Utility ==================== */
+  --color-outline: #a3a3a3;
+  --color-outline-variant: #e5e5e5;
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  --color-scrim: rgba(0, 0, 0, 0.5);
+
+  /* ==================== State ==================== */
+  --color-disabled: #d4d4d4;
+  --color-on-disabled: #a3a3a3;
+  --color-hover-overlay: rgba(0, 0, 0, 0.04);
+  --color-focus-overlay: rgba(0, 0, 0, 0.08);
+  --color-pressed-overlay: rgba(0, 0, 0, 0.12);
+
+  /* ==================== Accent (subtle dot indicator) ==================== */
+  --color-accent: #404040;
+  --color-accent-subtle: #737373;
+
+  /* ==================== Preset Colors (for color picker) ==================== */
+  --color-preset-red: #ef4444;
+  --color-preset-orange: #f97316;
+  --color-preset-yellow: #eab308;
+  --color-preset-green: #22c55e;
+  --color-preset-teal: #14b8a6;
+  --color-preset-blue: #3b82f6;
+  --color-preset-purple: #8b5cf6;
+  --color-preset-pink: #ec4899;
+
+  /* ==================== Typography ==================== */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+  /* Display */
+  --font-display-large: 400 3.5rem/1.1 var(--font-family-base);
+  --font-display-medium: 400 2.75rem/1.15 var(--font-family-base);
+  --font-display-small: 400 2.25rem/1.2 var(--font-family-base);
+
+  /* Headline */
+  --font-headline-large: 500 2rem/1.25 var(--font-family-base);
+  --font-headline-medium: 500 1.75rem/1.3 var(--font-family-base);
+  --font-headline-small: 500 1.5rem/1.35 var(--font-family-base);
+
+  /* Title */
+  --font-title-large: 600 1.25rem/1.4 var(--font-family-base);
+  --font-title-medium: 600 1rem/1.4 var(--font-family-base);
+  --font-title-small: 600 0.875rem/1.4 var(--font-family-base);
+
+  /* Body */
+  --font-body-large: 400 1rem/1.5 var(--font-family-base);
+  --font-body-medium: 400 0.875rem/1.5 var(--font-family-base);
+  --font-body-small: 400 0.75rem/1.5 var(--font-family-base);
+
+  /* Label */
+  --font-label-large: 500 0.875rem/1.4 var(--font-family-base);
+  --font-label-medium: 500 0.75rem/1.4 var(--font-family-base);
+  --font-label-small: 500 0.6875rem/1.4 var(--font-family-base);
+
+  /* ==================== Elevation (Box Shadows) ==================== */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 4px rgba(0, 0, 0, 0.02);
+  --elevation-2: 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --elevation-3: 0 2px 4px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --elevation-4: 0 4px 8px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --elevation-5: 0 6px 12px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.08);
+
+  /* ==================== Shape (Border Radius) - Minimal ==================== */
+  --shape-none: 0;
+  --shape-extra-small: 2px;
+  --shape-small: 4px;
+  --shape-medium: 6px;
+  --shape-large: 8px;
+  --shape-extra-large: 12px;
+  --shape-full: 9999px;
+
+  /* ==================== Motion ==================== */
+  --motion-duration-instant: 50ms;
+  --motion-duration-short: 100ms;
+  --motion-duration-medium: 200ms;
+  --motion-duration-long: 300ms;
+  --motion-duration-extra-long: 500ms;
+
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
+  --motion-easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --motion-easing-linear: linear;
+
+  /* ==================== Spacing ==================== */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+
+  /* ==================== Z-Index ==================== */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+
+  /* ==================== Layout ==================== */
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 0px;
+  --right-sidebar-width: 320px;
+  --topbar-height: 44px;
+  --container-gap: 8px;
+  --container-radius: var(--shape-large);
+}
+
+/* ==================== Dark Theme (Monochrome) ==================== */
+[data-theme="dark"] {
+  /* Primary */
+  --color-primary: #e5e5e5;
+  --color-on-primary: #171717;
+  --color-primary-container: #262626;
+  --color-on-primary-container: #e5e5e5;
+  --color-primary-hover: #d4d4d4;
+  --color-primary-pressed: #a3a3a3;
+
+  /* Secondary */
+  --color-secondary: #a3a3a3;
+  --color-on-secondary: #171717;
+  --color-secondary-container: #262626;
+  --color-on-secondary-container: #d4d4d4;
+  --color-secondary-hover: #d4d4d4;
+  --color-secondary-pressed: #737373;
+
+  /* Tertiary */
+  --color-tertiary: #737373;
+  --color-on-tertiary: #171717;
+  --color-tertiary-container: #262626;
+  --color-on-tertiary-container: #a3a3a3;
+
+  /* Error */
+  --color-error: #a3a3a3;
+  --color-on-error: #171717;
+  --color-error-container: #262626;
+  --color-on-error-container: #e5e5e5;
+
+  /* Warning */
+  --color-warning: #a3a3a3;
+  --color-on-warning: #171717;
+  --color-warning-container: #262626;
+  --color-on-warning-container: #d4d4d4;
+
+  /* Success */
+  --color-success: #a3a3a3;
+  --color-on-success: #171717;
+  --color-success-container: #262626;
+  --color-on-success-container: #d4d4d4;
+
+  /* Background & Surface */
+  --color-background: #0a0a0a;
+  --color-on-background: #e5e5e5;
+  --color-surface: #171717;
+  --color-on-surface: #e5e5e5;
+  --color-surface-variant: #262626;
+  --color-on-surface-variant: #a3a3a3;
+  --color-surface-dim: #0a0a0a;
+  --color-surface-bright: #262626;
+  --color-surface-container: #171717;
+  --color-surface-container-low: #0a0a0a;
+  --color-surface-container-high: #262626;
+  --color-surface-container-highest: #404040;
+  --color-surface-container-lowest: #0a0a0a;
+  --color-inverse-surface: #e5e5e5;
+  --color-inverse-on-surface: #171717;
+  --color-inverse-primary: #525252;
+
+  /* Outline & Utility */
+  --color-outline: #525252;
+  --color-outline-variant: #262626;
+  --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-scrim: rgba(0, 0, 0, 0.7);
+
+  /* State */
+  --color-disabled: #404040;
+  --color-on-disabled: #525252;
+  --color-hover-overlay: rgba(255, 255, 255, 0.05);
+  --color-focus-overlay: rgba(255, 255, 255, 0.08);
+  --color-pressed-overlay: rgba(255, 255, 255, 0.12);
+
+  /* Accent */
+  --color-accent: #d4d4d4;
+  --color-accent-subtle: #737373;
+
+  /* Preset Colors (for color picker - slightly adjusted for dark mode) */
+  --color-preset-red: #f87171;
+  --color-preset-orange: #fb923c;
+  --color-preset-yellow: #facc15;
+  --color-preset-green: #4ade80;
+  --color-preset-teal: #2dd4bf;
+  --color-preset-blue: #60a5fa;
+  --color-preset-purple: #a78bfa;
+  --color-preset-pink: #f472b6;
+
+  /* Elevation - minimal for dark theme */
+  --elevation-1: none;
+  --elevation-2: none;
+  --elevation-3: 0 1px 4px rgba(0, 0, 0, 0.2), 0 2px 12px rgba(0, 0, 0, 0.15);
+  --elevation-4: 0 2px 6px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.18);
+  --elevation-5: 0 4px 8px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.2);
+}

@@ -1,0 +1,484 @@
+/**
+ * Block CSS
+ * 
+ * Styles for blocks with display/edit/selected states
+ */
+
+/* Base draggable block */
+.block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1) 0;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Block state classes */
+.block.block-state--display {
+  /* Default display state - no special styling */
+}
+
+.block.block-state--edit {
+  /* Edit state - content is being edited */
+}
+
+.block.block-state--selected {
+  /* Selected state - block is selected for operations */
+}
+
+/* Readonly blocks always stay in display-like state */
+.block.readonly {
+  pointer-events: auto;
+}
+
+/* Block row - contains drag handle and content on same line */
+.block > .block-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+/* Block content wrapper (Card component) */
+.block .block-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Block types - right-aligned */
+.block .block-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  margin-left: auto;
+  padding-left: var(--spacing-2);
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.block .block-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  font: var(--font-label-small);
+  font-size: 0.7rem;
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-primary-container);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.block .block-type-chip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-1);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background-color 0.15s ease;
+}
+
+.block .block-type-chip__label:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.block .block-type-chip__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--color-outline-variant);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  transition: all 0.15s ease;
+}
+
+.block .block-type-chip__close:hover {
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  opacity: 1;
+}
+
+/* Drag handle (bullet) */
+.block .drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--spacing-1);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.block .drag-handle .bullet-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.block .drag-handle .bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-on-surface-variant);
+  opacity: 0.5;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block:hover .drag-handle .bullet {
+  opacity: 1;
+}
+
+/* Outer ring for collapsed blocks with children (like graph nodes) */
+.block .drag-handle .bullet-outer-ring {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-on-surface-variant);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block.collapsed .drag-handle .bullet-outer-ring {
+  opacity: 0.4;
+}
+
+.block.collapsed:hover .drag-handle .bullet-outer-ring {
+  opacity: 0.8;
+}
+
+.block .drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Collapse/expand arrow - absolutely positioned to the left */
+.block .collapse-arrow {
+  position: absolute;
+  left: -18px;
+  top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: 5;
+}
+
+.block .collapse-arrow:hover {
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+/* Children container with vertical collapse line */
+.block .children-container {
+  position: relative;
+  margin-left: 12px; /* Align with bullet center */
+}
+
+.block .children-collapse-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--color-outline-variant);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              width var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block .children-collapse-line:hover,
+.block .children-collapse-line.hovered {
+  width: 2px;
+  background-color: var(--color-outline);
+}
+
+.block .children-container .nested-blocks {
+  margin-left: 25px; /* Additional indent for child content */
+}
+
+/* Selection states */
+.block.selected {
+  background-color: var(--color-hover-overlay);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.block.primary-selected {
+  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.block.editing {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Drag states */
+.block.dragging {
+  opacity: 0.5;
+  background-color: var(--color-surface-variant);
+}
+
+.block.drag-over {
+  /* Visual feedback when dragging over */
+}
+
+/* Drop indicators */
+.drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.drop-indicator-before {
+  top: 0;
+  transform: translateY(-50%);
+}
+
+.drop-indicator-after {
+  bottom: 0;
+  transform: translateY(50%);
+}
+
+.drop-indicator-inside {
+  top: 0;
+  left: 24px;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  background-color: transparent;
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+/* Drop position styling */
+.block.drop-before::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary);
+  transform: translateY(-50%);
+}
+
+.block.drop-after::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 24px;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary);
+  transform: translateY(50%);
+}
+
+.block.drop-inside {
+  background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+/* Nested blocks */
+.block.nested {
+  /* Nested blocks have margin from parent */
+}
+
+.block .nested-blocks {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hide the default bullet from BlockEditor when using Block */
+.block .block-editor .block-bullet {
+  display: none;
+}
+
+/* Adjust BlockEditor input within Block */
+.block .block-editor {
+  flex: 1;
+  min-height: 24px;
+  /* Match the structure of block-content-view */
+  display: block;
+}
+
+.block .block-editor .block-editor-input {
+  width: 100%;
+  min-height: 24px;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.6;
+  font-size: inherit;
+  font-family: inherit;
+  background: transparent;
+  display: block;
+}
+
+/* Drag preview (cloned element) */
+.dragging-preview {
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-md);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* Focus ring when navigating with keyboard */
+.block:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Blocks no longer have hover state background - cleaner look */
+
+/* Block metadata for draggable blocks */
+.block .block-metadata {
+  margin-left: 24px;
+  margin-top: var(--spacing-1);
+}
+
+/* Ensure proper z-index layering during drag */
+.block.dragging {
+  z-index: 100;
+}
+
+/* Color background blocks - uses Card component for elevated appearance */
+.block.has-color {
+  /* Block itself stays transparent, color is on content area (Card) */
+}
+
+/* When block has color, Card becomes visible with full styling */
+.block .block-content.block-content--colored {
+  /* Background color is set via inline style */
+  color: var(--block-text-color, inherit);
+  padding: 0 var(--spacing-2);
+}
+
+.block .block-content--colored .block-editor-input,
+.block .block-content--colored .block-content-view,
+.block .block-content--colored .block-content-pills {
+  color: var(--block-text-color, inherit);
+}
+
+/* Colored blocks also have no hover background */
+
+.block.has-color .block-editor-input {
+  color: inherit;
+}
+
+/* Block content Card should have no padding - inner elements handle their own spacing */
+.block .block-content.card--padded {
+  padding: 0;
+}
+
+/* Animation for drop */
+@keyframes drop-highlight {
+  0% {
+    background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.block.just-dropped {
+  animation: drop-highlight 0.3s ease-out;
+}
+
+/* View mode content (non-editing) */
+.block-content-view {
+  flex: 1;
+  min-height: 24px;
+  padding: 0;
+  cursor: text;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  /* Match editor structure */
+  display: block;
+}
+
+/* Block content no longer has hover background */
+
+.block-content-view .block-content-pills {
+  line-height: 1.6;
+  word-break: break-word;
+  display: block;
+}
+
+.block-content-view .block-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  margin-left: 8px;
+  font-size: 0.75rem;
+  background: var(--color-surface-variant);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block-content-view .block-comment-badge:hover {
+  opacity: 1;
+}
+/* Empty block - maintains width without placeholder text */
+.block-content-view--empty {
+  min-height: 24px;
+}
+
+.block-content-empty {
+  display: inline-block;
+  min-width: 1px;
+  height: 1.6em;
+}
+
+/* State-based cursor styles */
+.block.block-state--display .block-content-view {
+  cursor: text;
+}
+
+.block.block-state--selected .block-content-view {
+  cursor: pointer;
+}
+
+.block.readonly .block-content-view {
+  cursor: default;
+}
