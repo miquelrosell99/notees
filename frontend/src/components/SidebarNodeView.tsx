@@ -196,7 +196,6 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
               onCreateType={handleCreateType(node.id)}
               onCreateTag={handleCreateTag(node.id)}
               onOpenComments={handleOpenComments(node.id)}
-              commentCount={node.comment_count}
               readOnly={false}
             />
           </div>
