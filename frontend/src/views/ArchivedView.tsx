@@ -6,6 +6,7 @@ import './ArchivedView.css';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, ArchiveIcon } from '../components/icons';
+import { Button } from '../components/core/Button';
 
 interface ArchivedPageItemProps {
   page: Node;
@@ -26,23 +27,27 @@ function ArchivedPageItem({ page }: ArchivedPageItemProps) {
   
   return (
     <div className="archived-page-item">
-      <button 
+      <Button 
         className="archived-page-content"
+        variant="ghost"
+        size="sm"
         onClick={handleClick}
       >
         <span className="archived-page-icon">
           <NodeIcon icon={page.icon} isPage={true} isDaily={page.is_daily} isMonthly={page.is_monthly} isYearly={page.is_yearly} />
         </span>
         <span className="archived-page-name">{page.name || 'Untitled'}</span>
-      </button>
-      <button 
+      </Button>
+      <Button 
         className="archived-page-action"
+        variant="ghost"
+        size="sm"
         onClick={handleUnarchive}
         title="Unarchive"
         disabled={unarchiveNode.isPending}
       >
         Unarchive
-      </button>
+      </Button>
     </div>
   );
 }

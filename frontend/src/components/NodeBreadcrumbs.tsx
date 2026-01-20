@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import { useNode } from '@/hooks';
 import { NodeIcon, ChevronRightIcon } from './icons';
+import { Button } from './core/Button';
 import './NodeBreadcrumbs.css';
 
 export interface BreadcrumbItem {
@@ -188,7 +189,9 @@ export function NodeBreadcrumbs({
     >
       {breadcrumbs.map((item, index) => (
         <span key={item.isProperty ? `prop-${item.id}` : item.id} className="node-breadcrumb-item">
-          <button 
+          <Button 
+            variant="ghost"
+            size="xs"
             className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
             onClick={() => handleClick(item)}
             title={item.isProperty ? `View property: ${item.name}` : `Go to ${item.name}`}
@@ -201,7 +204,7 @@ export function NodeBreadcrumbs({
               <span className="node-breadcrumb-bullet">•</span>
             )}
             <span className="node-breadcrumb-name">{item.name}</span>
-          </button>
+          </Button>
           {index < breadcrumbs.length - 1 && (
             <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
           )}

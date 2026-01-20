@@ -13,9 +13,9 @@ import { useNode } from '@/hooks';
 import { DatabaseSwitcher } from './DatabaseSwitcher';
 import { DatabaseModal } from './DatabaseModal';
 import { SettingsModal } from './SettingsModal';
-import { Block } from './Block';
 import { Card } from './core/Card';
 import { ContextMenu } from './core/ContextMenu';
+import { Button } from './core/Button';
 import { 
   JournalIcon, 
   AllPagesIcon, 
@@ -86,7 +86,7 @@ function FavoriteItem({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showContextMenu]);
   
-  // If node data is available, render using Block like RecentItem
+  // If node data is available, render using simple item styling
   if (node) {
     return (
       <>
@@ -99,12 +99,8 @@ function FavoriteItem({
           onDragOver={(e) => onDragOver(e, index)}
           onDragEnd={onDragEnd}
         >
-          <Block
-            block={node}
-            parentId={null}
-            onContentChange={() => {}}
-            readOnly={true}
-          />
+          <span className="sidebar-item-bullet">•</span>
+          <span className="sidebar-item-name">{node.name || 'Untitled'}</span>
         </div>
         
         {showContextMenu && (
@@ -132,8 +128,10 @@ function FavoriteItem({
   
   return (
     <>
-      <button
+      <Button
         className={`sidebar-nav-item sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
+        variant="ghost"
+        size="sm"
         onClick={onClick}
         onContextMenu={handleContextMenu}
         draggable
@@ -147,7 +145,7 @@ function FavoriteItem({
           <PageIcon size="sm" />
         )}
         <span>{name || 'Untitled'}</span>
-      </button>
+      </Button>
       
       {showContextMenu && (
         <ContextMenu
@@ -188,12 +186,8 @@ function RecentItem({ nodeId, isActive, onClick }: RecentItemProps) {
       className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
       onClick={onClick}
     >
-      <Block
-        block={node}
-        parentId={null}
-        onContentChange={() => {}}
-        readOnly={true}
-      />
+      <span className="sidebar-item-bullet">•</span>
+      <span className="sidebar-item-name">{node.name || 'Untitled'}</span>
     </div>
   );
 }
@@ -264,41 +258,52 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {/* Main Navigation */}
         <div className="sidebar-content">
           <nav className="sidebar-nav">
-            <button 
+            <Button 
               className={`sidebar-nav-item ${mainViewType === 'journals' ? 'active' : ''}`}
+              variant="ghost"
+              size="sm"
+              active={mainViewType === 'journals'}
               onClick={() => setMainViewType('journals')}
             >
               <JournalIcon size="sm" />
               <span>Journal</span>
-            </button>
+            </Button>
             
-            <button 
+            <Button 
               className={`sidebar-nav-item ${mainViewType === 'all-pages' ? 'active' : ''}`}
+              variant="ghost"
+              size="sm"
+              active={mainViewType === 'all-pages'}
               onClick={() => setMainViewType('all-pages')}
             >
               <AllPagesIcon size="sm" />
               <span>All Pages</span>
-            </button>
+            </Button>
             
-            <button 
+            <Button 
               className={`sidebar-nav-item ${mainViewType === 'graph' ? 'active' : ''}`}
+              variant="ghost"
+              size="sm"
+              active={mainViewType === 'graph'}
               onClick={() => setMainViewType('graph')}
             >
               <GraphIcon size="sm" />
               <span>Graph View</span>
-            </button>
+            </Button>
           </nav>
           
           {/* Favorites Section */}
           <div className="sidebar-section">
-            <button 
+            <Button 
               className="sidebar-section-header"
+              variant="ghost"
+              size="sm"
               onClick={() => setFavoritesExpanded(!favoritesExpanded)}
             >
               {favoritesExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
               <StarIcon size="xs" />
               <h3 className="sidebar-section-title">Favorites</h3>
-            </button>
+            </Button>
             {favoritesExpanded && (
               <nav className="sidebar-nav sidebar-favorites-list">
                 {favorites.length === 0 ? (
@@ -329,14 +334,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
           
           {/* Recents Section */}
           <div className="sidebar-section">
-            <button 
+            <Button 
               className="sidebar-section-header"
+              variant="ghost"
+              size="sm"
               onClick={() => setRecentsExpanded(!recentsExpanded)}
             >
               {recentsExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
               <ClockIcon size="xs" />
               <h3 className="sidebar-section-title">Recents</h3>
-            </button>
+            </Button>
             {recentsExpanded && (
               <nav className="sidebar-nav sidebar-recents-list">
                 {recents.length === 0 ? (
@@ -361,14 +368,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
         
         {/* Footer - Settings */}
         <div className="sidebar-footer">
-          <button 
+          <Button 
             className="sidebar-settings-btn"
+            variant="ghost"
+            size="sm"
             onClick={() => setIsSettingsModalOpen(true)}
             title="Settings"
           >
             <SettingsIcon size="sm" />
             <span>Settings</span>
-          </button>
+          </Button>
         </div>
       </Card>
 

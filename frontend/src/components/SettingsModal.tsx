@@ -10,6 +10,7 @@ import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmationModal } from './core/ConfirmationModal';
 import { ButtonClose } from './core/ButtonClose';
+import { Button } from './core/Button';
 import { Separator } from './core/Separator';
 import { BooleanToggle } from './core/BooleanToggle';
 import './SettingsModal.css';
@@ -105,13 +106,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="settings-modal__body">
           <nav className="settings-modal__nav">
             {tabs.map((tab) => (
-              <button
+              <Button
                 key={tab.id}
                 className={`settings-modal__nav-item ${activeTab === tab.id ? 'settings-modal__nav-item--active' : ''}`}
+                variant="ghost"
+                size="sm"
+                active={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
               >
                 <span className="settings-modal__nav-label">{tab.label}</span>
-              </button>
+              </Button>
             ))}
           </nav>
 
@@ -208,24 +212,33 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </p>
                   </div>
                   <div className="settings-theme-buttons">
-                    <button
-                      className={`settings-theme-btn ${theme === 'light' ? 'settings-theme-btn--active' : ''}`}
+                    <Button
+                      className="settings-theme-btn"
+                      variant={theme === 'light' ? 'default' : 'ghost'}
+                      size="sm"
+                      active={theme === 'light'}
                       onClick={() => handleThemeChange('light')}
                     >
                       Light
-                    </button>
-                    <button
-                      className={`settings-theme-btn ${theme === 'dark' ? 'settings-theme-btn--active' : ''}`}
+                    </Button>
+                    <Button
+                      className="settings-theme-btn"
+                      variant={theme === 'dark' ? 'default' : 'ghost'}
+                      size="sm"
+                      active={theme === 'dark'}
                       onClick={() => handleThemeChange('dark')}
                     >
                       Dark
-                    </button>
-                    <button
-                      className={`settings-theme-btn ${theme === 'system' ? 'settings-theme-btn--active' : ''}`}
+                    </Button>
+                    <Button
+                      className="settings-theme-btn"
+                      variant={theme === 'system' ? 'default' : 'ghost'}
+                      size="sm"
+                      active={theme === 'system'}
                       onClick={() => handleThemeChange('system')}
                     >
                       System
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -261,10 +274,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
                 <Separator orientation="horizontal" size="lg" spacing="md" />
 
-                <button className="settings-btn settings-btn--danger" onClick={handleLogout}>
+                <Button className="settings-btn" variant="danger" size="md" onClick={handleLogout}>
                   <span></span>
                   Log out
-                </button>
+                </Button>
               </div>
             )}
 

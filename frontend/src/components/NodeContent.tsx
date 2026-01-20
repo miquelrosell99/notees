@@ -50,7 +50,7 @@ export function NodeContent({
   const addType = useAddType();
   const addTagLink = useAddTagLink();
   const { data: allTypes } = useTypes();
-  const { addSidebarCard, openNode, openCommentsForNode, cardLayout, setCardLayout } = useNodesStore();
+  const { addSidebarCard, openNode, openCommentsForNode, cardLayout } = useNodesStore();
   
   // Block selection
   const { enterEditMode } = useBlockSelectionStore();
@@ -178,43 +178,9 @@ export function NodeContent({
         </div>
       )}
       
-      {/* Card mode: render as cards with layout selector */}
+      {/* Card mode: render as cards */}
       {displayMode === 'card' && children.length > 0 && (
         <>
-          {/* Card layout selector */}
-          <div className="card-layout-selector">
-            <span className="card-layout-selector__label">Layout:</span>
-            <button 
-              className={`card-layout-option ${cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
-              onClick={() => setCardLayout('no-cover')}
-              title="No cover"
-            >
-              <span className="layout-icon layout-icon--no-cover">
-                <span className="layout-icon__content"></span>
-              </span>
-            </button>
-            <button 
-              className={`card-layout-option ${cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
-              onClick={() => setCardLayout('cover-top')}
-              title="Cover on top"
-            >
-              <span className="layout-icon layout-icon--cover-top">
-                <span className="layout-icon__cover"></span>
-                <span className="layout-icon__content"></span>
-              </span>
-            </button>
-            <button 
-              className={`card-layout-option ${cardLayout === 'cover-side' ? 'card-layout-option--active' : ''}`}
-              onClick={() => setCardLayout('cover-side')}
-              title="Cover on side"
-            >
-              <span className="layout-icon layout-icon--cover-side">
-                <span className="layout-icon__cover"></span>
-                <span className="layout-icon__content"></span>
-              </span>
-            </button>
-          </div>
-          
           {/* Cards grid */}
           <section className="node-content-cards">
             {children.map((child) => (

@@ -24,6 +24,7 @@ import { useNodesStore } from '@/stores';
 import type { Property, Node, TypeProperty, PropertyType } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { CalendarIcon, ChevronRightIcon } from '../components/icons';
+import { Button } from '../components/core/Button';
 import { ButtonAdd } from '../components/core/ButtonAdd';
 import { NodePicker } from '../components/NodePicker';
 import { TextPropertyBlock } from '../components/TextPropertyBlock';
@@ -143,13 +144,14 @@ function PropertyValue({
         );
       }
       return (
-        <button
+        <Button
+          variant="ghost"
           className="property-value-display"
           onClick={startEditing}
           disabled={readOnly}
         >
           {value != null ? String(value) : <span className="property-placeholder">—</span>}
-        </button>
+        </Button>
       );
 
     case 'text':
@@ -213,7 +215,9 @@ function PropertyValue({
             className="property-value-date-input"
           />
           {dateValue && (
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               className="property-value-date-link"
               onClick={() => {
                 // Navigate to day page via UUID (YYYYMMDD format)
@@ -227,7 +231,7 @@ function PropertyValue({
               title="Go to day page"
             >
               <CalendarIcon size="xs" />
-            </button>
+            </Button>
           )}
         </div>
       );
@@ -507,7 +511,8 @@ export function PropertiesSection({
       <div className="properties-list">
         {visibleProperties.map(({ property, value, source }) => (
           <div key={property.id} className="property-row">
-            <button 
+            <Button 
+              variant="ghost"
               className="property-label property-label-clickable"
               onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
               title="Click to edit property"
@@ -515,7 +520,7 @@ export function PropertiesSection({
               {property.icon && <span className="property-icon">{property.icon}</span>}
               <span className="property-name">{property.name}</span>
               {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
-            </button>
+            </Button>
             <div className="property-value-container">
               <div className="property-value-wrapper">
                 {/* Decorative bullet for non-text properties */}
@@ -553,26 +558,28 @@ export function PropertiesSection({
       {/* Hidden properties section (properties without values) */}
       {showHiddenSection && hiddenProperties.length > 0 && (
         <div className="properties-hidden-section">
-          <button 
+          <Button 
+            variant="ghost"
             className={`properties-hidden-toggle ${showHidden ? 'expanded' : ''}`}
             onClick={() => setShowHidden(!showHidden)}
           >
             <ChevronRightIcon size="xs" />
             <span>Hidden properties</span>
-          </button>
+          </Button>
           
           {showHidden && (
             <div className="properties-hidden-list">
               {hiddenProperties.map(({ property, value, source: _source }) => (
                 <div key={property.id} className="property-row">
-                  <button 
+                  <Button 
+                    variant="ghost"
                     className="property-label property-label-clickable"
                     onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
                     title="Click to edit property"
                   >
                     {property.icon && <span className="property-icon">{property.icon}</span>}
                     <span className="property-name">{property.name}</span>
-                  </button>
+                  </Button>
                   <div className="property-value-container">
                     <div className="property-value-wrapper">
                       {/* Decorative bullet for non-text properties */}

@@ -10,6 +10,7 @@
  */
 import { useState, useCallback, type ReactNode } from 'react';
 import { ChevronRightIcon, ChevronDownIcon } from './icons';
+import { Button } from './core/Button';
 import './NodeViewSection.css';
 
 export interface NodeViewSectionProps {
@@ -55,13 +56,15 @@ export function NodeViewSection({
   return (
     <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} ${className}`}>
       <header className="node-view-section__header" onClick={handleToggle}>
-        <button 
+        <Button 
+          variant="ghost"
+          size="xs"
           className="node-view-section__toggle"
           aria-expanded={isExpanded}
           aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
         >
           {isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-        </button>
+        </Button>
         
         <div className="node-view-section__title-area">
           {icon && <span className="node-view-section__icon">{icon}</span>}

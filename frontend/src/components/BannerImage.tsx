@@ -177,7 +177,9 @@ export function BannerImage({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           className="banner-image__collapse-btn banner-image__collapse-btn--expanded-empty"
           onClick={handleToggleCollapse}
           onKeyDown={handleCollapseKeyDown}
@@ -186,15 +188,17 @@ export function BannerImage({
           aria-expanded="true"
         >
           <Icon path={mdiChevronUp} size={0.7} />
-        </button>
-        <button 
+        </Button>
+        <Button 
+          variant="ghost"
+          size="sm"
           className="banner-image__add-btn"
           onClick={onSelectImage}
           title="Add banner image"
         >
           <Icon path={mdiImageOutline} size={0.8} />
           <span>Add banner</span>
-        </button>
+        </Button>
       </div>
     );
   }
@@ -207,7 +211,9 @@ export function BannerImage({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           className="banner-image__collapse-btn banner-image__collapse-btn--collapsed"
           onClick={handleToggleCollapse}
           onKeyDown={handleCollapseKeyDown}
@@ -216,7 +222,7 @@ export function BannerImage({
           aria-expanded="false"
         >
           <Icon path={mdiChevronDown} size={0.7} />
-        </button>
+        </Button>
         
         {/* Preview tooltip on hover */}
         {isHovered && (

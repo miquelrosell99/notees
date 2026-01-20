@@ -7,6 +7,7 @@ import './DailyPage.css';
 import type { NodeUpdate } from '@/types';
 import { BlockEditor } from './BlockEditor';
 import { CalendarIcon } from './icons';
+import { ButtonAdd } from './core/ButtonAdd';
 
 interface DailyPageProps {
   date?: string; // YYYY-MM-DD format, defaults to today
@@ -88,9 +89,9 @@ export function DailyPage({ date, className = '' }: DailyPageProps) {
           </section>
         ) : (
           <div className="daily-empty">
-            <button onClick={handleAddBlock} className="add-block-btn">
-              + Add block
-            </button>
+            <ButtonAdd onClick={handleAddBlock} className="add-block-btn">
+              Add block
+            </ButtonAdd>
           </div>
         )}
       </div>

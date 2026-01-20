@@ -9,6 +9,7 @@ import './CalendarView.css';
 import type { Node, Property } from '@/types/api';
 import { BulletIcon, NodeIcon } from '../components/icons';
 import { SidebarCard } from '../components/SidebarCard';
+import { Button } from '../components/core/Button';
 
 export interface CalendarViewProps {
   /** Nodes to display */
@@ -172,15 +173,17 @@ function DayCell({
   const hasNodes = nodes.length > 0;
   
   return (
-    <button
+    <Button
       className={`calendar-view__day ${!isCurrentMonth ? 'calendar-view__day--other-month' : ''} ${isToday ? 'calendar-view__day--today' : ''} ${hasNodes ? 'calendar-view__day--has-nodes' : ''}`}
+      variant="ghost"
+      size="sm"
       onClick={onClick}
     >
       <span className="calendar-view__day-number">{date.getDate()}</span>
       {hasNodes && (
         <span className="calendar-view__day-dot" title={`${nodes.length} item(s)`} />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -217,8 +220,10 @@ function DayDetailsSidebar({
           <ul className="calendar-view__day-nodes">
             {nodes.map(node => (
               <li key={node.id} className="calendar-view__day-node">
-                <button
+                <Button
                   className="calendar-view__day-node-btn"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onNodeClick?.(node.id)}
                 >
                   <span className="calendar-view__day-node-bullet">
@@ -228,7 +233,7 @@ function DayDetailsSidebar({
                   <span className="calendar-view__day-node-name">
                     {node.name || 'Untitled'}
                   </span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -314,19 +319,19 @@ export function CalendarView({
       </div>
       
       <div className="calendar-view__nav">
-        <button className="calendar-view__nav-btn" onClick={goToPrevMonth}>
+        <Button className="calendar-view__nav-btn" variant="ghost" size="sm" onClick={goToPrevMonth}>
           ←
-        </button>
+        </Button>
         <div className="calendar-view__nav-current">
           <span className="calendar-view__nav-month">{MONTHS[currentMonth]}</span>
           <span className="calendar-view__nav-year">{currentYear}</span>
         </div>
-        <button className="calendar-view__nav-btn" onClick={goToNextMonth}>
+        <Button className="calendar-view__nav-btn" variant="ghost" size="sm" onClick={goToNextMonth}>
           →
-        </button>
-        <button className="calendar-view__nav-today" onClick={goToToday}>
+        </Button>
+        <Button className="calendar-view__nav-today" variant="ghost" size="sm" onClick={goToToday}>
           Today
-        </button>
+        </Button>
       </div>
       
       <div className="calendar-view__grid">

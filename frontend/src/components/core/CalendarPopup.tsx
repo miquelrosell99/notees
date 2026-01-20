@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { Button } from './Button';
 import './CalendarPopup.css';
 
 interface CalendarPopupProps {
@@ -185,28 +186,32 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
       } : undefined}
     >
       <div className="calendar-header">
-        <button className="calendar-nav-btn" onClick={goToPreviousMonth}>
+        <Button variant="ghost" size="xs" className="calendar-nav-btn" onClick={goToPreviousMonth}>
           ‹
-        </button>
+        </Button>
         <div className="calendar-title">
-          <button 
+          <Button 
+            variant="ghost"
+            size="xs"
             className="calendar-month-btn" 
             onClick={handleMonthClick}
             title={`Go to ${MONTHS[currentMonth]} ${currentYear} page`}
           >
             {MONTHS[currentMonth]}
-          </button>
-          <button 
+          </Button>
+          <Button 
+            variant="ghost"
+            size="xs"
             className="calendar-year-btn" 
             onClick={handleYearClick}
             title={`Go to ${currentYear} page`}
           >
             {currentYear}
-          </button>
+          </Button>
         </div>
-        <button className="calendar-nav-btn" onClick={goToNextMonth}>
+        <Button variant="ghost" size="xs" className="calendar-nav-btn" onClick={goToNextMonth}>
           ›
-        </button>
+        </Button>
       </div>
       
       <div className="calendar-weekdays">
@@ -221,12 +226,14 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
         {days.map((day, index) => (
           <div key={index} className="calendar-day-cell">
             {day && (
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 className={`calendar-day ${isToday(day) ? 'today' : ''}`}
                 onClick={() => handleDayClick(day)}
               >
                 {day}
-              </button>
+              </Button>
             )}
           </div>
         ))}

@@ -15,6 +15,7 @@ import {
 } from '@/hooks';
 import { LinkIcon, NodeIcon } from './icons';
 import { ButtonAdd } from './core/ButtonAdd';
+import { Button } from './core/Button';
 
 interface TypeExtendsEditorProps {
   /** The type node ID being edited */
@@ -89,23 +90,27 @@ export function TypeExtendsEditor({
         {extendsRelations && extendsRelations.length > 0 ? (
           extendsRelations.map((ext) => (
             <div key={ext.id} className="type-extends-item">
-              <button
+              <Button
                 className="type-extends-name"
+                variant="ghost"
+                size="sm"
                 onClick={() => onNavigateToType?.(ext.extends_type_node_id)}
                 title="Click to view type"
               >
                 <NodeIcon isPage={true} size="xs" />
                 {ext.extends_type_node_name || `Type #${ext.extends_type_node_id}`}
-              </button>
+              </Button>
               {!readOnly && (
-                <button
+                <Button
                   className="type-extends-remove"
+                  variant="ghost"
+                  size="xs"
                   onClick={() => handleRemoveExtends(ext.extends_type_node_id)}
                   disabled={removeExtendsMutation.isPending}
                   title="Remove inheritance"
                 >
                   ×
-                </button>
+                </Button>
               )}
             </div>
           ))
@@ -131,29 +136,33 @@ export function TypeExtendsEditor({
               />
               <div className="type-extends-options">
                 {availableTypes.slice(0, 10).map((node) => (
-                  <button
+                  <Button
                     key={node.id}
                     className="type-extends-option"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleAddExtends(node.id)}
                     disabled={addExtendsMutation.isPending}
                   >
                     <NodeIcon isPage={true} size="xs" />
                     {node.name}
-                  </button>
+                  </Button>
                 ))}
                 {availableTypes.length === 0 && (
                   <p className="type-extends-no-results">No types found</p>
                 )}
               </div>
-              <button
+              <Button
                 className="type-extends-cancel"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setIsAddingNew(false);
                   setSearchQuery('');
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           ) : (
             <ButtonAdd

@@ -73,16 +73,16 @@ export function LoginPage() {
           {isRegister ? (
             <>
               Already have an account?{' '}
-              <button type="button" onClick={() => setIsRegister(false)}>
+              <Button variant="ghost" size="xs" type="button" onClick={() => setIsRegister(false)}>
                 Sign in
-              </button>
+              </Button>
             </>
           ) : (
             <>
               Don&apos;t have an account?{' '}
-              <button type="button" onClick={() => setIsRegister(true)}>
+              <Button variant="ghost" size="xs" type="button" onClick={() => setIsRegister(true)}>
                 Register
-              </button>
+              </Button>
             </>
           )}
         </p>

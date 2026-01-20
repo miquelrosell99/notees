@@ -21,6 +21,7 @@ import type { Node } from '@/types/api';
 import { useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { NodeIcon, ChevronRightIcon } from './icons';
+import { Button } from './core/Button';
 import { ButtonAdd } from './core/ButtonAdd';
 import { Bullet } from './Bullet';
 import './NodeList.css';
@@ -499,9 +500,9 @@ function CalendarView({ items, getDate, onItemClick, onItemShiftClick }: Calenda
   return (
     <div className="node-list-view-calendar">
       <div className="node-list-calendar-header">
-        <button className="node-list-calendar-nav" onClick={prevMonth}>←</button>
+        <Button variant="ghost" size="xs" className="node-list-calendar-nav" onClick={prevMonth}>←</Button>
         <span className="node-list-calendar-month">{monthName}</span>
-        <button className="node-list-calendar-nav" onClick={nextMonth}>→</button>
+        <Button variant="ghost" size="xs" className="node-list-calendar-nav" onClick={nextMonth}>→</Button>
       </div>
       
       <div className="node-list-calendar-weekdays">
@@ -529,14 +530,16 @@ function CalendarView({ items, getDate, onItemClick, onItemShiftClick }: Calenda
               {dayItems.length > 0 && (
                 <div className="node-list-calendar-day-items">
                   {dayItems.slice(0, 3).map((item) => (
-                    <button
+                    <Button
                       key={item.node.id}
+                      variant="ghost"
+                      size="xs"
                       className="node-list-calendar-item"
                       onClick={(e) => handleClick(e, item)}
                       title={item.node.name || 'Untitled'}
                     >
                       {item.node.name || 'Untitled'}
-                    </button>
+                    </Button>
                   ))}
                   {dayItems.length > 3 && (
                     <span className="node-list-calendar-more">+{dayItems.length - 3} more</span>
@@ -653,12 +656,14 @@ export function NodeList({
       <header className="node-list-header">
         <div className="node-list-header-left">
           {collapsible && (
-            <button 
+            <Button 
+              variant="ghost"
+              size="xs"
               className={`node-list-collapse-btn ${isCollapsed ? 'collapsed' : ''}`}
               onClick={handleToggleCollapse}
             >
               <ChevronRightIcon size="xs" />
-            </button>
+            </Button>
           )}
           {titleIcon}
           <h3 className="node-list-title" onClick={collapsible ? handleToggleCollapse : undefined}>

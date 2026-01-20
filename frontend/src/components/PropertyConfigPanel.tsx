@@ -16,6 +16,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Property, PropertyType, SelectionOption } from '@/types/api';
 import { updateProperty, addSelectionOption, deleteSelectionOption, deleteProperty } from '@/api/properties';
 import { EmojiPickerTrigger } from './core/EmojiPicker';
+import { Button } from './core/Button';
 import { ConfirmationModal } from './core/ConfirmationModal';
 import './PropertyConfigPanel.css';
 
@@ -314,12 +315,12 @@ export function PropertyConfigPanel({
               {error && <span className="config-error">{error}</span>}
               
               <div className="config-actions">
-                <button className="config-btn secondary" onClick={() => togglePanel('name')}>
+                <Button variant="default" size="sm" className="config-btn" onClick={() => togglePanel('name')}>
                   Cancel
-                </button>
-                <button className="config-btn primary" onClick={handleSaveName}>
+                </Button>
+                <Button variant="primary" size="sm" className="config-btn" onClick={handleSaveName}>
                   Save
-                </button>
+                </Button>
               </div>
               
               {/* Description sub-section */}
@@ -478,12 +479,12 @@ export function PropertyConfigPanel({
                       </div>
                       
                       <div className="config-actions">
-                        <button className="config-btn secondary" onClick={() => togglePanel('addChoice')}>
+                        <Button variant="default" size="sm" className="config-btn" onClick={() => togglePanel('addChoice')}>
                           Cancel
-                        </button>
-                        <button className="config-btn primary" onClick={handleAddChoice}>
+                        </Button>
+                        <Button variant="primary" size="sm" className="config-btn" onClick={handleAddChoice}>
                           Add
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -554,17 +555,17 @@ export function PropertyConfigPanel({
         {/* Actions section */}
         <div className="config-actions-section">
           {onOpenPropertyView && (
-            <button className="config-action-btn" onClick={handleGoToProperty}>
+            <Button variant="ghost" className="config-action-btn" onClick={handleGoToProperty}>
               <span className="config-action-icon"></span>
               <span>Go to this property</span>
-            </button>
+            </Button>
           )}
           
           {!property.is_system && onDelete && (
-            <button className="config-action-btn delete" onClick={handleDeleteClick}>
+            <Button variant="ghost" className="config-action-btn delete" onClick={handleDeleteClick}>
               <span className="config-action-icon"></span>
               <span>Delete property from database</span>
-            </button>
+            </Button>
           )}
           
           {property.is_system && (

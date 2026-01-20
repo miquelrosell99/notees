@@ -19,6 +19,7 @@ import {
 } from '@/hooks';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { ButtonAdd } from './core/ButtonAdd';
+import { Button } from './core/Button';
 import '@/views/PropertiesSection.css';
 
 interface TypePropertiesEditorProps {
@@ -100,14 +101,16 @@ export function TypePropertiesEditor({
               <div className="type-property-definition-value">
                 <span className="type-property-placeholder">Add description</span>
                 {!readOnly && (
-                  <button
+                  <Button
                     className="type-property-remove-btn"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => handleRemoveProperty(tp.property_id)}
                     disabled={removePropertyMutation.isPending}
                     title="Remove property from type"
                   >
                     ×
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -130,16 +133,18 @@ export function TypePropertiesEditor({
               />
               <div className="type-properties-options">
                 {availableProperties.slice(0, 10).map((prop) => (
-                  <button
+                  <Button
                     key={prop.id}
                     className="type-property-option"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleAddProperty(prop.id)}
                     disabled={addPropertyMutation.isPending}
                   >
                     {prop.icon && <span>{prop.icon}</span>}
                     {prop.name}
                     <span className="type-property-type">({prop.type})</span>
-                  </button>
+                  </Button>
                 ))}
                 {availableProperties.length === 0 && (
                   <p className="type-properties-no-results">
@@ -149,15 +154,17 @@ export function TypePropertiesEditor({
                   </p>
                 )}
               </div>
-              <button
+              <Button
                 className="type-properties-cancel"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setIsAddingNew(false);
                   setSearchQuery('');
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           ) : (
             <ButtonAdd

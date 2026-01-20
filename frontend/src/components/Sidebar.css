@@ -226,9 +226,14 @@
 /* ==================== Favorites List ==================== */
 .sidebar-favorites-list {
   padding-top: 0;
+  padding-left: var(--spacing-4);
 }
 
 .sidebar-favorite-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
   cursor: grab;
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
@@ -251,37 +256,39 @@
   opacity: 0.5;
 }
 
-/* Shared styles for favorites/recents items using Block */
-.sidebar-favorite-item .block,
-.sidebar-recent-item .block {
-  padding: 0;
-  margin: 0;
+/* Shared styles for item bullet and name */
+.sidebar-item-bullet {
+  flex-shrink: 0;
+  color: var(--color-outline);
+  font-size: 0.6rem;
+  line-height: 1;
 }
 
-.sidebar-favorite-item .block-row,
-.sidebar-recent-item .block-row {
-  padding: var(--spacing-2) var(--spacing-3);
-  gap: var(--spacing-2);
-}
-
-.sidebar-favorite-item .block-content,
-.sidebar-recent-item .block-content {
-  pointer-events: none;
-}
-
-.sidebar-favorite-item .block-content-view,
-.sidebar-recent-item .block-content-view {
+.sidebar-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font: var(--font-body-medium);
   color: var(--color-on-surface);
-  cursor: pointer;
+}
+
+.sidebar-favorite-item.active .sidebar-item-name,
+.sidebar-recent-item.active .sidebar-item-name {
+  color: var(--color-on-primary-container);
 }
 
 /* ==================== Recents List ==================== */
 .sidebar-recents-list {
   padding-top: 0;
+  padding-left: var(--spacing-4);
 }
 
 .sidebar-recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
   cursor: pointer;
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
@@ -293,16 +300,6 @@
 
 .sidebar-recent-item.active {
   background: var(--color-primary-container);
-}
-
-.sidebar-recent-item .block-content-view {
-  font: var(--font-body-medium);
-  color: var(--color-on-surface);
-  cursor: pointer;
-}
-
-.sidebar-recent-item.active .block-content-view {
-  color: var(--color-on-primary-container);
 }
 
 /* ==================== Context Menu ==================== */

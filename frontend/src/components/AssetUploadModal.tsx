@@ -271,12 +271,14 @@ export function AssetUploadModal({
               <p className="asset-upload-modal__filesize">
                 {selectedFile && `${(selectedFile.size / 1024).toFixed(1)} KB`}
               </p>
-              <button 
+              <Button 
+                variant="ghost"
+                size="sm"
                 className="asset-upload-modal__clear"
                 onClick={(e) => { e.stopPropagation(); handleClearSelection(); }}
               >
                 Choose different file
-              </button>
+              </Button>
             </div>
           )}
 

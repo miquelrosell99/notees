@@ -23,6 +23,7 @@ import { BlockEditor, type TaskState } from './BlockEditor';
 import { ContentWithPills } from './ContentWithPills';
 import { Bullet } from './Bullet';
 import { Card } from './core/Card';
+import { Button } from './core/Button';
 import { ContextMenu } from './core/ContextMenu';
 import { ColorPickerRow } from './NodeContextMenu';
 import { DeletionConfirmationModal } from './DeletionConfirmationModal';
@@ -943,7 +944,9 @@ export function Block({
               )}
               {/* Comment indicator in view mode */}
               {commentCount > 0 && (
-                <button 
+                <Button 
+                  variant="ghost"
+                  size="xs"
                   className="block-comment-badge"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -952,7 +955,7 @@ export function Block({
                   title={`${commentCount} comment${commentCount > 1 ? 's' : ''}`}
                 >
                   💬 {commentCount}
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -963,7 +966,9 @@ export function Block({
           <div className="block-types">
             {blockTypeDetails.map((typeNode) => (
               <div key={typeNode.id} className="block-type-chip">
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   className="block-type-chip__label"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -973,9 +978,11 @@ export function Block({
                 >
                   <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
                   <span>{typeNode.name}</span>
-                </button>
+                </Button>
                 {!readOnly && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     className="block-type-chip__close"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -984,7 +991,7 @@ export function Block({
                     title={`Remove ${typeNode.name} type`}
                   >
                     ×
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
@@ -993,7 +1000,9 @@ export function Block({
         
         {/* Backlink count badge - right-aligned */}
         {backlinkCount > 0 && (
-          <button 
+          <Button 
+            variant="ghost"
+            size="xs"
             className="block-backlink-badge"
             onClick={(e) => {
               e.stopPropagation();
@@ -1002,7 +1011,7 @@ export function Block({
             title={`${backlinkCount} backlink${backlinkCount > 1 ? 's' : ''}`}
           >
             <span className="block-backlink-badge__count">{backlinkCount}</span>
-          </button>
+          </Button>
         )}
       </div>
       

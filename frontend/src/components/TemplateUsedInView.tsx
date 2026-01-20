@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { useNodes } from '@/hooks';
 import type { Node } from '@/types/api';
 import { NodeIcon, BulletIcon } from './icons';
+import { Button } from './core/Button';
 
 interface TemplateUsedInViewProps {
   /** The template node */
@@ -114,8 +115,10 @@ export function TemplateUsedInView({
           return (
             <div key={pageId ?? 'no-page'} className="template-used-in__group">
               {/* Page header */}
-              <button
+              <Button
                 className="template-used-in__page-header"
+                variant="ghost"
+                size="sm"
                 onClick={(e) => handleClick(pageId ?? items[0].node.id, e)}
               >
                 <NodeIcon 
@@ -124,13 +127,15 @@ export function TemplateUsedInView({
                   size="sm" 
                 />
                 <span className="template-used-in__page-name">{pageName}</span>
-              </button>
+              </Button>
               
               {/* Blocks within this page */}
               {items.map((item) => (
-                <button
+                <Button
                   key={item.node.id}
                   className="template-used-in__item"
+                  variant="ghost"
+                  size="sm"
                   onClick={(e) => handleClick(item.node.id, e)}
                   title="Click to navigate, Shift+click to open in sidebar"
                 >
@@ -144,7 +149,7 @@ export function TemplateUsedInView({
                   <span className="template-used-in__item-content">
                     {item.node.name || 'Untitled'}
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
           );

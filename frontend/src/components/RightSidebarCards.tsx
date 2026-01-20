@@ -10,6 +10,7 @@ import { useNodesStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { useNode } from '@/hooks';
 import { NodeIcon } from './icons';
+import { Button } from './core/Button';
 import { ButtonClose } from './core/ButtonClose';
 import './RightSidebarCards.css';
 
@@ -150,13 +151,15 @@ export function RightSidebarCards() {
         <span className="right-sidebar-cards__count">
           {sidebarCards.length} {sidebarCards.length === 1 ? 'card' : 'cards'}
         </span>
-        <button 
+        <Button 
+          variant="ghost"
+          size="xs"
           className="right-sidebar-cards__clear-btn"
           onClick={clearSidebarCards}
           title="Clear all cards"
         >
           Clear all
-        </button>
+        </Button>
       </div>
       <div className="right-sidebar-cards__list">
         {sidebarCards.map(card => (

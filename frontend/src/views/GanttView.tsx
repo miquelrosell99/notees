@@ -17,6 +17,7 @@ import './GanttView.css';
 import type { Node, Property } from '@/types/api';
 import type { GanttItem, GanttViewConfig } from '@/types/views';
 import { NodeIcon } from '../components/icons';
+import { Button } from '../components/core/Button';
 
 export interface GanttViewProps {
   /** Nodes to display */
@@ -620,27 +621,33 @@ export function GanttView({
           
           {/* Navigation */}
           <div className="gantt-view__nav">
-            <button 
+            <Button 
               className="gantt-view__nav-btn" 
+              variant="ghost"
+              size="sm"
               onClick={handleNavigatePrev}
               title="Previous period"
             >
               ‹
-            </button>
-            <button 
+            </Button>
+            <Button 
               className="gantt-view__nav-btn gantt-view__nav-btn--today" 
+              variant="ghost"
+              size="sm"
               onClick={handleNavigateToday}
               title="Go to today"
             >
               Today
-            </button>
-            <button 
+            </Button>
+            <Button 
               className="gantt-view__nav-btn" 
+              variant="ghost"
+              size="sm"
               onClick={handleNavigateNext}
               title="Next period"
             >
               ›
-            </button>
+            </Button>
           </div>
         </div>
       </div>

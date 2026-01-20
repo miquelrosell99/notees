@@ -14,6 +14,7 @@ import { useState, useMemo } from 'react';
 import './ReferencesView.css';
 import type { Node, LinkedReference, PropertyBacklink } from '@/types/api';
 import { BulletIcon, LinkIcon, NodeIcon } from '../components/icons';
+import { Button } from '../components/core/Button';
 
 // ==================== Types ====================
 
@@ -90,20 +91,24 @@ interface ViewModeToggleProps {
 function ViewModeToggle({ mode, onChange }: ViewModeToggleProps) {
   return (
     <div className="ref-view-toggle">
-      <button
-        className={`ref-view-toggle-btn ${mode === 'list' ? 'ref-view-toggle-btn--active' : ''}`}
+      <Button
+        variant={mode === 'list' ? 'default' : 'ghost'}
+        size="xs"
+        active={mode === 'list'}
         onClick={() => onChange('list')}
         title="List view"
       >
         =
-      </button>
-      <button
-        className={`ref-view-toggle-btn ${mode === 'table' ? 'ref-view-toggle-btn--active' : ''}`}
+      </Button>
+      <Button
+        variant={mode === 'table' ? 'default' : 'ghost'}
+        size="xs"
+        active={mode === 'table'}
         onClick={() => onChange('table')}
         title="Table view"
       >
         #
-      </button>
+      </Button>
     </div>
   );
 }
@@ -141,9 +146,11 @@ function PageReferencesSection({ items, onPageClick }: PageReferencesSectionProp
       </p>
       <div className="ref-pages-list">
         {items.map((item, idx) => (
-          <button
+          <Button
             key={`${item.sourcePage.id}-${item.propertyId}-${idx}`}
             className="ref-page-item"
+            variant="ghost"
+            size="sm"
             onClick={() => onPageClick?.(item.sourcePage.id)}
           >
             <NodeIcon 
@@ -157,7 +164,7 @@ function PageReferencesSection({ items, onPageClick }: PageReferencesSectionProp
             <span className="ref-page-property">
               via {item.propertyName}
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -185,8 +192,10 @@ export function LinkedReferencesList({ items, onItemClick }: LinkedReferencesLis
         <div key={pageId ?? 'orphan'} className="ref-list-group">
           {/* Page header */}
           {pageItems[0].sourcePage && (
-            <button
+            <Button
               className="ref-list-page-header"
+              variant="ghost"
+              size="sm"
               onClick={() => pageId && onItemClick?.(pageId)}
             >
               <NodeIcon 
@@ -197,15 +206,17 @@ export function LinkedReferencesList({ items, onItemClick }: LinkedReferencesLis
               <span className="ref-list-page-name">
                 {pageItems[0].sourcePage.name || 'Untitled'}
               </span>
-            </button>
+            </Button>
           )}
           
           {/* Blocks under this page */}
           <ul className="ref-list-blocks">
             {pageItems.map((item, idx) => (
               <li key={`${item.sourceNode.id}-${idx}`} className="ref-list-block">
-                <button
+                <Button
                   className="ref-list-block-btn"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onItemClick?.(item.sourceNode.id, item.sourcePage?.id)}
                 >
                   <span className="ref-list-bullet">
@@ -217,7 +228,7 @@ export function LinkedReferencesList({ items, onItemClick }: LinkedReferencesLis
                   <span className="ref-list-type-badge" data-type={item.linkType}>
                     {item.linkType}
                   </span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

@@ -11,6 +11,7 @@ import { useCreatePage, useCreateNode, usePages, useSearch } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { PageIcon, NodeIcon, AddIcon } from '../icons';
+import { Button } from './Button';
 import './QuickAddDialog.css';
 
 interface QuickAddProps {
@@ -276,28 +277,30 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
                     />
                   </div>
                 ))}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   type="button"
                   className="quick-add-add-block-btn"
                   onClick={handleAddBlock}
                 >
                   <AddIcon size="xs" /> Add block
-                </button>
+                </Button>
               </div>
             </div>
           )}
           
           <div className="quick-add-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <Button type="button" variant="default" onClick={onClose}>
               Cancel
-            </button>
-            <button 
+            </Button>
+            <Button 
               type="submit" 
-              className="btn btn-primary"
+              variant="primary"
               disabled={!canSubmit || createPage.isPending || createNode.isPending}
             >
               {createType === 'page' ? 'Create Page' : 'Send'}
-            </button>
+            </Button>
           </div>
         </form>
         

@@ -110,20 +110,24 @@
 
 /* Primary variant */
 .btn--primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--color-on-surface);
+  border-color: var(--color-on-surface-variant);
   color: var(--color-on-primary);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .btn--primary.btn--active,
 .btn--primary:active:not(:disabled) {
-  background: var(--color-primary-pressed);
-  border-color: var(--color-primary-pressed);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-container);
 }
 
 /* Ghost variant - transparent background with border on hover */
