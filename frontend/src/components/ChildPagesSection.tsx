@@ -20,7 +20,6 @@ interface ChildPagesSectionProps {
 }
 
 export function ChildPagesSection({ 
-  pageId, 
   childPages,
   defaultViewType = 'list',
 }: ChildPagesSectionProps) {

@@ -6,7 +6,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SlashCommandPopup.css';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, PageIcon } from '../icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon } from '../icons';
 
 export interface SlashCommand {
   id: string;

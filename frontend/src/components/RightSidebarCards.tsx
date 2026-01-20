@@ -10,6 +10,7 @@ import { useNodesStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { useNode } from '@/hooks';
 import { NodeIcon } from './icons';
+import { ButtonClose } from './core/ButtonClose';
 import './RightSidebarCards.css';
 
 interface SidebarCardItemProps {

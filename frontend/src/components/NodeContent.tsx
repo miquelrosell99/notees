@@ -244,6 +244,8 @@ export function NodeContent({
               onOpenComments={handleOpenComments(child.id)}
               onAssetUpload={handleAssetUpload(child.id)}
               commentCount={child.comment_count}
+              backlinkCount={child.backlink_count}
+              onOpenBacklinks={() => addSidebarCard(child.id, 'block')}
             />
           ))}
         </section>

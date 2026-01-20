@@ -22,7 +22,6 @@ import type { Node, NodeUpdate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
-import { NodeBreadcrumbs } from '../components/NodeBreadcrumbs';
 import { PageHeader } from '../components/PageHeader';
 import { BannerImage } from '../components/BannerImage';
 import { CoverImage } from '../components/CoverImage';
@@ -393,7 +392,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
           </span>
           <div className="block-view-title-container">
             <BlockEditor
-              blockId={node.id}
+              nodeId={node.id}
               icon={effectiveIcon}
               content={node.name || ''}
               onChange={handleBlockNameChange}

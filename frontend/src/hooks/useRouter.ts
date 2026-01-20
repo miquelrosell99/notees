@@ -163,7 +163,6 @@ export function replaceUrl(params: {
  * - On initial load, URL is parsed and appropriate navigation happens
  */
 export function useRouter() {
-  const queryClient = useQueryClient();
   const hasInitialized = useRef(false);
   const isNavigatingRef = useRef(false);
   const [isReady, setIsReady] = useState(false);

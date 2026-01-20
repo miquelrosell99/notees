@@ -89,11 +89,14 @@ interface BlockProps {
   onOpenComments?: () => void;
   onAssetUpload?: (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) => void;
   commentCount?: number;
+  backlinkCount?: number;
   readOnly?: boolean;
   /** Callback when task state changes (Shift+Enter) */
   onTaskStateChange?: (blockId: number, newState: string) => void;
   /** Ref to the editor element for focus management */
   editorRef?: React.RefObject<HTMLDivElement>;
+  /** Callback when backlinks badge is clicked */
+  onOpenBacklinks?: () => void;
 }
 
 export function Block({
@@ -115,8 +118,10 @@ export function Block({
   onOpenComments,
   onAssetUpload,
   commentCount = 0,
+  backlinkCount = 0,
   readOnly = false,
   onTaskStateChange,
+  onOpenBacklinks,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -968,6 +973,20 @@ export function Block({
             ))}
           </div>
         )}
+        
+        {/* Backlink count badge - right-aligned */}
+        {backlinkCount > 0 && (
+          <button 
+            className="block-backlink-badge"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenBacklinks?.();
+            }}
+            title={`${backlinkCount} backlink${backlinkCount > 1 ? 's' : ''}`}
+          >
+            <span className="block-backlink-badge__count">{backlinkCount}</span>
+          </button>
+        )}
       </div>
       
       {/* Drop indicator - inside (visual cue) */}
@@ -1013,8 +1032,10 @@ export function Block({
                 onOpenComments={onOpenComments}
                 onAssetUpload={onAssetUpload}
                 commentCount={child.comment_count}
+                backlinkCount={child.backlink_count}
                 readOnly={readOnly}
                 onTaskStateChange={onTaskStateChange}
+                onOpenBacklinks={onOpenBacklinks}
               />
             ))}
           </div>
