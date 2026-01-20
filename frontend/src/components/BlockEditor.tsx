@@ -21,7 +21,7 @@ import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from './core/SuggestionPopup';
 import { SlashCommandPopup } from './core/SlashCommandPopup';
-import { useNodes } from '@/hooks';
+import { useNodes, useTextLinks } from '@/hooks';
 import { mdiFileDocumentOutline, mdiCircleSmall, mdiTag } from '@mdi/js';
 import type { Node } from '@/types';
 
@@ -207,12 +207,12 @@ function escapeAttr(text: string): string {
 /**
  * Convert plain text content with link and inline type markers to HTML with pill elements
  * @param content - The raw content with [[linkId]] and {{typeId}} markers
- * @param linkNames - Map of linkId -> {name, isPage, clickCount} for display
+ * @param linkNames - Map of linkId -> {name, isPage, isTag, clickCount} for display
  * @param typeNames - Map of typeId -> {name, icon} for display
  */
 function contentToHtml(
   content: string, 
-  linkNames: Map<string, { name: string; isPage: boolean; clickCount?: number }>,
+  linkNames: Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number }>,
   typeNames?: Map<string, { name: string; icon?: string }>
 ): string {
   const pills = parseAllPills(content);
@@ -235,17 +235,29 @@ function contentToHtml(
       const linkInfo = linkNames.get(pill.id);
       const displayText = linkInfo?.name || pill.id;
       const isPage = linkInfo?.isPage ?? true;
+      const isTag = linkInfo?.isTag ?? false;
       const clickCount = linkInfo?.clickCount ?? 0;
-      const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
-      // Use SVG icons matching ContentWithPills (NodeIcon renders these)
-      const iconPath = isPage ? mdiFileDocumentOutline : mdiCircleSmall;
-      const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
-      const icon = `<span class="link-pill__icon">${iconSvg}</span>`;
-      const badge = clickCount > 0 
-        ? `<span class="link-pill__badge">${clickCount}</span>` 
-        : '';
       
-      html += `<span class="link-pill ${pillClass}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+      if (isTag) {
+        // Render as tag pill with hashtag icon
+        const iconPath = mdiTag;
+        const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
+        const icon = `<span class="tag-pill__icon">${iconSvg}</span>`;
+        
+        html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true">${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
+      } else {
+        // Render as regular link pill
+        const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
+        // Use SVG icons matching ContentWithPills (NodeIcon renders these)
+        const iconPath = isPage ? mdiFileDocumentOutline : mdiCircleSmall;
+        const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
+        const icon = `<span class="link-pill__icon">${iconSvg}</span>`;
+        const badge = clickCount > 0 
+          ? `<span class="link-pill__badge">${clickCount}</span>` 
+          : '';
+        
+        html += `<span class="link-pill ${pillClass}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+      }
     } else {
       // Inline type pill
       const typeInfo = typeNames?.get(pill.id);
@@ -497,9 +509,25 @@ export function BlockEditor({
   // Fetch all nodes to get names for links and types
   const { data: allNodes } = useNodes((linkIds.length > 0 || typeIds.length > 0) ? {} : null);
   
+  // Fetch text links to know which are tags
+  const { data: textLinks } = useTextLinks(nodeId ?? null);
+  
+  // Build a set of tag target IDs for quick lookup
+  const tagTargetIds = useMemo(() => {
+    const set = new Set<number>();
+    if (textLinks) {
+      for (const link of textLinks) {
+        if (link.is_tag) {
+          set.add(link.target_node_id);
+        }
+      }
+    }
+    return set;
+  }, [textLinks]);
+  
   // Build link names map from fetched nodes
   const linkNames = useMemo(() => {
-    const map = new Map<string, { name: string; isPage: boolean; clickCount?: number }>();
+    const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number }>();
     if (allNodes && linkIds.length > 0) {
       for (const linkId of linkIds) {
         // linkId could be a node ID (number as string) - find the node
@@ -511,13 +539,14 @@ export function BlockEditor({
           map.set(linkId, {
             name: node.name || node.display_name || 'Untitled',
             isPage: node.is_page || node.parent_id === null,
+            isTag: tagTargetIds.has(node.id),
             // TODO: could add click count from link data if available
           });
         }
       }
     }
     return map;
-  }, [allNodes, linkIds]);
+  }, [allNodes, linkIds, tagTargetIds]);
   
   // Build type names map from fetched nodes
   const typeNames = useMemo(() => {
@@ -982,19 +1011,25 @@ export function BlockEditor({
       const linkText = `[[${node.id}]]`;
       newContent = textBeforeTrigger + linkText + ' ' + textAfterCursor;
       onLinkPage?.(node);  // Callback for any link (page or block)
-    } else if (keepInline) {
-      // Use {{typeId}} format for inline types
-      const inlineText = trigger.type === 'type' 
-        ? `{{${node.id}}}` 
-        : `{{${node.id}}}`;
-      newContent = textBeforeTrigger + inlineText + ' ' + textAfterCursor;
+    } else if (trigger.type === 'tag' && keepInline) {
+      // Inline tags use [[id]] format (same as links), but are marked as is_tag in the database
+      const linkText = `[[${node.id}]]`;
+      newContent = textBeforeTrigger + linkText + ' ' + textAfterCursor;
       
-      if (trigger.type === 'type' && onAddType) {
-        onAddType(node.id, keepInline, node.name || '');
-      } else if (trigger.type === 'tag' && onAddTag) {
+      // Callback will mark this link as a tag via API
+      if (onAddTag) {
         onAddTag(node.id, keepInline, node.name || '');
       }
+    } else if (trigger.type === 'type' && keepInline) {
+      // Use {{typeId}} format for inline types
+      const inlineText = `{{${node.id}}}`;
+      newContent = textBeforeTrigger + inlineText + ' ' + textAfterCursor;
+      
+      if (onAddType) {
+        onAddType(node.id, keepInline, node.name || '');
+      }
     } else {
+      // Non-inline: just remove trigger text and add to property
       newContent = textBeforeTrigger + textAfterCursor.trimStart();
       
       if (trigger.type === 'type' && onAddType) {
@@ -1009,7 +1044,10 @@ export function BlockEditor({
     if (trigger.type === 'link') {
       const linkText = `[[${node.id}]]`;
       cursorTargetPos = textBeforeTrigger.length + linkText.length + 1; // +1 for space
-    } else if (keepInline) {
+    } else if (trigger.type === 'tag' && keepInline) {
+      const linkText = `[[${node.id}]]`;
+      cursorTargetPos = textBeforeTrigger.length + linkText.length + 1;
+    } else if (trigger.type === 'type' && keepInline) {
       const inlineText = `{{${node.id}}}`;
       cursorTargetPos = textBeforeTrigger.length + inlineText.length + 1;
     } else {
@@ -1022,16 +1060,17 @@ export function BlockEditor({
     
     // Create updated linkNames map that includes the just-inserted node
     const updatedLinkNames = new Map(linkNames);
-    if (trigger.type === 'link') {
+    if (trigger.type === 'link' || (trigger.type === 'tag' && keepInline)) {
       updatedLinkNames.set(String(node.id), {
         name: node.name || node.display_name || 'Untitled',
         isPage: node.is_page || node.parent_id === null,
+        isTag: trigger.type === 'tag',  // Mark as tag for rendering
       });
     }
     
     // Create updated typeNames map that includes the just-inserted type
     const updatedTypeNames = new Map(typeNames);
-    if ((trigger.type === 'type' || trigger.type === 'tag') && keepInline) {
+    if (trigger.type === 'type' && keepInline) {
       updatedTypeNames.set(String(node.id), {
         name: node.name || 'Untitled',
         icon: node.icon || undefined,
@@ -1166,6 +1205,58 @@ export function BlockEditor({
       return;
     }
     
+    // For type command, insert @ and let checkTriggers handle it
+    if (command === 'type') {
+      const triggerText = '@';
+      const newContent = textBeforeTrigger + triggerText + textAfterCursor;
+      isInternalChange.current = true;
+      lastContentRef.current = newContent;
+      onChange(newContent);
+      
+      // Update HTML
+      const html = contentToHtml(newContent, linkNames, typeNames);
+      editorRef.current.innerHTML = html || '<br>';
+      
+      setSlashCommand(prev => ({ ...prev, isOpen: false }));
+      
+      // Position cursor after the trigger and let checkTriggers detect it
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.focus();
+          setCursorPosition(editorRef.current, slashCommand.triggerPosition + 1);
+          // Trigger the check to show the suggestion popup
+          checkTriggers(newContent);
+        }
+      }, 0);
+      return;
+    }
+    
+    // For tag command, insert # and let checkTriggers handle it
+    if (command === 'tag') {
+      const triggerText = '#';
+      const newContent = textBeforeTrigger + triggerText + textAfterCursor;
+      isInternalChange.current = true;
+      lastContentRef.current = newContent;
+      onChange(newContent);
+      
+      // Update HTML
+      const html = contentToHtml(newContent, linkNames, typeNames);
+      editorRef.current.innerHTML = html || '<br>';
+      
+      setSlashCommand(prev => ({ ...prev, isOpen: false }));
+      
+      // Position cursor after the trigger and let checkTriggers detect it
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.focus();
+          setCursorPosition(editorRef.current, slashCommand.triggerPosition + 1);
+          // Trigger the check to show the suggestion popup
+          checkTriggers(newContent);
+        }
+      }, 0);
+      return;
+    }
+    
     // Remove the slash and query
     const newContent = textBeforeTrigger + textAfterCursor.trimStart();
     isInternalChange.current = true;
@@ -1190,7 +1281,7 @@ export function BlockEditor({
     setSlashCommand(prev => ({ ...prev, isOpen: false }));
     
     setTimeout(() => editorRef.current?.focus(), 0);
-  }, [slashCommand.triggerPosition, onChange, onOpenComments, onAssetUpload, linkNames, typeNames]);
+  }, [slashCommand.triggerPosition, onChange, onOpenComments, onAssetUpload, linkNames, typeNames, checkTriggers]);
 
   const handleSlashCommandClose = useCallback(() => {
     setSlashCommand(prev => ({ ...prev, isOpen: false }));

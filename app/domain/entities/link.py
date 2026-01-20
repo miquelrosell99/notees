@@ -37,12 +37,16 @@ class NodeLink:
     
     For text links: source_node_id is block T, property_id is None
     For property links: source_node_id is property owner B, property_id is set
+    
+    If is_tag is True, the link is a tag reference (displayed with #)
+    rather than a regular [[link]].
     """
     id: Optional[int] = None
     source_node_id: int = 0  # Node containing the link (T for text, B for property)
     target_node_id: int = 0  # Referenced node (X)
     position: int = 0  # Character position in name (for text links only)
     property_id: Optional[int] = None  # Property ID if this is a property link
+    is_tag: bool = False  # True if this is a tag reference (displayed with #)
     created_at: datetime = field(default_factory=utc_now)
 
 

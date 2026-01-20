@@ -15,7 +15,7 @@
  * 7. NodeActivityLog
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreatePage, useProperties, useSetNodeProperty } from '@/hooks';
+import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreatePage, useProperties, useSetNodeProperty, useAddTagLink } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -74,6 +74,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
   const updateNode = useUpdateNode();
   const createPage = useCreatePage();
   const addTag = useAddTag();
+  const addTagLink = useAddTagLink();
   const addType = useAddType();
   const { data: allTypes } = useTypes();
   const { data: allProperties } = useProperties();
@@ -252,10 +253,16 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
   }, [node, addType]);
   
   // Handle adding a tag to the block
-  const handleAddTag = useCallback((tagNodeId: number, _keepInline: boolean, _tagName: string) => {
+  const handleAddTag = useCallback((tagNodeId: number, keepInline: boolean, _tagName: string) => {
     if (!node) return;
+    // Always add to the tags property
     addTag.mutate({ nodeId: node.id, tagId: tagNodeId });
-  }, [node, addTag]);
+    
+    // If kept inline, also mark the link as a tag
+    if (keepInline) {
+      addTagLink.mutate({ nodeId: node.id, targetNodeId: tagNodeId });
+    }
+  }, [node, addTag, addTagLink]);
   
   // Handle creating a new type
   const handleCreateType = useCallback((name: string) => {

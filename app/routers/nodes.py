@@ -1270,6 +1270,138 @@ async def remove_node_type_endpoint(
     return _node_to_response(node, types=[t.id for t in types if t.id])
 
 
+class TagLinkRequest(BaseModel):
+    """Request to add a tag link."""
+    target_node_id: int
+
+
+class NodeLinkResponse(BaseModel):
+    """Response for a node link."""
+    id: int
+    source_node_id: int
+    target_node_id: int
+    is_tag: bool
+    position: int
+
+
+@router.get("/{node_id}/text-links")
+async def get_text_links(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get all text links from a node with is_tag info.
+    
+    Returns list of links parsed from [[id]] patterns in the node's content,
+    including whether each link is a tag (displayed with #) or a regular link.
+    """
+    db = await get_db(user.id)
+    
+    cursor = await db.execute("""
+        SELECT id, source_node_id, target_node_id, is_tag, position
+        FROM node_link
+        WHERE source_node_id = ? AND property_id IS NULL
+        ORDER BY position
+    """, (node_id,))
+    rows = await cursor.fetchall()
+    
+    return {
+        "links": [
+            NodeLinkResponse(
+                id=row['id'],
+                source_node_id=row['source_node_id'],
+                target_node_id=row['target_node_id'],
+                is_tag=bool(row['is_tag']),
+                position=row['position'],
+            )
+            for row in rows
+        ]
+    }
+
+
+@router.post("/{node_id}/tag-links")
+async def add_tag_link(
+    node_id: int,
+    request: TagLinkRequest,
+    user: User = Depends(get_current_user),
+):
+    """Add a tag link from a node to a target page.
+    
+    This marks a [[id]] link in the content as a tag, which will be
+    displayed with a # instead of a page/block icon.
+    """
+    db = await get_db(user.id)
+    
+    # Verify source node exists
+    cursor = await db.execute("SELECT id FROM node WHERE id = ?", (node_id,))
+    if not await cursor.fetchone():
+        raise HTTPException(404, "Source node not found")
+    
+    # Verify target node exists and is a page
+    cursor = await db.execute(
+        "SELECT id, is_page, parent_id FROM node WHERE id = ?",
+        (request.target_node_id,)
+    )
+    target_row = await cursor.fetchone()
+    if not target_row:
+        raise HTTPException(404, "Target node not found")
+    if not target_row['is_page'] and target_row['parent_id'] is not None:
+        raise HTTPException(400, "Tags can only point to pages")
+    
+    # Check if link already exists
+    cursor = await db.execute("""
+        SELECT id FROM node_link 
+        WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL
+    """, (node_id, request.target_node_id))
+    row = await cursor.fetchone()
+    
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if row:
+        # Update existing link to be a tag
+        await db.execute("UPDATE node_link SET is_tag = 1 WHERE id = ?", (row['id'],))
+        await db.commit()
+        return NodeLinkResponse(
+            id=row['id'],
+            source_node_id=node_id,
+            target_node_id=request.target_node_id,
+            is_tag=True,
+            position=0,
+        )
+    else:
+        # Create new tag link
+        cursor = await db.execute("""
+            INSERT INTO node_link (source_node_id, target_node_id, position, property_id, is_tag, created_at)
+            VALUES (?, ?, 0, NULL, 1, ?)
+        """, (node_id, request.target_node_id, now))
+        await db.commit()
+        return NodeLinkResponse(
+            id=cursor.lastrowid,
+            source_node_id=node_id,
+            target_node_id=request.target_node_id,
+            is_tag=True,
+            position=0,
+        )
+
+
+@router.delete("/{node_id}/tag-links/{target_id}")
+async def remove_tag_link(
+    node_id: int,
+    target_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Remove a tag from a link (converts back to regular link)."""
+    db = await get_db(user.id)
+    
+    cursor = await db.execute("""
+        UPDATE node_link SET is_tag = 0 
+        WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL AND is_tag = 1
+    """, (node_id, target_id))
+    await db.commit()
+    
+    return {"removed": cursor.rowcount > 0}
+
+
 @router.post("/{node_id}/properties")
 async def set_property(
     node_id: int,

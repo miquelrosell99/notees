@@ -99,7 +99,7 @@ class LinkParsingService:
                 continue
         
         return inline_types
-    
+
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
         existing = set()
@@ -190,10 +190,13 @@ class LinkParsingService:
         if source_node and source_node.is_page:
             source_page_id = source_node.id
         
-        # Remove existing text links from this source (property_id IS NULL)
-        await self._delete_text_links(node_id)
+        # Get existing tag links to preserve them (they're managed via add_tag_link API)
+        existing_tag_targets = await self._get_existing_tag_link_targets(node_id)
         
-        # Parse new links
+        # Remove existing non-tag text links from this source (property_id IS NULL, is_tag=0)
+        await self._delete_non_tag_text_links(node_id)
+        
+        # Parse new links from [[id]] patterns
         parsed = self.parse_links(content)
         
         created_links = []
@@ -204,30 +207,118 @@ class LinkParsingService:
             if not target_node:
                 continue
             
+            # Check if this was previously a tag link - if so, preserve that
+            is_tag = target_id in existing_tag_targets
+            
             link = NodeLink(
                 source_node_id=node_id,
                 target_node_id=target_id,
                 position=position,
                 property_id=None,  # Text link, not property link
+                is_tag=is_tag,
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)
             
-            # Log activity for NEW page links only
-            if target_id not in existing_target_ids and target_node.is_page:
+            # Log activity for NEW page links only (not for tag links)
+            if target_id not in existing_target_ids and target_node.is_page and not is_tag:
                 await self._log_link_activity(node_id, target_id, source_page_id, target_node)
         
         return created_links
     
-    async def _delete_text_links(self, source_node_id: int) -> None:
-        """Delete all text links (property_id IS NULL) from a source node."""
+    async def _get_existing_tag_link_targets(self, source_node_id: int) -> set[int]:
+        """Get set of target node IDs for existing tag links from a source node."""
+        existing = set()
+        if hasattr(self._link_repo, '_conn'):
+            conn = self._link_repo._conn
+            cursor = await conn.execute(
+                "SELECT target_node_id FROM node_link WHERE source_node_id = ? AND property_id IS NULL AND is_tag = 1",
+                (source_node_id,)
+            )
+            rows = await cursor.fetchall()
+            for row in rows:
+                existing.add(row['target_node_id'])
+        return existing
+    
+    async def _delete_non_tag_text_links(self, source_node_id: int) -> None:
+        """Delete all non-tag text links (property_id IS NULL, is_tag=0) from a source node."""
         if hasattr(self._link_repo, '_conn'):
             conn = self._link_repo._conn
             await conn.execute(
-                "DELETE FROM node_link WHERE source_node_id = ? AND property_id IS NULL",
+                "DELETE FROM node_link WHERE source_node_id = ? AND property_id IS NULL AND is_tag = 0",
                 (source_node_id,)
             )
             await conn.commit()
+    
+    async def add_tag_link(self, source_node_id: int, target_node_id: int) -> Optional[NodeLink]:
+        """Add a tag link from source to target.
+        
+        Creates or updates a link to mark it as a tag.
+        Tags are displayed with # instead of page/block icon.
+        
+        Args:
+            source_node_id: The block containing the [[id]] reference
+            target_node_id: The page being referenced as a tag
+            
+        Returns:
+            The created/updated NodeLink or None if target doesn't exist
+        """
+        # Verify target exists and is a page
+        target_node = await self._node_repo.get_by_id(target_node_id)
+        if not target_node or not target_node.is_page:
+            return None
+        
+        conn = self._link_repo._conn
+        
+        # Check if link already exists
+        cursor = await conn.execute(
+            "SELECT id FROM node_link WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL",
+            (source_node_id, target_node_id)
+        )
+        row = await cursor.fetchone()
+        
+        if row:
+            # Update existing link to be a tag
+            await conn.execute(
+                "UPDATE node_link SET is_tag = 1 WHERE id = ?",
+                (row['id'],)
+            )
+            await conn.commit()
+            return NodeLink(
+                id=row['id'],
+                source_node_id=source_node_id,
+                target_node_id=target_node_id,
+                is_tag=True,
+            )
+        else:
+            # Create new tag link
+            link = NodeLink(
+                source_node_id=source_node_id,
+                target_node_id=target_node_id,
+                position=0,
+                property_id=None,
+                is_tag=True,
+            )
+            return await self._link_repo.create(link)
+    
+    async def remove_tag_link(self, source_node_id: int, target_node_id: int) -> bool:
+        """Remove a tag link (convert back to regular link or delete).
+        
+        Args:
+            source_node_id: The block containing the reference
+            target_node_id: The page being referenced
+            
+        Returns:
+            True if a tag was removed
+        """
+        conn = self._link_repo._conn
+        
+        cursor = await conn.execute(
+            "UPDATE node_link SET is_tag = 0 WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL AND is_tag = 1",
+            (source_node_id, target_node_id)
+        )
+        await conn.commit()
+        return cursor.rowcount > 0
     
     async def update_inline_types(self, node_id: int, content: str) -> List[InlineType]:
         """Parse content and update inline_type table for a node.

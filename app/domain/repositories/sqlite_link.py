@@ -28,19 +28,21 @@ class SQLiteLinkRepository(LinkRepository):
             target_node_id=row['target_node_id'],
             position=row['position'],
             property_id=row['property_id'] if 'property_id' in row.keys() else None,
+            is_tag=bool(row['is_tag']) if 'is_tag' in row.keys() else False,
             created_at=created_at,
         )
     
     async def create(self, link: NodeLink) -> NodeLink:
         """Create a new link."""
         cursor = await self._conn.execute("""
-            INSERT INTO node_link (source_node_id, target_node_id, position, property_id, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO node_link (source_node_id, target_node_id, position, property_id, is_tag, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
         """, (
             link.source_node_id, 
             link.target_node_id, 
             link.position,
             link.property_id,
+            1 if link.is_tag else 0,
             link.created_at.isoformat()
         ))
         
@@ -105,10 +107,10 @@ class SQLiteLinkRepository(LinkRepository):
             return []
         
         cursor = await self._conn.executemany("""
-            INSERT INTO node_link (source_node_id, target_node_id, position, property_id, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO node_link (source_node_id, target_node_id, position, property_id, is_tag, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
         """, [
-            (link.source_node_id, link.target_node_id, link.position, link.property_id, link.created_at.isoformat())
+            (link.source_node_id, link.target_node_id, link.position, link.property_id, 1 if link.is_tag else 0, link.created_at.isoformat())
             for link in links
         ])
         
