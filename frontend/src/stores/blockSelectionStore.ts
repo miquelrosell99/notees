@@ -564,7 +564,6 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
     // If expanding in same direction, use the last added block
     // If contracting (opposite direction), remove blocks
     
-    const _selectedArray = Array.from(state.selectedBlockIds);
     const visibleSelected = state.visibleBlockIds.filter(id => state.selectedBlockIds.has(id));
     
     if (visibleSelected.length === 0) return;

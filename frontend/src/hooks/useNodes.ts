@@ -529,7 +529,12 @@ export function useDeleteNode() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (id: number) => nodesApi.deleteNode(id),
+    mutationFn: async (id: number) => {
+      // Fetch the node info before deleting so we can check if it's a page
+      const nodeData = queryClient.getQueryData<Node>(nodeKeys.detail(id, {}));
+      await nodesApi.deleteNode(id);
+      return nodeData; // Return the cached node data
+    },
     onMutate: async (deletedId) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });

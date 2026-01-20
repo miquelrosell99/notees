@@ -105,21 +105,6 @@ export function TextPropertyBlock({
     onOpenInSidebar?.(blockId);
   }, [onOpenInSidebar]);
   
-  // Handle drag start - prepare for moving the block
-  const _handleDragStart = useCallback((e: React.DragEvent) => {
-    if (!blockNodeId || readOnly) {
-      e.preventDefault();
-      return;
-    }
-    
-    e.dataTransfer.setData('application/x-notees-block', JSON.stringify({
-      blockId: blockNodeId,
-      sourcePropertyId: property.id,
-      sourceNodeId: nodeId,
-    }));
-    e.dataTransfer.effectAllowed = 'move';
-  }, [blockNodeId, property.id, nodeId, readOnly]);
-  
   // Handle drop on this property (to receive a block)
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();

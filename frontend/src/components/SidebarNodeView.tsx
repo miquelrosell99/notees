@@ -189,7 +189,6 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
           <div className="sidebar-node-view__block-editor">
             <BlockEditor
               nodeId={node.id}
-              icon={node.icon}
               content={node.name || ''}
               onChange={handleNameChange}
               onAddType={handleAddType(node.id)}

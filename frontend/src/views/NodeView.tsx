@@ -393,7 +393,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
           <div className="block-view-title-container">
             <BlockEditor
               nodeId={node.id}
-              icon={effectiveIcon}
               content={node.name || ''}
               onChange={handleBlockNameChange}
               onAddType={handleAddType}
