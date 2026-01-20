@@ -72,6 +72,7 @@ class SQLiteNodeRepository(NodeRepository):
             is_template=bool(row['is_template']) if 'is_template' in row.keys() else False,
             is_comment=bool(row['is_comment']) if 'is_comment' in row.keys() else False,
             usable_in=row['usable_in'] if 'usable_in' in row.keys() else 'both',
+            open_date=row['open_date'] if 'open_date' in row.keys() else None,
             create_date=row['create_date'],
             write_date=row['write_date'],
             create_uid=row['create_uid'],

@@ -53,6 +53,7 @@ class NodeResponse(BaseModel):
     usable_in: str = "both"  # Where this type can be applied (only meaningful when is_type=True)
     create_date: str
     write_date: str
+    open_date: Optional[str] = None  # When the page was last opened/viewed
     # Computed fields
     display_name: Optional[str] = None
     tags: List[int] = []  # Tag node IDs (descriptive linking with #)
@@ -195,6 +196,7 @@ def _node_to_response(
         usable_in=node.usable_in,
         create_date=node.create_date,
         write_date=node.write_date,
+        open_date=node.open_date,
         display_name=node.display_name,
         tags=tags or [],
         types=types or [],
@@ -1989,3 +1991,311 @@ async def update_date_format(
         "updated_count": updated_count,
         "errors": errors if errors else []
     }
+
+
+# ============== Page View Tracking & Recents ==============
+
+@router.patch("/{node_id}/open")
+async def mark_page_opened(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Mark a page as opened/viewed (updates open_date).
+    
+    This should only be called for pages (is_page=1).
+    The open_date is set to the current UTC time.
+    """
+    from ..db.connection import get_db
+    from ..db.schema import utc_now_iso
+    
+    db = await get_db(user.id)
+    try:
+        # Verify it's a page and exists
+        cursor = await db.execute(
+            "SELECT id, is_page FROM node WHERE id = ? AND active = 1",
+            (node_id,)
+        )
+        row = await cursor.fetchone()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Node not found")
+        
+        if not row['is_page']:
+            raise HTTPException(status_code=400, detail="Only pages can have open_date updated")
+        
+        # Update open_date
+        now = utc_now_iso()
+        await db.execute(
+            "UPDATE node SET open_date = ? WHERE id = ?",
+            (now, node_id)
+        )
+        await db.commit()
+        
+        return {"status": "ok", "open_date": now}
+    finally:
+        await db.close()
+
+
+@router.get("/recents")
+async def get_recent_pages(
+    limit: int = 10,
+    user: User = Depends(get_current_user),
+):
+    """Get recently opened pages, ordered by open_date DESC.
+    
+    Returns pages that have been opened (have a non-null open_date).
+    """
+    from ..db.connection import get_db
+    
+    db = await get_db(user.id)
+    try:
+        cursor = await db.execute("""
+            SELECT id, uuid, name, icon, color, parent_id, page_id, 
+                   is_page, is_type, is_day, is_month, is_year,
+                   create_date, write_date, open_date
+            FROM node 
+            WHERE is_page = 1 AND active = 1 AND open_date IS NOT NULL
+            ORDER BY open_date DESC
+            LIMIT ?
+        """, (limit,))
+        rows = await cursor.fetchall()
+        
+        nodes = []
+        for row in rows:
+            nodes.append({
+                "id": row['id'],
+                "uuid": row['uuid'],
+                "name": row['name'],
+                "icon": row['icon'],
+                "color": row['color'],
+                "parent_id": row['parent_id'],
+                "page_id": row['page_id'],
+                "is_page": bool(row['is_page']),
+                "is_type": bool(row['is_type']),
+                "is_daily": bool(row['is_day']),
+                "is_monthly": bool(row['is_month']),
+                "is_yearly": bool(row['is_year']),
+                "create_date": row['create_date'],
+                "write_date": row['write_date'],
+                "open_date": row['open_date'],
+            })
+        
+        return {"nodes": nodes}
+    finally:
+        await db.close()
+
+
+# ============== Favorites (stored in DB settings) ==============
+
+@router.get("/favorites")
+async def get_favorites(
+    user: User = Depends(get_current_user),
+):
+    """Get the list of favorite page IDs.
+    
+    Favorites are stored as a JSON array of node IDs in the settings table.
+    """
+    from ..db.connection import get_db
+    import json
+    
+    db = await get_db(user.id)
+    try:
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'favorites'"
+        )
+        row = await cursor.fetchone()
+        
+        if not row or not row['value']:
+            return {"favorites": []}
+        
+        try:
+            favorites = json.loads(row['value'])
+            return {"favorites": favorites if isinstance(favorites, list) else []}
+        except json.JSONDecodeError:
+            return {"favorites": []}
+    finally:
+        await db.close()
+
+
+@router.put("/favorites")
+async def set_favorites(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Set the list of favorite page IDs.
+    
+    Expects JSON body: { "favorites": [nodeId1, nodeId2, ...] }
+    """
+    from ..db.connection import get_db
+    import json
+    
+    data = await request.json()
+    favorites = data.get("favorites", [])
+    
+    if not isinstance(favorites, list):
+        raise HTTPException(status_code=400, detail="favorites must be a list")
+    
+    # Validate all items are integers
+    if not all(isinstance(f, int) for f in favorites):
+        raise HTTPException(status_code=400, detail="favorites must be a list of integers")
+    
+    db = await get_db(user.id)
+    try:
+        favorites_json = json.dumps(favorites)
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
+            (favorites_json,)
+        )
+        await db.commit()
+        return {"status": "ok", "favorites": favorites}
+    finally:
+        await db.close()
+
+
+@router.post("/favorites/{node_id}")
+async def add_favorite(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Add a page to favorites."""
+    from ..db.connection import get_db
+    import json
+    
+    db = await get_db(user.id)
+    try:
+        # Verify the node exists and is a page
+        cursor = await db.execute(
+            "SELECT id, is_page FROM node WHERE id = ? AND active = 1",
+            (node_id,)
+        )
+        row = await cursor.fetchone()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Node not found")
+        if not row['is_page']:
+            raise HTTPException(status_code=400, detail="Only pages can be favorited")
+        
+        # Get current favorites
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'favorites'"
+        )
+        row = await cursor.fetchone()
+        
+        favorites = []
+        if row and row['value']:
+            try:
+                favorites = json.loads(row['value'])
+                if not isinstance(favorites, list):
+                    favorites = []
+            except json.JSONDecodeError:
+                favorites = []
+        
+        # Add if not already present
+        if node_id not in favorites:
+            favorites.append(node_id)
+            await db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
+                (json.dumps(favorites),)
+            )
+            await db.commit()
+        
+        return {"status": "ok", "favorites": favorites}
+    finally:
+        await db.close()
+
+
+@router.delete("/favorites/{node_id}")
+async def remove_favorite(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Remove a page from favorites."""
+    from ..db.connection import get_db
+    import json
+    
+    db = await get_db(user.id)
+    try:
+        # Get current favorites
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'favorites'"
+        )
+        row = await cursor.fetchone()
+        
+        favorites = []
+        if row and row['value']:
+            try:
+                favorites = json.loads(row['value'])
+                if not isinstance(favorites, list):
+                    favorites = []
+            except json.JSONDecodeError:
+                favorites = []
+        
+        # Remove if present
+        if node_id in favorites:
+            favorites.remove(node_id)
+            await db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
+                (json.dumps(favorites),)
+            )
+            await db.commit()
+        
+        return {"status": "ok", "favorites": favorites}
+    finally:
+        await db.close()
+
+
+@router.put("/favorites/reorder")
+async def reorder_favorites(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Reorder favorites by moving an item from one position to another.
+    
+    Expects JSON body: { "from_index": number, "to_index": number }
+    """
+    from ..db.connection import get_db
+    import json
+    
+    data = await request.json()
+    from_index = data.get("from_index")
+    to_index = data.get("to_index")
+    
+    if from_index is None or to_index is None:
+        raise HTTPException(status_code=400, detail="from_index and to_index are required")
+    
+    db = await get_db(user.id)
+    try:
+        # Get current favorites
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'favorites'"
+        )
+        row = await cursor.fetchone()
+        
+        favorites = []
+        if row and row['value']:
+            try:
+                favorites = json.loads(row['value'])
+                if not isinstance(favorites, list):
+                    favorites = []
+            except json.JSONDecodeError:
+                favorites = []
+        
+        # Validate indices
+        if from_index < 0 or from_index >= len(favorites):
+            raise HTTPException(status_code=400, detail="from_index out of bounds")
+        if to_index < 0 or to_index >= len(favorites):
+            raise HTTPException(status_code=400, detail="to_index out of bounds")
+        
+        # Reorder
+        item = favorites.pop(from_index)
+        favorites.insert(to_index, item)
+        
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
+            (json.dumps(favorites),)
+        )
+        await db.commit()
+        
+        return {"status": "ok", "favorites": favorites}
+    finally:
+        await db.close()

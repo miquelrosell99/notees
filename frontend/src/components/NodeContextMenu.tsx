@@ -222,10 +222,8 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const createPage = useCreatePage();
   const { openNode } = useNodesStore();
   
-  // Favorites
+  // Favorites - use selector for data, getState() for actions
   const favorites = useFavoritesStore((state) => state.favorites);
-  const addFavorite = useFavoritesStore((state) => state.addFavorite);
-  const removeFavorite = useFavoritesStore((state) => state.removeFavorite);
   const isPageFavorited = favorites.some(f => f.nodeId === node.id);
   
   // Parent picker state
@@ -233,13 +231,14 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const [parentPickerPos, setParentPickerPos] = useState({ x: 0, y: 0 });
   
   const handleToggleFavorite = useCallback(() => {
+    const store = useFavoritesStore.getState();
     if (isPageFavorited) {
-      removeFavorite(node.id);
+      store.removeFavorite(node.id);
     } else {
-      addFavorite(node.id);
+      store.addFavorite(node.id);
     }
     onClose();
-  }, [isPageFavorited, node.id, addFavorite, removeFavorite, onClose]);
+  }, [isPageFavorited, node.id, onClose]);
   
   const handleParentChange = useCallback((newParentId: number | number[] | null) => {
     const parentId = Array.isArray(newParentId) ? newParentId[0] : newParentId;
