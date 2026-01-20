@@ -140,7 +140,6 @@ export { DatabaseNameModal } from './DatabaseNameModal';
 export { ImportOptionsModal } from './ImportOptionsModal';
 export { DatabaseSwitcher } from './DatabaseSwitcher';
 export { DatabaseManagementView } from '../views/DatabaseManagementView';
-export { ImageUploadModal } from './ImageUploadModal';
 export { AssetUploadModal } from './AssetUploadModal';
 
 // Image components
