@@ -7,7 +7,7 @@ from .interfaces import (
 )
 from .sqlite_node import SQLiteNodeRepository
 from .sqlite_property import SQLitePropertyRepository
-from .sqlite_link import SQLiteLinkRepository
+from .sqlite_link import SQLiteLinkRepository, SQLiteInlineTypeRepository
 from .sqlite_user import SQLiteUserRepository
 
 
@@ -21,5 +21,6 @@ __all__ = [
     "SQLiteNodeRepository",
     "SQLitePropertyRepository",
     "SQLiteLinkRepository",
+    "SQLiteInlineTypeRepository",
     "SQLiteUserRepository",
 ]

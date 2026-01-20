@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import aiosqlite
 
-from ..entities import NodeLink
+from ..entities import NodeLink, InlineType
 from .interfaces import LinkRepository
 
 
@@ -151,3 +151,83 @@ class SQLiteLinkRepository(LinkRepository):
         """, (target_node_id, types_property_name))
         rows = await cursor.fetchall()
         return [self._row_to_link(row) for row in rows]
+
+
+class SQLiteInlineTypeRepository:
+    """SQLite repository for inline type references."""
+    
+    def __init__(self, connection: aiosqlite.Connection):
+        """Initialize with database connection."""
+        self._conn = connection
+    
+    def _row_to_inline_type(self, row: aiosqlite.Row) -> InlineType:
+        """Convert database row to InlineType entity."""
+        created_at = row['created_at']
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+        return InlineType(
+            id=row['id'],
+            source_node_id=row['source_node_id'],
+            type_node_id=row['type_node_id'],
+            position=row['position'],
+            created_at=created_at,
+        )
+    
+    async def create(self, inline_type: InlineType) -> InlineType:
+        """Create a new inline type reference."""
+        cursor = await self._conn.execute("""
+            INSERT INTO inline_type (source_node_id, type_node_id, position, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (
+            inline_type.source_node_id, 
+            inline_type.type_node_id, 
+            inline_type.position,
+            inline_type.created_at.isoformat()
+        ))
+        
+        inline_type.id = cursor.lastrowid
+        await self._conn.commit()
+        return inline_type
+    
+    async def delete_source_inline_types(self, source_node_id: int) -> int:
+        """Delete all inline types from a source node (for re-parsing)."""
+        cursor = await self._conn.execute(
+            "DELETE FROM inline_type WHERE source_node_id = ?",
+            (source_node_id,)
+        )
+        await self._conn.commit()
+        return cursor.rowcount
+    
+    async def get_source_inline_types(self, source_node_id: int) -> List[InlineType]:
+        """Get all inline types from a source node."""
+        cursor = await self._conn.execute(
+            "SELECT * FROM inline_type WHERE source_node_id = ? ORDER BY position",
+            (source_node_id,)
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_inline_type(row) for row in rows]
+    
+    async def get_type_references(self, type_node_id: int) -> List[InlineType]:
+        """Get all inline references to a type node."""
+        cursor = await self._conn.execute(
+            "SELECT * FROM inline_type WHERE type_node_id = ?",
+            (type_node_id,)
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_inline_type(row) for row in rows]
+    
+    async def bulk_create(self, inline_types: List[InlineType]) -> List[InlineType]:
+        """Create multiple inline types at once (for efficiency when parsing)."""
+        if not inline_types:
+            return []
+        
+        await self._conn.executemany("""
+            INSERT INTO inline_type (source_node_id, type_node_id, position, created_at)
+            VALUES (?, ?, ?, ?)
+        """, [
+            (it.source_node_id, it.type_node_id, it.position, it.created_at.isoformat())
+            for it in inline_types
+        ])
+        
+        await self._conn.commit()
+        return inline_types

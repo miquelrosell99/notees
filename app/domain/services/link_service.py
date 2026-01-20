@@ -23,15 +23,18 @@ import re
 import json
 from typing import List, Tuple, Optional, TYPE_CHECKING
 
-from ..entities import NodeLink, BacklinkInfo
+from ..entities import NodeLink, InlineType, BacklinkInfo
 
 if TYPE_CHECKING:
-    from ..repositories import NodeRepository, LinkRepository, PropertyRepository
+    from ..repositories import NodeRepository, LinkRepository, PropertyRepository, SQLiteInlineTypeRepository
     from ..entities import Node
 
 
 # Regex pattern for parsing links - unified [[nodeId]] format
 LINK_PATTERN = re.compile(r'\[\[(\d+)\]\]')
+
+# Regex pattern for parsing inline types - {{typeId}} format
+INLINE_TYPE_PATTERN = re.compile(r'\{\{(\d+)\}\}')
 
 # System property name to exclude from backlinks
 TYPES_PROPERTY_NAME = "types"
@@ -42,6 +45,7 @@ class LinkParsingService:
     
     Handles:
     - Text links: [[id]] syntax in node name field
+    - Inline types: {{id}} syntax in node name field
     - Property links: Node-type property values (excluding system `types` property)
     - Types Path: Inherited types from ancestors for queries
     """
@@ -52,11 +56,13 @@ class LinkParsingService:
         link_repository: LinkRepository,
         property_repository: Optional[PropertyRepository] = None,
         types_property_id: Optional[int] = None,
+        inline_type_repository: Optional['SQLiteInlineTypeRepository'] = None,
     ):
         self._node_repo = node_repository
         self._link_repo = link_repository
         self._property_repo = property_repository
         self._types_property_id = types_property_id
+        self._inline_type_repo = inline_type_repository
     
     def parse_links(self, content: str) -> List[Tuple[int, int]]:
         """Parse content and extract all links.
@@ -75,6 +81,24 @@ class LinkParsingService:
                 continue
         
         return links
+    
+    def parse_inline_types(self, content: str) -> List[Tuple[int, int]]:
+        """Parse content and extract all inline type references.
+        
+        Returns list of tuples: (type_node_id, position)
+        Inline types use {{typeId}} format.
+        """
+        inline_types = []
+        
+        for match in INLINE_TYPE_PATTERN.finditer(content):
+            try:
+                type_id = int(match.group(1))
+                position = match.start()
+                inline_types.append((type_id, position))
+            except ValueError:
+                continue
+        
+        return inline_types
     
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
@@ -204,6 +228,58 @@ class LinkParsingService:
                 (source_node_id,)
             )
             await conn.commit()
+    
+    async def update_inline_types(self, node_id: int, content: str) -> List[InlineType]:
+        """Parse content and update inline_type table for a node.
+        
+        This handles inline type references ({{typeId}} in content).
+        
+        Args:
+            node_id: The block containing the inline type references
+            content: The text content to parse
+            
+        Returns:
+            List of created InlineType objects
+        """
+        if not self._inline_type_repo:
+            return []
+        
+        # Remove existing inline types from this source
+        await self._inline_type_repo.delete_source_inline_types(node_id)
+        
+        # Parse new inline types
+        parsed = self.parse_inline_types(content)
+        
+        created_inline_types = []
+        
+        for type_id, position in parsed:
+            # Verify the type node exists
+            type_node = await self._node_repo.get_by_id(type_id)
+            if not type_node:
+                continue
+            
+            inline_type = InlineType(
+                source_node_id=node_id,
+                type_node_id=type_id,
+                position=position,
+            )
+            created_type = await self._inline_type_repo.create(inline_type)
+            created_inline_types.append(created_type)
+        
+        return created_inline_types
+    
+    async def get_inline_types_for_node(self, node_id: int) -> List[InlineType]:
+        """Get all inline type references for a node.
+        
+        Args:
+            node_id: The source node ID
+            
+        Returns:
+            List of InlineType objects for this node
+        """
+        if not self._inline_type_repo:
+            return []
+        return await self._inline_type_repo.get_source_inline_types(node_id)
     
     async def update_property_links(
         self, 

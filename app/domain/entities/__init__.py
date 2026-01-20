@@ -24,6 +24,7 @@ from .property import (
 )
 from .link import (
     NodeLink,
+    InlineType,
     BacklinkInfo,
 )
 from .user import (
@@ -56,6 +57,7 @@ __all__ = [
     "ALWAYS_SINGLE_TYPES",
     # Link
     "NodeLink",
+    "InlineType",
     # User
     "User",
     "UserCreateData",

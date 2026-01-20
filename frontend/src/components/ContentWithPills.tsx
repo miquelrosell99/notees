@@ -18,16 +18,19 @@ import { useNodesStore } from '@/stores';
 import { ContextMenu } from './core/ContextMenu';
 import type { ContextMenuItem } from './core/ContextMenu';
 import type { Node } from '@/types';
-import { NodeIcon } from './icons';
+import { NodeIcon, TagIcon } from './icons';
 import './LinkPill.css';
 
 // Regex for finding links - unified [[linkId]] format
 const LINK_REGEX = /\[\[([^\]]+)\]\]/g;
 
-interface LinkPart {
-  type: 'text' | 'link';
+// Regex for finding inline types - {{typeId}} format
+const TYPE_REGEX = /\{\{([^\}]+)\}\}/g;
+
+interface ContentPart {
+  type: 'text' | 'link' | 'inline-type';
   content: string;
-  linkId?: string;  // The node ID for links
+  id?: string;  // The node ID for links/types
   raw?: string;
 }
 
@@ -39,35 +42,69 @@ interface ContentWithPillsProps {
 }
 
 /**
- * Parse content into parts (text and links)
+ * Parse content into parts (text, links, and inline types)
  */
-function parseContent(content: string): LinkPart[] {
-  const parts: LinkPart[] = [];
-  let lastIndex = 0;
+function parseContent(content: string): ContentPart[] {
+  const parts: ContentPart[] = [];
+  
+  // Find all matches with their positions
+  interface Match {
+    type: 'link' | 'inline-type';
+    id: string;
+    raw: string;
+    start: number;
+    end: number;
+  }
+  
+  const matches: Match[] = [];
+  
+  // Find links
   let match;
+  const linkRegex = new RegExp(LINK_REGEX.source, 'g');
+  while ((match = linkRegex.exec(content)) !== null) {
+    matches.push({
+      type: 'link',
+      id: match[1],
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
   
-  const regex = new RegExp(LINK_REGEX.source, 'g');
+  // Find inline types
+  const typeRegex = new RegExp(TYPE_REGEX.source, 'g');
+  while ((match = typeRegex.exec(content)) !== null) {
+    matches.push({
+      type: 'inline-type',
+      id: match[1],
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
   
-  while ((match = regex.exec(content)) !== null) {
+  // Sort by position
+  matches.sort((a, b) => a.start - b.start);
+  
+  // Build parts
+  let lastIndex = 0;
+  for (const m of matches) {
     // Add text before this match
-    if (match.index > lastIndex) {
+    if (m.start > lastIndex) {
       parts.push({
         type: 'text',
-        content: content.substring(lastIndex, match.index),
+        content: content.substring(lastIndex, m.start),
       });
     }
     
-    const raw = match[0];
-    const linkId = match[1];
-    
     parts.push({
-      type: 'link',
-      content: linkId,
-      linkId: linkId,
-      raw,
+      type: m.type,
+      content: m.id,
+      id: m.id,
+      raw: m.raw,
     });
     
-    lastIndex = match.index + match[0].length;
+    lastIndex = m.end;
   }
   
   // Add remaining text
@@ -167,6 +204,87 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
   );
 }
 
+interface TypePillProps {
+  typeId: string;
+  raw: string;
+  onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
+}
+
+function TypePill({ typeId, raw, onNavigate }: TypePillProps) {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const nodeId = parseInt(typeId, 10);
+  const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
+  
+  // Display the node name if available, otherwise show the ID
+  const displayText = node?.name || typeId;
+  
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onNavigate(typeId, node, e.shiftKey);
+  }, [typeId, node, onNavigate]);
+  
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+  
+  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+    return [
+      {
+        id: 'open',
+        label: 'Open type',
+        onClick: () => {
+          onNavigate(typeId, node, false);
+          setContextMenu(null);
+        },
+      },
+      {
+        id: 'open-sidebar',
+        label: 'Open in sidebar',
+        shortcut: '⇧Click',
+        onClick: () => {
+          onNavigate(typeId, node, true);
+          setContextMenu(null);
+        },
+      },
+      { id: 'sep1', label: '', separator: true },
+      {
+        id: 'copy',
+        label: 'Copy reference',
+        onClick: () => {
+          navigator.clipboard.writeText(raw);
+          setContextMenu(null);
+        },
+      },
+    ];
+  }, [typeId, node, raw, onNavigate]);
+  
+  return (
+    <>
+      <span
+        className="type-pill"
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        title={`Type: ${displayText}\nClick to open, Shift+click for sidebar`}
+      >
+        <span className="type-pill__icon">
+          <TagIcon size="xs" />
+        </span>
+        <span className="type-pill__text">{displayText}</span>
+      </span>
+      {contextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenu}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+    </>
+  );
+}
+
 export function ContentWithPills({
   content,
   blockId,
@@ -220,12 +338,23 @@ export function ContentWithPills({
           return <span key={index}>{part.content}</span>;
         }
         
+        if (part.type === 'inline-type') {
+          return (
+            <TypePill
+              key={index}
+              typeId={part.id!}
+              raw={part.raw!}
+              onNavigate={handleNavigate}
+            />
+          );
+        }
+        
         return (
           <LinkPill
             key={index}
-            linkId={part.linkId!}
+            linkId={part.id!}
             raw={part.raw!}
-            clickCount={clickCounts.get(part.linkId!) ?? 0}
+            clickCount={clickCounts.get(part.id!) ?? 0}
             onNavigate={handleNavigate}
           />
         );

@@ -151,6 +151,20 @@ export function Block({
       .filter((t): t is Node => t !== undefined);
   }, [block.types, allTypes, block.id]);
   
+  // Determine the icon to show on the bullet
+  // Priority: first type's icon > block's own icon
+  const bulletIcon = useMemo(() => {
+    // If block has types with icons, use the first type's icon
+    if (blockTypeDetails.length > 0) {
+      const firstTypeWithIcon = blockTypeDetails.find(t => t.icon);
+      if (firstTypeWithIcon?.icon) {
+        return firstTypeWithIcon.icon;
+      }
+    }
+    // Fall back to block's own icon
+    return block.icon;
+  }, [blockTypeDetails, block.icon]);
+  
   // Determine if block has children
   const hasChildren = children && children.length > 0;
   const isCollapsed = block.collapsed ?? false;
@@ -856,7 +870,7 @@ export function Block({
         {/* Bullet - drag handle, context menu anchor, collapse toggle */}
         <Bullet
           nodeId={block.id}
-          icon={block.icon}
+          icon={bulletIcon}
           isPage={false}
           interactive={!readOnly}
           hasChildren={hasChildren}

@@ -690,9 +690,17 @@ export function useRemoveTag() {
   return useMutation({
     mutationFn: ({ nodeId, tagId }: { nodeId: number; tagId: number }) => 
       nodesApi.removeType(nodeId, tagId),
-    onSuccess: (_, { nodeId }) => {
+    onSuccess: (updatedNode, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      // Also invalidate the page content if the node is a block within a page
+      if (updatedNode.page_id !== null && updatedNode.page_id !== nodeId) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_id) });
+      }
+      // Invalidate parent's page content if different
+      if (updatedNode.parent_id !== null && updatedNode.parent_id !== nodeId) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_id) });
+      }
     },
   });
 }
@@ -745,9 +753,17 @@ export function useRemoveType() {
   return useMutation({
     mutationFn: ({ nodeId, typeId }: { nodeId: number; typeId: number }) => 
       nodesApi.removeType(nodeId, typeId),
-    onSuccess: (_, { nodeId }) => {
+    onSuccess: (updatedNode, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      // Also invalidate the page content if the node is a block within a page
+      if (updatedNode.page_id !== null && updatedNode.page_id !== nodeId) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_id) });
+      }
+      // Invalidate parent's page content if different
+      if (updatedNode.parent_id !== null && updatedNode.parent_id !== nodeId) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_id) });
+      }
     },
   });
 }

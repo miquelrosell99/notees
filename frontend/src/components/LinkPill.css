@@ -115,3 +115,62 @@
 [contenteditable] .link-pill *::selection {
   background: transparent;
 }
+
+/**
+ * TypePill Component Styles
+ */
+
+.type-pill {
+  display: inline;
+  position: relative;
+  padding: 2px 6px;
+  margin: 0 2px;
+  background: var(--color-tertiary-container);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.95em;
+  line-height: inherit;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: baseline;
+  color: var(--color-on-tertiary-container);
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  
+  /* Allow wrapping for multi-line content */
+  white-space: normal;
+  word-break: break-word;
+  
+  /* Make it behave as inline block for proper wrapping */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.type-pill:hover {
+  background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-tertiary) 20%);
+}
+
+/* Icon */
+.type-pill__icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+/* Text */
+.type-pill__text {
+  vertical-align: middle;
+}
+
+/* When used inside contenteditable, prevent editing */
+.type-pill[contenteditable="false"] {
+  outline: none;
+}
+
+/* Selection styles for contenteditable parent */
+[contenteditable] .type-pill::selection,
+[contenteditable] .type-pill *::selection {
+  background: transparent;
+}

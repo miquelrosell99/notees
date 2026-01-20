@@ -13,6 +13,8 @@ Link sources can be:
    - property_id = the property through which the link is made
    
 The system property `types` is excluded from backlinks entirely.
+
+Inline types use {{typeId}} format for type references in block content.
 """
 from __future__ import annotations
 
@@ -41,6 +43,23 @@ class NodeLink:
     target_node_id: int = 0  # Referenced node (X)
     position: int = 0  # Character position in name (for text links only)
     property_id: Optional[int] = None  # Property ID if this is a property link
+    created_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass
+class InlineType:
+    """Represents an inline type reference in block content.
+    
+    Uses {{typeId}} format in content. Similar to NodeLink but
+    specifically for type references that appear inline in text.
+    
+    source_node_id = block containing the {{typeId}} reference
+    type_node_id = the type node being referenced
+    """
+    id: Optional[int] = None
+    source_node_id: int = 0  # Block containing the inline type reference
+    type_node_id: int = 0  # Referenced type node
+    position: int = 0  # Character position in content
     created_at: datetime = field(default_factory=utc_now)
 
 
