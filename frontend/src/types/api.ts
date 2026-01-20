@@ -167,7 +167,9 @@ export interface NodeCreate {
   parent_id?: number | null;
   sequence?: number;
   tags?: number[];
+  types?: number[];
   properties?: Record<number, unknown>;
+  is_page?: boolean;  // Create as a page (no parent needed)
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;

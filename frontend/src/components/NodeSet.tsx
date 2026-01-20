@@ -3,7 +3,7 @@
  * 
  * A container for displaying a set of nodes with different view types.
  * Features:
- * - SelectionSwitch in header for view type toggle (table, list, card)
+ * - SelectionButton in header for view type toggle (table, list, card)
  * - Header with left, center, and right sections
  * - Container for the corresponding view
  * - Group by support with ButtonWithPanel settings
@@ -13,116 +13,24 @@ import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { Node } from '@/types';
 import { useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { NodeIcon, BulletIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
+import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
 import { ButtonWithPanel } from './core/ButtonWithPanel';
+import { SelectionButton } from './core/SelectionButton';
 import { ContentWithPills } from './ContentWithPills';
-import { mdiTune } from '@mdi/js';
+import { Block } from './Block';
+import { CardViewCard } from './CardViewCard';
+import { mdiTune, mdiFormatListBulleted, mdiTable, mdiViewGrid } from '@mdi/js';
 import './NodeSet.css';
 
 // View types
 export type NodeSetViewType = 'list' | 'table' | 'card';
 
-// Props for the view icons
-interface ViewIconProps {
-  size?: number;
-  className?: string;
-}
-
-// List view icon (horizontal lines)
-function ListViewIcon({ size = 16, className = '' }: ViewIconProps) {
-  return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 16 16" 
-      fill="currentColor"
-      className={className}
-    >
-      <rect x="1" y="2" width="14" height="2" rx="0.5" />
-      <rect x="1" y="7" width="14" height="2" rx="0.5" />
-      <rect x="1" y="12" width="14" height="2" rx="0.5" />
-    </svg>
-  );
-}
-
-// Table view icon (grid)
-function TableViewIcon({ size = 16, className = '' }: ViewIconProps) {
-  return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 16 16" 
-      fill="currentColor"
-      className={className}
-    >
-      <rect x="1" y="1" width="6" height="4" rx="0.5" />
-      <rect x="9" y="1" width="6" height="4" rx="0.5" />
-      <rect x="1" y="6" width="6" height="4" rx="0.5" />
-      <rect x="9" y="6" width="6" height="4" rx="0.5" />
-      <rect x="1" y="11" width="6" height="4" rx="0.5" />
-      <rect x="9" y="11" width="6" height="4" rx="0.5" />
-    </svg>
-  );
-}
-
-// Card view icon (cards/boxes)
-function CardViewIcon({ size = 16, className = '' }: ViewIconProps) {
-  return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 16 16" 
-      fill="currentColor"
-      className={className}
-    >
-      <rect x="1" y="1" width="6" height="6" rx="1" />
-      <rect x="9" y="1" width="6" height="6" rx="1" />
-      <rect x="1" y="9" width="6" height="6" rx="1" />
-      <rect x="9" y="9" width="6" height="6" rx="1" />
-    </svg>
-  );
-}
-
-// Selection Switch for view type toggle
-interface SelectionSwitchProps {
-  value: NodeSetViewType;
-  onChange: (value: NodeSetViewType) => void;
-  options?: NodeSetViewType[];
-}
-
-export function SelectionSwitch({ 
-  value, 
-  onChange, 
-  options = ['list', 'table', 'card'] 
-}: SelectionSwitchProps) {
-  const iconMap: Record<NodeSetViewType, ReactNode> = {
-    list: <ListViewIcon size={14} />,
-    table: <TableViewIcon size={14} />,
-    card: <CardViewIcon size={14} />,
-  };
-  
-  const titleMap: Record<NodeSetViewType, string> = {
-    list: 'List view',
-    table: 'Table view',
-    card: 'Card view',
-  };
-  
-  return (
-    <div className="selection-switch">
-      {options.map((option) => (
-        <button
-          key={option}
-          className={`selection-switch__btn ${value === option ? 'selection-switch__btn--active' : ''}`}
-          onClick={() => onChange(option)}
-          title={titleMap[option]}
-          type="button"
-        >
-          {iconMap[option]}
-        </button>
-      ))}
-    </div>
-  );
-}
+// View type icon and label mapping
+const VIEW_TYPE_OPTIONS: Record<NodeSetViewType, { icon: string; label: string }> = {
+  list: { icon: mdiFormatListBulleted, label: 'List view' },
+  table: { icon: mdiTable, label: 'Table view' },
+  card: { icon: mdiViewGrid, label: 'Card view' },
+};
 
 // Node item for list/table views
 export interface NodeSetItem {
@@ -192,6 +100,8 @@ export interface NodeSetProps {
   showBreadcrumbs?: boolean;
   /** Breadcrumb data for blocks - maps node ID to breadcrumb segments */
   breadcrumbMap?: Map<number, { pageId: number; pageName: string; pageIcon?: string | null }>;
+  /** Callback when block content changes (enables editing) */
+  onContentChange?: (blockId: number, content: string) => void;
 }
 
 // Group Settings Panel
@@ -263,9 +173,11 @@ interface ListItemProps {
   onNodeShiftClick?: (node: Node) => void;
   /** Optional breadcrumb info for blocks */
   breadcrumb?: { pageName: string; pageIcon?: string | null; onPageClick?: () => void };
+  /** Callback when block content changes (enables editing) */
+  onContentChange?: (blockId: number, content: string) => void;
 }
 
-function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftClick, breadcrumb }: ListItemProps) {
+function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftClick, breadcrumb, onContentChange }: ListItemProps) {
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     if (e.shiftKey && onNodeShiftClick) {
@@ -274,7 +186,52 @@ function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftCl
       onNodeClick(item.node);
     }
   }, [item.node, onNodeClick, onNodeShiftClick]);
+
+  const handleContentChange = useCallback((blockId: number, content: string) => {
+    onContentChange?.(blockId, content);
+  }, [onContentChange]);
+
+  const handleBulletClick = useCallback((blockId: number) => {
+    const node = item.node.id === blockId ? item.node : null;
+    if (node && onNodeClick) {
+      onNodeClick(node);
+    }
+  }, [item.node, onNodeClick]);
+
+  const handleShiftClick = useCallback((blockId: number) => {
+    const node = item.node.id === blockId ? item.node : null;
+    if (node && onNodeShiftClick) {
+      onNodeShiftClick(node);
+    }
+  }, [item.node, onNodeShiftClick]);
   
+  // For non-page items, render as editable Block
+  if (!item.node.is_page) {
+    return (
+      <div className="node-set__list-item-wrapper">
+        {breadcrumb && (
+          <BlockBreadcrumb 
+            pageName={breadcrumb.pageName}
+            pageIcon={breadcrumb.pageIcon}
+            onPageClick={breadcrumb.onPageClick}
+          />
+        )}
+        <div className="node-set__block-wrapper">
+          <Block
+            block={item.node}
+            parentId={item.node.parent_id}
+            onContentChange={handleContentChange}
+            onBulletClick={handleBulletClick}
+            onShiftClick={handleShiftClick}
+            showBullet={!!item.node.icon}
+            depth={depth}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // For pages, render as clickable button
   return (
     <div className="node-set__list-item-wrapper">
       {breadcrumb && (
@@ -290,13 +247,12 @@ function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftCl
         onClick={handleClick}
         title={`${item.node.name || 'Untitled'}${item.context ? ` (${item.context})` : ''}`}
       >
-        <span className="node-set__item-icon">
-          {item.node.is_page ? (
-            <NodeIcon icon={getEffectiveIcon(item.node, allTypes)} isPage={true} size="sm" />
-          ) : (
-            <BulletIcon size="xs" />
-          )}
-        </span>
+        {/* Show icon for pages, or for blocks that have an icon set */}
+        {(item.node.is_page || item.node.icon) && (
+          <span className="node-set__item-icon">
+            <NodeIcon icon={getEffectiveIcon(item.node, allTypes)} isPage={item.node.is_page} size="sm" />
+          </span>
+        )}
         <span className="node-set__item-content">
           <span className="node-set__item-name">
             {item.node.name ? (
@@ -357,6 +313,7 @@ interface GroupedListViewProps {
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   onGroupClick?: (groupKey: string) => void;
+  onContentChange?: (blockId: number, content: string) => void;
 }
 
 function NodeSetGroupedListView({ 
@@ -365,6 +322,7 @@ function NodeSetGroupedListView({
   onNodeClick, 
   onNodeShiftClick,
   onGroupClick,
+  onContentChange,
 }: GroupedListViewProps) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   
@@ -402,6 +360,7 @@ function NodeSetGroupedListView({
                     allTypes={allTypes}
                     onNodeClick={onNodeClick}
                     onNodeShiftClick={onNodeShiftClick}
+                    onContentChange={onContentChange}
                   />
                 ))}
               </div>
@@ -420,6 +379,7 @@ interface TwoSectionListViewProps {
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   pageMap?: Map<number, Node>;
+  onContentChange?: (blockId: number, content: string) => void;
 }
 
 function NodeSetTwoSectionListView({ 
@@ -428,6 +388,7 @@ function NodeSetTwoSectionListView({
   onNodeClick, 
   onNodeShiftClick,
   pageMap,
+  onContentChange,
 }: TwoSectionListViewProps) {
   // Separate pages and blocks
   const { pages, blocks } = useMemo(() => {
@@ -474,6 +435,7 @@ function NodeSetTwoSectionListView({
                 allTypes={allTypes}
                 onNodeClick={onNodeClick}
                 onNodeShiftClick={onNodeShiftClick}
+                onContentChange={onContentChange}
               />
             ))}
           </div>
@@ -499,6 +461,7 @@ function NodeSetTwoSectionListView({
                   allTypes={allTypes}
                   onNodeClick={onNodeClick}
                   onNodeShiftClick={onNodeShiftClick}
+                  onContentChange={onContentChange}
                   breadcrumb={{
                     pageName,
                     pageIcon,
@@ -519,12 +482,14 @@ function NodeSetListView({
   items,
   allTypes,
   onNodeClick, 
-  onNodeShiftClick 
+  onNodeShiftClick,
+  onContentChange,
 }: { 
   items: NodeSetItem[];
   allTypes?: Node[] | null;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
+  onContentChange?: (blockId: number, content: string) => void;
 }) {
   return (
     <div className="node-set__list">
@@ -535,6 +500,7 @@ function NodeSetListView({
           allTypes={allTypes}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}
+          onContentChange={onContentChange}
         />
       ))}
     </div>
@@ -582,13 +548,12 @@ function NodeSetTableView({
             >
               <td>
                 <span className="node-set__table-name">
-                  <span className="node-set__item-icon">
-                    {item.node.is_page ? (
-                      <NodeIcon icon={getEffectiveIcon(item.node, allTypes)} isPage={true} size="xs" />
-                    ) : (
-                      <BulletIcon size="xs" />
-                    )}
-                  </span>
+                  {/* Show icon for pages, or for blocks that have an icon set */}
+                  {(item.node.is_page || item.node.icon) && (
+                    <span className="node-set__item-icon">
+                      <NodeIcon icon={getEffectiveIcon(item.node, allTypes)} isPage={item.node.is_page} size="xs" />
+                    </span>
+                  )}
                   {item.node.name || item.node.display_name || 'Untitled'}
                 </span>
               </td>
@@ -610,7 +575,6 @@ function NodeSetTableView({
 // Card View Component
 function NodeSetCardView({ 
   items,
-  allTypes,
   onNodeClick, 
   onNodeShiftClick 
 }: { 
@@ -619,43 +583,17 @@ function NodeSetCardView({
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
 }) {
-  const handleClick = useCallback((e: React.MouseEvent, node: Node) => {
-    e.preventDefault();
-    if (e.shiftKey && onNodeShiftClick) {
-      onNodeShiftClick(node);
-    } else if (onNodeClick) {
-      onNodeClick(node);
-    }
-  }, [onNodeClick, onNodeShiftClick]);
-  
   return (
     <div className="node-set__cards">
       {items.map((item) => (
-        <button
+        <CardViewCard
           key={item.node.id}
+          node={item.node}
+          layout="cover-top"
+          onClick={() => onNodeClick?.(item.node)}
+          onShiftClick={() => onNodeShiftClick?.(item.node)}
           className="node-set__card"
-          onClick={(e) => handleClick(e, item.node)}
-          title={`${item.node.name || 'Untitled'}${item.context ? ` (${item.context})` : ''}`}
-        >
-          <div className="node-set__card-header">
-            <span className="node-set__item-icon">
-              {item.node.is_page ? (
-                <NodeIcon icon={getEffectiveIcon(item.node, allTypes)} isPage={true} size="md" />
-              ) : (
-                <BulletIcon size="sm" />
-              )}
-            </span>
-            {item.badge !== undefined && (
-              <span className="node-set__item-badge">{item.badge}</span>
-            )}
-          </div>
-          <span className="node-set__card-name">
-            {item.node.name || item.node.display_name || 'Untitled'}
-          </span>
-          {item.context && (
-            <span className="node-set__card-context">{item.context}</span>
-          )}
-        </button>
+        />
       ))}
     </div>
   );
@@ -683,6 +621,7 @@ export function NodeSet({
   groupByOptions = ['none', 'page'],
   showGroupBySettings = true,
   pageMap,
+  onContentChange,
 }: NodeSetProps) {
   const [internalViewType, setInternalViewType] = useState<NodeSetViewType>(defaultViewType);
   const [groupBy, setGroupBy] = useState<GroupByOption>(defaultGroupBy);
@@ -780,6 +719,7 @@ export function NodeSet({
               onNodeClick={onNodeClick} 
               onNodeShiftClick={onNodeShiftClick}
               pageMap={pageMap}
+              onContentChange={onContentChange}
             />
           );
         }
@@ -791,16 +731,17 @@ export function NodeSet({
               onNodeClick={onNodeClick} 
               onNodeShiftClick={onNodeShiftClick}
               onGroupClick={handleGroupClick}
+              onContentChange={onContentChange}
             />
           );
         }
-        return <NodeSetListView items={items} allTypes={allTypes} onNodeClick={onNodeClick} onNodeShiftClick={onNodeShiftClick} />;
+        return <NodeSetListView items={items} allTypes={allTypes} onNodeClick={onNodeClick} onNodeShiftClick={onNodeShiftClick} onContentChange={onContentChange} />;
       case 'table':
         return <NodeSetTableView items={items} allTypes={allTypes} onNodeClick={onNodeClick} onNodeShiftClick={onNodeShiftClick} />;
       case 'card':
-        return <NodeSetCardView items={items} allTypes={allTypes} onNodeClick={onNodeClick} onNodeShiftClick={onNodeShiftClick} />;
+        return <NodeSetCardView items={items} onNodeClick={onNodeClick} onNodeShiftClick={onNodeShiftClick} />;
     }
-  }, [viewType, items, groups, groupBy, allTypes, onNodeClick, onNodeShiftClick, showEmpty, emptyMessage, handleGroupClick, pageMap]);
+  }, [viewType, items, groups, groupBy, allTypes, onNodeClick, onNodeShiftClick, onContentChange, showEmpty, emptyMessage, handleGroupClick, pageMap]);
   
   if (items.length === 0 && !showEmpty) {
     return null;
@@ -845,10 +786,15 @@ export function NodeSet({
               </ButtonWithPanel>
             )}
             {showViewToggle && viewTypes.length > 1 && (
-              <SelectionSwitch 
-                value={viewType} 
-                onChange={setViewType} 
-                options={viewTypes}
+              <SelectionButton
+                options={viewTypes.map((opt) => ({
+                  value: opt,
+                  icon: VIEW_TYPE_OPTIONS[opt].icon,
+                  label: VIEW_TYPE_OPTIONS[opt].label,
+                }))}
+                value={viewType}
+                onChange={(val) => setViewType(val as NodeSetViewType)}
+                size="sm"
               />
             )}
           </div>

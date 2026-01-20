@@ -22,7 +22,7 @@ import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from './core/SuggestionPopup';
 import { SlashCommandPopup } from './core/SlashCommandPopup';
 import { useNodes, useTextLinks } from '@/hooks';
-import { mdiFileDocumentOutline, mdiCircleSmall, mdiTag } from '@mdi/js';
+import { mdiFileDocumentOutline, mdiTag } from '@mdi/js';
 import type { Node } from '@/types';
 
 // Task states for cycling with Shift+Enter
@@ -207,12 +207,12 @@ function escapeAttr(text: string): string {
 /**
  * Convert plain text content with link and inline type markers to HTML with pill elements
  * @param content - The raw content with [[linkId]] and {{typeId}} markers
- * @param linkNames - Map of linkId -> {name, isPage, isTag, clickCount} for display
+ * @param linkNames - Map of linkId -> {name, isPage, isTag, clickCount, icon} for display
  * @param typeNames - Map of typeId -> {name, icon} for display
  */
 function contentToHtml(
   content: string, 
-  linkNames: Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number }>,
+  linkNames: Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; icon?: string | null }>,
   typeNames?: Map<string, { name: string; icon?: string }>
 ): string {
   const pills = parseAllPills(content);
@@ -248,10 +248,22 @@ function contentToHtml(
       } else {
         // Render as regular link pill
         const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
-        // Use SVG icons matching ContentWithPills (NodeIcon renders these)
-        const iconPath = isPage ? mdiFileDocumentOutline : mdiCircleSmall;
-        const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
-        const icon = `<span class="link-pill__icon">${iconSvg}</span>`;
+        const targetIcon = linkInfo?.icon;
+        
+        // Only show icon for pages, or for blocks that have an icon set
+        let icon = '';
+        if (isPage) {
+          // Page: show document icon or custom icon if set
+          const iconPath = targetIcon || mdiFileDocumentOutline;
+          const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
+          icon = `<span class="link-pill__icon">${iconSvg}</span>`;
+        } else if (targetIcon) {
+          // Block with custom icon: show the icon
+          const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${targetIcon}"></path></svg>`;
+          icon = `<span class="link-pill__icon">${iconSvg}</span>`;
+        }
+        // Block without icon: no icon shown
+        
         const badge = clickCount > 0 
           ? `<span class="link-pill__badge">${clickCount}</span>` 
           : '';
@@ -527,7 +539,7 @@ export function BlockEditor({
   
   // Build link names map from fetched nodes
   const linkNames = useMemo(() => {
-    const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number }>();
+    const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; icon?: string | null }>();
     if (allNodes && linkIds.length > 0) {
       for (const linkId of linkIds) {
         // linkId could be a node ID (number as string) - find the node
@@ -540,6 +552,7 @@ export function BlockEditor({
             name: node.name || node.display_name || 'Untitled',
             isPage: node.is_page || node.parent_id === null,
             isTag: tagTargetIds.has(node.id),
+            icon: node.icon,
             // TODO: could add click count from link data if available
           });
         }

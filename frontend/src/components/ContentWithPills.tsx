@@ -185,9 +185,12 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
         onContextMenu={handleContextMenu}
         title={`${isPage ? 'Page' : 'Block'}: ${displayText}\nClick to open, Shift+click for sidebar`}
       >
-        <span className="link-pill__icon">
-          <NodeIcon icon={node?.icon} isPage={isPage} size="xs" />
-        </span>
+        {/* Only show icon for pages, or for blocks that have an icon set */}
+        {(isPage || node?.icon) && (
+          <span className="link-pill__icon">
+            <NodeIcon icon={node?.icon} isPage={isPage} size="xs" />
+          </span>
+        )}
         <span className="link-pill__text">{displayText}</span>
         {clickCount > 0 && (
           <span className="link-pill__badge">{clickCount}</span>

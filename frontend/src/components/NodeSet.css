@@ -441,6 +441,15 @@
   gap: var(--spacing-1);
 }
 
+/* Block wrapper for editable blocks in list view */
+.node-set__block-wrapper {
+  padding-left: var(--spacing-2);
+}
+
+.node-set__block-wrapper .block {
+  min-height: auto;
+}
+
 /* Breadcrumb for blocks */
 .node-set__breadcrumb {
   display: flex;

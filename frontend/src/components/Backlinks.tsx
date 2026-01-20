@@ -9,7 +9,7 @@
  */
 import { useMemo, useCallback } from 'react';
 import './Backlinks.css';
-import { useBacklinks, useLinkedReferences, usePropertyBacklinks } from '@/hooks';
+import { useBacklinks, useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
 import type { Backlink, Node } from '@/types/api';
 import { LinkIcon, NodeIcon } from './icons';
 import { NodeViewSection } from './NodeViewSection';
@@ -114,7 +114,7 @@ export function Backlinks({
  * 
  * Shows where this node is mentioned with breadcrumbs and real Block elements.
  * The entire section is collapsible via NodeViewSection.
- * Supports multiple view modes via SelectionSwitch (list, table, card).
+ * Supports multiple view modes via SelectionButton (list, table, card).
  */
 export function LinkedReferences({
   nodeId,
@@ -123,8 +123,14 @@ export function LinkedReferences({
 }: BacklinksProps) {
   const { data: refs, isLoading: refsLoading } = useLinkedReferences(nodeId);
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(nodeId);
+  const updateNode = useUpdateNode();
 
   const isLoading = refsLoading || propLoading;
+
+  // Handle content change for blocks
+  const handleContentChange = useCallback((blockId: number, content: string) => {
+    updateNode.mutate({ id: blockId, data: { name: content } });
+  }, [updateNode]);
 
   // Convert property backlinks to PageReferenceItem format for the pages section
   const pageItems: PageReferenceItem[] = useMemo(() => {
@@ -270,6 +276,7 @@ export function LinkedReferences({
         showHeader={true}
         showViewToggle={true}
         onNodeClick={handleNodeClick}
+        onContentChange={handleContentChange}
         defaultViewType="list"
         viewTypes={['list', 'table', 'card']}
         defaultGroupBy="page"

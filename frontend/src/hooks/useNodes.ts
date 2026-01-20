@@ -330,7 +330,10 @@ export function useTasks(includeComplete = false) {
 // ==================== Node Mutations ====================
 
 /**
- * Hook to create a node
+ * Hook to create a node (pages or blocks)
+ * 
+ * For pages: pass is_page: true
+ * For blocks: pass parent_id
  */
 export function useCreateNode() {
   const queryClient = useQueryClient();
@@ -342,6 +345,10 @@ export function useCreateNode() {
       if (variables.parent_id) {
         await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(variables.parent_id) });
         await queryClient.cancelQueries({ queryKey: nodeKeys.pageContent(variables.parent_id) });
+      }
+      // For pages, cancel pages query to prepare for optimistic update
+      if (variables.is_page) {
+        await queryClient.cancelQueries({ queryKey: nodeKeys.pages() });
       }
     },
     onSuccess: (newNode, variables) => {
@@ -390,8 +397,16 @@ export function useCreateNode() {
       // Invalidate list queries for sidebar updates, etc.
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       
-      // If this is a page, invalidate pages cache so it appears in All Pages view
+      // If this is a page, optimistically add to pages cache and invalidate
       if (newNode.is_page) {
+        // Optimistically add new page to the pages cache
+        queryClient.setQueryData<Node[]>(nodeKeys.pages(), (oldPages) => {
+          if (!oldPages) return [newNode];
+          // Check if already exists (avoid duplicates)
+          if (oldPages.some(p => p.id === newNode.id)) return oldPages;
+          return [...oldPages, newNode];
+        });
+        // Also invalidate to ensure consistency
         queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       }
     },
@@ -399,19 +414,38 @@ export function useCreateNode() {
 }
 
 /**
- * Hook to create a page
+ * Hook to create a page (convenience wrapper around useCreateNode)
+ * @deprecated Use useCreateNode with is_page: true instead
  */
 export function useCreatePage() {
-  const queryClient = useQueryClient();
+  const createNode = useCreateNode();
   
-  return useMutation({
-    mutationFn: (params: { name: string; icon?: string | null; color?: string | null; additionalTags?: number[] }) => 
-      nodesApi.createPage(params.name, params.icon, params.color, params.additionalTags),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+  return {
+    ...createNode,
+    mutate: (
+      params: { name: string; icon?: string | null; color?: string | null; additionalTags?: number[] },
+      options?: Parameters<typeof createNode.mutate>[1]
+    ) => {
+      createNode.mutate({
+        name: params.name,
+        icon: params.icon,
+        color: params.color,
+        types: params.additionalTags,
+        is_page: true,
+      }, options);
     },
-  });
+    mutateAsync: async (
+      params: { name: string; icon?: string | null; color?: string | null; additionalTags?: number[] }
+    ) => {
+      return createNode.mutateAsync({
+        name: params.name,
+        icon: params.icon,
+        color: params.color,
+        types: params.additionalTags,
+        is_page: true,
+      });
+    },
+  };
 }
 
 /**

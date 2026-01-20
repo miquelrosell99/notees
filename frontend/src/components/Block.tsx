@@ -97,6 +97,8 @@ interface BlockProps {
   editorRef?: React.RefObject<HTMLDivElement>;
   /** Callback when backlinks badge is clicked */
   onOpenBacklinks?: () => void;
+  /** Whether to show the bullet (default: true). Set to false for inline references without icons */
+  showBullet?: boolean;
 }
 
 export function Block({
@@ -122,6 +124,7 @@ export function Block({
   readOnly = false,
   onTaskStateChange,
   onOpenBacklinks,
+  showBullet = true,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -866,20 +869,22 @@ export function Block({
       {/* Block row - contains bullet and content on same line */}
       <div className="block-row">
         {/* Bullet - drag handle, context menu anchor, collapse toggle */}
-        <Bullet
-          nodeId={block.id}
-          icon={bulletIcon}
-          isPage={false}
-          interactive={!readOnly}
-          hasChildren={hasChildren}
-          collapsed={isCollapsed}
-          onDragStart={handleDragStart}
-          draggable={!readOnly && blockState !== 'edit'}
-          onClick={handleBulletClickInternal}
-          onContextMenu={handleBulletContextMenu}
-          onCollapseToggle={handleCollapseToggle}
-          showCollapseArrow={hasChildren}
-        />
+        {showBullet && (
+          <Bullet
+            nodeId={block.id}
+            icon={bulletIcon}
+            isPage={false}
+            interactive={!readOnly}
+            hasChildren={hasChildren}
+            collapsed={isCollapsed}
+            onDragStart={handleDragStart}
+            draggable={!readOnly && blockState !== 'edit'}
+            onClick={handleBulletClickInternal}
+            onContextMenu={handleBulletContextMenu}
+            onCollapseToggle={handleCollapseToggle}
+            showCollapseArrow={hasChildren}
+          />
+        )}
         
         {/* Block content - fixed width, no placeholder for empty blocks */}
         <Card 

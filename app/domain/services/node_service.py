@@ -147,7 +147,7 @@ class NodeService:
             return False
         
         # Get all backlinks to this node
-        backlinks = await self._link_service.get_backlinks(node_id, include_inherited=False)
+        backlinks = await self._link_service.get_backlinks(node_id)
         
         # Update each source node to remove/replace the link
         for link in backlinks:
