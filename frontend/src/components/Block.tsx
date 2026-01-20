@@ -143,13 +143,11 @@ export function Block({
   
   // Resolve type details from IDs
   const blockTypeDetails = useMemo(() => {
-    // DEBUG: Log types info
-    console.log(`Block ${block.id} types:`, block.types, 'allTypes:', allTypes?.length);
     if (!block.types || block.types.length === 0 || !allTypes) return [];
     return block.types
       .map(typeId => allTypes.find(t => t.id === typeId))
       .filter((t): t is Node => t !== undefined);
-  }, [block.types, allTypes, block.id]);
+  }, [block.types, allTypes]);
   
   // Determine the icon to show on the bullet
   // Priority: first type's icon > block's own icon
