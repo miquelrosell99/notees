@@ -6,7 +6,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SlashCommandPopup.css';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon } from '../icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon } from '../icons';
 
 export interface SlashCommand {
   id: string;
@@ -21,6 +21,18 @@ const SLASH_COMMANDS: SlashCommand[] = [
     label: 'Insert Link',
     description: 'Link to a page or block [[]]',
     icon: <LinkIcon size="sm" />,
+  },
+  {
+    id: 'type',
+    label: 'Add Type',
+    description: 'Add a type to this block @',
+    icon: <BulletIcon size="sm" />,
+  },
+  {
+    id: 'tag',
+    label: 'Add Tag',
+    description: 'Add a tag to this block #',
+    icon: <TagIcon size="sm" />,
   },
   {
     id: 'comment',
@@ -46,9 +58,6 @@ const SLASH_COMMANDS: SlashCommand[] = [
     description: 'Upload any supported file',
     icon: <AttachmentIcon size="sm" />,
   },
-  // Future commands can be added here:
-  // { id: 'task', label: 'Task', description: 'Create a task', icon: <TaskIcon /> },
-  // { id: 'quote', label: 'Quote', description: 'Insert a quote block', icon: <QuoteIcon /> },
 ];
 
 export interface SlashCommandPopupProps {

@@ -347,12 +347,14 @@ CREATE INDEX IF NOT EXISTS idx_type_extends_parent ON type_extends(extends_type_
 -- For text links: source_node_id = block T containing [[id]], property_id = NULL
 -- For property links: source_node_id = property owner B, property_id = the property
 -- System property 'types' is excluded from this table entirely
+-- is_tag: If true, this link is a tag reference (displayed with #) rather than a regular link
 CREATE TABLE IF NOT EXISTS node_link (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
     property_id INTEGER REFERENCES property(id) ON DELETE CASCADE,
+    is_tag INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

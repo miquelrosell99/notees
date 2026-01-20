@@ -1148,3 +1148,47 @@ export function useResetLinkClick() {
     },
   });
 }
+
+// ==================== Text Links (with is_tag info) ====================
+
+/**
+ * Hook to fetch text links for a node with is_tag info
+ */
+export function useTextLinks(nodeId: number | null) {
+  return useQuery({
+    queryKey: ['textLinks', nodeId],
+    queryFn: () => nodesApi.getTextLinks(nodeId!),
+    enabled: !!nodeId,
+    staleTime: 30000,
+  });
+}
+
+/**
+ * Hook to add a tag link
+ */
+export function useAddTagLink() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ nodeId, targetNodeId }: { nodeId: number; targetNodeId: number }) => 
+      nodesApi.addTagLink(nodeId, targetNodeId),
+    onSuccess: (_, { nodeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['textLinks', nodeId] });
+    },
+  });
+}
+
+/**
+ * Hook to remove a tag link
+ */
+export function useRemoveTagLink() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ nodeId, targetId }: { nodeId: number; targetId: number }) => 
+      nodesApi.removeTagLink(nodeId, targetId),
+    onSuccess: (_, { nodeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['textLinks', nodeId] });
+    },
+  });
+}

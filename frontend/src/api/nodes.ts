@@ -431,3 +431,39 @@ export async function getCommentCount(nodeId: number): Promise<number> {
   const response = await api.get<{ count: number }>(`${BASE}/${nodeId}/comment-count`);
   return response.data.count;
 }
+
+/**
+ * Text link info with is_tag flag
+ */
+export interface TextLink {
+  id: number;
+  source_node_id: number;
+  target_node_id: number;
+  is_tag: boolean;
+  position: number;
+}
+
+/**
+ * Get all text links from a node with is_tag info
+ */
+export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
+  const response = await api.get<{ links: TextLink[] }>(`${BASE}/${nodeId}/text-links`);
+  return response.data.links;
+}
+
+/**
+ * Add a tag link from a node to a target page
+ */
+export async function addTagLink(nodeId: number, targetNodeId: number): Promise<TextLink> {
+  const response = await api.post<TextLink>(`${BASE}/${nodeId}/tag-links`, {
+    target_node_id: targetNodeId,
+  });
+  return response.data;
+}
+
+/**
+ * Remove a tag link (converts back to regular link)
+ */
+export async function removeTagLink(nodeId: number, targetId: number): Promise<void> {
+  await api.delete(`${BASE}/${nodeId}/tag-links/${targetId}`);
+}

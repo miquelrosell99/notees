@@ -8,7 +8,7 @@
  *   followed by its children and linked references
  */
 import { useMemo, useCallback } from 'react';
-import { useNode, useUpdateNode, useAddTag, useAddType, useCreatePage, useTypes } from '@/hooks';
+import { useNode, useUpdateNode, useAddTag, useAddType, useAddTagLink, useCreatePage, useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { NodeUpdate } from '@/types';
@@ -34,6 +34,7 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
   const createPage = useCreatePage();
   const addTag = useAddTag();
   const addType = useAddType();
+  const addTagLink = useAddTagLink();
   const { data: allTypes } = useTypes();
   const { openNode, closeSidebarNode, addSidebarCard, openCommentsForNode } = useNodesStore();
 
@@ -79,9 +80,12 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
   }, [addType]);
 
   // Handle adding a tag to a block
-  const handleAddTag = useCallback((blockId: number) => (tagNodeId: number, _keepInline: boolean, _tagName: string) => {
+  const handleAddTag = useCallback((blockId: number) => (tagNodeId: number, keepInline: boolean, _tagName: string) => {
     addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
-  }, [addTag]);
+    if (keepInline) {
+      addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
+    }
+  }, [addTag, addTagLink]);
 
   // Handle creating a new type
   const handleCreateType = useCallback((blockId: number) => (name: string) => {

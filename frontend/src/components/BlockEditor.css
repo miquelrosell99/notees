@@ -138,6 +138,46 @@
   max-width: 150px;
 }
 
+/* Tag pill styles for inline tag links */
+.tag-pill {
+  display: inline;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  margin: 0;
+  border-radius: var(--shape-small);
+  background: var(--color-tertiary-container);
+  color: var(--color-on-tertiary-container);
+  font-size: 0.9em;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: baseline;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.tag-pill:hover {
+  background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-tertiary) 20%);
+}
+
+.tag-pill--selected {
+  outline: 2px solid var(--color-tertiary);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--color-tertiary-container);
+}
+
+.tag-pill__icon {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.tag-pill__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
 /* Block Editor - Simplified Mode */
 .block-editor--simplified {
   cursor: pointer;

@@ -10,7 +10,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState } from 'react';
-import { useCreateNode, useUpdateNode, useAddTag, useAddType, useCreatePage, useBlockSelection, useTypes } from '@/hooks';
+import { useCreateNode, useUpdateNode, useAddTag, useAddType, useCreatePage, useBlockSelection, useTypes, useAddTagLink } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import { Block } from './Block';
@@ -48,6 +48,7 @@ export function NodeContent({
   const createPage = useCreatePage();
   const addTag = useAddTag();
   const addType = useAddType();
+  const addTagLink = useAddTagLink();
   const { data: allTypes } = useTypes();
   const { addSidebarCard, openNode, openCommentsForNode, cardLayout, setCardLayout } = useNodesStore();
   
@@ -88,9 +89,15 @@ export function NodeContent({
   }, [addType]);
 
   // Handle adding a tag to a block
-  const handleAddTag = useCallback((blockId: number) => (tagNodeId: number, _keepInline: boolean, _tagName: string) => {
+  const handleAddTag = useCallback((blockId: number) => (tagNodeId: number, keepInline: boolean, _tagName: string) => {
+    // Always add to the tags property
     addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
-  }, [addTag]);
+    
+    // If kept inline, also mark the link as a tag
+    if (keepInline) {
+      addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
+    }
+  }, [addTag, addTagLink]);
 
   // Handle creating a new type
   const handleCreateType = useCallback((blockId: number) => (name: string) => {
