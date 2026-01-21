@@ -294,15 +294,20 @@ class NodeService:
         """Search nodes by name."""
         return await self._node_repo.search(query, limit)
     
-    async def add_type(self, node_id: int, type_node_id: int) -> bool:
+    async def add_type(self, node_id: int, type_node_id: int, *, _system_call: bool = False) -> bool:
         """Add a type to a node.
+        
+        Args:
+            node_id: The node to add the type to
+            type_node_id: The type node ID to add
+            _system_call: Internal flag - if True, bypasses date type protection (for system endpoints)
         
         Raises:
             SystemTypeConstraintError: If trying to add a protected date type (day, month, year)
         """
         # Check if the type being added is a protected date type
         type_node = await self._node_repo.get_by_id(type_node_id)
-        if type_node and type_node.uuid in PROTECTED_DATE_TYPE_UUIDS:
+        if type_node and type_node.uuid in PROTECTED_DATE_TYPE_UUIDS and not _system_call:
             raise SystemTypeConstraintError(
                 f"Cannot manually add '{type_node.name}' type. Date types (day, month, year) are managed by the system."
             )
