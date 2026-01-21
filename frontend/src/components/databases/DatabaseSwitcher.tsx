@@ -44,7 +44,8 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
         localGraphNodeId: null,
       });
       
-      // Refresh favorites store to load new database's data
+      // Clear favorites/recents immediately, then refresh to get new database data
+      useFavoritesStore.getState().clear();
       useFavoritesStore.getState().refresh();
       
       // Update URL - preserve view type but without database in path
@@ -58,14 +59,17 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
       const newUrl = viewPath ? `/${viewPath}` : '/';
       window.history.replaceState(null, '', newUrl);
       
-      // Invalidate all data queries
+      // Remove all cached data from previous database to prevent stale icons/data
+      // Using removeQueries instead of invalidateQueries clears the cache immediately
+      queryClient.removeQueries({ queryKey: ['nodes'] });
+      queryClient.removeQueries({ queryKey: ['graph'] });
+      queryClient.removeQueries({ queryKey: ['assets'] });
+      queryClient.removeQueries({ queryKey: ['properties'] });
+      queryClient.removeQueries({ queryKey: ['property-nodes'] });
+      queryClient.removeQueries({ queryKey: ['page'] });
+      
+      // Invalidate databases query to refetch the list (keep cache for smoother UX)
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes'] });
-      queryClient.invalidateQueries({ queryKey: ['graph'] });
-      queryClient.invalidateQueries({ queryKey: ['assets'] });
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['property-nodes'] });
-      queryClient.invalidateQueries({ queryKey: ['page'] });
     },
   });
 
