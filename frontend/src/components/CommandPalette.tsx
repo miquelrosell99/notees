@@ -224,7 +224,7 @@ export function CommandPalette({
         try {
           const newNode = await createNodeMutation.mutateAsync({
             name: query.trim(),
-            tags: [], // Will be tagged as page by backend
+            is_page: true,
           });
           console.log('[CommandPalette] Page created successfully:', newNode);
           onClose();

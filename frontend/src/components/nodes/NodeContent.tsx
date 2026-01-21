@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useCreateNode, useUpdateNode, useAddTag, useAddType, useCreatePage, useBlockSelection, useTypes, useAddTagLink } from '@/hooks';
+import { useCreateNode, useUpdateNode, useAddTag, useAddType, useBlockSelection, useTypes, useAddTagLink } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -58,7 +58,6 @@ export function NodeContent({
   const contentRef = useRef<HTMLDivElement>(null);
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
-  const createPage = useCreatePage();
   const addTag = useAddTag();
   const addType = useAddType();
   const addTagLink = useAddTagLink();
@@ -133,7 +132,7 @@ export function NodeContent({
     },
     onCreateType: (blockId, name, _keepInline) => {
       const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
-      createPage.mutate({ name }, {
+      createNode.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => {
           addType.mutate({ nodeId: blockId, typeId: newPage.id });
           if (typeType) {
@@ -143,7 +142,7 @@ export function NodeContent({
       });
     },
     onCreateTag: (blockId, name, _keepInline) => {
-      createPage.mutate({ name }, {
+      createNode.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => {
           addTag.mutate({ nodeId: blockId, tagId: newPage.id });
         }
@@ -151,7 +150,7 @@ export function NodeContent({
     },
     onCreatePageLink: async (name) => {
       try {
-        const newPage = await createPage.mutateAsync({ name });
+        const newPage = await createNode.mutateAsync({ name, is_page: true });
         return String(newPage.id);
       } catch (error) {
         console.error('Failed to create page for link:', error);
@@ -177,7 +176,7 @@ export function NodeContent({
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addType, addTag, addTagLink, createPage, allTypes, openCommentsForNode, addSidebarCard]);
+  }), [addType, addTag, addTagLink, createNode, allTypes, openCommentsForNode, addSidebarCard]);
 
   const viewMode = toViewMode(displayMode);
 

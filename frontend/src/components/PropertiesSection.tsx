@@ -16,7 +16,7 @@ import {
   useNode, 
   useProperties,
   useSetNodeProperty,
-  useCreatePage,
+  useCreateNode,
   useCreateProperty,
   useTypeProperties,
 } from '@/hooks';
@@ -268,7 +268,7 @@ export function PropertiesSection({
   const { data: node, isLoading: nodeLoading } = useNode(nodeId, { include_properties: true });
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
-  const createPageMutation = useCreatePage();
+  const createNodeMutation = useCreateNode();
   const createPropertyMutation = useCreateProperty();
   
   // Get type properties for all types the node has (with inheritance)
@@ -361,12 +361,12 @@ export function PropertiesSection({
 
   const handleCreatePage = useCallback(async (name: string): Promise<Node> => {
     return new Promise((resolve, reject) => {
-      createPageMutation.mutate({ name }, {
+      createNodeMutation.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => resolve(newPage),
         onError: (error) => reject(error),
       });
     });
-  }, [createPageMutation]);
+  }, [createNodeMutation]);
 
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {

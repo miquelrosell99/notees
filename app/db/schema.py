@@ -636,6 +636,16 @@ async def run_migrations(conn: aiosqlite.Connection) -> None:
         await conn.execute("ALTER TABLE node ADD COLUMN open_date TEXT")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL")
         await conn.commit()
+    
+    # Migration: Ensure system type nodes have create_date and write_date set
+    # This fixes any system nodes that may have been created with empty dates
+    now = utc_now_iso()
+    await conn.execute("""
+        UPDATE node 
+        SET create_date = ?, write_date = ?
+        WHERE is_type = 1 AND (create_date IS NULL OR create_date = '' OR write_date IS NULL OR write_date = '')
+    """, (now, now))
+    await conn.commit()
 
 
 async def seed_database(conn: aiosqlite.Connection) -> None:

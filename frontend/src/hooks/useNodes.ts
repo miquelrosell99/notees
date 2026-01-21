@@ -416,41 +416,6 @@ export function useCreateNode() {
 }
 
 /**
- * Hook to create a page (convenience wrapper around useCreateNode)
- * @deprecated Use useCreateNode with is_page: true instead
- */
-export function useCreatePage() {
-  const createNode = useCreateNode();
-  
-  return {
-    ...createNode,
-    mutate: (
-      params: { name: string; icon?: string | null; color?: string | null; additionalTags?: number[] },
-      options?: Parameters<typeof createNode.mutate>[1]
-    ) => {
-      createNode.mutate({
-        name: params.name,
-        icon: params.icon,
-        color: params.color,
-        types: params.additionalTags,
-        is_page: true,
-      }, options);
-    },
-    mutateAsync: async (
-      params: { name: string; icon?: string | null; color?: string | null; additionalTags?: number[] }
-    ) => {
-      return createNode.mutateAsync({
-        name: params.name,
-        icon: params.icon,
-        color: params.color,
-        types: params.additionalTags,
-        is_page: true,
-      });
-    },
-  };
-}
-
-/**
  * Helper to recursively update a node in a tree structure
  */
 function updateNodeInTree(nodes: Node[], nodeId: number, updates: Partial<Node>): Node[] {

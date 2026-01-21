@@ -9,7 +9,7 @@
  * The menus are composable - page and block menus include the common items.
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useCreatePage } from '@/hooks';
+import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useCreateNode } from '@/hooks';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
@@ -224,7 +224,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const commonItems = useCommonMenuItems(node, onClose, () => setShowDeleteModal(true));
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
-  const createPage = useCreatePage();
+  const createNode = useCreateNode();
   const { openNode } = useNodesStore();
   
   // Favorites - use selector for data, getState() for actions
@@ -293,7 +293,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
             onChange={handleParentChange}
             onNavigate={(id) => openNode(id, 'page')}
             onCreate={async (name) => {
-              const newPage = await createPage.mutateAsync({ name });
+              const newPage = await createNode.mutateAsync({ name, is_page: true });
               return newPage;
             }}
           />
