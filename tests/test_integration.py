@@ -52,9 +52,9 @@ class TestNodeCrudFlow:
     @pytest.mark.asyncio
     async def test_create_read_update_delete_page(self, auth_client: AsyncClient):
         """Test full CRUD cycle for a page."""
-        # Create a page - content becomes the title for pages
+        # Create a page
         create_data = {
-            "content": "Integration Test Page",
+            "name": "Integration Test Page",
             "is_page": True,
         }
         response = await auth_client.post("/api/nodes", json=create_data)
@@ -72,7 +72,7 @@ class TestNodeCrudFlow:
         
         # Update the page
         update_data = {
-            "content": "Updated Integration Test Page",
+            "name": "Updated Integration Test Page",
         }
         response = await auth_client.put(f"/api/nodes/{page_id}", json=update_data)
         assert response.status_code == 200
@@ -90,7 +90,7 @@ class TestNodeCrudFlow:
         """Test creating blocks under a page."""
         # Create a page first
         page_response = await auth_client.post("/api/nodes", json={
-            "content": "Parent Page for Blocks",
+            "name": "Parent Page for Blocks",
             "is_page": True,
         })
         assert page_response.status_code == 200
@@ -101,7 +101,7 @@ class TestNodeCrudFlow:
         blocks = []
         for i in range(3):
             response = await auth_client.post("/api/nodes", json={
-                "content": f"Block {i + 1} content",
+                "name": f"Block {i + 1} content",
                 "is_page": False,
                 "parent_id": page_id,
             })
@@ -109,9 +109,12 @@ class TestNodeCrudFlow:
             blocks.append(response.json())
         
         # Verify blocks are children of the page
-        response = await auth_client.get(f"/api/pages/{page_id}/children")
+        response = await auth_client.get(
+            f"/api/nodes/page/{page_id}/content"
+        )
         assert response.status_code == 200
-        children = response.json()["children"]
+        page_data = response.json()
+        children = page_data.get("children", [])
         assert len(children) == 3
         
         # Cleanup
@@ -128,25 +131,23 @@ class TestDailyPageFlow:
         
         today = date.today().isoformat()
         
-        # Get daily page (should create if not exists)
-        response = await auth_client.get(f"/api/daily/{today}")
+        # Create daily page via POST
+        response = await auth_client.post(
+            "/api/nodes/daily",
+            params={"date": today}
+        )
         assert response.status_code == 200
         page = response.json()
         page_id = page["id"]
         
-        # Should return a page with date info
-        # The response includes either is_daily flag or daily_date or has date in tags/title
-        has_date_context = (
-            page.get("is_daily") is True or
-            page.get("daily_date") == today or
-            today in str(page.get("title", "")) or
-            today in str(page.get("name", "")) or
-            "daily" in page.get("tags", [])
-        )
-        assert has_date_context or page_id  # At minimum, we got a page
+        # Should return a page with is_daily flag
+        assert page.get("is_daily") is True
         
-        # Get again - should return same page
-        response2 = await auth_client.get(f"/api/daily/{today}")
+        # Creating again should return same page
+        response2 = await auth_client.post(
+            "/api/nodes/daily",
+            params={"date": today}
+        )
         assert response2.status_code == 200
         page2 = response2.json()
         assert page2["id"] == page["id"]
@@ -158,13 +159,16 @@ class TestDailyPageFlow:
         
         today = date.today().isoformat()
         
-        # Get daily page
-        response = await auth_client.get(f"/api/daily/{today}")
+        # Create/get daily page
+        response = await auth_client.post(
+            "/api/nodes/daily",
+            params={"date": today}
+        )
         page_id = response.json()["id"]
         
         # Add a block to the daily page
         block_response = await auth_client.post("/api/nodes", json={
-            "content": "Today I learned about integration testing.",
+            "name": "Today I learned about integration testing.",
             "is_page": False,
             "parent_id": page_id,
         })
@@ -182,26 +186,25 @@ class TestSearchFlow:
         import secrets
         unique_marker = f"UNIQUE_{secrets.token_hex(6)}"
         
-        # Create a page with unique content
+        # Create a page with unique name
         await auth_client.post("/api/nodes", json={
-            "content": f"Searchable Page {unique_marker}",
+            "name": f"Searchable Page {unique_marker}",
             "is_page": True,
         })
         
         # Search for the unique content
         response = await auth_client.get(
-            "/api/search",
+            "/api/nodes/search",
             params={"q": unique_marker}
         )
         assert response.status_code == 200
         results = response.json()
         
-        # Should find at least one result - API returns "results" not "nodes"
-        assert "results" in results
-        assert len(results["results"]) >= 1
-        found = any(unique_marker in node.get("title", "") or 
-                   unique_marker in node.get("content", "") 
-                   for node in results["results"])
+        # Should find at least one result
+        assert "nodes" in results
+        assert len(results["nodes"]) >= 1
+        found = any(unique_marker in node.get("name", "") 
+                   for node in results["nodes"])
         assert found
 
 
@@ -209,22 +212,22 @@ class TestTagFlow:
     """Test tag operations."""
     
     @pytest.mark.asyncio
-    async def test_create_tag(self, auth_client: AsyncClient):
-        """Test creating a tag (which is also a page)."""
+    async def test_create_type(self, auth_client: AsyncClient):
+        """Test creating a type node."""
         import secrets
-        tag_name = f"test-tag-{secrets.token_hex(4)}"
+        type_name = f"test-type-{secrets.token_hex(4)}"
         
         response = await auth_client.post("/api/nodes", json={
-            "content": tag_name,
-            "is_tag": True,
+            "name": type_name,
+            "is_type": True,
             "is_page": True,
         })
         assert response.status_code == 200
-        tag = response.json()
+        type_node = response.json()
         
-        # Tags are always pages
-        assert tag["is_tag"] is True
-        assert tag["is_page"] is True
+        # Types are pages with is_type flag
+        assert type_node["is_type"] is True
+        assert type_node["is_page"] is True
 
 
 class TestDatabaseFlow:
