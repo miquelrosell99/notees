@@ -203,7 +203,9 @@ export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCo
 // NodeCollection view mode components
 export { NodeListView } from './nodes/views/NodeListView';
 export { NodeDocumentView } from './nodes/views/NodeDocumentView';
-export { NodeCardGrid } from './nodes/views/NodeCardGrid';
+export { NodeCardView } from './nodes/views/NodeCardView';
+export { NodeCard } from './nodes/views/NodeCard';
+export type { NodeCardProps } from './nodes/views/NodeCard';
 export { NodeTableView } from './nodes/views/NodeTableView';
 export { NodeGanttView } from './nodes/views/NodeGanttView';
 

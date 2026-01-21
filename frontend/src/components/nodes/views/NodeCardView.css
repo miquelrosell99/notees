@@ -1,10 +1,10 @@
 /**
- * NodeCardGrid CSS
+ * NodeCardView CSS
  * 
  * Styles for card grid view mode
  */
 
-.node-card-grid {
+.node-card-view {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
@@ -143,7 +143,7 @@
   transform: scale(1.02);
 }
 
-.node-card-grid--sortable {
+.node-card-view--sortable {
   user-select: none;
 }
 
@@ -168,13 +168,13 @@
 }
 
 /* Show checkbox when there are any selected items in the grid */
-.node-card-grid--selectable .node-card__checkbox {
+.node-card-view--selectable .node-card__checkbox {
   opacity: 0;
   pointer-events: none;
 }
 
-.node-card-grid--selectable .node-card:hover .node-card__checkbox,
-.node-card-grid--selectable .node-card--selected .node-card__checkbox {
+.node-card-view--selectable .node-card:hover .node-card__checkbox,
+.node-card-view--selectable .node-card--selected .node-card__checkbox {
   opacity: 1;
   pointer-events: auto;
 }

@@ -20,7 +20,7 @@
  * │   └─ recursive nodes → Block / BlockPreview
  * ├─ NodeDocumentView (document)
  * │   └─ recursive nodes → Block / BlockPreview
- * ├─ NodeCardGrid (card)
+ * ├─ NodeCardView (card)
  * │   └─ NodeCard
  * │       └─ recursive children → Block / BlockPreview
  * ├─ NodeTableView (table)
@@ -47,7 +47,7 @@ import type {
 import { 
   NodeListView, 
   NodeDocumentView, 
-  NodeCardGrid, 
+  NodeCardView, 
   NodeTableView, 
   NodeGanttView, 
 } from './views';
@@ -179,7 +179,7 @@ export function NodeCollection({
       
       case 'card':
         return (
-          <NodeCardGrid 
+          <NodeCardView 
             {...viewProps} 
             sortable={sortable}
             onReorder={onReorder}
