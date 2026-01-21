@@ -183,8 +183,8 @@ export { Scratchpad } from './Scratchpad';
 export { NodePreview } from './nodes/NodePreview';
 
 // Activity log
-export { NodeActivityLog } from './nodes/NodeActivityLog';
-export type { NodeActivity } from './nodes/NodeActivityLog';
+export { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
+export type { NodeActivity } from './nodes/NodeActivityLogSection';
 
 // Banner and Cover images
 export { BannerImage } from './BannerImage';

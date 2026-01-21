@@ -13,12 +13,11 @@
  *   3. NodeContent - Children blocks (supports list/document/card views)
  *   4. Type-specific sections (TypedNodesView, ChildPagesSection)
  *   5. LinkedReferences
- *   6. NodeActivityLog
+ *   6. NodeActivityLogSection
  * 
  * - Block:
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
- *   3. NodeActivityLog
  */
 import { useState, useMemo, useCallback } from 'react';
 import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink } from '@/hooks';
@@ -40,7 +39,7 @@ import { PropertiesSection } from '../components/PropertiesSection';
 import { TypedNodesView } from '../components/TypedNodesSection';
 import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
 import { ChildPagesSection } from '../components/ChildPagesSection';
-import { NodeActivityLog, useActivityCount } from '../components/nodes/NodeActivityLog';
+import { NodeActivityLogSection, useActivityCount } from '../components/nodes/NodeActivityLogSection';
 import { LinkedReferences, useLinkedReferencesCount } from '../components/LinkedReferences';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { mdiHistory, mdiRefresh } from '@mdi/js';
@@ -517,7 +516,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             </button>
           }
         >
-          <NodeActivityLog nodeId={node.id} />
+          <NodeActivityLogSection nodeId={node.id} />
         </NodeViewSection>
       )}
       
