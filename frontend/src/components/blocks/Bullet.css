@@ -91,13 +91,20 @@
 /* ==================== Bullet Icon ==================== */
 
 .bullet-icon {
-  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  /* Allow NodeIcon to set font-size via inline styles for emojis */
 }
 
 .bullet-has-icon .bullet-container {
   width: 16px;
   height: 16px;
+  /* Ensure emoji icons are properly centered */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ==================== Outer Ring (Collapsed with Children or Hover) ==================== */

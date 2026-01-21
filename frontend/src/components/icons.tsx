@@ -409,6 +409,9 @@ export function NodeIcon({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
+            width: `${emojiSize}px`,
+            height: `${emojiSize}px`,
+            verticalAlign: 'middle',
           }}
         >
           {icon}

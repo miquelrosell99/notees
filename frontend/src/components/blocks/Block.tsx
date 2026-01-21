@@ -38,6 +38,7 @@ import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ColorPickerRow } from '../nodes/NodeContextMenu';
+import { NodeTypePill } from '../NodeTypePill';
 import { NodeIcon } from '../icons';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
@@ -976,35 +977,13 @@ export function Block({
         {blockTypeDetails.length > 0 && (
           <div className="block-types">
             {blockTypeDetails.map((typeNode) => (
-              <div key={typeNode.id} className="block-type-chip">
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="block-type-chip__label"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openNode(typeNode.id, 'page');
-                  }}
-                  title={`Click to view ${typeNode.name}`}
-                >
-                  <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
-                  <span>{typeNode.name}</span>
-                </Button>
-                {!readOnly && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="block-type-chip__close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeType.mutate({ nodeId: block.id, typeId: typeNode.id });
-                    }}
-                    title={`Remove ${typeNode.name} type`}
-                  >
-                    ×
-                  </Button>
-                )}
-              </div>
+              <NodeTypePill
+                key={typeNode.id}
+                typeNode={typeNode}
+                onClick={() => openNode(typeNode.id, 'page')}
+                onRemove={() => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
+                readOnly={readOnly}
+              />
             ))}
           </div>
         )}
