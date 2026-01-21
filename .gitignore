@@ -1,6 +1,8 @@
 # Data directory
 data/
 
+ai/
+
 # Python cache
 __pycache__/
 *.pyc
@@ -35,3 +37,5 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+AGENTS.md
+.github/prompts/Base.prompt.md
