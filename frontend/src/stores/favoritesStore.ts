@@ -44,6 +44,9 @@ interface FavoritesState {
   // Actions for recents
   loadRecents: () => Promise<void>;
   
+  // Clear all data (used when switching databases)
+  clear: () => void;
+  
   // Refresh both
   refresh: () => Promise<void>;
 }
@@ -137,6 +140,15 @@ export const useFavoritesStore = create<FavoritesState>()((set, get) => ({
       log.error('Failed to load recents', error);
       set({ isLoadingRecents: false });
     }
+  },
+  
+  clear: () => {
+    set({
+      favorites: [],
+      recents: [],
+      isLoadingFavorites: false,
+      isLoadingRecents: false,
+    });
   },
   
   refresh: async () => {

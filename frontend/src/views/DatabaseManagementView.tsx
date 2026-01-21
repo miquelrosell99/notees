@@ -15,7 +15,7 @@ import {
   importDatabase,
   type DatabaseInfo,
 } from '@/api/databases';
-import { useAuthStore, useNodesStore } from '@/stores';
+import { useAuthStore, useNodesStore, useFavoritesStore } from '@/stores';
 import { DatabaseModal } from '../components/databases/DatabaseModal';
 import { ImportOptionsModal } from '../components/ImportOptionsModal';
 import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
@@ -123,17 +123,24 @@ export function DatabaseManagementView({
         mainViewType: 'node',
       });
       
+      // Clear favorites/recents immediately, then refresh to get new database data
+      useFavoritesStore.getState().clear();
+      useFavoritesStore.getState().refresh();
+      
       // Navigate to home (no database in URL)
       window.history.replaceState(null, '', '/');
       
-      // Invalidate all data queries
+      // Remove all cached data from previous database to prevent stale icons/data
+      // Using removeQueries instead of invalidateQueries clears the cache immediately
+      queryClient.removeQueries({ queryKey: ['nodes'] });
+      queryClient.removeQueries({ queryKey: ['graph'] });
+      queryClient.removeQueries({ queryKey: ['assets'] });
+      queryClient.removeQueries({ queryKey: ['properties'] });
+      queryClient.removeQueries({ queryKey: ['property-nodes'] });
+      queryClient.removeQueries({ queryKey: ['page'] });
+      
+      // Invalidate databases query to refetch the list (keep cache for smoother UX)
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes'] });
-      queryClient.invalidateQueries({ queryKey: ['graph'] });
-      queryClient.invalidateQueries({ queryKey: ['assets'] });
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
-      queryClient.invalidateQueries({ queryKey: ['property-nodes'] });
-      queryClient.invalidateQueries({ queryKey: ['page'] });
       onDatabaseSelected?.();
     },
   });
