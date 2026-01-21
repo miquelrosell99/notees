@@ -368,7 +368,7 @@ export function DatabaseManagementView({
                     {deleteConfirm === db.name ? (
                       <>
                         <Button
-                          variant="primary"
+                          variant="danger"
                           size="sm"
                           onClick={() => deleteMutation.mutate(db.name)}
                           title="Confirm delete"
@@ -386,7 +386,7 @@ export function DatabaseManagementView({
                       </>
                     ) : (
                       <Button
-                        variant="ghost"
+                        variant="danger"
                         size="sm"
                         onClick={() => setDeleteConfirm(db.name)}
                         title="Delete"
