@@ -9,9 +9,9 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import './LinkedReferences.css';
-import { useBacklinks, useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
-import type { Backlink, Node } from '@/types/api';
-import { LinkIcon, NodeIcon, PageIcon, BulletIcon } from './icons';
+import { useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
+import type { Node } from '@/types/api';
+import { PageIcon, BulletIcon } from './icons';
 import { NodeCollection } from './nodes/NodeCollection';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 
@@ -20,89 +20,6 @@ interface LinkedReferencesProps {
   className?: string;
   onLinkClick?: (nodeId: number, pageId?: number | null, isPage?: boolean) => void;
   showContext?: boolean;
-}
-
-/**
- * Group backlinks by their source page
- */
-function groupBacklinksByPage(backlinks: Backlink[]): Map<number | null, Backlink[]> {
-  const groups = new Map<number | null, Backlink[]>();
-  
-  for (const backlink of backlinks) {
-    const pageId = backlink.source_page_id;
-    const existing = groups.get(pageId) ?? [];
-    existing.push(backlink);
-    groups.set(pageId, existing);
-  }
-  
-  return groups;
-}
-
-/**
- * Linked references section showing all references to this node (legacy)
- */
-export function Backlinks({ 
-  nodeId, 
-  className = '', 
-  onLinkClick,
-}: LinkedReferencesProps) {
-  const { data: backlinks, isLoading, error } = useBacklinks(nodeId);
-
-  if (isLoading) {
-    return (
-      <div className={`linked-references loading ${className}`}>
-        <div className="linked-references-skeleton">Loading linked references...</div>
-      </div>
-    );
-  }
-
-  if (error || !backlinks || backlinks.length === 0) {
-    return null;
-  }
-
-  // Group backlinks by source page for better organization
-  const grouped = groupBacklinksByPage(backlinks);
-
-  return (
-    <NodeViewSection
-      title="Linked References"
-      icon={<LinkIcon size="sm" />}
-      count={backlinks.length}
-      className={className}
-    >
-      <div className="linked-references-groups">
-        {Array.from(grouped.entries()).map(([pageId, pageBacklinks]) => (
-          <div key={pageId ?? 'orphan'} className="linked-references-group">
-            {pageId !== null && pageBacklinks[0].source_page_name && (
-              <div className="linked-references-group-header">
-                <button
-                  className="linked-references-page-link"
-                  onClick={() => onLinkClick?.(pageId, null, true)}
-                >
-                  <NodeIcon icon={null} isPage={true} size="sm" /> {pageBacklinks[0].source_page_name}
-                </button>
-              </div>
-            )}
-            
-            <ul className="linked-references-list">
-              {pageBacklinks.map((backlink) => (
-                <li key={`${backlink.source_node_id}-${backlink.position}`} className="linked-reference-item">
-                  <button
-                    className="linked-reference-button"
-                    onClick={() => onLinkClick?.(backlink.source_node_id, backlink.source_page_id, backlink.source_page_id === null)}
-                  >
-                    <span className="linked-reference-title">
-                      {backlink.source_node_name || 'Untitled'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </NodeViewSection>
-  );
 }
 
 /**
@@ -195,36 +112,6 @@ export function LinkedReferences({
       collapsed: false,
       children: [],
     }));
-  }, [refs]);
-
-  // Build page map for breadcrumbs in block list
-  const pageMap = useMemo(() => {
-    const map = new Map<number, Node>();
-    if (refs) {
-      for (const ref of refs) {
-        if (ref.source_page && !map.has(ref.source_page.id)) {
-          map.set(ref.source_page.id, {
-            id: ref.source_page.id,
-            uuid: '',
-            name: ref.source_page.name || 'Untitled',
-            icon: ref.source_page.icon || null,
-            color: null,
-            is_page: true,
-            parent_id: null,
-            page_id: null,
-            sequence: 0,
-            active: true,
-            create_date: '',
-            write_date: '',
-            types: [],
-            tags: [],
-            collapsed: false,
-            children: [],
-          });
-        }
-      }
-    }
-    return map;
   }, [refs]);
 
   const handleNodeClick = useCallback((node: Node) => {

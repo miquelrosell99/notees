@@ -12,7 +12,7 @@ import { useNodesStore } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
-import { CardsView } from './CardsView';
+import { NodeCollection } from '../components/nodes/NodeCollection';
 import { CalendarView } from './CalendarView';
 import { ChartView } from './ChartView';
 import { GanttView } from './GanttView';
@@ -298,13 +298,11 @@ export function PropertyNodesView({
         )}
         
         {viewMode === 'cards' && (
-          <CardsView
+          <NodeCollection
             nodes={nodes}
-            mode="cards"
-            onCardClick={onNodeClick ? (nodeId) => {
-              const node = nodes.find(n => n.id === nodeId);
-              if (node) onNodeClick(node);
-            } : undefined}
+            viewMode="card"
+            sortable={false}
+            onNodeClick={onNodeClick}
           />
         )}
         
