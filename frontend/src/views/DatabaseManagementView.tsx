@@ -366,7 +366,6 @@ export function DatabaseManagementView({
                       size="sm"
                       onClick={() => handleOpenRename(db.name)}
                       title="Rename"
-                      disabled={db.name === data?.active}
                     >
                       <EditIcon size="sm" />
                     </Button>
