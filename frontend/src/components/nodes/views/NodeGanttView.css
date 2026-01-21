@@ -1,0 +1,120 @@
+/**
+ * NodeGanttView CSS
+ * 
+ * Styles for Gantt/timeline view mode
+ */
+
+.node-gantt-view {
+  width: 100%;
+  min-height: 200px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.node-gantt-view--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-gantt-view__empty-message {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Header */
+.gantt-header {
+  display: flex;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.gantt-header__label {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  border-right: 1px solid var(--border-color);
+}
+
+.gantt-header__timeline {
+  flex: 1;
+  position: relative;
+  height: 32px;
+  min-width: 400px;
+}
+
+.gantt-header__marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.625rem;
+}
+
+/* Body */
+.gantt-body {
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+/* Row */
+.gantt-row {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.gantt-row:last-child {
+  border-bottom: none;
+}
+
+.gantt-row__label {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.gantt-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.gantt-row__timeline {
+  flex: 1;
+  position: relative;
+  height: 36px;
+  min-width: 400px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 49px,
+    var(--border-color) 49px,
+    var(--border-color) 50px
+  );
+}
+
+/* Bar */
+.gantt-row__bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 20px;
+  min-width: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.gantt-row__bar:hover {
+  opacity: 0.8;
+}

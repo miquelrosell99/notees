@@ -1,0 +1,38 @@
+/**
+ * NodeListView CSS
+ * 
+ * Styles for list/outline view mode
+ */
+
+.node-list-view {
+  width: 100%;
+}
+
+.node-list-item {
+  position: relative;
+}
+
+.node-list-item__children {
+  padding-left: calc(var(--depth, 0) * 1.5rem);
+}
+
+/* Read-only mode indentation */
+.node-list-item[style*="--depth: 1"] {
+  padding-left: 1.5rem;
+}
+
+.node-list-item[style*="--depth: 2"] {
+  padding-left: 3rem;
+}
+
+.node-list-item[style*="--depth: 3"] {
+  padding-left: 4.5rem;
+}
+
+.node-list-item[style*="--depth: 4"] {
+  padding-left: 6rem;
+}
+
+.node-list-item[style*="--depth: 5"] {
+  padding-left: 7.5rem;
+}

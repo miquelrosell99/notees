@@ -16,7 +16,7 @@ import { CardsView } from './CardsView';
 import { CalendarView } from './CalendarView';
 import { ChartView } from './ChartView';
 import { GanttView } from './GanttView';
-import { FilteredGraphView } from './FilteredGraphView';
+import { NodeGraphViewSimple } from '../components/graph';
 
 export interface PropertyNodesViewProps {
   /** The property to find nodes for */
@@ -340,9 +340,16 @@ export function PropertyNodesView({
         )}
         
         {viewMode === 'graph' && (
-          <FilteredGraphView
-            nodes={nodes}
-            title={`Nodes with "${property.name}"`}
+          <NodeGraphViewSimple
+            nodes={nodes.filter(n => n.is_page).map(n => ({
+              id: n.id,
+              name: n.name || 'Untitled',
+              type: n.type || null,
+              icon: n.icon || null,
+              color: n.color || null,
+            }))}
+            links={[]}
+            className="property-nodes-view__graph"
           />
         )}
       </div>

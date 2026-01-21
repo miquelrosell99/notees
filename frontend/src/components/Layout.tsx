@@ -16,10 +16,9 @@ import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { RightSidebarCards } from './RightSidebarCards';
-import { LocalGraphCard } from './LocalGraphCard';
+import { GraphViewLocal, GraphViewAllCard } from './graph';
 import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from './CommentsSidebar';
-import { FloatingMinimap } from './FloatingMinimap';
 import { mdiClose } from '@mdi/js';
 import { Card } from './core/Card';
 import { Button } from './core/Button';
@@ -37,6 +36,8 @@ export function Layout() {
     mainViewType,
     isCommandPaletteOpen,
     setCommandPaletteOpen,
+    isMinimapOpen,
+    setMinimapOpen,
     commentsSidebarOpen,
     setMainViewType,
     openNode,
@@ -170,7 +171,7 @@ export function Layout() {
             </div>
             <div className="right-sidebar-content">
               {showLocalGraph && localGraphId && (
-                <LocalGraphCard nodeId={localGraphId} />
+                <GraphViewLocal nodeId={localGraphId} />
               )}
               {showNodeCards && (
                 <RightSidebarCards />
@@ -185,8 +186,21 @@ export function Layout() {
           onClose={() => setCommandPaletteOpen(false)}
         />
         
-        {/* Floating Minimap */}
-        <FloatingMinimap />
+        {/* Floating Graph Minimap */}
+        {isMinimapOpen && (
+          <div className="floating-minimap">
+            <Button 
+              icon={mdiClose}
+              iconOnly
+              className="floating-minimap__close"
+              onClick={() => setMinimapOpen(false)}
+              title="Close minimap"
+              size="xs"
+              variant="ghost"
+            />
+            <GraphViewAllCard currentNodeId={currentNodeId} />
+          </div>
+        )}
       </div>
     </RouterSync>
   );

@@ -1,0 +1,57 @@
+/* GraphViewLocal - Sidebar local graph */
+
+.graph-view-local {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 180px;
+}
+
+.graph-view-local__info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.graph-view-local__label {
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.graph-view-local__stats {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.graph-view-local__content {
+  flex: 1;
+  min-height: 150px;
+}
+
+.graph-view-local__graph {
+  width: 100%;
+  height: 100%;
+}
+
+.graph-view-local__loading,
+.graph-view-local__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 180px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.graph-view-local.loading,
+.graph-view-local.empty {
+  background: var(--bg-secondary);
+}

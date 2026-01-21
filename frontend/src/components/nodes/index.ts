@@ -36,6 +36,17 @@ export type { NodeSetProps, NodeSetItem, NodeSetViewType, GroupByOption } from '
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';
 
+// NodeCollection - Universal node collection component
+export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './NodeCollection';
+export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';
+
+// NodeCollection view mode components
+export { NodeListView } from './views/NodeListView';
+export { NodeDocumentView } from './views/NodeDocumentView';
+export { NodeCardGrid } from './views/NodeCardGrid';
+export { NodeTableView } from './views/NodeTableView';
+export { NodeGanttView } from './views/NodeGanttView';
+
 // Re-exports from graph/
 export { NodeCircle, drawNodeCircle } from './NodeCircle';
 export type { NodeCircleProps, NodeCircleState } from '../graph/NodeCircle';

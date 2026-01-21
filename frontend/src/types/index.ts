@@ -3,3 +3,4 @@
  */
 export * from './api';
 export * from './views';
+export * from './nodeCollection';

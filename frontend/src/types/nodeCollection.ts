@@ -1,0 +1,188 @@
+/**
+ * NodeCollection Types
+ * 
+ * Type definitions for the unified NodeCollection system.
+ * NodeCollection is the universal interface for displaying collections of nodes.
+ */
+import type { Node } from './api';
+import type { ReactNode } from 'react';
+
+// ==================== View Modes ====================
+
+/**
+ * Available view modes for NodeCollection
+ */
+export type NodeCollectionViewMode = 
+  | 'list'      // Bullet list with indentation (outline)
+  | 'document'  // Flat list without bullets (document style)
+  | 'card'      // Card grid layout
+  | 'table'     // Table with rows
+  | 'gantt'     // Timeline/Gantt view
+  | 'graph';    // Graph visualization
+
+/**
+ * View mode icon and label for UI display
+ */
+export interface ViewModeOption {
+  mode: NodeCollectionViewMode;
+  icon: string;
+  label: string;
+}
+
+// ==================== NodeCollection Props ====================
+
+/**
+ * Props for the NodeCollection component
+ */
+export interface NodeCollectionProps {
+  /** Main nodes to display */
+  nodes: Node[];
+  
+  /** Current view mode */
+  viewMode: NodeCollectionViewMode;
+  
+  /** Whether nodes are editable (default: true) */
+  editable?: boolean;
+  
+  /** Optional custom node renderer */
+  renderNode?: (node: Node, editable: boolean) => ReactNode;
+  
+  /** Called when a node is clicked */
+  onNodeClick?: (node: Node) => void;
+  
+  /** Called when a node is shift-clicked (open in sidebar) */
+  onNodeShiftClick?: (node: Node) => void;
+  
+  /** Called when node content changes (only in edit mode) */
+  onContentChange?: (nodeId: number, content: string) => void;
+  
+  /** Additional CSS class */
+  className?: string;
+  
+  /** Group by option (for grouped views) */
+  groupBy?: 'none' | 'page' | 'type' | 'date';
+  
+  /** Whether to show empty state */
+  showEmpty?: boolean;
+  
+  /** Empty state message */
+  emptyMessage?: string;
+  
+  /** Maximum depth for recursive rendering (default: unlimited) */
+  maxDepth?: number;
+}
+
+// ==================== View-Specific Props ====================
+
+/**
+ * Base props shared by all view mode components
+ */
+export interface NodeCollectionViewBaseProps {
+  /** Nodes to display */
+  nodes: Node[];
+  
+  /** Whether nodes are editable */
+  editable: boolean;
+  
+  /** Current depth level (for recursive views) */
+  depth?: number;
+  
+  /** Maximum depth for recursion */
+  maxDepth?: number;
+  
+  /** Node click handler */
+  onNodeClick?: (node: Node) => void;
+  
+  /** Node shift-click handler */
+  onNodeShiftClick?: (node: Node) => void;
+  
+  /** Content change handler */
+  onContentChange?: (nodeId: number, content: string) => void;
+  
+  /** Custom node renderer */
+  renderNode?: (node: Node, editable: boolean) => ReactNode;
+  
+  /** Additional CSS class */
+  className?: string;
+}
+
+/**
+ * Props for NodeListView (outline mode)
+ */
+export interface NodeListViewProps extends NodeCollectionViewBaseProps {
+  /** Whether to show bullets (default: true) */
+  showBullets?: boolean;
+  
+  /** Whether to show indentation (default: true) */
+  showIndentation?: boolean;
+}
+
+/**
+ * Props for NodeDocumentView (document mode)
+ */
+export interface NodeDocumentViewProps extends NodeCollectionViewBaseProps {
+  // Document mode has no extra props - just flat recursive display
+}
+
+/**
+ * Props for NodeCardView (card mode)
+ */
+export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
+  /** Card layout style */
+  layout?: 'no-cover' | 'cover-top' | 'cover-side';
+  
+  /** Number of columns (default: auto) */
+  columns?: number;
+}
+
+/**
+ * Props for NodeTableView (table mode)
+ */
+export interface NodeTableViewProps extends NodeCollectionViewBaseProps {
+  /** Columns to display */
+  columns?: {
+    key: string;
+    label: string;
+    width?: string;
+    render?: (node: Node) => ReactNode;
+  }[];
+  
+  /** Whether to show expandable rows for children */
+  expandable?: boolean;
+}
+
+/**
+ * Props for NodeGanttView (gantt mode)
+ */
+export interface NodeGanttViewProps extends NodeCollectionViewBaseProps {
+  /** Date property to use for positioning */
+  dateProperty?: string;
+  
+  /** Time scale (day, week, month) */
+  timeScale?: 'day' | 'week' | 'month';
+}
+
+// ==================== Context ====================
+
+/**
+ * Context value for NodeCollection - passed down to all children
+ */
+export interface NodeCollectionContextValue {
+  /** Whether content is editable */
+  editable: boolean;
+  
+  /** Node click handler */
+  onNodeClick?: (node: Node) => void;
+  
+  /** Node shift-click handler */
+  onNodeShiftClick?: (node: Node) => void;
+  
+  /** Content change handler */
+  onContentChange?: (nodeId: number, content: string) => void;
+  
+  /** Current depth */
+  depth: number;
+  
+  /** Maximum depth */
+  maxDepth: number;
+}
