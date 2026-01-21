@@ -1,18 +1,18 @@
 /**
- * TypedNodesView - Shows nodes that have a specific type assigned
+ * TypedNodesSection - Shows nodes that have a specific type assigned
  * and allows creating new nodes with that type
  * 
  * Renders just the content - NodeViewSection wrapping is done by NodeView.
  */
 import { useState, useMemo, useCallback } from 'react';
-import './TypedNodesView.css';
+import './TypedNodesSection.css';
 import { useNodesWithType, useCreateNode, useCreatePage, useAddType } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { mdiPlus } from '@mdi/js';
-import { NodeCollection } from '../components/nodes/NodeCollection';
-import { Button } from '../components/core/Button';
+import { NodeCollection } from './nodes/NodeCollection';
+import { Button } from './core/Button';
 
 // Types that can only be applied to pages, not blocks
 const PAGE_ONLY_TYPES = ['type', 'day', 'month', 'year'];

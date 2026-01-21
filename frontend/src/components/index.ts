@@ -61,11 +61,11 @@ export {
 export type { ReferenceItem, PageReferenceItem, ReferenceViewMode } from '../views/ReferencesView';
 
 // Properties (from properties/ folder)
-export { PropertiesSection, InlineProperties } from '../views/PropertiesSection';
+export { PropertiesSection, InlineProperties } from './PropertiesSection';
 export { NodePicker } from './nodes/NodePicker';
 export { TypeExtendsEditor } from './TypeExtendsEditor';
 export { TypePropertiesEditor } from './TypePropertiesEditor';
-export { TypedNodesView } from '../views/TypedNodesView';
+export { TypedNodesView } from './TypedNodesSection';
 export { ChildPagesSection } from './ChildPagesSection';
 export { PagesTree } from './PagesTree';
 export type { PagesTreeProps } from './PagesTree';
@@ -145,8 +145,8 @@ export { GanttView } from '../views/GanttView';
 export type { GanttViewProps } from '../views/GanttView';
 export { QueryView } from '../views/QueryView';
 export type { QueryViewProps } from '../views/QueryView';
-export { PropertyNodesView } from '../views/PropertyNodesView';
-export type { PropertyNodesViewProps, PropertyViewMode } from '../views/PropertyNodesView';
+export { PropertyNodesView } from './PropertyNodesView';
+export type { PropertyNodesViewProps, PropertyViewMode } from './PropertyNodesView';
 export { TemplateUsedInView } from './TemplateUsedInView';
 
 // Modal components

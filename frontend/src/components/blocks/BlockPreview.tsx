@@ -163,21 +163,15 @@ export function BlockPreview({
           className="block-preview__bullet"
           onClick={onBulletClick || onShiftClick ? handleBulletClick : undefined}
         >
-          {variant === 'card' && node ? (
-            <Bullet
-              nodeId={node.id}
-              icon={node.icon}
-              hasChildren={hasChildren}
-              collapsed={false}
-              interactive={false}
-            />
-          ) : (
-            icon ? (
-              <NodeIcon icon={icon} isPage={false} size="xs" />
-            ) : (
-              <span className="block-preview__bullet-dot">•</span>
-            )
-          )}
+          <Bullet
+            nodeId={node?.id ?? blockId}
+            icon={node?.icon ?? icon}
+            isPage={node?.is_page}
+            hasChildren={hasChildren}
+            collapsed={false}
+            interactive={false}
+            size="sm"
+          />
         </div>
       )}
       

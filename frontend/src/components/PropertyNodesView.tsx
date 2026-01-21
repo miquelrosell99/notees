@@ -10,13 +10,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getNodesWithProperty } from '@/api/properties';
 import { useNodesStore } from '@/stores';
 import type { Node, Property } from '@/types';
-import { NodeIcon, BulletIcon } from '../components/icons';
-import { Button } from '../components/core/Button';
-import { NodeCollection } from '../components/nodes/NodeCollection';
-import { CalendarView } from './CalendarView';
-import { ChartView } from './ChartView';
-import { GanttView } from './GanttView';
-import { NodeGraphViewSimple } from '../components/graph';
+import { NodeIcon, BulletIcon } from './icons';
+import { Button } from './core/Button';
+import { NodeCollection } from './nodes/NodeCollection';
+import { CalendarView } from '../views/CalendarView';
+import { NodeGraphViewSimple } from './graph';
 
 export interface PropertyNodesViewProps {
   /** The property to find nodes for */
@@ -33,7 +31,7 @@ export interface PropertyNodesViewProps {
   onNodeClick?: (node: Node) => void;
 }
 
-export type PropertyViewMode = 'list' | 'cards' | 'calendar' | 'gantt' | 'chart' | 'graph';
+export type PropertyViewMode = 'list' | 'cards' | 'calendar' | 'graph';
 
 interface NodeWithProperty {
   node: Node;
@@ -92,8 +90,6 @@ function ViewModeSelector({
     { value: 'list', label: 'List' },
     { value: 'cards', label: 'Cards' },
     { value: 'calendar', label: 'Calendar' },
-    { value: 'gantt', label: 'Gantt' },
-    { value: 'chart', label: 'Chart' },
     { value: 'graph', label: 'Graph' },
   ];
   
@@ -314,26 +310,6 @@ export function PropertyNodesView({
               const node = nodes.find(n => n.id === nodeId);
               if (node) onNodeClick(node);
             } : undefined}
-          />
-        )}
-        
-        {viewMode === 'gantt' && (
-          <GanttView
-            nodes={nodes}
-            startDatePropertyId={property.type === 'date' ? property.id : null}
-            hidePropertySelectors={true}
-            title={`${property.name} Timeline`}
-            onNodeClick={onNodeClick ? (nodeId) => {
-              const node = nodes.find(n => n.id === nodeId);
-              if (node) onNodeClick(node);
-            } : undefined}
-          />
-        )}
-        
-        {viewMode === 'chart' && (
-          <ChartView
-            nodes={nodes}
-            title={`${property.name} Distribution`}
           />
         )}
         
