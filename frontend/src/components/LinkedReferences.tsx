@@ -11,7 +11,6 @@ import { useState, useMemo, useCallback } from 'react';
 import './LinkedReferences.css';
 import { useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
 import type { Node } from '@/types/api';
-import { PageIcon, BulletIcon } from './icons';
 import { NodeCollection } from './nodes/NodeCollection';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 
@@ -137,47 +136,33 @@ export function LinkedReferences({
   return (
     <div className={`linked-references ${className}`}>
       <div className="linked-references__content">
-        {/* Linked Pages Section */}
+        {/* Linked Pages */}
         {pageCount > 0 && (
-          <div className="linked-references__section linked-references__pages">
-            <div className="linked-references__section-header">
-              <PageIcon size="sm" />
-              <span className="linked-references__section-title">Linked Pages</span>
-              <span className="linked-references__section-count">({pageCount})</span>
-            </div>
-            <NodeCollection
-              nodes={pageNodes}
-              viewMode={pagesViewMode}
-              availableViewModes={['list', 'card', 'table']}
-              onViewModeChange={setPagesViewMode}
-              editable={false}
-              onNodeClick={handleNodeClick}
-              showEmpty={false}
-              className="linked-references__collection"
-            />
-          </div>
+          <NodeCollection
+            nodes={pageNodes}
+            viewMode={pagesViewMode}
+            availableViewModes={['list', 'card', 'table']}
+            onViewModeChange={setPagesViewMode}
+            editable={false}
+            onNodeClick={handleNodeClick}
+            showEmpty={false}
+            className="linked-references__collection"
+          />
         )}
 
-        {/* Linked Blocks Section */}
+        {/* Linked Blocks */}
         {blockCount > 0 && (
-          <div className="linked-references__section linked-references__blocks">
-            <div className="linked-references__section-header">
-              <BulletIcon size="sm" />
-              <span className="linked-references__section-title">Linked Blocks</span>
-              <span className="linked-references__section-count">({blockCount})</span>
-            </div>
-            <NodeCollection
-              nodes={blockNodes}
-              viewMode={blocksViewMode}
-              availableViewModes={['list', 'card', 'table']}
-              onViewModeChange={setBlocksViewMode}
-              editable={false}
-              onNodeClick={handleNodeClick}
-              onContentChange={handleContentChange}
-              showEmpty={false}
-              className="linked-references__collection"
-            />
-          </div>
+          <NodeCollection
+            nodes={blockNodes}
+            viewMode={blocksViewMode}
+            availableViewModes={['list', 'card', 'table']}
+            onViewModeChange={setBlocksViewMode}
+            editable={false}
+            onNodeClick={handleNodeClick}
+            onContentChange={handleContentChange}
+            showEmpty={false}
+            className="linked-references__collection"
+          />
         )}
       </div>
     </div>
