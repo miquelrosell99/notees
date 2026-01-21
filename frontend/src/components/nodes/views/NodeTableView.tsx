@@ -17,6 +17,8 @@ import { useMemo, useCallback, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
+import { useNodesStore } from '@/stores';
+import * as nodesApi from '@/api/nodes';
 import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
 import { Button } from '../../core/Button';
 import { Block } from '../../blocks/Block';
@@ -36,7 +38,7 @@ interface NodeTableColumn {
  * Safely format a date string, returning fallback if invalid
  */
 function formatDate(dateStr: string | undefined | null): string {
-  if (!dateStr) return '—';
+  if (!dateStr || dateStr === '') return '—';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '—';
   return date.toLocaleDateString();
@@ -44,45 +46,27 @@ function formatDate(dateStr: string | undefined | null): string {
 
 /**
  * Default columns for the table view
- * Note: 'name' column uses a special marker - actual rendering happens in NodeTableView
+ * Note: 'name' and date columns use special markers - actual rendering happens in NodeTableView
  */
 function getDefaultColumns(): NodeTableColumn[] {
   return [
     {
       key: 'name',
       label: 'Name',
-      width: '40%',
+      width: '50%',
       // Render function is provided dynamically by NodeTableView to access callbacks
     },
     {
       key: 'create_date',
       label: 'Created',
-      width: '20%',
-      render: (node: Node) => (
-        <span className="node-table__date">
-          {formatDate(node.create_date)}
-        </span>
-      ),
+      width: '25%',
+      // Render function is provided dynamically by NodeTableView to access callbacks
     },
     {
       key: 'write_date',
       label: 'Modified',
-      width: '20%',
-      render: (node: Node) => (
-        <span className="node-table__date">
-          {formatDate(node.write_date)}
-        </span>
-      ),
-    },
-    {
-      key: 'children',
-      label: 'Children',
-      width: '10%',
-      render: (node: Node) => (
-        <span className="node-table__count">
-          {node.children?.length ?? 0}
-        </span>
-      ),
+      width: '25%',
+      // Render function is provided dynamically by NodeTableView to access callbacks
     },
   ];
 }
@@ -123,6 +107,9 @@ export function NodeTableView({
 }: NodeTableViewProps) {
   // Get block callbacks from context (for editable mode)
   const blockCallbacks = useBlockCallbacks();
+  
+  // Get openNode and addSidebarCard from store for navigation
+  const { openNode, addSidebarCard } = useNodesStore();
 
   // Handler for content changes
   const handleContentChange = useCallback((blockId: number, content: string) => {
@@ -187,34 +174,92 @@ export function NodeTableView({
             title="Open in sidebar"
             onClick={(e) => {
               e.stopPropagation();
-              onNodeShiftClick?.(node);
+              addSidebarCard(node.id, node.is_page ? 'page' : 'block');
             }}
           />
           <Button
             icon={mdiArrowRight}
             variant="ghost"
             size="xs"
-            title="Open page"
+            title="Open node"
             onClick={(e) => {
               e.stopPropagation();
-              onNodeClick?.(node);
+              openNode(node.id, node.is_page ? 'page' : 'block');
             }}
           />
         </div>
       </div>
     );
-  }, [editable, blockCallbacks, handleContentChange, onNodeClick, onNodeShiftClick]);
+  }, [editable, blockCallbacks, handleContentChange, openNode, addSidebarCard]);
 
-  // Convert node columns to Table columns, injecting name column renderer
+  // Helper to open daily page for a date
+  const openDailyPage = useCallback(async (dateStr: string, inSidebar: boolean) => {
+    if (!dateStr || dateStr === '') return;
+    // Parse the ISO date string and format as YYYY-MM-DD for the API
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return;
+    const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    
+    try {
+      const dailyNode = await nodesApi.getOrCreateDaily(formattedDate);
+      if (inSidebar) {
+        addSidebarCard(dailyNode.id, 'page');
+      } else {
+        openNode(dailyNode.id, 'page');
+      }
+    } catch (error) {
+      console.error('Failed to open daily page:', error);
+    }
+  }, [openNode, addSidebarCard]);
+
+  // Create date column renderer with action buttons
+  const dateColumnRenderer = useCallback((dateField: 'create_date' | 'write_date') => (node: Node) => {
+    const dateStr = node[dateField];
+    return (
+      <div className="node-table__date-cell">
+        <span className="node-table__date">
+          {formatDate(dateStr)}
+        </span>
+        {dateStr && dateStr !== '' && (
+          <div className="node-table__actions">
+            <Button
+              icon={mdiDockRight}
+              variant="ghost"
+              size="xs"
+              title="Open day in sidebar"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDailyPage(dateStr, true);
+              }}
+            />
+            <Button
+              icon={mdiArrowRight}
+              variant="ghost"
+              size="xs"
+              title="Open day"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDailyPage(dateStr, false);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }, [openDailyPage]);
+
+  // Convert node columns to Table columns, injecting column renderers
   const nodeColumns = useMemo(() => {
     const cols = customColumns ?? getDefaultColumns();
-    // Inject the name column renderer for the 'name' key
-    return cols.map(col => 
-      col.key === 'name' && !col.render
-        ? { ...col, render: nameColumnRenderer }
-        : col
-    );
-  }, [customColumns, nameColumnRenderer]);
+    // Inject renderers for special columns
+    return cols.map(col => {
+      if (col.render) return col;
+      if (col.key === 'name') return { ...col, render: nameColumnRenderer };
+      if (col.key === 'create_date') return { ...col, render: dateColumnRenderer('create_date') };
+      if (col.key === 'write_date') return { ...col, render: dateColumnRenderer('write_date') };
+      return col;
+    });
+  }, [customColumns, nameColumnRenderer, dateColumnRenderer]);
   const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
   
   // Convert Set<number> to Set<string | number> for Table component
