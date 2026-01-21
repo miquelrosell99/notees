@@ -15,8 +15,6 @@ import { NodeView } from '../views/NodeView';
 import { AllPagesView } from '../views/AllPagesView';
 import { JournalsView } from '../views/JournalsView';
 import { GraphViewAll } from './graph';
-import { ArchivedView } from '../views/ArchivedView';
-import { AssetsView } from '../views/AssetsView';
 import { PropertyView } from '../views/PropertyView';
 import type { Node } from '@/types';
 
@@ -62,22 +60,6 @@ export function MainContent() {
     return (
       <main className="main-content graph-content">
         <GraphViewAll className="main-graph-view" />
-      </main>
-    );
-  }
-  
-  if (mainViewType === 'archived') {
-    return (
-      <main className="main-content">
-        <ArchivedView />
-      </main>
-    );
-  }
-  
-  if (mainViewType === 'assets') {
-    return (
-      <main className="main-content">
-        <AssetsView />
       </main>
     );
   }
