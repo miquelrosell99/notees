@@ -242,73 +242,55 @@
 
 /* Drag states */
 .block.dragging {
-  opacity: 0.5;
+  opacity: 0.4;
   background-color: var(--color-surface-variant);
+  pointer-events: none;
 }
 
-.block.drag-over {
-  /* Visual feedback when dragging over */
-}
-
-/* Drop indicators */
+/* Drop indicators - only shown when actively dragging over */
 .drop-indicator {
   position: absolute;
-  left: 0;
+  left: 24px;
   right: 0;
   height: 2px;
   background-color: var(--color-primary);
   pointer-events: none;
   z-index: 10;
+  border-radius: 1px;
+  box-shadow: 0 0 4px var(--color-primary);
 }
 
 .drop-indicator-before {
   top: 0;
-  transform: translateY(-50%);
+  transform: translateY(-1px);
 }
 
 .drop-indicator-after {
   bottom: 0;
-  transform: translateY(50%);
+  transform: translateY(1px);
 }
 
 .drop-indicator-inside {
-  top: 0;
+  top: 4px;
   left: 24px;
-  right: 0;
-  bottom: 0;
+  right: 4px;
+  bottom: 4px;
   height: auto;
   background-color: transparent;
   border: 2px dashed var(--color-primary);
   border-radius: var(--radius-md);
+  box-shadow: none;
 }
 
-/* Drop position styling */
-.block.drop-before::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 24px;
-  right: 0;
-  height: 2px;
-  background-color: var(--color-primary);
-  transform: translateY(-50%);
-}
-
+/* Remove the old pseudo-element based drop indicators - use real elements instead */
+.block.drop-before::before,
 .block.drop-after::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 24px;
-  right: 0;
-  height: 2px;
-  background-color: var(--color-primary);
-  transform: translateY(50%);
+  display: none;
 }
 
 .block.drop-inside {
+  /* Subtle background highlight */
   background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
-  box-shadow: inset 0 0 0 2px var(--color-primary);
-  border-radius: var(--radius-md);
 }
 
 /* Nested blocks */

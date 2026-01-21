@@ -126,6 +126,91 @@ class SQLiteNodeRepository(NodeRepository):
             (parent_id, sequence)
         )
     
+    async def _close_sequence_gap(self, parent_id: int, old_sequence: int) -> None:
+        """Close the gap left by a node that moved away.
+        
+        Decrements sequence of all siblings with sequence > the old sequence.
+        """
+        await self._conn.execute(
+            "UPDATE node SET sequence = sequence - 1 WHERE parent_id = ? AND sequence > ?",
+            (parent_id, old_sequence)
+        )
+    
+    async def move(
+        self,
+        node_id: int,
+        new_parent_id: int,
+        new_sequence: int,
+        user_id: Optional[int] = None
+    ) -> Optional[Node]:
+        """Move a node to a new parent and/or position with proper sibling resequencing.
+        
+        This method handles the complex case of moving a node which requires:
+        1. Closing the gap in the old parent's children
+        2. Opening a gap in the new parent's children
+        3. Updating the node's parent_id, page_id, and sequence
+        
+        Args:
+            node_id: ID of the node to move
+            new_parent_id: ID of the new parent
+            new_sequence: New sequence position among new siblings
+            user_id: Optional user ID for audit trail
+            
+        Returns:
+            Updated Node or None if not found
+        """
+        node = await self.get_by_id(node_id)
+        if not node:
+            return None
+        
+        old_parent_id = node.parent_id
+        old_sequence = node.sequence
+        
+        now = utc_now_iso()
+        
+        # Compute new page_id
+        if await self._is_page(new_parent_id):
+            new_page_id = new_parent_id
+        else:
+            new_page_id = await self._compute_page_id(new_parent_id)
+        
+        # Same parent - just resequence
+        if old_parent_id == new_parent_id:
+            if old_sequence == new_sequence:
+                # No change needed
+                return node
+            
+            if old_sequence < new_sequence:
+                # Moving down: shift siblings between old and new positions up
+                await self._conn.execute(
+                    """UPDATE node SET sequence = sequence - 1 
+                       WHERE parent_id = ? AND sequence > ? AND sequence <= ? AND id != ?""",
+                    (new_parent_id, old_sequence, new_sequence, node_id)
+                )
+            else:
+                # Moving up: shift siblings between new and old positions down
+                await self._conn.execute(
+                    """UPDATE node SET sequence = sequence + 1 
+                       WHERE parent_id = ? AND sequence >= ? AND sequence < ? AND id != ?""",
+                    (new_parent_id, new_sequence, old_sequence, node_id)
+                )
+        else:
+            # Different parent - close gap in old parent, open gap in new parent
+            if old_parent_id is not None:
+                await self._close_sequence_gap(old_parent_id, old_sequence)
+            
+            await self._shift_siblings_for_insert(new_parent_id, new_sequence)
+        
+        # Update the node itself
+        await self._conn.execute(
+            """UPDATE node SET parent_id = ?, page_id = ?, sequence = ?, write_date = ?, write_uid = ?
+               WHERE id = ?""",
+            (new_parent_id, new_page_id, new_sequence, now, user_id, node_id)
+        )
+        await self._conn.commit()
+        
+        return await self.get_by_id(node_id)
+    
     async def create(self, data: NodeCreateData, user_id: Optional[int] = None) -> Node:
         """Create a new node."""
         now = utc_now_iso()

@@ -218,6 +218,22 @@ export function Block({
     return () => unregisterBlock(block.id);
   }, [block.id, registerBlock, unregisterBlock]);
   
+  // Clear local drag state when global drag ends (handles edge cases where dragend doesn't fire on element)
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      setIsDragOver(false);
+      setDropPosition(null);
+    };
+    
+    document.addEventListener('dragend', handleGlobalDragEnd);
+    document.addEventListener('drop', handleGlobalDragEnd);
+    
+    return () => {
+      document.removeEventListener('dragend', handleGlobalDragEnd);
+      document.removeEventListener('drop', handleGlobalDragEnd);
+    };
+  }, []);
+  
   // Handle click outside to exit edit mode
   useEffect(() => {
     if (blockState !== 'edit') return;
@@ -304,11 +320,17 @@ export function Block({
     
     // Capture the current drop position before clearing state
     const currentDropPosition = dropPosition;
+    const targetParentId = parentId;
+    const targetSequence = block.sequence;
     
+    // Always clear local state first
     setIsDragOver(false);
     setDropPosition(null);
     
-    if (readOnly || isBeingDragged) return;
+    if (readOnly || isBeingDragged) {
+      endDrag();
+      return;
+    }
     
     const draggedBlockId = parseInt(e.dataTransfer.getData('text/plain'), 10);
     if (isNaN(draggedBlockId) || draggedBlockId === block.id) {
@@ -322,35 +344,38 @@ export function Block({
       return;
     }
     
+    // End drag state before mutation to avoid stale UI
+    endDrag();
+    
     // Perform the move based on drop position
     if (currentDropPosition === 'inside') {
-      // Move as child of target block
+      // Move as first child of target block
       moveNode.mutate({
         id: draggedBlockId,
         parentId: block.id,
-        position: 0, // First child
+        position: 0,
       });
     } else if (currentDropPosition === 'before') {
-      // Move before target block (same parent)
+      // Move before target block (same parent as target)
       moveNode.mutate({
         id: draggedBlockId,
-        parentId: parentId,
-        position: block.sequence,
+        parentId: targetParentId,
+        position: targetSequence,
       });
     } else if (currentDropPosition === 'after') {
-      // Move after target block (same parent)
+      // Move after target block (same parent as target)
       moveNode.mutate({
         id: draggedBlockId,
-        parentId: parentId,
-        position: block.sequence + 1,
+        parentId: targetParentId,
+        position: targetSequence + 1,
       });
     }
-    
-    endDrag();
   }, [block.id, block.sequence, dropPosition, endDrag, isBeingDragged, moveNode, parentId, readOnly]);
   
   // Handle drag end
   const handleDragEnd = useCallback(() => {
+    setIsDragOver(false);
+    setDropPosition(null);
     endDrag();
   }, [endDrag]);
   
@@ -704,8 +729,8 @@ export function Block({
     if (isPrimarySelected) classes.push('primary-selected');
     if (isEditing) classes.push('editing');
     if (isBeingDragged) classes.push('dragging');
-    if (isDragOver) classes.push('drag-over');
-    if (dropPosition) classes.push(`drop-${dropPosition}`);
+    // Only add drop-inside for background highlight, other positions use drop indicator elements
+    if (isDragOver && dropPosition === 'inside') classes.push('drop-inside');
     if (depth > 0) classes.push('nested');
     if (block.color) classes.push('has-color');
     if (hasChildren) classes.push('has-children');
