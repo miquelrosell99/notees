@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Card } from './Card';
-import { ContentWithPills } from '../ContentWithPills';
+import { BlockContent } from '../BlockContent';
 import { Bullet } from '../Bullet';
 import type { Node } from '@/types';
 import './DraggedBlock.css';
@@ -67,7 +67,7 @@ export function DraggedBlock({
             interactive={false}
           />
           <div className="dragged-block__text">
-            <ContentWithPills
+            <BlockContent
               content={block.name || 'Untitled'}
             />
           </div>

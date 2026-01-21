@@ -12,9 +12,9 @@ import { useMemo, useCallback, useState } from 'react';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useCreatePage } from '@/hooks';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
+import { ConfirmationModal } from './core/ConfirmationModal';
 import { Button } from './core/Button';
 import { NodePicker } from './NodePicker';
-import { DeletionConfirmationModal } from './DeletionConfirmationModal';
 import type { Node, NodeUpdate } from '@/types';
 import './NodeContextMenu.css';
 
@@ -194,9 +194,13 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
           onClose={onClose}
         />
       </div>
-      <DeletionConfirmationModal
+      <ConfirmationModal
         isOpen={showDeleteModal}
-        node={node}
+        title={`Delete ${node.is_page ? 'page' : 'block'}`}
+        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        confirmLabel="Delete permanently"
+        cancelLabel="Cancel"
+        variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
@@ -332,9 +336,13 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
           onClose={onClose}
         />
       </div>
-      <DeletionConfirmationModal
+      <ConfirmationModal
         isOpen={showDeleteModal}
-        node={node}
+        title={`Delete ${node.is_page ? 'page' : 'block'}`}
+        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        confirmLabel="Delete permanently"
+        cancelLabel="Cancel"
+        variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
@@ -432,9 +440,13 @@ export function BlockContextMenu({
           onClose={onClose}
         />
       </div>
-      <DeletionConfirmationModal
+      <ConfirmationModal
         isOpen={showDeleteModal}
-        node={node}
+        title={`Delete ${node.is_page ? 'page' : 'block'}`}
+        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        confirmLabel="Delete permanently"
+        cancelLabel="Cancel"
+        variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />

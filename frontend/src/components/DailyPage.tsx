@@ -3,11 +3,12 @@
  */
 import { useTodayPage, useUpdateNode, useCreateNode } from '@/hooks';
 import { useBlockSelectionStore } from '@/stores';
+import { mdiPlus } from '@mdi/js';
 import './DailyPage.css';
 import type { NodeUpdate } from '@/types';
-import { BlockEditor } from './BlockEditor';
+import { BlockEditor } from './blocks/BlockEditor';
 import { CalendarIcon } from './icons';
-import { ButtonAdd } from './core/ButtonAdd';
+import { Button } from './core/Button';
 
 interface DailyPageProps {
   date?: string; // YYYY-MM-DD format, defaults to today
@@ -89,9 +90,9 @@ export function DailyPage({ date, className = '' }: DailyPageProps) {
           </section>
         ) : (
           <div className="daily-empty">
-            <ButtonAdd onClick={handleAddBlock} className="add-block-btn">
+            <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" variant="ghost">
               Add block
-            </ButtonAdd>
+            </Button>
           </div>
         )}
       </div>

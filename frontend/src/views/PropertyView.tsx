@@ -13,7 +13,7 @@
 import { useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useProperty, useNodesWithProperty } from '@/hooks';
-import { NodeList, type NodeListColumn, type NodeListViewMode, type NodeListItem } from '../components/NodeList';
+import { NodeList, type NodeListColumn, type NodeListViewMode, type NodeListItem } from '../components/nodes/NodeList';
 import { NodeIcon } from '../components/icons';
 import './PropertyView.css';
 

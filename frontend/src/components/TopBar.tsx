@@ -22,7 +22,7 @@ import { useDailyNote } from '@/hooks';
 import { Button } from './core/Button';
 import { ButtonWithPanel } from './core/ButtonWithPanel';
 import { CalendarPopup } from './core/CalendarPopup';
-import { QuickAddPanel } from './core/QuickAddPanel';
+import { QuickAddPanel } from './QuickAddPanel';
 import { Card } from './core/Card';
 import { Scratchpad } from './Scratchpad';
 import './TopBar.css';

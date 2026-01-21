@@ -12,7 +12,7 @@
  * - Lightweight compared to full Block/BlockEditor
  */
 import { useCallback } from 'react';
-import { ContentWithPills } from './ContentWithPills';
+import { BlockContent } from './BlockContent';
 import { NodeIcon } from './icons';
 import './BlockDisplay.css';
 
@@ -87,7 +87,7 @@ export function BlockDisplay({
             <span className="block-display-empty">&nbsp;</span>
           )
         ) : (
-          <ContentWithPills
+          <BlockContent
             content={content}
             blockId={blockId}
             className="block-display-pills"

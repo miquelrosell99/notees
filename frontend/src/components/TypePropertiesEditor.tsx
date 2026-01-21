@@ -17,8 +17,8 @@ import {
   useRemovePropertyFromType,
   useProperties 
 } from '@/hooks';
+import { mdiPlus } from '@mdi/js';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { ButtonAdd } from './core/ButtonAdd';
 import { Button } from './core/Button';
 import '@/views/PropertiesSection.css';
 
@@ -167,14 +167,16 @@ export function TypePropertiesEditor({
               </Button>
             </div>
           ) : (
-            <ButtonAdd
+            <Button
+              icon={mdiPlus}
               className="properties-add-btn"
               onClick={() => setIsAddingNew(true)}
               title="Add property"
               size="sm"
+              variant="ghost"
             >
               Add property
-            </ButtonAdd>
+            </Button>
           )}
         </div>
       )}

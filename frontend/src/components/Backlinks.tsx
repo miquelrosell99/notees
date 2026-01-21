@@ -12,8 +12,8 @@ import './Backlinks.css';
 import { useBacklinks, useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
 import type { Backlink, Node } from '@/types/api';
 import { LinkIcon, NodeIcon } from './icons';
-import { NodeViewSection } from './NodeViewSection';
-import { NodeSet, type NodeSetItem } from './NodeSet';
+import { NodeViewSection } from './nodes/NodeViewSection';
+import { NodeSet, type NodeSetItem } from './nodes/NodeSet';
 import { 
   propertyBacklinkToPageItem,
   type PageReferenceItem,

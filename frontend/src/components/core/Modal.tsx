@@ -11,8 +11,9 @@
  * - Consistent header/footer structure
  */
 import { useEffect, useCallback, type ReactNode } from 'react';
+import { mdiClose } from '@mdi/js';
 import { Card } from './Card';
-import { ButtonClose } from './ButtonClose';
+import { Button } from './Button';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -98,10 +99,13 @@ export function Modal({
           <div className="modal__header">
             {title && <h2 className="modal__title">{title}</h2>}
             {showCloseButton && (
-              <ButtonClose
+              <Button
+                icon={mdiClose}
+                iconOnly
                 className="modal__close"
                 onClick={onClose}
                 size="sm"
+                variant="ghost"
               />
             )}
           </div>

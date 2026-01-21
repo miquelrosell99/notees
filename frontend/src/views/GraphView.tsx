@@ -23,12 +23,12 @@ import { useNodesStore } from '@/stores';
 import type { GraphNode as ApiGraphNode, GraphLink as ApiGraphLink } from '@/api/nodes';
 import type { Node } from '@/types';
 import { getSettings, setSetting } from '@/api/databases';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose } from '@mdi/js';
 import { Button } from '../components/core/Button';
 import { ButtonWithPanel } from '../components/core/ButtonWithPanel';
 import { ColorPicker } from '../components/core/ColorPicker';
 import { SelectionButton } from '../components/core/SelectionButton';
-import { ReorderableList } from '../components/core/ReorderableList';
+import { ListSortable } from '../components/core/ListSortable';
 import './GraphView.css';
 
 // ==================== Configuration ====================
@@ -1550,31 +1550,40 @@ export function GraphView({
           </div>
           <div className="type-colors-list-floating">
             {typeColors.length > 0 ? (
-              <ReorderableList
+              <ListSortable
                 items={typeColors.map(tc => ({ id: tc.typeId, ...tc }))}
                 onReorder={moveTypeColor}
-                onRemove={(item) => setTypeColors(prev => prev.filter(t => t.typeId !== item.id))}
-                showRemoveButton
                 itemClassName="type-color-item"
-                renderItem={(item) => (
-                  <div className="type-color-card-content">
-                    <ColorPicker
-                      value={item.color}
-                      onChange={(color) => updateTypeColor(item.id as number, color || DEFAULT_TYPE_COLORS[0])}
-                      size="xs"
-                      panelPosition="right"
-                      showNoColor={false}
-                      showCustom={true}
-                      tooltip="Change color"
-                      trigger={
-                        <span 
-                          className="type-color-swatch type-color-swatch--clickable" 
-                          style={{ backgroundColor: item.color }}
-                        />
-                      }
-                    />
-                    <span className="type-name">{item.typeName}</span>
-                  </div>
+                renderIcon={(item) => (
+                  <ColorPicker
+                    value={item.color}
+                    onChange={(color) => updateTypeColor(item.id as number, color || DEFAULT_TYPE_COLORS[0])}
+                    size="xs"
+                    panelPosition="right"
+                    showNoColor={false}
+                    showCustom={true}
+                    tooltip="Change color"
+                    trigger={
+                      <span 
+                        className="type-color-swatch type-color-swatch--clickable" 
+                        style={{ backgroundColor: item.color }}
+                      />
+                    }
+                  />
+                )}
+                renderText={(item) => (
+                  <span className="type-name">{item.typeName}</span>
+                )}
+                renderAction={(item) => (
+                  <Button
+                    icon={mdiClose}
+                    size="xs"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTypeColors(prev => prev.filter(t => t.typeId !== item.id));
+                    }}
+                  />
                 )}
               />
             ) : (
@@ -1660,14 +1669,23 @@ export function GraphView({
                   onClick={() => setSelectedNodes([])}
                 />
               </div>
-              <ReorderableList
+              <ListSortable
                 items={selectedNodes}
                 onReorder={moveSelectionItem}
-                onRemove={(item) => removeFromSelection(item.id)}
-                showRemoveButton
                 itemClassName="selected-node-item"
-                renderItem={(item) => (
+                renderText={(item) => (
                   <span className="node-name">{item.name}</span>
+                )}
+                renderAction={(item) => (
+                  <Button
+                    icon={mdiClose}
+                    size="xs"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFromSelection(item.id);
+                    }}
+                  />
                 )}
               />
             </div>

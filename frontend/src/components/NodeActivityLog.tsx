@@ -10,7 +10,7 @@ import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { mdiHistory, mdiTrashCanOutline, mdiRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
-import { Bullet } from './Bullet';
+import { Bullet } from './blocks/Bullet';
 import { NodeViewSection } from './NodeViewSection';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
 import './NodeActivityLog.css';

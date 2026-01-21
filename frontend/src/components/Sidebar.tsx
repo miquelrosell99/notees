@@ -7,16 +7,17 @@
  * - FAVORITES section with user-favorited pages (draggable for reordering)
  * - RECENTS section with recently accessed pages
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { DatabaseSwitcher } from './DatabaseSwitcher';
-import { DatabaseModal } from './DatabaseModal';
+import { mdiClose } from '@mdi/js';
+import { DatabaseSwitcher } from './databases/DatabaseSwitcher';
+import { DatabaseModal } from './databases/DatabaseModal';
 import { SettingsModal } from './SettingsModal';
 import { Card } from './core/Card';
-import { ContextMenu } from './core/ContextMenu';
 import { Button } from './core/Button';
-import { Block } from './Block';
+import { ListSortable } from './core/ListSortable';
+import { Bullet } from './blocks/Bullet';
 import { 
   JournalIcon, 
   AllPagesIcon, 
@@ -24,7 +25,6 @@ import {
   SettingsIcon,
   StarIcon,
   ClockIcon,
-  PageIcon,
   ChevronDownIcon,
   ChevronRightIcon,
 } from './icons';
@@ -34,144 +34,9 @@ interface SidebarProps {
   collapsed: boolean;
 }
 
-interface FavoriteItemProps {
-  nodeId: number;
-  name: string;
-  icon?: string | null;
-  isActive: boolean;
-  onClick: () => void;
-  onRemove: () => void;
-  onDragStart: (e: React.DragEvent, index: number) => void;
-  onDragOver: (e: React.DragEvent, index: number) => void;
-  onDragEnd: () => void;
-  index: number;
-  isDragOver: boolean;
-}
-
-function FavoriteItem({ 
-  nodeId,
-  name, 
-  icon, 
-  isActive, 
-  onClick, 
-  onRemove,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  index,
-  isDragOver,
-}: FavoriteItemProps) {
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-  
-  // Fetch the node directly using useNode for real-time updates
-  const { data: node } = useNode(nodeId);
-  
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setContextMenuPos({ x: e.clientX, y: e.clientY });
-    setShowContextMenu(true);
-  };
-  
-  useEffect(() => {
-    if (!showContextMenu) return;
-    
-    const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setShowContextMenu(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showContextMenu]);
-  
-  // If node data is available, render using Block component in document mode
-  if (node) {
-    return (
-      <>
-        <div 
-          className={`sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
-          onClick={onClick}
-          onContextMenu={handleContextMenu}
-          draggable
-          onDragStart={(e) => onDragStart(e, index)}
-          onDragOver={(e) => onDragOver(e, index)}
-          onDragEnd={onDragEnd}
-        >
-          <Block
-            block={node}
-            parentId={null}
-            onContentChange={() => {}}
-            readOnly={true}
-            showBullet={true}
-          />
-        </div>
-        
-        {showContextMenu && (
-          <ContextMenu
-            items={[
-              {
-                id: 'remove-favorite',
-                label: 'Remove from Favorites',
-                icon: undefined,
-                onClick: () => {
-                  onRemove();
-                  setShowContextMenu(false);
-                },
-              }
-            ]}
-            position={contextMenuPos}
-            onClose={() => setShowContextMenu(false)}
-          />
-        )}
-      </>
-    );
-  }
-  
-  // Fallback to simple rendering if node data not yet loaded
-  
-  return (
-    <>
-      <Button
-        className={`sidebar-nav-item sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
-        variant="ghost"
-        size="sm"
-        onClick={onClick}
-        onContextMenu={handleContextMenu}
-        draggable
-        onDragStart={(e) => onDragStart(e, index)}
-        onDragOver={(e) => onDragOver(e, index)}
-        onDragEnd={onDragEnd}
-      >
-        {icon ? (
-          <span className="sidebar-item-icon">{icon}</span>
-        ) : (
-          <PageIcon size="sm" />
-        )}
-        <span>{name || 'Untitled'}</span>
-      </Button>
-      
-      {showContextMenu && (
-        <ContextMenu
-          items={[
-            {
-              id: 'remove-favorite',
-              label: 'Remove from Favorites',
-              icon: undefined,
-              onClick: () => {
-                onRemove();
-                setShowContextMenu(false);
-              },
-            }
-          ]}
-          position={contextMenuPos}
-          onClose={() => setShowContextMenu(false)}
-        />
-      )}
-    </>
-  );
+// Helper to get node name for display
+function getNodeDisplayName(node: { name?: string | null } | undefined): string {
+  return node?.name || 'Untitled';
 }
 
 interface RecentItemProps {
@@ -192,15 +57,42 @@ function RecentItem({ nodeId, isActive, onClick }: RecentItemProps) {
       className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
       onClick={onClick}
     >
-      <Block
-        block={node}
-        parentId={null}
-        onContentChange={() => {}}
-        readOnly={true}
-        showBullet={true}
+      <Bullet
+        nodeId={node.id}
+        icon={node.icon}
+        isPage={node.is_page}
+        interactive={false}
+        size="sm"
       />
+      <span className="sidebar-item-name">{getNodeDisplayName(node)}</span>
     </div>
   );
+}
+
+// Wrapper to provide node data to ListSortable render functions
+interface FavoriteListItem {
+  id: number;
+  nodeId: number;
+}
+
+// Component to render favorite item icon (needs to fetch node data)
+function FavoriteItemIcon({ nodeId }: { nodeId: number }) {
+  const { data: node } = useNode(nodeId);
+  return (
+    <Bullet
+      nodeId={nodeId}
+      icon={node?.icon}
+      isPage={node?.is_page}
+      interactive={false}
+      size="sm"
+    />
+  );
+}
+
+// Component to render favorite item text (needs to fetch node data)
+function FavoriteItemText({ nodeId }: { nodeId: number }) {
+  const { data: node } = useNode(nodeId);
+  return <span className="sidebar-item-name">{getNodeDisplayName(node)}</span>;
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
@@ -208,8 +100,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [favoritesExpanded, setFavoritesExpanded] = useState(true);
   const [recentsExpanded, setRecentsExpanded] = useState(true);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const dragIndexRef = useRef<number | null>(null);
   
   const { 
     mainViewType,
@@ -222,6 +112,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const favorites = useFavoritesStore((state) => state.favorites);
   const recents = useFavoritesStore((state) => state.recents);
   
+  // Convert favorites to ListSortable format
+  const favoriteItems = useMemo<FavoriteListItem[]>(() => 
+    favorites.map(fav => ({ id: fav.nodeId, nodeId: fav.nodeId })),
+    [favorites]
+  );
+  
   // Use callbacks that access store via getState() for stability
   const handleRemoveFavorite = useCallback((nodeId: number) => {
     useFavoritesStore.getState().removeFavorite(nodeId);
@@ -230,28 +126,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const handleReorderFavorites = useCallback((fromIndex: number, toIndex: number) => {
     useFavoritesStore.getState().reorderFavorites(fromIndex, toIndex);
   }, []);
-  
-  // Handle drag start
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
-    dragIndexRef.current = index;
-    e.dataTransfer.effectAllowed = 'move';
-  }, []);
-  
-  // Handle drag over
-  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
-  }, []);
-  
-  // Handle drag end
-  const handleDragEnd = useCallback(() => {
-    if (dragIndexRef.current !== null && dragOverIndex !== null && dragIndexRef.current !== dragOverIndex) {
-      handleReorderFavorites(dragIndexRef.current, dragOverIndex);
-    }
-    dragIndexRef.current = null;
-    setDragOverIndex(null);
-  }, [dragOverIndex, handleReorderFavorites]);
   
   // Handle navigating to a page
   const handleNavigateToPage = useCallback((nodeId: number) => {
@@ -314,30 +188,36 @@ export function Sidebar({ collapsed }: SidebarProps) {
               <h3 className="sidebar-section-title">Favorites</h3>
             </button>
             {favoritesExpanded && (
-              <nav className="sidebar-nav sidebar-favorites-list">
-                {favorites.length === 0 ? (
+              <div className="sidebar-favorites-list">
+                {favoriteItems.length === 0 ? (
                   <div className="sidebar-empty-message">
                     No favorites yet. Right-click a page header to add.
                   </div>
                 ) : (
-                  favorites.map((fav, index) => (
-                    <FavoriteItem
-                      key={fav.nodeId}
-                      nodeId={fav.nodeId}
-                      name=""
-                      icon={null}
-                      isActive={currentNodeId === fav.nodeId && mainViewType === 'node'}
-                      onClick={() => handleNavigateToPage(fav.nodeId)}
-                      onRemove={() => handleRemoveFavorite(fav.nodeId)}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragEnd={handleDragEnd}
-                      index={index}
-                      isDragOver={dragOverIndex === index}
-                    />
-                  ))
+                  <ListSortable
+                    items={favoriteItems}
+                    onReorder={handleReorderFavorites}
+                    onItemClick={(item) => handleNavigateToPage(item.nodeId)}
+                    showDragHandle={false}
+                    itemClassName={`sidebar-favorite-item ${mainViewType === 'node' ? 'sidebar-favorite-item--check-active' : ''}`}
+                    renderIcon={(item) => <FavoriteItemIcon nodeId={item.nodeId} />}
+                    renderText={(item) => <FavoriteItemText nodeId={item.nodeId} />}
+                    renderAction={(item) => (
+                      <Button
+                        icon={mdiClose}
+                        size="xs"
+                        variant="ghost"
+                        className="sidebar-favorite-remove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFavorite(item.nodeId);
+                        }}
+                        title="Remove from favorites"
+                      />
+                    )}
+                  />
                 )}
-              </nav>
+              </div>
             )}
           </div>
           

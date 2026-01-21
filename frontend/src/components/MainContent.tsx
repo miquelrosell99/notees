@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
 import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline } from '@mdi/js';
-import { NodeBreadcrumbs } from './NodeBreadcrumbs';
+import { NodeBreadcrumbs } from './nodes/NodeBreadcrumbs';
 import { SelectionButton } from './core/SelectionButton';
 import { Button } from './core/Button';
 import { NodeView } from '../views/NodeView';

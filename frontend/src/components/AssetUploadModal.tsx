@@ -5,8 +5,8 @@
  * Validates file type and size (max 50MB).
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { mdiClose } from '@mdi/js';
 import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '../api/assets';
-import { ButtonClose } from './core/ButtonClose';
 import { Button } from './core/Button';
 import './AssetUploadModal.css';
 
@@ -232,7 +232,7 @@ export function AssetUploadModal({
       <div className="modal asset-upload-modal" onClick={e => e.stopPropagation()}>
         <div className="modal__header">
           <h2>{getModalTitle()}</h2>
-          <ButtonClose className="modal__close" onClick={handleClose} size="sm" />
+          <Button icon={mdiClose} iconOnly className="modal__close" onClick={handleClose} size="sm" variant="ghost" />
         </div>
 
         <div className="modal__content">

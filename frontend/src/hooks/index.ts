@@ -7,3 +7,7 @@ export { RouterSync } from './RouterSync';
 export * from './useBlockSelection';
 export * from './useSearchableList';
 export * from './useNodeIcon';
+export * from './useNodeSearch';
+export * from './useQuickAdd';
+export * from './useNodeCollection';
+export * from './useDragPreview';

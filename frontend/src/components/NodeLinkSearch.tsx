@@ -8,9 +8,9 @@
  * - Keyboard navigation support
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Modal } from './Modal';
-import { Button } from './Button';
-import { useSearch, usePages, useNodes, useCreatePage } from '@/hooks';
+import { Modal } from './core/Modal';
+import { Button } from './core/Button';
+import { useNodeSearch, useCreatePage, usePages } from '@/hooks';
 import type { Node } from '@/types';
 import { AddIcon, NodeIcon, BulletIcon } from './icons';
 import './NodeLinkSearch.css';
@@ -40,77 +40,25 @@ export function NodeLinkSearch({
   const [query, setQuery] = useState(initialQuery);
   const [selectedIndex, setSelectedIndex] = useState(0);
   
-  // Fetch pages for page-link search
+  // Use shared search hook
+  const searchMode = linkType === 'page-link' ? 'pages' : linkType === 'block-link' ? 'blocks' : 'all';
+  const { pageResults: searchPageResults, blockResults: searchBlockResults, showCreateOption } = useNodeSearch(query, {
+    mode: searchMode as 'pages' | 'blocks' | 'all',
+    maxResults: 10,
+  });
+  
+  // Convert NodeSearchItem to Node for backwards compatibility
+  const pageResults = useMemo(() => searchPageResults.map(r => r.node), [searchPageResults]);
+  const blockResults = useMemo(() => searchBlockResults.map(r => r.node), [searchBlockResults]);
+  
+  // Fetch all pages for lookup
   const { data: allPages = [] } = usePages();
-  
-  // Fetch all nodes for block-link search
-  const { data: allNodes = [] } = useNodes(null);
-  
-  // Use search API when query is provided
-  const { data: searchResults = [] } = useSearch(query);
   
   // Create page mutation
   const createPageMutation = useCreatePage();
   
-  // Separate pages and blocks from results
-  const { pageResults, blockResults } = useMemo(() => {
-    const lowercaseQuery = query.toLowerCase();
-    
-    // Combine and deduplicate results
-    const pagesMap = new Map<number, Node>();
-    const blocksMap = new Map<number, Node>();
-    
-    // Add search API results first (they're more relevant)
-    if (searchResults) {
-      searchResults.forEach(node => {
-        if (node.is_page) {
-          pagesMap.set(node.id, node);
-        } else {
-          blocksMap.set(node.id, node);
-        }
-      });
-    }
-    
-    // For page-link, also include pages list
-    if (linkType === 'page-link' && query.length < 2) {
-      allPages.forEach(node => {
-        if (!pagesMap.has(node.id)) {
-          const name = (node.name || '').toLowerCase();
-          const displayName = (node.display_name || '').toLowerCase();
-          
-          if (!query || name.includes(lowercaseQuery) || displayName.includes(lowercaseQuery)) {
-            pagesMap.set(node.id, node);
-          }
-        }
-      });
-    }
-    
-    // For block-link, also include blocks list
-    if (linkType === 'block-link' && query.length < 2) {
-      allNodes.filter(n => !n.is_page).forEach(node => {
-        if (!blocksMap.has(node.id)) {
-          const name = (node.name || '').toLowerCase();
-          const displayName = (node.display_name || '').toLowerCase();
-          
-          if (!query || name.includes(lowercaseQuery) || displayName.includes(lowercaseQuery)) {
-            blocksMap.set(node.id, node);
-          }
-        }
-      });
-    }
-    
-    return {
-      pageResults: Array.from(pagesMap.values()).slice(0, 10),
-      blockResults: Array.from(blocksMap.values()).slice(0, 10)
-    };
-  }, [allPages, allNodes, searchResults, query, linkType]);
-  
-  // Check if we should show "Create page" option
-  const showCreatePage = useMemo(() => {
-    if (linkType !== 'page-link' || !query.trim()) return false;
-    // Show if no exact match exists
-    return !pageResults.some(p => p.name?.toLowerCase() === query.toLowerCase());
-  }, [linkType, query, pageResults]);
+  // Only show create option for page-link type
+  const showCreatePage = linkType === 'page-link' && showCreateOption;
   
   // Build all selectable items (pages, optional create, blocks)
   const allItems = useMemo(() => {

@@ -1,4 +1,4 @@
 /**
- * Re-export NodeCircle component from core folder
+ * Re-export NodeCircle component from graph folder
  */
-export * from './core/NodeCircle';
+export * from './graph/NodeCircle';

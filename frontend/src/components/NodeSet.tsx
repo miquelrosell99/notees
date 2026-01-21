@@ -17,8 +17,8 @@ import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from './icons';
 import { Button } from './core/Button';
 import { ButtonWithPanel } from './core/ButtonWithPanel';
 import { SelectionButton } from './core/SelectionButton';
-import { ContentWithPills } from './ContentWithPills';
-import { Block } from './Block';
+import { BlockContent } from './blocks/BlockContent';
+import { Block } from './blocks/Block';
 import { CardViewCard } from './CardViewCard';
 import { mdiTune, mdiFormatListBulleted, mdiTable, mdiViewGrid } from '@mdi/js';
 import './NodeSet.css';
@@ -260,7 +260,7 @@ function NodeSetListItem({ item, depth = 0, allTypes, onNodeClick, onNodeShiftCl
         <span className="node-set__item-content">
           <span className="node-set__item-name">
             {item.node.name ? (
-              <ContentWithPills 
+              <BlockContent 
                 content={item.node.name} 
                 blockId={item.node.id}
               />

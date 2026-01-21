@@ -11,7 +11,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SuggestionPopup.css';
-import { useSearch, usePages, useNodes, useTypes, useSearchTypes } from '@/hooks';
+import { useNodeSearch, type NodeSearchMode } from '@/hooks';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon } from '../icons';
 
@@ -36,12 +36,6 @@ export interface SuggestionPopupProps {
   excludeNodeId?: number;
 }
 
-interface SuggestionItem {
-  node: Node;
-  displayName: string;
-  section: 'page' | 'block';
-}
-
 /**
  * SuggestionPopup Component
  */
@@ -58,96 +52,20 @@ export function SuggestionPopup({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Search for matching nodes (general search for links and tags)
-  const { data: searchResults, isLoading } = useSearch(query);
-  const { data: allPages } = usePages();
-  // Fetch all nodes when we need blocks (for link type with empty query)
-  const { data: allNodes } = useNodes(type === 'link' && query.length === 0 ? {} : null);
+  // Map SuggestionType to NodeSearchMode
+  const searchMode: NodeSearchMode = type === 'type' ? 'types' : type === 'tag' ? 'tags' : 'all';
   
-  // Fetch types specifically when type === 'type'
-  const { data: allTypeNodes } = useTypes();
-  const { data: typeSearchResults } = useSearchTypes(type === 'type' ? query : '');
-  
-  // Filter and organize results based on type
-  const { pageResults, blockResults } = useMemo(() => {
-    if (type === 'link') {
-      // For links [[]], show pages first, then blocks
-      let baseResults = query.length > 0 ? (searchResults ?? []) : [...(allPages ?? []).slice(0, 5), ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, 5)];
-      
-      // Filter out excluded node (e.g., self-reference for non-page blocks)
-      if (excludeNodeId !== undefined) {
-        baseResults = baseResults.filter(n => n.id !== excludeNodeId);
-      }
-      
-      const pages: SuggestionItem[] = [];
-      const blocks: SuggestionItem[] = [];
-      
-      for (const node of baseResults) {
-        if (node.is_page || node.parent_id === null) {
-          pages.push({
-            node,
-            displayName: node.name || 'Untitled',
-            section: 'page',
-          });
-        } else {
-          blocks.push({
-            node,
-            displayName: node.name || node.display_name || 'Untitled block',
-            section: 'block',
-          });
-        }
-      }
-      
-      return { 
-        pageResults: pages.slice(0, 10), 
-        blockResults: blocks.slice(0, 10) 
-      };
-    }
-    
-    // For types (@): show only actual type nodes
-    if (type === 'type') {
-      const results = query.length > 0 
-        ? (typeSearchResults ?? []) 
-        : (allTypeNodes ?? []).slice(0, 10);
-      
-      return {
-        pageResults: results.map(node => ({
-          node,
-          displayName: node.name || 'Untitled',
-          section: 'page' as const,
-        })),
-        blockResults: [],
-      };
-    }
-    
-    // For tags (#): show all pages
-    if (!searchResults && !allPages) return { pageResults: [], blockResults: [] };
-    
-    const results = query.length > 0 ? (searchResults ?? []) : (allPages ?? []).slice(0, 10);
-    
-    return {
-      pageResults: results.map(node => ({
-        node,
-        displayName: node.name || 'Untitled',
-        section: 'page' as const,
-      })),
-      blockResults: [],
-    };
-  }, [searchResults, allPages, allNodes, allTypeNodes, typeSearchResults, query, type, excludeNodeId]);
+  // Use shared search hook
+  const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(query, {
+    mode: searchMode,
+    excludeNodeId,
+    maxResults: 10,
+  });
   
   // Combined list for navigation
   const allItems = useMemo(() => {
     return [...pageResults, ...blockResults];
   }, [pageResults, blockResults]);
-  
-  // Check if we need to show "Create new" option
-  const showCreateOption = useMemo(() => {
-    if (!query.trim()) return false;
-    const exactMatch = pageResults.some(
-      r => r.displayName.toLowerCase() === query.toLowerCase()
-    );
-    return !exactMatch;
-  }, [pageResults, query]);
   
   // Total selectable items (results + possibly create option)
   const totalItems = allItems.length + (showCreateOption ? 1 : 0);

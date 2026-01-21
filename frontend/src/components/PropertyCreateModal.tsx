@@ -4,8 +4,8 @@
  * Floating modal for creating a new property with name and type.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { mdiClose } from '@mdi/js';
 import type { PropertyType } from '@/types/api';
-import { ButtonClose } from './core/ButtonClose';
 import { Button } from './core/Button';
 import { BooleanToggle } from './core/BooleanToggle';
 import './PropertyCreateModal.css';
@@ -82,7 +82,7 @@ export function PropertyCreateModal({
       <div className="property-create-modal" onKeyDown={handleKeyDown}>
         <div className="property-create-header">
           <h3 className="property-create-title">Create Property</h3>
-          <ButtonClose onClick={onClose} size="sm" />
+          <Button icon={mdiClose} iconOnly onClick={onClose} size="sm" variant="ghost" />
         </div>
         
         <form className="property-create-form" onSubmit={handleSubmit}>

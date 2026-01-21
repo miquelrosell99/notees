@@ -3,6 +3,17 @@
  * 
  * Block component with 3 states: display, edit, selected (mutually exclusive)
  * 
+ * Component Hierarchy:
+ * Block
+ *  ├─ BlockContainer   (layout, indent, selection state)
+ *  ├─ BlockBullet      (Bullet component - drag handle, expand/collapse)
+ *  ├─ BlockContent     (view mode - text with LinkPill/TypePill tokens)
+ *  │    ├─ TextToken
+ *  │    ├─ LinkPill
+ *  │    └─ TypePill
+ *  ├─ BlockEditor      (edit mode - rich text editing)
+ *  └─ BlockChildren    (recursive child blocks)
+ * 
  * Features:
  * - Bullet is the drag handle and context menu anchor
  * - Fixed width content area (adapts to container)
@@ -20,13 +31,13 @@ import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelection
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useTypes, useRemoveType } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
-import { ContentWithPills } from './ContentWithPills';
+import { BlockContent } from './BlockContent';
 import { Bullet } from './Bullet';
 import { Card } from './core/Card';
 import { Button } from './core/Button';
 import { ContextMenu } from './core/ContextMenu';
+import { ConfirmationModal } from './core/ConfirmationModal';
 import { ColorPickerRow } from './NodeContextMenu';
-import { DeletionConfirmationModal } from './DeletionConfirmationModal';
 import { NodeIcon } from './icons';
 import type { ContextMenuItem } from './core/ContextMenu';
 import type { Node } from '@/types';
@@ -933,7 +944,7 @@ export function Block({
               className={`block-content-view${!block.name ? ' block-content-view--empty' : ''}`}
             >
               {block.name ? (
-                <ContentWithPills
+                <BlockContent
                   content={block.name}
                   blockId={block.id}
                   className="block-content-pills"
@@ -1086,9 +1097,13 @@ export function Block({
       )}
       
       {/* Deletion confirmation modal */}
-      <DeletionConfirmationModal
+      <ConfirmationModal
         isOpen={showDeleteModal}
-        node={block}
+        title={`Delete ${block.is_page ? 'page' : 'block'}`}
+        message={`Are you sure you want to delete "${block.name || 'Untitled'}"? This action cannot be undone.`}
+        confirmLabel="Delete permanently"
+        cancelLabel="Cancel"
+        variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />

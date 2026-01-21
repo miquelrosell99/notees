@@ -11,7 +11,6 @@ import { checkDatabaseName } from '@/api/databases';
 import { AlertIcon, SyncIcon } from './icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
-import { ButtonClose } from './core/ButtonClose';
 import { Button } from './core/Button';
 
 interface DatabaseNameModalProps {
@@ -100,7 +99,7 @@ export function DatabaseNameModal({
       <div className="database-modal">
         <div className="database-modal__header">
           <h2 className="database-modal__title">{title}</h2>
-          <ButtonClose className="database-modal__close" onClick={handleClose} size="sm" />
+          <Button icon={mdiClose} iconOnly className="database-modal__close" onClick={handleClose} size="sm" variant="ghost" />
         </div>
 
         <form className="database-modal__form" onSubmit={handleSubmit}>

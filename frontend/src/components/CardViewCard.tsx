@@ -10,7 +10,7 @@
  */
 import { useMemo, useCallback } from 'react';
 import type { Node } from '@/types';
-import { BlockContentPreview } from './BlockContentPreview';
+import { BlockPreview } from './blocks/BlockPreview';
 import './CardViewCard.css';
 
 export type CardLayout = 'no-cover' | 'cover-top' | 'cover-side';
@@ -117,7 +117,8 @@ export function CardViewCard({
       
       <div className="card-view-card__body">
         {/* Block content preview - same as sidebar */}
-        <BlockContentPreview
+        <BlockPreview
+          variant="card"
           node={node}
           showBullet={true}
           showIcon={false}

@@ -9,7 +9,7 @@ import type { Node } from '@/types/api';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Bullet } from '../Bullet';
-import { ContentWithPills } from '../ContentWithPills';
+import { BlockContent } from '../BlockContent';
 import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '../icons';
 import './NodeListCore.css';
 
@@ -269,7 +269,7 @@ function NodeListCoreDefaultItem<T extends Node>({
         />
       )}
       <span className="node-list-core__item-name">
-        <ContentWithPills
+        <BlockContent
           content={node.name || 'Untitled'}
         />
       </span>

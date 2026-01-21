@@ -17,13 +17,13 @@
  * - QueryView (query results)
  */
 import { useState, useMemo, useCallback } from 'react';
+import { mdiPlus } from '@mdi/js';
 import type { Node } from '@/types/api';
 import { useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { NodeIcon, ChevronRightIcon } from './icons';
 import { Button } from './core/Button';
-import { ButtonAdd } from './core/ButtonAdd';
-import { Bullet } from './Bullet';
+import { Bullet } from './blocks/Bullet';
 import './NodeList.css';
 
 // ==================== Types ====================
@@ -623,28 +623,32 @@ export function NodeList({
             {titleIcon}
             <h3 className="node-list-title">{title}</h3>
             {showCreate && onCreate && (
-              <ButtonAdd 
+              <Button 
+                icon={mdiPlus}
                 className="node-list-create-btn" 
                 onClick={onCreate}
                 title={createLabel}
                 size="xs"
+                variant="ghost"
               >
                 {createLabel}
-              </ButtonAdd>
+              </Button>
             )}
           </header>
         )}
         <div className="node-list-empty-message">
           <p>{emptyMessage}</p>
           {showCreate && onCreate && (
-            <ButtonAdd 
+            <Button 
+              icon={mdiPlus}
               className="node-list-create-btn-large" 
               onClick={onCreate}
               title={createLabel}
               size="xs"
+              variant="ghost"
             >
               {createLabel}
-            </ButtonAdd>
+            </Button>
           )}
         </div>
       </section>
@@ -681,11 +685,14 @@ export function NodeList({
             />
           )}
           {showCreate && onCreate && !isCollapsed && (
-            <ButtonAdd 
+            <Button 
+              icon={mdiPlus}
+              iconOnly
               className="node-list-create-btn" 
               onClick={onCreate} 
               title={createLabel}
               size="xs"
+              variant="ghost"
             />
           )}
         </div>

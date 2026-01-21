@@ -23,14 +23,14 @@ import {
 import { useNodesStore } from '@/stores';
 import type { Property, Node, TypeProperty, PropertyType } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
-import { ButtonAdd } from '../components/core/ButtonAdd';
-import { NodePicker } from '../components/NodePicker';
-import { TextPropertyBlock } from '../components/TextPropertyBlock';
-import { PropertyPickerModal } from '../components/PropertyPickerModal';
-import { PropertyConfigPanel } from '../components/PropertyConfigPanel';
-import { Bullet } from '../components/Bullet';
+import { NodePicker } from '../components/nodes/NodePicker';
+import { TextPropertyBlock } from '../components/blocks/TextPropertyBlock';
+import { PropertyPickerModal } from '../components/properties/PropertyPickerModal';
+import { PropertyConfigPanel } from '../components/properties/PropertyConfigPanel';
+import { Bullet } from '../components/blocks/Bullet';
 import './PropertiesSection.css';
 
 export type PropertiesSectionVariant = 'page' | 'block';
@@ -484,14 +484,16 @@ export function PropertiesSection({
       <section className={`properties-view ${variantClass} ${className}`}>
         {showAddProperty && !readOnly && (
           <>
-            <ButtonAdd 
+            <Button 
+              icon={mdiPlus}
               className="properties-add-btn" 
               onClick={() => setShowPickerModal(true)}
               title="Add property"
               size="sm"
+              variant="ghost"
             >
               Add property
-            </ButtonAdd>
+            </Button>
             <PropertyPickerModal
               isOpen={showPickerModal}
               onClose={() => setShowPickerModal(false)}
@@ -620,14 +622,16 @@ export function PropertiesSection({
       {/* Add property button */}
       {showAddProperty && !readOnly && (
         <div className="properties-add">
-          <ButtonAdd 
+          <Button 
+            icon={mdiPlus}
             className="properties-add-btn" 
             onClick={() => setShowPickerModal(true)}
             title="Add property"
             size="sm"
+            variant="ghost"
           >
             Add property
-          </ButtonAdd>
+          </Button>
         </div>
       )}
 
