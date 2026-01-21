@@ -61,9 +61,13 @@ interface NodeViewProps {
   viewMode: ViewMode;
   /** If true, clicking the title navigates to the page instead of editing (for journal compact mode) */
   compactMode?: boolean;
+  /** Whether the properties section is collapsed by default */
+  propertiesCollapsed?: boolean;
+  /** Whether the linked references section is collapsed by default */
+  linkedRefsCollapsed?: boolean;
 }
 
-export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: NodeViewProps) {
+export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps) {
   // Fetch the node
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true, 
@@ -371,6 +375,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
                 showAddProperty={true}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+                defaultCollapsed={propertiesCollapsed}
               />
             </div>
             
@@ -487,6 +492,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
           showAddProperty={true}
           onNavigateToNode={handleNavigateToNode}
           onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+          defaultCollapsed={propertiesCollapsed}
         />
       )}
       
@@ -525,6 +531,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
             openNode(nodeId, isPage ? 'page' : 'block');
           }
         }}
+        defaultCollapsed={linkedRefsCollapsed}
       />
       
       {/* Node Activity Log */}

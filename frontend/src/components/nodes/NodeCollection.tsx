@@ -10,10 +10,12 @@
  * - Editable toggle (Block vs BlockPreview)
  * - Recursive children handling
  * - Consistent prop propagation to all view modes
+ * - Optional block callbacks via context (provideBlockCallbacks)
  * 
  * Component Hierarchy:
  * NodeCollection
  * ├─ ViewModeSwitcher (SelectionButton)
+ * ├─ BlockCallbacksProvider (optional, when provideBlockCallbacks=true)
  * ├─ NodeListView (list)
  * │   └─ recursive nodes → Block / BlockPreview
  * ├─ NodeDocumentView (document)
@@ -28,7 +30,7 @@
  * └─ NodeGraphView (graph)
  *     └─ GraphRenderer → nodes only with is_page = true
  */
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { 
   mdiFormatListBulleted, 
   mdiFileDocumentOutline, 
@@ -51,6 +53,7 @@ import {
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
+import { BlockCallbacksProvider, type BlockCallbacks } from '../blocks/BlockCallbacksContext';
 import './NodeCollection.css';
 
 // ==================== Context ====================
@@ -105,6 +108,9 @@ export function NodeCollection({
   showEmpty = true,
   emptyMessage = 'No items',
   maxDepth = Infinity,
+  tableColumns,
+  provideBlockCallbacks = false,
+  blockCallbacks,
 }: NodeCollectionProps) {
   // Determine which view modes are available
   const effectiveViewModes = availableViewModes ?? ['list', 'document', 'card', 'table', 'gantt', 'graph'];
@@ -173,7 +179,7 @@ export function NodeCollection({
         return <NodeCardGrid {...viewProps} />;
       
       case 'table':
-        return <NodeTableView {...viewProps} />;
+        return <NodeTableView {...viewProps} columns={tableColumns} />;
       
       case 'gantt':
         return <NodeGanttView {...viewProps} />;
@@ -199,27 +205,41 @@ export function NodeCollection({
     }
   };
 
+  // Wrapper for optional BlockCallbacksProvider
+  const wrapWithCallbacks = (content: ReactNode): ReactNode => {
+    if (provideBlockCallbacks && blockCallbacks) {
+      return (
+        <BlockCallbacksProvider callbacks={blockCallbacks as BlockCallbacks}>
+          {content}
+        </BlockCallbacksProvider>
+      );
+    }
+    return content;
+  };
+
   return (
     <NodeCollectionContext.Provider value={contextValue}>
-      <div className={`node-collection node-collection--${viewMode} ${className}`}>
-        {/* View Mode Switcher - only shown when multiple modes available */}
-        {showViewSwitcher && (
-          <div className="node-collection__header">
-            <SelectionButton
-              options={viewModeOptions}
-              value={viewMode}
-              onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
-              size="sm"
-              className="node-collection__view-switcher"
-            />
+      {wrapWithCallbacks(
+        <div className={`node-collection node-collection--${viewMode} ${className}`}>
+          {/* View Mode Switcher - only shown when multiple modes available */}
+          {showViewSwitcher && (
+            <div className="node-collection__header">
+              <SelectionButton
+                options={viewModeOptions}
+                value={viewMode}
+                onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
+                size="sm"
+                className="node-collection__view-switcher"
+              />
+            </div>
+          )}
+          
+          {/* Content */}
+          <div className="node-collection__content">
+            {renderViewMode()}
           </div>
-        )}
-        
-        {/* Content */}
-        <div className="node-collection__content">
-          {renderViewMode()}
         </div>
-      </div>
+      )}
     </NodeCollectionContext.Provider>
   );
 }

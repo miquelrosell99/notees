@@ -11,6 +11,7 @@
  * - Read-only: renders BlockPreview component
  * - Recursive children handling
  * - Sortable mode with drag-and-drop reordering
+ * - Breadcrumbs for top-level nodes (showing page hierarchy)
  */
 import { useCallback } from 'react';
 import type { Node } from '@/types';
@@ -18,7 +19,9 @@ import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Block } from '../../blocks/Block';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { Bullet } from '../../blocks/Bullet';
+import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
 import { ListSortable } from '../../core/ListSortable';
+import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import './NodeListView.css';
 
 interface NodeListItemProps {
@@ -28,8 +31,11 @@ interface NodeListItemProps {
   maxDepth: number;
   showBullets: boolean;
   showIndentation: boolean;
+  showBreadcrumbs: boolean;
   siblings: Node[];
   parentBlock?: Node | null;
+  page?: Node | null;
+  context?: string;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
@@ -42,14 +48,20 @@ function NodeListItem({
   maxDepth,
   showBullets,
   showIndentation,
+  showBreadcrumbs,
   siblings,
   parentBlock,
+  page,
+  context,
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
 }: NodeListItemProps) {
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
+  
+  // Get block callbacks from context (only available in editable mode with provider)
+  const blockCallbacks = useBlockCallbacks();
 
   // Handlers
   const handleBulletClick = useCallback(() => {
@@ -66,25 +78,98 @@ function NodeListItem({
 
   // Editable mode: render full Block component
   if (editable) {
+    // Build block-specific callbacks from context
+    const blockProps = blockCallbacks ? {
+      onAddType: blockCallbacks.onAddType 
+        ? (typeNodeId: number, keepInline: boolean, typeName: string) => 
+            blockCallbacks.onAddType!(node.id, typeNodeId, keepInline, typeName)
+        : undefined,
+      onAddTag: blockCallbacks.onAddTag
+        ? (tagNodeId: number, keepInline: boolean, tagName: string) =>
+            blockCallbacks.onAddTag!(node.id, tagNodeId, keepInline, tagName)
+        : undefined,
+      onCreateType: blockCallbacks.onCreateType
+        ? (name: string, keepInline: boolean) =>
+            blockCallbacks.onCreateType!(node.id, name, keepInline)
+        : undefined,
+      onCreateTag: blockCallbacks.onCreateTag
+        ? (name: string, keepInline: boolean) =>
+            blockCallbacks.onCreateTag!(node.id, name, keepInline)
+        : undefined,
+      onCreatePageLink: blockCallbacks.onCreatePageLink,
+      onOpenComments: blockCallbacks.onOpenComments
+        ? () => blockCallbacks.onOpenComments!(node.id)
+        : undefined,
+      onAssetUpload: blockCallbacks.onAssetUpload
+        ? (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) =>
+            blockCallbacks.onAssetUpload!(node.id, assetTypesOrFile)
+        : undefined,
+      onOpenBacklinks: blockCallbacks.onOpenBacklinks
+        ? () => blockCallbacks.onOpenBacklinks!(node.id)
+        : undefined,
+      commentCount: blockCallbacks.getCommentCount?.(node) ?? node.comment_count ?? 0,
+      backlinkCount: blockCallbacks.getBacklinkCount?.(node) ?? node.backlink_count ?? 0,
+    } : {};
+
     return (
-      <Block
-        block={node}
-        children={children}
-        siblings={siblings}
-        depth={showIndentation ? depth : 0}
-        parentId={node.parent_id}
-        parentBlock={parentBlock}
-        onContentChange={handleContentChange}
-        onBulletClick={handleBulletClick}
-        onShiftClick={handleShiftClick}
-        showBullet={showBullets}
-      />
+      <div className="node-list-item-wrapper">
+        {/* Breadcrumbs for top-level items */}
+        {showBreadcrumbs && depth === 0 && (page || context) && (
+          <InlineNodeBreadcrumbs
+            node={node}
+            page={page}
+            context={context}
+            onNavigate={(nodeId, nodeType) => {
+              if (nodeType === 'page') {
+                // Create a minimal page node to pass to onNodeClick
+                const pageNode = page && page.id === nodeId ? page : { 
+                  id: nodeId, 
+                  is_page: true 
+                } as Node;
+                onNodeClick?.(pageNode);
+              }
+            }}
+            compact={true}
+          />
+        )}
+        <Block
+          block={node}
+          children={children}
+          siblings={siblings}
+          depth={showIndentation ? depth : 0}
+          parentId={node.parent_id}
+          parentBlock={parentBlock}
+          onContentChange={handleContentChange}
+          onBulletClick={handleBulletClick}
+          onShiftClick={handleShiftClick}
+          showBullet={showBullets}
+          {...blockProps}
+        />
+      </div>
     );
   }
 
   // Read-only mode: render BlockPreview with recursive children
   return (
     <div className="node-list-item" style={{ '--depth': showIndentation ? depth : 0 } as React.CSSProperties}>
+      {/* Breadcrumbs for top-level items */}
+      {showBreadcrumbs && depth === 0 && (page || context) && (
+        <InlineNodeBreadcrumbs
+          node={node}
+          page={page}
+          context={context}
+          onNavigate={(nodeId, nodeType) => {
+            if (nodeType === 'page') {
+              const pageNode = page && page.id === nodeId ? page : { 
+                id: nodeId, 
+                is_page: true 
+              } as Node;
+              onNodeClick?.(pageNode);
+            }
+          }}
+          compact={true}
+        />
+      )}
       <BlockPreview
         variant="simple"
         node={node}
@@ -105,6 +190,7 @@ function NodeListItem({
               maxDepth={maxDepth}
               showBullets={showBullets}
               showIndentation={showIndentation}
+              showBreadcrumbs={false}
               siblings={children}
               parentBlock={node}
               onNodeClick={onNodeClick}
@@ -128,12 +214,14 @@ export function NodeListView({
   maxDepth = Infinity,
   showBullets = true,
   showIndentation = true,
+  showBreadcrumbs = true,
   sortable = false,
   onReorder,
   renderItemAction,
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
+  pageMap,
   className = '',
 }: NodeListViewProps) {
   // If sortable, use ListSortable wrapper
@@ -171,22 +259,29 @@ export function NodeListView({
   // Regular non-sortable list
   return (
     <div className={`node-list-view ${className}`}>
-      {nodes.map((node) => (
-        <NodeListItem
-          key={node.id}
-          node={node}
-          depth={depth}
-          editable={editable}
-          maxDepth={maxDepth}
-          showBullets={showBullets}
-          showIndentation={showIndentation}
-          siblings={nodes}
-          parentBlock={null}
-          onNodeClick={onNodeClick}
-          onNodeShiftClick={onNodeShiftClick}
-          onContentChange={onContentChange}
-        />
-      ))}
+      {nodes.map((node) => {
+        // Get page from pageMap if available
+        const page = node.page_id && pageMap ? pageMap.get(node.page_id) : undefined;
+        
+        return (
+          <NodeListItem
+            key={node.id}
+            node={node}
+            depth={depth}
+            editable={editable}
+            maxDepth={maxDepth}
+            showBullets={showBullets}
+            showIndentation={showIndentation}
+            showBreadcrumbs={showBreadcrumbs}
+            siblings={nodes}
+            parentBlock={null}
+            page={page}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            onContentChange={onContentChange}
+          />
+        );
+      })}
     </div>
   );
 }

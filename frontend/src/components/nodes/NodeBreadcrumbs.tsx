@@ -5,9 +5,12 @@
  * - For pages: Shows parent hierarchy, only visible if page has a parent
  * - For blocks: Shows path from page through parent blocks to current block
  * - For blocks from text properties: Shows page > property name path
+ * 
+ * Can be used standalone or as an inline breadcrumb for list items.
  */
 import { useMemo } from 'react';
 import { useNode } from '@/hooks';
+import type { Node } from '@/types';
 import { NodeIcon, ChevronRightIcon } from '../icons';
 import { Button } from '../core/Button';
 import './NodeBreadcrumbs.css';
@@ -210,6 +213,100 @@ export function NodeBreadcrumbs({
           )}
         </span>
       ))}
+    </nav>
+  );
+}
+
+/**
+ * InlineNodeBreadcrumbs - Simpler breadcrumbs for list items
+ * 
+ * Shows the breadcrumb path for a node inline, without needing hooks.
+ * Uses node data passed directly instead of fetching.
+ */
+export interface InlineNodeBreadcrumbsProps {
+  /** The node to show breadcrumbs for */
+  node: Node;
+  /** Parent page (if known) */
+  page?: Node | null;
+  /** Context string (e.g., "via property_name") */
+  context?: string;
+  /** Callback when clicking a breadcrumb item */
+  onNavigate?: (nodeId: number, nodeType: 'page' | 'block') => void;
+  /** Additional CSS class */
+  className?: string;
+  /** Whether to show as compact inline */
+  compact?: boolean;
+}
+
+export function InlineNodeBreadcrumbs({
+  node,
+  page,
+  context,
+  onNavigate,
+  className = '',
+  compact = true,
+}: InlineNodeBreadcrumbsProps) {
+  // Build breadcrumb items from available data
+  const breadcrumbs = useMemo((): BreadcrumbItem[] => {
+    const items: BreadcrumbItem[] = [];
+    
+    // For blocks, show the page first
+    if (!node.is_page && page) {
+      items.push({
+        id: page.id,
+        name: page.name || 'Untitled',
+        icon: page.icon,
+        isPage: true,
+      });
+    }
+    
+    // For pages with parent hierarchy, we could show that too
+    // But for inline use, we keep it simple
+    
+    return items;
+  }, [node, page]);
+  
+  // Don't render if no breadcrumbs and no context
+  if (breadcrumbs.length === 0 && !context) {
+    return null;
+  }
+  
+  const handleClick = (item: BreadcrumbItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onNavigate?.(item.id, item.isPage ? 'page' : 'block');
+  };
+
+  return (
+    <nav 
+      className={`node-breadcrumbs node-breadcrumbs--inline ${compact ? 'node-breadcrumbs--compact' : ''} ${className}`}
+      aria-label="Node path"
+    >
+      {breadcrumbs.map((item, index) => (
+        <span key={item.id} className="node-breadcrumb-item">
+          <Button 
+            variant="ghost"
+            size="xs"
+            className="node-breadcrumb-link"
+            onClick={(e) => handleClick(item, e)}
+            title={`Go to ${item.name}`}
+          >
+            {item.isPage ? (
+              <NodeIcon icon={item.icon} isPage={true} size="xs" />
+            ) : (
+              <span className="node-breadcrumb-bullet">•</span>
+            )}
+            <span className="node-breadcrumb-name">{item.name}</span>
+          </Button>
+          {(index < breadcrumbs.length - 1 || context) && (
+            <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
+          )}
+        </span>
+      ))}
+      {context && (
+        <span className="node-breadcrumb-item node-breadcrumb-context">
+          <span className="node-breadcrumb-context-text">{context}</span>
+        </span>
+      )}
     </nav>
   );
 }

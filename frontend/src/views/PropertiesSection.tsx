@@ -24,13 +24,14 @@ import { useNodesStore } from '@/stores';
 import type { Property, Node, TypeProperty, PropertyType } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
-import { CalendarIcon, ChevronRightIcon } from '../components/icons';
+import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
 import { NodePicker } from '../components/nodes/NodePicker';
 import { TextPropertyBlock } from '../components/blocks/TextPropertyBlock';
 import { PropertyPickerModal } from '../components/properties/PropertyPickerModal';
 import { PropertyConfigPanel } from '../components/properties/PropertyConfigPanel';
 import { Bullet } from '../components/blocks/Bullet';
+import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import './PropertiesSection.css';
 
 export type PropertiesSectionVariant = 'page' | 'block';
@@ -44,6 +45,8 @@ interface PropertiesSectionProps {
   showAddProperty?: boolean;
   onNavigateToNode?: (nodeId: number) => void;
   onOpenInSidebar?: (nodeId: number) => void;
+  /** Whether the section is collapsed by default */
+  defaultCollapsed?: boolean;
 }
 
 interface PropertyValueProps {
@@ -253,7 +256,9 @@ export function PropertiesSection({
   showAddProperty = true,
   onNavigateToNode,
   onOpenInSidebar,
+  defaultCollapsed = false,
 }: PropertiesSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
   const [showPickerModal, setShowPickerModal] = useState(false);
   const [showConfigPanel, setShowConfigPanel] = useState(false);
@@ -508,156 +513,166 @@ export function PropertiesSection({
   }
 
   return (
-    <section className={`properties-view ${variantClass} ${className}`}>
-      {/* Visible properties (those with values) */}
-      <div className="properties-list">
-        {visibleProperties.map(({ property, value, source }) => (
-          <div key={property.id} className="property-row">
-            <Button 
-              variant="ghost"
-              className="property-label property-label-clickable"
-              onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
-              title="Click to edit property"
-            >
-              {property.icon && <span className="property-icon">{property.icon}</span>}
-              <span className="property-name">{property.name}</span>
-              {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
-            </Button>
-            <div className="property-value-container">
-              <div className="property-value-wrapper">
-                {/* Decorative bullet for non-text properties */}
-                {property.type !== 'text' && (
-                  <Bullet interactive={false} size="xs" />
-                )}
-                {/* Interactive bullet for text properties - clicking opens block in focused view */}
-                {property.type === 'text' && (
-                  <Bullet 
-                    nodeId={typeof value === 'number' ? value : undefined}
-                    interactive={!readOnly && typeof value === 'number'}
-                    onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
-                    onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
-                    size="xs"
+    <NodeViewSection
+      title="Properties"
+      icon={<PropertiesIcon size="sm" />}
+      count={nodeProperties.length}
+      className={`properties-section ${variantClass} ${className}`}
+      expanded={isExpanded}
+      onExpandedChange={setIsExpanded}
+      hideWhenEmpty={true}
+    >
+      <section className={`properties-view ${variantClass}`}>
+        {/* Visible properties (those with values) */}
+        <div className="properties-list">
+          {visibleProperties.map(({ property, value, source }) => (
+            <div key={property.id} className="property-row">
+              <Button 
+                variant="ghost"
+                className="property-label property-label-clickable"
+                onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
+                title="Click to edit property"
+              >
+                {property.icon && <span className="property-icon">{property.icon}</span>}
+                <span className="property-name">{property.name}</span>
+                {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
+              </Button>
+              <div className="property-value-container">
+                <div className="property-value-wrapper">
+                  {/* Decorative bullet for non-text properties */}
+                  {property.type !== 'text' && (
+                    <Bullet interactive={false} size="xs" />
+                  )}
+                  {/* Interactive bullet for text properties - clicking opens block in focused view */}
+                  {property.type === 'text' && (
+                    <Bullet 
+                      nodeId={typeof value === 'number' ? value : undefined}
+                      interactive={!readOnly && typeof value === 'number'}
+                      onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
+                      onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
+                      size="xs"
+                    />
+                  )}
+                  <PropertyValue
+                    property={property}
+                    nodeId={nodeId}
+                    value={value}
+                    readOnly={readOnly || setPropertyMutation.isPending}
+                    onChange={(newValue) => handlePropertyChange(property.id, newValue)}
+                    onNavigateToNode={onNavigateToNode}
+                    onCreatePage={handleCreatePage}
+                    onOpenInSidebar={onOpenInSidebar}
+                    onPropertyChange={handlePropertyChange}
+                    onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
                   />
-                )}
-                <PropertyValue
-                  property={property}
-                  nodeId={nodeId}
-                  value={value}
-                  readOnly={readOnly || setPropertyMutation.isPending}
-                  onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-                  onNavigateToNode={onNavigateToNode}
-                  onCreatePage={handleCreatePage}
-                  onOpenInSidebar={onOpenInSidebar}
-                  onPropertyChange={handlePropertyChange}
-                  onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
-                />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Hidden properties section (properties without values) */}
-      {showHiddenSection && hiddenProperties.length > 0 && (
-        <div className="properties-hidden-section">
-          <Button 
-            variant="ghost"
-            className={`properties-hidden-toggle ${showHidden ? 'expanded' : ''}`}
-            onClick={() => setShowHidden(!showHidden)}
-          >
-            <ChevronRightIcon size="xs" />
-            <span>Hidden properties</span>
-          </Button>
-          
-          {showHidden && (
-            <div className="properties-hidden-list">
-              {hiddenProperties.map(({ property, value, source: _source }) => (
-                <div key={property.id} className="property-row">
-                  <Button 
-                    variant="ghost"
-                    className="property-label property-label-clickable"
-                    onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
-                    title="Click to edit property"
-                  >
-                    {property.icon && <span className="property-icon">{property.icon}</span>}
-                    <span className="property-name">{property.name}</span>
-                  </Button>
-                  <div className="property-value-container">
-                    <div className="property-value-wrapper">
-                      {/* Decorative bullet for non-text properties */}
-                      {property.type !== 'text' && (
-                        <Bullet interactive={false} size="xs" />
-                      )}
-                      {/* Interactive bullet for text properties */}
-                      {property.type === 'text' && (
-                        <Bullet 
-                          nodeId={typeof value === 'number' ? value : undefined}
-                          interactive={!readOnly && typeof value === 'number'}
-                          onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
-                          onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
-                          size="xs"
+        {/* Hidden properties section (properties without values) */}
+        {showHiddenSection && hiddenProperties.length > 0 && (
+          <div className="properties-hidden-section">
+            <Button 
+              variant="ghost"
+              className={`properties-hidden-toggle ${showHidden ? 'expanded' : ''}`}
+              onClick={() => setShowHidden(!showHidden)}
+            >
+              <ChevronRightIcon size="xs" />
+              <span>Hidden properties</span>
+            </Button>
+            
+            {showHidden && (
+              <div className="properties-hidden-list">
+                {hiddenProperties.map(({ property, value, source: _source }) => (
+                  <div key={property.id} className="property-row">
+                    <Button 
+                      variant="ghost"
+                      className="property-label property-label-clickable"
+                      onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
+                      title="Click to edit property"
+                    >
+                      {property.icon && <span className="property-icon">{property.icon}</span>}
+                      <span className="property-name">{property.name}</span>
+                    </Button>
+                    <div className="property-value-container">
+                      <div className="property-value-wrapper">
+                        {/* Decorative bullet for non-text properties */}
+                        {property.type !== 'text' && (
+                          <Bullet interactive={false} size="xs" />
+                        )}
+                        {/* Interactive bullet for text properties */}
+                        {property.type === 'text' && (
+                          <Bullet 
+                            nodeId={typeof value === 'number' ? value : undefined}
+                            interactive={!readOnly && typeof value === 'number'}
+                            onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
+                            onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
+                            size="xs"
+                          />
+                        )}
+                        <PropertyValue
+                          property={property}
+                          nodeId={nodeId}
+                          value={value}
+                          readOnly={readOnly || setPropertyMutation.isPending}
+                          onChange={(newValue) => handlePropertyChange(property.id, newValue)}
+                          onNavigateToNode={onNavigateToNode}
+                          onCreatePage={handleCreatePage}
+                          onOpenInSidebar={onOpenInSidebar}
+                          onPropertyChange={handlePropertyChange}
+                          onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
                         />
-                      )}
-                      <PropertyValue
-                        property={property}
-                        nodeId={nodeId}
-                        value={value}
-                        readOnly={readOnly || setPropertyMutation.isPending}
-                        onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-                        onNavigateToNode={onNavigateToNode}
-                        onCreatePage={handleCreatePage}
-                        onOpenInSidebar={onOpenInSidebar}
-                        onPropertyChange={handlePropertyChange}
-                        onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
-                      />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Add property button */}
-      {showAddProperty && !readOnly && (
-        <div className="properties-add">
-          <Button 
-            icon={mdiPlus}
-            className="properties-add-btn" 
-            onClick={() => setShowPickerModal(true)}
-            title="Add property"
-            size="sm"
-            variant="ghost"
-          >
-            Add property
-          </Button>
-        </div>
-      )}
+        {/* Add property button */}
+        {showAddProperty && !readOnly && (
+          <div className="properties-add">
+            <Button 
+              icon={mdiPlus}
+              className="properties-add-btn" 
+              onClick={() => setShowPickerModal(true)}
+              title="Add property"
+              size="sm"
+              variant="ghost"
+            >
+              Add property
+            </Button>
+          </div>
+        )}
 
-      {/* Property Picker Modal */}
-      <PropertyPickerModal
-        isOpen={showPickerModal}
-        onClose={() => setShowPickerModal(false)}
-        onSelect={handleSelectProperty}
-        onCreate={handleCreateProperty}
-        excludeIds={appliedPropertyIds}
-      />
+        {/* Property Picker Modal */}
+        <PropertyPickerModal
+          isOpen={showPickerModal}
+          onClose={() => setShowPickerModal(false)}
+          onSelect={handleSelectProperty}
+          onCreate={handleCreateProperty}
+          excludeIds={appliedPropertyIds}
+        />
 
-      {/* Property Config Panel */}
-      <PropertyConfigPanel
-        isOpen={showConfigPanel}
-        property={editingProperty}
-        position={configPanelPosition}
-        onClose={() => {
-          setShowConfigPanel(false);
-          setEditingProperty(null);
-        }}
-        onUpdate={handlePropertyUpdate}
-        onDelete={handlePropertyDelete}
-        onOpenPropertyView={handleOpenPropertyView}
-      />
-    </section>
+        {/* Property Config Panel */}
+        <PropertyConfigPanel
+          isOpen={showConfigPanel}
+          property={editingProperty}
+          position={configPanelPosition}
+          onClose={() => {
+            setShowConfigPanel(false);
+            setEditingProperty(null);
+          }}
+          onUpdate={handlePropertyUpdate}
+          onDelete={handlePropertyDelete}
+          onOpenPropertyView={handleOpenPropertyView}
+        />
+      </section>
+    </NodeViewSection>
   );
 }
 

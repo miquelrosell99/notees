@@ -77,6 +77,39 @@ export interface NodeCollectionProps {
   /** Group by option (for grouped views) */
   groupBy?: 'none' | 'page' | 'type' | 'date';
   
+  /** Columns for table view (optional, uses defaults if not provided) */
+  tableColumns?: {
+    key: string;
+    label: string;
+    width?: string;
+    render?: (node: Node) => ReactNode;
+  }[];
+  
+  /** 
+   * Whether to provide block callbacks via context.
+   * When true with blockCallbacks provided, wraps content in BlockCallbacksProvider.
+   * When true without blockCallbacks, uses default callbacks from hooks.
+   * When false/undefined, no provider is used (Block becomes effectively read-only).
+   */
+  provideBlockCallbacks?: boolean;
+  
+  /** 
+   * Custom block callbacks to provide via context.
+   * Only used when provideBlockCallbacks is true.
+   */
+  blockCallbacks?: {
+    onAddType?: (blockId: number, typeNodeId: number, keepInline: boolean, typeName: string) => void;
+    onAddTag?: (blockId: number, tagNodeId: number, keepInline: boolean, tagName: string) => void;
+    onCreateType?: (blockId: number, name: string, keepInline: boolean) => void;
+    onCreateTag?: (blockId: number, name: string, keepInline: boolean) => void;
+    onCreatePageLink?: (name: string) => Promise<string | undefined>;
+    onOpenComments?: (blockId: number) => void;
+    onAssetUpload?: (blockId: number, assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) => void;
+    onOpenBacklinks?: (blockId: number) => void;
+    getCommentCount?: (block: Node) => number;
+    getBacklinkCount?: (block: Node) => number;
+  };
+  
   /** Whether to show empty state */
   showEmpty?: boolean;
   
@@ -131,6 +164,9 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   /** Whether to show indentation (default: true) */
   showIndentation?: boolean;
   
+  /** Whether to show breadcrumbs for top-level nodes (default: true) */
+  showBreadcrumbs?: boolean;
+  
   /** Whether list is sortable (enables drag-and-drop reordering) */
   sortable?: boolean;
   
@@ -139,6 +175,9 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   
   /** Action to render on each item (for remove buttons, etc.) */
   renderItemAction?: (node: Node, index: number) => ReactNode;
+  
+  /** Page map for breadcrumb resolution */
+  pageMap?: Map<number, Node>;
 }
 
 /**
