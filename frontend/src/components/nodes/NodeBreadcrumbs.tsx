@@ -11,8 +11,8 @@
 import { useMemo } from 'react';
 import { useNode } from '@/hooks';
 import type { Node } from '@/types';
-import { NodeIcon, ChevronRightIcon } from '../icons';
-import { Button } from '../core/Button';
+import { ChevronRightIcon } from '../icons';
+import { BlockPreview } from '../blocks/BlockPreview';
 import './NodeBreadcrumbs.css';
 
 export interface BreadcrumbItem {
@@ -192,22 +192,15 @@ export function NodeBreadcrumbs({
     >
       {breadcrumbs.map((item, index) => (
         <span key={item.isProperty ? `prop-${item.id}` : item.id} className="node-breadcrumb-item">
-          <Button 
-            variant="ghost"
-            size="xs"
-            className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
+          <BlockPreview
+            variant="simple"
+            content={item.name}
+            icon={item.icon}
+            showBullet={!!item.icon}
+            propertyName={item.isProperty ? item.name : undefined}
             onClick={() => handleClick(item)}
-            title={item.isProperty ? `View property: ${item.name}` : `Go to ${item.name}`}
-          >
-            {item.isPage ? (
-              <NodeIcon icon={item.icon} isPage={true} size="xs" />
-            ) : item.isProperty ? (
-              <span className="node-breadcrumb-property-icon">⚙</span>
-            ) : (
-              <span className="node-breadcrumb-bullet">•</span>
-            )}
-            <span className="node-breadcrumb-name">{item.name}</span>
-          </Button>
+            className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
+          />
           {index < breadcrumbs.length - 1 && (
             <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
           )}
@@ -283,20 +276,14 @@ export function InlineNodeBreadcrumbs({
     >
       {breadcrumbs.map((item, index) => (
         <span key={item.id} className="node-breadcrumb-item">
-          <Button 
-            variant="ghost"
-            size="xs"
+          <BlockPreview
+            variant="simple"
+            content={item.name}
+            icon={item.icon}
+            showBullet={!!item.icon}
+            onClick={() => onNavigate?.(item.id, item.isPage ? 'page' : 'block')}
             className="node-breadcrumb-link"
-            onClick={(e) => handleClick(item, e)}
-            title={`Go to ${item.name}`}
-          >
-            {item.isPage ? (
-              <NodeIcon icon={item.icon} isPage={true} size="xs" />
-            ) : (
-              <span className="node-breadcrumb-bullet">•</span>
-            )}
-            <span className="node-breadcrumb-name">{item.name}</span>
-          </Button>
+          />
           {(index < breadcrumbs.length - 1 || context) && (
             <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
           )}

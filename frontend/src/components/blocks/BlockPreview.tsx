@@ -64,6 +64,8 @@ export interface BlockPreviewProps {
   size?: BlockPreviewSize;
   /** Show placeholder text for empty blocks */
   showEmptyPlaceholder?: boolean;
+  /** Property name to display (for breadcrumbs context) */
+  propertyName?: string;
   
   // Event handlers
   /** Click handler */
@@ -90,6 +92,7 @@ export function BlockPreview({
   maxLines = 0,
   size = 'md',
   showEmptyPlaceholder = false,
+  propertyName,
   onClick,
   onShiftClick,
   onBulletClick,
@@ -176,6 +179,11 @@ export function BlockPreview({
             )
           )}
         </div>
+      )}
+      
+      {/* Property name (for breadcrumbs) */}
+      {propertyName && (
+        <span className="block-preview__property-name">{propertyName}</span>
       )}
       
       {/* Icon (card variant with showIcon) */}
