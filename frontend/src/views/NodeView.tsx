@@ -290,6 +290,17 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
     });
   }, [node, createPage, addTag]);
   
+  // Handle creating a new page link (from [[ menu)
+  const handleCreatePageLink = useCallback(async (name: string): Promise<string | undefined> => {
+    try {
+      const newPage = await createPage.mutateAsync({ name });
+      return String(newPage.id);
+    } catch (error) {
+      console.error('Failed to create page for link:', error);
+      return undefined;
+    }
+  }, [createPage]);
+  
   // Handle opening comments
   const handleOpenComments = useCallback(() => {
     if (!node) return;
@@ -407,6 +418,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false }: No
               onAddTag={handleAddTag}
               onCreateType={handleCreateType}
               onCreateTag={handleCreateTag}
+              onCreatePageLink={handleCreatePageLink}
               onOpenComments={handleOpenComments}
               readOnly={false}
             />

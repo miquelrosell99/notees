@@ -110,6 +110,17 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
     });
   }, [createPage, addTag]);
 
+  // Handle creating a new page link (from [[ menu)
+  const handleCreatePageLink = useCallback(async (name: string): Promise<string | undefined> => {
+    try {
+      const newPage = await createPage.mutateAsync({ name });
+      return String(newPage.id);
+    } catch (error) {
+      console.error('Failed to create page for link:', error);
+      return undefined;
+    }
+  }, [createPage]);
+
   // Handle opening comments
   const handleOpenComments = useCallback((blockId: number) => () => {
     openCommentsForNode(blockId);
@@ -204,6 +215,7 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
               onAddTag={handleAddTag(node.id)}
               onCreateType={handleCreateType(node.id)}
               onCreateTag={handleCreateTag(node.id)}
+              onCreatePageLink={handleCreatePageLink}
               onOpenComments={handleOpenComments(node.id)}
               readOnly={false}
             />
@@ -229,6 +241,7 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
                   onAddTag={handleAddTag(child.id)}
                   onCreateType={handleCreateType(child.id)}
                   onCreateTag={handleCreateTag(child.id)}
+                  onCreatePageLink={handleCreatePageLink}
                   onOpenComments={handleOpenComments(child.id)}
                   commentCount={child.comment_count}
                   backlinkCount={child.backlink_count}
