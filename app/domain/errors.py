@@ -70,6 +70,18 @@ class CircularReferenceError(NodeError):
         )
 
 
+class SystemTypeConstraintError(NodeError):
+    """Raised when an operation violates system type constraints.
+    
+    Examples:
+    - Trying to add/remove day, month, year types manually
+    - Trying to remove 'type' from system type nodes
+    """
+    
+    def __init__(self, message: str):
+        super().__init__(message=message, code="SYSTEM_TYPE_CONSTRAINT")
+
+
 # ==================== User Errors ====================
 
 class UserError(DomainError):
