@@ -2,8 +2,17 @@
  * Table Component
  * 
  * A flexible table component with sorting, selection, and styling options.
+ * 
+ * Features:
+ * - Configurable columns with custom renderers
+ * - Row selection (single/multi)
+ * - Sorting (client-side or custom)
+ * - Expandable rows with nested children
+ * - Drag-and-drop row reordering
+ * - Depth-based row indentation
  */
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { Checkbox } from './Checkbox';
 import './Table.css';
 
 export type TableSize = 'sm' | 'md' | 'lg';
@@ -29,6 +38,26 @@ export interface TableColumn<T> {
   hideOnMobile?: boolean;
 }
 
+/** Configuration for expandable rows */
+export interface ExpandableConfig<T> {
+  /** Function to get children from a row */
+  getChildren: (row: T) => T[];
+  /** Whether a row can be expanded (default: has children) */
+  canExpand?: (row: T) => boolean;
+  /** Custom expand icon renderer */
+  renderExpandIcon?: (expanded: boolean) => ReactNode;
+  /** Maximum nesting depth (default: unlimited) */
+  maxDepth?: number;
+}
+
+/** Configuration for row reordering */
+export interface ReorderableConfig {
+  /** Callback when rows are reordered */
+  onReorder: (fromIndex: number, toIndex: number) => void;
+  /** Custom drag handle icon renderer */
+  renderDragHandle?: () => ReactNode;
+}
+
 export interface TableProps<T> {
   /** Array of data items */
   data: T[];
@@ -48,6 +77,8 @@ export interface TableProps<T> {
   onSelectionChange?: (keys: Set<string | number>) => void;
   /** Row click handler */
   onRowClick?: (row: T) => void;
+  /** Row shift+click handler */
+  onRowShiftClick?: (row: T) => void;
   /** Whether the table is loading */
   loading?: boolean;
   /** Empty state content */
@@ -60,10 +91,47 @@ export interface TableProps<T> {
   hoverable?: boolean;
   /** Additional className */
   className?: string;
+  /** Expandable row configuration */
+  expandable?: ExpandableConfig<T>;
+  /** Reorderable row configuration */
+  reorderable?: ReorderableConfig;
+  /** Get custom className for a row */
+  getRowClassName?: (row: T, index: number, depth: number) => string;
+  /** Current rendering depth (for nested tables) */
+  depth?: number;
+  /** Controlled expanded keys */
+  expandedKeys?: Set<string | number>;
+  /** Callback when expanded keys change */
+  onExpandedChange?: (keys: Set<string | number>) => void;
 }
+
+/** Default expand icons */
+const DefaultExpandIcon = ({ expanded }: { expanded: boolean }) => (
+  <svg 
+    viewBox="0 0 16 16" 
+    fill="currentColor" 
+    className="table-expand-icon"
+    style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}
+  >
+    <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+/** Default drag handle icon */
+const DefaultDragHandle = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" className="table-drag-icon">
+    <circle cx="5" cy="4" r="1.5" />
+    <circle cx="11" cy="4" r="1.5" />
+    <circle cx="5" cy="8" r="1.5" />
+    <circle cx="11" cy="8" r="1.5" />
+    <circle cx="5" cy="12" r="1.5" />
+    <circle cx="11" cy="12" r="1.5" />
+  </svg>
+);
 
 /**
  * Table component for displaying tabular data.
+ * Supports sorting, selection, expandable rows, and drag-and-drop reordering.
  */
 export function Table<T>({
   data,
@@ -75,15 +143,32 @@ export function Table<T>({
   selectedKeys,
   onSelectionChange,
   onRowClick,
+  onRowShiftClick,
   loading = false,
   emptyContent = 'No data',
   caption,
   showHeader = true,
   hoverable = true,
   className = '',
+  expandable,
+  reorderable,
+  getRowClassName,
+  depth = 0,
+  expandedKeys: controlledExpandedKeys,
+  onExpandedChange,
 }: TableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  
+  // Internal expanded state (when uncontrolled)
+  const [internalExpandedKeys, setInternalExpandedKeys] = useState<Set<string | number>>(new Set());
+  const expandedKeys = controlledExpandedKeys ?? internalExpandedKeys;
+  
+  // Drag state for reorderable rows
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rowHeightRef = useRef(40);
 
   const handleSort = useCallback((column: TableColumn<T>) => {
     if (!column.sortable) return;
@@ -103,26 +188,30 @@ export function Table<T>({
     }
   }, [sortColumn, sortDirection]);
 
-  const handleRowSelect = useCallback((key: string | number, event: React.MouseEvent) => {
+  const handleToggleExpand = useCallback((key: string | number) => {
+    const newExpanded = new Set(expandedKeys);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    
+    if (onExpandedChange) {
+      onExpandedChange(newExpanded);
+    } else {
+      setInternalExpandedKeys(newExpanded);
+    }
+  }, [expandedKeys, onExpandedChange]);
+
+  const handleToggleSelect = useCallback((key: string | number) => {
     if (!selectable || !onSelectionChange) return;
 
     const newSelection = new Set(selectedKeys);
-    
-    if (event.shiftKey && selectedKeys) {
-      // Range selection - not implemented here for simplicity
-    } else if (event.ctrlKey || event.metaKey) {
-      // Toggle selection
-      if (newSelection.has(key)) {
-        newSelection.delete(key);
-      } else {
-        newSelection.add(key);
-      }
+    if (newSelection.has(key)) {
+      newSelection.delete(key);
     } else {
-      // Single selection
-      newSelection.clear();
       newSelection.add(key);
     }
-
     onSelectionChange(newSelection);
   }, [selectable, selectedKeys, onSelectionChange]);
 
@@ -135,6 +224,68 @@ export function Table<T>({
       onSelectionChange(new Set(data.map(getRowKey)));
     }
   }, [selectable, selectedKeys, data, getRowKey, onSelectionChange]);
+
+  const handleRowClick = useCallback((row: T, e: React.MouseEvent) => {
+    if (e.shiftKey && onRowShiftClick) {
+      e.preventDefault();
+      onRowShiftClick(row);
+    } else {
+      onRowClick?.(row);
+    }
+  }, [onRowClick, onRowShiftClick]);
+
+  // Measure row height for drag calculation
+  useEffect(() => {
+    if (containerRef.current && reorderable) {
+      const firstRow = containerRef.current.querySelector('.table-row:not(.table-row--header)') as HTMLElement;
+      if (firstRow) {
+        rowHeightRef.current = firstRow.offsetHeight;
+      }
+    }
+  }, [data.length, reorderable]);
+
+  // Handle drag start
+  const handleDragStart = useCallback((index: number, e: React.MouseEvent) => {
+    if (!reorderable) return;
+    e.preventDefault();
+    setDragIndex(index);
+    setDropTargetIndex(index);
+  }, [reorderable]);
+
+  // Handle drag move and end
+  useEffect(() => {
+    if (dragIndex === null || !reorderable) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const tbody = container.querySelector('.table-body');
+      if (!tbody) return;
+      
+      const tbodyRect = tbody.getBoundingClientRect();
+      const mouseY = e.clientY - tbodyRect.top;
+      const rowHeight = rowHeightRef.current;
+      const targetIndex = Math.max(0, Math.min(data.length - 1, Math.floor(mouseY / rowHeight)));
+      setDropTargetIndex(targetIndex);
+    };
+
+    const handleMouseUp = () => {
+      if (dragIndex !== null && dropTargetIndex !== null && dragIndex !== dropTargetIndex) {
+        reorderable.onReorder(dragIndex, dropTargetIndex);
+      }
+      setDragIndex(null);
+      setDropTargetIndex(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragIndex, dropTargetIndex, data.length, reorderable]);
 
   // Sort data
   const sortedData = [...data];
@@ -154,8 +305,19 @@ export function Table<T>({
     }
   }
 
+  // Compute selection state
+  const allSelected = data.length > 0 && data.every(row => selectedKeys?.has(getRowKey(row)));
+  const someSelected = data.some(row => selectedKeys?.has(getRowKey(row))) && !allSelected;
+
+  // Calculate colspan for loading/empty states
+  const extraColumns = 
+    (selectable ? 1 : 0) + 
+    (reorderable ? 1 : 0) + 
+    (expandable ? 1 : 0);
+
   const containerClasses = [
     'table-container',
+    reorderable ? 'table-container--reorderable' : '',
     className,
   ]
     .filter(Boolean)
@@ -171,8 +333,115 @@ export function Table<T>({
     .filter(Boolean)
     .join(' ');
 
+  // Recursive row renderer for expandable tables
+  const renderRow = (row: T, index: number, currentDepth: number): ReactNode => {
+    const key = getRowKey(row);
+    const isSelected = selectedKeys?.has(key);
+    const isExpanded = expandedKeys.has(key);
+    const isDragging = dragIndex === index && currentDepth === depth;
+    const isDropTarget = dropTargetIndex === index && dragIndex !== null && dragIndex !== index && currentDepth === depth;
+    
+    // Check if row has children and can be expanded
+    const children = expandable?.getChildren(row) ?? [];
+    const canExpand = expandable?.canExpand 
+      ? expandable.canExpand(row) 
+      : children.length > 0;
+    const maxDepth = expandable?.maxDepth ?? Infinity;
+    const shouldShowChildren = isExpanded && currentDepth < maxDepth && children.length > 0;
+
+    const customRowClass = getRowClassName?.(row, index, currentDepth) ?? '';
+    const rowClasses = [
+      'table-row',
+      `table-row--depth-${currentDepth}`,
+      isSelected ? 'table-row--selected' : '',
+      isDragging ? 'table-row--dragging' : '',
+      isDropTarget ? 'table-row--drop-target' : '',
+      customRowClass,
+    ].filter(Boolean).join(' ');
+
+    return (
+      <>
+        <tr
+          key={key}
+          className={rowClasses}
+          onClick={(e) => handleRowClick(row, e)}
+        >
+          {/* Checkbox column */}
+          {selectable && (
+            <td className="table-cell table-cell--checkbox" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                size={size === 'lg' ? 'md' : 'sm'}
+                checked={isSelected}
+                onChange={() => handleToggleSelect(key)}
+              />
+            </td>
+          )}
+          
+          {/* Drag handle column */}
+          {reorderable && currentDepth === depth && (
+            <td className="table-cell table-cell--drag">
+              <button
+                className="table-drag-handle"
+                onMouseDown={(e) => handleDragStart(index, e)}
+                onClick={(e) => e.stopPropagation()}
+                title="Drag to reorder"
+              >
+                {reorderable.renderDragHandle?.() ?? <DefaultDragHandle />}
+              </button>
+            </td>
+          )}
+          {reorderable && currentDepth !== depth && (
+            <td className="table-cell table-cell--drag" />
+          )}
+          
+          {/* Expand column */}
+          {expandable && (
+            <td className="table-cell table-cell--expand">
+              {canExpand ? (
+                <button 
+                  className="table-expand-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleExpand(key);
+                  }}
+                >
+                  {expandable.renderExpandIcon 
+                    ? expandable.renderExpandIcon(isExpanded)
+                    : <DefaultExpandIcon expanded={isExpanded} />
+                  }
+                </button>
+              ) : (
+                <span className="table-expand-placeholder" />
+              )}
+            </td>
+          )}
+          
+          {/* Data columns */}
+          {columns.map(column => (
+            <td
+              key={column.key}
+              className={[
+                'table-cell',
+                column.align ? `table-cell--${column.align}` : '',
+                column.hideOnMobile ? 'table-cell--hide-mobile' : '',
+              ].filter(Boolean).join(' ')}
+              style={{ width: column.width }}
+            >
+              {column.accessor(row)}
+            </td>
+          ))}
+        </tr>
+        
+        {/* Render children if expanded */}
+        {shouldShowChildren && children.map((child, childIndex) => 
+          renderRow(child, childIndex, currentDepth + 1)
+        )}
+      </>
+    );
+  };
+
   return (
-    <div className={containerClasses}>
+    <div className={containerClasses} ref={containerRef}>
       <table className={tableClasses}>
         {caption && <caption className="table-caption">{caption}</caption>}
         
@@ -181,14 +450,16 @@ export function Table<T>({
             <tr className="table-row table-row--header">
               {selectable && (
                 <th className="table-cell table-cell--checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selectedKeys?.size === data.length && data.length > 0}
+                  <Checkbox
+                    size={size === 'lg' ? 'md' : 'sm'}
+                    checked={allSelected}
+                    indeterminate={someSelected}
                     onChange={handleSelectAll}
-                    aria-label="Select all"
                   />
                 </th>
               )}
+              {reorderable && <th className="table-cell table-cell--drag" />}
+              {expandable && <th className="table-cell table-cell--expand" />}
               {columns.map(column => (
                 <th
                   key={column.key}
@@ -226,60 +497,18 @@ export function Table<T>({
         <tbody className="table-body">
           {loading ? (
             <tr className="table-row table-row--loading">
-              <td colSpan={columns.length + (selectable ? 1 : 0)} className="table-cell table-cell--loading">
+              <td colSpan={columns.length + extraColumns} className="table-cell table-cell--loading">
                 Loading...
               </td>
             </tr>
           ) : sortedData.length === 0 ? (
             <tr className="table-row table-row--empty">
-              <td colSpan={columns.length + (selectable ? 1 : 0)} className="table-cell table-cell--empty">
+              <td colSpan={columns.length + extraColumns} className="table-cell table-cell--empty">
                 {emptyContent}
               </td>
             </tr>
           ) : (
-            sortedData.map(row => {
-              const key = getRowKey(row);
-              const isSelected = selectedKeys?.has(key);
-
-              return (
-                <tr
-                  key={key}
-                  className={[
-                    'table-row',
-                    isSelected ? 'table-row--selected' : '',
-                  ].filter(Boolean).join(' ')}
-                  onClick={(e) => {
-                    if (selectable) handleRowSelect(key, e);
-                    onRowClick?.(row);
-                  }}
-                >
-                  {selectable && (
-                    <td className="table-cell table-cell--checkbox">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => {}}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`Select row ${key}`}
-                      />
-                    </td>
-                  )}
-                  {columns.map(column => (
-                    <td
-                      key={column.key}
-                      className={[
-                        'table-cell',
-                        column.align ? `table-cell--${column.align}` : '',
-                        column.hideOnMobile ? 'table-cell--hide-mobile' : '',
-                      ].filter(Boolean).join(' ')}
-                      style={{ width: column.width }}
-                    >
-                      {column.accessor(row)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })
+            sortedData.map((row, index) => renderRow(row, index, depth))
           )}
         </tbody>
       </table>

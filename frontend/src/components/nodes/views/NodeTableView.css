@@ -1,103 +1,15 @@
 /**
  * NodeTableView CSS
  * 
- * Styles for table view mode
+ * Node-specific styles for table view mode.
+ * Base table styles are in core/Table.css
  */
 
 .node-table-view {
   width: 100%;
-  overflow-x: auto;
 }
 
-.node-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-  border: 1px solid var(--border-color);
-}
-
-/* Header */
-.node-table thead {
-  background: var(--bg-secondary);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.node-table th {
-  padding: 0.75rem 1rem;
-  text-align: left;
-  font-weight: 600;
-  border: 1px solid var(--border-color);
-  white-space: nowrap;
-}
-
-.node-table__expand-header {
-  width: 32px;
-}
-
-/* Rows */
-.node-table__row {
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.node-table__row:hover {
-  background: var(--bg-hover);
-}
-
-.node-table td {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
-  vertical-align: middle;
-}
-
-/* Depth indentation */
-.node-table__row--depth-1 td:first-child {
-  padding-left: 2rem;
-}
-
-.node-table__row--depth-2 td:first-child {
-  padding-left: 3rem;
-}
-
-.node-table__row--depth-3 td:first-child {
-  padding-left: 4rem;
-}
-
-/* Expand button */
-.node-table__expand-cell {
-  width: 32px;
-  padding: 0.5rem !important;
-}
-
-.node-table__expand-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text-muted);
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.node-table__expand-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.node-table__expand-placeholder {
-  display: block;
-  width: 24px;
-  height: 24px;
-}
-
-/* Name cell */
+/* Node-specific name cell */
 .node-table__name-cell {
   display: flex;
   align-items: center;
@@ -110,90 +22,13 @@
   white-space: nowrap;
 }
 
-/* Date cell */
+/* Node-specific date cell */
 .node-table__date {
   color: var(--text-muted);
 }
 
-/* Count cell */
+/* Node-specific count cell */
 .node-table__count {
   color: var(--text-tertiary);
   font-size: 0.75rem;
-}
-
-/* Drag handle */
-.node-table__drag-header {
-  width: 32px;
-}
-
-.node-table__drag-cell {
-  width: 32px;
-  padding: 0.5rem 0 0.5rem 0.5rem !important;
-}
-
-.node-table__drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  cursor: grab;
-  color: var(--text-tertiary);
-  opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
-}
-
-.node-table__drag-handle:hover,
-.node-table__drag-handle:focus {
-  opacity: 1;
-}
-
-.node-table__drag-handle:hover {
-  background: var(--bg-hover);
-  color: var(--text-muted);
-}
-
-.node-table__drag-handle:active {
-  cursor: grabbing;
-}
-
-/* Dragging states */
-.node-table__row--dragging {
-  opacity: 0.5;
-  background: var(--bg-secondary);
-}
-
-.node-table__row--drop-target {
-  box-shadow: inset 0 -2px 0 var(--accent-color);
-}
-
-.node-table-view--sortable {
-  user-select: none;
-}
-
-/* Checkbox column */
-.node-table__checkbox-header {
-  width: 40px;
-}
-
-.node-table__checkbox-cell {
-  width: 40px;
-  text-align: center;
-}
-
-.node-table__checkbox-cell .checkbox-container {
-  justify-content: center;
-}
-
-/* Selected row */
-.node-table__row--selected {
-  background: var(--selection-bg, rgba(var(--accent-color-rgb), 0.1));
-}
-
-.node-table__row--selected:hover {
-  background: var(--selection-bg-hover, rgba(var(--accent-color-rgb), 0.15));
 }

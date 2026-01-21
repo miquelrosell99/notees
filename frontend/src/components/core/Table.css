@@ -113,8 +113,119 @@
   text-align: center;
 }
 
-.table-cell--checkbox input[type="checkbox"] {
+.table-cell--checkbox .checkbox-container {
+  justify-content: center;
+}
+
+/* Drag handle column */
+.table-cell--drag {
+  width: 32px;
+  padding: var(--spacing-1, 4px) !important;
+}
+
+.table-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: grab;
+  color: var(--text-tertiary, var(--text-muted));
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.table-row:hover .table-drag-handle,
+.table-drag-handle:hover,
+.table-drag-handle:focus {
+  opacity: 1;
+}
+
+.table-drag-handle:hover {
+  background: var(--color-surface-hover, var(--bg-hover));
+  color: var(--text-secondary, var(--text-muted));
+}
+
+.table-drag-handle:active {
+  cursor: grabbing;
+}
+
+.table-drag-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Expand column */
+.table-cell--expand {
+  width: 32px;
+  padding: var(--spacing-1, 4px) !important;
+}
+
+.table-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
   cursor: pointer;
+  color: var(--text-muted, var(--text-secondary));
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.table-expand-btn:hover {
+  background: var(--color-surface-hover, var(--bg-hover));
+  color: var(--text-primary);
+}
+
+.table-expand-icon {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease;
+}
+
+.table-expand-placeholder {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+/* Depth indentation for nested rows */
+.table-row--depth-1 > td:first-child {
+  padding-left: calc(var(--spacing-4, 16px) + var(--spacing-3, 12px));
+}
+
+.table-row--depth-2 > td:first-child {
+  padding-left: calc(var(--spacing-4, 16px) + var(--spacing-6, 24px));
+}
+
+.table-row--depth-3 > td:first-child {
+  padding-left: calc(var(--spacing-4, 16px) + var(--spacing-8, 32px));
+}
+
+.table-row--depth-4 > td:first-child {
+  padding-left: calc(var(--spacing-4, 16px) + var(--spacing-10, 40px));
+}
+
+/* Dragging states */
+.table-row--dragging {
+  opacity: 0.5;
+  background: var(--color-surface-variant, var(--bg-secondary));
+}
+
+.table-row--drop-target {
+  box-shadow: inset 0 -2px 0 var(--color-primary, var(--accent-color));
+}
+
+.table-container--reorderable {
+  user-select: none;
 }
 
 /* Loading & Empty states */
