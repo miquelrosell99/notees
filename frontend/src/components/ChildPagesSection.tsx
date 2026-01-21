@@ -46,6 +46,7 @@ export function ChildPagesSection({
       onViewModeChange={setViewMode}
       availableViewModes={['list', 'table', 'card']}
       sortable={false}
+      pagesOnly={true}
       onNodeClick={handleNodeClick}
       onNodeShiftClick={handleNodeShiftClick}
     />
