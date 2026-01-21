@@ -11,7 +11,7 @@
  * 3. PropertiesSection - Node properties
  * 4. NodeContent - Children blocks
  * 5. Type-specific sections (TypedNodesView, ChildPagesSection)
- * 6. LinkedReferences / Backlinks
+ * 6. LinkedReferences
  * 7. NodeActivityLog
  */
 import { useState, useMemo, useCallback } from 'react';
@@ -28,16 +28,19 @@ import { CoverImage } from '../components/CoverImage';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
+import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { PropertiesSection } from './PropertiesSection';
 import { TypedNodesView } from './TypedNodesView';
 import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
 import { ChildPagesSection } from '../components/ChildPagesSection';
-import { NodeActivityLog } from '../components/nodes/NodeActivityLog';
-import { LinkedReferences } from '../components/Backlinks';
+import { NodeActivityLog, useActivityCount } from '../components/nodes/NodeActivityLog';
+import { LinkedReferences, useLinkedReferencesCount } from '../components/LinkedReferences';
 import { BlockEditor } from '../components/blocks/BlockEditor';
 import { ColorPicker } from '../components/core/ColorPicker';
 import { Button } from '../components/core/Button';
-import { NodeIcon, TagIcon } from '../components/icons';
+import { NodeIcon, TagIcon, TableIcon, PageIcon, LinkIcon } from '../components/icons';
+import { mdiHistory, mdiRefresh } from '@mdi/js';
+import Icon from '@mdi/react';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import type { Asset } from '../api/assets';
 
@@ -87,6 +90,10 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Check if node is used as a type
   const { data: typedNodes } = useNodesWithType(node?.id ?? 0);
+  
+  // Section metadata hooks
+  const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
+  const { count: activityCount, refetch: refetchActivity } = useActivityCount(nodeId);
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -512,30 +519,68 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       
       {/* Show nodes that have this node as their type - only for type nodes */}
       {isTypeNode && (
-        <TypedNodesView typeId={node.id} typeName={node.name || 'Untitled'} />
+        <NodeViewSection
+          title="Nodes with this type"
+          icon={<TableIcon size="sm" />}
+          count={typedNodes?.length ?? 0}
+          defaultExpanded={true}
+          hideWhenEmpty={true}
+        >
+          <TypedNodesView typeId={node.id} typeName={node.name || 'Untitled'} />
+        </NodeViewSection>
       )}
       
       {/* Child pages section - shows pages that have this node as parent (pages only) */}
       {resolvedType === 'page' && pageChildren.length > 0 && (
-        <ChildPagesSection pageId={node.id} childPages={pageChildren} />
+        <NodeViewSection
+          title="Child Pages"
+          icon={<PageIcon size="sm" />}
+          count={pageChildren.length}
+          defaultExpanded={true}
+        >
+          <ChildPagesSection pageId={node.id} childPages={pageChildren} />
+        </NodeViewSection>
       )}
       
       {/* Linked References - shows all references to this node (universal for all nodes) */}
-      <LinkedReferences 
-        nodeId={node.id} 
-        onLinkClick={(nodeId, pageId, isPage) => {
-          // Open the block's page if available, otherwise open the node directly
-          if (pageId) {
-            openNode(pageId, 'page');
-          } else {
-            openNode(nodeId, isPage ? 'page' : 'block');
-          }
-        }}
-        defaultCollapsed={linkedRefsCollapsed}
-      />
+      <NodeViewSection
+        title="Linked References"
+        icon={<LinkIcon size="sm" />}
+        count={linkedRefsCount}
+        defaultExpanded={!linkedRefsCollapsed}
+        hideWhenEmpty={true}
+      >
+        <LinkedReferences 
+          nodeId={node.id} 
+          onLinkClick={(nodeId, pageId, isPage) => {
+            // Open the block's page if available, otherwise open the node directly
+            if (pageId) {
+              openNode(pageId, 'page');
+            } else {
+              openNode(nodeId, isPage ? 'page' : 'block');
+            }
+          }}
+        />
+      </NodeViewSection>
       
       {/* Node Activity Log */}
-      <NodeActivityLog nodeId={node.id} defaultExpanded={false} />
+      <NodeViewSection
+        title="Activity"
+        icon={<Icon path={mdiHistory} size={0.7} />}
+        count={activityCount}
+        defaultExpanded={false}
+        headerActions={
+          <button
+            className="node-activity-btn"
+            onClick={(e) => { e.stopPropagation(); refetchActivity(); }}
+            title="Refresh"
+          >
+            <Icon path={mdiRefresh} size={0.6} />
+          </button>
+        }
+      >
+        <NodeActivityLog nodeId={node.id} />
+      </NodeViewSection>
       
       {/* Footer */}
       <footer className="node-view-footer">

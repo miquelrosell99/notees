@@ -1,32 +1,25 @@
 /**
- * Backlinks component for displaying references to a node
+ * LinkedReferences component for displaying references to a node
  * 
  * Shows linked references using two NodeCollections:
  * - Linked Pages: Pages that reference this node via properties
  * - Linked Blocks: Blocks that mention this node via [[links]] or ((refs))
  * 
- * Each section is collapsible via NodeViewSection.
+ * NodeViewSection wrapping is handled by NodeView.
  */
 import { useState, useMemo, useCallback } from 'react';
-import './Backlinks.css';
+import './LinkedReferences.css';
 import { useBacklinks, useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
 import type { Backlink, Node } from '@/types/api';
 import { LinkIcon, NodeIcon, PageIcon, BulletIcon } from './icons';
-import { NodeViewSection } from './nodes/NodeViewSection';
 import { NodeCollection } from './nodes/NodeCollection';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { 
-  propertyBacklinkToPageItem,
-  type PageReferenceItem,
-} from '../views/ReferencesView';
 
-interface BacklinksProps {
+interface LinkedReferencesProps {
   nodeId: number;
   className?: string;
   onLinkClick?: (nodeId: number, pageId?: number | null, isPage?: boolean) => void;
   showContext?: boolean;
-  /** Default collapsed state for the section */
-  defaultCollapsed?: boolean;
 }
 
 /**
@@ -46,19 +39,19 @@ function groupBacklinksByPage(backlinks: Backlink[]): Map<number | null, Backlin
 }
 
 /**
- * Backlinks section showing all references to this node (legacy)
+ * Linked references section showing all references to this node (legacy)
  */
 export function Backlinks({ 
   nodeId, 
   className = '', 
   onLinkClick,
-}: BacklinksProps) {
+}: LinkedReferencesProps) {
   const { data: backlinks, isLoading, error } = useBacklinks(nodeId);
 
   if (isLoading) {
     return (
-      <div className={`backlinks loading ${className}`}>
-        <div className="backlinks-skeleton">Loading backlinks...</div>
+      <div className={`linked-references loading ${className}`}>
+        <div className="linked-references-skeleton">Loading linked references...</div>
       </div>
     );
   }
@@ -72,18 +65,18 @@ export function Backlinks({
 
   return (
     <NodeViewSection
-      title="Backlinks"
+      title="Linked References"
       icon={<LinkIcon size="sm" />}
       count={backlinks.length}
       className={className}
     >
-      <div className="backlinks-groups">
+      <div className="linked-references-groups">
         {Array.from(grouped.entries()).map(([pageId, pageBacklinks]) => (
-          <div key={pageId ?? 'orphan'} className="backlinks-group">
+          <div key={pageId ?? 'orphan'} className="linked-references-group">
             {pageId !== null && pageBacklinks[0].source_page_name && (
-              <div className="backlinks-group-header">
+              <div className="linked-references-group-header">
                 <button
-                  className="backlinks-page-link"
+                  className="linked-references-page-link"
                   onClick={() => onLinkClick?.(pageId, null, true)}
                 >
                   <NodeIcon icon={null} isPage={true} size="sm" /> {pageBacklinks[0].source_page_name}
@@ -91,14 +84,14 @@ export function Backlinks({
               </div>
             )}
             
-            <ul className="backlinks-list">
+            <ul className="linked-references-list">
               {pageBacklinks.map((backlink) => (
-                <li key={`${backlink.source_node_id}-${backlink.position}`} className="backlink-item">
+                <li key={`${backlink.source_node_id}-${backlink.position}`} className="linked-reference-item">
                   <button
-                    className="backlink-button"
+                    className="linked-reference-button"
                     onClick={() => onLinkClick?.(backlink.source_node_id, backlink.source_page_id, backlink.source_page_id === null)}
                   >
-                    <span className="backlink-title">
+                    <span className="linked-reference-title">
                       {backlink.source_node_name || 'Untitled'}
                     </span>
                   </button>
@@ -110,6 +103,23 @@ export function Backlinks({
       </div>
     </NodeViewSection>
   );
+}
+
+/**
+ * Hook to get linked references count for section metadata
+ */
+export function useLinkedReferencesCount(nodeId: number) {
+  const { data: refs, isLoading: refsLoading } = useLinkedReferences(nodeId);
+  const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(nodeId);
+  
+  const pageCount = propertyBacklinks?.length ?? 0;
+  const blockCount = refs?.length ?? 0;
+  const totalCount = pageCount + blockCount;
+  
+  return {
+    count: totalCount,
+    isLoading: refsLoading || propLoading,
+  };
 }
 
 /**
@@ -125,8 +135,7 @@ export function LinkedReferences({
   nodeId,
   className = '',
   onLinkClick,
-  defaultCollapsed = false,
-}: BacklinksProps) {
+}: LinkedReferencesProps) {
   const { data: refs, isLoading: refsLoading } = useLinkedReferences(nodeId);
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(nodeId);
   const updateNode = useUpdateNode();
@@ -239,13 +248,7 @@ export function LinkedReferences({
   }
 
   return (
-    <NodeViewSection
-      title="Linked References"
-      icon={<LinkIcon size="sm" />}
-      count={totalCount}
-      className={`linked-references ${className}`}
-      defaultExpanded={!defaultCollapsed}
-    >
+    <div className={`linked-references ${className}`}>
       <div className="linked-references__content">
         {/* Linked Pages Section */}
         {pageCount > 0 && (
@@ -290,7 +293,7 @@ export function LinkedReferences({
           </div>
         )}
       </div>
-    </NodeViewSection>
+    </div>
   );
 }
 
@@ -305,7 +308,7 @@ export function References({
   nodeId,
   className = '',
   onLinkClick,
-}: BacklinksProps) {
+}: LinkedReferencesProps) {
   return (
     <div className={`references ${className}`}>
       <LinkedReferences nodeId={nodeId} onLinkClick={onLinkClick} />
@@ -313,4 +316,4 @@ export function References({
   );
 }
 
-export default Backlinks;
+export default LinkedReferences;

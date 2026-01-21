@@ -1,24 +1,13 @@
 /**
  * ChildPagesSection - Displays child pages of a parent page
  * 
- * Uses NodeSet with NodeViewSection for consistent collapsible UI.
+ * Uses NodeSet to display pages. NodeViewSection wrapping is handled by NodeView.
  * Supports list, table, and card view types.
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { NodeSet, type NodeSetItem, type NodeSetViewType } from './nodes/NodeSet';
-import { NodeViewSection } from './nodes/NodeViewSection';
-import { PageIcon } from './icons';
-import { SelectionButton } from './core/SelectionButton';
-import { mdiFormatListBulleted, mdiTable, mdiViewGrid } from '@mdi/js';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
-
-// View type icon and label mapping
-const VIEW_TYPE_OPTIONS: Record<NodeSetViewType, { icon: string; label: string }> = {
-  list: { icon: mdiFormatListBulleted, label: 'List view' },
-  table: { icon: mdiTable, label: 'Table view' },
-  card: { icon: mdiViewGrid, label: 'Card view' },
-};
 
 interface ChildPagesSectionProps {
   pageId: number;
@@ -33,7 +22,6 @@ export function ChildPagesSection({
   defaultViewType = 'list',
 }: ChildPagesSectionProps) {
   const { openNode, addSidebarCard } = useNodesStore();
-  const [viewType, setViewType] = useState<NodeSetViewType>(defaultViewType);
   const count = childPages?.length ?? 0;
   
   // Convert child pages to NodeSetItem format
@@ -54,39 +42,20 @@ export function ChildPagesSection({
   if (count === 0) {
     return null;
   }
-  
+
   return (
-    <NodeViewSection
-      title="Child Pages"
-      icon={<PageIcon size="sm" />}
-      count={count}
-      defaultExpanded={true}
-      headerActions={
-        <SelectionButton
-          options={['list', 'table', 'card'].map((opt) => ({
-            value: opt,
-            icon: VIEW_TYPE_OPTIONS[opt as NodeSetViewType].icon,
-            label: VIEW_TYPE_OPTIONS[opt as NodeSetViewType].label,
-          }))}
-          value={viewType}
-          onChange={(val) => setViewType(val as NodeSetViewType)}
-          size="sm"
-        />
-      }
-    >
-      <NodeSet
-        items={items}
-        showHeader={false}
-        onNodeClick={handleNodeClick}
-        onNodeShiftClick={handleNodeShiftClick}
-        viewType={viewType}
-        viewTypes={['list', 'table', 'card']}
-        showViewToggle={false}
-        showGroupBySettings={false}
-        groupByOptions={['none']}
-        defaultGroupBy="none"
-      />
-    </NodeViewSection>
+    <NodeSet
+      items={items}
+      showHeader={false}
+      onNodeClick={handleNodeClick}
+      onNodeShiftClick={handleNodeShiftClick}
+      viewType={defaultViewType}
+      viewTypes={['list', 'table', 'card']}
+      showViewToggle={false}
+      showGroupBySettings={false}
+      groupByOptions={['none']}
+      defaultGroupBy="none"
+    />
   );
 }
 

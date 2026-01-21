@@ -1,14 +1,14 @@
 /**
- * Backlinks styles
+ * LinkedReferences styles
  */
 
-.backlinks {
+.linked-references {
   margin-top: 2rem;
   padding-top: 1rem;
   border-top: 1px solid var(--color-outline-variant);
 }
 
-.backlinks-title {
+.linked-references-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -18,17 +18,17 @@
   margin-bottom: 0.5rem;
 }
 
-.backlinks-list {
+.linked-references-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.backlink-item {
+.linked-reference-item {
   margin-bottom: 0.5rem;
 }
 
-.backlink-button {
+.linked-reference-button {
   display: block;
   width: 100%;
   padding: 0.5rem;
@@ -39,15 +39,15 @@
   text-align: left;
 }
 
-.backlink-button:hover {
+.linked-reference-button:hover {
   background: var(--color-hover-overlay);
 }
 
-.backlink-title {
+.linked-reference-title {
   font-weight: 500;
 }
 
-.backlink-preview {
+.linked-reference-preview {
   font-size: 0.75rem;
   color: var(--color-on-surface-variant);
   margin: 0.25rem 0 0;
