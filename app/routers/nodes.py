@@ -284,26 +284,19 @@ async def list_types(
 ):
     """List all types (nodes that can categorize other nodes).
     
-    Types are nodes that have is_type=1. They can be used to categorize other nodes.
-    Also includes the 'type' type itself for completeness.
+    Types are nodes that have is_type=1. This includes system types like
+    day, month, year, as well as user-defined types.
     """
     service = await _get_node_service(user)
     
-    # Get nodes that are types (have the 'type' type themselves)
-    type_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["type"])
-    if not type_type:
-        return {"nodes": []}
+    # Get all nodes where is_type=1
+    async with service._node_repo._get_connection() as conn:
+        cursor = await conn.execute(
+            """SELECT * FROM node WHERE is_type = 1 AND active = 1 ORDER BY name"""
+        )
+        rows = await cursor.fetchall()
     
-    type_type_node = type_type
-    type_type_id = type_type_node.id
-    if type_type_id is None:
-        return {"nodes": []}
-    
-    nodes = await service._node_repo.get_typed_with(type_type_id)
-    
-    # Include the 'type' type itself if it's not already in the list
-    if not any(n.id == type_type_id for n in nodes):
-        nodes.insert(0, type_type_node)
+    nodes = [service._node_repo._row_to_node(row) for row in rows]
     
     return {"nodes": [_node_to_response(n) for n in nodes]}
 

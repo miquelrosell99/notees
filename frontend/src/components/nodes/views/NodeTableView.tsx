@@ -13,7 +13,7 @@
  * - Drag-and-drop reordering with drag handles
  * - Row selection with checkboxes
  */
-import { useMemo, useCallback, type ReactNode } from 'react';
+import { useMemo, useCallback, useState, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
@@ -110,6 +110,20 @@ export function NodeTableView({
   
   // Get openNode and addSidebarCard from store for navigation
   const { openNode, addSidebarCard } = useNodesStore();
+  
+  // Internal selection state (used when not controlled)
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
+  
+  // Use controlled or internal selection state
+  const selectedIds = controlledSelectedIds ?? internalSelectedIds;
+  const handleSelectionChange = useCallback((keys: Set<string | number>) => {
+    const numericKeys = keys as Set<number>;
+    if (onSelectionChange) {
+      onSelectionChange(numericKeys);
+    } else {
+      setInternalSelectedIds(numericKeys);
+    }
+  }, [onSelectionChange]);
 
   // Handler for content changes
   const handleContentChange = useCallback((blockId: number, content: string) => {
@@ -265,16 +279,8 @@ export function NodeTableView({
   
   // Convert Set<number> to Set<string | number> for Table component
   const selectedKeys = useMemo(() => {
-    if (!controlledSelectedIds) return undefined;
-    return controlledSelectedIds as Set<string | number>;
-  }, [controlledSelectedIds]);
-  
-  // Handle selection change - convert back to Set<number>
-  const handleSelectionChange = useCallback((keys: Set<string | number>) => {
-    if (onSelectionChange) {
-      onSelectionChange(keys as Set<number>);
-    }
-  }, [onSelectionChange]);
+    return selectedIds as Set<string | number>;
+  }, [selectedIds]);
   
   // Expandable configuration - uses CollapseArrow by default in Table
   const expandableConfig: ExpandableConfig<Node> | undefined = useMemo(() => {

@@ -12,7 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { useUpdateNode, useTypes, useRemoveType } from '@/hooks';
+import { useUpdateNode, useTypes, useRemoveType, useNodes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -54,16 +54,21 @@ export function PageHeader({
   
   // Get all types
   const { data: allTypes } = useTypes();
+  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback type lookup
   
   // Resolve type details from IDs (excluding the "page" type which is implicit)
+  // Use allNodes as fallback for system types that might not be in allTypes
   const pageTypeDetails = useMemo(() => {
-    // DEBUG: Log types info
-    console.log(`Page ${page.id} (${page.name}) types:`, page.types, 'allTypes:', allTypes?.length);
-    if (!page.types || page.types.length === 0 || !allTypes) return [];
+    if (!page.types || page.types.length === 0) return [];
     return page.types
-      .map(typeId => allTypes.find(t => t.id === typeId))
+      .map(typeId => {
+        // First try allTypes, then fallback to allNodes
+        const fromTypes = allTypes?.find(t => t.id === typeId);
+        if (fromTypes) return fromTypes;
+        return allNodes?.find(n => n.id === typeId);
+      })
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
-  }, [page.types, allTypes, page.id, page.name]);
+  }, [page.types, allTypes, allNodes]);
   
   // Get effective icon (page's icon or first type's icon)
   const effectiveIcon = useMemo(() => getEffectiveIcon(page, allTypes), [page, allTypes]);
