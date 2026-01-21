@@ -1,0 +1,12 @@
+/**
+ * SidebarCardLocalGraph styles
+ */
+
+.sidebar-card-local-graph {
+  min-height: 280px;
+}
+
+.sidebar-card-local-graph__content {
+  height: 250px;
+  min-height: 250px;
+}

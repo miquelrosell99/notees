@@ -55,10 +55,10 @@ export function SidebarCard({
     return (
       <Card 
         className={`sidebar-card sidebar-card--loading ${className}`}
-        elevation="none"
+        elevation="low"
         variant="default"
         padding={false}
-        radius="none"
+        radius="md"
       >
         <div className="sidebar-card__loader">
           <div className="sidebar-card__spinner" />
@@ -72,10 +72,10 @@ export function SidebarCard({
     return (
       <Card 
         className={`sidebar-card sidebar-card--error ${className}`}
-        elevation="none"
+        elevation="low"
         variant="default"
         padding={false}
-        radius="none"
+        radius="md"
       >
         <div className="sidebar-card__error">
           <span className="sidebar-card__error-icon"><AlertIcon size="sm" /></span>
@@ -93,10 +93,10 @@ export function SidebarCard({
   return (
     <Card 
       className={`sidebar-card ${className}`}
-      elevation="none"
+      elevation="low"
       variant="default"
       padding={false}
-      radius="none"
+      radius="md"
     >
       {showHeader && (title || onClose) && (
         <div className="sidebar-card__header">

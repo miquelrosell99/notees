@@ -2,7 +2,7 @@
  * Stores module - exports all Zustand stores
  */
 export { useAuthStore } from './authStore';
-export { useNodesStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard } from './nodesStore';
+export { useNodesStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard, type SidebarCardType } from './nodesStore';
 export { 
   useSettingsStore, 
   applyTheme,

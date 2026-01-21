@@ -1,0 +1,12 @@
+/**
+ * SidebarCardNode styles
+ */
+
+.sidebar-card-node {
+  max-height: 100%;
+}
+
+.sidebar-card-node--block .sidebar-card__header {
+  /* Block cards have minimal header - just the close button */
+  justify-content: flex-end;
+}

@@ -7,7 +7,7 @@
 .sidebar-card {
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--color-outline-variant);
+  margin: var(--spacing-2);
 }
 
 .sidebar-card--loading,
@@ -62,9 +62,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-container);
   border-bottom: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium) var(--shape-medium) 0 0;
 }
 
 .sidebar-card__title-section {

@@ -16,7 +16,7 @@ import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { RightSidebarCards } from './RightSidebarCards';
-import { GraphViewLocal, GraphViewAllCard } from './graph';
+import { GraphViewAllCard } from './graph';
 import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from './CommentsSidebar';
 import { mdiClose } from '@mdi/js';
@@ -27,10 +27,7 @@ import './Layout.css';
 export function Layout() {
   const { 
     isSidebarCollapsed, 
-    rightSidebarOpen, 
-    rightSidebarContent,
-    sidebarCards,
-    localGraphNodeId,
+    rightSidebarOpen,
     currentNodeId,
     currentNodeType,
     mainViewType,
@@ -41,8 +38,6 @@ export function Layout() {
     commentsSidebarOpen,
     setMainViewType,
     openNode,
-    clearSidebarCards,
-    closeLocalGraph,
   } = useNodesStore();
   
   const { defaultView } = useSettingsStore();
@@ -123,12 +118,8 @@ export function Layout() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handleGlobalKeyDown]);
 
-  // Determine which content to show in right sidebar
-  const showNodeCards = rightSidebarContent === 'node' && sidebarCards.length > 0;
-  const showLocalGraph = rightSidebarContent === 'localGraph';
-  
-  // For local graph, use currentNodeId so it updates when switching nodes
-  const localGraphId = localGraphNodeId ?? currentNodeId;
+  // Sidebar visibility is controlled by rightSidebarOpen state
+  const showSidebar = rightSidebarOpen;
 
   return (
     <RouterSync>
@@ -149,33 +140,14 @@ export function Layout() {
           {/* Comments Sidebar - positioned between main and right sidebar */}
           {commentsSidebarOpen && <CommentsSidebar />}
           
-          {/* Floating Right Sidebar - uses Card component with different content */}
+          {/* Floating Right Sidebar - uses Card component with panel of cards */}
           <Card 
-            className={`right-container ${rightSidebarOpen ? 'right-container--expanded' : 'right-container--collapsed'}`} 
+            className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`} 
             padding={false} 
             elevation="medium"
           >
-            {/* Right sidebar header */}
-            <div className="right-sidebar-header">
-              <span className="right-sidebar-title">
-                {showLocalGraph ? 'Local Graph' : ''}
-              </span>
-              <Button 
-                icon={mdiClose}
-                iconOnly
-                size="sm" 
-                onClick={showLocalGraph ? closeLocalGraph : clearSidebarCards}
-                title="Close sidebar"
-                variant="ghost"
-              />
-            </div>
             <div className="right-sidebar-content">
-              {showLocalGraph && localGraphId && (
-                <GraphViewLocal nodeId={localGraphId} />
-              )}
-              {showNodeCards && (
-                <RightSidebarCards />
-              )}
+              <RightSidebarCards />
             </div>
           </Card>
         </div>
