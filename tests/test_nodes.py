@@ -58,17 +58,17 @@ class TestNodeCreation:
     async def test_create_daily_page(
         self,
         authenticated_client: AsyncClient,
-        sample_daily_page_data: dict
     ):
         """Test creating a daily journal page."""
+        # Use the dedicated daily endpoint
         response = await authenticated_client.post(
-            "/api/nodes",
-            json=sample_daily_page_data
+            "/api/nodes/daily",
+            params={"date": "2026-01-15"}
         )
         assert response.status_code == 200
         
         data = response.json()
-        assert data.get("is_daily") == True or "daily" in str(data.get("tags", []))
+        assert data.get("is_daily") == True
 
 
 class TestNodeRetrieval:
@@ -98,7 +98,7 @@ class TestNodeRetrieval:
     @pytest.mark.asyncio
     async def test_get_nonexistent_node(self, authenticated_client: AsyncClient):
         """Test retrieving a node that doesn't exist."""
-        response = await authenticated_client.get("/api/nodes/nonexistent-id-12345")
+        response = await authenticated_client.get("/api/nodes/999999")
         assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -137,18 +137,15 @@ class TestNodeUpdate:
         )
         node = create_response.json()
         
-        # Update it - for pages, updating content updates the title/name
+        # Update it - use name field
         update_response = await authenticated_client.put(
             f"/api/nodes/{node['id']}",
-            json={"content": "Updated content"}
+            json={"name": "Updated content"}
         )
         assert update_response.status_code == 200
         
         updated = update_response.json()
-        # For pages, content may be stored in title/name instead
-        assert updated.get("content") == "Updated content" or \
-               updated.get("title") == "Updated content" or \
-               updated.get("name") == "Updated content"
+        assert updated.get("name") == "Updated content"
 
 
 class TestNodeDeletion:
