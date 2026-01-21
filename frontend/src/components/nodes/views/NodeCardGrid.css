@@ -120,42 +120,16 @@
   border-left-style: solid;
 }
 
-/* Drag handle */
-.node-card__drag-handle {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: var(--bg-secondary);
-  border-radius: 4px;
-  cursor: grab;
-  color: var(--text-tertiary);
-  opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
-  z-index: 1;
-}
-
 .node-card {
   position: relative;
 }
 
-.node-card__drag-handle:hover,
-.node-card__drag-handle:focus {
-  opacity: 1;
+/* Sortable header - drag from empty area */
+.node-card__header--sortable {
+  cursor: grab;
 }
 
-.node-card__drag-handle:hover {
-  background: var(--bg-hover);
-  color: var(--text-muted);
-}
-
-.node-card__drag-handle:active {
+.node-card--dragging .node-card__header--sortable {
   cursor: grabbing;
 }
 
@@ -171,4 +145,42 @@
 
 .node-card-grid--sortable {
   user-select: none;
+}
+
+/* Selection checkbox */
+.node-card__checkbox {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  background: var(--color-surface, white);
+  border-radius: var(--shape-small, 4px);
+  padding: 2px;
+}
+
+.node-card:hover .node-card__checkbox,
+.node-card--selected .node-card__checkbox {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Show checkbox when there are any selected items in the grid */
+.node-card-grid--selectable .node-card__checkbox {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.node-card-grid--selectable .node-card:hover .node-card__checkbox,
+.node-card-grid--selectable .node-card--selected .node-card__checkbox {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Selected card state */
+.node-card--selected {
+  box-shadow: 0 0 0 2px var(--accent-color);
+  background: var(--color-surface-container-high, var(--bg-tertiary));
 }
