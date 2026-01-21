@@ -39,56 +39,6 @@
   font: var(--font-body-medium);
 }
 
-/* Block view header (for block variant) */
-.block-view-header {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-  padding-bottom: var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
-}
-
-.block-view-bullet {
-  font-size: 28px;
-  line-height: 1;
-  color: var(--color-primary);
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-
-.block-view-title-container {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
-}
-
-.block-view-title-container .block-editor {
-  border: none;
-  padding: 0;
-  flex: 1;
-  min-width: 200px;
-}
-
-.block-view-title-container .block-editor-input {
-  font: var(--font-headline-medium);
-  color: var(--color-on-surface);
-  min-height: 40px;
-}
-
-.block-view-title-container .block-bullet {
-  display: none;
-}
-
-.block-view-actions {
-  display: flex;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
-}
-
 /* Archived badge */
 .archived-badge {
   display: inline-flex;
@@ -180,4 +130,18 @@
 /* Make properties section inside header section more compact */
 .page-header-section__left .properties-section {
   margin-bottom: 0;
+}
+
+/* Focused Block Content - renders block as a top-level list item */
+.focused-block-content {
+  margin-bottom: var(--spacing-4);
+}
+
+.focused-block-content .node-list-view {
+  padding: 0;
+}
+
+/* Ensure the focused block is displayed properly */
+.focused-block-content .node-list-item-wrapper:first-child {
+  margin-top: 0;
 }
