@@ -50,7 +50,7 @@
 }
 
 .node-collection--card {
-  /* Card grid handled by NodeCardGrid */
+  /* Card grid handled by NodeCardView */
 }
 
 .node-collection--table {
