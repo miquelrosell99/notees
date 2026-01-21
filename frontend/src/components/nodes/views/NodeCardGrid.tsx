@@ -12,6 +12,8 @@
  * - Editable: allows interaction and navigation
  * - Read-only: display-only cards
  * - Optional drag-and-drop reordering
+ * - Context menu on right-click
+ * - Selection checkbox on hover
  */
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
@@ -20,8 +22,9 @@ import { useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { NodeCollection } from '../NodeCollection';
-import { DragHandleIcon } from '../../icons';
 import { Card } from '../../core/Card';
+import { Checkbox } from '../../core/Checkbox';
+import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import './NodeCardGrid.css';
 
 interface NodeCardProps {
@@ -35,10 +38,12 @@ interface NodeCardProps {
   isDropTarget?: boolean;
   editable?: boolean;
   allTypes?: Node[];
+  isSelected?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
   onDragStart?: (index: number) => void;
+  onSelectionChange?: (nodeId: number, selected: boolean) => void;
 }
 
 /**
@@ -81,13 +86,18 @@ function NodeCard({
   isDropTarget,
   editable = true,
   allTypes,
+  isSelected = false,
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
   onDragStart,
+  onSelectionChange,
 }: NodeCardProps) {
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
+  
+  // Context menu state
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   
   // Get effective icon (from node or inherited from type)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allTypes), [node, allTypes]);
@@ -112,12 +122,41 @@ function NodeCard({
       onNodeClick(node);
     }
   }, [node, onNodeClick, onNodeShiftClick]);
-
-  // Handle drag start
-  const handleDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
+  
+  // Handle context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    onDragStart?.(index);
-  }, [index, onDragStart]);
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
+  
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenuPos(null);
+  }, []);
+  
+  // Handle checkbox change
+  const handleCheckboxChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    onSelectionChange?.(node.id, e.target.checked);
+  }, [node.id, onSelectionChange]);
+  
+  // Stop checkbox click from triggering card click
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
+  // Handle drag start from header
+  const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only start drag if clicking on the header itself (empty zone), not on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('.block-preview, a, button, input')) {
+      return;
+    }
+    if (sortable) {
+      e.preventDefault();
+      onDragStart?.(index);
+    }
+  }, [index, sortable, onDragStart]);
   
   // Card style based on node color
   const cardStyle = useMemo(() => {
@@ -134,68 +173,89 @@ function NodeCard({
     `node-card--${effectiveLayout}`,
     isDragging && 'node-card--dragging',
     isDropTarget && 'node-card--drop-target',
+    isSelected && 'node-card--selected',
   ].filter(Boolean).join(' ');
 
+  // Choose appropriate context menu based on node type
+  const ContextMenuComponent = node.is_page ? PageContextMenu : BlockContextMenu;
+
   return (
-    <Card 
-      className={cardClassName}
-      style={cardStyle}
-      onClick={handleClick}
-      padding={false}
-      elevation="none"
-      variant="default"
-    >
-      {/* Drag handle */}
-      {sortable && (
-        <button
-          className="node-card__drag-handle"
-          onMouseDown={handleDragHandleMouseDown}
-          aria-label="Drag to reorder"
+    <>
+      <Card 
+        className={cardClassName}
+        style={cardStyle}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        padding={false}
+        elevation="none"
+        variant="default"
+      >
+        {/* Selection checkbox - shown on hover */}
+        {onSelectionChange && (
+          <div className="node-card__checkbox" onClick={handleCheckboxClick}>
+            <Checkbox
+              size="sm"
+              checked={isSelected}
+              onChange={handleCheckboxChange}
+              aria-label={`Select ${node.name || 'Untitled'}`}
+            />
+          </div>
+        )}
+        
+
+        {/* Cover image */}
+        {coverUrl && (
+          <div className="node-card__cover">
+            <img src={coverUrl} alt="" className="node-card__cover-image" />
+          </div>
+        )}
+        
+        {/* Card header - similar to sidebar cards, also serves as drag zone */}
+        <div 
+          className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
+          onMouseDown={handleHeaderMouseDown}
         >
-          <DragHandleIcon size="sm" />
-        </button>
-      )}
-      
-      {/* Cover image */}
-      {coverUrl && (
-        <div className="node-card__cover">
-          <img src={coverUrl} alt="" className="node-card__cover-image" />
-        </div>
-      )}
-      
-      {/* Card header - similar to sidebar cards */}
-      <div className="node-card__header">
-        <BlockPreview
-          variant="simple"
-          node={node}
-          showBullet={showBullet}
-          showIcon={true}
-          icon={effectiveIcon}
-          onClick={() => onNodeClick?.(node)}
-          onShiftClick={() => onNodeShiftClick?.(node)}
-          className="node-card__title-block"
-        />
-      </div>
-      
-      {/* Card body with children */}
-      {shouldRenderChildren && (
-        <div className="node-card__body">
-          <NodeCollection
-            nodes={children}
-            viewMode="list"
-            availableViewModes={['list']}
-            editable={editable}
-            sortable={false}
-            maxDepth={maxDepth - depth - 1}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-            onContentChange={onContentChange}
-            showEmpty={false}
-            className="node-card__children"
+          <BlockPreview
+            variant="simple"
+            node={node}
+            showBullet={showBullet}
+            showIcon={true}
+            icon={effectiveIcon}
+            onClick={() => onNodeClick?.(node)}
+            onShiftClick={() => onNodeShiftClick?.(node)}
+            className="node-card__title-block"
           />
         </div>
+        
+        {/* Card body with children */}
+        {shouldRenderChildren && (
+          <div className="node-card__body">
+            <NodeCollection
+              nodes={children}
+              viewMode="list"
+              availableViewModes={['list']}
+              editable={editable}
+              sortable={false}
+              maxDepth={maxDepth - depth - 1}
+              onNodeClick={onNodeClick}
+              onNodeShiftClick={onNodeShiftClick}
+              onContentChange={onContentChange}
+              showEmpty={false}
+              className="node-card__children"
+            />
+          </div>
+        )}
+      </Card>
+      
+      {/* Context menu */}
+      {contextMenuPos && (
+        <ContextMenuComponent
+          node={node}
+          position={contextMenuPos}
+          onClose={handleCloseContextMenu}
+        />
       )}
-    </Card>
+    </>
   );
 }
 
@@ -210,6 +270,9 @@ export function NodeCardGrid({
   columns,
   sortable,
   editable = true,
+  selectable = false,
+  selectedIds: controlledSelectedIds,
+  onSelectionChange: controlledOnSelectionChange,
   onReorder,
   onNodeClick,
   onNodeShiftClick,
@@ -221,10 +284,29 @@ export function NodeCardGrid({
   // Fetch all types for icon inheritance
   const { data: allTypes } = useTypes();
   
+  // Internal selection state when selectable but not controlled
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
+  
+  // Use controlled or internal selection (only when selectable)
+  const selectedIds = selectable ? (controlledSelectedIds ?? internalSelectedIds) : undefined;
+  const onSelectionChange = selectable ? (controlledOnSelectionChange ?? setInternalSelectedIds) : undefined;
+  
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Handle selection change for individual card
+  const handleCardSelectionChange = useCallback((nodeId: number, selected: boolean) => {
+    if (!onSelectionChange) return;
+    const newSelectedIds = new Set(selectedIds || []);
+    if (selected) {
+      newSelectedIds.add(nodeId);
+    } else {
+      newSelectedIds.delete(nodeId);
+    }
+    onSelectionChange(newSelectedIds);
+  }, [selectedIds, onSelectionChange]);
   
   // Handle drag start
   const handleDragStart = useCallback((index: number) => {
@@ -282,6 +364,7 @@ export function NodeCardGrid({
   const gridClassName = [
     'node-card-grid',
     sortable && 'node-card-grid--sortable',
+    selectable && 'node-card-grid--selectable',
     className,
   ].filter(Boolean).join(' ');
 
@@ -300,10 +383,12 @@ export function NodeCardGrid({
           isDropTarget={dropTargetIndex === index && dragIndex !== index}
           editable={editable}
           allTypes={allTypes}
+          isSelected={selectable && selectedIds?.has(node.id)}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}
           onContentChange={onContentChange}
           onDragStart={handleDragStart}
+          onSelectionChange={selectable ? handleCardSelectionChange : undefined}
         />
       ))}
     </div>

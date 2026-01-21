@@ -208,6 +208,15 @@ export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   
   /** Called when nodes are reordered (only when sortable=true) */
   onReorder?: (fromIndex: number, toIndex: number) => void;
+  
+  /** Whether cards are selectable (shows checkbox on hover) */
+  selectable?: boolean;
+  
+  /** Controlled selected node IDs */
+  selectedIds?: Set<number>;
+  
+  /** Called when selection changes */
+  onSelectionChange?: (selectedIds: Set<number>) => void;
 }
 
 /**
