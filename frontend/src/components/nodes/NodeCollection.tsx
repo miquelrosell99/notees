@@ -6,12 +6,14 @@
  * 
  * Features:
  * - Multiple view modes: list, document, card, table, gantt, graph
+ * - Built-in view mode switcher (hidden when only one mode available)
  * - Editable toggle (Block vs BlockPreview)
  * - Recursive children handling
  * - Consistent prop propagation to all view modes
  * 
  * Component Hierarchy:
  * NodeCollection
+ * ├─ ViewModeSwitcher (SelectionButton)
  * ├─ NodeListView (list)
  * │   └─ recursive nodes → Block / BlockPreview
  * ├─ NodeDocumentView (document)
@@ -27,6 +29,14 @@
  *     └─ GraphRenderer → nodes only with is_page = true
  */
 import { createContext, useContext, useMemo } from 'react';
+import { 
+  mdiFormatListBulleted, 
+  mdiFileDocumentOutline, 
+  mdiViewGrid, 
+  mdiTable, 
+  mdiChartGantt, 
+  mdiGraphOutline 
+} from '@mdi/js';
 import type { 
   NodeCollectionProps, 
   NodeCollectionViewMode, 
@@ -40,6 +50,7 @@ import {
   NodeGanttView, 
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
+import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import './NodeCollection.css';
 
 // ==================== Context ====================
@@ -57,17 +68,34 @@ export function useNodeCollectionContext(): NodeCollectionContextValue {
   return context;
 }
 
+// ==================== View Mode Mapping ====================
+
+const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: string }> = {
+  list: { icon: mdiFormatListBulleted, label: 'List' },
+  document: { icon: mdiFileDocumentOutline, label: 'Document' },
+  card: { icon: mdiViewGrid, label: 'Cards' },
+  table: { icon: mdiTable, label: 'Table' },
+  gantt: { icon: mdiChartGantt, label: 'Gantt' },
+  graph: { icon: mdiGraphOutline, label: 'Graph' },
+};
+
 // ==================== Component ====================
 
 /**
  * NodeCollection - Universal node collection component
  * 
  * Dispatches to view-specific components based on viewMode prop.
+ * Includes built-in view mode switcher (hidden when only one mode available).
  */
 export function NodeCollection({
   nodes,
   viewMode,
+  availableViewModes,
+  onViewModeChange,
   editable = true,
+  sortable = false,
+  onReorder,
+  renderItemAction,
   renderNode,
   onNodeClick,
   onNodeShiftClick,
@@ -78,6 +106,20 @@ export function NodeCollection({
   emptyMessage = 'No items',
   maxDepth = Infinity,
 }: NodeCollectionProps) {
+  // Determine which view modes are available
+  const effectiveViewModes = availableViewModes ?? ['list', 'document', 'card', 'table', 'gantt', 'graph'];
+  const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
+  
+  // Build SelectionButton options from available view modes
+  const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
+    effectiveViewModes.map(mode => ({
+      value: mode,
+      icon: VIEW_MODE_OPTIONS[mode].icon,
+      label: VIEW_MODE_OPTIONS[mode].label,
+    })),
+    [effectiveViewModes]
+  );
+
   // Create context value
   const contextValue = useMemo<NodeCollectionContextValue>(() => ({
     editable,
@@ -113,7 +155,16 @@ export function NodeCollection({
   const renderViewMode = () => {
     switch (viewMode) {
       case 'list':
-        return <NodeListView {...viewProps} showBullets={true} showIndentation={true} />;
+        return (
+          <NodeListView 
+            {...viewProps} 
+            showBullets={true} 
+            showIndentation={true}
+            sortable={sortable}
+            onReorder={onReorder}
+            renderItemAction={renderItemAction}
+          />
+        );
       
       case 'document':
         return <NodeDocumentView {...viewProps} />;
@@ -151,7 +202,23 @@ export function NodeCollection({
   return (
     <NodeCollectionContext.Provider value={contextValue}>
       <div className={`node-collection node-collection--${viewMode} ${className}`}>
-        {renderViewMode()}
+        {/* View Mode Switcher - only shown when multiple modes available */}
+        {showViewSwitcher && (
+          <div className="node-collection__header">
+            <SelectionButton
+              options={viewModeOptions}
+              value={viewMode}
+              onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
+              size="sm"
+              className="node-collection__view-switcher"
+            />
+          </div>
+        )}
+        
+        {/* Content */}
+        <div className="node-collection__content">
+          {renderViewMode()}
+        </div>
       </div>
     </NodeCollectionContext.Provider>
   );
@@ -163,14 +230,11 @@ export function NodeCollection({
  * Get available view modes with icons and labels
  */
 export function getViewModeOptions(): { mode: NodeCollectionViewMode; icon: string; label: string }[] {
-  return [
-    { mode: 'list', icon: 'mdiFormatListBulleted', label: 'List' },
-    { mode: 'document', icon: 'mdiFileDocumentOutline', label: 'Document' },
-    { mode: 'card', icon: 'mdiViewGrid', label: 'Cards' },
-    { mode: 'table', icon: 'mdiTable', label: 'Table' },
-    { mode: 'gantt', icon: 'mdiChartGantt', label: 'Gantt' },
-    { mode: 'graph', icon: 'mdiGraphOutline', label: 'Graph' },
-  ];
+  return Object.entries(VIEW_MODE_OPTIONS).map(([mode, { icon, label }]) => ({
+    mode: mode as NodeCollectionViewMode,
+    icon,
+    label,
+  }));
 }
 
 // Re-export types

@@ -32,6 +32,7 @@ import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, md
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { ColorPicker } from '../core/ColorPicker';
+import { ColorButton } from '../core/ColorButton';
 import { SelectionButton } from '../core/SelectionButton';
 import { ListSortable } from '../core/ListSortable';
 import './NodeGraphView.css';
@@ -444,28 +445,29 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                 items={typeColors.map(tc => ({ id: tc.typeId, ...tc }))}
                 onReorder={moveTypeColor}
                 itemClassName="type-color-item"
-                renderIcon={(item) => (
+                renderText={(item) => (
+                  <span className="type-name">{item.typeName}</span>
+                )}
+                renderActions={(item) => [
                   <ColorPicker
+                    key="color"
                     value={item.color}
                     onChange={(color) => updateTypeColor(item.id as number, color || DEFAULT_TYPE_COLORS[0])}
                     size="xs"
-                    panelPosition="right"
+                    panelPosition="left"
                     showNoColor={false}
                     showCustom={true}
                     tooltip="Change color"
                     trigger={
-                      <span 
-                        className="type-color-swatch type-color-swatch--clickable" 
-                        style={{ backgroundColor: item.color }}
+                      <ColorButton
+                        color={item.color}
+                        size="xs"
+                        title="Change color"
                       />
                     }
-                  />
-                )}
-                renderText={(item) => (
-                  <span className="type-name">{item.typeName}</span>
-                )}
-                renderAction={(item) => (
+                  />,
                   <Button
+                    key="remove"
                     icon={mdiClose}
                     size="xs"
                     variant="ghost"
@@ -473,8 +475,9 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                       e.stopPropagation();
                       setTypeColors(prev => prev.filter(t => t.typeId !== item.id));
                     }}
+                    title="Remove type"
                   />
-                )}
+                ]}
               />
             ) : (
               <p className="no-types-floating">Search to add types</p>

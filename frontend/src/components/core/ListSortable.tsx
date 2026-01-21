@@ -23,8 +23,10 @@ export interface ListSortableProps<T extends ListSortableItem> {
   renderIcon?: (item: T, index: number) => ReactNode;
   /** Render the text content (center) */
   renderText: (item: T, index: number) => ReactNode;
-  /** Render the action button (right side, optional) */
+  /** Render a single action button (right side, optional) - deprecated, use renderActions */
   renderAction?: (item: T, index: number) => ReactNode;
+  /** Render multiple action buttons (right side, optional) */
+  renderActions?: (item: T, index: number) => ReactNode[];
   /** Click handler for the entire row */
   onItemClick?: (item: T, index: number) => void;
   /** Additional CSS class for the container */
@@ -50,6 +52,7 @@ export function ListSortable<T extends ListSortableItem>({
   renderIcon,
   renderText,
   renderAction,
+  renderActions,
   onItemClick,
   className = '',
   itemClassName = '',
@@ -295,10 +298,21 @@ export function ListSortable<T extends ListSortableItem>({
               {renderText(item, index)}
             </div>
             
-            {/* Action button (optional, right) */}
-            {renderAction && (
-              <div className="list-sortable__action">
-                {renderAction(item, index)}
+            {/* Actions (optional, right) - supports both single and multiple */}
+            {(renderActions || renderAction) && (
+              <div className="list-sortable__actions">
+                {renderActions 
+                  ? renderActions(item, index).map((action, actionIndex) => (
+                      <div key={actionIndex} className="list-sortable__action">
+                        {action}
+                      </div>
+                    ))
+                  : renderAction && (
+                      <div className="list-sortable__action">
+                        {renderAction(item, index)}
+                      </div>
+                    )
+                }
               </div>
             )}
           </div>

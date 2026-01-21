@@ -18,6 +18,7 @@ import { Card } from './core/Card';
 import { Button } from './core/Button';
 import { ListSortable } from './core/ListSortable';
 import { Bullet } from './blocks/Bullet';
+import { BlockPreview } from './blocks/BlockPreview';
 import { 
   JournalIcon, 
   AllPagesIcon, 
@@ -53,19 +54,13 @@ function RecentItem({ nodeId, isActive, onClick }: RecentItemProps) {
   if (!node) return null;
   
   return (
-    <div 
-      className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
+    <BlockPreview
+      variant="simple"
+      node={node}
+      showBullet={true}
       onClick={onClick}
-    >
-      <Bullet
-        nodeId={node.id}
-        icon={node.icon}
-        isPage={node.is_page}
-        interactive={false}
-        size="sm"
-      />
-      <span className="sidebar-item-name">{getNodeDisplayName(node)}</span>
-    </div>
+      className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
+    />
   );
 }
 
@@ -198,7 +193,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     items={favoriteItems}
                     onReorder={handleReorderFavorites}
                     onItemClick={(item) => handleNavigateToPage(item.nodeId)}
-                    showDragHandle={false}
+                    showDragHandle={true}
                     itemClassName={`sidebar-favorite-item ${mainViewType === 'node' ? 'sidebar-favorite-item--check-active' : ''}`}
                     renderIcon={(item) => <FavoriteItemIcon nodeId={item.nodeId} />}
                     renderText={(item) => <FavoriteItemText nodeId={item.nodeId} />}

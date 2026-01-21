@@ -41,8 +41,23 @@ export interface NodeCollectionProps {
   /** Current view mode */
   viewMode: NodeCollectionViewMode;
   
+  /** Available view modes (if only one, hides the view switcher) */
+  availableViewModes?: NodeCollectionViewMode[];
+  
+  /** Called when view mode changes */
+  onViewModeChange?: (mode: NodeCollectionViewMode) => void;
+  
   /** Whether nodes are editable (default: true) */
   editable?: boolean;
+  
+  /** Whether list is sortable (enables drag-and-drop reordering) */
+  sortable?: boolean;
+  
+  /** Called when nodes are reordered (only when sortable=true) */
+  onReorder?: (fromIndex: number, toIndex: number) => void;
+  
+  /** Action to render on each item (for remove buttons, etc.) */
+  renderItemAction?: (node: Node, index: number) => ReactNode;
   
   /** Optional custom node renderer */
   renderNode?: (node: Node, editable: boolean) => ReactNode;
@@ -115,6 +130,15 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   
   /** Whether to show indentation (default: true) */
   showIndentation?: boolean;
+  
+  /** Whether list is sortable (enables drag-and-drop reordering) */
+  sortable?: boolean;
+  
+  /** Called when nodes are reordered (only when sortable=true) */
+  onReorder?: (fromIndex: number, toIndex: number) => void;
+  
+  /** Action to render on each item (for remove buttons, etc.) */
+  renderItemAction?: (node: Node, index: number) => ReactNode;
 }
 
 /**

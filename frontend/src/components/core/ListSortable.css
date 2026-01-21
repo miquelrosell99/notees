@@ -83,19 +83,26 @@
   white-space: nowrap;
 }
 
-/* Action slot (right) */
-.list-sortable__action {
+/* Actions container (right) */
+.list-sortable__actions {
   flex-shrink: 0;
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* Individual action slot */
+.list-sortable__action {
   display: flex;
   align-items: center;
 }
 
 /* Action should be subtle until hover */
-.list-sortable__item:not(:hover) .list-sortable__action {
+.list-sortable__item:not(:hover) .list-sortable__actions {
   opacity: 0.5;
 }
 
-.list-sortable__item:hover .list-sortable__action {
+.list-sortable__item:hover .list-sortable__actions {
   opacity: 1;
 }
