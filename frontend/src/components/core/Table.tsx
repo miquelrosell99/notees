@@ -17,7 +17,13 @@ import './Table.css';
 
 export type TableSize = 'sm' | 'md' | 'lg';
 export type TableVariant = 'default' | 'striped' | 'bordered';
-export type SortDirection = 'asc' | 'desc' | null;
+export type SortDirection = 'asc' | 'desc';
+
+/** Entry for multi-column sorting */
+export interface SortEntry {
+  key: string;
+  direction: SortDirection;
+}
 
 export interface TableColumn<T> {
   /** Unique key for the column */
@@ -157,8 +163,8 @@ export function Table<T>({
   expandedKeys: controlledExpandedKeys,
   onExpandedChange,
 }: TableProps<T>) {
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  // Multi-column sort state: array of { key, direction } in sort priority order
+  const [sortColumns, setSortColumns] = useState<SortEntry[]>([]);
   
   // Internal expanded state (when uncontrolled)
   const [internalExpandedKeys, setInternalExpandedKeys] = useState<Set<string | number>>(new Set());
@@ -173,20 +179,27 @@ export function Table<T>({
   const handleSort = useCallback((column: TableColumn<T>) => {
     if (!column.sortable) return;
 
-    if (sortColumn === column.key) {
-      if (sortDirection === 'asc') {
-        setSortDirection('desc');
-      } else if (sortDirection === 'desc') {
-        setSortDirection(null);
-        setSortColumn(null);
-      } else {
-        setSortDirection('asc');
+    setSortColumns(prev => {
+      const existingIndex = prev.findIndex(s => s.key === column.key);
+      
+      if (existingIndex === -1) {
+        // Column not in sort list - add it with ascending
+        return [...prev, { key: column.key, direction: 'asc' }];
       }
-    } else {
-      setSortColumn(column.key);
-      setSortDirection('asc');
-    }
-  }, [sortColumn, sortDirection]);
+      
+      const existing = prev[existingIndex];
+      
+      if (existing.direction === 'asc') {
+        // Currently ascending - toggle to descending
+        const updated = [...prev];
+        updated[existingIndex] = { key: column.key, direction: 'desc' };
+        return updated;
+      } else {
+        // Currently descending - remove from sort list
+        return prev.filter(s => s.key !== column.key);
+      }
+    });
+  }, []);
 
   const handleToggleExpand = useCallback((key: string | number) => {
     const newExpanded = new Set(expandedKeys);
@@ -287,22 +300,30 @@ export function Table<T>({
     };
   }, [dragIndex, dropTargetIndex, data.length, reorderable]);
 
-  // Sort data
+  // Sort data by multiple columns
   const sortedData = [...data];
-  if (sortColumn && sortDirection) {
-    const column = columns.find(c => c.key === sortColumn);
-    if (column) {
-      sortedData.sort((a, b) => {
+  if (sortColumns.length > 0) {
+    sortedData.sort((a, b) => {
+      for (const sortEntry of sortColumns) {
+        const column = columns.find(c => c.key === sortEntry.key);
+        if (!column) continue;
+        
+        let comparison: number;
         if (column.sortFn) {
-          return sortDirection === 'asc' ? column.sortFn(a, b) : column.sortFn(b, a);
+          comparison = column.sortFn(a, b);
+        } else {
+          // Default string comparison
+          const aVal = String(column.accessor(a) ?? '');
+          const bVal = String(column.accessor(b) ?? '');
+          comparison = aVal.localeCompare(bVal);
         }
-        // Default string comparison
-        const aVal = String(column.accessor(a) ?? '');
-        const bVal = String(column.accessor(b) ?? '');
-        const comparison = aVal.localeCompare(bVal);
-        return sortDirection === 'asc' ? comparison : -comparison;
-      });
-    }
+        
+        if (comparison !== 0) {
+          return sortEntry.direction === 'asc' ? comparison : -comparison;
+        }
+      }
+      return 0;
+    });
   }
 
   // Compute selection state
@@ -312,7 +333,6 @@ export function Table<T>({
   // Calculate colspan for loading/empty states
   const extraColumns = 
     (selectable ? 1 : 0) + 
-    (reorderable ? 1 : 0) + 
     (expandable ? 1 : 0);
 
   const containerClasses = [
@@ -366,6 +386,18 @@ export function Table<T>({
           className={rowClasses}
           onClick={(e) => handleRowClick(row, e)}
         >
+          {/* Drag handle - positioned element to the left of row */}
+          {reorderable && currentDepth === depth && (
+            <div
+              className="table-drag-handle"
+              onMouseDown={(e) => handleDragStart(index, e)}
+              onClick={(e) => e.stopPropagation()}
+              title="Drag to reorder"
+            >
+              {reorderable.renderDragHandle?.() ?? <DefaultDragHandle />}
+            </div>
+          )}
+          
           {/* Checkbox column */}
           {selectable && (
             <td className="table-cell table-cell--checkbox" onClick={(e) => e.stopPropagation()}>
@@ -375,23 +407,6 @@ export function Table<T>({
                 onChange={() => handleToggleSelect(key)}
               />
             </td>
-          )}
-          
-          {/* Drag handle column */}
-          {reorderable && currentDepth === depth && (
-            <td className="table-cell table-cell--drag">
-              <button
-                className="table-drag-handle"
-                onMouseDown={(e) => handleDragStart(index, e)}
-                onClick={(e) => e.stopPropagation()}
-                title="Drag to reorder"
-              >
-                {reorderable.renderDragHandle?.() ?? <DefaultDragHandle />}
-              </button>
-            </td>
-          )}
-          {reorderable && currentDepth !== depth && (
-            <td className="table-cell table-cell--drag" />
           )}
           
           {/* Expand column */}
@@ -458,38 +473,45 @@ export function Table<T>({
                   />
                 </th>
               )}
-              {reorderable && <th className="table-cell table-cell--drag" />}
               {expandable && <th className="table-cell table-cell--expand" />}
-              {columns.map(column => (
-                <th
-                  key={column.key}
-                  className={[
-                    'table-cell',
-                    'table-cell--header',
-                    column.sortable ? 'table-cell--sortable' : '',
-                    column.align ? `table-cell--${column.align}` : '',
-                    column.hideOnMobile ? 'table-cell--hide-mobile' : '',
-                  ].filter(Boolean).join(' ')}
-                  style={{ width: column.width }}
-                  onClick={() => handleSort(column)}
-                  aria-sort={
-                    sortColumn === column.key
-                      ? sortDirection === 'asc' ? 'ascending' : 'descending'
-                      : undefined
-                  }
-                >
-                  <div className="table-header-content">
-                    <span>{column.header}</span>
-                    {column.sortable && (
-                      <span className="table-sort-icon">
-                        {sortColumn === column.key && (
-                          sortDirection === 'asc' ? '↑' : sortDirection === 'desc' ? '↓' : ''
-                        )}
-                      </span>
-                    )}
-                  </div>
-                </th>
-              ))}
+              {columns.map(column => {
+                const sortEntry = sortColumns.find(s => s.key === column.key);
+                const sortIndex = sortColumns.findIndex(s => s.key === column.key);
+                const showSortIndex = sortColumns.length > 1 && sortIndex !== -1;
+                
+                return (
+                  <th
+                    key={column.key}
+                    className={[
+                      'table-cell',
+                      'table-cell--header',
+                      column.sortable ? 'table-cell--sortable' : '',
+                      sortEntry ? 'table-cell--sorted' : '',
+                      column.align ? `table-cell--${column.align}` : '',
+                      column.hideOnMobile ? 'table-cell--hide-mobile' : '',
+                    ].filter(Boolean).join(' ')}
+                    style={{ width: column.width }}
+                    onClick={() => handleSort(column)}
+                    aria-sort={
+                      sortEntry
+                        ? sortEntry.direction === 'asc' ? 'ascending' : 'descending'
+                        : undefined
+                    }
+                  >
+                    <div className="table-header-content">
+                      <span>{column.header}</span>
+                      {column.sortable && sortEntry && (
+                        <span className="table-sort-icon">
+                          {sortEntry.direction === 'asc' ? '↑' : '↓'}
+                          {showSortIndex && (
+                            <span className="table-sort-index">{sortIndex + 1}</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
         )}

@@ -29,6 +29,16 @@ interface NodeTableColumn {
 }
 
 /**
+ * Safely format a date string, returning fallback if invalid
+ */
+function formatDate(dateStr: string | undefined | null): string {
+  if (!dateStr) return '—';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString();
+}
+
+/**
  * Default columns for the table view
  */
 function getDefaultColumns(): NodeTableColumn[] {
@@ -50,7 +60,7 @@ function getDefaultColumns(): NodeTableColumn[] {
       width: '20%',
       render: (node: Node) => (
         <span className="node-table__date">
-          {new Date(node.create_date).toLocaleDateString()}
+          {formatDate(node.create_date)}
         </span>
       ),
     },
@@ -60,7 +70,7 @@ function getDefaultColumns(): NodeTableColumn[] {
       width: '20%',
       render: (node: Node) => (
         <span className="node-table__date">
-          {new Date(node.write_date).toLocaleDateString()}
+          {formatDate(node.write_date)}
         </span>
       ),
     },
