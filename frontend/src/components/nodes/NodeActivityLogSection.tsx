@@ -1,19 +1,20 @@
 /**
- * NodeActivityLog Component
+ * NodeActivityLogSection Component
  * 
  * Displays a log of activities for a node (edit, link added, archived, etc.)
- * Uses bullet-style display for list items.
+ * Uses BlockPreview component for consistent visual style.
  * NodeViewSection wrapping is handled by NodeView.
  * Users can delete entries but not edit them.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { mdiTrashCanOutline } from '@mdi/js';
-import { Bullet } from '../blocks/Bullet';
+import { BlockPreview } from '../blocks/BlockPreview';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import './NodeActivityLog.css';
+import type { Node } from '@/types';
+import './NodeActivityLogSection.css';
 
-interface NodeActivityLogProps {
+interface NodeActivityLogSectionProps {
   nodeId: number;
 }
 
@@ -102,6 +103,24 @@ function formatActivityMessage(activity: NodeActivity): string {
 }
 
 /**
+ * Convert an activity entry to a pseudo-node for BlockPreview
+ */
+function activityToNode(activity: NodeActivity): Node {
+  const icon = ACTION_ICONS[activity.action] || '📝';
+  const message = formatActivityMessage(activity);
+  const time = formatDate(activity.create_date);
+  
+  return {
+    id: activity.id,
+    name: `${icon} ${message} — ${time}`,
+    is_page: false,
+    active: true,
+    create_date: activity.create_date,
+    write_date: activity.create_date,
+  };
+}
+
+/**
  * Hook to get activity count for section metadata
  */
 export function useActivityCount(nodeId: number) {
@@ -113,7 +132,7 @@ export function useActivityCount(nodeId: number) {
   };
 }
 
-export function NodeActivityLog({ nodeId }: NodeActivityLogProps) {
+export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) {
   const { data: activities, isLoading } = useNodeActivity(nodeId);
   const deleteActivity = useDeleteNodeActivity();
   
@@ -159,19 +178,11 @@ export function NodeActivityLog({ nodeId }: NodeActivityLogProps) {
               className="node-activity-item"
               onContextMenu={(e) => handleContextMenu(activity.id, e)}
             >
-              <Bullet
-                interactive={false}
-                size="xs"
+              <BlockPreview
+                variant="simple"
+                node={activityToNode(activity)}
+                showBullet={true}
               />
-              <div className="node-activity-content">
-                <span className="node-activity-icon">{ACTION_ICONS[activity.action] || '📝'}</span>
-                <span className="node-activity-message">
-                  {formatActivityMessage(activity)}
-                </span>
-                <span className="node-activity-time">
-                  {formatDate(activity.create_date)}
-                </span>
-              </div>
             </div>
           ))
         )}
@@ -188,4 +199,4 @@ export function NodeActivityLog({ nodeId }: NodeActivityLogProps) {
   );
 }
 
-export default NodeActivityLog;
+export default NodeActivityLogSection;

@@ -4,8 +4,8 @@
  * Node-related components for displaying, editing, and navigating nodes.
  */
 
-export { NodeActivityLog } from './NodeActivityLog';
-export type { NodeActivity } from './NodeActivityLog';
+export { NodeActivityLogSection } from './NodeActivityLogSection';
+export type { NodeActivity } from './NodeActivityLogSection';
 
 export { NodeBreadcrumbs } from './NodeBreadcrumbs';
 export type { BreadcrumbItem } from './NodeBreadcrumbs';
