@@ -2,7 +2,7 @@
  * NodeTableView Component
  * 
  * Table view for NodeCollection.
- * Displays nodes as rows in a table with optional expandable children.
+ * Uses the core Table component with node-specific configuration.
  * 
  * Features:
  * - Configurable columns
@@ -13,14 +13,14 @@
  * - Drag-and-drop reordering with drag handles
  * - Row selection with checkboxes
  */
-import { useState, useCallback, useMemo, useRef, useEffect, type ReactNode } from 'react';
+import { useMemo, useCallback, type ReactNode } from 'react';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
+import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
 import { NodeIcon, ChevronRightIcon, ChevronDownIcon, DragHandleIcon } from '../../icons';
-import { Checkbox } from '../../core/Checkbox';
 import './NodeTableView.css';
 
-// Custom column definition for node tables
+// Custom column definition for node tables (external API)
 interface NodeTableColumn {
   key: string;
   label: string;
@@ -77,174 +77,18 @@ function getDefaultColumns(): NodeTableColumn[] {
   ];
 }
 
-interface TableRowProps {
-  node: Node;
-  index: number;
-  depth: number;
-  maxDepth: number;
-  expandable: boolean;
-  expanded: boolean;
-  columns: NodeTableColumn[];
-  sortable: boolean;
-  selectable: boolean;
-  selected: boolean;
-  isDragging: boolean;
-  isDropTarget: boolean;
-  onToggleExpand: (nodeId: number) => void;
-  onToggleSelect: (nodeId: number) => void;
-  onNodeClick?: (node: Node) => void;
-  onNodeShiftClick?: (node: Node) => void;
-  onDragStart?: (index: number, e: React.MouseEvent) => void;
-}
-
-function TableRow({
-  node,
-  index,
-  depth,
-  maxDepth,
-  expandable,
-  expanded,
-  columns,
-  sortable,
-  selectable,
-  selected,
-  isDragging,
-  isDropTarget,
-  onToggleExpand,
-  onToggleSelect,
-  onNodeClick,
-  onNodeShiftClick,
-  onDragStart,
-}: TableRowProps) {
-  const children = node.children ?? [];
-  const hasChildren = children.length > 0;
-  const shouldRenderChildren = expandable && expanded && depth < maxDepth && hasChildren;
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (e.shiftKey && onNodeShiftClick) {
-      e.preventDefault();
-      onNodeShiftClick(node);
-    } else if (onNodeClick) {
-      onNodeClick(node);
-    }
-  }, [node, onNodeClick, onNodeShiftClick]);
-
-  const handleExpandClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleExpand(node.id);
-  }, [node.id, onToggleExpand]);
-
-  const handleCheckboxChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation();
-    onToggleSelect(node.id);
-  }, [node.id, onToggleSelect]);
-
-  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-  }, []);
-
-  const rowClassName = [
-    'node-table__row',
-    `node-table__row--depth-${depth}`,
-    isDragging && 'node-table__row--dragging',
-    isDropTarget && 'node-table__row--drop-target',
-    selected && 'node-table__row--selected',
-  ].filter(Boolean).join(' ');
-
-  return (
-    <>
-      <tr 
-        className={rowClassName}
-        onClick={handleClick}
-      >
-        {/* Checkbox column */}
-        {selectable && (
-          <td className="node-table__checkbox-cell" onClick={handleCheckboxClick}>
-            <Checkbox
-              size="sm"
-              checked={selected}
-              onChange={handleCheckboxChange}
-            />
-          </td>
-        )}
-        
-        {/* Drag handle column */}
-        {sortable && (
-          <td className="node-table__drag-cell">
-            <button
-              className="node-table__drag-handle"
-              onMouseDown={(e) => onDragStart?.(index, e)}
-              onClick={(e) => e.stopPropagation()}
-              title="Drag to reorder"
-            >
-              <DragHandleIcon size="xs" />
-            </button>
-          </td>
-        )}
-        
-        {/* Expand column */}
-        {expandable && (
-          <td className="node-table__expand-cell">
-            {hasChildren ? (
-              <button 
-                className="node-table__expand-btn"
-                onClick={handleExpandClick}
-              >
-                {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-              </button>
-            ) : (
-              <span className="node-table__expand-placeholder" />
-            )}
-          </td>
-        )}
-        
-        {/* Data columns */}
-        {columns.map((col) => (
-          <td key={col.key} style={{ width: col.width }}>
-            {col.render ? col.render(node) : String((node as unknown as Record<string, unknown>)[col.key] ?? '')}
-          </td>
-        ))}
-      </tr>
-      
-      {/* Expanded children */}
-      {shouldRenderChildren && children.map((child, childIndex) => (
-        <TableRowWithExpansion
-          key={child.id}
-          node={child}
-          index={childIndex}
-          depth={depth + 1}
-          maxDepth={maxDepth}
-          expandable={expandable}
-          columns={columns}
-          sortable={false}
-          selectable={selectable}
-          selected={false}
-          isDragging={false}
-          isDropTarget={false}
-          onNodeClick={onNodeClick}
-          onNodeShiftClick={onNodeShiftClick}
-          onToggleSelect={onToggleSelect}
-        />
-      ))}
-    </>
-  );
-}
-
-function TableRowWithExpansion(props: Omit<TableRowProps, 'expanded' | 'onToggleExpand'> & { onDragStart?: (index: number, e: React.MouseEvent) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  
-  const handleToggleExpand = useCallback(() => {
-    setExpanded(prev => !prev);
-  }, []);
-
-  return (
-    <TableRow
-      {...props}
-      expanded={expanded}
-      onToggleExpand={handleToggleExpand}
-      onDragStart={props.onDragStart}
-    />
-  );
+/**
+ * Convert NodeTableColumn to TableColumn<Node>
+ */
+function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
+  return nodeColumns.map(col => ({
+    key: col.key,
+    header: col.label,
+    width: col.width,
+    accessor: col.render 
+      ? col.render 
+      : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
+  }));
 }
 
 /**
@@ -265,150 +109,60 @@ export function NodeTableView({
   onNodeShiftClick,
   className = '',
 }: NodeTableViewProps) {
-  const columns = useMemo(() => customColumns ?? getDefaultColumns(), [customColumns]);
+  // Convert node columns to Table columns
+  const nodeColumns = useMemo(() => customColumns ?? getDefaultColumns(), [customColumns]);
+  const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
   
-  // Selection state (internal or controlled)
-  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
-  const selectedIds = controlledSelectedIds ?? internalSelectedIds;
+  // Convert Set<number> to Set<string | number> for Table component
+  const selectedKeys = useMemo(() => {
+    if (!controlledSelectedIds) return undefined;
+    return controlledSelectedIds as Set<string | number>;
+  }, [controlledSelectedIds]);
   
-  // Handle selection toggle
-  const handleToggleSelect = useCallback((nodeId: number) => {
-    const newSelection = new Set(selectedIds);
-    if (newSelection.has(nodeId)) {
-      newSelection.delete(nodeId);
-    } else {
-      newSelection.add(nodeId);
-    }
-    
+  // Handle selection change - convert back to Set<number>
+  const handleSelectionChange = useCallback((keys: Set<string | number>) => {
     if (onSelectionChange) {
-      onSelectionChange(newSelection);
-    } else {
-      setInternalSelectedIds(newSelection);
+      onSelectionChange(keys as Set<number>);
     }
-  }, [selectedIds, onSelectionChange]);
+  }, [onSelectionChange]);
   
-  // Handle select all toggle
-  const handleSelectAll = useCallback(() => {
-    const allSelected = nodes.every(n => selectedIds.has(n.id));
-    const newSelection = allSelected ? new Set<number>() : new Set(nodes.map(n => n.id));
-    
-    if (onSelectionChange) {
-      onSelectionChange(newSelection);
-    } else {
-      setInternalSelectedIds(newSelection);
-    }
-  }, [nodes, selectedIds, onSelectionChange]);
+  // Expandable configuration
+  const expandableConfig: ExpandableConfig<Node> | undefined = useMemo(() => {
+    if (!expandable) return undefined;
+    return {
+      getChildren: (node: Node) => node.children ?? [],
+      maxDepth: maxDepth,
+      renderExpandIcon: (isExpanded: boolean) => 
+        isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />,
+    };
+  }, [expandable, maxDepth]);
   
-  // Check if all are selected (for header checkbox)
-  const allSelected = nodes.length > 0 && nodes.every(n => selectedIds.has(n.id));
-  const someSelected = nodes.some(n => selectedIds.has(n.id)) && !allSelected;
-  
-  // Drag state for sortable mode
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rowHeightRef = useRef(40);
-
-  // Measure row height
-  useEffect(() => {
-    if (containerRef.current && sortable) {
-      const firstRow = containerRef.current.querySelector('.node-table__row') as HTMLElement;
-      if (firstRow) {
-        rowHeightRef.current = firstRow.offsetHeight;
-      }
-    }
-  }, [nodes.length, sortable]);
-
-  // Handle drag start
-  const handleDragStart = useCallback((index: number, e: React.MouseEvent) => {
-    if (!sortable || !onReorder) return;
-    e.preventDefault();
-    setDragIndex(index);
-    setDropTargetIndex(index);
+  // Reorderable configuration
+  const reorderableConfig: ReorderableConfig | undefined = useMemo(() => {
+    if (!sortable || !onReorder) return undefined;
+    return {
+      onReorder,
+      renderDragHandle: () => <DragHandleIcon size="xs" />,
+    };
   }, [sortable, onReorder]);
 
-  // Handle drag move and end
-  useEffect(() => {
-    if (dragIndex === null || !sortable) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const tbody = container.querySelector('tbody');
-      if (!tbody) return;
-      
-      const tbodyRect = tbody.getBoundingClientRect();
-      const mouseY = e.clientY - tbodyRect.top;
-      const rowHeight = rowHeightRef.current;
-      const targetIndex = Math.max(0, Math.min(nodes.length - 1, Math.floor(mouseY / rowHeight)));
-      setDropTargetIndex(targetIndex);
-    };
-
-    const handleMouseUp = () => {
-      if (dragIndex !== null && dropTargetIndex !== null && dragIndex !== dropTargetIndex) {
-        onReorder?.(dragIndex, dropTargetIndex);
-      }
-      setDragIndex(null);
-      setDropTargetIndex(null);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragIndex, dropTargetIndex, nodes.length, sortable, onReorder]);
-
   return (
-    <div className={`node-table-view ${sortable ? 'node-table-view--sortable' : ''} ${className}`} ref={containerRef}>
-      <table className="node-table">
-        <thead>
-          <tr>
-            {selectable && (
-              <th className="node-table__checkbox-header">
-                <Checkbox
-                  size="sm"
-                  checked={allSelected}
-                  indeterminate={someSelected}
-                  onChange={handleSelectAll}
-                />
-              </th>
-            )}
-            {sortable && <th className="node-table__drag-header" />}
-            {expandable && <th className="node-table__expand-header" />}
-            {columns.map((col) => (
-              <th key={col.key} style={{ width: col.width }}>
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {nodes.map((node, index) => (
-            <TableRowWithExpansion
-              key={node.id}
-              node={node}
-              index={index}
-              depth={depth}
-              maxDepth={maxDepth}
-              expandable={expandable}
-              columns={columns}
-              sortable={sortable}
-              selectable={selectable}
-              selected={selectedIds.has(node.id)}
-              isDragging={dragIndex === index}
-              isDropTarget={dropTargetIndex === index && dragIndex !== null && dragIndex !== index}
-              onNodeClick={onNodeClick}
-              onNodeShiftClick={onNodeShiftClick}
-              onToggleSelect={handleToggleSelect}
-              onDragStart={handleDragStart}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table<Node>
+      data={nodes}
+      columns={tableColumns}
+      getRowKey={(node) => node.id}
+      size="md"
+      variant="bordered"
+      selectable={selectable}
+      selectedKeys={selectedKeys}
+      onSelectionChange={handleSelectionChange}
+      onRowClick={onNodeClick}
+      onRowShiftClick={onNodeShiftClick}
+      expandable={expandableConfig}
+      reorderable={reorderableConfig}
+      depth={depth}
+      className={`node-table-view ${className}`}
+      getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
+    />
   );
 }
