@@ -13,7 +13,7 @@
  * - Sortable mode with drag-and-drop reordering
  * - Breadcrumbs for top-level nodes (showing page hierarchy)
  */
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Block } from '../../blocks/Block';
@@ -23,6 +23,19 @@ import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import './NodeListView.css';
+
+/**
+ * Recursively filter a node tree to only include pages.
+ * Returns a new tree where each node's children only contains pages.
+ */
+function filterPagesRecursively(nodes: Node[]): Node[] {
+  return nodes
+    .filter(n => n.is_page)
+    .map(n => ({
+      ...n,
+      children: n.children ? filterPagesRecursively(n.children) : undefined,
+    }));
+}
 
 interface NodeListItemProps {
   node: Node;
@@ -60,7 +73,11 @@ function NodeListItem({
   onContentChange,
 }: NodeListItemProps) {
   const rawChildren = node.children ?? [];
-  const children = pagesOnly ? rawChildren.filter(c => c.is_page) : rawChildren;
+  // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
+  const children = useMemo(() => 
+    pagesOnly ? filterPagesRecursively(rawChildren) : rawChildren,
+    [rawChildren, pagesOnly]
+  );
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
   
   // Get block callbacks from context (only available in editable mode with provider)
