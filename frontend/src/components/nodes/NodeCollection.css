@@ -1,0 +1,47 @@
+/**
+ * NodeCollection CSS
+ * 
+ * Styles for the universal NodeCollection component
+ */
+
+.node-collection {
+  width: 100%;
+}
+
+.node-collection--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.node-collection__empty-message {
+  padding: 1rem;
+  text-align: center;
+  opacity: 0.6;
+}
+
+/* View mode specific containers */
+.node-collection--list,
+.node-collection--document {
+  /* Full width for list/document modes */
+}
+
+.node-collection--card {
+  /* Card grid handled by NodeCardGrid */
+}
+
+.node-collection--table {
+  /* Table handled by NodeTableView */
+}
+
+.node-collection--gantt {
+  /* Gantt handled by NodeGanttView */
+}
+
+.node-collection--graph {
+  /* Graph handled by NodeGraphView */
+  min-height: 400px;
+}

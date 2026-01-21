@@ -1,0 +1,115 @@
+/**
+ * NodeCardGrid CSS
+ * 
+ * Styles for card grid view mode
+ */
+
+.node-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+/* Individual card */
+.node-card {
+  background: var(--card-bg, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.node-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Card layouts */
+.node-card--cover-top {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-card--cover-side {
+  display: flex;
+  flex-direction: row;
+}
+
+.node-card--cover-side .node-card__cover {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.node-card--no-cover {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cover image */
+.node-card__cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.node-card--cover-side .node-card__cover {
+  aspect-ratio: 1;
+}
+
+.node-card__cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Card body */
+.node-card__body {
+  padding: 0.75rem 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Card header */
+.node-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.node-card__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Card children preview */
+.node-card__children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.node-card__children .block-preview {
+  padding: 0.125rem 0;
+}
+
+.node-card__more {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  padding-top: 0.25rem;
+}
+
+/* Colored card border */
+.node-card[style*="border-left-color"] {
+  border-left-style: solid;
+}

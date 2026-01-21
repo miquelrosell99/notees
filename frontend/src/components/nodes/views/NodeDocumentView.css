@@ -1,0 +1,45 @@
+/**
+ * NodeDocumentView CSS
+ * 
+ * Styles for document view mode - no bullets, no indentation, paragraph-style
+ */
+
+.node-document-view {
+  width: 100%;
+  max-width: 72ch; /* Optimal reading width */
+  margin: 0 auto;
+}
+
+.document-node {
+  margin-bottom: 0.5rem;
+}
+
+.document-node__content {
+  line-height: 1.7;
+}
+
+.document-node__children {
+  margin-top: 0.5rem;
+}
+
+/* Override block styles for document mode */
+.node-document-view .block {
+  padding-left: 0;
+}
+
+.node-document-view .block__bullet {
+  display: none;
+}
+
+.node-document-view .block__content {
+  padding-left: 0;
+}
+
+/* Block preview in document mode */
+.node-document-view .block-preview {
+  padding-left: 0;
+}
+
+.node-document-view .block-preview__bullet {
+  display: none;
+}

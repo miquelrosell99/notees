@@ -32,8 +32,6 @@ export { BlockPreview } from './blocks/BlockPreview';
 export type { BlockPreviewProps, BlockPreviewVariant, BlockPreviewSize } from './blocks/BlockPreview';
 export { BlockPreviewDrag } from './blocks/BlockPreviewDrag';
 export type { BlockPreviewDragProps, BlockPreviewDragVariant } from './blocks/BlockPreviewDrag';
-export { DraggedBlock } from './blocks/DraggedBlock';
-export type { DraggedBlockProps } from './blocks/DraggedBlock';
 export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
 export { ImageBlock } from './blocks/ImageBlock';
@@ -108,22 +106,42 @@ export { Dropdown } from './core/Dropdown';
 export type { DropdownProps, DropdownOption, DropdownSize } from './core/Dropdown';
 
 // Graph components (domain-specific)
-export { NodeToNodeLine, drawNodeToNodeLine } from './graph/NodeToNodeLine';
-export type { NodeToNodeLineProps, LineStyle, ArrowDirection } from './graph/NodeToNodeLine';
-export { NodeCircle, drawNodeCircle } from './graph/NodeCircle';
-export type { NodeCircleProps, NodeCircleState } from './graph/NodeCircle';
+export { 
+  NodeToNodeLine, 
+  drawNodeToNodeLine, 
+  NodeCircle, 
+  drawNodeCircle,
+  NodeGraphRenderer,
+  NodeGraphView,
+  NodeGraphViewSimple,
+  GraphViewAll,
+  GraphViewAllCard,
+  GraphViewLocal,
+} from './graph';
+export type { 
+  NodeToNodeLineProps, 
+  LineStyle, 
+  ArrowDirection,
+  NodeCircleProps, 
+  NodeCircleState,
+  NodeGraphRendererRef,
+  GraphNode,
+  GraphLink,
+  NodeGraphViewProps,
+  NodeGraphViewSimpleProps,
+  GraphViewAllProps,
+  GraphViewAllCardProps,
+  GraphViewLocalProps,
+} from './graph';
 
 // NodeListCore (moved out of core/ - has domain knowledge)
 export { NodeListCore } from './nodes/NodeListCore';
 export type { NodeListCoreProps, NodeListCoreItem, NodeListCoreGroup } from './nodes/NodeListCore';
 
 // View components
-export { GraphView } from '../views/GraphView';
-export { MiniGraphView } from '../views/MiniGraphView';
 export { AllPagesView } from '../views/AllPagesView';
 export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './SidebarNodeView';
-export { LocalGraphCard } from './LocalGraphCard';
 export { CommentsSidebar } from './CommentsSidebar';
 export { CardsView } from '../views/CardsView';
 export type { CardsViewProps, CardsViewMode } from '../views/CardsView';
@@ -135,8 +153,6 @@ export { GanttView } from '../views/GanttView';
 export type { GanttViewProps } from '../views/GanttView';
 export { QueryView } from '../views/QueryView';
 export type { QueryViewProps } from '../views/QueryView';
-export { FilteredGraphView } from '../views/FilteredGraphView';
-export type { FilteredGraphViewProps } from '../views/FilteredGraphView';
 export { PropertyNodesView } from '../views/PropertyNodesView';
 export type { PropertyNodesViewProps, PropertyViewMode } from '../views/PropertyNodesView';
 export { TemplateUsedInView } from './TemplateUsedInView';
@@ -191,6 +207,17 @@ export type { NodeLinkSearchProps, LinkSearchType } from './nodes/NodeLinkSearch
 // NodeSet component
 export { NodeSet } from './nodes/NodeSet';
 export type { NodeSetProps, NodeSetItem, NodeSetViewType, GroupByOption } from './nodes/NodeSet';
+
+// NodeCollection - Universal node collection system
+export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './nodes/NodeCollection';
+export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCollection';
+
+// NodeCollection view mode components
+export { NodeListView } from './nodes/views/NodeListView';
+export { NodeDocumentView } from './nodes/views/NodeDocumentView';
+export { NodeCardGrid } from './nodes/views/NodeCardGrid';
+export { NodeTableView } from './nodes/views/NodeTableView';
+export { NodeGanttView } from './nodes/views/NodeGanttView';
 
 // Icons
 export * from './icons';

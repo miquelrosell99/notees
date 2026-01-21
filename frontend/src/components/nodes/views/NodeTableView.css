@@ -1,0 +1,121 @@
+/**
+ * NodeTableView CSS
+ * 
+ * Styles for table view mode
+ */
+
+.node-table-view {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.node-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+/* Header */
+.node-table thead {
+  background: var(--bg-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.node-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.node-table__expand-header {
+  width: 32px;
+}
+
+/* Rows */
+.node-table__row {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.node-table__row:hover {
+  background: var(--bg-hover);
+}
+
+.node-table td {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+/* Depth indentation */
+.node-table__row--depth-1 td:first-child {
+  padding-left: 2rem;
+}
+
+.node-table__row--depth-2 td:first-child {
+  padding-left: 3rem;
+}
+
+.node-table__row--depth-3 td:first-child {
+  padding-left: 4rem;
+}
+
+/* Expand button */
+.node-table__expand-cell {
+  width: 32px;
+  padding: 0.5rem !important;
+}
+
+.node-table__expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.node-table__expand-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.node-table__expand-placeholder {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+/* Name cell */
+.node-table__name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.node-table__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Date cell */
+.node-table__date {
+  color: var(--text-muted);
+}
+
+/* Count cell */
+.node-table__count {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}

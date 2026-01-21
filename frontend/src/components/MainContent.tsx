@@ -14,7 +14,7 @@ import { Button } from './core/Button';
 import { NodeView } from '../views/NodeView';
 import { AllPagesView } from '../views/AllPagesView';
 import { JournalsView } from '../views/JournalsView';
-import { GraphView } from '../views/GraphView';
+import { GraphViewAll } from './graph';
 import { ArchivedView } from '../views/ArchivedView';
 import { AssetsView } from '../views/AssetsView';
 import { PropertyView } from '../views/PropertyView';
@@ -61,7 +61,7 @@ export function MainContent() {
   if (mainViewType === 'graph') {
     return (
       <main className="main-content graph-content">
-        <GraphView className="main-graph-view" />
+        <GraphViewAll className="main-graph-view" />
       </main>
     );
   }

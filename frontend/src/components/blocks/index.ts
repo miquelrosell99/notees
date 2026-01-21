@@ -15,8 +15,6 @@ export type { BlockPreviewProps, BlockPreviewVariant, BlockPreviewSize } from '.
 // Block preview and drag
 export { BlockPreviewDrag } from './BlockPreviewDrag';
 export type { BlockPreviewDragProps, BlockPreviewDragVariant } from './BlockPreviewDrag';
-export { DraggedBlock } from './DraggedBlock';
-export type { DraggedBlockProps } from './DraggedBlock';
 
 // Bullet component
 export { Bullet } from './Bullet';
