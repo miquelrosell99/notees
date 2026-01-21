@@ -13,7 +13,6 @@ import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon } from './icons';
 import { Button } from './core/Button';
 import { NodeCollection } from './nodes/NodeCollection';
-import { CalendarView } from '../views/CalendarView';
 import { NodeGraphViewSimple } from './graph';
 
 export interface PropertyNodesViewProps {
@@ -299,17 +298,6 @@ export function PropertyNodesView({
             viewMode="card"
             sortable={false}
             onNodeClick={onNodeClick}
-          />
-        )}
-        
-        {viewMode === 'calendar' && (
-          <CalendarView
-            nodes={nodes}
-            datePropertyId={property.type === 'date' ? property.id : undefined}
-            onNodeClick={onNodeClick ? (nodeId) => {
-              const node = nodes.find(n => n.id === nodeId);
-              if (node) onNodeClick(node);
-            } : undefined}
           />
         )}
         
