@@ -39,3 +39,4 @@ dist/
 build/
 AGENTS.md
 .github/prompts/Base.prompt.md
+.github/copilot-instructions.md
