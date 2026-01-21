@@ -123,7 +123,7 @@ async def auth_client(authenticated_client: AsyncClient) -> AsyncClient:
 def sample_node_data() -> dict:
     """Return sample node data for testing."""
     return {
-        "content": "Test Page",
+        "name": "Test Page",
         "is_page": True,
         "tags": [],
         "properties": {},
@@ -134,7 +134,7 @@ def sample_node_data() -> dict:
 def sample_block_data() -> dict:
     """Return sample block data for testing."""
     return {
-        "content": "Test block content",
+        "name": "Test block content",
         "is_page": False,
         "tags": [],
         "properties": {},
@@ -145,7 +145,7 @@ def sample_block_data() -> dict:
 def sample_daily_page_data() -> dict:
     """Return sample daily page data for testing."""
     return {
-        "content": "2026-01-15",
+        "name": "2026-01-15",
         "is_page": True,
         "is_daily": True,
         "daily_date": "2026-01-15",
