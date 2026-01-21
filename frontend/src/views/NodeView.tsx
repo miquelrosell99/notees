@@ -520,7 +520,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       {/* Show nodes that have this node as their type - only for type nodes */}
       {isTypeNode && (
         <NodeViewSection
-          title="Nodes with this type"
+          title="Nodes"
           icon={<TableIcon size="sm" />}
           count={typedNodes?.length ?? 0}
           defaultExpanded={true}
@@ -533,7 +533,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       {/* Child pages section - shows pages that have this node as parent (pages only) */}
       {resolvedType === 'page' && pageChildren.length > 0 && (
         <NodeViewSection
-          title="Child Pages"
+          title="Children"
           icon={<PageIcon size="sm" />}
           count={pageChildren.length}
           defaultExpanded={true}

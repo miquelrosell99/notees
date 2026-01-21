@@ -5,27 +5,17 @@
  * - no-cover: Simple card without cover
  * - cover-top: Cover image on top
  * - cover-side: Cover image on the left side
+ * 
+ * Uses Card core component as base, these styles extend it
  */
 
-.card-view-card {
+/* Override Card defaults for CardViewCard */
+.card-view-card.card {
   display: flex;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
   cursor: pointer;
   text-align: left;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
   overflow: hidden;
   width: 100%;
-}
-
-.card-view-card:hover {
-  border-color: var(--color-outline);
-  box-shadow: var(--elevation-1);
-}
-
-.card-view-card:active {
-  transform: scale(0.99);
 }
 
 /* Color variant - when node has a color property */

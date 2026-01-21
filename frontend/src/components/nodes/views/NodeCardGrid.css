@@ -11,19 +11,9 @@
   width: 100%;
 }
 
-/* Individual card */
-.node-card {
-  background: var(--card-bg, var(--bg-secondary));
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
+/* Individual card - extends Card core component */
+.node-card.card {
   cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.2s;
-}
-
-.node-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
 }
 
 /* Card layouts */
@@ -112,4 +102,57 @@
 /* Colored card border */
 .node-card[style*="border-left-color"] {
   border-left-style: solid;
+}
+
+/* Drag handle */
+.node-card__drag-handle {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  cursor: grab;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+  z-index: 1;
+}
+
+.node-card {
+  position: relative;
+}
+
+.node-card__drag-handle:hover,
+.node-card__drag-handle:focus {
+  opacity: 1;
+}
+
+.node-card__drag-handle:hover {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.node-card__drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Dragging states */
+.node-card--dragging {
+  opacity: 0.5;
+}
+
+.node-card--drop-target {
+  box-shadow: 0 0 0 2px var(--accent-color);
+  transform: scale(1.02);
+}
+
+.node-card-grid--sortable {
+  user-select: none;
 }
