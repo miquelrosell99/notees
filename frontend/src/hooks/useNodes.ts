@@ -684,37 +684,21 @@ export function useMoveNode() {
   return useMutation({
     mutationFn: ({ id, parentId, position }: { id: number; parentId: number | null; position?: number }) => 
       nodesApi.moveNode(id, parentId, position),
-    onMutate: async ({ id }) => {
-      // Get the node's current data to find old parent
-      const oldNode = queryClient.getQueryData<Node>(
-        nodeKeys.detail(id, { include_children: true })
-      );
-      return { oldParentId: oldNode?.parent_id, oldPageId: oldNode?.page_id };
-    },
-    onSuccess: (movedNode, { id, parentId }, context) => {
-      // Update the moved node in cache
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(id) },
-        () => movedNode
-      );
+    onSuccess: (movedNode, { parentId }) => {
+      // Invalidate ALL detail queries (this covers nodes with include_children: true)
+      // The detail queries are used by NodeView to display page content with children
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.details(),
+        refetchType: 'active',
+      });
       
-      // Invalidate the old parent's page content (to remove node from old location)
-      if (context?.oldPageId) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(context.oldPageId) });
-      }
-      if (context?.oldParentId && context.oldParentId !== context.oldPageId) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(context.oldParentId) });
-      }
+      // Also invalidate page-content queries for any components using that
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'page-content'],
+        refetchType: 'active',
+      });
       
-      // Invalidate the new parent's page content (to show node in new location)
-      if (movedNode.page_id) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(movedNode.page_id) });
-      }
-      if (parentId && parentId !== movedNode.page_id) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(parentId) });
-      }
-      
-      // Invalidate all list queries since order may have changed
+      // Invalidate list queries for sidebar updates
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
   });
