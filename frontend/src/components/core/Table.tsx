@@ -451,7 +451,7 @@ export function Table<T>({
           <thead className="table-header">
             <tr className="table-row table-row--header">
               {selectable && (
-                <th className="table-cell table-cell--checkbox">
+                <th className="table-cell table-cell--checkbox" onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     size={size === 'lg' ? 'md' : 'sm'}
                     checked={allSelected}
