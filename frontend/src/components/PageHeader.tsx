@@ -12,11 +12,12 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { useUpdateNode, useTypes } from '@/hooks';
+import { useUpdateNode, useTypes, useRemoveType } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon, TagIcon } from './icons';
+import { NodeTypePill } from './NodeTypePill';
 import { EmojiPicker } from './core/EmojiPicker';
 import { isSystemPage } from '../utils/systemPages';
 import { SYSTEM_TYPE_UUIDS } from '@/constants';
@@ -41,6 +42,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const iconRef = useRef<HTMLButtonElement>(null);
   const updateNode = useUpdateNode();
+  const removeType = useRemoveType();
   const { 
     addSidebarCard, 
     openNode,
@@ -185,15 +187,12 @@ export function PageHeader({
             {pageTypeDetails.length > 0 && (
               <div className="node-types">
                 {pageTypeDetails.map((typeNode) => (
-                  <button
+                  <NodeTypePill
                     key={typeNode.id}
-                    className="node-type-chip"
+                    typeNode={typeNode}
                     onClick={() => handleNavigateToNode(typeNode.id)}
-                    title={`Click to view ${typeNode.name}`}
-                  >
-                    <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
-                    <span>{typeNode.name}</span>
-                  </button>
+                    onRemove={() => removeType.mutate({ nodeId: page.id, typeId: typeNode.id })}
+                  />
                 ))}
               </div>
             )}
