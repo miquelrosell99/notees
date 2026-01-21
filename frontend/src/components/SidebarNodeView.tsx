@@ -93,7 +93,8 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   // Handle creating a new type
   const handleCreateType = useCallback((blockId: number) => (name: string) => {
     const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
-    createNode.mutate({ name, is_page: true }, {
+    // Create as both a page AND a type so it shows up in @ menu
+    createNode.mutate({ name, is_page: true, is_type: true }, {
       onSuccess: (newPage) => {
         addType.mutate({ nodeId: blockId, typeId: newPage.id });
         if (typeType) {

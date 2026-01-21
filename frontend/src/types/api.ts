@@ -171,6 +171,7 @@ export interface NodeCreate {
   types?: number[];
   properties?: Record<number, unknown>;
   is_page?: boolean;  // Create as a page (no parent needed)
+  is_type?: boolean;  // Create as a type (is_type=true)
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;

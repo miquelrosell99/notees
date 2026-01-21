@@ -131,6 +131,7 @@ class NodeCreateRequest(BaseModel):
     types: List[int] = []  # Type node IDs
     properties: Dict[int, Any] = {}  # property_id -> value
     is_page: bool = False  # Whether to create as a page
+    is_type: bool = False  # Whether to create as a type definition
     # For date nodes
     is_daily: bool = False
     daily_date: Optional[str] = None  # YYYY-MM-DD
@@ -411,6 +412,7 @@ async def create_node(
         types=types,
         property_values=request.properties,
         is_page=request.is_page,
+        is_type=request.is_type,
     )
     
     node = await service.create_node(data, user_id=None)  # TODO: user_id from JWT
