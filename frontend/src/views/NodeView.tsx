@@ -500,24 +500,26 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         />
       </NodeViewSection>
       
-      {/* Node Activity Log */}
-      <NodeViewSection
-        title="Activity"
-        icon={<Icon path={mdiHistory} size={0.7} />}
-        count={activityCount}
-        defaultExpanded={false}
-        headerActions={
-          <button
-            className="node-activity-btn"
-            onClick={(e) => { e.stopPropagation(); refetchActivity(); }}
-            title="Refresh"
-          >
-            <Icon path={mdiRefresh} size={0.6} />
-          </button>
-        }
-      >
-        <NodeActivityLog nodeId={node.id} />
-      </NodeViewSection>
+      {/* Node Activity Log - pages only */}
+      {resolvedType === 'page' && (
+        <NodeViewSection
+          title="Activity"
+          icon={<Icon path={mdiHistory} size={0.7} />}
+          count={activityCount}
+          defaultExpanded={false}
+          headerActions={
+            <button
+              className="node-activity-btn"
+              onClick={(e) => { e.stopPropagation(); refetchActivity(); }}
+              title="Refresh"
+            >
+              <Icon path={mdiRefresh} size={0.6} />
+            </button>
+          }
+        >
+          <NodeActivityLog nodeId={node.id} />
+        </NodeViewSection>
+      )}
       
       {/* Footer */}
       <footer className="node-view-footer">
