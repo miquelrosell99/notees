@@ -20,7 +20,7 @@ import {
 import { mdiPlus } from '@mdi/js';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
-import '@/views/PropertiesSection.css';
+import './PropertiesSection.css';
 
 interface TypePropertiesEditorProps {
   /** The type node ID being edited */
