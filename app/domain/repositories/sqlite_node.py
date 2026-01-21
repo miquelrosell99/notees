@@ -116,6 +116,16 @@ class SQLiteNodeRepository(NodeRepository):
         row = await cursor.fetchone()
         return bool(row['is_page']) if row else False
     
+    async def _shift_siblings_for_insert(self, parent_id: int, sequence: int) -> None:
+        """Shift siblings at or after the given sequence to make room for insertion.
+        
+        Increments sequence of all siblings with sequence >= the given sequence.
+        """
+        await self._conn.execute(
+            "UPDATE node SET sequence = sequence + 1 WHERE parent_id = ? AND sequence >= ?",
+            (parent_id, sequence)
+        )
+    
     async def create(self, data: NodeCreateData, user_id: Optional[int] = None) -> Node:
         """Create a new node."""
         now = utc_now_iso()
@@ -129,6 +139,10 @@ class SQLiteNodeRepository(NodeRepository):
                 page_id = data.parent_id
             else:
                 page_id = await self._compute_page_id(data.parent_id)
+        
+        # Shift siblings to make room for the new node at the specified sequence
+        if data.parent_id is not None and data.sequence is not None:
+            await self._shift_siblings_for_insert(data.parent_id, data.sequence)
         
         cursor = await self._conn.execute("""
             INSERT INTO node (
