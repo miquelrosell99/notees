@@ -81,6 +81,15 @@
   display: inline;
 }
 
+/* ============== Property Name ============== */
+
+.block-preview__property-name {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  color: var(--color-primary, #007bff);
+  font-weight: 500;
+}
+
 /* ============== Badges ============== */
 
 .block-preview__badges {
