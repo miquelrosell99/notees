@@ -32,6 +32,7 @@ interface NodeListItemProps {
   showBullets: boolean;
   showIndentation: boolean;
   showBreadcrumbs: boolean;
+  pagesOnly: boolean;
   siblings: Node[];
   parentBlock?: Node | null;
   page?: Node | null;
@@ -49,6 +50,7 @@ function NodeListItem({
   showBullets,
   showIndentation,
   showBreadcrumbs,
+  pagesOnly,
   siblings,
   parentBlock,
   page,
@@ -57,7 +59,8 @@ function NodeListItem({
   onNodeShiftClick,
   onContentChange,
 }: NodeListItemProps) {
-  const children = node.children ?? [];
+  const rawChildren = node.children ?? [];
+  const children = pagesOnly ? rawChildren.filter(c => c.is_page) : rawChildren;
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
   
   // Get block callbacks from context (only available in editable mode with provider)
@@ -191,6 +194,7 @@ function NodeListItem({
               showBullets={showBullets}
               showIndentation={showIndentation}
               showBreadcrumbs={false}
+              pagesOnly={pagesOnly}
               siblings={children}
               parentBlock={node}
               onNodeClick={onNodeClick}
@@ -215,6 +219,7 @@ export function NodeListView({
   showBullets = true,
   showIndentation = true,
   showBreadcrumbs = true,
+  pagesOnly = false,
   sortable = false,
   onReorder,
   renderItemAction,
@@ -256,10 +261,13 @@ export function NodeListView({
     );
   }
 
+  // Filter top-level nodes if pagesOnly is set
+  const filteredNodes = pagesOnly ? nodes.filter(n => n.is_page) : nodes;
+
   // Regular non-sortable list
   return (
     <div className={`node-list-view ${className}`}>
-      {nodes.map((node) => {
+      {filteredNodes.map((node) => {
         // Get page from pageMap if available
         const page = node.page_id && pageMap ? pageMap.get(node.page_id) : undefined;
         
@@ -273,7 +281,8 @@ export function NodeListView({
             showBullets={showBullets}
             showIndentation={showIndentation}
             showBreadcrumbs={showBreadcrumbs}
-            siblings={nodes}
+            pagesOnly={pagesOnly}
+            siblings={filteredNodes}
             parentBlock={null}
             page={page}
             onNodeClick={onNodeClick}
