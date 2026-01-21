@@ -10,7 +10,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
-import { useNodeSearch, useCreatePage, usePages } from '@/hooks';
+import { useNodeSearch, useCreateNode, usePages } from '@/hooks';
 import type { Node } from '@/types';
 import { AddIcon, NodeIcon, BulletIcon } from '../icons';
 import './NodeLinkSearch.css';
@@ -55,7 +55,7 @@ export function NodeLinkSearch({
   const { data: allPages = [] } = usePages();
   
   // Create page mutation
-  const createPageMutation = useCreatePage();
+  const createNodeMutation = useCreateNode();
   
   // Only show create option for page-link type
   const showCreatePage = linkType === 'page-link' && showCreateOption;
@@ -107,7 +107,7 @@ export function NodeLinkSearch({
     
     if (item.type === 'create-page') {
       try {
-        const newPage = await createPageMutation.mutateAsync({ name: query.trim() });
+        const newPage = await createNodeMutation.mutateAsync({ name: query.trim(), is_page: true });
         onSelect(newPage);
       } catch (error) {
         console.error('Failed to create page:', error);
@@ -115,7 +115,7 @@ export function NodeLinkSearch({
     } else if (item.node) {
       onSelect(item.node);
     }
-  }, [allItems, query, createPageMutation, onSelect]);
+  }, [allItems, query, createNodeMutation, onSelect]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

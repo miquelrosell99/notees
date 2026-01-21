@@ -13,7 +13,7 @@
  * - Block creation to destination page
  */
 import { useState, useCallback } from 'react';
-import { useCreateNode, useCreatePage } from './useNodes';
+import { useCreateNode } from './useNodes';
 import { useNodesStore } from '@/stores';
 
 export interface DraftBlock {
@@ -83,7 +83,6 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   );
   
   const createNodeMutation = useCreateNode();
-  const createPageMutation = useCreatePage();
   const { openNode } = useNodesStore();
 
   // Reset blocks to initial state
@@ -163,7 +162,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
     async (name: string) => {
       if (!name.trim()) return undefined;
       
-      const newPage = await createPageMutation.mutateAsync({ name: name.trim() });
+      const newPage = await createNodeMutation.mutateAsync({ name: name.trim(), is_page: true });
       
       if (navigateOnSuccess) {
         openNode(newPage.id, 'page');
@@ -173,7 +172,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       
       return newPage;
     },
-    [createPageMutation, navigateOnSuccess, openNode, onSuccess]
+    [createNodeMutation, navigateOnSuccess, openNode, onSuccess]
   );
 
   // Check if there's any content to send

@@ -15,7 +15,7 @@
  * 7. NodeActivityLog
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreatePage, useProperties, useSetNodeProperty, useAddTagLink } from '@/hooks';
+import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -80,7 +80,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Hooks
   const updateNode = useUpdateNode();
-  const createPage = useCreatePage();
+  const createNode = useCreateNode();
   const addTag = useAddTag();
   const addTagLink = useAddTagLink();
   const addType = useAddType();
@@ -281,7 +281,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     if (!node) return;
     const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
     
-    createPage.mutate({ name }, {
+    createNode.mutate({ name, is_page: true }, {
       onSuccess: (newPage) => {
         addType.mutate({ nodeId: node.id, typeId: newPage.id });
         if (typeType) {
@@ -289,28 +289,28 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         }
       }
     });
-  }, [node, createPage, addType, allTypes]);
+  }, [node, createNode, addType, allTypes]);
   
   // Handle creating a new tag
   const handleCreateTag = useCallback((name: string) => {
     if (!node) return;
-    createPage.mutate({ name }, {
+    createNode.mutate({ name, is_page: true }, {
       onSuccess: (newPage) => {
         addTag.mutate({ nodeId: node.id, tagId: newPage.id });
       }
     });
-  }, [node, createPage, addTag]);
+  }, [node, createNode, addTag]);
   
   // Handle creating a new page link (from [[ menu)
   const handleCreatePageLink = useCallback(async (name: string): Promise<string | undefined> => {
     try {
-      const newPage = await createPage.mutateAsync({ name });
+      const newPage = await createNode.mutateAsync({ name, is_page: true });
       return String(newPage.id);
     } catch (error) {
       console.error('Failed to create page for link:', error);
       return undefined;
     }
-  }, [createPage]);
+  }, [createNode]);
   
   // Handle opening comments
   const handleOpenComments = useCallback(() => {

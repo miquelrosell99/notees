@@ -6,7 +6,7 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import './TypedNodesSection.css';
-import { useNodesWithType, useCreateNode, useCreatePage, useAddType } from '@/hooks';
+import { useNodesWithType, useCreateNode, useAddType } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -28,7 +28,6 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
   
   const { data: nodes, isLoading, error } = useNodesWithType(typeId);
   const createNode = useCreateNode();
-  const createPage = useCreatePage();
   const addType = useAddType();
   const { openNode, addSidebarCard } = useNodesStore();
 
@@ -55,7 +54,7 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
     try {
       if (isPageOnlyType) {
         // Create a new page and add the type
-        const newPage = await createPage.mutateAsync({ name: newNodeName.trim() });
+        const newPage = await createNode.mutateAsync({ name: newNodeName.trim(), is_page: true });
         await addType.mutateAsync({ nodeId: newPage.id, typeId });
         openNode(newPage.id, 'page');
       } else {
@@ -117,7 +116,7 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
               variant="primary"
               size="sm"
               onClick={handleCreateNode}
-              disabled={!newNodeName.trim() || createNode.isPending || createPage.isPending}
+              disabled={!newNodeName.trim() || createNode.isPending}
             >
               Create
             </Button>
