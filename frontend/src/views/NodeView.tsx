@@ -2,23 +2,28 @@
  * NodeView Component - Unified view for pages and blocks
  * 
  * Main component for displaying nodes with two variants:
- * - Page variant: Shows PageHeader for the parent node
- * - Block variant: Shows the focused block as a normal block (BlockHeader)
+ * - Page variant: Shows PageHeader, NodeContent with children, and sections
+ * - Block variant: Shows the focused block as a top-level list item using NodeCollection
+ *                  (only list view mode is available for blocks)
  * 
  * Structure:
- * 1. NodeBreadcrumbs - Navigation (for pages: only visible if has parent)
- * 2. PageHeader / BlockHeader - Main node display
- * 3. PropertiesSection - Node properties
- * 4. NodeContent - Children blocks
- * 5. Type-specific sections (TypedNodesView, ChildPagesSection)
- * 6. LinkedReferences
- * 7. NodeActivityLog
+ * - Page:
+ *   1. BannerImage / PageHeader / CoverImage
+ *   2. PropertiesSection - Node properties
+ *   3. NodeContent - Children blocks (supports list/document/card views)
+ *   4. Type-specific sections (TypedNodesView, ChildPagesSection)
+ *   5. LinkedReferences
+ *   6. NodeActivityLog
+ * 
+ * - Block:
+ *   1. FocusedBlockContent - Block as top-level list item (list view only)
+ *   2. LinkedReferences
+ *   3. NodeActivityLog
  */
 import { useState, useMemo, useCallback } from 'react';
 import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink } from '@/hooks';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
-import type { Node, NodeUpdate } from '@/types';
+import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
@@ -27,6 +32,8 @@ import { BannerImage } from '../components/BannerImage';
 import { CoverImage } from '../components/CoverImage';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
+import { NodeCollection } from '../components/nodes/NodeCollection';
+import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { PropertiesSection } from '../components/PropertiesSection';
@@ -35,10 +42,7 @@ import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
 import { ChildPagesSection } from '../components/ChildPagesSection';
 import { NodeActivityLog, useActivityCount } from '../components/nodes/NodeActivityLog';
 import { LinkedReferences, useLinkedReferencesCount } from '../components/LinkedReferences';
-import { BlockEditor } from '../components/blocks/BlockEditor';
-import { ColorPicker } from '../components/core/ColorPicker';
-import { Button } from '../components/core/Button';
-import { NodeIcon, TagIcon, TableIcon, PageIcon, LinkIcon } from '../components/icons';
+import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { mdiHistory, mdiRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -53,6 +57,108 @@ function isLateNightTime(dateStr: string): boolean {
   const date = new Date(dateStr);
   const hour = date.getHours();
   return hour >= 22 || hour < 4;
+}
+
+/**
+ * FocusedBlockContent - Renders a focused block as a top-level list item
+ * 
+ * Used when viewing a single block (not a page). The block itself is rendered
+ * as the first item in a list view, with its children nested below it.
+ * Only list view mode is available for focused blocks.
+ */
+interface FocusedBlockContentProps {
+  node: Node;
+  onAddSidebarCard: (nodeId: number) => void;
+}
+
+function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProps) {
+  const createNode = useCreateNode();
+  const updateNode = useUpdateNode();
+  const addTag = useAddTag();
+  const addType = useAddType();
+  const addTagLink = useAddTagLink();
+  const { data: allTypes } = useTypes();
+  const { openCommentsForNode, openNode } = useNodesStore();
+  
+  // Handle content changes
+  const handleContentChange = useCallback((blockId: number, content: string) => {
+    updateNode.mutate({ id: blockId, data: { name: content } });
+  }, [updateNode]);
+
+  // Handle node click (navigate)
+  const handleNodeClick = useCallback((clickedNode: Node) => {
+    openNode(clickedNode.id, clickedNode.is_page ? 'page' : 'block');
+  }, [openNode]);
+
+  // Handle shift+click (open in sidebar)
+  const handleNodeShiftClick = useCallback((clickedNode: Node) => {
+    onAddSidebarCard(clickedNode.id);
+  }, [onAddSidebarCard]);
+
+  // Block callbacks for context provider
+  const blockCallbacks = useMemo<BlockCallbacks>(() => ({
+    onAddType: (blockId, typeNodeId, _keepInline, _typeName) => {
+      addType.mutate({ nodeId: blockId, typeId: typeNodeId });
+    },
+    onAddTag: (blockId, tagNodeId, keepInline, _tagName) => {
+      addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
+      if (keepInline) {
+        addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
+      }
+    },
+    onCreateType: (blockId, name, _keepInline) => {
+      const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
+      createNode.mutate({ name, is_page: true }, {
+        onSuccess: (newPage) => {
+          addType.mutate({ nodeId: blockId, typeId: newPage.id });
+          if (typeType) {
+            addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+          }
+        }
+      });
+    },
+    onCreateTag: (blockId, name, _keepInline) => {
+      createNode.mutate({ name, is_page: true }, {
+        onSuccess: (newPage) => {
+          addTag.mutate({ nodeId: blockId, tagId: newPage.id });
+        }
+      });
+    },
+    onCreatePageLink: async (name) => {
+      try {
+        const newPage = await createNode.mutateAsync({ name, is_page: true });
+        return String(newPage.id);
+      } catch (error) {
+        console.error('Failed to create page for link:', error);
+        return undefined;
+      }
+    },
+    onOpenComments: (blockId) => {
+      openCommentsForNode(blockId);
+    },
+    onOpenBacklinks: (blockId) => {
+      onAddSidebarCard(blockId);
+    },
+    getCommentCount: (block) => block.comment_count ?? 0,
+    getBacklinkCount: (block) => block.backlink_count ?? 0,
+  }), [addType, addTag, addTagLink, createNode, allTypes, openCommentsForNode, onAddSidebarCard]);
+
+  return (
+    <div className="focused-block-content">
+      <NodeCollection
+        nodes={[node]}
+        viewMode="list"
+        availableViewModes={['list']}
+        editable={true}
+        onNodeClick={handleNodeClick}
+        onNodeShiftClick={handleNodeShiftClick}
+        onContentChange={handleContentChange}
+        showEmpty={false}
+        provideBlockCallbacks={true}
+        blockCallbacks={blockCallbacks}
+      />
+    </div>
+  );
 }
 
 interface NodeViewProps {
@@ -78,15 +184,10 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     include_backlinks: true
   });
   
-  // Hooks
-  const updateNode = useUpdateNode();
-  const createNode = useCreateNode();
-  const addTag = useAddTag();
-  const addTagLink = useAddTagLink();
-  const addType = useAddType();
+  // Hooks (needed for page header sections)
   const { data: allTypes } = useTypes();
   const { data: allProperties } = useProperties();
-  const { addSidebarCard, openNode, openCommentsForNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
+  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
   
   // Check if node is used as a type
   const { data: typedNodes } = useNodesWithType(node?.id ?? 0);
@@ -133,17 +234,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     const bannerValue = node?.properties?.banner;
     return typeof bannerValue === 'number' ? bannerValue : null;
   }, [node?.properties]);
-  
-  // Resolve type details from IDs
-  const nodeTypeDetails = useMemo(() => {
-    if (!node?.types || node.types.length === 0 || !allTypes) return [];
-    return node.types
-      .map(typeId => allTypes.find(t => t.id === typeId))
-      .filter((t): t is Node => t !== undefined);
-  }, [node?.types, allTypes]);
-  
-  // Get effective icon (node's icon or first type's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allTypes), [node, allTypes]);
   
   // Collect block IDs that are referenced by text properties (these should not appear in content)
   const textPropertyBlockIds = useMemo(() => {
@@ -245,80 +335,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     }
   }, [node, bannerProperty, setPropertyMutation]);
   
-  // Block header handlers
-  const handleBlockNameChange = useCallback((name: string) => {
-    if (!node) return;
-    const data: NodeUpdate = { name };
-    updateNode.mutate({ id: node.id, data });
-  }, [node, updateNode]);
-  
-  const handleBlockColorChange = useCallback((color: string | null) => {
-    if (!node) return;
-    const data: NodeUpdate = { color };
-    updateNode.mutate({ id: node.id, data });
-  }, [node, updateNode]);
-  
-  // Handle adding a type to the block
-  const handleAddType = useCallback((typeNodeId: number, _keepInline: boolean, _typeName: string) => {
-    if (!node) return;
-    addType.mutate({ nodeId: node.id, typeId: typeNodeId });
-  }, [node, addType]);
-  
-  // Handle adding a tag to the block
-  const handleAddTag = useCallback((tagNodeId: number, keepInline: boolean, _tagName: string) => {
-    if (!node) return;
-    // Always add to the tags property
-    addTag.mutate({ nodeId: node.id, tagId: tagNodeId });
-    
-    // If kept inline, also mark the link as a tag
-    if (keepInline) {
-      addTagLink.mutate({ nodeId: node.id, targetNodeId: tagNodeId });
-    }
-  }, [node, addTag, addTagLink]);
-  
-  // Handle creating a new type
-  const handleCreateType = useCallback((name: string) => {
-    if (!node) return;
-    const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
-    
-    // Create as both a page AND a type so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_type: true }, {
-      onSuccess: (newPage) => {
-        addType.mutate({ nodeId: node.id, typeId: newPage.id });
-        if (typeType) {
-          addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
-        }
-      }
-    });
-  }, [node, createNode, addType, allTypes]);
-  
-  // Handle creating a new tag
-  const handleCreateTag = useCallback((name: string) => {
-    if (!node) return;
-    createNode.mutate({ name, is_page: true }, {
-      onSuccess: (newPage) => {
-        addTag.mutate({ nodeId: node.id, tagId: newPage.id });
-      }
-    });
-  }, [node, createNode, addTag]);
-  
-  // Handle creating a new page link (from [[ menu)
-  const handleCreatePageLink = useCallback(async (name: string): Promise<string | undefined> => {
-    try {
-      const newPage = await createNode.mutateAsync({ name, is_page: true });
-      return String(newPage.id);
-    } catch (error) {
-      console.error('Failed to create page for link:', error);
-      return undefined;
-    }
-  }, [createNode]);
-  
-  // Handle opening comments
-  const handleOpenComments = useCallback(() => {
-    if (!node) return;
-    openCommentsForNode(node.id);
-  }, [node, openCommentsForNode]);
-  
   // Block-only background style based on color (pages are colored at main-content level)
   // Note: Must be before early returns to maintain hooks order
   const nodeStyle = useMemo(() => {
@@ -412,111 +428,31 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             acceptedTypes={['image']}
           />
         </>
-      ) : (
-        /* Block Header - displays block as a normal block with editing */
-        <header className="block-view-header" onContextMenu={handleContextMenu}>
-          <span className="block-view-bullet">
-            {effectiveIcon ? (
-              <NodeIcon icon={effectiveIcon} isPage={false} size="sm" className="block-icon" />
-            ) : (
-              '•'
-            )}
-          </span>
-          <div className="block-view-title-container">
-            <BlockEditor
-              nodeId={node.id}
-              content={node.name || ''}
-              onChange={handleBlockNameChange}
-              onAddType={handleAddType}
-              onAddTag={handleAddTag}
-              onCreateType={handleCreateType}
-              onCreateTag={handleCreateTag}
-              onCreatePageLink={handleCreatePageLink}
-              onOpenComments={handleOpenComments}
-              readOnly={false}
-            />
-            {node.active === false && (
-              <span className="archived-badge">Archived</span>
-            )}
-          </div>
-          <div className="block-view-actions">
-            <ColorPicker
-              value={node.color}
-              onChange={handleBlockColorChange}
-              size="sm"
-              panelPosition="bottom"
-              tooltip="Block color"
-            />
-          </div>
-        </header>
-      )}
+      ) : null}
       
-      {/* Block-level types and tags (only for block variant, page header handles its own) */}
-      {resolvedType === 'block' && ((nodeTypeDetails.length > 0) || (node.tags && node.tags.length > 0)) && (
-        <div className="node-metadata-chips">
-          {nodeTypeDetails.length > 0 && (
-            <div className="node-types">
-              {nodeTypeDetails.map((typeNode) => (
-                <Button
-                  key={typeNode.id}
-                  variant="ghost"
-                  size="xs"
-                  className="node-type-chip"
-                  onClick={() => handleNavigateToNode(typeNode.id)}
-                  title={`Click to view ${typeNode.name}`}
-                >
-                  <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
-                  <span>{typeNode.name}</span>
-                </Button>
-              ))}
-            </div>
-          )}
-          {node.tags && node.tags.length > 0 && (
-            <div className="node-tags">
-              {node.tags.map((tagId) => (
-                <Button
-                  key={tagId}
-                  variant="ghost"
-                  size="xs"
-                  className="node-tag-chip"
-                  onClick={() => handleNavigateToNode(tagId)}
-                  title="Click to view tag page"
-                >
-                  <TagIcon size="xs" />
-                  <span>Tag #{tagId}</span>
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Properties Section - only for block variant (page variant has it in the header section) */}
-      {resolvedType === 'block' && (
-        <PropertiesSection 
-          nodeId={node.id}
-          variant={resolvedType}
-          showHiddenSection={true}
-          showAddProperty={true}
-          onNavigateToNode={handleNavigateToNode}
-          onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
-          defaultCollapsed={propertiesCollapsed}
-        />
-      )}
+
       
       {/* Type properties definition - only for type nodes (pages used as types) */}
       {isTypeNode && resolvedType === 'page' && (
         <TypePropertiesEditor typeNodeId={node.id} />
       )}
       
-      {/* Node Content - Children blocks */}
-      <NodeContent
-        node={node}
-        children={blockChildren}
-        displayMode={contentDisplayMode}
-        lateNightFilterActive={lateNightThoughtsFilter}
-        totalChildrenCount={node.children?.length || 0}
-      />
+      {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
+      {resolvedType === 'page' ? (
+        <NodeContent
+          node={node}
+          children={blockChildren}
+          displayMode={contentDisplayMode}
+          lateNightFilterActive={lateNightThoughtsFilter}
+          totalChildrenCount={node.children?.length || 0}
+        />
+      ) : (
+        /* Focused Block View - renders the block itself as a top-level list item */
+        <FocusedBlockContent
+          node={node}
+          onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
+        />
+      )}
       
       {/* Show nodes that have this node as their type - only for type nodes */}
       {isTypeNode && (
