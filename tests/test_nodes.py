@@ -25,8 +25,8 @@ class TestNodeCreation:
         data = response.json()
         assert "id" in data
         assert "uuid" in data
-        # For pages, the name is derived from content
-        assert data.get("name") == sample_node_data["content"]
+        # For pages, the name is derived from the input
+        assert data.get("name") == sample_node_data["name"]
 
     @pytest.mark.asyncio
     async def test_create_block(
