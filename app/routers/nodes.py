@@ -290,11 +290,11 @@ async def list_types(
     service = await _get_node_service(user)
     
     # Get all nodes where is_type=1
-    async with service._node_repo.get_connection() as conn:
-        cursor = await conn.execute(
-            """SELECT * FROM node WHERE is_type = 1 AND active = 1 ORDER BY name"""
-        )
-        rows = await cursor.fetchall()
+    conn = service._node_repo.get_connection()
+    cursor = await conn.execute(
+        """SELECT * FROM node WHERE is_type = 1 AND active = 1 ORDER BY name"""
+    )
+    rows = await cursor.fetchall()
     
     nodes = [service._node_repo._row_to_node(row) for row in rows]
     
