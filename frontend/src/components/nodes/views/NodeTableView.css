@@ -52,8 +52,16 @@
 }
 
 /* Node-specific date cell */
+.node-table__date-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
 .node-table__date {
   color: var(--text-muted);
+  flex: 1;
 }
 
 /* Node-specific count cell */
