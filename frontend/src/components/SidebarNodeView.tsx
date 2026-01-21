@@ -23,9 +23,11 @@ import './SidebarNodeView.css';
 interface SidebarNodeViewProps {
   nodeId: number;
   nodeType: SidebarNodeType;
+  /** Whether to hide the internal header (when wrapped in SidebarCard) */
+  hideHeader?: boolean;
 }
 
-export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
+export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: SidebarNodeViewProps) {
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true,
     include_backlinks: true 
@@ -155,8 +157,8 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
 
   return (
     <div className={`sidebar-node-view sidebar-node-view--${nodeType}`}>
-      {/* Header - different for pages vs blocks */}
-      {nodeType === 'page' ? (
+      {/* Header - different for pages vs blocks, hidden when using SidebarCard wrapper */}
+      {!hideHeader && nodeType === 'page' && (
         /* Page Header - card style with name and expand */
         <header className="sidebar-node-view__header sidebar-node-view__header--page">
           <div className="sidebar-node-view__title">
@@ -183,7 +185,8 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
             ↗
           </Button>
         </header>
-      ) : (
+      )}
+      {!hideHeader && nodeType === 'block' && (
         /* Block Header - editable block style */
         <header className="sidebar-node-view__header sidebar-node-view__header--block">
           <div className="sidebar-node-view__block-header-content">

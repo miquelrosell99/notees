@@ -24,11 +24,14 @@ interface SidebarNode {
   type: SidebarNodeType;
 }
 
+/** Card content types for the right sidebar */
+export type SidebarCardType = 'page' | 'block' | 'localGraph';
+
 /** A card in the right sidebar */
 export interface SidebarCard {
   id: number;
   nodeId: number;
-  nodeType: SidebarNodeType;
+  cardType: SidebarCardType;
   addedAt: number; // timestamp for ordering
 }
 
@@ -104,11 +107,12 @@ interface NodesState {
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
   /** Add a card to the sidebar (shift-click behavior) */
-  addSidebarCard: (nodeId: number, nodeType: SidebarNodeType) => void;
+  addSidebarCard: (nodeId: number, cardType: SidebarCardType) => void;
   /** Remove a specific card from the sidebar */
   removeSidebarCard: (cardId: number) => void;
   /** Clear all sidebar cards */
   clearSidebarCards: () => void;
+  /** Open local graph as a sidebar card */
   openLocalGraph: (nodeId: number) => void;
   closeLocalGraph: () => void;
   openCommentsForNode: (nodeId: number) => void;
@@ -187,9 +191,9 @@ export const useNodesStore = create<NodesState>()((set) => ({
     rightSidebarContent: null,
     sidebarNode: null,
   }),
-  addSidebarCard: (nodeId, nodeType) => set((state) => {
-    // Check if card already exists for this node
-    const existingIndex = state.sidebarCards.findIndex(c => c.nodeId === nodeId);
+  addSidebarCard: (nodeId, cardType) => set((state) => {
+    // Check if card already exists for this node with same type
+    const existingIndex = state.sidebarCards.findIndex(c => c.nodeId === nodeId && c.cardType === cardType);
     if (existingIndex >= 0) {
       // Move existing card to the top
       const existing = state.sidebarCards[existingIndex];
@@ -204,7 +208,7 @@ export const useNodesStore = create<NodesState>()((set) => ({
     const newCard: SidebarCard = {
       id: Date.now(),
       nodeId,
-      nodeType,
+      cardType,
       addedAt: Date.now(),
     };
     return { 
@@ -230,17 +234,53 @@ export const useNodesStore = create<NodesState>()((set) => ({
     rightSidebarOpen: false,
     rightSidebarContent: null,
   }),
-  openLocalGraph: (nodeId) => set((state) => ({
-    rightSidebarOpen: true,
-    rightSidebarContent: 'localGraph',
-    localGraphNodeId: nodeId,
-    // Keep sidebar node if switching from node view
-    sidebarNode: state.rightSidebarContent === 'node' ? state.sidebarNode : null,
-  })),
-  closeLocalGraph: () => set({
-    rightSidebarOpen: false,
-    rightSidebarContent: null,
-    localGraphNodeId: null,
+  openLocalGraph: (nodeId) => set((state) => {
+    // Check if a local graph card already exists for this node
+    const existingIndex = state.sidebarCards.findIndex(c => c.nodeId === nodeId && c.cardType === 'localGraph');
+    if (existingIndex >= 0) {
+      // Move existing card to the top
+      const existing = state.sidebarCards[existingIndex];
+      const newCards = [
+        { ...existing, addedAt: Date.now() },
+        ...state.sidebarCards.slice(0, existingIndex),
+        ...state.sidebarCards.slice(existingIndex + 1),
+      ];
+      return { 
+        sidebarCards: newCards, 
+        rightSidebarOpen: true, 
+        rightSidebarContent: 'node',
+        localGraphNodeId: nodeId,
+      };
+    }
+    // Add new local graph card at the top
+    const newCard: SidebarCard = {
+      id: Date.now(),
+      nodeId,
+      cardType: 'localGraph',
+      addedAt: Date.now(),
+    };
+    return { 
+      sidebarCards: [newCard, ...state.sidebarCards],
+      rightSidebarOpen: true,
+      rightSidebarContent: 'node',
+      localGraphNodeId: nodeId,
+    };
+  }),
+  closeLocalGraph: () => set((state) => {
+    // Remove all local graph cards
+    const newCards = state.sidebarCards.filter(c => c.cardType !== 'localGraph');
+    if (newCards.length === 0) {
+      return {
+        sidebarCards: newCards,
+        rightSidebarOpen: false,
+        rightSidebarContent: null,
+        localGraphNodeId: null,
+      };
+    }
+    return {
+      sidebarCards: newCards,
+      localGraphNodeId: null,
+    };
   }),
   openCommentsForNode: (nodeId) => set({
     commentsSidebarOpen: true,

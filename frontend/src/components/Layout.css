@@ -130,24 +130,6 @@
   will-change: width, opacity, transform;
 }
 
-/* Right sidebar header - matches main content header */
-.right-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
-  flex-shrink: 0;
-  min-height: 52px;
-  box-sizing: border-box;
-}
-
-.right-sidebar-title {
-  font: var(--font-label-medium);
-  color: var(--color-on-surface);
-  flex: 1;
-}
-
 .right-sidebar-content {
   flex: 1;
   overflow-y: auto;
