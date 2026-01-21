@@ -62,8 +62,8 @@ class TestNodeCrudFlow:
         page = response.json()
         page_id = page["id"]
         assert page["is_page"] is True
-        # For pages, content is stored as title
-        assert page.get("title") == "Integration Test Page" or page.get("name") == "Integration Test Page"
+        # For pages, content is stored as name
+        assert page.get("name") == "Integration Test Page"
         
         # Read the page
         response = await auth_client.get(f"/api/nodes/{page_id}")
