@@ -343,10 +343,12 @@ export function PropertyNodesView({
           <NodeGraphViewSimple
             nodes={nodes.filter(n => n.is_page).map(n => ({
               id: n.id,
-              name: n.name || 'Untitled',
-              type: n.type || null,
-              icon: n.icon || null,
-              color: n.color || null,
+              title: n.name || 'Untitled',
+              type: 'page' as const,
+              tags: n.tags?.map(t => String(t)) || [],
+              types: n.types || [],
+              properties: {},
+              is_daily: n.is_daily || false,
             }))}
             links={[]}
             className="property-nodes-view__graph"

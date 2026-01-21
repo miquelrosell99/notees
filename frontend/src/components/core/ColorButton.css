@@ -1,0 +1,97 @@
+/**
+ * ColorButton Styles
+ * 
+ * Styled like Button component with a color fill inside.
+ * Has a gap between the color fill and the button border.
+ */
+
+/* Base button - matches Button component styling */
+.color-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg, 12px);
+  cursor: pointer;
+  padding: 3px; /* Gap between color fill and border */
+  flex-shrink: 0;
+  background: var(--color-surface-container);
+  transition: 
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.color-btn:hover:not(:disabled) {
+  border-color: var(--color-outline);
+  box-shadow: 0 0 0 1px var(--color-outline);
+}
+
+.color-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Color fill inside the button */
+.color-btn__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--radius-lg, 12px) - 4px); /* Slightly smaller than button */
+}
+
+/* Size variants - match Button sizes */
+.color-btn--xs {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border-radius: var(--radius-md, 8px);
+}
+
+.color-btn--xs .color-btn__fill {
+  border-radius: calc(var(--radius-md, 8px) - 5px);
+}
+
+.color-btn--sm {
+  width: 32px;
+  height: 32px;
+  padding: 5px;
+  border-radius: var(--radius-lg, 12px);
+}
+
+.color-btn--sm .color-btn__fill {
+  border-radius: calc(var(--radius-lg, 12px) - 6px);
+}
+
+.color-btn--md {
+  width: 38px;
+  height: 38px;
+  padding: 6px;
+  border-radius: var(--radius-lg, 12px);
+}
+
+.color-btn--md .color-btn__fill {
+  border-radius: calc(var(--radius-lg, 12px) - 7px);
+}
+
+.color-btn--lg {
+  width: 46px;
+  height: 46px;
+  padding: 7px;
+  border-radius: var(--radius-lg, 12px);
+}
+
+.color-btn--lg .color-btn__fill {
+  border-radius: calc(var(--radius-lg, 12px) - 8px);
+}
+
+/* Active state */
+.color-btn--active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+/* Disabled state */
+.color-btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -10,12 +10,15 @@
  * - Editable: renders Block component
  * - Read-only: renders BlockPreview component
  * - Recursive children handling
+ * - Sortable mode with drag-and-drop reordering
  */
 import { useCallback } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Block } from '../../blocks/Block';
 import { BlockPreview } from '../../blocks/BlockPreview';
+import { Bullet } from '../../blocks/Bullet';
+import { ListSortable } from '../../core/ListSortable';
 import './NodeListView.css';
 
 interface NodeListItemProps {
@@ -125,11 +128,47 @@ export function NodeListView({
   maxDepth = Infinity,
   showBullets = true,
   showIndentation = true,
+  sortable = false,
+  onReorder,
+  renderItemAction,
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
   className = '',
 }: NodeListViewProps) {
+  // If sortable, use ListSortable wrapper
+  if (sortable && onReorder) {
+    return (
+      <ListSortable
+        items={nodes.map(n => ({ id: n.id, node: n }))}
+        onReorder={onReorder}
+        onItemClick={(item) => onNodeClick?.(item.node)}
+        className={`node-list-view node-list-view--sortable ${className}`}
+        itemClassName="node-list-view__sortable-item"
+        showDragHandle={true}
+        renderIcon={(item) => (
+          <Bullet
+            nodeId={item.node.id}
+            icon={item.node.icon}
+            isPage={item.node.is_page}
+            interactive={false}
+            size="sm"
+          />
+        )}
+        renderText={(item) => (
+          <span className="node-list-view__item-name">
+            {item.node.name || 'Untitled'}
+          </span>
+        )}
+        renderAction={renderItemAction 
+          ? (item, index) => renderItemAction(item.node, index)
+          : undefined
+        }
+      />
+    );
+  }
+
+  // Regular non-sortable list
   return (
     <div className={`node-list-view ${className}`}>
       {nodes.map((node) => (

@@ -36,3 +36,19 @@
 .node-list-item[style*="--depth: 5"] {
   padding-left: 7.5rem;
 }
+
+/* Sortable mode */
+.node-list-view--sortable {
+  width: 100%;
+}
+
+.node-list-view__sortable-item {
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+.node-list-view__item-name {
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
