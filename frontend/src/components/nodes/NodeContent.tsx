@@ -23,6 +23,7 @@ import { BoxSelect } from '../core/BoxSelect';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
 import { type Asset, type AssetCategory } from '@/api/assets';
+import type { BlockCallbacks } from '../blocks/BlockCallbacksContext';
 import './NodeContent.css';
 
 interface NodeContentProps {
