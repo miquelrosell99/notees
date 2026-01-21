@@ -60,12 +60,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const hasText = children && !iconOnly;
   const isIconOnly = icon && !hasText;
+  const hasIconAndText = icon && hasText;
 
   const classNames = [
     'btn',
     `btn--${variant}`,
     `btn--${size}`,
     isIconOnly && 'btn--icon-only',
+    hasIconAndText && 'btn--icon-text',
     fullWidth && 'btn--full-width',
     active && 'btn--active',
     disabled && 'btn--disabled',
