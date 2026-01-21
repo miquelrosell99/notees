@@ -167,6 +167,9 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   /** Whether to show breadcrumbs for top-level nodes (default: true) */
   showBreadcrumbs?: boolean;
   
+  /** Only show nodes with is_page=true (filters both top-level and children) */
+  pagesOnly?: boolean;
+  
   /** Whether list is sortable (enables drag-and-drop reordering) */
   sortable?: boolean;
   
