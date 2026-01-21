@@ -14,7 +14,6 @@ export { LoginPage } from '../views/LoginPage';
 // Page components
 export { NodeView } from '../views/NodeView';
 export { DailyPage } from './DailyPage';
-export { ArchivedView } from '../views/ArchivedView';
 
 // Node components (from nodes/ folder)
 export { NodeBreadcrumbs } from './nodes/NodeBreadcrumbs';
@@ -51,14 +50,7 @@ export { TagList, TaggedNodes } from './TagList';
 export { LinkedReferences, References, useLinkedReferencesCount } from './LinkedReferences';
 export { NodeViewSection } from './nodes/NodeViewSection';
 export type { NodeViewSectionProps } from './nodes/NodeViewSection';
-export { 
-  ReferencesView, 
-  LinkedReferencesList, 
-  LinkedReferencesTable,
-  linkedReferenceToItem,
-  propertyBacklinkToPageItem,
-} from '../views/ReferencesView';
-export type { ReferenceItem, PageReferenceItem, ReferenceViewMode } from '../views/ReferencesView';
+// ReferencesView - not yet implemented
 
 // Properties (from properties/ folder)
 export { PropertiesSection, InlineProperties } from './PropertiesSection';
@@ -100,6 +92,8 @@ export { BooleanToggle } from './core/BooleanToggle';
 export type { BooleanToggleProps, BooleanToggleSize } from './core/BooleanToggle';
 export { Table } from './core/Table';
 export type { TableProps, TableColumn, TableSize, TableVariant, SortDirection } from './core/Table';
+export { CollapseArrow } from './core/CollapseArrow';
+export type { CollapseArrowProps, CollapseArrowSize } from './core/CollapseArrow';
 export { Dropdown } from './core/Dropdown';
 export type { DropdownProps, DropdownOption, DropdownSize } from './core/Dropdown';
 
@@ -137,14 +131,7 @@ export { AllPagesView } from '../views/AllPagesView';
 export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './SidebarNodeView';
 export { CommentsSidebar } from './CommentsSidebar';
-export { CalendarView } from '../views/CalendarView';
-export type { CalendarViewProps } from '../views/CalendarView';
-export { ChartView } from '../views/ChartView';
-export type { ChartViewProps } from '../views/ChartView';
-export { GanttView } from '../views/GanttView';
-export type { GanttViewProps } from '../views/GanttView';
-export { QueryView } from '../views/QueryView';
-export type { QueryViewProps } from '../views/QueryView';
+// CalendarView, ChartView, GanttView, QueryView - not yet implemented
 export { PropertyNodesView } from './PropertyNodesView';
 export type { PropertyNodesViewProps, PropertyViewMode } from './PropertyNodesView';
 export { TemplateUsedInView } from './TemplateUsedInView';
@@ -164,7 +151,6 @@ export { AssetUploadModal } from './assets/AssetUploadModal';
 // Asset components
 export { AssetPreview } from './assets/AssetPreview';
 export { AssetBlock } from './assets/AssetBlock';
-export { AssetsView } from '../views/AssetsView';
 
 // Emoji/Icon picker
 export { EmojiPicker, EmojiPickerTrigger } from './core/EmojiPicker';
