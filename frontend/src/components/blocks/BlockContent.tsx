@@ -193,6 +193,7 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
         className={`link-pill ${isPage ? 'link-pill--page' : 'link-pill--block'}`}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
+        data-link-raw={raw}
         title={`${isPage ? 'Page' : 'Block'}: ${displayText}\nClick to open, Shift+click for sidebar`}
       >
         {/* Only show icon for pages, or for blocks that have an icon set */}
@@ -280,6 +281,7 @@ function TypePill({ typeId, raw, onNavigate }: TypePillProps) {
         className="type-pill"
         onClick={handleClick}
         onContextMenu={handleContextMenu}
+        data-type-raw={raw}
         title={`Type: ${displayText}\nClick to open, Shift+click for sidebar`}
       >
         <span className="type-pill__icon">

@@ -473,7 +473,7 @@ export function useUpdateNode() {
         }
       );
     },
-    onSuccess: (updatedNode) => {
+    onSuccess: (updatedNode, variables) => {
       // Merge the updated node with existing cached data to preserve children and other fields
       // that aren't returned by the update endpoint
       queryClient.setQueriesData<Node>(
@@ -500,6 +500,26 @@ export function useUpdateNode() {
       // Also invalidate types since the updated node might be used as a type
       // and its icon/name could have changed
       queryClient.invalidateQueries({ queryKey: nodeKeys.types() });
+      
+      // If name/content was updated, invalidate link-related caches
+      // This ensures backlink badges and linked references update in real-time
+      // when block references are added/removed (e.g., [[linkId]] or ((uuid)))
+      if (variables.data.name !== undefined) {
+        // Invalidate linked references for all nodes (we don't know which nodes were linked/unlinked)
+        queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'] });
+        // Invalidate backlinks queries
+        queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'] });
+        // Invalidate property backlinks (in case content had property-like references)
+        queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'] });
+        
+        // Invalidate the parent page's detail query to refresh children's backlink_count
+        // This is needed because backlink_count is included in the children data
+        if (updatedNode.page_id) {
+          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(updatedNode.page_id) });
+        } else if (updatedNode.parent_id) {
+          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(updatedNode.parent_id) });
+        }
+      }
     },
   });
 }
