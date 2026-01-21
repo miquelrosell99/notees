@@ -3,22 +3,18 @@
  * 
  * Displays a log of activities for a node (edit, link added, archived, etc.)
  * Uses bullet-style display for list items.
- * Uses NodeViewSection for consistent collapsible header.
+ * NodeViewSection wrapping is handled by NodeView.
  * Users can delete entries but not edit them.
  */
 import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
-import { mdiHistory, mdiTrashCanOutline, mdiRefresh } from '@mdi/js';
-import Icon from '@mdi/react';
+import { mdiTrashCanOutline } from '@mdi/js';
 import { Bullet } from '../blocks/Bullet';
-import { NodeViewSection } from './NodeViewSection';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import './NodeActivityLog.css';
 
 interface NodeActivityLogProps {
   nodeId: number;
-  /** Whether to show in expanded or collapsed state */
-  defaultExpanded?: boolean;
 }
 
 export interface NodeActivity {
@@ -105,8 +101,20 @@ function formatActivityMessage(activity: NodeActivity): string {
   return label;
 }
 
-export function NodeActivityLog({ nodeId, defaultExpanded = false }: NodeActivityLogProps) {
+/**
+ * Hook to get activity count for section metadata
+ */
+export function useActivityCount(nodeId: number) {
   const { data: activities, isLoading, refetch } = useNodeActivity(nodeId);
+  return {
+    count: activities?.length ?? 0,
+    isLoading,
+    refetch,
+  };
+}
+
+export function NodeActivityLog({ nodeId }: NodeActivityLogProps) {
+  const { data: activities, isLoading } = useNodeActivity(nodeId);
   const deleteActivity = useDeleteNodeActivity();
   
   const [contextMenu, setContextMenu] = useState<{
@@ -137,36 +145,12 @@ export function NodeActivityLog({ nodeId, defaultExpanded = false }: NodeActivit
     },
   ] : [];
 
-  if (isLoading) {
-    return (
-      <NodeViewSection
-        title="Activity"
-        icon={<Icon path={mdiHistory} size={0.7} />}
-        defaultExpanded={defaultExpanded}
-      >
-        <div className="node-activity-loading">Loading...</div>
-      </NodeViewSection>
-    );
-  }
-
   return (
-    <NodeViewSection
-      title="Activity"
-      icon={<Icon path={mdiHistory} size={0.7} />}
-      count={activities?.length ?? 0}
-      defaultExpanded={defaultExpanded}
-      headerActions={
-        <button
-          className="node-activity-btn"
-          onClick={(e) => { e.stopPropagation(); refetch(); }}
-          title="Refresh"
-        >
-          <Icon path={mdiRefresh} size={0.6} />
-        </button>
-      }
-    >
+    <div className="node-activity-log">
       <div className="node-activity-list">
-        {!activities || activities.length === 0 ? (
+        {isLoading ? (
+          <div className="node-activity-loading">Loading...</div>
+        ) : !activities || activities.length === 0 ? (
           <div className="node-activity-empty">No activity recorded</div>
         ) : (
           activities.map(activity => (
@@ -200,7 +184,7 @@ export function NodeActivityLog({ nodeId, defaultExpanded = false }: NodeActivit
           onClose={() => setContextMenu(null)}
         />
       )}
-    </NodeViewSection>
+    </div>
   );
 }
 

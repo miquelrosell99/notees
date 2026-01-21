@@ -15,7 +15,7 @@ import type { NodeUpdate } from '@/types';
 import type { SidebarNodeType } from '@/stores';
 import { BlockEditor } from './blocks/BlockEditor';
 import { Block } from './blocks/Block';
-import { LinkedReferences } from './Backlinks';
+import { LinkedReferences } from './LinkedReferences';
 import { NodeIcon } from './icons';
 import { Button } from './core/Button';
 import './SidebarNodeView.css';

@@ -48,7 +48,7 @@ export type { SlashCommandPopupProps, SlashCommand } from './core/SlashCommandPo
 export { TagList, TaggedNodes } from './TagList';
 
 // Backlinks and references
-export { Backlinks, LinkedReferences, References } from './Backlinks';
+export { Backlinks, LinkedReferences, References, useLinkedReferencesCount } from './LinkedReferences';
 export { NodeViewSection } from './nodes/NodeViewSection';
 export type { NodeViewSectionProps } from './nodes/NodeViewSection';
 export { 
