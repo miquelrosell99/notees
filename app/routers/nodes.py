@@ -1401,18 +1401,21 @@ async def move_node(
     
     Used for indent/outdent operations and drag-drop reordering.
     - parent_id: New parent ID (required for blocks - they must always have a parent)
-    - position: New sequence position among siblings
+    - position: New sequence position among siblings (0-indexed)
     
     Note: page_id is automatically computed from parent_id hierarchy.
+    Sibling sequences are automatically adjusted to maintain ordering.
     """
     service = await _get_node_service(user)
     
-    data = NodeUpdateData(
-        parent_id=request.parent_id,
-        sequence=request.position,
-    )
+    # Validate parent_id is provided
+    if request.parent_id is None:
+        raise HTTPException(400, "parent_id is required for move operation")
     
-    node = await service.update_node(node_id, data)
+    # Default position to 0 if not specified
+    position = request.position if request.position is not None else 0
+    
+    node = await service.move_node(node_id, request.parent_id, position)
     if not node:
         raise HTTPException(404, "Node not found")
     

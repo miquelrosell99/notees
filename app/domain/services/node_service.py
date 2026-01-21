@@ -137,6 +137,35 @@ class NodeService:
         )
         return await self.create_node(data, user_id)
     
+    async def move_node(
+        self,
+        node_id: int,
+        new_parent_id: int,
+        new_sequence: int,
+        user_id: Optional[int] = None,
+    ) -> Optional[Node]:
+        """Move a node to a new parent and/or position.
+        
+        This properly handles sibling resequencing to maintain order consistency.
+        """
+        # Get the node before move to check if parent changed
+        old_node = await self._node_repo.get_by_id(node_id)
+        if not old_node:
+            return None
+        
+        old_parent_id = old_node.parent_id
+        
+        # Use dedicated move method for proper resequencing
+        node = await self._node_repo.move(node_id, new_parent_id, new_sequence, user_id)
+        if not node:
+            return None
+        
+        # Update types path if parent changed (inherited types may have changed)
+        if new_parent_id != old_parent_id and node.id is not None:
+            await self._link_service.update_types_path(node.id)
+        
+        return node
+    
     async def update_node(
         self,
         node_id: int,

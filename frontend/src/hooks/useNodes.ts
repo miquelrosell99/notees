@@ -684,8 +684,38 @@ export function useMoveNode() {
   return useMutation({
     mutationFn: ({ id, parentId, position }: { id: number; parentId: number | null; position?: number }) => 
       nodesApi.moveNode(id, parentId, position),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.all });
+    onMutate: async ({ id }) => {
+      // Get the node's current data to find old parent
+      const oldNode = queryClient.getQueryData<Node>(
+        nodeKeys.detail(id, { include_children: true })
+      );
+      return { oldParentId: oldNode?.parent_id, oldPageId: oldNode?.page_id };
+    },
+    onSuccess: (movedNode, { id, parentId }, context) => {
+      // Update the moved node in cache
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.detailBase(id) },
+        () => movedNode
+      );
+      
+      // Invalidate the old parent's page content (to remove node from old location)
+      if (context?.oldPageId) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(context.oldPageId) });
+      }
+      if (context?.oldParentId && context.oldParentId !== context.oldPageId) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(context.oldParentId) });
+      }
+      
+      // Invalidate the new parent's page content (to show node in new location)
+      if (movedNode.page_id) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(movedNode.page_id) });
+      }
+      if (parentId && parentId !== movedNode.page_id) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(parentId) });
+      }
+      
+      // Invalidate all list queries since order may have changed
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
   });
 }
