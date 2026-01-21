@@ -111,18 +111,6 @@ export interface TableProps<T> {
   onExpandedChange?: (keys: Set<string | number>) => void;
 }
 
-/** Default expand icons */
-const DefaultExpandIcon = ({ expanded }: { expanded: boolean }) => (
-  <svg 
-    viewBox="0 0 16 16" 
-    fill="currentColor" 
-    className="table-expand-icon"
-    style={{ transform: expanded ? 'rotate(90deg)' : 'none' }}
-  >
-    <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
 /** Default drag handle icon */
 const DefaultDragHandle = () => (
   <svg viewBox="0 0 16 16" fill="currentColor" className="table-drag-icon">
@@ -161,14 +149,19 @@ export function Table<T>({
   getRowClassName,
   depth = 0,
   expandedKeys: controlledExpandedKeys,
-  onExpandedChange,
+  onExpandedChange: _onExpandedChange,
 }: TableProps<T>) {
   // Multi-column sort state: array of { key, direction } in sort priority order
   const [sortColumns, setSortColumns] = useState<SortEntry[]>([]);
   
-  // Internal expanded state (when uncontrolled)
-  const [internalExpandedKeys, setInternalExpandedKeys] = useState<Set<string | number>>(new Set());
+  // Internal expanded state (when uncontrolled) - currently only controlled mode is supported
+  // since no internal toggle UI exists
+  const [internalExpandedKeys, _setInternalExpandedKeys] = useState<Set<string | number>>(new Set());
   const expandedKeys = controlledExpandedKeys ?? internalExpandedKeys;
+  
+  // Suppress unused variable warnings for expansion control (kept for API compatibility)
+  void _onExpandedChange;
+  void _setInternalExpandedKeys;
   
   // Drag state for reorderable rows
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -200,21 +193,6 @@ export function Table<T>({
       }
     });
   }, []);
-
-  const handleToggleExpand = useCallback((key: string | number) => {
-    const newExpanded = new Set(expandedKeys);
-    if (newExpanded.has(key)) {
-      newExpanded.delete(key);
-    } else {
-      newExpanded.add(key);
-    }
-    
-    if (onExpandedChange) {
-      onExpandedChange(newExpanded);
-    } else {
-      setInternalExpandedKeys(newExpanded);
-    }
-  }, [expandedKeys, onExpandedChange]);
 
   const handleToggleSelect = useCallback((key: string | number) => {
     if (!selectable || !onSelectionChange) return;
@@ -338,6 +316,7 @@ export function Table<T>({
   const containerClasses = [
     'table-container',
     reorderable ? 'table-container--reorderable' : '',
+    expandable ? 'table-container--expandable' : '',
     className,
   ]
     .filter(Boolean)
@@ -363,9 +342,6 @@ export function Table<T>({
     
     // Check if row has children and can be expanded
     const children = expandable?.getChildren(row) ?? [];
-    const canExpand = expandable?.canExpand 
-      ? expandable.canExpand(row) 
-      : children.length > 0;
     const maxDepth = expandable?.maxDepth ?? Infinity;
     const shouldShowChildren = isExpanded && currentDepth < maxDepth && children.length > 0;
 
@@ -409,30 +385,8 @@ export function Table<T>({
             </td>
           )}
           
-          {/* Expand column */}
-          {expandable && (
-            <td className="table-cell table-cell--expand">
-              {canExpand ? (
-                <button 
-                  className="table-expand-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleExpand(key);
-                  }}
-                >
-                  {expandable.renderExpandIcon 
-                    ? expandable.renderExpandIcon(isExpanded)
-                    : <DefaultExpandIcon expanded={isExpanded} />
-                  }
-                </button>
-              ) : (
-                <span className="table-expand-placeholder" />
-              )}
-            </td>
-          )}
-          
           {/* Data columns */}
-          {columns.map(column => (
+          {columns.map((column) => (
             <td
               key={column.key}
               className={[
@@ -473,7 +427,6 @@ export function Table<T>({
                   />
                 </th>
               )}
-              {expandable && <th className="table-cell table-cell--expand" />}
               {columns.map(column => {
                 const sortEntry = sortColumns.find(s => s.key === column.key);
                 const sortIndex = sortColumns.findIndex(s => s.key === column.key);

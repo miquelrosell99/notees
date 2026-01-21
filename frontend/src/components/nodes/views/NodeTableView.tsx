@@ -23,7 +23,7 @@ import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig 
 import { Button } from '../../core/Button';
 import { Block } from '../../blocks/Block';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
-import { ChevronRightIcon, ChevronDownIcon, DragHandleIcon } from '../../icons';
+import { DragHandleIcon } from '../../icons';
 import './NodeTableView.css';
 
 // Custom column definition for node tables (external API)
@@ -162,6 +162,7 @@ export function NodeTableView({
             parentId={node.parent_id}
             onContentChange={handleContentChange}
             showBullet={false}
+            showTypes={false}
             readOnly={!editable}
             {...blockProps}
           />
@@ -275,14 +276,12 @@ export function NodeTableView({
     }
   }, [onSelectionChange]);
   
-  // Expandable configuration
+  // Expandable configuration - uses CollapseArrow by default in Table
   const expandableConfig: ExpandableConfig<Node> | undefined = useMemo(() => {
     if (!expandable) return undefined;
     return {
       getChildren: (node: Node) => node.children ?? [],
       maxDepth: maxDepth,
-      renderExpandIcon: (isExpanded: boolean) => 
-        isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />,
     };
   }, [expandable, maxDepth]);
   

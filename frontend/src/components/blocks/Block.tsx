@@ -112,6 +112,8 @@ interface BlockProps {
   onOpenBacklinks?: () => void;
   /** Whether to show the bullet (default: true). Set to false for inline references without icons */
   showBullet?: boolean;
+  /** Whether to show the type pills (default: true). Set to false for table views */
+  showTypes?: boolean;
 }
 
 export function Block({
@@ -138,6 +140,7 @@ export function Block({
   onTaskStateChange,
   onOpenBacklinks,
   showBullet = true,
+  showTypes = true,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1026,7 +1029,7 @@ export function Block({
         </Card>
         
         {/* Block types - right-aligned */}
-        {blockTypeDetails.length > 0 && (
+        {showTypes && blockTypeDetails.length > 0 && (
           <div className="block-types">
             {blockTypeDetails.map((typeNode) => (
               <NodeTypePill

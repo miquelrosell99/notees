@@ -38,6 +38,15 @@
   padding: 0.25rem 0;
 }
 
+/* Prevent word breaking in table cells - keep text on one line */
+.node-table__block-wrapper .block-content-view,
+.node-table__block-wrapper .block-content-pills {
+  word-break: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .node-table__name {
   overflow: hidden;
   text-overflow: ellipsis;

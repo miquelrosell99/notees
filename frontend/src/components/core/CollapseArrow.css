@@ -1,0 +1,71 @@
+/**
+ * CollapseArrow styles
+ * 
+ * Positioned absolutely to the left of the parent element.
+ * Parent should have position: relative.
+ */
+
+.collapse-arrow {
+  /* Positioning - parent must have position: relative */
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  
+  /* Circular hit area */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  
+  /* Hidden by default, visible on hover */
+  opacity: 0;
+  transition: opacity 0.1s ease, background-color 0.1s ease;
+  
+  /* Icon color */
+  color: var(--color-text-secondary);
+}
+
+/* Sizes */
+.collapse-arrow--xs {
+  width: 14px;
+  height: 14px;
+  left: -14px;
+}
+
+.collapse-arrow--sm {
+  width: 16px;
+  height: 16px;
+  left: -16px;
+}
+
+.collapse-arrow--md {
+  width: 18px;
+  height: 18px;
+  left: -18px;
+}
+
+/* Hover background */
+.collapse-arrow:hover {
+  background-color: var(--color-bg-tertiary);
+}
+
+/* Visible states */
+.collapse-arrow--always-visible {
+  opacity: 1;
+}
+
+.collapse-arrow--visible {
+  opacity: 1;
+}
+
+/* Focus state */
+.collapse-arrow:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
