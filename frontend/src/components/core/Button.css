@@ -70,6 +70,20 @@
   aspect-ratio: 1;
 }
 
+/* Icon + Text buttons (two-column layout) */
+.btn--icon-text {
+  justify-content: flex-start;
+}
+
+.btn--icon-text .btn__icon {
+  flex-shrink: 0;
+}
+
+.btn--icon-text .btn__text {
+  flex: 1;
+  text-align: left;
+}
+
 .btn--icon-only.btn--xs {
   width: 28px;
 }

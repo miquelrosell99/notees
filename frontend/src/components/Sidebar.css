@@ -88,48 +88,38 @@
 }
 
 /* ==================== Navigation Items ==================== */
+/* Sidebar nav items use Button component with icon+text layout */
 .sidebar-nav-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  width: 100%;
-  padding: var(--spacing-2) var(--spacing-3);
+  /* Override Button defaults for sidebar styling */
   border: none;
   background: none;
   border-radius: var(--shape-small);
-  cursor: pointer;
-  text-align: left;
+  padding: var(--spacing-2) var(--spacing-3);
+  gap: var(--spacing-3);
+  min-height: 36px;
   font: var(--font-body-medium);
   color: var(--color-on-surface);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
-  /* Ensure consistent height */
-  min-height: 36px;
 }
 
 .sidebar-nav-item:hover {
   background: var(--color-hover-overlay);
+  border: none;
 }
 
-.sidebar-nav-item.active {
+.sidebar-nav-item.btn--active {
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
 }
 
-.sidebar-nav-item svg,
-.sidebar-nav-item .nav-icon {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+.sidebar-nav-item .btn__icon {
   color: var(--color-on-surface-variant);
 }
 
-.sidebar-nav-item.active svg,
-.sidebar-nav-item.active .nav-icon {
+.sidebar-nav-item.btn--active .btn__icon {
   color: var(--color-on-primary-container);
 }
 
-.sidebar-nav-item span {
-  flex: 1;
+.sidebar-nav-item .btn__text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

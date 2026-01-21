@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { mdiClose } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiGraphOutline, mdiCog } from '@mdi/js';
 import { DatabaseSwitcher } from './databases/DatabaseSwitcher';
 import { DatabaseModal } from './databases/DatabaseModal';
 import { SettingsModal } from './SettingsModal';
@@ -20,10 +20,6 @@ import { ListSortable } from './core/ListSortable';
 import { Bullet } from './blocks/Bullet';
 import { BlockPreview } from './blocks/BlockPreview';
 import { 
-  JournalIcon, 
-  AllPagesIcon, 
-  GraphIcon,
-  SettingsIcon,
   StarIcon,
   ClockIcon,
   ChevronDownIcon,
@@ -142,33 +138,36 @@ export function Sidebar({ collapsed }: SidebarProps) {
               className={`sidebar-nav-item ${mainViewType === 'journals' ? 'active' : ''}`}
               variant="ghost"
               size="sm"
+              icon={mdiNotebookOutline}
+              fullWidth
               active={mainViewType === 'journals'}
               onClick={() => setMainViewType('journals')}
             >
-              <JournalIcon size="sm" />
-              <span>Journal</span>
+              Journal
             </Button>
             
             <Button 
               className={`sidebar-nav-item ${mainViewType === 'all-pages' ? 'active' : ''}`}
               variant="ghost"
               size="sm"
+              icon={mdiBookOpenPageVariant}
+              fullWidth
               active={mainViewType === 'all-pages'}
               onClick={() => setMainViewType('all-pages')}
             >
-              <AllPagesIcon size="sm" />
-              <span>All Pages</span>
+              All Pages
             </Button>
             
             <Button 
               className={`sidebar-nav-item ${mainViewType === 'graph' ? 'active' : ''}`}
               variant="ghost"
               size="sm"
+              icon={mdiGraphOutline}
+              fullWidth
               active={mainViewType === 'graph'}
               onClick={() => setMainViewType('graph')}
             >
-              <GraphIcon size="sm" />
-              <span>Graph View</span>
+              Graph View
             </Button>
           </nav>
           
@@ -254,11 +253,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
             className="sidebar-settings-btn"
             variant="ghost"
             size="sm"
+            icon={mdiCog}
+            fullWidth
             onClick={() => setIsSettingsModalOpen(true)}
             title="Settings"
           >
-            <SettingsIcon size="sm" />
-            <span>Settings</span>
+            Settings
           </Button>
         </div>
       </Card>
