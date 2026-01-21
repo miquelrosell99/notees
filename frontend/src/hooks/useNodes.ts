@@ -408,6 +408,8 @@ export function useCreateNode() {
         });
         // Also invalidate to ensure consistency
         queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+        // Invalidate search results so the new page shows up in searches
+        queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'search'] });
       }
     },
   });
