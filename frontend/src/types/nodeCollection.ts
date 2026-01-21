@@ -196,6 +196,12 @@ export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   
   /** Number of columns (default: auto) */
   columns?: number;
+  
+  /** Whether cards are sortable (enables drag-and-drop reordering) */
+  sortable?: boolean;
+  
+  /** Called when nodes are reordered (only when sortable=true) */
+  onReorder?: (fromIndex: number, toIndex: number) => void;
 }
 
 /**
@@ -212,6 +218,21 @@ export interface NodeTableViewProps extends NodeCollectionViewBaseProps {
   
   /** Whether to show expandable rows for children */
   expandable?: boolean;
+  
+  /** Whether rows are sortable (enables drag-and-drop reordering) */
+  sortable?: boolean;
+  
+  /** Called when nodes are reordered (only when sortable=true) */
+  onReorder?: (fromIndex: number, toIndex: number) => void;
+  
+  /** Whether rows are selectable (shows checkbox column) */
+  selectable?: boolean;
+  
+  /** Controlled selected node IDs */
+  selectedIds?: Set<number>;
+  
+  /** Called when selection changes */
+  onSelectionChange?: (selectedIds: Set<number>) => void;
 }
 
 /**

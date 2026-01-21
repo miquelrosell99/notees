@@ -151,6 +151,7 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           availableViewModes={['list', 'table', 'card']}
+          sortable={false}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
         />

@@ -11,21 +11,28 @@
  * - Recursive children shown inside card body
  * - Editable: allows interaction and navigation
  * - Read-only: display-only cards
+ * - Optional drag-and-drop reordering
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { BlockPreview } from '../../blocks/BlockPreview';
-import { NodeIcon } from '../../icons';
+import { NodeIcon, DragHandleIcon } from '../../icons';
+import { Card } from '../../core/Card';
 import './NodeCardGrid.css';
 
 interface NodeCardProps {
   node: Node;
+  index: number;
   maxDepth: number;
   depth: number;
   layout: 'no-cover' | 'cover-top' | 'cover-side';
+  sortable?: boolean;
+  isDragging?: boolean;
+  isDropTarget?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
+  onDragStart?: (index: number) => void;
 }
 
 /**
@@ -59,11 +66,16 @@ function resolveCoverUrl(coverImage: string | null): string | null {
 
 function NodeCard({
   node,
+  index,
   maxDepth,
   depth,
   layout,
+  sortable,
+  isDragging,
+  isDropTarget,
   onNodeClick,
   onNodeShiftClick,
+  onDragStart,
 }: NodeCardProps) {
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
@@ -84,6 +96,12 @@ function NodeCard({
       onNodeClick(node);
     }
   }, [node, onNodeClick, onNodeShiftClick]);
+
+  // Handle drag start
+  const handleDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDragStart?.(index);
+  }, [index, onDragStart]);
   
   // Card style based on node color
   const cardStyle = useMemo(() => {
@@ -95,12 +113,33 @@ function NodeCard({
     } as React.CSSProperties;
   }, [node.color]);
 
+  const cardClassName = [
+    'node-card',
+    `node-card--${effectiveLayout}`,
+    isDragging && 'node-card--dragging',
+    isDropTarget && 'node-card--drop-target',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div 
-      className={`node-card node-card--${effectiveLayout}`}
+    <Card 
+      className={cardClassName}
       style={cardStyle}
       onClick={handleClick}
+      padding={false}
+      elevation="none"
+      variant="default"
     >
+      {/* Drag handle */}
+      {sortable && (
+        <button
+          className="node-card__drag-handle"
+          onMouseDown={handleDragHandleMouseDown}
+          aria-label="Drag to reorder"
+        >
+          <DragHandleIcon size="sm" />
+        </button>
+      )}
+      
       {/* Cover image */}
       {coverUrl && (
         <div className="node-card__cover">
@@ -139,7 +178,7 @@ function NodeCard({
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -152,23 +191,94 @@ export function NodeCardGrid({
   maxDepth = 2,
   layout = 'cover-top',
   columns,
+  sortable,
+  onReorder,
   onNodeClick,
   onNodeShiftClick,
   className = '',
 }: NodeCardViewProps) {
   const gridStyle = columns ? { gridTemplateColumns: `repeat(${columns}, 1fr)` } : undefined;
+  
+  // Drag state
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Handle drag start
+  const handleDragStart = useCallback((index: number) => {
+    setDragIndex(index);
+  }, []);
+  
+  // Handle mouse move during drag
+  useEffect(() => {
+    if (dragIndex === null || !sortable) return;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      
+      const cards = containerRef.current.querySelectorAll('.node-card');
+      let newDropTarget: number | null = null;
+      
+      for (let i = 0; i < cards.length; i++) {
+        const rect = cards[i].getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        // Check if mouse is within the card bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          // Determine if dropping before or after based on position
+          if (e.clientX < centerX || e.clientY < centerY) {
+            newDropTarget = i;
+          } else {
+            newDropTarget = i;
+          }
+          break;
+        }
+      }
+      
+      setDropTargetIndex(newDropTarget);
+    };
+    
+    const handleMouseUp = () => {
+      if (dragIndex !== null && dropTargetIndex !== null && dragIndex !== dropTargetIndex) {
+        onReorder?.(dragIndex, dropTargetIndex);
+      }
+      setDragIndex(null);
+      setDropTargetIndex(null);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragIndex, dropTargetIndex, sortable, onReorder]);
+  
+  const gridClassName = [
+    'node-card-grid',
+    sortable && 'node-card-grid--sortable',
+    className,
+  ].filter(Boolean).join(' ');
 
   return (
-    <div className={`node-card-grid ${className}`} style={gridStyle}>
-      {nodes.map((node) => (
+    <div className={gridClassName} style={gridStyle} ref={containerRef}>
+      {nodes.map((node, index) => (
         <NodeCard
           key={node.id}
           node={node}
+          index={index}
           maxDepth={maxDepth}
           depth={depth}
           layout={layout}
+          sortable={sortable}
+          isDragging={dragIndex === index}
+          isDropTarget={dropTargetIndex === index && dragIndex !== index}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}
+          onDragStart={handleDragStart}
         />
       ))}
     </div>

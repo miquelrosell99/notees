@@ -55,6 +55,7 @@ import {
   mdiMap,
   mdiClockOutline,
   mdiTable,
+  mdiDrag,
   // Graph view icons
   mdiVectorPolygon,
   mdiCircleOutline,
@@ -178,6 +179,10 @@ export const AddIcon = ({ size = 'md', className, color, title }: IconProps) => 
 
 export const MenuIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path={mdiMenu} size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const DragHandleIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path={mdiDrag} size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const SearchIcon = ({ size = 'md', className, color, title }: IconProps) => (

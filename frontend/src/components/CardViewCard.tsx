@@ -2,7 +2,7 @@
  * CardViewCard Component
  * 
  * A card component for displaying blocks in card view mode.
- * Uses BlockContentPreview for consistent block display with sidebar.
+ * Uses the Card core component for consistent styling and BlockPreview for content.
  * Supports different layouts with cover images:
  * - no-cover: Card without cover image
  * - cover-top: Cover image on top of the card
@@ -10,6 +10,7 @@
  */
 import { useMemo, useCallback } from 'react';
 import type { Node } from '@/types';
+import { Card } from './core/Card';
 import { BlockPreview } from './blocks/BlockPreview';
 import './CardViewCard.css';
 
@@ -97,11 +98,21 @@ export function CardViewCard({
     } as React.CSSProperties;
   }, [node.color]);
   
+  const cardClassName = [
+    'card-view-card',
+    `card-view-card--${effectiveLayout}`,
+    node.color && 'card-view-card--has-color',
+    className,
+  ].filter(Boolean).join(' ');
+  
   return (
-    <div
-      className={`card-view-card card-view-card--${effectiveLayout} ${node.color ? 'card-view-card--has-color' : ''} ${className}`}
+    <Card
+      className={cardClassName}
       onClick={handleClick}
       style={cardStyle}
+      padding={false}
+      elevation="none"
+      variant="default"
     >
       {/* Cover image - only show for cover layouts */}
       {effectiveLayout !== 'no-cover' && coverUrl && (
@@ -127,7 +138,7 @@ export function CardViewCard({
           className="card-view-card__content"
         />
       </div>
-    </div>
+    </Card>
   );
 }
 

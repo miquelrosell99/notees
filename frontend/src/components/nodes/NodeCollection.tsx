@@ -96,7 +96,7 @@ export function NodeCollection({
   availableViewModes,
   onViewModeChange,
   editable = true,
-  sortable = false,
+  sortable = true,
   onReorder,
   renderItemAction,
   renderNode,
@@ -176,10 +176,23 @@ export function NodeCollection({
         return <NodeDocumentView {...viewProps} />;
       
       case 'card':
-        return <NodeCardGrid {...viewProps} />;
+        return (
+          <NodeCardGrid 
+            {...viewProps} 
+            sortable={sortable}
+            onReorder={onReorder}
+          />
+        );
       
       case 'table':
-        return <NodeTableView {...viewProps} columns={tableColumns} />;
+        return (
+          <NodeTableView 
+            {...viewProps} 
+            columns={tableColumns}
+            sortable={sortable}
+            onReorder={onReorder}
+          />
+        );
       
       case 'gantt':
         return <NodeGanttView {...viewProps} />;
