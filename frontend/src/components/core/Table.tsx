@@ -209,12 +209,30 @@ export function Table<T>({
   const handleSelectAll = useCallback(() => {
     if (!selectable || !onSelectionChange) return;
 
-    if (selectedKeys?.size === data.length) {
+    // Collect all keys including nested children
+    const allKeys: (string | number)[] = [];
+    const collectKeys = (items: T[]) => {
+      items.forEach(item => {
+        allKeys.push(getRowKey(item));
+        if (expandable) {
+          const children = expandable.getChildren(item);
+          if (children.length > 0) {
+            collectKeys(children);
+          }
+        }
+      });
+    };
+    collectKeys(data);
+
+    // Check if all keys are selected
+    const allKeysSelected = allKeys.length > 0 && allKeys.every(key => selectedKeys?.has(key));
+    
+    if (allKeysSelected) {
       onSelectionChange(new Set());
     } else {
-      onSelectionChange(new Set(data.map(getRowKey)));
+      onSelectionChange(new Set(allKeys));
     }
-  }, [selectable, selectedKeys, data, getRowKey, onSelectionChange]);
+  }, [selectable, selectedKeys, data, getRowKey, onSelectionChange, expandable]);
 
   const handleRowClick = useCallback((row: T, e: React.MouseEvent) => {
     if (e.shiftKey && onRowShiftClick) {
@@ -304,9 +322,24 @@ export function Table<T>({
     });
   }
 
-  // Compute selection state
-  const allSelected = data.length > 0 && data.every(row => selectedKeys?.has(getRowKey(row)));
-  const someSelected = data.some(row => selectedKeys?.has(getRowKey(row))) && !allSelected;
+  // Compute selection state including nested children
+  const computeAllKeys = (items: T[]): (string | number)[] => {
+    const keys: (string | number)[] = [];
+    items.forEach(item => {
+      keys.push(getRowKey(item));
+      if (expandable) {
+        const children = expandable.getChildren(item);
+        if (children.length > 0) {
+          keys.push(...computeAllKeys(children));
+        }
+      }
+    });
+    return keys;
+  };
+  
+  const allKeys = computeAllKeys(data);
+  const allSelected = allKeys.length > 0 && allKeys.every(key => selectedKeys?.has(key));
+  const someSelected = allKeys.some(key => selectedKeys?.has(key)) && !allSelected;
 
   // Calculate colspan for loading/empty states
   const extraColumns = 
