@@ -26,9 +26,6 @@ export { NodePicker } from './NodePicker';
 
 export { NodePreview } from './NodePreview';
 
-export { NodeSet } from './NodeSet';
-export type { NodeSetProps, NodeSetItem, NodeSetViewType, GroupByOption } from './NodeSet';
-
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';
 

@@ -47,8 +47,8 @@ export type { SlashCommandPopupProps, SlashCommand } from './core/SlashCommandPo
 // List components
 export { TagList, TaggedNodes } from './TagList';
 
-// Backlinks and references
-export { Backlinks, LinkedReferences, References, useLinkedReferencesCount } from './LinkedReferences';
+// Linked references
+export { LinkedReferences, References, useLinkedReferencesCount } from './LinkedReferences';
 export { NodeViewSection } from './nodes/NodeViewSection';
 export type { NodeViewSectionProps } from './nodes/NodeViewSection';
 export { 
@@ -137,8 +137,6 @@ export { AllPagesView } from '../views/AllPagesView';
 export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './SidebarNodeView';
 export { CommentsSidebar } from './CommentsSidebar';
-export { CardsView } from '../views/CardsView';
-export type { CardsViewProps, CardsViewMode } from '../views/CardsView';
 export { CalendarView } from '../views/CalendarView';
 export type { CalendarViewProps } from '../views/CalendarView';
 export { ChartView } from '../views/ChartView';
@@ -197,10 +195,6 @@ export { NodeLink } from './nodes/NodeLink';
 export type { NodeLinkProps } from './nodes/NodeLink';
 export { NodeLinkSearch } from './nodes/NodeLinkSearch';
 export type { NodeLinkSearchProps, LinkSearchType } from './nodes/NodeLinkSearch';
-
-// NodeSet component
-export { NodeSet } from './nodes/NodeSet';
-export type { NodeSetProps, NodeSetItem, NodeSetViewType, GroupByOption } from './nodes/NodeSet';
 
 // NodeCollection - Universal node collection system
 export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './nodes/NodeCollection';

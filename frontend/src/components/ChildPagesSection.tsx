@@ -1,34 +1,30 @@
 /**
  * ChildPagesSection - Displays child pages of a parent page
  * 
- * Uses NodeSet to display pages. NodeViewSection wrapping is handled by NodeView.
- * Supports list, table, and card view types.
+ * Uses NodeCollection to display pages. NodeViewSection wrapping is handled by NodeView.
+ * Supports list, table, and card view modes.
  */
-import { useMemo, useCallback } from 'react';
-import { NodeSet, type NodeSetItem, type NodeSetViewType } from './nodes/NodeSet';
+import { useCallback, useState } from 'react';
+import { NodeCollection } from './nodes/NodeCollection';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 
 interface ChildPagesSectionProps {
   pageId: number;
   /** Child pages to display */
   childPages?: Node[];
-  /** Default view type */
-  defaultViewType?: NodeSetViewType;
+  /** Default view mode */
+  defaultViewMode?: NodeCollectionViewMode;
 }
 
 export function ChildPagesSection({ 
   childPages,
-  defaultViewType = 'list',
+  defaultViewMode = 'list',
 }: ChildPagesSectionProps) {
   const { openNode, addSidebarCard } = useNodesStore();
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(defaultViewMode);
   const count = childPages?.length ?? 0;
-  
-  // Convert child pages to NodeSetItem format
-  const items = useMemo((): NodeSetItem[] => {
-    if (!childPages) return [];
-    return childPages.map(page => ({ node: page }));
-  }, [childPages]);
   
   const handleNodeClick = useCallback((node: Node) => {
     openNode(node.id, 'page');
@@ -44,17 +40,14 @@ export function ChildPagesSection({
   }
 
   return (
-    <NodeSet
-      items={items}
-      showHeader={false}
+    <NodeCollection
+      nodes={childPages ?? []}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      availableViewModes={['list', 'table', 'card']}
+      sortable={false}
       onNodeClick={handleNodeClick}
       onNodeShiftClick={handleNodeShiftClick}
-      viewType={defaultViewType}
-      viewTypes={['list', 'table', 'card']}
-      showViewToggle={false}
-      showGroupBySettings={false}
-      groupByOptions={['none']}
-      defaultGroupBy="none"
     />
   );
 }
