@@ -220,7 +220,7 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
               <span className="scratchpad-entry-content">{entry.content}</span>
               <Button
                 className="scratchpad-entry-delete"
-                variant="ghost"
+                variant="danger"
                 size="xs"
                 onClick={() => handleDeleteEntry(entry.id)}
                 title="Delete"
