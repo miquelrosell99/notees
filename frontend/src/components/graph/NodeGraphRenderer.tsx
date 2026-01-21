@@ -520,7 +520,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
     }
-  }, [selectedNodeIds, currentNodeId]);
+  }, [selectedNodeIds, currentNodeId, viewMode]);
 
   // Handle container resize
   useEffect(() => {
