@@ -7,7 +7,7 @@
  * - Shows a searchable dropdown with matching nodes
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useSearch, usePages, useNodes } from '@/hooks';
+import { useNodeSearch, usePages, useNodes } from '@/hooks';
 import type { Node, Property } from '@/types/api';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from './icons';
 import { Button } from './core/Button';
@@ -55,10 +55,22 @@ export function NodePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Fetch data
-  const { data: searchResults, isLoading } = useSearch(query);
+  // Fetch data for selected node lookup
   const { data: allPages } = usePages();
   const { data: allNodes } = useNodes();
+  
+  // Use shared search hook with tag filters from property
+  const { allResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(query, {
+    mode: 'all',
+    tagFilters: property.tag_filters ?? [],
+    maxResults: 15,
+  });
+  
+  // Convert search results to Node array
+  const filteredResults = useMemo(() => allResults.map(r => r.node), [allResults]);
+  
+  // Only show create option if onCreate is provided
+  const showCreateOption = searchShowCreate && !!onCreate;
   
   // Get selected node details
   const selectedNodes = useMemo((): SelectedNode[] => {
@@ -88,36 +100,6 @@ export function NodePicker({
     
     return nodes;
   }, [value, allNodes, allPages]);
-  
-  // Filter results based on property tag_filters
-  // Pages are always included, additional types can be added via tag_filters
-  const filteredResults = useMemo(() => {
-    const baseResults = query.length > 0 
-      ? (searchResults ?? []) 
-      : (allPages ?? []).slice(0, 15);
-    
-    const tagFilters = property.tag_filters ?? [];
-    
-    return baseResults.filter(node => {
-      // Always include pages (nodes without parent_id)
-      if (node.parent_id === null) return true;
-      
-      // Include nodes that have any of the tag_filters as types
-      if (tagFilters.length > 0 && node.types) {
-        return tagFilters.some(filterId => node.types?.includes(filterId));
-      }
-      
-      return false;
-    });
-  }, [searchResults, allPages, property.tag_filters, query]);
-  
-  // Check if we should show create option
-  const showCreateOption = useMemo(() => {
-    if (!query.trim() || !onCreate) return false;
-    return !filteredResults.some(
-      n => n.name?.toLowerCase() === query.toLowerCase()
-    );
-  }, [filteredResults, query, onCreate]);
   
   const totalItems = filteredResults.length + (showCreateOption ? 1 : 0);
   
@@ -151,7 +133,7 @@ export function NodePicker({
         e.preventDefault();
         if (selectedIndex < filteredResults.length) {
           handleSelect(filteredResults[selectedIndex]);
-        } else if (showCreateOption && onCreate) {
+        } else if (showCreateOption) {
           handleCreate();
         }
         break;
@@ -353,7 +335,7 @@ export function NodePicker({
                   );
                 })}
                 
-                {showCreateOption && onCreate && (
+                {showCreateOption && (
                   <button
                     className={`node-picker__item node-picker__item--create ${
                       selectedIndex === filteredResults.length ? 'node-picker__item--highlighted' : ''

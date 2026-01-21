@@ -6,7 +6,7 @@
  */
 import { useRef, useCallback } from 'react';
 import { PagesTree, type PagesTreeRef } from '../components/PagesTree';
-import { SearchBox } from '../components/core/SearchBox';
+import { SearchBox } from '../components/SearchBox';
 import type { Node } from '@/types';
 
 interface AllPagesViewProps {

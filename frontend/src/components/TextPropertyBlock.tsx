@@ -18,10 +18,11 @@ import {
   useUpdateNode, 
   useMoveNode 
 } from '@/hooks';
+import { mdiPlus } from '@mdi/js';
 import type { Property } from '@/types/api';
 import { BlockEditor } from './BlockEditor';
 import { Block } from './Block';
-import { ButtonAdd } from './core/ButtonAdd';
+import { Button } from './core/Button';
 
 interface TextPropertyBlockProps {
   /** The property definition */
@@ -159,15 +160,17 @@ export function TextPropertyBlock({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
       >
-        <ButtonAdd
+        <Button
+          icon={mdiPlus}
           className="text-property-block__add-btn"
           onClick={handleAddText}
           disabled={readOnly || isCreating}
           title="Add text"
           size="xs"
+          variant="ghost"
         >
           {isCreating ? 'Creating...' : 'Add text'}
-        </ButtonAdd>
+        </Button>
       </div>
     );
   }

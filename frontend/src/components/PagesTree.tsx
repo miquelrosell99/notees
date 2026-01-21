@@ -11,8 +11,8 @@ import { useState, useMemo, useCallback, useRef, useEffect, useImperativeHandle,
 import { usePages, useNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
-import { Bullet } from './Bullet';
-import { ContentWithPills } from './ContentWithPills';
+import { Bullet } from './blocks/Bullet';
+import { BlockContent } from './blocks/BlockContent';
 import './PagesTree.css';
 
 // ============== Page Tree Item ==============
@@ -99,7 +99,7 @@ function PageTreeItem({ page, level, onShiftClick, highlightedNodeId, onRegister
           className="pages-tree-page-content"
           title={page.name || 'Untitled'}
         >
-          <ContentWithPills
+          <BlockContent
             content={page.name || 'Untitled'}
             blockId={page.id}
             className="pages-tree-content"

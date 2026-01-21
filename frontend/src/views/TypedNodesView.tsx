@@ -9,9 +9,9 @@ import './TypedNodesView.css';
 import { useNodesWithType, useCreateNode, useCreatePage, useAddType } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
-import { NodeSet, type NodeSetItem } from '../components/NodeSet';
-import { NodeViewSection } from '../components/NodeViewSection';
-import { ButtonAdd } from '../components/core/ButtonAdd';
+import { mdiPlus } from '@mdi/js';
+import { NodeSet, type NodeSetItem } from '../components/nodes/NodeSet';
+import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { Button } from '../components/core/Button';
 import { TableIcon } from '../components/icons';
 
@@ -144,7 +144,10 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
       count={count}
       defaultExpanded={true}
       headerActions={
-        <ButtonAdd
+        <Button
+          icon={mdiPlus}
+          iconOnly
+          variant="ghost"
           onClick={() => setIsCreating(true)}
           title={`Create new ${isPageOnlyType ? 'page' : 'node'} with type ${typeName || 'this type'}`}
           size="xs"
@@ -186,14 +189,15 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
         {count === 0 && !isCreating ? (
           <div className="typed-nodes-empty">
             <p>No nodes with this type yet</p>
-            <ButtonAdd 
+            <Button 
+              icon={mdiPlus}
               variant="ghost"
               size="sm"
               onClick={() => setIsCreating(true)}
               title={`Create first ${typeName || 'node'}`}
             >
               Create first {typeName || 'node'}
-            </ButtonAdd>
+            </Button>
           </div>
         ) : (
           <NodeSet

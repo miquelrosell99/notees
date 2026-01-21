@@ -8,13 +8,13 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNode, useUpdateNode, useCreateNode, useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
-import { mdiOpenInNew, mdiArrowExpand, mdiClose } from '@mdi/js';
+import { mdiPlus, mdiOpenInNew, mdiArrowExpand, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
-import { BlockEditor } from './BlockEditor';
-import { BlockDisplay } from './BlockDisplay';
-import { Bullet } from './Bullet';
+import { BlockEditor } from './blocks/BlockEditor';
+import { BlockPreview } from './blocks/BlockPreview';
+import { Bullet } from './blocks/Bullet';
 import { NodeIcon } from './icons';
-import { ButtonAdd } from './core/ButtonAdd';
+import { Button } from './core/Button';
 import './NodePreview.css';
 
 interface NodePreviewProps {
@@ -205,7 +205,8 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
                         onChange={(content) => handleChildContentChange(child.id, content)}
                       />
                     ) : (
-                      <BlockDisplay
+                      <BlockPreview
+                        variant="simple"
                         blockId={child.id}
                         content={child.name || ''}
                         showBullet={false}
@@ -219,14 +220,16 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
               )}
             </div>
             {isEditing && (
-              <ButtonAdd 
+              <Button 
+                icon={mdiPlus}
                 className="node-preview-add-block" 
                 onClick={handleAddBlock}
                 title="Add block"
                 size="sm"
+                variant="ghost"
               >
                 Add block
-              </ButtonAdd>
+              </Button>
             )}
           </>
         ) : (
@@ -237,7 +240,8 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
               onChange={handleContentChange}
             />
           ) : (
-            <BlockDisplay
+            <BlockPreview
+              variant="simple"
               blockId={node.id}
               content={node.name || ''}
               showBullet={false}

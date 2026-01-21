@@ -7,9 +7,9 @@
  * Built on top of the core Card component for consistent styling.
  */
 import type { ReactNode } from 'react';
+import { mdiClose } from '@mdi/js';
 import './SidebarCard.css';
 import { AlertIcon } from './icons';
-import { ButtonClose } from './core/ButtonClose';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 
@@ -108,11 +108,14 @@ export function SidebarCard({
             </div>
           </div>
           {onClose && (
-            <ButtonClose
+            <Button
+              icon={mdiClose}
+              iconOnly
               className="sidebar-card__close-btn"
               onClick={onClose}
               title="Close"
               size="sm"
+              variant="ghost"
             />
           )}
         </div>

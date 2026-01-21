@@ -1,4 +1,4 @@
 /**
- * Re-export NodeToNodeLine component from core folder
+ * Re-export NodeToNodeLine component from graph folder
  */
-export * from './core/NodeToNodeLine';
+export * from './graph/NodeToNodeLine';

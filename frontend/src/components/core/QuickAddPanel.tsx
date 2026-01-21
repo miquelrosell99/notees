@@ -6,9 +6,9 @@
  * - Send button to create blocks
  * - Destination configured in settings (inbox or today)
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { mdiSend } from '@mdi/js';
-import { useCreateNode, useTodayNote, usePages } from '@/hooks';
+import { useTodayNote, usePages, useQuickAdd } from '@/hooks';
 import { useSettingsStore } from '@/stores';
 import { Button } from './Button';
 import './QuickAddPanel.css';
@@ -17,19 +17,10 @@ interface QuickAddPanelProps {
   onClose?: () => void;
 }
 
-interface DraftBlock {
-  id: number;
-  content: string;
-}
-
 export function QuickAddPanel({ onClose }: QuickAddPanelProps) {
-  const [draftBlocks, setDraftBlocks] = useState<DraftBlock[]>([{ id: 1, content: '' }]);
-  const [nextBlockId, setNextBlockId] = useState(2);
-  
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
   const { quickAddDestination } = useSettingsStore();
-  const createNode = useCreateNode();
   
   // Get today's note for 'today' destination
   const { data: todayNote } = useTodayNote();
@@ -41,6 +32,18 @@ export function QuickAddPanel({ onClose }: QuickAddPanelProps) {
   // Determine the destination page based on setting
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
   
+  // Use shared quick add logic
+  const {
+    draftBlocks,
+    handleBlockChange,
+    handleBlockKeyDown,
+    createBlocks,
+    isCreating,
+    hasContent,
+  } = useQuickAdd({
+    onSuccess: onClose,
+  });
+  
   // Focus input on mount
   useEffect(() => {
     setTimeout(() => {
@@ -48,73 +51,12 @@ export function QuickAddPanel({ onClose }: QuickAddPanelProps) {
     }, 50);
   }, []);
   
-  const handleBlockChange = useCallback((blockId: number, content: string) => {
-    setDraftBlocks(blocks => 
-      blocks.map(b => b.id === blockId ? { ...b, content } : b)
-    );
-  }, []);
-  
-  const handleAddBlock = useCallback(() => {
-    setDraftBlocks(blocks => [...blocks, { id: nextBlockId, content: '' }]);
-    setNextBlockId(id => id + 1);
-  }, [nextBlockId]);
-  
-  const handleRemoveBlock = useCallback((blockId: number) => {
-    setDraftBlocks(blocks => {
-      if (blocks.length <= 1) return blocks;
-      return blocks.filter(b => b.id !== blockId);
-    });
-  }, []);
-  
-  const handleBlockKeyDown = useCallback((blockId: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleAddBlock();
-    } else if (e.key === 'Backspace') {
-      const block = draftBlocks.find(b => b.id === blockId);
-      if (block?.content === '' && draftBlocks.length > 1) {
-        e.preventDefault();
-        handleRemoveBlock(blockId);
-      }
-    }
-  }, [draftBlocks, handleAddBlock, handleRemoveBlock]);
-  
   const handleSend = async () => {
     if (!destinationPage) return;
-    
-    const nonEmptyBlocks = draftBlocks.filter(b => b.content.trim());
-    if (nonEmptyBlocks.length === 0) return;
-    
-    console.log('[QuickAddPanel] Creating blocks:', {
-      destination: quickAddDestination,
-      destinationPage: { id: destinationPage.id, name: destinationPage.name },
-      blocks: nonEmptyBlocks.map(b => b.content.trim()),
-    });
-    
-    try {
-      // Create blocks sequentially under the destination page
-      for (const block of nonEmptyBlocks) {
-        const nodeData = {
-          name: block.content.trim(),
-          parent_id: destinationPage.id,
-        };
-        console.log('[QuickAddPanel] Creating block:', nodeData);
-        const newNode = await createNode.mutateAsync(nodeData);
-        console.log('[QuickAddPanel] Block created:', newNode);
-      }
-      
-      // Reset blocks
-      setDraftBlocks([{ id: nextBlockId, content: '' }]);
-      setNextBlockId(id => id + 1);
-      
-      // Close panel
-      onClose?.();
-    } catch (error) {
-      console.error('Failed to create blocks:', error);
-    }
+    await createBlocks(destinationPage.id);
   };
   
-  const canSend = destinationPage && draftBlocks.some(b => b.content.trim());
+  const canSend = destinationPage && hasContent;
   
   return (
     <div className="quick-add-panel">
@@ -146,7 +88,7 @@ export function QuickAddPanel({ onClose }: QuickAddPanelProps) {
           variant="primary"
           size="sm"
           onClick={handleSend}
-          disabled={!canSend || createNode.isPending}
+          disabled={!canSend || isCreating}
         >
           Send
         </Button>

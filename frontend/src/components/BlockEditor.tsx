@@ -19,7 +19,7 @@
  */
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import './BlockEditor.css';
-import { SuggestionPopup, type SuggestionType } from './core/SuggestionPopup';
+import { SuggestionPopup, type SuggestionType } from './SuggestionPopup';
 import { SlashCommandPopup } from './core/SlashCommandPopup';
 import { useNodes, useTextLinks } from '@/hooks';
 import { mdiFileDocumentOutline, mdiTag } from '@mdi/js';

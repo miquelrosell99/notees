@@ -7,7 +7,7 @@
  * - Search and select destination page
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useCreatePage, useCreateNode, usePages, useSearch } from '@/hooks';
+import { usePages, useSearch, useQuickAdd } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { PageIcon, NodeIcon, AddIcon } from '../icons';
@@ -21,46 +21,52 @@ interface QuickAddProps {
 
 type CreateType = 'page' | 'blocks';
 
-interface DraftBlock {
-  id: number;
-  content: string;
-}
-
 export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
   const [createType, setCreateType] = useState<CreateType>('page');
   const [pageName, setPageName] = useState('');
-  const [draftBlocks, setDraftBlocks] = useState<DraftBlock[]>([{ id: 1, content: '' }]);
   const [destinationPage, setDestinationPage] = useState<Node | null>(null);
   const [destinationSearch, setDestinationSearch] = useState('');
   const [showDestinationPicker, setShowDestinationPicker] = useState(false);
-  const [nextBlockId, setNextBlockId] = useState(2);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
   
   const { openNode } = useNodesStore();
-  const createPage = useCreatePage();
-  const createNode = useCreateNode();
   const { data: allPages } = usePages();
   const { data: searchResults } = useSearch(destinationSearch);
+  
+  // Use shared quick add logic
+  const {
+    draftBlocks,
+    resetBlocks,
+    handleBlockChange,
+    handleAddBlock,
+    handleBlockKeyDown,
+    createBlocks,
+    createPage,
+    isCreating,
+    hasContent,
+  } = useQuickAdd({
+    navigateOnSuccess: true,
+    onSuccess: onClose,
+  });
   
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
       setCreateType('page');
       setPageName('');
-      setDraftBlocks([{ id: 1, content: '' }]);
+      resetBlocks();
       setDestinationPage(null);
       setDestinationSearch('');
       setShowDestinationPicker(false);
-      setNextBlockId(2);
       
       // Focus appropriate input after short delay
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
     }
-  }, [isOpen]);
+  }, [isOpen, resetBlocks]);
   
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -85,37 +91,6 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
     ? (searchResults?.filter(n => n.parent_id === null) || [])
     : (allPages?.slice(0, 10) || []);
   
-  const handleBlockChange = useCallback((blockId: number, content: string) => {
-    setDraftBlocks(blocks => 
-      blocks.map(b => b.id === blockId ? { ...b, content } : b)
-    );
-  }, []);
-  
-  const handleAddBlock = useCallback(() => {
-    setDraftBlocks(blocks => [...blocks, { id: nextBlockId, content: '' }]);
-    setNextBlockId(id => id + 1);
-  }, [nextBlockId]);
-  
-  const handleRemoveBlock = useCallback((blockId: number) => {
-    setDraftBlocks(blocks => {
-      if (blocks.length <= 1) return blocks;
-      return blocks.filter(b => b.id !== blockId);
-    });
-  }, []);
-  
-  const handleBlockKeyDown = useCallback((blockId: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleAddBlock();
-    } else if (e.key === 'Backspace') {
-      const block = draftBlocks.find(b => b.id === blockId);
-      if (block?.content === '' && draftBlocks.length > 1) {
-        e.preventDefault();
-        handleRemoveBlock(blockId);
-      }
-    }
-  }, [draftBlocks, handleAddBlock, handleRemoveBlock]);
-  
   const handleSelectDestination = useCallback((page: Node) => {
     setDestinationPage(page);
     setDestinationSearch('');
@@ -129,28 +104,16 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
       if (createType === 'page') {
         if (!pageName.trim()) return;
         
-        const newPage = await createPage.mutateAsync({ name: pageName.trim() });
-        openNode(newPage.id, 'page');
+        const newPage = await createPage(pageName.trim());
+        if (newPage) {
+          openNode(newPage.id, 'page');
+          onClose();
+        }
       } else {
         // Create blocks mode
         if (!destinationPage) return;
-        
-        const nonEmptyBlocks = draftBlocks.filter(b => b.content.trim());
-        if (nonEmptyBlocks.length === 0) return;
-        
-        // Create blocks sequentially
-        for (const block of nonEmptyBlocks) {
-          await createNode.mutateAsync({
-            name: block.content.trim(),
-            parent_id: destinationPage.id,
-          });
-        }
-        
-        // Navigate to destination page
-        openNode(destinationPage.id, 'page');
+        await createBlocks(destinationPage.id);
       }
-      
-      onClose();
     } catch (error) {
       console.error('Failed to create:', error);
     }
@@ -158,7 +121,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
   
   const canSubmit = createType === 'page' 
     ? pageName.trim().length > 0
-    : destinationPage !== null && draftBlocks.some(b => b.content.trim());
+    : destinationPage !== null && hasContent;
   
   if (!isOpen) return null;
   
@@ -297,7 +260,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
             <Button 
               type="submit" 
               variant="primary"
-              disabled={!canSubmit || createPage.isPending || createNode.isPending}
+              disabled={!canSubmit || isCreating}
             >
               {createType === 'page' ? 'Create Page' : 'Send'}
             </Button>

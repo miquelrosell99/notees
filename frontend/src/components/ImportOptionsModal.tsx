@@ -8,8 +8,7 @@
 import { useRef } from 'react';
 import './ImportOptionsModal.css';
 import Icon from '@mdi/react';
-import { mdiDatabaseImport, mdiFolderZipOutline } from '@mdi/js';
-import { ButtonClose } from './core/ButtonClose';
+import { mdiClose, mdiDatabaseImport, mdiFolderZipOutline } from '@mdi/js';
 import { Button } from './core/Button';
 
 type ImportType = 'sqlite' | 'zip';
@@ -63,7 +62,7 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
       <div className="import-options-modal">
         <div className="import-options-modal__header">
           <h2 className="import-options-modal__title">Import Database</h2>
-          <ButtonClose className="import-options-modal__close" onClick={onClose} size="sm" />
+          <Button icon={mdiClose} iconOnly className="import-options-modal__close" onClick={onClose} size="sm" variant="ghost" />
         </div>
 
         <div className="import-options-modal__content">

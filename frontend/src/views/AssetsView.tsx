@@ -7,11 +7,11 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listAssets, deleteAsset, type Asset } from '../api/assets';
-import { AssetPreview } from '../components/AssetPreview';
-import { AssetUploadModal } from '../components/AssetUploadModal';
+import { AssetPreview } from '../components/assets/AssetPreview';
+import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
+import { mdiPlus } from '@mdi/js';
 import { AttachmentIcon, DeleteIcon } from '../components/icons';
-import { ButtonAdd } from '../components/core/ButtonAdd';
 import { Button } from '../components/core/Button';
 import { getLogger } from '../utils/logger';
 import './AssetsView.css';
@@ -129,14 +129,15 @@ export function AssetsView() {
             </Button>
           </div>
           
-          <ButtonAdd 
+          <Button 
+            icon={mdiPlus}
             variant="primary"
             onClick={() => setIsUploadModalOpen(true)}
             title="Upload Asset"
             size="sm"
           >
             Upload Asset
-          </ButtonAdd>
+          </Button>
         </div>
       </div>
 
@@ -145,14 +146,15 @@ export function AssetsView() {
           <AttachmentIcon size="xl" />
           <h2>No assets yet</h2>
           <p>Upload images, audio files, and other assets to use in your pages.</p>
-          <ButtonAdd 
+          <Button 
+            icon={mdiPlus}
             variant="primary"
             onClick={() => setIsUploadModalOpen(true)}
             title="Upload your first asset"
             size="sm"
           >
             Upload your first asset
-          </ButtonAdd>
+          </Button>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="assets-view__grid">

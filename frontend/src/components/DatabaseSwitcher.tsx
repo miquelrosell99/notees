@@ -32,8 +32,7 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
 
   const switchMutation = useMutation({
     mutationFn: switchDatabase,
-    onSuccess: (result) => {
-      const newDbName = result.active;
+    onSuccess: () => {
       const currentState = useNodesStore.getState();
       
       // Reset node state to prevent showing stale data from previous database
@@ -45,8 +44,8 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
         localGraphNodeId: null,
       });
       
-      // Update favorites store to use the new database's data
-      useFavoritesStore.getState().setCurrentDatabase(newDbName);
+      // Refresh favorites store to load new database's data
+      useFavoritesStore.getState().refresh();
       
       // Update URL - preserve view type but without database in path
       const viewPath = currentState.mainViewType === 'node' ? '' : 

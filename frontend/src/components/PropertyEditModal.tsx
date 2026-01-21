@@ -4,9 +4,9 @@
  * Floating modal for editing property name and icon.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { mdiClose } from '@mdi/js';
 import type { Property } from '@/types/api';
 import { EmojiPickerTrigger } from './core/EmojiPicker';
-import { ButtonClose } from './core/ButtonClose';
 import { Button } from './core/Button';
 import './PropertyEditModal.css';
 
@@ -85,7 +85,7 @@ export function PropertyEditModal({
       <div className="property-edit-modal" onKeyDown={handleKeyDown}>
         <div className="property-edit-header">
           <h3 className="property-edit-title">Edit Property</h3>
-          <ButtonClose onClick={onClose} size="sm" />
+          <Button icon={mdiClose} iconOnly onClick={onClose} size="sm" variant="ghost" />
         </div>
         
         <form className="property-edit-form" onSubmit={handleSubmit}>

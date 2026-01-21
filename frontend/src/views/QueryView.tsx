@@ -15,8 +15,8 @@ import type {
   QueryOperator,
   ViewMode,
 } from '@/types/views';
+import { mdiPlus } from '@mdi/js';
 import { BulletIcon, NodeIcon } from '../components/icons';
-import { ButtonAdd } from '../components/core/ButtonAdd';
 import { Button } from '../components/core/Button';
 
 export interface QueryViewProps {
@@ -538,14 +538,16 @@ function SimpleQueryEditor({
       </div>
       
       {/* Add condition button */}
-      <ButtonAdd 
+      <Button 
+        icon={mdiPlus}
         className="query-view__add-btn" 
         onClick={addCondition}
         title="Add condition"
         size="sm"
+        variant="ghost"
       >
         Add condition
-      </ButtonAdd>
+      </Button>
       
       {/* Options */}
       <div className="query-view__options">

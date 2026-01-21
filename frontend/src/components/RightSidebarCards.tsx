@@ -9,9 +9,9 @@ import { useCallback } from 'react';
 import { useNodesStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { useNode } from '@/hooks';
+import { mdiClose } from '@mdi/js';
 import { NodeIcon } from './icons';
 import { Button } from './core/Button';
-import { ButtonClose } from './core/ButtonClose';
 import './RightSidebarCards.css';
 
 interface SidebarCardItemProps {
@@ -49,7 +49,7 @@ function SidebarCardItem({ card, onClose, onClick }: SidebarCardItemProps) {
     return (
       <div className="sidebar-card-item sidebar-card-item--error">
         <span>Failed to load</span>
-        <ButtonClose size="xs" onClick={handleClose} title="Remove" />
+        <Button icon={mdiClose} iconOnly size="xs" onClick={handleClose} title="Remove" variant="ghost" />
       </div>
     );
   }
@@ -79,11 +79,14 @@ function SidebarCardItem({ card, onClose, onClick }: SidebarCardItemProps) {
         <span className="sidebar-card-item__title">
           {node.name || 'Untitled'}
         </span>
-        <ButtonClose 
+        <Button 
+          icon={mdiClose}
+          iconOnly
           size="xs" 
           onClick={handleClose} 
           title="Remove from sidebar"
           className="sidebar-card-item__close"
+          variant="ghost"
         />
       </div>
       

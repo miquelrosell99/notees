@@ -5,8 +5,8 @@
  * Supports list, table, and card view types.
  */
 import { useState, useMemo, useCallback } from 'react';
-import { NodeSet, type NodeSetItem, type NodeSetViewType } from './NodeSet';
-import { NodeViewSection } from './NodeViewSection';
+import { NodeSet, type NodeSetItem, type NodeSetViewType } from './nodes/NodeSet';
+import { NodeViewSection } from './nodes/NodeViewSection';
 import { PageIcon } from './icons';
 import { SelectionButton } from './core/SelectionButton';
 import { mdiFormatListBulleted, mdiTable, mdiViewGrid } from '@mdi/js';

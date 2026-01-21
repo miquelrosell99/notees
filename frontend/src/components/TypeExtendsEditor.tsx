@@ -13,8 +13,8 @@ import {
   useRemoveTypeExtends,
   useNodes 
 } from '@/hooks';
+import { mdiPlus } from '@mdi/js';
 import { LinkIcon, NodeIcon } from './icons';
-import { ButtonAdd } from './core/ButtonAdd';
 import { Button } from './core/Button';
 
 interface TypeExtendsEditorProps {
@@ -165,14 +165,16 @@ export function TypeExtendsEditor({
               </Button>
             </div>
           ) : (
-            <ButtonAdd
+            <Button
+              icon={mdiPlus}
               className="type-extends-add-btn"
               onClick={() => setIsAddingNew(true)}
               title="Add parent type"
               size="sm"
+              variant="ghost"
             >
               Add parent type
-            </ButtonAdd>
+            </Button>
           )}
         </div>
       )}

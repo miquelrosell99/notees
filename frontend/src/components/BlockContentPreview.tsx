@@ -5,7 +5,7 @@
  * Used in card views, sidebar previews, and anywhere a compact block display is needed.
  * 
  * Features:
- * - Renders content with links as clickable pills (via ContentWithPills)
+ * - Renders content with links as clickable pills (via BlockContent)
  * - Optional bullet point
  * - Optional icon
  * - Consistent styling with the Block component
@@ -13,7 +13,7 @@
  */
 import { useMemo, useCallback } from 'react';
 import type { Node } from '@/types';
-import { ContentWithPills } from './ContentWithPills';
+import { BlockContent } from './BlockContent';
 import { Bullet } from './Bullet';
 import { NodeIcon } from './icons';
 import './BlockContentPreview.css';
@@ -122,7 +122,7 @@ export function BlockContentPreview({
         style={contentStyle}
       >
         {content ? (
-          <ContentWithPills
+          <BlockContent
             content={content}
             blockId={node.id}
             className="block-content-preview__pills"

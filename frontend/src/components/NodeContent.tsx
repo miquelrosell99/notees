@@ -13,10 +13,11 @@ import { useRef, useCallback, useState } from 'react';
 import { useCreateNode, useUpdateNode, useAddTag, useAddType, useCreatePage, useBlockSelection, useTypes, useAddTagLink } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
-import { Block } from './Block';
+import { mdiPlus } from '@mdi/js';
+import { Block } from './blocks/Block';
 import { BoxSelect } from './core/BoxSelect';
 import { AssetUploadModal } from './AssetUploadModal';
-import { ButtonAdd } from './core/ButtonAdd';
+import { Button } from './core/Button';
 import { CardViewCard } from './CardViewCard';
 import { type Asset, type AssetCategory } from '../api/assets';
 import './NodeContent.css';
@@ -239,18 +240,18 @@ export function NodeContent({
       {/* Empty state */}
       {children.length === 0 && (
         <div className="node-content-empty">
-          <ButtonAdd onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm">
+          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
-          </ButtonAdd>
+          </Button>
         </div>
       )}
       
       {/* Add block button when there are children */}
       {children.length > 0 && (
         <div className="node-content-add">
-          <ButtonAdd onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm">
+          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
-          </ButtonAdd>
+          </Button>
         </div>
       )}
       

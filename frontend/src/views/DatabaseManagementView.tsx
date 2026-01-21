@@ -16,9 +16,9 @@ import {
   type DatabaseInfo,
 } from '@/api/databases';
 import { useAuthStore, useNodesStore } from '@/stores';
-import { DatabaseModal } from '../components/DatabaseModal';
+import { DatabaseModal } from '../components/databases/DatabaseModal';
 import { ImportOptionsModal } from '../components/ImportOptionsModal';
-import { DatabaseNameModal } from '../components/DatabaseNameModal';
+import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
 import { 
   FolderIcon, 
   FolderOpenIcon, 

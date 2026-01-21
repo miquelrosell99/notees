@@ -20,8 +20,9 @@ import { LocalGraphCard } from './LocalGraphCard';
 import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from './CommentsSidebar';
 import { FloatingMinimap } from './FloatingMinimap';
+import { mdiClose } from '@mdi/js';
 import { Card } from './core/Card';
-import { ButtonClose } from './core/ButtonClose';
+import { Button } from './core/Button';
 import './Layout.css';
 
 export function Layout() {
@@ -158,10 +159,13 @@ export function Layout() {
               <span className="right-sidebar-title">
                 {showLocalGraph ? 'Local Graph' : ''}
               </span>
-              <ButtonClose 
+              <Button 
+                icon={mdiClose}
+                iconOnly
                 size="sm" 
                 onClick={showLocalGraph ? closeLocalGraph : clearSidebarCards}
                 title="Close sidebar"
+                variant="ghost"
               />
             </div>
             <div className="right-sidebar-content">

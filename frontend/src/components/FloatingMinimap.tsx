@@ -4,9 +4,10 @@
  * A floating minimap window that appears in the bottom right corner.
  * Can be toggled from the TopBar using the map icon button.
  */
+import { mdiClose } from '@mdi/js';
 import { useNodesStore } from '@/stores';
 import { GraphView } from '../views/GraphView';
-import { ButtonClose } from './core/ButtonClose';
+import { Button } from './core/Button';
 import './FloatingMinimap.css';
 
 export function FloatingMinimap() {
@@ -18,11 +19,14 @@ export function FloatingMinimap() {
   
   return (
     <div className="floating-minimap">
-      <ButtonClose 
+      <Button 
+        icon={mdiClose}
+        iconOnly
         className="floating-minimap-close"
         onClick={() => setMinimapOpen(false)}
         title="Close minimap"
         size="xs"
+        variant="ghost"
       />
       <div className="floating-minimap-content">
         <GraphView 

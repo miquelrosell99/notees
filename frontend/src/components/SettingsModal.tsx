@@ -8,8 +8,8 @@ import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from 
 import type { ThemePreference, DateFormat, QuickAddDestination } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
+import { mdiClose } from '@mdi/js';
 import { ConfirmationModal } from './core/ConfirmationModal';
-import { ButtonClose } from './core/ButtonClose';
 import { Button } from './core/Button';
 import { Separator } from './core/Separator';
 import { BooleanToggle } from './core/BooleanToggle';
@@ -100,7 +100,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       <div className="settings-modal">
         <div className="settings-modal__header">
           <h2 className="settings-modal__title">Settings</h2>
-          <ButtonClose className="settings-modal__close" onClick={onClose} size="sm" />
+          <Button icon={mdiClose} iconOnly className="settings-modal__close" onClick={onClose} size="sm" variant="ghost" />
         </div>
 
         <div className="settings-modal__body">

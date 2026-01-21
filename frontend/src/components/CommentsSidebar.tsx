@@ -9,8 +9,8 @@ import { useState, useCallback } from 'react';
 import './CommentsSidebar.css';
 import { useNodesStore } from '@/stores';
 import { useComments, useCreateComment, useDeleteComment, useUpdateNode, useNode } from '@/hooks';
+import { mdiClose } from '@mdi/js';
 import { AddIcon, CommentIcon, TrashIcon } from './icons';
-import { ButtonClose } from './core/ButtonClose';
 import { Card } from './core/Card';
 import { Button } from './core/Button';
 import type { Comment } from '@/types/api';
@@ -166,10 +166,13 @@ export function CommentsSidebar() {
           <CommentIcon size="sm" />
           <span>Comments</span>
         </div>
-        <ButtonClose 
+        <Button 
+          icon={mdiClose}
+          iconOnly
           onClick={closeCommentsSidebar}
           title="Close comments"
           size="sm"
+          variant="ghost"
         />
       </div>
       
