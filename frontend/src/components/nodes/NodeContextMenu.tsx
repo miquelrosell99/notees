@@ -147,8 +147,9 @@ function useCommonMenuItems(node: Node, onClose: () => void, onDeleteClick: () =
       label: 'Delete permanently',
       danger: true,
       onClick: () => {
+        // Don't call onClose here - let the modal show first
+        // The modal's onConfirm/onCancel will handle cleanup
         onDeleteClick();
-        onClose();
       }
     });
     

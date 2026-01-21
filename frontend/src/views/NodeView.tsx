@@ -281,7 +281,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     if (!node) return;
     const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
     
-    createNode.mutate({ name, is_page: true }, {
+    // Create as both a page AND a type so it shows up in @ menu
+    createNode.mutate({ name, is_page: true, is_type: true }, {
       onSuccess: (newPage) => {
         addType.mutate({ nodeId: node.id, typeId: newPage.id });
         if (typeType) {

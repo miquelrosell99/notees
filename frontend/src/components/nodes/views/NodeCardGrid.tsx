@@ -16,6 +16,8 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
+import { useTypes } from '@/hooks';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { NodeCollection } from '../NodeCollection';
 import { DragHandleIcon } from '../../icons';
@@ -32,6 +34,7 @@ interface NodeCardProps {
   isDragging?: boolean;
   isDropTarget?: boolean;
   editable?: boolean;
+  allTypes?: Node[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
@@ -77,6 +80,7 @@ function NodeCard({
   isDragging,
   isDropTarget,
   editable = true,
+  allTypes,
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
@@ -85,9 +89,12 @@ function NodeCard({
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
   
+  // Get effective icon (from node or inherited from type)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allTypes), [node, allTypes]);
+  
   // Determine if we should show the bullet in the header
-  // Show bullet only if node has an icon (hide when no icon)
-  const showBullet = !!node.icon;
+  // Show bullet only if there's an effective icon (from node or type)
+  const showBullet = !!effectiveIcon;
   
   // Extract cover from content
   const coverImage = useMemo(() => extractCoverImage(node), [node]);
@@ -163,6 +170,7 @@ function NodeCard({
           node={node}
           showBullet={showBullet}
           showIcon={true}
+          icon={effectiveIcon}
           onClick={() => onNodeClick?.(node)}
           onShiftClick={() => onNodeShiftClick?.(node)}
           className="node-card__title-block"
@@ -209,6 +217,9 @@ export function NodeCardGrid({
   className = '',
 }: NodeCardViewProps) {
   const gridStyle = columns ? { gridTemplateColumns: `repeat(${columns}, 1fr)` } : undefined;
+  
+  // Fetch all types for icon inheritance
+  const { data: allTypes } = useTypes();
   
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -288,6 +299,7 @@ export function NodeCardGrid({
           isDragging={dragIndex === index}
           isDropTarget={dropTargetIndex === index && dragIndex !== index}
           editable={editable}
+          allTypes={allTypes}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}
           onContentChange={onContentChange}
