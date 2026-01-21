@@ -7,10 +7,44 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
+from ..errors import SystemTypeConstraintError
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
     from .link_service import LinkParsingService
+
+
+# System type UUIDs that cannot be added/removed manually by users
+# These are date-related types that are automatically assigned by the system
+PROTECTED_DATE_TYPE_UUIDS = {
+    "00000000-0000-0000-0001-000000000003",  # year
+    "00000000-0000-0000-0001-000000000004",  # month
+    "00000000-0000-0000-0001-000000000005",  # day
+}
+
+# System type UUIDs for all system types (cannot have 'type' removed)
+SYSTEM_TYPE_UUIDS = {
+    "type": "00000000-0000-0000-0001-000000000001",
+    "page": "00000000-0000-0000-0001-000000000002",
+    "year": "00000000-0000-0000-0001-000000000003",
+    "month": "00000000-0000-0000-0001-000000000004",
+    "day": "00000000-0000-0000-0001-000000000005",
+    "quote": "00000000-0000-0000-0001-000000000006",
+    "query": "00000000-0000-0000-0001-000000000007",
+    "code": "00000000-0000-0000-0001-000000000008",
+    "asset": "00000000-0000-0000-0001-000000000009",
+    "whiteboard": "00000000-0000-0000-0001-000000000010",
+    "card": "00000000-0000-0000-0001-000000000011",
+    "task": "00000000-0000-0000-0001-000000000012",
+    "template": "00000000-0000-0000-0001-000000000013",
+    "comment": "00000000-0000-0000-0001-000000000014",
+}
+
+# Set of all system type UUIDs for quick lookup
+ALL_SYSTEM_TYPE_UUIDS = set(SYSTEM_TYPE_UUIDS.values())
+
+# The 'type' type UUID - nodes with this UUID cannot have 'type' removed from them
+TYPE_TYPE_UUID = SYSTEM_TYPE_UUIDS["type"]
 
 
 class NodeService:
@@ -261,7 +295,18 @@ class NodeService:
         return await self._node_repo.search(query, limit)
     
     async def add_type(self, node_id: int, type_node_id: int) -> bool:
-        """Add a type to a node."""
+        """Add a type to a node.
+        
+        Raises:
+            SystemTypeConstraintError: If trying to add a protected date type (day, month, year)
+        """
+        # Check if the type being added is a protected date type
+        type_node = await self._node_repo.get_by_id(type_node_id)
+        if type_node and type_node.uuid in PROTECTED_DATE_TYPE_UUIDS:
+            raise SystemTypeConstraintError(
+                f"Cannot manually add '{type_node.name}' type. Date types (day, month, year) are managed by the system."
+            )
+        
         # Get current types by fetching relation values for the types property
         existing_values = await self._property_repo.get_relation_values(node_id, self._types_property_id)
         existing_type_ids = [v.target_node_id for v in existing_values]
@@ -289,7 +334,28 @@ class NodeService:
         return True
     
     async def remove_type(self, node_id: int, type_node_id: int) -> bool:
-        """Remove a type from a node."""
+        """Remove a type from a node.
+        
+        Raises:
+            SystemTypeConstraintError: If trying to remove a protected date type (day, month, year)
+                                       or 'type' from a system type node
+        """
+        # Check if the type being removed is a protected date type
+        type_node = await self._node_repo.get_by_id(type_node_id)
+        if type_node and type_node.uuid in PROTECTED_DATE_TYPE_UUIDS:
+            raise SystemTypeConstraintError(
+                f"Cannot remove '{type_node.name}' type. Date types (day, month, year) are managed by the system."
+            )
+        
+        # Check if trying to remove 'type' from a system type node
+        if type_node and type_node.uuid == TYPE_TYPE_UUID:
+            # Get the node we're removing the type from
+            node = await self._node_repo.get_by_id(node_id)
+            if node and node.uuid in ALL_SYSTEM_TYPE_UUIDS:
+                raise SystemTypeConstraintError(
+                    f"Cannot remove 'type' from system type '{node.name}'. System types must remain as types."
+                )
+        
         # Get relation values for the types property
         values = await self._property_repo.get_relation_values(node_id, self._types_property_id)
         

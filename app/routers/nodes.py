@@ -1510,11 +1510,16 @@ async def add_node_type(
     user: User = Depends(get_current_user),
 ):
     """Add a type to a node."""
+    from ..domain.errors import SystemTypeConstraintError
+    
     service = await _get_node_service(user)
     
-    success = await service.add_type(node_id, request.type_node_id)
-    if not success:
-        raise HTTPException(400, "Type already present or node not found")
+    try:
+        success = await service.add_type(node_id, request.type_node_id)
+        if not success:
+            raise HTTPException(400, "Type already present or node not found")
+    except SystemTypeConstraintError as e:
+        raise HTTPException(400, e.message)
     
     node = await service.get_node(node_id)
     if not node:
@@ -1530,9 +1535,14 @@ async def remove_node_type_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Remove a type from a node."""
+    from ..domain.errors import SystemTypeConstraintError
+    
     service = await _get_node_service(user)
     
-    success = await service.remove_type(node_id, type_id)
+    try:
+        success = await service.remove_type(node_id, type_id)
+    except SystemTypeConstraintError as e:
+        raise HTTPException(400, e.message)
     
     node = await service.get_node(node_id)
     if not node:
