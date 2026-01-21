@@ -77,6 +77,9 @@ export interface NodeCollectionProps {
   /** Group by option (for grouped views) */
   groupBy?: 'none' | 'page' | 'type' | 'date';
   
+  /** Only show nodes with is_page=true in list view (filters both top-level and children) */
+  pagesOnly?: boolean;
+  
   /** Columns for table view (optional, uses defaults if not provided) */
   tableColumns?: {
     key: string;

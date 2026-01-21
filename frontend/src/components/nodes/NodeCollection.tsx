@@ -105,6 +105,7 @@ export function NodeCollection({
   onContentChange,
   className = '',
   groupBy: _groupBy = 'none', // Reserved for future grouping support
+  pagesOnly = false,
   showEmpty = true,
   emptyMessage = 'No items',
   maxDepth = Infinity,
@@ -166,6 +167,7 @@ export function NodeCollection({
             {...viewProps} 
             showBullets={true} 
             showIndentation={true}
+            pagesOnly={pagesOnly}
             sortable={sortable}
             onReorder={onReorder}
             renderItemAction={renderItemAction}
@@ -214,7 +216,7 @@ export function NodeCollection({
       
       default:
         // Fallback to list view
-        return <NodeListView {...viewProps} showBullets={true} showIndentation={true} />;
+        return <NodeListView {...viewProps} showBullets={true} showIndentation={true} pagesOnly={pagesOnly} />;
     }
   };
 
