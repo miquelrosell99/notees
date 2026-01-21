@@ -14,12 +14,41 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+}
+
+.node-table__block-wrapper {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Override Block styles for table context */
+.node-table__block-wrapper .block {
+  padding: 0;
+  margin: 0;
+}
+
+.node-table__block-wrapper .block__container {
+  padding: 0;
+  min-height: auto;
+}
+
+.node-table__block-wrapper .block__content {
+  padding: 0.25rem 0;
 }
 
 .node-table__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Action buttons container */
+.node-table__actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* Node-specific date cell */
