@@ -520,7 +520,7 @@ async def get_or_create_daily(
         # Ensure day type is assigned (for legacy pages created before types were added)
         type_ids = await _get_type_ids(service, existing.id) if existing.id else []
         if day_type_id not in type_ids:
-            await service.add_type(existing.id, day_type_id)
+            await service.add_type(existing.id, day_type_id, _system_call=True)
             type_ids.append(day_type_id)
         return _node_to_response(existing, types=type_ids)
     
