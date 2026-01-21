@@ -12,6 +12,17 @@
   position: relative;
 }
 
+.node-list-item-wrapper {
+  position: relative;
+}
+
+/* Inline breadcrumbs for list items */
+.node-list-item-wrapper > .node-breadcrumbs--inline,
+.node-list-item > .node-breadcrumbs--inline {
+  padding-left: var(--spacing-5);
+  margin-bottom: var(--spacing-1);
+}
+
 .node-list-item__children {
   padding-left: calc(var(--depth, 0) * 1.5rem);
 }

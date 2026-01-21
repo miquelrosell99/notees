@@ -7,6 +7,10 @@
  * - Child pages
  * - Linked references
  * - Activity log
+ * 
+ * Supports both controlled and uncontrolled modes:
+ * - Uncontrolled: Use defaultExpanded for initial state
+ * - Controlled: Use expanded + onExpandedChange for external control
  */
 import { useState, useCallback, type ReactNode } from 'react';
 import { ChevronRightIcon, ChevronDownIcon } from '../icons';
@@ -20,8 +24,12 @@ export interface NodeViewSectionProps {
   icon?: ReactNode;
   /** Item count to display */
   count?: number;
-  /** Whether section is expanded by default */
+  /** Whether section is expanded by default (uncontrolled mode) */
   defaultExpanded?: boolean;
+  /** Controlled expanded state - when provided, component is controlled */
+  expanded?: boolean;
+  /** Callback when expanded state changes (for controlled mode) */
+  onExpandedChange?: (expanded: boolean) => void;
   /** Content to render inside the section */
   children: ReactNode;
   /** Extra actions/buttons for the header right side */
@@ -37,16 +45,25 @@ export function NodeViewSection({
   icon,
   count,
   defaultExpanded = true,
+  expanded,
+  onExpandedChange,
   children,
   headerActions,
   className = '',
   hideWhenEmpty = false,
 }: NodeViewSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  // Support both controlled and uncontrolled modes
+  const isControlled = expanded !== undefined;
+  const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
+  const isExpanded = isControlled ? expanded : internalExpanded;
   
   const handleToggle = useCallback(() => {
-    setIsExpanded(prev => !prev);
-  }, []);
+    if (isControlled) {
+      onExpandedChange?.(!expanded);
+    } else {
+      setInternalExpanded(prev => !prev);
+    }
+  }, [isControlled, expanded, onExpandedChange]);
   
   // Hide section when empty if requested
   if (hideWhenEmpty && (count === 0 || count === undefined)) {

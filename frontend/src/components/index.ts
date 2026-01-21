@@ -45,8 +45,6 @@ export { SlashCommandPopup } from './core/SlashCommandPopup';
 export type { SlashCommandPopupProps, SlashCommand } from './core/SlashCommandPopup';
 
 // List components
-export { NodeList } from './nodes/NodeList';
-export type { NodeListProps, NodeListItem, NodeListColumn, NodeListViewMode } from './nodes/NodeList';
 export { TagList, TaggedNodes } from './TagList';
 
 // Backlinks and references
@@ -133,10 +131,6 @@ export type {
   GraphViewAllCardProps,
   GraphViewLocalProps,
 } from './graph';
-
-// NodeListCore (moved out of core/ - has domain knowledge)
-export { NodeListCore } from './nodes/NodeListCore';
-export type { NodeListCoreProps, NodeListCoreItem, NodeListCoreGroup } from './nodes/NodeListCore';
 
 // View components
 export { AllPagesView } from '../views/AllPagesView';

@@ -12,6 +12,10 @@ export { BlockContent } from './BlockContent';
 export { BlockPreview } from './BlockPreview';
 export type { BlockPreviewProps, BlockPreviewVariant, BlockPreviewSize } from './BlockPreview';
 
+// Block callbacks context
+export { BlockCallbacksProvider, useBlockCallbacks, useBlockCallbacksRequired } from './BlockCallbacksContext';
+export type { BlockCallbacks } from './BlockCallbacksContext';
+
 // Block preview and drag
 export { BlockPreviewDrag } from './BlockPreviewDrag';
 export type { BlockPreviewDragProps, BlockPreviewDragVariant } from './BlockPreviewDrag';

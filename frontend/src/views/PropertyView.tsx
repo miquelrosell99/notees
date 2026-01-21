@@ -2,18 +2,18 @@
  * PropertyView Component
  * 
  * A dedicated view for displaying all nodes that have a specific property set.
- * Shows the property information at the top and a NodeList of all nodes with values.
+ * Shows the property information at the top and a NodeCollection table of all nodes with values.
  * 
  * Features:
  * - Property header with icon, name, type info
- * - NodeList with property value as a column
- * - Multiple view modes (table, list, kanban, calendar)
+ * - NodeCollection table with property value as a column
  * - Navigation to nodes on click
  */
-import { useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import type { Property, Node } from '@/types/api';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { useProperty, useNodesWithProperty } from '@/hooks';
-import { NodeList, type NodeListColumn, type NodeListViewMode, type NodeListItem } from '../components/nodes/NodeList';
+import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeIcon } from '../components/icons';
 import './PropertyView.css';
 
@@ -31,8 +31,6 @@ const PROPERTY_TYPES: Record<string, { label: string; icon: string }> = {
 interface PropertyViewProps {
   /** Property ID to display */
   propertyId: number;
-  /** Initial view mode */
-  defaultViewMode?: NodeListViewMode;
   /** Navigate to a node */
   onNavigateToNode?: (nodeId: number) => void;
   /** Open a node in sidebar */
@@ -41,10 +39,11 @@ interface PropertyViewProps {
 
 export function PropertyView({
   propertyId,
-  defaultViewMode = 'table',
   onNavigateToNode,
   onOpenInSidebar,
 }: PropertyViewProps) {
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
+  
   // Fetch property details
   const { data: property, isLoading: propertyLoading } = useProperty(propertyId);
   
@@ -53,31 +52,29 @@ export function PropertyView({
     property ? propertyId : null
   );
   
-  // Generate columns for the NodeList
-  const columns = useMemo<NodeListColumn[]>(() => {
+  // Generate columns for the table view
+  const columns = useMemo<{ key: string; label: string; width?: string; render?: (node: Node) => ReactNode }[]>(() => {
     if (!property) return [];
     
     return [
       {
         key: 'name',
         label: 'Name',
-        icon: '',
         width: '40%',
       },
       {
         key: property.name.toLowerCase().replace(/\s+/g, '_'),
         label: property.name,
-        icon: property.icon || PROPERTY_TYPES[property.type]?.icon || '',
-        propertyId: property.id,
         width: '40%',
-        render: (_node: Node, value: unknown) => {
+        render: (node: Node) => {
+          const propKey = property.name.toLowerCase().replace(/\s+/g, '_');
+          const value = (node.properties as Record<string, unknown>)?.[propKey];
           return <PropertyValueDisplay property={property} value={value} />;
         },
       },
       {
         key: 'updated',
         label: 'Updated',
-        icon: '',
         width: '20%',
         render: (node: Node) => {
           const date = new Date(node.write_date);
@@ -91,20 +88,6 @@ export function PropertyView({
     ];
   }, [property]);
   
-  // Convert nodes to NodeListItems
-  const items = useMemo<NodeListItem[]>(() => {
-    if (!nodesWithProperty || !property) return [];
-    
-    const propKey = property.name.toLowerCase().replace(/\s+/g, '_');
-    
-    return nodesWithProperty.map(node => ({
-      node,
-      propertyValues: {
-        [propKey]: (node.properties as Record<string, unknown>)?.[propKey],
-      },
-    }));
-  }, [nodesWithProperty, property]);
-  
   // Handle node click
   const handleNodeClick = (node: Node) => {
     onNavigateToNode?.(node.id);
@@ -117,6 +100,7 @@ export function PropertyView({
   
   const isLoading = propertyLoading || nodesLoading;
   const typeInfo = property ? PROPERTY_TYPES[property.type] : null;
+  const nodes = nodesWithProperty ?? [];
   
   if (isLoading && !property) {
     return (
@@ -174,19 +158,25 @@ export function PropertyView({
       
       {/* Nodes with this property */}
       <section className="property-view-nodes">
-        <NodeList
-          title={`Nodes with "${property.name}"`}
-          items={items}
-          columns={columns}
-          defaultViewMode={defaultViewMode}
-          showViewToggle={true}
-          isLoading={nodesLoading}
-          emptyMessage={`No nodes have the "${property.name}" property set.`}
-          showCreate={false}
-          collapsible={false}
-          onItemClick={handleNodeClick}
-          onItemShiftClick={handleNodeShiftClick}
-        />
+        <h2 className="property-view-section-title">Nodes with "{property.name}"</h2>
+        {nodesLoading ? (
+          <div className="property-view-loading">Loading nodes...</div>
+        ) : nodes.length === 0 ? (
+          <div className="property-view-empty">
+            No nodes have the "{property.name}" property set.
+          </div>
+        ) : (
+          <NodeCollection
+            nodes={nodes}
+            viewMode={viewMode}
+            availableViewModes={['table', 'list', 'card']}
+            onViewModeChange={setViewMode}
+            editable={false}
+            onNodeClick={handleNodeClick}
+            onNodeShiftClick={handleNodeShiftClick}
+            tableColumns={columns}
+          />
+        )}
       </section>
     </div>
   );

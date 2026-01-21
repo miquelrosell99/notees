@@ -1,19 +1,20 @@
 /**
  * Backlinks component for displaying references to a node
  * 
- * Shows linked references using real Block elements with breadcrumbs:
- * - Breadcrumb path shows the hierarchy (excluding the source node itself)
- * - Block content displayed as a real editable Block element
- * - Section is collapsible via NodeViewSection
- * - Supports multiple view modes via NodeSet (list, table, card)
+ * Shows linked references using two NodeCollections:
+ * - Linked Pages: Pages that reference this node via properties
+ * - Linked Blocks: Blocks that mention this node via [[links]] or ((refs))
+ * 
+ * Each section is collapsible via NodeViewSection.
  */
-import { useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import './Backlinks.css';
 import { useBacklinks, useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
 import type { Backlink, Node } from '@/types/api';
-import { LinkIcon, NodeIcon } from './icons';
+import { LinkIcon, NodeIcon, PageIcon, BulletIcon } from './icons';
 import { NodeViewSection } from './nodes/NodeViewSection';
-import { NodeSet, type NodeSetItem } from './nodes/NodeSet';
+import { NodeCollection } from './nodes/NodeCollection';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { 
   propertyBacklinkToPageItem,
   type PageReferenceItem,
@@ -24,6 +25,8 @@ interface BacklinksProps {
   className?: string;
   onLinkClick?: (nodeId: number, pageId?: number | null, isPage?: boolean) => void;
   showContext?: boolean;
+  /** Default collapsed state for the section */
+  defaultCollapsed?: boolean;
 }
 
 /**
@@ -112,18 +115,25 @@ export function Backlinks({
 /**
  * Linked references section with surrounding context
  * 
- * Shows where this node is mentioned with breadcrumbs and real Block elements.
- * The entire section is collapsible via NodeViewSection.
- * Supports multiple view modes via SelectionButton (list, table, card).
+ * Shows where this node is mentioned with two separate NodeCollections:
+ * - Linked Pages: Pages referencing via date/node properties
+ * - Linked Blocks: Blocks mentioning via [[links]] and ((refs))
+ * 
+ * Each section is collapsible via NodeViewSection.
  */
 export function LinkedReferences({
   nodeId,
   className = '',
   onLinkClick,
+  defaultCollapsed = false,
 }: BacklinksProps) {
   const { data: refs, isLoading: refsLoading } = useLinkedReferences(nodeId);
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(nodeId);
   const updateNode = useUpdateNode();
+
+  // View mode state for each section
+  const [pagesViewMode, setPagesViewMode] = useState<NodeCollectionViewMode>('list');
+  const [blocksViewMode, setBlocksViewMode] = useState<NodeCollectionViewMode>('list');
 
   const isLoading = refsLoading || propLoading;
 
@@ -132,89 +142,53 @@ export function LinkedReferences({
     updateNode.mutate({ id: blockId, data: { name: content } });
   }, [updateNode]);
 
-  // Convert property backlinks to PageReferenceItem format for the pages section
-  const pageItems: PageReferenceItem[] = useMemo(() => {
+  // Convert property backlinks to page nodes for NodeCollection
+  const pageNodes: Node[] = useMemo(() => {
     if (!propertyBacklinks) return [];
-    return propertyBacklinks.map(propertyBacklinkToPageItem);
+    return propertyBacklinks.map(pb => ({
+      id: pb.source_page.id,
+      uuid: '',
+      name: pb.source_page.name || 'Untitled',
+      icon: pb.source_page.icon || null,
+      color: null,
+      is_page: true,
+      parent_id: null,
+      page_id: null,
+      sequence: 0,
+      active: true,
+      create_date: '',
+      write_date: '',
+      types: [],
+      tags: [],
+      collapsed: false,
+      children: [],
+    }));
   }, [propertyBacklinks]);
 
-  // Convert to NodeSetItem format for NodeSet component
-  const nodeSetItems: NodeSetItem[] = useMemo(() => {
-    const items: NodeSetItem[] = [];
-    
-    // Add pages (from property backlinks)
-    for (const pageItem of pageItems) {
-      items.push({
-        node: {
-          id: pageItem.sourcePage.id,
-          uuid: '',
-          name: pageItem.sourcePage.name || 'Untitled',
-          icon: pageItem.sourcePage.icon || null,
-          color: null,
-          is_page: true,
-          parent_id: null,
-          page_id: null,
-          sequence: 0,
-          active: true,
-          create_date: '',
-          write_date: '',
-          types: [],
-          tags: [],
-          collapsed: false,
-          children: [],
-        },
-        context: `via ${pageItem.propertyName}`,
-      });
-    }
-    
-    // Add blocks (from linked references)
-    if (refs) {
-      for (const ref of refs) {
-        items.push({
-          node: {
-            id: ref.source_node.id,
-            uuid: '',
-            name: ref.source_node.name || 'Untitled',
-            icon: ref.source_node.icon || null,
-            color: null,
-            is_page: false,
-            parent_id: null,
-            page_id: ref.source_page?.id ?? null,
-            sequence: 0,
-            active: true,
-            create_date: '',
-            write_date: '',
-            types: [],
-            tags: [],
-            collapsed: false,
-            children: [],
-          },
-          page: ref.source_page ? {
-            id: ref.source_page.id,
-            uuid: '',
-            name: ref.source_page.name || 'Untitled',
-            icon: ref.source_page.icon || null,
-            color: null,
-            is_page: true,
-            parent_id: null,
-            page_id: null,
-            sequence: 0,
-            active: true,
-            create_date: '',
-            write_date: '',
-            types: [],
-            tags: [],
-            collapsed: false,
-            children: [],
-          } : null,
-        });
-      }
-    }
-    
-    return items;
-  }, [pageItems, refs]);
+  // Convert linked references to block nodes for NodeCollection
+  const blockNodes: Node[] = useMemo(() => {
+    if (!refs) return [];
+    return refs.map(ref => ({
+      id: ref.source_node.id,
+      uuid: '',
+      name: ref.source_node.name || 'Untitled',
+      icon: ref.source_node.icon || null,
+      color: null,
+      is_page: false,
+      parent_id: null,
+      page_id: ref.source_page?.id ?? null,
+      sequence: 0,
+      active: true,
+      create_date: '',
+      write_date: '',
+      types: [],
+      tags: [],
+      collapsed: false,
+      children: [],
+    }));
+  }, [refs]);
 
-  // Build page map for NodeSet
+  // Build page map for breadcrumbs in block list
   const pageMap = useMemo(() => {
     const map = new Map<number, Node>();
     if (refs) {
@@ -256,8 +230,9 @@ export function LinkedReferences({
     );
   }
 
-  const blockCount = refs?.length ?? 0;
-  const totalCount = blockCount + pageItems.length;
+  const pageCount = pageNodes.length;
+  const blockCount = blockNodes.length;
+  const totalCount = pageCount + blockCount;
   
   if (totalCount === 0) {
     return null;
@@ -268,22 +243,53 @@ export function LinkedReferences({
       title="Linked References"
       icon={<LinkIcon size="sm" />}
       count={totalCount}
-      className={className}
-      defaultExpanded={true}
+      className={`linked-references ${className}`}
+      defaultExpanded={!defaultCollapsed}
     >
-      <NodeSet
-        items={nodeSetItems}
-        showHeader={true}
-        showViewToggle={true}
-        onNodeClick={handleNodeClick}
-        onContentChange={handleContentChange}
-        defaultViewType="list"
-        viewTypes={['list', 'table', 'card']}
-        defaultGroupBy="page"
-        groupByOptions={['none', 'page']}
-        showGroupBySettings={true}
-        pageMap={pageMap}
-      />
+      <div className="linked-references__content">
+        {/* Linked Pages Section */}
+        {pageCount > 0 && (
+          <div className="linked-references__section linked-references__pages">
+            <div className="linked-references__section-header">
+              <PageIcon size="sm" />
+              <span className="linked-references__section-title">Linked Pages</span>
+              <span className="linked-references__section-count">({pageCount})</span>
+            </div>
+            <NodeCollection
+              nodes={pageNodes}
+              viewMode={pagesViewMode}
+              availableViewModes={['list', 'card', 'table']}
+              onViewModeChange={setPagesViewMode}
+              editable={false}
+              onNodeClick={handleNodeClick}
+              showEmpty={false}
+              className="linked-references__collection"
+            />
+          </div>
+        )}
+
+        {/* Linked Blocks Section */}
+        {blockCount > 0 && (
+          <div className="linked-references__section linked-references__blocks">
+            <div className="linked-references__section-header">
+              <BulletIcon size="sm" />
+              <span className="linked-references__section-title">Linked Blocks</span>
+              <span className="linked-references__section-count">({blockCount})</span>
+            </div>
+            <NodeCollection
+              nodes={blockNodes}
+              viewMode={blocksViewMode}
+              availableViewModes={['list', 'card', 'table']}
+              onViewModeChange={setBlocksViewMode}
+              editable={false}
+              onNodeClick={handleNodeClick}
+              onContentChange={handleContentChange}
+              showEmpty={false}
+              className="linked-references__collection"
+            />
+          </div>
+        )}
+      </div>
     </NodeViewSection>
   );
 }
