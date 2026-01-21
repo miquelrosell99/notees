@@ -238,6 +238,8 @@ function contentToHtml(
       const isTag = linkInfo?.isTag ?? false;
       const clickCount = linkInfo?.clickCount ?? 0;
       
+      console.log('[contentToHtml] pill:', pill.id, 'linkInfo:', linkInfo, 'isPage:', isPage);
+      
       if (isTag) {
         // Render as tag pill with hashtag icon
         const iconPath = mdiTag;
@@ -360,6 +362,27 @@ function getCaretCoordinates(element: HTMLDivElement): { top: number; left: numb
 }
 
 /**
+ * Check if an element is a pill (link, type, or tag)
+ */
+function isPillElement(el: HTMLElement): boolean {
+  return el.classList?.contains('link-pill') || 
+         el.classList?.contains('type-pill') || 
+         el.classList?.contains('tag-pill');
+}
+
+/**
+ * Get the raw content length of a pill element
+ */
+function getPillRawLength(el: HTMLElement): number {
+  if (el.classList?.contains('link-pill') || el.classList?.contains('tag-pill')) {
+    return (el.dataset.linkRaw || '').length;
+  } else if (el.classList?.contains('type-pill')) {
+    return (el.dataset.typeRaw || '').length;
+  }
+  return 0;
+}
+
+/**
  * Get cursor position in plain text content
  */
 function getCursorPosition(element: HTMLElement): number {
@@ -383,9 +406,8 @@ function getCursorPosition(element: HTMLElement): number {
     }
     if (node.nodeType === Node.TEXT_NODE) {
       position += node.textContent?.length || 0;
-    } else if ((node as HTMLElement).classList?.contains('link-pill')) {
-      const raw = (node as HTMLElement).dataset.linkRaw || '';
-      position += raw.length;
+    } else if (isPillElement(node as HTMLElement)) {
+      position += getPillRawLength(node as HTMLElement);
       // Skip past this node's children
       walker.nextSibling();
     }
@@ -398,6 +420,7 @@ function getCursorPosition(element: HTMLElement): number {
  * Set cursor position in the contenteditable
  */
 function setCursorPosition(element: HTMLElement, targetPosition: number): void {
+  console.log('[setCursorPosition] targetPosition:', targetPosition, 'element:', element.textContent?.substring(0, 30));
   let currentPosition = 0;
   
   const walker = document.createTreeWalker(
@@ -409,10 +432,15 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
   let node;
   while ((node = walker.nextNode())) {
     if (node.nodeType === Node.TEXT_NODE) {
-      const length = node.textContent?.length || 0;
+      const textContent = node.textContent || '';
+      const length = textContent.length;
       if (currentPosition + length >= targetPosition) {
         const range = document.createRange();
-        range.setStart(node, targetPosition - currentPosition);
+        const offset = targetPosition - currentPosition;
+        console.log('[setCursorPosition] Found text node, offset:', offset, 'text:', textContent.substring(0, 20));
+        // Skip zero-width spaces at the beginning when positioning
+        // but allow positioning after them for pill spacing
+        range.setStart(node, Math.min(offset, length));
         range.collapse(true);
         const selection = window.getSelection();
         selection?.removeAllRanges();
@@ -420,27 +448,36 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
         return;
       }
       currentPosition += length;
-    } else if ((node as HTMLElement).classList?.contains('link-pill')) {
-      const raw = (node as HTMLElement).dataset.linkRaw || '';
-      const length = raw.length;
+    } else if (isPillElement(node as HTMLElement)) {
+      const length = getPillRawLength(node as HTMLElement);
       if (currentPosition + length >= targetPosition) {
-        // Position cursor after this pill
+        console.log('[setCursorPosition] Found pill, positioning after it');
+        // Position cursor after this pill - find the next text node (ZWS)
         const range = document.createRange();
-        const parent = node.parentNode;
-        if (parent) {
-          const index = Array.from(parent.childNodes).indexOf(node as ChildNode);
-          range.setStart(parent, index + 1);
-          range.collapse(true);
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
+        const nextSibling = node.nextSibling;
+        
+        // If there's a text node after the pill (should be ZWS), position at start of it
+        if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE) {
+          range.setStart(nextSibling, 0);
+        } else {
+          // Fallback: position after the pill in the parent
+          const parent = node.parentNode;
+          if (parent) {
+            const index = Array.from(parent.childNodes).indexOf(node as ChildNode);
+            range.setStart(parent, index + 1);
+          }
         }
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
         return;
       }
       currentPosition += length;
     }
   }
   
+  console.log('[setCursorPosition] Target past content, positioning at end');
   // Position at end if target is past content
   const range = document.createRange();
   range.selectNodeContents(element);
@@ -592,52 +629,63 @@ export function BlockEditor({
   const linkNamesSize = linkNames.size;
   const typeNamesSize = typeNames.size;
   
-  // Update HTML when content changes externally or when names load
+  // Single effect to handle content rendering and cursor positioning
   useEffect(() => {
-    if (editorRef.current && !isInternalChange.current) {
-      // Re-render if content changed OR if names just loaded (for display names)
-      const html = contentToHtml(content, linkNames, typeNames);
-      const currentHtml = editorRef.current.innerHTML;
-      
-      // Only update if the HTML would actually change (preserves cursor position when possible)
-      if (html !== currentHtml && (html || '<br>') !== currentHtml) {
-        // Save cursor position before update
-        const savedCursorPos = getCursorPosition(editorRef.current);
-        
-        editorRef.current.innerHTML = html || '<br>';
-        lastContentRef.current = content;
-        
-        // Restore cursor position after update (if we had focus)
-        if (document.activeElement === editorRef.current) {
-          setCursorPosition(editorRef.current, savedCursorPos);
-        }
-      }
+    if (!editorRef.current) return;
+    
+    // Skip if this is an internal change (user typing)
+    if (isInternalChange.current) {
+      isInternalChange.current = false;
+      return;
     }
-    isInternalChange.current = false;
-  }, [content, linkNamesSize, typeNamesSize]);
-  
-  // Initialize content on mount
-  useEffect(() => {
-    if (editorRef.current) {
-      const html = contentToHtml(content, linkNames, typeNames);
+    
+    console.log('[BlockEditor effect] linkNamesSize:', linkNamesSize, 'typeNamesSize:', typeNamesSize, 'initialCursorApplied:', initialCursorApplied.current);
+    
+    const html = contentToHtml(content, linkNames, typeNames);
+    const currentHtml = editorRef.current.innerHTML;
+    
+    console.log('[BlockEditor effect] html length:', html.length, 'has icon?:', html.includes('link-pill__icon'));
+    
+    // Check if we need to update the HTML
+    const needsUpdate = html !== currentHtml && (html || '<br>') !== currentHtml;
+    
+    // Save cursor position BEFORE updating if we're focused
+    let savedPos: number | undefined;
+    if (needsUpdate && initialCursorApplied.current && document.activeElement === editorRef.current) {
+      savedPos = getCursorPosition(editorRef.current);
+    }
+    
+    if (needsUpdate) {
       editorRef.current.innerHTML = html || '<br>';
-      // Focus and set cursor
-      editorRef.current.focus();
-      if (initialCursorPosition !== undefined && !initialCursorApplied.current) {
-        setCursorPosition(editorRef.current, initialCursorPosition);
-        initialCursorApplied.current = true;
-      } else {
-        // Position cursor at end
-        const range = document.createRange();
-        range.selectNodeContents(editorRef.current);
-        range.collapse(false);
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-      }
+      lastContentRef.current = content;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only on mount
+    
+    // Focus the editor
+    if (document.activeElement !== editorRef.current) {
+      editorRef.current.focus();
+    }
+    
+    // Apply initial cursor position if not yet applied
+    if (initialCursorPosition !== undefined && !initialCursorApplied.current) {
+      console.log('[BlockEditor] Applying initialCursorPosition:', initialCursorPosition);
+      setCursorPosition(editorRef.current, initialCursorPosition);
+      initialCursorApplied.current = true;
+    } else if (!initialCursorApplied.current) {
+      console.log('[BlockEditor] No initialCursorPosition, setting to end');
+      // Position cursor at end if no initial position specified
+      const range = document.createRange();
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      initialCursorApplied.current = true;
+    }
+    // If cursor was already applied and HTML updated, restore saved position
+    else if (needsUpdate && savedPos !== undefined) {
+      setCursorPosition(editorRef.current, savedPos);
+    }
+  }, [content, linkNamesSize, typeNamesSize, linkNames, typeNames, initialCursorPosition]);
   
   const [trigger, setTrigger] = useState<TriggerState>({
     isOpen: false,

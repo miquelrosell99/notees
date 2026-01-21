@@ -369,61 +369,87 @@ export function Block({
     // Content area click is handled by handleContentClick
   }, [addToSelection, block.id, readOnly]);
   
-  // Calculate cursor position from click event
-  const getCursorPositionFromClick = useCallback((e: React.MouseEvent): number => {
+  // Calculate cursor position from click event using browser's caret position APIs
+  const getCursorPositionFromClick = useCallback((e: React.MouseEvent): number | undefined => {
     const content = block.name || '';
-    if (!content || !contentRef.current) return content.length;
+    if (!content || !contentRef.current) return undefined;
     
-    // Find the text element within the content
-    const textElement = contentRef.current.querySelector('.block-content-pills, .content-with-pills');
-    if (!textElement) return content.length;
+    // Use caretPositionFromPoint (standard) or caretRangeFromPoint (WebKit fallback)
+    // These APIs correctly handle complex DOM with inline elements like pills
+    let range: Range | null = null;
     
-    const rect = textElement.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    
-    // Create a temporary span to measure text width
-    const tempSpan = document.createElement('span');
-    const computedStyle = window.getComputedStyle(textElement);
-    tempSpan.style.font = computedStyle.font;
-    tempSpan.style.fontSize = computedStyle.fontSize;
-    tempSpan.style.fontFamily = computedStyle.fontFamily;
-    tempSpan.style.letterSpacing = computedStyle.letterSpacing;
-    tempSpan.style.visibility = 'hidden';
-    tempSpan.style.position = 'absolute';
-    tempSpan.style.whiteSpace = 'pre';
-    document.body.appendChild(tempSpan);
-    
-    // Binary search to find the character position closest to click
-    let left = 0;
-    let right = content.length;
-    
-    while (left < right) {
-      const mid = Math.floor((left + right) / 2);
-      tempSpan.textContent = content.substring(0, mid);
-      const textWidth = tempSpan.getBoundingClientRect().width;
-      
-      if (textWidth < clickX) {
-        left = mid + 1;
-      } else {
-        right = mid;
+    // Try standard API first (Firefox, newer browsers)
+    if ('caretPositionFromPoint' in document) {
+      const pos = (document as any).caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos) {
+        range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.collapse(true);
       }
     }
-    
-    // Fine-tune: check if we're closer to position left or left-1
-    if (left > 0) {
-      tempSpan.textContent = content.substring(0, left - 1);
-      const widthBefore = tempSpan.getBoundingClientRect().width;
-      tempSpan.textContent = content.substring(0, left);
-      const widthAfter = tempSpan.getBoundingClientRect().width;
-      
-      // Choose the closer position
-      if (Math.abs(clickX - widthBefore) < Math.abs(clickX - widthAfter)) {
-        left = left - 1;
-      }
+    // Fallback to WebKit API (Chrome, Safari)
+    else if ('caretRangeFromPoint' in document) {
+      range = document.caretRangeFromPoint(e.clientX, e.clientY);
     }
     
-    document.body.removeChild(tempSpan);
-    return left;
+    if (!range) return undefined;
+    
+    // Now convert the DOM position to a plain text position
+    // We need to walk through the DOM and count characters, treating pills as their raw content
+    const container = contentRef.current;
+    const rangeStartContainer = range.startContainer;
+    const rangeStartOffset = range.startOffset;
+    
+    // Recursive function to calculate position
+    function calculatePosition(node: globalThis.Node, foundTarget: { found: boolean, position: number }): number {
+      if (foundTarget.found) return foundTarget.position;
+      
+      // Check if this is the target node
+      if (node === rangeStartContainer) {
+        foundTarget.found = true;
+        if (node.nodeType === Node.TEXT_NODE) {
+          foundTarget.position += rangeStartOffset;
+        }
+        return foundTarget.position;
+      }
+      
+      if (node.nodeType === Node.TEXT_NODE) {
+        foundTarget.position += node.textContent?.length || 0;
+        return foundTarget.position;
+      }
+      
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        
+        // Check for pills - use their raw content length and skip children
+        if (el.classList?.contains('link-pill')) {
+          const raw = el.dataset?.linkRaw || '';
+          foundTarget.position += raw.length;
+          return foundTarget.position;
+        } else if (el.classList?.contains('type-pill')) {
+          const raw = el.dataset?.typeRaw || '';
+          foundTarget.position += raw.length;
+          return foundTarget.position;
+        } else if (el.classList?.contains('tag-pill')) {
+          const raw = el.dataset?.linkRaw || '';
+          foundTarget.position += raw.length;
+          return foundTarget.position;
+        }
+        
+        // For other elements, recurse into children
+        for (const child of el.childNodes) {
+          calculatePosition(child, foundTarget);
+          if (foundTarget.found) break;
+        }
+      }
+      
+      return foundTarget.position;
+    }
+    
+    const result = { found: false, position: 0 };
+    calculatePosition(container, result);
+    
+    return result.found ? result.position : undefined;
   }, [block.name]);
   
   // Handle content area click - enters edit mode
@@ -434,11 +460,12 @@ export function Block({
     
     // Calculate cursor position from click
     const cursorPos = getCursorPositionFromClick(e);
+    console.log('[Block] handleContentClick - cursorPos:', cursorPos, 'content:', block.name?.substring(0, 50));
     setInitialCursorPosition(cursorPos);
     
     // Enter edit mode
     setBlockState(block.id, 'edit');
-  }, [block.id, readOnly, setBlockState, getCursorPositionFromClick]);
+  }, [block.id, block.name, readOnly, setBlockState, getCursorPositionFromClick]);
   
   // Reset initial cursor position when exiting edit mode
   useEffect(() => {

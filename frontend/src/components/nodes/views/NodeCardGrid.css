@@ -57,40 +57,56 @@
 
 /* Card body */
 .node-card__body {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem 0.75rem;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
-/* Card header */
+/* Card header - similar to sidebar cards */
 .node-card__header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-container, var(--bg-secondary));
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-.node-card__title {
-  margin: 0;
-  font-size: 1rem;
+.node-card__header:first-child {
+  border-radius: var(--shape-medium, 0.5rem) var(--shape-medium, 0.5rem) 0 0;
+}
+
+/* Title block inside header */
+.node-card__title-block {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.node-card__title-block .block-preview {
+  padding: 0;
+}
+
+.node-card__title-block .block-preview__content {
   font-weight: 600;
-  line-height: 1.3;
+  font-size: 0.9375rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Card children preview */
+/* Card children via NodeCollection */
 .node-card__children {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
   font-size: 0.875rem;
-  color: var(--text-muted);
 }
 
-.node-card__children .block-preview {
-  padding: 0.125rem 0;
+.node-card__children .node-collection__content {
+  padding: 0;
+}
+
+.node-card__children .node-list-view {
+  gap: 0.125rem;
 }
 
 .node-card__more {

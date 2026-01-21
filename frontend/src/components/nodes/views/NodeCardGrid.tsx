@@ -6,9 +6,9 @@
  * 
  * Features:
  * - Responsive grid layout
- * - Card with title and content preview
+ * - Card with header section (Block-based title like sidebar)
  * - Optional cover images
- * - Recursive children shown inside card body
+ * - Children shown via nested NodeCollection in list view
  * - Editable: allows interaction and navigation
  * - Read-only: display-only cards
  * - Optional drag-and-drop reordering
@@ -17,7 +17,8 @@ import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { BlockPreview } from '../../blocks/BlockPreview';
-import { NodeIcon, DragHandleIcon } from '../../icons';
+import { NodeCollection } from '../NodeCollection';
+import { DragHandleIcon } from '../../icons';
 import { Card } from '../../core/Card';
 import './NodeCardGrid.css';
 
@@ -30,8 +31,10 @@ interface NodeCardProps {
   sortable?: boolean;
   isDragging?: boolean;
   isDropTarget?: boolean;
+  editable?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
+  onContentChange?: (nodeId: number, content: string) => void;
   onDragStart?: (index: number) => void;
 }
 
@@ -73,12 +76,18 @@ function NodeCard({
   sortable,
   isDragging,
   isDropTarget,
+  editable = true,
   onNodeClick,
   onNodeShiftClick,
+  onContentChange,
   onDragStart,
 }: NodeCardProps) {
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
+  
+  // Determine if we should show the bullet in the header
+  // Show bullet only if node has an icon (hide when no icon)
+  const showBullet = !!node.icon;
   
   // Extract cover from content
   const coverImage = useMemo(() => extractCoverImage(node), [node]);
@@ -147,37 +156,37 @@ function NodeCard({
         </div>
       )}
       
-      {/* Card content */}
-      <div className="node-card__body">
-        {/* Title */}
-        <div className="node-card__header">
-          <NodeIcon icon={node.icon} isPage={node.is_page} size="sm" />
-          <h3 className="node-card__title">{node.name || 'Untitled'}</h3>
-        </div>
-        
-        {/* Children preview */}
-        {shouldRenderChildren && (
-          <div className="node-card__children">
-            {children.slice(0, 3).map((child) => (
-              <BlockPreview
-                key={child.id}
-                variant="card"
-                node={child}
-                showBullet={true}
-                maxLines={2}
-                size="sm"
-                onClick={() => onNodeClick?.(child)}
-                onShiftClick={() => onNodeShiftClick?.(child)}
-              />
-            ))}
-            {children.length > 3 && (
-              <div className="node-card__more">
-                +{children.length - 3} more
-              </div>
-            )}
-          </div>
-        )}
+      {/* Card header - similar to sidebar cards */}
+      <div className="node-card__header">
+        <BlockPreview
+          variant="simple"
+          node={node}
+          showBullet={showBullet}
+          showIcon={true}
+          onClick={() => onNodeClick?.(node)}
+          onShiftClick={() => onNodeShiftClick?.(node)}
+          className="node-card__title-block"
+        />
       </div>
+      
+      {/* Card body with children */}
+      {shouldRenderChildren && (
+        <div className="node-card__body">
+          <NodeCollection
+            nodes={children}
+            viewMode="list"
+            availableViewModes={['list']}
+            editable={editable}
+            sortable={false}
+            maxDepth={maxDepth - depth - 1}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            onContentChange={onContentChange}
+            showEmpty={false}
+            className="node-card__children"
+          />
+        </div>
+      )}
     </Card>
   );
 }
@@ -192,9 +201,11 @@ export function NodeCardGrid({
   layout = 'cover-top',
   columns,
   sortable,
+  editable = true,
   onReorder,
   onNodeClick,
   onNodeShiftClick,
+  onContentChange,
   className = '',
 }: NodeCardViewProps) {
   const gridStyle = columns ? { gridTemplateColumns: `repeat(${columns}, 1fr)` } : undefined;
@@ -276,8 +287,10 @@ export function NodeCardGrid({
           sortable={sortable}
           isDragging={dragIndex === index}
           isDropTarget={dropTargetIndex === index && dragIndex !== index}
+          editable={editable}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}
+          onContentChange={onContentChange}
           onDragStart={handleDragStart}
         />
       ))}
