@@ -114,6 +114,15 @@ def set_active_db(user_id: str, name: str) -> bool:
     return True
 
 
+def clear_active_db(user_id: str) -> None:
+    """Clear the active database for a user (set to none)."""
+    global _current_db_name
+    _current_db_name = None
+    active_file = get_active_db_file(user_id)
+    if active_file.exists():
+        active_file.unlink()
+
+
 def get_db_path(user_id: str, name: Optional[str] = None) -> Path:
     """Get path to a database file (folder-based format)."""
     if name is None:

@@ -15,7 +15,7 @@ from typing import List, Dict, Any
 
 from .connection import (
     get_db, get_databases_dir, get_db_path, get_active_db_name, 
-    set_active_db, get_user_data_dir, init_db, get_database_folder,
+    set_active_db, clear_active_db, get_user_data_dir, init_db, get_database_folder,
     get_assets_dir
 )
 from ..logging_config import get_logger
@@ -143,8 +143,10 @@ async def create_database(user_id: str, name: str) -> Dict[str, Any]:
 async def delete_database(user_id: str, name: str) -> bool:
     """Delete a database and all its assets."""
     active_db = get_active_db_name(user_id)
+    
+    # If this is the active database, close it first
     if active_db and name == active_db:
-        raise ValueError("Cannot delete the active database")
+        clear_active_db(user_id)
     
     db_folder = get_databases_dir(user_id) / name
     if not db_folder.is_dir():
@@ -192,14 +194,17 @@ async def rename_database(user_id: str, old_name: str, new_name: str) -> Dict[st
     """Rename a database (folder).
     
     Renames the database folder from old_name to new_name.
-    Cannot rename the active database.
+    If renaming the active database, it will be closed first and reactivated with the new name.
     """
     # Sanitize new name
     new_name = re.sub(r'[^\w\-]', '_', new_name.lower())
     
     active_db = get_active_db_name(user_id)
-    if active_db and old_name == active_db:
-        raise ValueError("Cannot rename the active database. Please switch to another database first.")
+    was_active = active_db and old_name == active_db
+    
+    # If this is the active database, close it first
+    if was_active:
+        clear_active_db(user_id)
     
     old_folder = get_database_folder(user_id, old_name)
     if not old_folder.is_dir():
@@ -212,6 +217,10 @@ async def rename_database(user_id: str, old_name: str, new_name: str) -> Dict[st
     # Rename the folder
     old_folder.rename(new_folder)
     logger.info(f"Renamed database '{old_name}' to '{new_name}' for user {user_id}")
+    
+    # If it was the active database, reactivate with new name
+    if was_active:
+        set_active_db(user_id, new_name)
     
     # Return updated info
     databases = await list_databases(user_id)

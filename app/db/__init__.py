@@ -10,6 +10,7 @@ from .connection import (
     init_db,
     get_active_db_name,
     set_active_db,
+    clear_active_db,
     get_user_data_dir,
     get_databases_dir,
     get_export_dir
@@ -64,6 +65,7 @@ __all__ = [
     'init_db',
     'get_active_db_name',
     'set_active_db',
+    'clear_active_db',
     'get_user_data_dir',
     'get_databases_dir',
     'get_export_dir',
