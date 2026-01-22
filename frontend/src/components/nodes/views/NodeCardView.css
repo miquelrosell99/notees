@@ -115,9 +115,23 @@
   padding-top: 0.25rem;
 }
 
-/* Colored card border */
-.node-card[style*="border-left-color"] {
-  border-left-style: solid;
+/* Colored card - left border + background tint inside card shape
+ * Uses CSS custom properties set by getNodeColorStylesAuto():
+ *   --node-color: the raw color value
+ *   --node-tint: very low opacity background tint
+ *   --node-border-solid: solid color for border
+ */
+.node-card--colored.card {
+  /* Solid left border */
+  border-left: 4px solid var(--node-border-solid);
+  
+  /* Subtle background tint */
+  background: var(--node-tint);
+}
+
+/* Header also gets tinted background on colored cards */
+.node-card--colored .node-card__header {
+  background: var(--node-tint);
 }
 
 .node-card {

@@ -13,6 +13,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Node } from '@/types';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { NodeCollection } from '../NodeCollection';
 import { Card } from '../../core/Card';
@@ -150,19 +151,16 @@ export function NodeCard({
     }
   }, [index, sortable, onDragStart]);
   
-  // Card style based on node color
+  // Card style based on node color - uses gradient border + tint pattern (same as NodeView)
   const cardStyle = useMemo(() => {
     if (!node.color) return undefined;
-    return {
-      '--card-color': node.color,
-      borderLeftColor: node.color,
-      borderLeftWidth: '3px',
-    } as React.CSSProperties;
+    return getNodeColorStylesAuto(node.color);
   }, [node.color]);
 
   const cardClassName = [
     'node-card',
     `node-card--${effectiveLayout}`,
+    node.color && 'node-card--colored',
     isDragging && 'node-card--dragging',
     isDropTarget && 'node-card--drop-target',
     isSelected && 'node-card--selected',
@@ -216,6 +214,7 @@ export function NodeCard({
             onClick={() => onNodeClick?.(node)}
             onShiftClick={() => onNodeShiftClick?.(node)}
             className="node-card__title-block"
+            suppressColor={true}
           />
         </div>
         
