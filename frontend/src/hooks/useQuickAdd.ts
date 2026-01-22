@@ -187,7 +187,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
     handleBlockKeyDown,
     createBlocks,
     createPage,
-    isCreating: createNodeMutation.isPending || createPageMutation.isPending,
+    isCreating: createNodeMutation.isPending,
     hasContent,
   };
 }
