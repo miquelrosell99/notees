@@ -393,15 +393,44 @@ export function useCreateNode() {
         );
         
         // Update the parent's page content cache if it exists
-        queryClient.setQueryData<Node>(nodeKeys.pageContent(parentId), updateChildren);
+        queryClient.setQueriesData<Node>(
+          { queryKey: ['nodes', 'page-content'] },
+          (oldNode) => {
+            if (!oldNode || oldNode.id !== parentId) return oldNode;
+            return updateChildren(oldNode);
+          }
+        );
         
         // Update daily page cache if this is a daily page
         const dailyQueryKey = [...nodeKeys.all, 'daily'];
         queryClient.setQueriesData<Node>(
           { queryKey: dailyQueryKey, exact: false },
           (oldPage) => {
-            if (!oldPage || oldPage.id !== parentId) return oldPage;
-            return updateChildren(oldPage);
+            if (!oldPage) return oldPage;
+            // Check if the parent is directly this daily page or any nested block within it
+            if (oldPage.id === parentId) {
+              return updateChildren(oldPage);
+            }
+            // Also check if the parent is a child block within this daily page
+            if (oldPage.children && oldPage.children.length > 0) {
+              const updateNestedChildren = (node: Node): Node => {
+                if (node.id === parentId) {
+                  return updateChildren(node) as Node;
+                }
+                if (node.children && node.children.length > 0) {
+                  return {
+                    ...node,
+                    children: node.children.map(updateNestedChildren),
+                  };
+                }
+                return node;
+              };
+              return {
+                ...oldPage,
+                children: oldPage.children.map(updateNestedChildren),
+              };
+            }
+            return oldPage;
           }
         );
       }
@@ -457,32 +486,53 @@ export function useUpdateNode() {
     onMutate: async ({ id, data }) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
+      await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+      
+      // Build update object
+      const buildUpdate = (): Partial<Node> => {
+        const update: Partial<Node> = {};
+        if (data.name !== undefined && data.name !== null) update.name = data.name;
+        if (data.icon !== undefined) update.icon = data.icon;
+        if (data.color !== undefined) update.color = data.color;
+        if (data.parent_id !== undefined) update.parent_id = data.parent_id;
+        if (data.sequence !== undefined && data.sequence !== null) update.sequence = data.sequence;
+        if (data.collapsed !== undefined && data.collapsed !== null) update.collapsed = data.collapsed;
+        return update;
+      };
+      
+      // Helper to update node in tree
+      const applyUpdate = (oldNode: Node | undefined): Node | undefined => {
+        if (!oldNode) return oldNode;
+        if (oldNode.id === id) {
+          return { ...oldNode, ...buildUpdate() };
+        }
+        if (oldNode.children && oldNode.children.length > 0) {
+          return {
+            ...oldNode,
+            children: updateNodeInTree(oldNode.children, id, data as Partial<Node>),
+          };
+        }
+        return oldNode;
+      };
       
       // Optimistically update any parent nodes that might contain this node as a child
       // by finding all detail queries and updating children recursively
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.details() },
-        (oldNode) => {
-          if (!oldNode) return oldNode;
-          if (oldNode.id === id) {
-            // Only spread non-null values from data to preserve required fields
-            const update: Partial<Node> = {};
-            if (data.name !== undefined && data.name !== null) update.name = data.name;
-            if (data.icon !== undefined) update.icon = data.icon;
-            if (data.color !== undefined) update.color = data.color;
-            if (data.parent_id !== undefined) update.parent_id = data.parent_id;
-            if (data.sequence !== undefined && data.sequence !== null) update.sequence = data.sequence;
-            if (data.collapsed !== undefined && data.collapsed !== null) update.collapsed = data.collapsed;
-            return { ...oldNode, ...update };
-          }
-          if (oldNode.children && oldNode.children.length > 0) {
-            return {
-              ...oldNode,
-              children: updateNodeInTree(oldNode.children, id, data as Partial<Node>),
-            };
-          }
-          return oldNode;
-        }
+        applyUpdate
+      );
+      
+      // Also update page-content queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: ['nodes', 'page-content'] },
+        applyUpdate
+      );
+      
+      // Update daily page cache
+      const dailyQueryKey = [...nodeKeys.all, 'daily'];
+      queryClient.setQueriesData<Node>(
+        { queryKey: dailyQueryKey, exact: false },
+        applyUpdate
       );
     },
     onSuccess: (updatedNode, variables) => {
@@ -586,23 +636,40 @@ export function useDeleteNode() {
     onMutate: async (deletedId) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
+      await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+      
+      // Helper to remove node from tree
+      const removeNode = (oldNode: Node | undefined): Node | undefined => {
+        if (!oldNode) return oldNode;
+        // If this is the deleted node itself, leave it (will be removed on success)
+        if (oldNode.id === deletedId) return oldNode;
+        // If this node has children, recursively remove the deleted node
+        if (oldNode.children && oldNode.children.length > 0) {
+          return {
+            ...oldNode,
+            children: removeNodeFromTree(oldNode.children, deletedId),
+          };
+        }
+        return oldNode;
+      };
       
       // Optimistically remove the node from any parent's children array
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.details() },
-        (oldNode) => {
-          if (!oldNode) return oldNode;
-          // If this is the deleted node itself, leave it (will be removed on success)
-          if (oldNode.id === deletedId) return oldNode;
-          // If this node has children, recursively remove the deleted node
-          if (oldNode.children && oldNode.children.length > 0) {
-            return {
-              ...oldNode,
-              children: removeNodeFromTree(oldNode.children, deletedId),
-            };
-          }
-          return oldNode;
-        }
+        removeNode
+      );
+      
+      // Also update page-content queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: ['nodes', 'page-content'] },
+        removeNode
+      );
+      
+      // Update daily page cache
+      const dailyQueryKey = [...nodeKeys.all, 'daily'];
+      queryClient.setQueriesData<Node>(
+        { queryKey: dailyQueryKey, exact: false },
+        removeNode
       );
     },
     onSuccess: (deletedNode, deletedId) => {
@@ -707,6 +774,190 @@ export function useMoveNode() {
   return useMutation({
     mutationFn: ({ id, parentId, position }: { id: number; parentId: number | null; position?: number }) => 
       nodesApi.moveNode(id, parentId, position),
+    onMutate: async ({ id, parentId, position }) => {
+      // Cancel any outgoing refetches to not overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
+      await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+      
+      // Find the node being moved from any cache
+      let movedNode: Node | null = null;
+      let oldParentId: number | null = null;
+      
+      // Search through all cached detail queries to find the node
+      const detailQueries = queryClient.getQueriesData<Node>({ queryKey: nodeKeys.details() });
+      for (const [, data] of detailQueries) {
+        if (!data) continue;
+        // Check if this is the node itself
+        if (data.id === id) {
+          movedNode = data;
+          oldParentId = data.parent_id;
+          break;
+        }
+        // Check if the node is in children
+        const findInChildren = (node: Node): Node | null => {
+          if (node.children) {
+            for (const child of node.children) {
+              if (child.id === id) {
+                oldParentId = node.id;
+                return child;
+              }
+              const found = findInChildren(child);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        const found = findInChildren(data);
+        if (found) {
+          movedNode = found;
+          break;
+        }
+      }
+      
+      if (!movedNode) return; // Can't do optimistic update without the node data
+      
+      // Helper to remove a node from children array
+      const removeFromChildren = (children: Node[] | null | undefined): Node[] => {
+        if (!children) return [];
+        return children.filter(c => c.id !== id).map(c => ({
+          ...c,
+          children: removeFromChildren(c.children),
+        }));
+      };
+      
+      // Helper to insert node at the correct position
+      const insertAtPosition = (children: Node[], nodeToInsert: Node, pos: number): Node[] => {
+        const newChildren = [...children];
+        // Update the moved node with new parent and sequence
+        const updatedNode = { 
+          ...nodeToInsert, 
+          parent_id: parentId, 
+          sequence: pos 
+        };
+        // Insert at the right position
+        newChildren.splice(pos, 0, updatedNode);
+        // Update sequences for nodes after the insertion point
+        return newChildren.map((child, idx) => ({
+          ...child,
+          sequence: idx,
+        }));
+      };
+      
+      // Update all detail queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.details() },
+        (oldNode) => {
+          if (!oldNode) return oldNode;
+          
+          let updated = { ...oldNode };
+          
+          // Remove the moved node if it's in this node's children
+          if (updated.children && updated.children.length > 0) {
+            const hadNode = updated.children.some(c => c.id === id);
+            if (hadNode) {
+              updated = {
+                ...updated,
+                children: removeFromChildren(updated.children),
+              };
+            }
+          }
+          
+          // Add the moved node to this node's children if this is the new parent
+          if (updated.id === parentId && movedNode) {
+            const currentChildren = updated.children || [];
+            const pos = position ?? currentChildren.length;
+            updated = {
+              ...updated,
+              children: insertAtPosition(currentChildren, movedNode, pos),
+            };
+          }
+          
+          return updated;
+        }
+      );
+      
+      // Also update page-content queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: ['nodes', 'page-content'] },
+        (oldNode) => {
+          if (!oldNode) return oldNode;
+          
+          let updated = { ...oldNode };
+          
+          // Remove the moved node from children
+          if (updated.children && updated.children.length > 0) {
+            updated = {
+              ...updated,
+              children: removeFromChildren(updated.children),
+            };
+          }
+          
+          // Add to this node if it's the new parent
+          if (updated.id === parentId && movedNode) {
+            const currentChildren = updated.children || [];
+            const pos = position ?? currentChildren.length;
+            updated = {
+              ...updated,
+              children: insertAtPosition(currentChildren, movedNode, pos),
+            };
+          }
+          
+          return updated;
+        }
+      );
+      
+      // Update daily page cache
+      const dailyQueryKey = [...nodeKeys.all, 'daily'];
+      queryClient.setQueriesData<Node>(
+        { queryKey: dailyQueryKey, exact: false },
+        (oldPage) => {
+          if (!oldPage) return oldPage;
+          
+          // First remove the node from wherever it currently is (recursively)
+          let updated = {
+            ...oldPage,
+            children: oldPage.children ? removeFromChildren(oldPage.children) : [],
+          };
+          
+          // Helper to recursively insert into the correct parent
+          const insertIntoParent = (node: Node): Node => {
+            if (node.id === parentId && movedNode) {
+              const currentChildren = node.children || [];
+              const pos = position ?? currentChildren.length;
+              return {
+                ...node,
+                children: insertAtPosition(currentChildren, movedNode, pos),
+              };
+            }
+            if (node.children && node.children.length > 0) {
+              return {
+                ...node,
+                children: node.children.map(insertIntoParent),
+              };
+            }
+            return node;
+          };
+          
+          // If the daily page itself is the parent
+          if (updated.id === parentId && movedNode) {
+            const currentChildren = updated.children || [];
+            const pos = position ?? currentChildren.length;
+            updated = {
+              ...updated,
+              children: insertAtPosition(currentChildren, movedNode, pos),
+            };
+          } else if (updated.children && updated.children.length > 0) {
+            // Otherwise look for the parent in nested children
+            updated = {
+              ...updated,
+              children: updated.children.map(insertIntoParent),
+            };
+          }
+          
+          return updated;
+        }
+      );
+    },
     onSuccess: (movedNode, { parentId }) => {
       // Invalidate ALL detail queries (this covers nodes with include_children: true)
       // The detail queries are used by NodeView to display page content with children
