@@ -212,12 +212,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
   }, [node?.types, allTypes, allNodes]);
   
-  // Find the "type" type to filter it from tags
-  const typeTypeId = useMemo(() => {
-    return allTypes?.find(t => t.uuid === SYSTEM_TYPE_UUIDS.type)?.id;
-  }, [allTypes]);
-  
-  // Resolve page tag details from IDs (excluding nodes typed as "type")
+  // Resolve page tag details from IDs (excluding type definitions)
   const pageTagDetails = useMemo(() => {
     if (!node?.tags || node.tags.length === 0) return [];
     return node.tags
@@ -229,11 +224,11 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       })
       .filter((t): t is Node => {
         if (t === undefined) return false;
-        // Hide tags that are typed as "type" (type definitions shouldn't show as tags)
-        if (typeTypeId && t.types?.includes(typeTypeId)) return false;
+        // Hide type definitions (they shouldn't show as tags)
+        if (t.is_type) return false;
         return true;
       });
-  }, [node?.tags, allTags, allNodes, typeTypeId]);
+  }, [node?.tags, allTags, allNodes]);
   
   // Available types for the type picker (exclude already assigned types and system types)
   const availableTypes = useMemo(() => {
@@ -257,11 +252,11 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     return allTags.filter(t => {
       // Exclude already assigned tags
       if (assignedTagIds.has(t.id)) return false;
-      // Exclude nodes typed as "type" (type definitions shouldn't appear in tag picker)
-      if (typeTypeId && t.types?.includes(typeTypeId)) return false;
+      // Exclude type definitions (is_type=true means it's a type, not a regular page/tag)
+      if (t.is_type) return false;
       return true;
     });
-  }, [allTags, node?.tags, typeTypeId]);
+  }, [allTags, node?.tags]);
   
   // Handle adding a type via NodePillRow
   const handleAddType = useCallback((typeNode: Node) => {
