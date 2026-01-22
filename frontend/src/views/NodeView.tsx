@@ -41,7 +41,7 @@ import { TypedNodesView } from '../components/TypedNodesSection';
 import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
 import { ChildPagesSection } from '../components/ChildPagesSection';
 import { NodeActivityLogSection, useActivityCount } from '../components/nodes/NodeActivityLogSection';
-import { LinkedReferences, useLinkedReferencesCount } from '../components/LinkedReferences';
+import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../components/LinkedReferences';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { mdiHistory, mdiRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -274,6 +274,9 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   // Section metadata hooks
   const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
   const { count: activityCount, refetch: refetchActivity } = useActivityCount(nodeId);
+  
+  // Linked references toolbar state (for external rendering in section header)
+  const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -599,16 +602,15 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         count={linkedRefsCount}
         defaultExpanded={!linkedRefsCollapsed}
         hideWhenEmpty={true}
+        headerActions={<LinkedReferencesToolbar state={linkedRefsToolbarState} />}
       >
         <LinkedReferences 
           nodeId={node.id} 
-          onLinkClick={(nodeId, pageId, isPage) => {
-            // Open the block's page if available, otherwise open the node directly
-            if (pageId) {
-              openNode(pageId, 'page');
-            } else {
-              openNode(nodeId, isPage ? 'page' : 'block');
-            }
+          hideToolbar={true}
+          toolbarState={linkedRefsToolbarState}
+          onLinkClick={(nodeId, _pageId, isPage) => {
+            // Open the actual clicked node (block or page)
+            openNode(nodeId, isPage ? 'page' : 'block');
           }}
         />
       </NodeViewSection>

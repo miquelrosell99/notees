@@ -156,6 +156,9 @@ export interface NodeCollectionProps {
   
   /** Use isolated block state (for blocks that appear in multiple places like linked references) */
   isolatedBlockState?: boolean;
+  
+  /** Hide the internal toolbar (use when rendering toolbar externally via NodeCollectionToolbar) */
+  hideToolbar?: boolean;
 }
 
 // ==================== View-Specific Props ====================

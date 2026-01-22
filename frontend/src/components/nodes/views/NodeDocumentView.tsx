@@ -46,14 +46,44 @@ function DocumentNode({
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
 
-  // Handlers
-  const handleBulletClick = useCallback(() => {
-    onNodeClick?.(node);
-  }, [node, onNodeClick]);
+  // Helper to find a node by ID in the tree (for child bullet clicks)
+  const findNodeById = useCallback((id: number, nodes: Node[]): Node | null => {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      if (n.children) {
+        const found = findNodeById(id, n.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
 
-  const handleShiftClick = useCallback(() => {
-    onNodeShiftClick?.(node);
-  }, [node, onNodeShiftClick]);
+  // Handlers
+  const handleBulletClick = useCallback((blockId: number) => {
+    if (blockId === node.id) {
+      onNodeClick?.(node);
+    } else {
+      const childNode = findNodeById(blockId, children);
+      if (childNode) {
+        onNodeClick?.(childNode);
+      } else {
+        onNodeClick?.({ id: blockId, is_page: false } as Node);
+      }
+    }
+  }, [node, children, onNodeClick, findNodeById]);
+
+  const handleShiftClick = useCallback((blockId: number) => {
+    if (blockId === node.id) {
+      onNodeShiftClick?.(node);
+    } else {
+      const childNode = findNodeById(blockId, children);
+      if (childNode) {
+        onNodeShiftClick?.(childNode);
+      } else {
+        onNodeShiftClick?.({ id: blockId, is_page: false } as Node);
+      }
+    }
+  }, [node, children, onNodeShiftClick, findNodeById]);
 
   const handleContentChange = useCallback((blockId: number, content: string) => {
     onContentChange?.(blockId, content);
