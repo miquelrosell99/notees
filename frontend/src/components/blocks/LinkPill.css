@@ -1,21 +1,28 @@
 /**
  * LinkPill Component Styles
+ * 
+ * Inline atomic node for links in the editor.
+ * Capsule-shaped pill with fully rounded ends.
+ * Supports:
+ * - With icon: shows effectiveIcon from node or inherited from types
+ * - Without icon: renders as pure text-style inline element (no bullet)
  */
 
 .link-pill {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
   position: relative;
-  padding: 2px 6px;
+  padding: 2px 10px;
   margin: 0 2px;
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-sm);
+  border-radius: 9999px;
   font: inherit;
   font-size: 0.95em;
-  line-height: inherit;
+  line-height: 1.2;
   cursor: pointer;
   user-select: none;
-  vertical-align: baseline;
+  vertical-align: middle;
   transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
   
   /* Allow wrapping for multi-line content */
@@ -62,6 +69,12 @@
 
 .link-pill--block:hover {
   background: color-mix(in srgb, var(--color-secondary-container) 80%, var(--color-secondary) 20%);
+}
+
+/* No-icon variant: true inline text-style pill without any bullet or icon */
+.link-pill--no-icon {
+  padding: 2px 8px;
+  margin: 0 1px;
 }
 
 /* Icon */
