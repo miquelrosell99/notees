@@ -277,12 +277,13 @@ export function useSearch(query: string) {
 }
 
 /**
- * Hook to fetch all tags (same as types - tags are implemented as types)
+ * Hook to fetch all tags (pages that can be used as tags)
+ * Tags are regular pages (not type definitions) that users link with #
  */
 export function useTags() {
   return useQuery({
     queryKey: nodeKeys.tags(),
-    queryFn: () => nodesApi.listTypes(),
+    queryFn: () => nodesApi.listNodes({ pages_only: true }),
   });
 }
 

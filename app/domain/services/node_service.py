@@ -428,20 +428,17 @@ class NodeService:
     
     async def get_node_types(self, node_id: int) -> List[Node]:
         """Get all types applied to a node."""
-        properties = await self._property_repo.get_node_properties(node_id)
-        type_ids = []
-        for p in properties:
-            if p.property_id == self._types_property_id:
-                # Values are PropertyValueRelation objects with target_node_id
-                for val in p.get_values():
-                    if hasattr(val, 'target_node_id') and val.target_node_id:
-                        type_ids.append(val.target_node_id)
+        # Get relation values directly from the types property
+        relation_values = await self._property_repo.get_relation_values(
+            node_id, self._types_property_id
+        )
         
         types = []
-        for type_id in type_ids:
-            type_node = await self._node_repo.get_by_id(type_id)
-            if type_node:
-                types.append(type_node)
+        for val in relation_values:
+            if val.target_node_id:
+                type_node = await self._node_repo.get_by_id(val.target_node_id)
+                if type_node:
+                    types.append(type_node)
         
         return types
 
