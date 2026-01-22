@@ -149,6 +149,7 @@ export function ColorPicker({
         buttonClassName="color-picker-btn"
         panelClassName="color-picker-panel"
         customTrigger={triggerContent}
+        usePortal={true}
       >
         <div className="color-picker-content">
           {/* No color option */}

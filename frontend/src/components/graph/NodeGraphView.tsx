@@ -399,6 +399,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
           tooltip="Type colors"
           open={typeColorsOpen}
           onOpenChange={setTypeColorsOpen}
+          panelClassName="type-colors-panel"
         >
           <p className="type-colors-description">
             Colors apply by priority. First match wins. Drag to reorder.
