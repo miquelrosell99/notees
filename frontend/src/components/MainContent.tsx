@@ -22,7 +22,7 @@ import type { Node } from '@/types';
 export function MainContent() {
   const { currentNodeId, currentNodeType, currentPropertyContext, viewMode, mainViewType, currentPropertyId, openNode, openPropertyView, addSidebarCard, contentDisplayMode, setContentDisplayMode, cardLayout, setCardLayout, lateNightThoughtsFilter, toggleLateNightThoughts, openLocalGraph, rightSidebarContent } = useNodesStore();
   
-  // Fetch current node to get color (only for pages)
+  // Fetch current node to get color (for pages and focused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);
   
   // Track dark mode for color styling
@@ -39,13 +39,13 @@ export function MainContent() {
     return () => observer.disconnect();
   }, []);
   
-  // Compute color styles for page nodes (gradient border + tint)
-  const pageColorStyle = useMemo(() => {
-    if (!currentNode || currentNodeType !== 'page' || !currentNode.color) {
+  // Compute color styles for nodes (gradient border + tint) - applies to both pages and focused blocks
+  const nodeColorStyle = useMemo(() => {
+    if (!currentNode || !currentNode.color) {
       return undefined;
     }
     return getNodeColorStyles(currentNode.color, isDarkMode);
-  }, [currentNode, currentNodeType, isDarkMode]);
+  }, [currentNode, isDarkMode]);
   
   // Handle shift-click on page bullets in All Pages view
   const handlePageShiftClick = (page: Node) => {
@@ -209,8 +209,8 @@ export function MainContent() {
       
       {/* Scrollable content area */}
       <main 
-        className={`main-content${pageColorStyle ? ' has-page-color' : ''}`}
-        style={pageColorStyle}
+        className={`main-content${nodeColorStyle ? ' has-page-color' : ''}`}
+        style={nodeColorStyle}
       >
         <NodeView nodeId={currentNodeId} nodeType={currentNodeType} viewMode={viewMode} />
       </main>

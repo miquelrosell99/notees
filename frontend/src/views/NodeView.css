@@ -12,41 +12,7 @@
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
 
-/* Page variant - page color applied to main-content container */
-
-/* ==================== Block Color Styling ==================== */
-/* 
- * Focused block color uses a two-part gradient left border and subtle background tint.
- * This matches the page color styling for a unified appearance.
- * CSS variables are set via inline style from getNodeColorStyles():
- *   --node-color: the main color
- *   --node-color-rgb: RGB values for rgba() usage
- *   --node-tint: very low opacity background tint
- *   --node-border-solid: solid color for inner stripe
- *   --node-border-halo: semi-transparent halo for outer stripe
- */
-.node-view--block.has-block-color {
-  /* Gradient left border: inner solid stripe (~2px) + outer halo stripe (~4px) */
-  border-left: 6px solid transparent;
-  border-image: linear-gradient(
-    to right,
-    var(--node-border-solid) 0%,
-    var(--node-border-solid) 33%,
-    var(--node-border-halo) 33%,
-    var(--node-border-halo) 100%
-  ) 1;
-  
-  /* Subtle background tint */
-  background: linear-gradient(
-    to right,
-    var(--node-tint) 0%,
-    var(--node-tint) 100%
-  ), var(--color-surface);
-  
-  /* Slight padding adjustment to account for border */
-  padding-left: var(--spacing-3);
-  border-radius: 0;
-}
+/* Page and Block color styling is applied at main-content level in Layout.css */
 
 /* Loading and error states */
 .node-view--loading,

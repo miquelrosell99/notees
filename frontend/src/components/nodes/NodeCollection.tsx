@@ -120,6 +120,7 @@ export function NodeCollection({
   blockCallbacks,
   pageMap,
   isolatedBlockState = false,
+  suppressRootColor = false,
   hideToolbar = false,
 }: NodeCollectionProps) {
   // Internal groupBy state (controlled or uncontrolled)
@@ -165,6 +166,7 @@ export function NodeCollection({
     maxDepth,
     className: '',
     isolatedBlockState,
+    suppressRootColor,
   };
 
   // Empty state

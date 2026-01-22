@@ -32,6 +32,10 @@ export interface BlockPreviewProps {
   className?: string;
   /** @deprecated Ignored - all BlockPreview is now simple/readonly */
   variant?: 'simple' | 'full';
+  /** Suppress color styling on the block */
+  suppressColor?: boolean;
+  /** Property name for breadcrumb display */
+  propertyName?: string;
 }
 
 /**
@@ -49,6 +53,8 @@ export function BlockPreview({
   onBulletClick,
   className = '',
   variant: _variant, // Ignored - kept for backward compatibility
+  suppressColor = false,
+  propertyName: _propertyName, // Ignored - kept for breadcrumb compatibility
 }: BlockPreviewProps) {
   // Create a minimal node if only content/blockId provided
   const blockNode: Node = node ?? {
@@ -78,6 +84,7 @@ export function BlockPreview({
         canMove={false}
         canEdit={false}
         canSelect={false}
+        suppressColor={suppressColor}
         onBulletClick={onBulletClick ? () => onBulletClick() : undefined}
         onShiftClick={onShiftClick ? () => onShiftClick() : undefined}
       />

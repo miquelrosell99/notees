@@ -55,6 +55,7 @@ function RecentItem({ nodeId, isActive, onClick }: RecentItemProps) {
       showBullet={true}
       onClick={onClick}
       className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
+      suppressColor={true}
     />
   );
 }
