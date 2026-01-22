@@ -45,7 +45,7 @@ import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, L
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { mdiHistory, mdiRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
-import { SYSTEM_PROPERTY_UUIDS, SYSTEM_TYPE_UUIDS } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
 import type { Asset } from '../api/assets';
 
 import './NodeView.css';
@@ -196,6 +196,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const addTag = useAddTag();
   
   // Resolve page type details from IDs (excluding the implicit "page" type)
+  // For system types (like "day", "month", etc.), we show their "type" type but make it non-removable
   // Use allNodes as fallback for system types that might not be in allTypes
   const pageTypeDetails = useMemo(() => {
     if (!node?.types || node.types.length === 0) return [];
@@ -206,6 +207,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         if (fromTypes) return fromTypes;
         return allNodes?.find(n => n.id === typeId);
       })
+      // Exclude the implicit "page" type (all pages have it)
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
   }, [node?.types, allTypes, allNodes]);
   
@@ -484,12 +486,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemoveType}
                 onAdd={handleAddType}
-                canRemove={(n) => 
-                  n.uuid !== SYSTEM_TYPE_UUIDS.page &&
-                  n.uuid !== SYSTEM_TYPE_UUIDS.day && 
-                  n.uuid !== SYSTEM_TYPE_UUIDS.month && 
-                  n.uuid !== SYSTEM_TYPE_UUIDS.year
-                }
+                canRemove={(n) => !isSystemTypeUuid(n.uuid)}
               />
             </div>
             

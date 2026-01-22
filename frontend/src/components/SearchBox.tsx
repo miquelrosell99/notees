@@ -103,7 +103,7 @@ export function SearchBox({
                     onClick={() => handleSelect(node)}
                   >
                     <span className="result-icon">
-                      <NodeIcon icon={node.icon} isPage={true} isDaily={node.is_daily} isMonthly={node.is_monthly} isYearly={node.is_yearly} />
+                      <NodeIcon icon={node.icon} isPage={true} />
                     </span>
                     <span className="result-title">
                       {node.name || 'Untitled'}

@@ -185,9 +185,6 @@ export function BlockPreview({
         <NodeIcon
           icon={node.icon}
           isPage={node.is_page}
-          isDaily={node.is_daily}
-          isMonthly={node.is_monthly}
-          isYearly={node.is_yearly}
           size="sm"
           className="block-preview__icon"
         />

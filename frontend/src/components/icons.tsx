@@ -368,21 +368,17 @@ export function getDefaultIcon(type: keyof typeof DEFAULT_ICONS): React.Componen
  * Supports:
  * - Emoji characters (rendered as-is)
  * - MDI icon names like "mdi-calendar" or "mdiCalendar" or "calendar"
- * - Falls back to type-based defaults (daily → calendar, page → document, block → bullet)
+ * - Falls back to type-based defaults (page → document, block → bullet)
+ * 
+ * Note: Date pages (daily/monthly/yearly) inherit icons from their type definitions.
  */
 export function NodeIcon({ 
   icon, 
-  isDaily = false,
-  isMonthly = false,
-  isYearly = false,
   isPage = true,
   size = 'sm',
   className,
 }: { 
   icon?: string | null; 
-  isDaily?: boolean;
-  isMonthly?: boolean;
-  isYearly?: boolean;
   isPage?: boolean;
   size?: IconSize;
   className?: string;
@@ -421,11 +417,7 @@ export function NodeIcon({
   }
   
   // Fall back to type-based defaults
-  // Date pages (daily, monthly, yearly) show calendar icon
-  if (isDaily || isMonthly || isYearly) {
-    return <CalendarIcon size={size} className={className} />;
-  }
-  
+  // (Date pages now inherit icons from their type definitions)
   if (isPage) {
     return <PageIcon size={size} className={className} />;
   }

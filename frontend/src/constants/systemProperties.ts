@@ -70,3 +70,12 @@ export function isCoverProperty(uuid: string): boolean {
 export function isBannerProperty(uuid: string): boolean {
   return uuid === SYSTEM_PROPERTY_UUIDS.banner;
 }
+
+/**
+ * Check if a node UUID is a system type UUID
+ * These types are managed by the system and should not be user-removable
+ */
+export function isSystemTypeUuid(uuid: string | null | undefined): boolean {
+  if (!uuid) return false;
+  return Object.values(SYSTEM_TYPE_UUIDS).includes(uuid as typeof SYSTEM_TYPE_UUIDS[keyof typeof SYSTEM_TYPE_UUIDS]);
+}

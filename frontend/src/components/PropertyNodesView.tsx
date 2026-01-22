@@ -147,7 +147,7 @@ function PropertyNodesList({
           >
             <span className="property-nodes-view__item-icon">
               {isPage ? (
-                <NodeIcon icon={node.icon} isPage={true} isDaily={node.is_daily} isMonthly={node.is_monthly} isYearly={node.is_yearly} size="sm" />
+                <NodeIcon icon={node.icon} isPage={true} size="sm" />
               ) : (
                 <BulletIcon size="xs" />
               )}
