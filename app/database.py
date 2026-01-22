@@ -32,25 +32,26 @@ _active_workspaces: Dict[str, str] = {}
 # ============== Workspace/Database Management ==============
 # These functions manage workspaces (the PostgreSQL equivalent of SQLite databases)
 
-async def list_databases(user_id: str) -> List[Dict[str, Any]]:
-    """List all workspaces for a user.
-    
-    Returns list of dicts with 'name', 'uuid', 'created_at' keys.
-    """
+async def _get_numeric_user_id(user_id: str) -> Optional[int]:
+    """Convert string user_id to numeric PostgreSQL ID."""
     async with get_connection() as conn:
-        # Get user's numeric ID from string ID (could be UUID or numeric string)
-        user_row = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE uuid::text = $1 OR id::text = $1',
+        row = await conn.fetchrow(
+            'SELECT id FROM "user" WHERE id::text = $1 OR uuid::text = $1',
             user_id
         )
-        if not user_row:
-            return []
-        
-        numeric_user_id = user_row['id']
-        
+        return row['id'] if row else None
+
+
+async def list_databases(user_id: str) -> List[Dict[str, Any]]:
+    """List all workspaces for a user."""
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        return []
+    
+    async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT w.uuid, w.name, w.create_date, w.is_shared
+            SELECT DISTINCT w.uuid, w.name, w.create_date, w.is_shared
             FROM workspace w
             LEFT JOIN workspace_member wm ON w.id = wm.workspace_id
             WHERE w.owner_id = $1 OR wm.user_id = $1
@@ -76,28 +77,15 @@ def get_active_db_name(user_id: str) -> Optional[str]:
 
 
 async def create_database(user_id: str, name: str) -> Dict[str, Any]:
-    """Create a new workspace for a user.
+    """Create a new workspace for a user."""
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        raise ValueError(f"User not found: {user_id}")
     
-    Returns dict with workspace info.
-    Raises ValueError if name already exists.
-    """
     async with get_connection() as conn:
-        # Get user's numeric ID
-        user_row = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE uuid::text = $1 OR id::text = $1',
-            user_id
-        )
-        if not user_row:
-            raise ValueError(f"User not found: {user_id}")
-        
-        numeric_user_id = user_row['id']
-        
-        # Check if name already exists for this user
+        # Check if name already exists
         existing = await conn.fetchrow(
-            """
-            SELECT id FROM workspace 
-            WHERE owner_id = $1 AND name = $2
-            """,
+            "SELECT id FROM workspace WHERE owner_id = $1 AND name = $2",
             numeric_user_id, name
         )
         if existing:
@@ -108,22 +96,18 @@ async def create_database(user_id: str, name: str) -> Dict[str, Any]:
             """
             INSERT INTO workspace (name, owner_id, is_shared)
             VALUES ($1, $2, FALSE)
-            RETURNING uuid, name, create_date
+            RETURNING id, uuid, name, create_date
             """,
             name, numeric_user_id
         )
         
-        # Also add owner as member
-        workspace_id = await conn.fetchval(
-            "SELECT id FROM workspace WHERE uuid = $1",
-            row['uuid']
-        )
+        # Add owner as member
         await conn.execute(
             """
             INSERT INTO workspace_member (workspace_id, user_id, role)
             VALUES ($1, $2, 'owner')
             """,
-            workspace_id, numeric_user_id
+            row['id'], numeric_user_id
         )
         
         result = {
@@ -132,7 +116,6 @@ async def create_database(user_id: str, name: str) -> Dict[str, Any]:
             "created_at": row['create_date'].isoformat() if row['create_date'] else None,
         }
         
-        # Set as active if no active workspace
         if user_id not in _active_workspaces:
             _active_workspaces[user_id] = name
         
@@ -140,25 +123,15 @@ async def create_database(user_id: str, name: str) -> Dict[str, Any]:
 
 
 async def switch_database(user_id: str, name: str) -> bool:
-    """Switch to a different workspace.
+    """Switch to a different workspace."""
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        return False
     
-    Returns True if successful, False if workspace not found.
-    """
     async with get_connection() as conn:
-        # Get user's numeric ID
-        user_row = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE uuid::text = $1 OR id::text = $1',
-            user_id
-        )
-        if not user_row:
-            return False
-        
-        numeric_user_id = user_row['id']
-        
-        # Check if workspace exists and user has access
         workspace = await conn.fetchrow(
             """
-            SELECT w.id, w.name FROM workspace w
+            SELECT w.id FROM workspace w
             LEFT JOIN workspace_member wm ON w.id = wm.workspace_id
             WHERE w.name = $1 AND (w.owner_id = $2 OR wm.user_id = $2)
             """,
@@ -173,56 +146,35 @@ async def switch_database(user_id: str, name: str) -> bool:
 
 
 async def rename_database(user_id: str, old_name: str, new_name: str) -> Dict[str, Any]:
-    """Rename a workspace.
+    """Rename a workspace."""
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        raise ValueError(f"User not found: {user_id}")
     
-    Returns updated workspace info.
-    Raises ValueError if old name not found or new name already exists.
-    """
     async with get_connection() as conn:
-        # Get user's numeric ID
-        user_row = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE uuid::text = $1 OR id::text = $1',
-            user_id
-        )
-        if not user_row:
-            raise ValueError(f"User not found: {user_id}")
-        
-        numeric_user_id = user_row['id']
-        
-        # Check if old workspace exists and user owns it
         old_workspace = await conn.fetchrow(
-            """
-            SELECT id, uuid FROM workspace 
-            WHERE owner_id = $1 AND name = $2
-            """,
+            "SELECT id, uuid FROM workspace WHERE owner_id = $1 AND name = $2",
             numeric_user_id, old_name
         )
         if not old_workspace:
             raise ValueError(f"Database '{old_name}' not found")
         
-        # Check if new name already exists
         existing = await conn.fetchrow(
-            """
-            SELECT id FROM workspace 
-            WHERE owner_id = $1 AND name = $2
-            """,
+            "SELECT id FROM workspace WHERE owner_id = $1 AND name = $2",
             numeric_user_id, new_name
         )
         if existing:
             raise ValueError(f"Database '{new_name}' already exists")
         
-        # Rename
         row = await conn.fetchrow(
             """
-            UPDATE workspace 
-            SET name = $1, write_date = NOW()
+            UPDATE workspace SET name = $1, write_date = NOW()
             WHERE id = $2
             RETURNING uuid, name, create_date
             """,
             new_name, old_workspace['id']
         )
         
-        # Update active workspace reference if needed
         if _active_workspaces.get(user_id) == old_name:
             _active_workspaces[user_id] = new_name
         
@@ -234,23 +186,12 @@ async def rename_database(user_id: str, old_name: str, new_name: str) -> Dict[st
 
 
 async def delete_database(user_id: str, name: str) -> bool:
-    """Delete a workspace.
+    """Delete a workspace."""
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        return False
     
-    Returns True if successful, False if not found.
-    Raises ValueError if trying to delete the last workspace.
-    """
     async with get_connection() as conn:
-        # Get user's numeric ID
-        user_row = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE uuid::text = $1 OR id::text = $1',
-            user_id
-        )
-        if not user_row:
-            return False
-        
-        numeric_user_id = user_row['id']
-        
-        # Count user's workspaces
         count = await conn.fetchval(
             "SELECT COUNT(*) FROM workspace WHERE owner_id = $1",
             numeric_user_id
@@ -258,19 +199,13 @@ async def delete_database(user_id: str, name: str) -> bool:
         if count <= 1:
             raise ValueError("Cannot delete the last database")
         
-        # Delete (CASCADE will handle related records)
         result = await conn.execute(
-            """
-            DELETE FROM workspace 
-            WHERE owner_id = $1 AND name = $2
-            """,
+            "DELETE FROM workspace WHERE owner_id = $1 AND name = $2",
             numeric_user_id, name
         )
         
-        # Check if anything was deleted
         deleted = result.split()[-1] != '0'
         
-        # Clear active workspace if deleted
         if deleted and _active_workspaces.get(user_id) == name:
             del _active_workspaces[user_id]
         
@@ -278,31 +213,16 @@ async def delete_database(user_id: str, name: str) -> bool:
 
 
 async def export_database(user_id: str, name: str) -> Path:
-    """Export a workspace to a JSON file.
-    
-    Returns path to the export file.
-    Raises ValueError if workspace not found.
-    """
+    """Export a workspace to a JSON file."""
     import json
-    import tempfile
+    
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        raise ValueError(f"User not found: {user_id}")
     
     async with get_connection() as conn:
-        # Get user's numeric ID
-        user_row = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE uuid::text = $1 OR id::text = $1',
-            user_id
-        )
-        if not user_row:
-            raise ValueError(f"User not found: {user_id}")
-        
-        numeric_user_id = user_row['id']
-        
-        # Get workspace
         workspace = await conn.fetchrow(
-            """
-            SELECT id, uuid, name FROM workspace 
-            WHERE owner_id = $1 AND name = $2
-            """,
+            "SELECT id, uuid, name FROM workspace WHERE owner_id = $1 AND name = $2",
             numeric_user_id, name
         )
         if not workspace:
@@ -310,7 +230,6 @@ async def export_database(user_id: str, name: str) -> Path:
         
         workspace_id = workspace['id']
         
-        # Export all nodes
         nodes = await conn.fetch(
             """
             SELECT uuid, name, icon, color, parent_id, page_id, sequence,
@@ -322,7 +241,6 @@ async def export_database(user_id: str, name: str) -> Path:
             workspace_id
         )
         
-        # Export node links
         links = await conn.fetch(
             """
             SELECT nl.uuid, nl.source_node_id, nl.target_node_id, nl.link_type
@@ -333,7 +251,6 @@ async def export_database(user_id: str, name: str) -> Path:
             workspace_id
         )
         
-        # Export properties
         properties = await conn.fetch(
             """
             SELECT uuid, name, icon, type, is_multi, is_system
@@ -344,16 +261,12 @@ async def export_database(user_id: str, name: str) -> Path:
         
         export_data = {
             "version": 1,
-            "workspace": {
-                "uuid": str(workspace['uuid']),
-                "name": workspace['name'],
-            },
+            "workspace": {"uuid": str(workspace['uuid']), "name": workspace['name']},
             "nodes": [dict(row) for row in nodes],
             "links": [dict(row) for row in links],
             "properties": [dict(row) for row in properties],
         }
         
-        # Write to temp file
         export_dir = DATA_DIR / "users" / user_id / "export"
         export_dir.mkdir(parents=True, exist_ok=True)
         export_path = export_dir / f"{name}_export.json"
@@ -365,17 +278,8 @@ async def export_database(user_id: str, name: str) -> Path:
 
 
 async def import_database(user_id: str, file_path: Path, name: str) -> Dict[str, Any]:
-    """Import a workspace from a JSON file.
-    
-    Returns dict with new workspace info.
-    Raises ValueError on import errors.
-    """
-    import json
-    
-    # For now, just create an empty workspace
-    # Full import would need to parse the file and insert nodes
+    """Import a workspace from a JSON file."""
     logger.warning(f"Import not fully implemented - creating empty workspace '{name}'")
-    
     return await create_database(user_id, name)
 
 
