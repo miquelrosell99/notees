@@ -103,8 +103,8 @@ class LinkParsingService:
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
         existing = set()
-        if hasattr(self._link_repo, '_conn'):
-            conn = self._link_repo._conn
+        if hasattr(self._link_repo, 'get_connection'):
+            conn = self._link_repo.get_connection()
             cursor = await conn.execute(
                 "SELECT target_node_id FROM node_link WHERE source_node_id = ? AND property_id IS NULL",
                 (source_node_id,)
@@ -132,7 +132,7 @@ class LinkParsingService:
         if not target_node.is_page:
             return
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         now = await self._get_utc_now()
         
         # Get source page info
@@ -229,8 +229,8 @@ class LinkParsingService:
     async def _get_existing_tag_link_targets(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing tag links from a source node."""
         existing = set()
-        if hasattr(self._link_repo, '_conn'):
-            conn = self._link_repo._conn
+        if hasattr(self._link_repo, 'get_connection'):
+            conn = self._link_repo.get_connection()
             cursor = await conn.execute(
                 "SELECT target_node_id FROM node_link WHERE source_node_id = ? AND property_id IS NULL AND is_tag = 1",
                 (source_node_id,)
@@ -242,8 +242,8 @@ class LinkParsingService:
     
     async def _delete_non_tag_text_links(self, source_node_id: int) -> None:
         """Delete all non-tag text links (property_id IS NULL, is_tag=0) from a source node."""
-        if hasattr(self._link_repo, '_conn'):
-            conn = self._link_repo._conn
+        if hasattr(self._link_repo, 'get_connection'):
+            conn = self._link_repo.get_connection()
             await conn.execute(
                 "DELETE FROM node_link WHERE source_node_id = ? AND property_id IS NULL AND is_tag = 0",
                 (source_node_id,)
@@ -268,7 +268,7 @@ class LinkParsingService:
         if not target_node or not target_node.is_page:
             return None
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         
         # Check if link already exists
         cursor = await conn.execute(
@@ -311,7 +311,7 @@ class LinkParsingService:
         Returns:
             True if a tag was removed
         """
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         
         cursor = await conn.execute(
             "UPDATE node_link SET is_tag = 0 WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL AND is_tag = 1",
@@ -429,8 +429,8 @@ class LinkParsingService:
     
     async def _delete_property_links(self, source_node_id: int, property_id: int) -> None:
         """Delete all links for a specific property from a source node."""
-        if hasattr(self._link_repo, '_conn'):
-            conn = self._link_repo._conn
+        if hasattr(self._link_repo, 'get_connection'):
+            conn = self._link_repo.get_connection()
             await conn.execute(
                 "DELETE FROM node_link WHERE source_node_id = ? AND property_id = ?",
                 (source_node_id, property_id)
@@ -447,10 +447,10 @@ class LinkParsingService:
         
         System property `types` links are never included.
         """
-        if not hasattr(self._link_repo, '_conn'):
+        if not hasattr(self._link_repo, 'get_connection'):
             return []
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         
         # Get all links pointing to this node, with property info
         cursor = await conn.execute("""
@@ -519,10 +519,10 @@ class LinkParsingService:
         """
         breadcrumbs = []
         
-        if not hasattr(self._link_repo, '_conn'):
+        if not hasattr(self._link_repo, 'get_connection'):
             return breadcrumbs
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         
         # Walk up the hierarchy from source to page
         current_id = source_node_id
@@ -566,10 +566,10 @@ class LinkParsingService:
         
         Used for query semantics where descendants inherit references.
         """
-        if not hasattr(self._link_repo, '_conn'):
+        if not hasattr(self._link_repo, 'get_connection'):
             return []
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         referenced_ids = set()
         
         # Walk up hierarchy
@@ -610,10 +610,10 @@ class LinkParsingService:
         
         This is separate from backlinks and is used for filtering/queries.
         """
-        if not hasattr(self._link_repo, '_conn'):
+        if not hasattr(self._link_repo, 'get_connection'):
             return []
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         types_path = []
         
         # Get own types first
@@ -674,10 +674,10 @@ class LinkParsingService:
         """
         await self.update_types_path(node_id)
         
-        if not hasattr(self._link_repo, '_conn'):
+        if not hasattr(self._link_repo, 'get_connection'):
             return
         
-        conn = self._link_repo._conn
+        conn = self._link_repo.get_connection()
         
         # Get all descendants
         cursor = await conn.execute(
