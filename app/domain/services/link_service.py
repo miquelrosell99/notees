@@ -21,12 +21,12 @@ from __future__ import annotations
 
 import re
 import json
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import List, Tuple, Optional, Any, TYPE_CHECKING
 
 from ..entities import NodeLink, InlineType, BacklinkInfo
 
 if TYPE_CHECKING:
-    from ..repositories import NodeRepository, LinkRepository, PropertyRepository, SQLiteInlineTypeRepository
+    from ..repositories import NodeRepository, LinkRepository, PropertyRepository
     from ..entities import Node
 
 
@@ -56,7 +56,7 @@ class LinkParsingService:
         link_repository: LinkRepository,
         property_repository: Optional[PropertyRepository] = None,
         types_property_id: Optional[int] = None,
-        inline_type_repository: Optional['SQLiteInlineTypeRepository'] = None,
+        inline_type_repository: Optional[Any] = None,
     ):
         self._node_repo = node_repository
         self._link_repo = link_repository

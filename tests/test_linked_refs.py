@@ -8,64 +8,85 @@ Key semantics:
 5. Breadcrumbs include property provenance: T → property_name → B → … → page
 """
 import pytest
-import tempfile
-from pathlib import Path
+from datetime import datetime, timezone
 
-import aiosqlite
+from app.db.schema import SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
 
 
 @pytest.fixture
-async def test_db():
-    """Create a test database."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / 'test.db'
-        
-        from app.db.schema import init_database
-        conn = await init_database(db_path)
-        
-        yield conn
-        
-        await conn.close()
-
-
-@pytest.mark.asyncio
-async def test_schema_columns_exist(test_db):
-    """Test that new schema columns exist."""
-    conn = test_db
-    
-    # Check node table has types_path column
-    cursor = await conn.execute("PRAGMA table_info(node)")
-    columns = [row['name'] for row in await cursor.fetchall()]
-    assert 'types_path' in columns, f'types_path not in node columns: {columns}'
-    
-    # Check node_link table has property_id column
-    cursor = await conn.execute("PRAGMA table_info(node_link)")
-    columns = [row['name'] for row in await cursor.fetchall()]
-    assert 'property_id' in columns, f'property_id not in node_link columns: {columns}'
-
-
-@pytest.mark.asyncio
-async def test_text_link_creates_backlink(test_db):
-    """Test that text links create backlinks with source as the linking block."""
-    conn = test_db
-    
-    from app.domain.entities import NodeCreateData
-    from app.domain.repositories import SQLiteNodeRepository, SQLiteLinkRepository
+async def link_service_fixtures(db_pool, test_user):
+    """Create repositories and link service for testing."""
+    from app.domain.repositories import (
+        PostgresNodeRepository,
+        PostgresPropertyRepository,
+        PostgresLinkRepository,
+    )
     from app.domain.services import LinkParsingService
     
+    workspace_id = test_user["workspace_id"]
+    
     # Get system IDs
-    cursor = await conn.execute("SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1")
-    row = await cursor.fetchone()
-    page_type_id = row['id']
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+            SYSTEM_TYPE_UUIDS['page'], workspace_id
+        )
+        page_type_id = row['id']
+        
+        row = await conn.fetchrow(
+            "SELECT id FROM property WHERE uuid = $1",
+            SYSTEM_PROPERTY_UUIDS['types']
+        )
+        types_property_id = row['id']
     
-    cursor = await conn.execute("SELECT id FROM property WHERE name = 'types' LIMIT 1")
-    row = await cursor.fetchone()
-    types_property_id = row['id']
+    # Create repositories
+    node_repo = PostgresNodeRepository(db_pool, workspace_id)
+    property_repo = PostgresPropertyRepository(db_pool, workspace_id)
+    link_repo = PostgresLinkRepository(db_pool, workspace_id)
     
-    # Create repos and services
-    node_repo = SQLiteNodeRepository(conn, page_type_id, types_property_id)
-    link_repo = SQLiteLinkRepository(conn)
-    link_service = LinkParsingService(node_repo, link_repo, types_property_id=types_property_id)
+    # Create link service
+    link_service = LinkParsingService(
+        node_repo, link_repo, property_repo,
+        types_property_id=types_property_id
+    )
+    
+    return {
+        'node_repo': node_repo,
+        'property_repo': property_repo,
+        'link_repo': link_repo,
+        'link_service': link_service,
+        'page_type_id': page_type_id,
+        'types_property_id': types_property_id,
+        'workspace_id': workspace_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_schema_columns_exist(db_pool):
+    """Test that new schema columns exist."""
+    async with db_pool.acquire() as conn:
+        # Check node table has types_path column
+        columns = await conn.fetch("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'node' AND column_name = 'types_path'
+        """)
+        assert len(columns) == 1, f'types_path not in node columns'
+        
+        # Check node_link table has property_id column
+        columns = await conn.fetch("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'node_link' AND column_name = 'property_id'
+        """)
+        assert len(columns) == 1, f'property_id not in node_link columns'
+
+
+@pytest.mark.asyncio
+async def test_text_link_creates_backlink(link_service_fixtures):
+    """Test that text links create backlinks with source as the linking block."""
+    from app.domain.entities import NodeCreateData
+    
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
     
     # Create target page X
     page_x = await node_repo.create(NodeCreateData(name='Page X', is_page=True))
@@ -76,7 +97,7 @@ async def test_text_link_creates_backlink(test_db):
     assert page_source.id is not None
     
     block_t = await node_repo.create(NodeCreateData(
-        name=f'Block linking to [[{page_x.id}]]',
+        name=f'Block linking to [[{page_x.uuid}]]',
         parent_id=page_source.id
     ))
     assert block_t.id is not None
@@ -96,30 +117,13 @@ async def test_text_link_creates_backlink(test_db):
 
 
 @pytest.mark.asyncio
-async def test_types_property_excluded_from_backlinks(test_db):
+async def test_types_property_excluded_from_backlinks(link_service_fixtures):
     """Test that the system `types` property is excluded from backlinks."""
-    conn = test_db
-    
     from app.domain.entities import NodeCreateData
-    from app.domain.repositories import SQLiteNodeRepository, SQLiteLinkRepository, SQLitePropertyRepository
-    from app.domain.services import LinkParsingService
     
-    # Get system IDs
-    cursor = await conn.execute("SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1")
-    row = await cursor.fetchone()
-    page_type_id = row['id']
-    
-    cursor = await conn.execute("SELECT id FROM property WHERE name = 'types' LIMIT 1")
-    row = await cursor.fetchone()
-    types_property_id = row['id']
-    
-    # Create repos and services
-    node_repo = SQLiteNodeRepository(conn, page_type_id, types_property_id)
-    link_repo = SQLiteLinkRepository(conn)
-    property_repo = SQLitePropertyRepository(conn)
-    link_service = LinkParsingService(
-        node_repo, link_repo, property_repo, types_property_id=types_property_id
-    )
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
+    types_property_id = link_service_fixtures['types_property_id']
     
     # Create a type node
     type_node = await node_repo.create(NodeCreateData(name='Task', is_type=True))
@@ -140,28 +144,14 @@ async def test_types_property_excluded_from_backlinks(test_db):
 
 
 @pytest.mark.asyncio
-async def test_types_path_inheritance(test_db):
+async def test_types_path_inheritance(db_pool, link_service_fixtures):
     """Test that types_path accumulates types from ancestors."""
-    conn = test_db
-    
     from app.domain.entities import NodeCreateData
-    from app.domain.repositories import SQLiteNodeRepository, SQLiteLinkRepository
-    from app.domain.services import LinkParsingService
-    from datetime import datetime, timezone
     
-    # Get system IDs
-    cursor = await conn.execute("SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1")
-    row = await cursor.fetchone()
-    page_type_id = row['id']
-    
-    cursor = await conn.execute("SELECT id FROM property WHERE name = 'types' LIMIT 1")
-    row = await cursor.fetchone()
-    types_property_id = row['id']
-    
-    # Create repos and services
-    node_repo = SQLiteNodeRepository(conn, page_type_id, types_property_id)
-    link_repo = SQLiteLinkRepository(conn)
-    link_service = LinkParsingService(node_repo, link_repo, types_property_id=types_property_id)
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
+    types_property_id = link_service_fixtures['types_property_id']
+    workspace_id = link_service_fixtures['workspace_id']
     
     # Create two type nodes
     type_task = await node_repo.create(NodeCreateData(name='Task', is_type=True))
@@ -173,25 +163,24 @@ async def test_types_path_inheritance(test_db):
     page = await node_repo.create(NodeCreateData(name='Parent Page', is_page=True))
     assert page.id is not None
     
-    now = datetime.now(timezone.utc).isoformat()
-    
-    # First create a node_property entry for the types property on the page
-    cursor = await conn.execute(
-        '''INSERT INTO node_property (node_id, property_id, create_date, write_date)
-           VALUES (?, ?, ?, ?)''',
-        (page.id, types_property_id, now, now)
-    )
-    node_property_id = cursor.lastrowid
-    await conn.commit()
+    now = datetime.now(timezone.utc)
     
     # Set page type via property_value_relation (simulating types property)
-    await conn.execute(
-        '''INSERT INTO property_value_relation 
-           (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)''',
-        (node_property_id, types_property_id, page.id, type_task.id, 0, now, now)
-    )
-    await conn.commit()
+    async with db_pool.acquire() as conn:
+        # Create node_property entry
+        node_property_id = await conn.fetchval(
+            '''INSERT INTO node_property (node_id, property_id, create_date, write_date)
+               VALUES ($1, $2, $3, $4) RETURNING id''',
+            page.id, types_property_id, now, now
+        )
+        
+        # Create property_value_relation entry
+        await conn.execute(
+            '''INSERT INTO property_value_relation 
+               (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7)''',
+            node_property_id, types_property_id, page.id, type_task.id, 0, now, now
+        )
     
     # Create a child block
     block = await node_repo.create(NodeCreateData(name='Child Block', parent_id=page.id))
@@ -205,27 +194,12 @@ async def test_types_path_inheritance(test_db):
 
 
 @pytest.mark.asyncio
-async def test_backlinks_include_breadcrumb_path(test_db):
+async def test_backlinks_include_breadcrumb_path(link_service_fixtures):
     """Test that backlinks include breadcrumb path to page."""
-    conn = test_db
-    
     from app.domain.entities import NodeCreateData
-    from app.domain.repositories import SQLiteNodeRepository, SQLiteLinkRepository
-    from app.domain.services import LinkParsingService
     
-    # Get system IDs
-    cursor = await conn.execute("SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1")
-    row = await cursor.fetchone()
-    page_type_id = row['id']
-    
-    cursor = await conn.execute("SELECT id FROM property WHERE name = 'types' LIMIT 1")
-    row = await cursor.fetchone()
-    types_property_id = row['id']
-    
-    # Create repos and services
-    node_repo = SQLiteNodeRepository(conn, page_type_id, types_property_id)
-    link_repo = SQLiteLinkRepository(conn)
-    link_service = LinkParsingService(node_repo, link_repo, types_property_id=types_property_id)
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
     
     # Create target page
     target = await node_repo.create(NodeCreateData(name='Target', is_page=True))
@@ -239,7 +213,7 @@ async def test_backlinks_include_breadcrumb_path(test_db):
     assert block1.id is not None
     
     block2 = await node_repo.create(NodeCreateData(
-        name=f'Deep block linking to [[{target.id}]]', 
+        name=f'Deep block linking to [[{target.uuid}]]', 
         parent_id=block1.id
     ))
     assert block2.id is not None
@@ -261,27 +235,12 @@ async def test_backlinks_include_breadcrumb_path(test_db):
 
 
 @pytest.mark.asyncio
-async def test_no_links_results_in_empty(test_db):
+async def test_no_links_results_in_empty(link_service_fixtures):
     """Test that nodes with no links have empty types_path and no backlinks."""
-    conn = test_db
-    
     from app.domain.entities import NodeCreateData
-    from app.domain.repositories import SQLiteNodeRepository, SQLiteLinkRepository
-    from app.domain.services import LinkParsingService
     
-    # Get system IDs
-    cursor = await conn.execute("SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1")
-    row = await cursor.fetchone()
-    page_type_id = row['id']
-    
-    cursor = await conn.execute("SELECT id FROM property WHERE name = 'types' LIMIT 1")
-    row = await cursor.fetchone()
-    types_property_id = row['id']
-    
-    # Create repos and services
-    node_repo = SQLiteNodeRepository(conn, page_type_id, types_property_id)
-    link_repo = SQLiteLinkRepository(conn)
-    link_service = LinkParsingService(node_repo, link_repo, types_property_id=types_property_id)
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
     
     # Create a page with no links
     page = await node_repo.create(NodeCreateData(name='Page with no links', is_page=True))
@@ -303,3 +262,4 @@ async def test_no_links_results_in_empty(test_db):
     # No backlinks to the page
     backlinks = await link_service.get_backlinks(page.id)
     assert len(backlinks) == 0
+

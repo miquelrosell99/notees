@@ -88,6 +88,9 @@ class Node:
     # e.g., a block inside a node typed `task`, inside a node typed `meeting` -> [task_id, meeting_id]
     types_path: List[int] = field(default_factory=list)
     
+    # Optimistic locking
+    version: int = 1
+    
     # Computed (not stored)
     _display_name: Optional[str] = field(default=None, repr=False)
     _types: List[int] = field(default_factory=list, repr=False)  # Cached type node IDs

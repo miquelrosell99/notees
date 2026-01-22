@@ -5,10 +5,10 @@ from .interfaces import (
     LinkRepository,
     UserRepository,
 )
-from .sqlite_node import SQLiteNodeRepository
-from .sqlite_property import SQLitePropertyRepository
-from .sqlite_link import SQLiteLinkRepository, SQLiteInlineTypeRepository
-from .sqlite_user import SQLiteUserRepository
+from .postgres_node import PostgresNodeRepository
+from .postgres_property import PostgresPropertyRepository
+from .postgres_link import PostgresLinkRepository, PostgresInlineTypeRepository
+from .postgres_user import PostgresUserRepository
 
 
 __all__ = [
@@ -17,10 +17,10 @@ __all__ = [
     "PropertyRepository",
     "LinkRepository",
     "UserRepository",
-    # SQLite implementations
-    "SQLiteNodeRepository",
-    "SQLitePropertyRepository",
-    "SQLiteLinkRepository",
-    "SQLiteInlineTypeRepository",
-    "SQLiteUserRepository",
+    # PostgreSQL implementations
+    "PostgresNodeRepository",
+    "PostgresPropertyRepository",
+    "PostgresLinkRepository",
+    "PostgresInlineTypeRepository",
+    "PostgresUserRepository",
 ]

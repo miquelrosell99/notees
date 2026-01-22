@@ -10,17 +10,19 @@ from datetime import datetime, date
 from ..domain.entities import Node, NodeCreateData, NodeUpdateData
 from ..domain.services import NodeService, LinkParsingService
 from ..domain.repositories import (
-    SQLiteNodeRepository, 
-    SQLitePropertyRepository, 
-    SQLiteLinkRepository,
-    SQLiteInlineTypeRepository,
+    PostgresNodeRepository, 
+    PostgresPropertyRepository, 
+    PostgresLinkRepository,
+    PostgresInlineTypeRepository,
 )
+from ..db.connection import get_pool
 from ..db.schema import (
     generate_day_uuid, 
     generate_month_uuid, 
     generate_year_uuid,
     parse_date_uuid,
     SYSTEM_TYPE_UUIDS,
+    get_or_create_user_workspace,
 )
 from .auth import get_current_user
 from ..models import User
@@ -271,18 +273,18 @@ async def _get_type_ids(service: NodeService, node_id: int) -> List[int]:
     return [t.id for t in types if t.id]
 
 
-async def _get_tag_ids(conn, node_id: int) -> List[int]:
+async def _get_tag_ids(pool, workspace_id: int, node_id: int) -> List[int]:
     """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
-    cursor = await conn.execute("""
-        SELECT target_node_id FROM node_link 
-        WHERE source_node_id = ? AND is_tag = 1 AND property_id IS NULL
-        ORDER BY position
-    """, (node_id,))
-    rows = await cursor.fetchall()
-    return [row['target_node_id'] for row in rows]
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT target_node_id FROM node_link 
+            WHERE source_node_id = $1 AND workspace_id = $2 AND is_tag = TRUE AND property_id IS NULL
+            ORDER BY position
+        """, node_id, workspace_id)
+        return [row['target_node_id'] for row in rows]
 
 
-async def _get_tag_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]:
+async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
     """Efficiently fetch tag_ids for multiple nodes in a single query.
     
     Returns a dict mapping node_id -> list of tag_ids.
@@ -293,28 +295,26 @@ async def _get_tag_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]:
     # Initialize result with empty lists for all requested nodes
     result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
     
-    placeholders = ','.join(['?' for _ in node_ids])
-    cursor = await conn.execute(f"""
-        SELECT source_node_id, target_node_id
-        FROM node_link 
-        WHERE source_node_id IN ({placeholders}) AND is_tag = 1 AND property_id IS NULL
-        ORDER BY source_node_id, position
-    """, node_ids)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT source_node_id, target_node_id
+            FROM node_link 
+            WHERE source_node_id = ANY($1) AND workspace_id = $2 AND is_tag = TRUE AND property_id IS NULL
+            ORDER BY source_node_id, position
+        """, node_ids, workspace_id)
     
-    rows = await cursor.fetchall()
-    for row in rows:
-        source_id = row['source_node_id']
-        target_id = row['target_node_id']
-        if source_id in result and target_id:
-            result[source_id].append(target_id)
+        for row in rows:
+            source_id = row['source_node_id']
+            target_id = row['target_node_id']
+            if source_id in result and target_id:
+                result[source_id].append(target_id)
     
     return result
 
 
-async def _get_type_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]:
+async def _get_type_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
     """Efficiently fetch type_ids for multiple nodes in a single query.
     
-    Uses GROUP_CONCAT to aggregate type IDs per node, avoiding N+1 queries.
     Returns a dict mapping node_id -> list of type_ids.
     """
     if not node_ids:
@@ -323,62 +323,60 @@ async def _get_type_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]
     # Initialize result with empty lists for all requested nodes
     result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
     
-    placeholders = ','.join(['?' for _ in node_ids])
-    cursor = await conn.execute(f"""
-        SELECT 
-            pvr.node_id,
-            GROUP_CONCAT(pvr.target_node_id) as type_ids
-        FROM property_value_relation pvr
-        JOIN property p ON pvr.property_id = p.id
-        WHERE p.name = 'types' 
-          AND pvr.node_id IN ({placeholders})
-          AND pvr.target_node_id IS NOT NULL
-        GROUP BY pvr.node_id
-        ORDER BY pvr.node_id, pvr."order"
-    """, node_ids)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                pvr.node_id,
+                array_agg(pvr.target_node_id ORDER BY pvr."order") as type_ids
+            FROM property_value_relation pvr
+            JOIN property p ON pvr.property_id = p.id
+            JOIN node_property np ON pvr.node_property_id = np.id
+            JOIN node n ON np.node_id = n.id
+            WHERE p.name = 'types' 
+              AND n.workspace_id = $2
+              AND pvr.node_id = ANY($1)
+              AND pvr.target_node_id IS NOT NULL
+            GROUP BY pvr.node_id
+        """, node_ids, workspace_id)
     
-    rows = await cursor.fetchall()
-    for row in rows:
-        node_id = row['node_id']
-        type_ids_str = row['type_ids']
-        if type_ids_str:
-            # Split comma-separated string and convert to ints
-            result[node_id] = [int(tid) for tid in type_ids_str.split(',') if tid]
+        for row in rows:
+            node_id = row['node_id']
+            type_ids = row['type_ids']
+            if type_ids:
+                result[node_id] = [tid for tid in type_ids if tid is not None]
     
     return result
 
 
 async def _get_node_service(user: User) -> NodeService:
-    """Get NodeService instance for user's database.
+    """Get NodeService instance for user's workspace.
     
-    TODO: This should come from a proper dependency injection system.
-    For now, we create it on demand.
+    Uses PostgreSQL connection pool with workspace context.
     """
-    from ..db.connection import get_db
-    from ..db.schema import get_database
-    from pathlib import Path
+    pool = await get_pool()
     
-    # Get user's database connection
-    db = await get_db(user.id)
+    async with pool.acquire() as conn:
+        # Get user's workspace
+        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        
+        # Get system IDs (cached in real implementation)
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND workspace_id = $1 LIMIT 1",
+            workspace_id
+        )
+        page_type_id = row['id'] if row else 1
+        
+        row = await conn.fetchrow(
+            "SELECT id FROM property WHERE name = 'types' AND (workspace_id = $1 OR workspace_id IS NULL) LIMIT 1",
+            workspace_id
+        )
+        types_property_id = row['id'] if row else 1
     
-    # Get system IDs (cached in real implementation)
-    cursor = await db.execute(
-        "SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1"
-    )
-    row = await cursor.fetchone()
-    page_type_id = row['id'] if row else 1
-    
-    cursor = await db.execute(
-        "SELECT id FROM property WHERE name = 'types' LIMIT 1"
-    )
-    row = await cursor.fetchone()
-    types_property_id = row['id'] if row else 1
-    
-    # Create repositories
-    node_repo = SQLiteNodeRepository(db, page_type_id, types_property_id)
-    property_repo = SQLitePropertyRepository(db)
-    link_repo = SQLiteLinkRepository(db)
-    inline_type_repo = SQLiteInlineTypeRepository(db)
+    # Create repositories with workspace context
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
+    property_repo = PostgresPropertyRepository(pool, workspace_id)
+    link_repo = PostgresLinkRepository(pool, workspace_id)
+    inline_type_repo = PostgresInlineTypeRepository(pool, workspace_id)
     
     # Create services
     link_service = LinkParsingService(node_repo, link_repo, inline_type_repository=inline_type_repo)
@@ -386,6 +384,10 @@ async def _get_node_service(user: User) -> NodeService:
         node_repo, property_repo, link_service,
         page_type_id, types_property_id
     )
+    
+    # Store workspace context for use in helper functions
+    node_service._pool = pool
+    node_service._workspace_id = workspace_id
     
     return node_service
 
@@ -397,8 +399,9 @@ async def get_graph_data_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Get graph data for visualization with nodes and links."""
-    from ..db.graph import get_graph_data
-    return await get_graph_data(user.id)
+    # Graph functionality needs to be reimplemented for PostgreSQL
+    # For now, return empty graph
+    return {"nodes": [], "links": []}
 
 
 @router.get("/search")
@@ -431,9 +434,8 @@ async def search_nodes(
     # Get node IDs for batch type lookup
     node_ids = [n.id for n in nodes if n.id is not None]
     
-    # Batch fetch type_ids for all nodes
-    conn = service._node_repo.get_connection()
-    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    # Batch fetch type_ids for all nodes using PostgreSQL
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
     
     # Build response, optionally filtering by types
     result = []
@@ -465,18 +467,18 @@ async def list_types(
     """
     service = await _get_node_service(user)
     
-    # Get all nodes where is_type=1
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute(
-        """SELECT * FROM node WHERE is_type = 1 AND active = 1 ORDER BY name"""
-    )
-    rows = await cursor.fetchall()
+    # Get all nodes where is_type=1 using PostgreSQL
+    async with service._pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT * FROM node WHERE is_type = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name""",
+            service._workspace_id
+        )
     
     nodes = [service._node_repo._row_to_node(row) for row in rows]
     
     # Batch fetch type_ids for all type nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else []) 
@@ -501,9 +503,8 @@ async def search_types(
     pages = [n for n in nodes if n.parent_id is None]
     
     # Batch fetch type_ids
-    conn = service._node_repo.get_connection()
     node_ids = [n.id for n in pages if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
@@ -524,31 +525,30 @@ async def get_nodes_with_type(
     service = await _get_node_service(user)
     
     # Get the 'types' property ID
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute(
-        "SELECT id FROM property WHERE name = 'types' LIMIT 1"
-    )
-    row = await cursor.fetchone()
+    async with service._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM property WHERE name = 'types' AND (workspace_id = $1 OR workspace_id IS NULL) LIMIT 1",
+            service._workspace_id
+        )
+        
+        if not row:
+            return {"nodes": []}
+        
+        types_property_id = row['id']
+        
+        # Find all nodes that have this type
+        rows = await conn.fetch("""
+            SELECT DISTINCT n.* FROM node n
+            JOIN property_value_relation pvr ON n.id = pvr.node_id
+            WHERE pvr.property_id = $1 AND pvr.target_node_id = $2 AND n.workspace_id = $3
+            ORDER BY n.write_date DESC
+        """, types_property_id, type_id, service._workspace_id)
     
-    if not row:
-        return {"nodes": []}
-    
-    types_property_id = row['id']
-    
-    # Find all nodes that have this type
-    cursor = await conn.execute("""
-        SELECT DISTINCT n.* FROM node n
-        JOIN property_value_relation pvr ON n.id = pvr.node_id
-        WHERE pvr.property_id = ? AND pvr.target_node_id = ?
-        ORDER BY n.write_date DESC
-    """, (types_property_id, type_id))
-    rows = await cursor.fetchall()
-    
-    nodes = [service._node_repo.row_to_node(row) for row in rows]
+    nodes = [service._node_repo._row_to_node(row) for row in rows]
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
@@ -594,9 +594,8 @@ async def list_nodes(
             pass
     
     # Batch fetch type_ids for all nodes
-    conn = service._node_repo.get_connection()
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
     
     # Build response, optionally filtering by types
     result = []
@@ -670,39 +669,23 @@ async def list_daily_pages(
     
     # Query nodes with is_day=1, ordered by uuid (which is YYYYMMDD format)
     # Exclude type pages (is_type=1) to filter out the "day" type page itself
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute("""
-        SELECT * FROM node 
-        WHERE is_day = 1 AND active = 1 AND is_type = 0
-        ORDER BY uuid DESC
-    """)
-    rows = await cursor.fetchall()
+    async with service._pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT * FROM node 
+            WHERE is_day = TRUE AND active = TRUE AND is_type = FALSE AND workspace_id = $1
+            ORDER BY uuid DESC
+        """, service._workspace_id)
     
     # Get node IDs for batch type lookup
-    nodes = [service._node_repo.row_to_node(row) for row in rows]
+    nodes = [service._node_repo._row_to_node(row) for row in rows]
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch types for all nodes
-    node_type_map: Dict[int, List[int]] = {nid: [] for nid in node_ids}
-    if node_ids:
-        placeholders = ','.join(['?' for _ in node_ids])
-        cursor = await conn.execute(f"""
-            SELECT pvr.node_id, pvr.target_node_id
-            FROM property_value_relation pvr
-            JOIN property p ON pvr.property_id = p.id
-            WHERE p.name = 'types' AND pvr.node_id IN ({placeholders})
-            ORDER BY pvr.node_id, pvr."order"
-        """, node_ids)
-        type_rows = await cursor.fetchall()
-        for row in type_rows:
-            node_id = row['node_id']
-            type_id = row['target_node_id']
-            if node_id in node_type_map and type_id:
-                node_type_map[node_id].append(type_id)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
     
     result = []
     for node in nodes:
-        type_ids = node_type_map.get(node.id, []) if node.id else []
+        type_ids = type_ids_map.get(node.id, []) if node.id else []
         result.append(_node_to_response(node, types=type_ids))
     
     return {"nodes": result}
@@ -768,15 +751,12 @@ async def get_or_create_daily(
     if year_type_id is None:
         raise HTTPException(500, "Year type has no ID")
     
-    from ..domain.repositories import SQLiteNodeRepository
-    if not isinstance(service._node_repo, SQLiteNodeRepository):
-        raise HTTPException(500, "Repository does not support custom UUID")
-    
-    # Get user's date format preference using the SAME connection to avoid database lock
-    cursor = await service._node_repo._conn.execute(
-        "SELECT value FROM settings WHERE key = ?", ("date_format",)
-    )
-    row = await cursor.fetchone()
+    # Get user's date format preference
+    async with service._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = $1 AND workspace_id = $2",
+            "date_format", service._workspace_id
+        )
     date_format = row["value"] if row else "YYYY/MM/DD"
     
     # 1. Ensure year page exists
@@ -869,10 +849,6 @@ async def get_or_create_monthly(
     if year_type_id is None:
         raise HTTPException(500, "Year type has no ID")
     
-    from ..domain.repositories import SQLiteNodeRepository
-    if not isinstance(service._node_repo, SQLiteNodeRepository):
-        raise HTTPException(500, "Repository does not support custom UUID")
-    
     # Ensure year page exists first
     year_uuid = generate_year_uuid(year)
     year_node = await service._node_repo.get_by_uuid(year_uuid)
@@ -886,8 +862,12 @@ async def get_or_create_monthly(
         year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
     
     # Get user's date format preference and create month with year as parent
-    from ..db.utils import get_user_setting
-    date_format = await get_user_setting(user.id, "date_format") or "YYYY/MM/DD"
+    async with service._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = $1 AND workspace_id = $2",
+            "date_format", service._workspace_id
+        )
+    date_format = row["value"] if row else "YYYY/MM/DD"
     name = _format_month_with_pattern(year, month, date_format)
     
     data = NodeCreateData(
@@ -938,18 +918,14 @@ async def get_or_create_yearly(
     
     name = str(year)
     
-    from ..domain.repositories import SQLiteNodeRepository
-    if isinstance(service._node_repo, SQLiteNodeRepository):
-        data = NodeCreateData(
-            name=name,
-            types=[page_type_id, year_type_id],
-            is_page=True,
-            is_year=True,
-        )
-        node = await service._node_repo.create_with_uuid(uuid, data)
-        return _node_to_response(node)
-    else:
-        raise HTTPException(500, "Repository does not support custom UUID")
+    data = NodeCreateData(
+        name=name,
+        types=[page_type_id, year_type_id],
+        is_page=True,
+        is_year=True,
+    )
+    node = await service._node_repo.create_with_uuid(uuid, data)
+    return _node_to_response(node)
 
 
 # ============== Recents (must be before /{node_id} routes) ==============
@@ -963,44 +939,40 @@ async def get_recent_pages(
     
     Returns pages that have been opened (have a non-null open_date).
     """
-    from ..db.connection import get_db
+    service = await _get_node_service(user)
     
-    db = await get_db(user.id)
-    try:
-        cursor = await db.execute("""
+    async with service._pool.acquire() as conn:
+        rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_type, is_day, is_month, is_year,
                    create_date, write_date, open_date
             FROM node 
-            WHERE is_page = 1 AND active = 1 AND open_date IS NOT NULL
+            WHERE is_page = TRUE AND active = TRUE AND open_date IS NOT NULL AND workspace_id = $1
             ORDER BY open_date DESC
-            LIMIT ?
-        """, (limit,))
-        rows = await cursor.fetchall()
-        
-        nodes = []
-        for row in rows:
-            nodes.append({
-                "id": row['id'],
-                "uuid": row['uuid'],
-                "name": row['name'],
-                "icon": row['icon'],
-                "color": row['color'],
-                "parent_id": row['parent_id'],
-                "page_id": row['page_id'],
-                "is_page": bool(row['is_page']),
-                "is_type": bool(row['is_type']),
-                "is_daily": bool(row['is_day']),
-                "is_monthly": bool(row['is_month']),
-                "is_yearly": bool(row['is_year']),
-                "create_date": row['create_date'],
-                "write_date": row['write_date'],
-                "open_date": row['open_date'],
-            })
-        
-        return {"nodes": nodes}
-    finally:
-        await db.close()
+            LIMIT $2
+        """, service._workspace_id, limit)
+    
+    nodes = []
+    for row in rows:
+        nodes.append({
+            "id": row['id'],
+            "uuid": str(row['uuid']),
+            "name": row['name'],
+            "icon": row['icon'],
+            "color": row['color'],
+            "parent_id": row['parent_id'],
+            "page_id": row['page_id'],
+            "is_page": row['is_page'],
+            "is_type": row['is_type'],
+            "is_daily": row['is_day'],
+            "is_monthly": row['is_month'],
+            "is_yearly": row['is_year'],
+            "create_date": row['create_date'].isoformat() if row['create_date'] else None,
+            "write_date": row['write_date'].isoformat() if row['write_date'] else None,
+            "open_date": row['open_date'].isoformat() if row['open_date'] else None,
+        })
+    
+    return {"nodes": nodes}
 
 
 # ============== Favorites (must be before /{node_id} routes) ==============
@@ -1013,26 +985,23 @@ async def get_favorites(
     
     Favorites are stored as a JSON array of node IDs in the settings table.
     """
-    from ..db.connection import get_db
     import json
     
-    db = await get_db(user.id)
-    try:
-        cursor = await db.execute(
-            "SELECT value FROM settings WHERE key = 'favorites'"
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
         )
-        row = await cursor.fetchone()
-        
-        if not row or not row['value']:
-            return {"favorites": []}
-        
-        try:
-            favorites = json.loads(row['value'])
-            return {"favorites": favorites if isinstance(favorites, list) else []}
-        except json.JSONDecodeError:
-            return {"favorites": []}
-    finally:
-        await db.close()
+    
+    if not row or not row['value']:
+        return {"favorites": []}
+    
+    try:
+        favorites = json.loads(row['value'])
+        return {"favorites": favorites if isinstance(favorites, list) else []}
+    except json.JSONDecodeError:
+        return {"favorites": []}
 
 
 @router.put("/favorites")
@@ -1044,7 +1013,6 @@ async def set_favorites(
     
     Expects JSON body: { "favorites": [nodeId1, nodeId2, ...] }
     """
-    from ..db.connection import get_db
     import json
     
     data = await request.json()
@@ -1057,17 +1025,16 @@ async def set_favorites(
     if not all(isinstance(f, int) for f in favorites):
         raise HTTPException(status_code=400, detail="favorites must be a list of integers")
     
-    db = await get_db(user.id)
-    try:
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
         favorites_json = json.dumps(favorites)
-        await db.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
-            (favorites_json,)
-        )
-        await db.commit()
-        return {"status": "ok", "favorites": favorites}
-    finally:
-        await db.close()
+        await conn.execute("""
+            INSERT INTO settings (workspace_id, key, value) 
+            VALUES ($1, 'favorites', $2)
+            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+        """, service._workspace_id, favorites_json)
+    
+    return {"status": "ok", "favorites": favorites}
 
 
 @router.put("/favorites/reorder")
@@ -1079,7 +1046,6 @@ async def reorder_favorites(
     
     Expects JSON body: { "from_index": number, "to_index": number }
     """
-    from ..db.connection import get_db
     import json
     
     data = await request.json()
@@ -1089,13 +1055,13 @@ async def reorder_favorites(
     if from_index is None or to_index is None:
         raise HTTPException(status_code=400, detail="from_index and to_index are required")
     
-    db = await get_db(user.id)
-    try:
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
         # Get current favorites
-        cursor = await db.execute(
-            "SELECT value FROM settings WHERE key = 'favorites'"
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
         )
-        row = await cursor.fetchone()
         
         favorites = []
         if row and row['value']:
@@ -1116,15 +1082,13 @@ async def reorder_favorites(
         item = favorites.pop(from_index)
         favorites.insert(to_index, item)
         
-        await db.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
-            (json.dumps(favorites),)
-        )
-        await db.commit()
-        
-        return {"status": "ok", "favorites": favorites}
-    finally:
-        await db.close()
+        await conn.execute("""
+            INSERT INTO settings (workspace_id, key, value) 
+            VALUES ($1, 'favorites', $2)
+            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+        """, service._workspace_id, json.dumps(favorites))
+    
+    return {"status": "ok", "favorites": favorites}
 
 
 @router.post("/favorites/{node_id}")
@@ -1133,17 +1097,15 @@ async def add_favorite(
     user: User = Depends(get_current_user),
 ):
     """Add a page to favorites."""
-    from ..db.connection import get_db
     import json
     
-    db = await get_db(user.id)
-    try:
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
         # Verify the node exists and is a page
-        cursor = await db.execute(
-            "SELECT id, is_page FROM node WHERE id = ? AND active = 1",
-            (node_id,)
+        row = await conn.fetchrow(
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+            node_id, service._workspace_id
         )
-        row = await cursor.fetchone()
         
         if not row:
             raise HTTPException(status_code=404, detail="Node not found")
@@ -1151,15 +1113,15 @@ async def add_favorite(
             raise HTTPException(status_code=400, detail="Only pages can be favorited")
         
         # Get current favorites
-        cursor = await db.execute(
-            "SELECT value FROM settings WHERE key = 'favorites'"
+        fav_row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
         )
-        row = await cursor.fetchone()
         
         favorites = []
-        if row and row['value']:
+        if fav_row and fav_row['value']:
             try:
-                favorites = json.loads(row['value'])
+                favorites = json.loads(fav_row['value'])
                 if not isinstance(favorites, list):
                     favorites = []
             except json.JSONDecodeError:
@@ -1168,15 +1130,13 @@ async def add_favorite(
         # Add if not already present
         if node_id not in favorites:
             favorites.append(node_id)
-            await db.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
-                (json.dumps(favorites),)
-            )
-            await db.commit()
-        
-        return {"status": "ok", "favorites": favorites}
-    finally:
-        await db.close()
+            await conn.execute("""
+                INSERT INTO settings (workspace_id, key, value) 
+                VALUES ($1, 'favorites', $2)
+                ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+            """, service._workspace_id, json.dumps(favorites))
+    
+    return {"status": "ok", "favorites": favorites}
 
 
 @router.delete("/favorites/{node_id}")
@@ -1185,16 +1145,15 @@ async def remove_favorite(
     user: User = Depends(get_current_user),
 ):
     """Remove a page from favorites."""
-    from ..db.connection import get_db
     import json
     
-    db = await get_db(user.id)
-    try:
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
         # Get current favorites
-        cursor = await db.execute(
-            "SELECT value FROM settings WHERE key = 'favorites'"
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
         )
-        row = await cursor.fetchone()
         
         favorites = []
         if row and row['value']:
@@ -1208,15 +1167,13 @@ async def remove_favorite(
         # Remove if present
         if node_id in favorites:
             favorites.remove(node_id)
-            await db.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('favorites', ?)",
-                (json.dumps(favorites),)
-            )
-            await db.commit()
-        
-        return {"status": "ok", "favorites": favorites}
-    finally:
-        await db.close()
+            await conn.execute("""
+                INSERT INTO settings (workspace_id, key, value) 
+                VALUES ($1, 'favorites', $2)
+                ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+            """, service._workspace_id, json.dumps(favorites))
+    
+    return {"status": "ok", "favorites": favorites}
 
 
 @router.get("/{node_id}")
@@ -1844,16 +1801,14 @@ async def get_text_links(
     Returns list of links parsed from [[id]] patterns in the node's content,
     including whether each link is a tag (displayed with #) or a regular link.
     """
-    from ..db.connection import get_db
-    db = await get_db(user.id)
-    
-    cursor = await db.execute("""
-        SELECT id, source_node_id, target_node_id, is_tag, position
-        FROM node_link
-        WHERE source_node_id = ? AND property_id IS NULL
-        ORDER BY position
-    """, (node_id,))
-    rows = await cursor.fetchall()
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT id, source_node_id, target_node_id, is_tag, position
+            FROM node_link
+            WHERE source_node_id = $1 AND property_id IS NULL AND workspace_id = $2
+            ORDER BY position
+        """, node_id, service._workspace_id)
     
     return {
         "links": [
@@ -1861,7 +1816,7 @@ async def get_text_links(
                 id=row['id'],
                 source_node_id=row['source_node_id'],
                 target_node_id=row['target_node_id'],
-                is_tag=bool(row['is_tag']),
+                is_tag=row['is_tag'],
                 position=row['position'],
             )
             for row in rows
@@ -1880,60 +1835,62 @@ async def add_tag_link(
     This marks a [[id]] link in the content as a tag, which will be
     displayed with a # instead of a page/block icon.
     """
-    from ..db.connection import get_db
-    db = await get_db(user.id)
-    
-    # Verify source node exists
-    cursor = await db.execute("SELECT id FROM node WHERE id = ?", (node_id,))
-    if not await cursor.fetchone():
-        raise HTTPException(404, "Source node not found")
-    
-    # Verify target node exists and is a page
-    cursor = await db.execute(
-        "SELECT id, is_page, parent_id FROM node WHERE id = ?",
-        (request.target_node_id,)
-    )
-    target_row = await cursor.fetchone()
-    if not target_row:
-        raise HTTPException(404, "Target node not found")
-    if not target_row['is_page'] and target_row['parent_id'] is not None:
-        raise HTTPException(400, "Tags can only point to pages")
-    
-    # Check if link already exists
-    cursor = await db.execute("""
-        SELECT id FROM node_link 
-        WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL
-    """, (node_id, request.target_node_id))
-    row = await cursor.fetchone()
-    
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    
-    if row:
-        # Update existing link to be a tag
-        await db.execute("UPDATE node_link SET is_tag = 1 WHERE id = ?", (row['id'],))
-        await db.commit()
-        return NodeLinkResponse(
-            id=row['id'],
-            source_node_id=node_id,
-            target_node_id=request.target_node_id,
-            is_tag=True,
-            position=0,
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        # Verify source node exists
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, service._workspace_id
         )
-    else:
-        # Create new tag link
-        cursor = await db.execute("""
-            INSERT INTO node_link (source_node_id, target_node_id, position, property_id, is_tag, created_at)
-            VALUES (?, ?, 0, NULL, 1, ?)
-        """, (node_id, request.target_node_id, now))
-        await db.commit()
-        return NodeLinkResponse(
-            id=cursor.lastrowid,
-            source_node_id=node_id,
-            target_node_id=request.target_node_id,
-            is_tag=True,
-            position=0,
+        if not row:
+            raise HTTPException(404, "Source node not found")
+        
+        # Verify target node exists and is a page
+        target_row = await conn.fetchrow(
+            "SELECT id, is_page, parent_id FROM node WHERE id = $1 AND workspace_id = $2",
+            request.target_node_id, service._workspace_id
         )
+        if not target_row:
+            raise HTTPException(404, "Target node not found")
+        if not target_row['is_page'] and target_row['parent_id'] is not None:
+            raise HTTPException(400, "Tags can only point to pages")
+        
+        # Check if link already exists
+        row = await conn.fetchrow("""
+            SELECT id FROM node_link 
+            WHERE source_node_id = $1 AND target_node_id = $2 AND property_id IS NULL AND workspace_id = $3
+        """, node_id, request.target_node_id, service._workspace_id)
+        
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        
+        if row:
+            # Update existing link to be a tag
+            await conn.execute(
+                "UPDATE node_link SET is_tag = TRUE WHERE id = $1",
+                row['id']
+            )
+            return NodeLinkResponse(
+                id=row['id'],
+                source_node_id=node_id,
+                target_node_id=request.target_node_id,
+                is_tag=True,
+                position=0,
+            )
+        else:
+            # Create new tag link
+            new_row = await conn.fetchrow("""
+                INSERT INTO node_link (workspace_id, source_node_id, target_node_id, position, property_id, is_tag, created_at)
+                VALUES ($1, $2, $3, 0, NULL, TRUE, $4)
+                RETURNING id
+            """, service._workspace_id, node_id, request.target_node_id, now)
+            return NodeLinkResponse(
+                id=new_row['id'],
+                source_node_id=node_id,
+                target_node_id=request.target_node_id,
+                is_tag=True,
+                position=0,
+            )
 
 
 @router.delete("/{node_id}/tag-links/{target_id}")
@@ -1943,16 +1900,14 @@ async def remove_tag_link(
     user: User = Depends(get_current_user),
 ):
     """Remove a tag from a link (converts back to regular link)."""
-    from ..db.connection import get_db
-    db = await get_db(user.id)
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        result = await conn.execute("""
+            UPDATE node_link SET is_tag = FALSE 
+            WHERE source_node_id = $1 AND target_node_id = $2 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $3
+        """, node_id, target_id, service._workspace_id)
     
-    cursor = await db.execute("""
-        UPDATE node_link SET is_tag = 0 
-        WHERE source_node_id = ? AND target_node_id = ? AND property_id IS NULL AND is_tag = 1
-    """, (node_id, target_id))
-    await db.commit()
-    
-    return {"removed": cursor.rowcount > 0}
+    return {"removed": result == "UPDATE 1"}
 
 
 @router.post("/{node_id}/properties")
@@ -2558,17 +2513,15 @@ async def mark_page_opened(
     This should only be called for pages (is_page=1).
     The open_date is set to the current UTC time.
     """
-    from ..db.connection import get_db
-    from ..db.schema import utc_now_iso
+    from datetime import datetime, timezone
     
-    db = await get_db(user.id)
-    try:
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
         # Verify it's a page and exists
-        cursor = await db.execute(
-            "SELECT id, is_page FROM node WHERE id = ? AND active = 1",
-            (node_id,)
+        row = await conn.fetchrow(
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+            node_id, service._workspace_id
         )
-        row = await cursor.fetchone()
         
         if not row:
             raise HTTPException(status_code=404, detail="Node not found")
@@ -2577,13 +2530,10 @@ async def mark_page_opened(
             raise HTTPException(status_code=400, detail="Only pages can have open_date updated")
         
         # Update open_date
-        now = utc_now_iso()
-        await db.execute(
-            "UPDATE node SET open_date = ? WHERE id = ?",
-            (now, node_id)
+        now = datetime.now(timezone.utc)
+        await conn.execute(
+            "UPDATE node SET open_date = $1 WHERE id = $2",
+            now, node_id
         )
-        await db.commit()
-        
-        return {"status": "ok", "open_date": now}
-    finally:
-        await db.close()
+    
+    return {"status": "ok", "open_date": now.isoformat()}

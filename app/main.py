@@ -21,6 +21,8 @@ from . import auth
 from .backup import backup_scheduler
 from .config import settings
 from .logging_config import setup_logging, get_logger
+from .db.connection import init_pool, close_pool
+from .db.schema import init_database
 from .routers import (
     auth_router,
     databases_router,
@@ -42,6 +44,14 @@ async def lifespan(app: FastAPI):
     """Initialize database and services on startup."""
     logger.info("Starting Notees application...")
     
+    # Initialize PostgreSQL connection pool
+    pool = await init_pool()
+    logger.info("PostgreSQL connection pool initialized")
+    
+    # Initialize database schema
+    await init_database(pool)
+    logger.info("Database schema initialized")
+    
     # Ensure admin user exists
     await auth.ensure_admin_user()
     
@@ -56,6 +66,10 @@ async def lifespan(app: FastAPI):
     
     # Stop backup scheduler
     await backup_scheduler.stop()
+    
+    # Close PostgreSQL connection pool
+    await close_pool()
+    logger.info("PostgreSQL connection pool closed")
     
     logger.info("Notees application stopped")
 
