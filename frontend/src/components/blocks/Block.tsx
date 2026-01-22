@@ -43,44 +43,8 @@ import { NodeIcon } from '../icons';
 import { SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
+import { getNodeColorStylesAuto } from '@/utils/color';
 import './Block.css';
-
-/**
- * Helper to determine if a color is light or dark
- * Used to set contrasting text color
- */
-function isColorLight(color: string): boolean {
-  // Handle hex colors
-  let r: number, g: number, b: number;
-  
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
-    if (hex.length === 3) {
-      r = parseInt(hex[0] + hex[0], 16);
-      g = parseInt(hex[1] + hex[1], 16);
-      b = parseInt(hex[2] + hex[2], 16);
-    } else {
-      r = parseInt(hex.slice(0, 2), 16);
-      g = parseInt(hex.slice(2, 4), 16);
-      b = parseInt(hex.slice(4, 6), 16);
-    }
-  } else if (color.startsWith('rgb')) {
-    const match = color.match(/\d+/g);
-    if (match && match.length >= 3) {
-      r = parseInt(match[0]);
-      g = parseInt(match[1]);
-      b = parseInt(match[2]);
-    } else {
-      return true;
-    }
-  } else {
-    return true;
-  }
-  
-  // Calculate perceived brightness (YIQ formula)
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 128;
-}
 
 interface BlockProps {
   block: Node;
@@ -793,14 +757,11 @@ export function Block({
     return style;
   }, []);
   
-  // Color style for block content Card
+  // Color style for block content - uses gradient border + tint pattern (same as NodeView)
   // suppressColor is used when the block's color is applied at the container level (e.g., focused blocks)
   const contentColorStyle = useMemo(() => {
     if (suppressColor || !block.color) return undefined;
-    return {
-      backgroundColor: block.color,
-      '--block-text-color': isColorLight(block.color) ? 'var(--color-on-surface)' : 'var(--color-on-primary)',
-    } as React.CSSProperties;
+    return getNodeColorStylesAuto(block.color);
   }, [block.color, suppressColor]);
   
   // Handlers for deletion modal
@@ -1065,10 +1026,10 @@ export function Block({
           style={contentColorStyle} 
           onClick={handleContentClick}
           onFocus={handleFocus}
-          elevation={block.color && !suppressColor ? 'low' : 'none'}
-          variant={block.color && !suppressColor ? 'default' : 'transparent'}
+          elevation="none"
+          variant="transparent"
           padding={false}
-          radius={block.color && !suppressColor ? 'md' : 'none'}
+          radius="none"
         >
           {blockState === 'edit' ? (
             <BlockEditor

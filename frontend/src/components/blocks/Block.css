@@ -46,11 +46,33 @@
   min-width: 0;
 }
 
-/* When block has color, make card fit content width only */
+/* When block has color, apply gradient border + tint (same pattern as NodeView)
+ * Uses CSS custom properties set by getNodeColorStylesAuto():
+ *   --node-color: the raw color value
+ *   --node-color-rgb: RGB values for rgba() usage
+ *   --node-tint: very low opacity background tint
+ *   --node-border-solid: solid color for inner stripe
+ *   --node-border-halo: semi-transparent halo for outer stripe
+ */
 .block .block-content--colored {
   flex: 0 1 auto;
   width: fit-content;
   max-width: 100%;
+  
+  /* Gradient left border: inner solid stripe (~2px) + outer halo stripe (~2px) */
+  border-left: 4px solid transparent;
+  border-image: linear-gradient(
+    to right,
+    var(--node-border-solid) 0%,
+    var(--node-border-solid) 50%,
+    var(--node-border-halo) 50%,
+    var(--node-border-halo) 100%
+  ) 1;
+  
+  /* Subtle background tint */
+  background: var(--node-tint);
+  border-radius: var(--radius-sm);
+  padding-left: var(--spacing-1);
 }
 
 /* Block types - right-aligned */
