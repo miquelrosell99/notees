@@ -278,9 +278,9 @@ async def _get_tag_ids(pool, workspace_id: int, node_id: int) -> List[int]:
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT target_node_id FROM node_link 
-            WHERE source_node_id = $1 AND workspace_id = $2 AND is_tag = TRUE AND property_id IS NULL
+            WHERE source_node_id = $1 AND is_tag = TRUE AND property_id IS NULL
             ORDER BY position
-        """, node_id, workspace_id)
+        """, node_id)
         return [row['target_node_id'] for row in rows]
 
 
@@ -299,9 +299,9 @@ async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Di
         rows = await conn.fetch("""
             SELECT source_node_id, target_node_id
             FROM node_link 
-            WHERE source_node_id = ANY($1) AND workspace_id = $2 AND is_tag = TRUE AND property_id IS NULL
+            WHERE source_node_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
             ORDER BY source_node_id, position
-        """, node_ids, workspace_id)
+        """, node_ids)
     
         for row in rows:
             source_id = row['source_node_id']
@@ -1792,9 +1792,9 @@ async def get_text_links(
         rows = await conn.fetch("""
             SELECT id, source_node_id, target_node_id, is_tag, position
             FROM node_link
-            WHERE source_node_id = $1 AND property_id IS NULL AND workspace_id = $2
+            WHERE source_node_id = $1 AND property_id IS NULL
             ORDER BY position
-        """, node_id, service._workspace_id)
+        """, node_id)
     
     return {
         "links": [
@@ -1866,10 +1866,10 @@ async def add_tag_link(
         else:
             # Create new tag link
             new_row = await conn.fetchrow("""
-                INSERT INTO node_link (workspace_id, source_node_id, target_node_id, position, property_id, is_tag, created_at)
-                VALUES ($1, $2, $3, 0, NULL, TRUE, $4)
+                INSERT INTO node_link (source_node_id, target_node_id, position, property_id, is_tag, created_at)
+                VALUES ($1, $2, 0, NULL, TRUE, $3)
                 RETURNING id
-            """, service._workspace_id, node_id, request.target_node_id, now)
+            """, node_id, request.target_node_id, now)
             return NodeLinkResponse(
                 id=new_row['id'],
                 source_node_id=node_id,
