@@ -63,3 +63,77 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ==================== Grouped View ==================== */
+
+.node-list-view--grouped {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* Pages section (standalone pages before grouped blocks) */
+.node-list-view__pages-section {
+  margin-bottom: var(--spacing-2);
+}
+
+/* Group container */
+.node-list-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-list-group--collapsed .node-list-group__children {
+  display: none;
+}
+
+/* Group header - page with collapse arrow */
+.node-list-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
+}
+
+/* Collapse arrow button */
+.node-list-group__collapse-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.node-list-group__collapse-arrow:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+.node-list-group__page-header {
+  flex: 1;
+  font-weight: 600;
+}
+
+.node-list-group__page-header .block-preview__content {
+  font-weight: 600;
+}
+
+/* No page fallback */
+.node-list-group__no-page-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Group children - blocks indented under page header */
+.node-list-group__children {
+  /* Children rendered with depth=1 automatically get indentation */
+}

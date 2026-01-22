@@ -113,6 +113,35 @@ export function LinkedReferences({
     }));
   }, [refs]);
 
+  // Build pageMap from linked references for grouping
+  const pageMap = useMemo(() => {
+    if (!refs) return new Map<number, Node>();
+    const map = new Map<number, Node>();
+    for (const ref of refs) {
+      if (ref.source_page && !map.has(ref.source_page.id)) {
+        map.set(ref.source_page.id, {
+          id: ref.source_page.id,
+          uuid: ref.source_page.uuid || '',
+          name: ref.source_page.name || 'Untitled',
+          icon: ref.source_page.icon || null,
+          color: ref.source_page.color || null,
+          is_page: true,
+          is_daily: ref.source_page.is_daily || false,
+          is_monthly: ref.source_page.is_monthly || false,
+          is_yearly: ref.source_page.is_yearly || false,
+          parent_id: null,
+          page_id: null,
+          sequence: 0,
+          active: true,
+          create_date: ref.source_page.create_date || '',
+          write_date: ref.source_page.write_date || '',
+          collapsed: false,
+        });
+      }
+    }
+    return map;
+  }, [refs]);
+
   const handleNodeClick = useCallback((node: Node) => {
     onLinkClick?.(node.id, node.page_id, node.is_page);
   }, [onLinkClick]);
@@ -161,6 +190,8 @@ export function LinkedReferences({
             onNodeClick={handleNodeClick}
             onContentChange={handleContentChange}
             showEmpty={false}
+            showGroupBy={true}
+            pageMap={pageMap}
             className="linked-references__collection"
           />
         )}

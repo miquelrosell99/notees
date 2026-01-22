@@ -29,12 +29,51 @@
 .node-collection__header {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-2);
   padding: var(--spacing-2) 0;
   margin-bottom: var(--spacing-2);
 }
 
+.node-collection__group-by {
+  /* GroupBy button */
+}
+
 .node-collection__view-switcher {
   /* Positioned on the right via justify-content: flex-end */
+}
+
+/* GroupBy panel options */
+.node-collection__group-by-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+}
+
+.node-collection__group-by-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease;
+}
+
+.node-collection__group-by-option:hover {
+  background-color: var(--bg-hover);
+}
+
+.node-collection__group-by-option--active {
+  background-color: var(--bg-active);
+  font-weight: 500;
 }
 
 /* Content area */
