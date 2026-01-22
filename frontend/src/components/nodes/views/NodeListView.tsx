@@ -114,6 +114,8 @@ interface NodeListItemProps {
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
   isolatedBlockState?: boolean;
+  /** Suppress color styling on this block (used when color is applied at container level) */
+  suppressColor?: boolean;
 }
 
 function NodeListItem({
@@ -133,6 +135,7 @@ function NodeListItem({
   onNodeShiftClick,
   onContentChange,
   isolatedBlockState = false,
+  suppressColor = false,
 }: NodeListItemProps) {
   const rawChildren = node.children ?? [];
   // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
@@ -259,6 +262,7 @@ function NodeListItem({
           onShiftClick={handleShiftClick}
           showBullet={showBullets}
           isolatedState={isolatedBlockState}
+          suppressColor={suppressColor}
           {...blockProps}
         />
       </div>
@@ -443,6 +447,7 @@ export function NodeListView({
   enableGrouping = false,
   className = '',
   isolatedBlockState = false,
+  suppressRootColor = false,
 }: NodeListViewProps) {
   // If sortable, use ListSortable wrapper (no grouping in sortable mode)
   if (sortable && onReorder) {
@@ -535,9 +540,12 @@ export function NodeListView({
   // No grouping - regular non-sortable list
   return (
     <div className={`node-list-view ${className}`}>
-      {filteredNodes.map((node) => {
+      {filteredNodes.map((node, index) => {
         // Get page from pageMap if available
         const page = node.page_id && pageMap ? pageMap.get(node.page_id) : undefined;
+        
+        // Suppress color on first node when suppressRootColor is set
+        const shouldSuppressColor = suppressRootColor && index === 0 && depth === 0;
         
         return (
           <NodeListItem
@@ -557,6 +565,7 @@ export function NodeListView({
             onNodeShiftClick={onNodeShiftClick}
             onContentChange={onContentChange}
             isolatedBlockState={isolatedBlockState}
+            suppressColor={shouldSuppressColor}
           />
         );
       })}

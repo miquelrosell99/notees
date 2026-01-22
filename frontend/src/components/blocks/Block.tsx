@@ -126,6 +126,8 @@ interface BlockProps {
   showChildren?: boolean;
   /** Use isolated local state instead of global block selection store. Use for blocks that appear in multiple places (e.g., linked references) */
   isolatedState?: boolean;
+  /** Suppress the block's own color styling (used when color is applied at container level, e.g., focused blocks) */
+  suppressColor?: boolean;
 }
 
 export function Block({
@@ -158,6 +160,7 @@ export function Block({
   showTypes = true,
   showChildren = true,
   isolatedState = false,
+  suppressColor = false,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -791,13 +794,14 @@ export function Block({
   }, []);
   
   // Color style for block content Card
+  // suppressColor is used when the block's color is applied at the container level (e.g., focused blocks)
   const contentColorStyle = useMemo(() => {
-    if (!block.color) return undefined;
+    if (suppressColor || !block.color) return undefined;
     return {
       backgroundColor: block.color,
       '--block-text-color': isColorLight(block.color) ? 'var(--color-on-surface)' : 'var(--color-on-primary)',
     } as React.CSSProperties;
-  }, [block.color]);
+  }, [block.color, suppressColor]);
   
   // Handlers for deletion modal
   const handleConfirmDelete = useCallback(() => {
@@ -1055,15 +1059,16 @@ export function Block({
         )}
         
         {/* Block content - fixed width, no placeholder for empty blocks */}
+        {/* When suppressColor is true, treat as if there's no color (for focused blocks where color is on container) */}
         <Card 
-          className={`block-content${block.color ? ' block-content--colored' : ''}`}
+          className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}`}
           style={contentColorStyle} 
           onClick={handleContentClick}
           onFocus={handleFocus}
-          elevation={block.color ? 'low' : 'none'}
-          variant={block.color ? 'default' : 'transparent'}
+          elevation={block.color && !suppressColor ? 'low' : 'none'}
+          variant={block.color && !suppressColor ? 'default' : 'transparent'}
           padding={false}
-          radius={block.color ? 'md' : 'none'}
+          radius={block.color && !suppressColor ? 'md' : 'none'}
         >
           {blockState === 'edit' ? (
             <BlockEditor

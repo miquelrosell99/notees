@@ -19,10 +19,9 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveType, useRemoveTag, useNodes, useTags } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import { getNodeColorStyles } from '@/utils/color';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -157,6 +156,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
         showEmpty={false}
         provideBlockCallbacks={true}
         blockCallbacks={blockCallbacks}
+        suppressRootColor={true}
       />
     </div>
   );
@@ -436,30 +436,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     }
   }, [node, bannerProperty, setPropertyMutation]);
   
-  // Track dark mode for block color styling
-  const [isDarkMode, setIsDarkMode] = useState(() => 
-    typeof document !== 'undefined' 
-      ? document.documentElement.getAttribute('data-theme') === 'dark'
-      : false
-  );
-  
-  // Listen for theme changes
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDarkMode(document.documentElement.getAttribute('data-theme') === 'dark');
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
-  
-  // Block color style using unified gradient border + tint approach (same as pages)
-  // Note: Pages are colored at main-content level, blocks are colored here
-  // Note: Must be before early returns to maintain hooks order
-  const nodeStyle = useMemo(() => {
-    // Only apply color styling for blocks, not pages (pages color the main-content container)
-    if (resolvedType === 'page' || !node?.color) return undefined;
-    return getNodeColorStyles(node.color, isDarkMode);
-  }, [node?.color, resolvedType, isDarkMode]);
+  // Note: Color styling for both pages and focused blocks is now handled 
+  // at the main-content level in MainContent.tsx for consistency
 
   // Loading state
   if (isLoading) {
@@ -481,8 +459,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
 
   return (
     <article 
-      className={`node-view node-view--${resolvedType}${nodeStyle ? ' has-block-color' : ''} ${viewMode}`} 
-      style={nodeStyle}
+      className={`node-view node-view--${resolvedType} ${viewMode}`}
     >
       {/* Page Header or Block Header based on variant */}
       {resolvedType === 'page' ? (

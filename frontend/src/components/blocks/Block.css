@@ -46,6 +46,13 @@
   min-width: 0;
 }
 
+/* When block has color, make card fit content width only */
+.block .block-content--colored {
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+}
+
 /* Block types - right-aligned */
 .block .block-types {
   display: flex;

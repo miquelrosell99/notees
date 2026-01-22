@@ -157,6 +157,9 @@ export interface NodeCollectionProps {
   /** Use isolated block state (for blocks that appear in multiple places like linked references) */
   isolatedBlockState?: boolean;
   
+  /** Suppress color styling on root-level nodes (used when color is applied at container level) */
+  suppressRootColor?: boolean;
+  
   /** Hide the internal toolbar (use when rendering toolbar externally via NodeCollectionToolbar) */
   hideToolbar?: boolean;
 }
@@ -196,6 +199,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Use isolated block state (for blocks that appear in multiple places like linked references) */
   isolatedBlockState?: boolean;
+  
+  /** Suppress color styling on root-level nodes (used when color is applied at container level) */
+  suppressRootColor?: boolean;
 }
 
 /**
