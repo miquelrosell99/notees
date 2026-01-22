@@ -183,6 +183,16 @@
   --topbar-height: 44px;
   --container-gap: 8px;
   --container-radius: var(--shape-large);
+
+  /* ==================== Preset Colors (Unified for Light & Dark Mode) ==================== */
+  --color-preset-red: #ef5550;
+  --color-preset-orange: #f28b3f;
+  --color-preset-yellow: #e4b50f;
+  --color-preset-green: #29b672;
+  --color-preset-teal: #22a89b;
+  --color-preset-blue: #3a7ef6;
+  --color-preset-purple: #895ef6;
+  --color-preset-pink: #e94895;
 }
 
 /* ==================== Dark Theme (Monochrome) ==================== */
@@ -261,16 +271,6 @@
   /* Accent */
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
-
-  /* Preset Colors (for color picker - slightly adjusted for dark mode) */
-  --color-preset-red: #f87171;
-  --color-preset-orange: #fb923c;
-  --color-preset-yellow: #facc15;
-  --color-preset-green: #4ade80;
-  --color-preset-teal: #2dd4bf;
-  --color-preset-blue: #60a5fa;
-  --color-preset-purple: #a78bfa;
-  --color-preset-pink: #f472b6;
 
   /* Elevation - minimal for dark theme */
   --elevation-1: none;
