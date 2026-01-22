@@ -398,10 +398,91 @@ async def _get_node_service(user: User) -> NodeService:
 async def get_graph_data_endpoint(
     user: User = Depends(get_current_user),
 ):
-    """Get graph data for visualization with nodes and links."""
-    # Graph functionality needs to be reimplemented for PostgreSQL
-    # For now, return empty graph
-    return {"nodes": [], "links": []}
+    """Get graph data for visualization with nodes and links.
+    
+    Returns all pages as nodes and links between them based on node_link table.
+    """
+    service = await _get_node_service(user)
+    
+    async with service._pool.acquire() as conn:
+        # Get all active pages as nodes
+        page_rows = await conn.fetch(
+            """
+            SELECT id, uuid, name, icon, is_type, is_day, is_month, is_year
+            FROM node 
+            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+            ORDER BY name
+            """,
+            service._workspace_id
+        )
+        
+        # Get types for each page
+        page_ids = [row['id'] for row in page_rows]
+        type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, page_ids) if page_ids else {}
+        
+        # Build nodes
+        nodes = []
+        for row in page_rows:
+            type_ids = type_ids_map.get(row['id'], [])
+            nodes.append({
+                "id": row['id'],
+                "uuid": str(row['uuid']),
+                "name": row['name'] or "Untitled",
+                "icon": row['icon'],
+                "is_type": row['is_type'],
+                "is_daily": row['is_day'],
+                "is_monthly": row['is_month'],
+                "is_yearly": row['is_year'],
+                "type_ids": type_ids,
+            })
+        
+        # Get links between pages (only page-to-page links)
+        link_rows = await conn.fetch(
+            """
+            SELECT DISTINCT nl.source_node_id, nl.target_node_id
+            FROM node_link nl
+            JOIN node source ON nl.source_node_id = source.id
+            JOIN node target ON nl.target_node_id = target.id
+            WHERE source.workspace_id = $1 
+              AND target.workspace_id = $1
+              AND target.is_page = TRUE
+              AND source.active = TRUE
+              AND target.active = TRUE
+            """,
+            service._workspace_id
+        )
+        
+        # Build links - source is the page containing the block that links
+        links = []
+        page_id_set = {row['id'] for row in page_rows}
+        
+        for row in link_rows:
+            # Find the page containing the source node (could be a block)
+            source_page_row = await conn.fetchrow(
+                """SELECT page_id, is_page FROM node WHERE id = $1 AND workspace_id = $2""",
+                row['source_node_id'], service._workspace_id
+            )
+            if source_page_row:
+                source_page_id = source_page_row['page_id'] if not source_page_row['is_page'] else row['source_node_id']
+                target_page_id = row['target_node_id']
+                
+                # Only include if both are valid pages and not self-links
+                if source_page_id and source_page_id in page_id_set and target_page_id in page_id_set and source_page_id != target_page_id:
+                    links.append({
+                        "source": source_page_id,
+                        "target": target_page_id,
+                    })
+        
+        # Remove duplicate links
+        seen = set()
+        unique_links = []
+        for link in links:
+            key = (link["source"], link["target"])
+            if key not in seen:
+                seen.add(key)
+                unique_links.append(link)
+        
+        return {"nodes": nodes, "links": unique_links}
 
 
 @router.get("/search")
