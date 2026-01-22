@@ -22,18 +22,28 @@ def utc_now_iso() -> str:
 
 
 def generate_day_uuid(d: date) -> str:
-    """Generate UUID for a day node: YYYYMMDD format."""
-    return d.strftime("%Y%m%d")
+    """Generate UUID for a day node.
+    
+    Format: 00000000-0000-0000-00DD-YYYYMMDD0000
+    This creates a valid UUID with the date embedded in the last segment.
+    """
+    return f"00000000-0000-0000-00dd-{d.year:04d}{d.month:02d}{d.day:02d}0000"
 
 
 def generate_month_uuid(year: int, month: int) -> str:
-    """Generate UUID for a month node: YYYYMM00 format."""
-    return f"{year:04d}{month:02d}00"
+    """Generate UUID for a month node.
+    
+    Format: 00000000-0000-0000-00mm-YYYYMM000000
+    """
+    return f"00000000-0000-0000-00aa-{year:04d}{month:02d}000000"
 
 
 def generate_year_uuid(year: int) -> str:
-    """Generate UUID for a year node: YYYY0000 format."""
-    return f"{year:04d}0000"
+    """Generate UUID for a year node.
+    
+    Format: 00000000-0000-0000-00yy-YYYY00000000
+    """
+    return f"00000000-0000-0000-00bb-{year:04d}00000000"
 
 
 def parse_date_uuid(uuid: str) -> Optional[dict]:
@@ -42,22 +52,43 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
     Returns dict with 'type' ('year', 'month', 'day') and date components.
     Returns None if not a date UUID.
     """
-    if not uuid or len(uuid) != 8 or not uuid.isdigit():
+    if not uuid or len(uuid) != 36:
         return None
     
-    year = int(uuid[0:4])
-    month = int(uuid[4:6])
-    day = int(uuid[6:8])
+    # Check for day UUID pattern: 00000000-0000-0000-00dd-YYYYMMDD0000
+    if uuid.startswith("00000000-0000-0000-00dd-"):
+        try:
+            data = uuid[-12:]  # YYYYMMDD0000
+            year = int(data[0:4])
+            month = int(data[4:6])
+            day = int(data[6:8])
+            if 1900 <= year <= 2200 and 1 <= month <= 12 and 1 <= day <= 31:
+                return {"type": "day", "year": year, "month": month, "day": day}
+        except (ValueError, IndexError):
+            pass
     
-    if year < 1900 or year > 2200:
-        return None
+    # Check for month UUID pattern: 00000000-0000-0000-00aa-YYYYMM000000
+    elif uuid.startswith("00000000-0000-0000-00aa-"):
+        try:
+            data = uuid[-12:]  # YYYYMM000000
+            year = int(data[0:4])
+            month = int(data[4:6])
+            if 1900 <= year <= 2200 and 1 <= month <= 12:
+                return {"type": "month", "year": year, "month": month}
+        except (ValueError, IndexError):
+            pass
     
-    if month == 0 and day == 0:
-        return {"type": "year", "year": year}
-    elif day == 0 and 1 <= month <= 12:
-        return {"type": "month", "year": year, "month": month}
-    elif 1 <= month <= 12 and 1 <= day <= 31:
-        return {"type": "day", "year": year, "month": month, "day": day}
+    # Check for year UUID pattern: 00000000-0000-0000-00bb-YYYY00000000
+    elif uuid.startswith("00000000-0000-0000-00bb-"):
+        try:
+            data = uuid[-12:]  # YYYY00000000
+            year = int(data[0:4])
+            if 1900 <= year <= 2200:
+                return {"type": "year", "year": year}
+        except (ValueError, IndexError):
+            pass
+    
+    return None
     
     return None
 
