@@ -21,20 +21,21 @@
   outline: none;
 }
 
-/* Link Pills (in contenteditable) */
+/* Link Pills (in contenteditable) - Inline atomic nodes */
 .link-pill {
-  display: inline;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 4px;
-  margin: 0;
-  border-radius: var(--shape-small);
+  gap: 4px;
+  padding: 2px 10px;
+  margin: 0 2px;
+  border-radius: 9999px;
   background: var(--color-surface-variant);
   color: var(--color-on-surface);
-  font-size: 0.9em;
+  font-size: 0.95em;
+  line-height: 1.2;
   cursor: pointer;
   user-select: none;
-  vertical-align: baseline;
+  vertical-align: middle;
   transition: background var(--motion-duration-short) var(--motion-easing-standard),
               box-shadow var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -51,6 +52,12 @@
 .link-pill--block {
   background: var(--color-secondary-container);
   color: var(--color-on-secondary-container);
+}
+
+/* No-icon variant: pure inline text-style pill without any bullet or icon */
+.link-pill--no-icon {
+  padding: 2px 8px;
+  margin: 0 1px;
 }
 
 .link-pill--selected {

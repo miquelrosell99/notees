@@ -21,14 +21,16 @@
  * - Shift+click to open in sidebar
  * - Right-click context menu
  * - Click count badge display
+ * - Icon display based on getEffectiveIcon (shows only if node has icon or inherits from type)
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useLinkClicks, useNode } from '@/hooks';
+import { useLinkClicks, useNode, useTypes } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import './LinkPill.css';
 
 // Regex for finding links - unified [[linkId]] format
@@ -135,14 +137,28 @@ interface LinkPillProps {
   onNavigate: (linkId: string, node: Node | undefined, openInSidebar: boolean) => void;
 }
 
+/**
+ * LinkPill - Inline atomic element for node links in readonly mode
+ * 
+ * Renders as a pill-style element in text flow.
+ * Icon display uses getEffectiveIcon:
+ * - Shows icon only if node has its own icon or inherits from assigned types
+ * - No icon/bullet shown if getEffectiveIcon returns null/undefined
+ */
 function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const nodeId = parseInt(linkId, 10);
   const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
+  const { data: allTypes } = useTypes();
   
   // Display the node name if available, otherwise show the ID
   const displayText = node?.name || linkId;
   const isPage = node?.is_page ?? true;
+  
+  // Compute effective icon - considers node's own icon and inherited type icons
+  const effectiveIcon = useMemo(() => {
+    return getEffectiveIcon(node, allTypes);
+  }, [node, allTypes]);
   
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -190,16 +206,18 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
   return (
     <>
       <span
-        className={`link-pill ${isPage ? 'link-pill--page' : 'link-pill--block'}`}
+        className={`link-pill ${isPage ? 'link-pill--page' : 'link-pill--block'}${!effectiveIcon ? ' link-pill--no-icon' : ''}`}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         data-link-raw={raw}
+        data-node-id={linkId}
+        data-label={displayText}
         title={`${isPage ? 'Page' : 'Block'}: ${displayText}\nClick to open, Shift+click for sidebar`}
       >
-        {/* Only show icon for pages, or for blocks that have an icon set */}
-        {(isPage || node?.icon) && (
+        {/* Only show icon if getEffectiveIcon returns a value */}
+        {effectiveIcon && (
           <span className="link-pill__icon">
-            <NodeIcon icon={node?.icon} isPage={isPage} size="xs" />
+            <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" />
           </span>
         )}
         <span className="link-pill__text">{displayText}</span>

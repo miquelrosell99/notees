@@ -21,8 +21,9 @@ import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../core/SlashCommandPopup';
-import { useNodes, useTextLinks } from '@/hooks';
-import { mdiFileDocumentOutline, mdiTag } from '@mdi/js';
+import { useNodes, useTextLinks, useTypes } from '@/hooks';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { mdiTag } from '@mdi/js';
 import type { Node } from '@/types';
 
 // Task states for cycling with Shift+Enter
@@ -206,13 +207,18 @@ function escapeAttr(text: string): string {
 
 /**
  * Convert plain text content with link and inline type markers to HTML with pill elements
+ * 
+ * Link pills display:
+ * - Icon: Only shown if getEffectiveIcon returns a value (node's own icon or inherited from types)
+ * - No icon/bullet: If getEffectiveIcon returns null/undefined
+ * 
  * @param content - The raw content with [[linkId]] and {{typeId}} markers
- * @param linkNames - Map of linkId -> {name, isPage, isTag, clickCount, icon} for display
+ * @param linkNames - Map of linkId -> {name, isPage, isTag, clickCount, effectiveIcon} for display
  * @param typeNames - Map of typeId -> {name, icon} for display
  */
 function contentToHtml(
   content: string, 
-  linkNames: Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; icon?: string | null }>,
+  linkNames: Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; effectiveIcon?: string | null }>,
   typeNames?: Map<string, { name: string; icon?: string }>
 ): string {
   const pills = parseAllPills(content);
@@ -237,8 +243,8 @@ function contentToHtml(
       const isPage = linkInfo?.isPage ?? true;
       const isTag = linkInfo?.isTag ?? false;
       const clickCount = linkInfo?.clickCount ?? 0;
-      
-      console.log('[contentToHtml] pill:', pill.id, 'linkInfo:', linkInfo, 'isPage:', isPage);
+      // effectiveIcon is computed from getEffectiveIcon - includes node's icon or type-inherited icon
+      const effectiveIcon = linkInfo?.effectiveIcon;
       
       if (isTag) {
         // Render as tag pill with hashtag icon
@@ -248,29 +254,25 @@ function contentToHtml(
         
         html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true">${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
       } else {
-        // Render as regular link pill
+        // Render as regular link pill - true inline atomic node
         const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
-        const targetIcon = linkInfo?.icon;
         
-        // Only show icon for pages, or for blocks that have an icon set
+        // Only show icon if getEffectiveIcon returns a value
+        // No icon = no bullet/icon at all (true inline pill)
         let icon = '';
-        if (isPage) {
-          // Page: show document icon or custom icon if set
-          const iconPath = targetIcon || mdiFileDocumentOutline;
-          const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
-          icon = `<span class="link-pill__icon">${iconSvg}</span>`;
-        } else if (targetIcon) {
-          // Block with custom icon: show the icon
-          const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${targetIcon}"></path></svg>`;
+        if (effectiveIcon) {
+          // Node has an effective icon (own icon or inherited from type)
+          const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${effectiveIcon}"></path></svg>`;
           icon = `<span class="link-pill__icon">${iconSvg}</span>`;
         }
-        // Block without icon: no icon shown
+        // No effectiveIcon = no icon shown (true inline text-style pill)
         
         const badge = clickCount > 0 
           ? `<span class="link-pill__badge">${clickCount}</span>` 
           : '';
         
-        html += `<span class="link-pill ${pillClass}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+        // Add data-node-id and data-label for proper serialization
+        html += `<span class="link-pill ${pillClass}${!effectiveIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
       }
     } else {
       // Inline type pill
@@ -620,6 +622,9 @@ export function BlockEditor({
   // Fetch all nodes to get names for links and types
   const { data: allNodes } = useNodes((linkIds.length > 0 || typeIds.length > 0) ? {} : null);
   
+  // Fetch all type definitions to compute effective icons
+  const { data: allTypes } = useTypes();
+  
   // Fetch text links to know which are tags
   const { data: textLinks } = useTextLinks(nodeId ?? null);
   
@@ -637,8 +642,9 @@ export function BlockEditor({
   }, [textLinks]);
   
   // Build link names map from fetched nodes
+  // Uses getEffectiveIcon to compute icon from node or its types
   const linkNames = useMemo(() => {
-    const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; icon?: string | null }>();
+    const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; effectiveIcon?: string | null }>();
     if (allNodes && linkIds.length > 0) {
       for (const linkId of linkIds) {
         // linkId could be a node ID (number as string) - find the node
@@ -647,18 +653,19 @@ export function BlockEditor({
           ? allNodes.find(n => n.id === nodeId)
           : allNodes.find(n => n.uuid === linkId || n.name === linkId);
         if (node) {
+          // Compute effective icon using getEffectiveIcon - considers node's own icon and type icons
+          const effectiveIcon = getEffectiveIcon(node, allTypes ?? []);
           map.set(linkId, {
             name: node.name || node.display_name || 'Untitled',
             isPage: node.is_page || node.parent_id === null,
             isTag: tagTargetIds.has(node.id),
-            icon: node.icon,
-            // TODO: could add click count from link data if available
+            effectiveIcon: effectiveIcon,
           });
         }
       }
     }
     return map;
-  }, [allNodes, linkIds, tagTargetIds]);
+  }, [allNodes, allTypes, linkIds, tagTargetIds]);
   
   // Build type names map from fetched nodes
   const typeNames = useMemo(() => {
@@ -1231,10 +1238,13 @@ export function BlockEditor({
     // Create updated linkNames map that includes the just-inserted node
     const updatedLinkNames = new Map(linkNames);
     if (trigger.type === 'link' || (trigger.type === 'tag' && keepInline)) {
+      // Compute effective icon for the inserted node
+      const nodeEffectiveIcon = getEffectiveIcon(node, allTypes ?? []);
       updatedLinkNames.set(String(node.id), {
         name: node.name || node.display_name || 'Untitled',
         isPage: node.is_page || node.parent_id === null,
         isTag: trigger.type === 'tag',  // Mark as tag for rendering
+        effectiveIcon: nodeEffectiveIcon,
       });
     }
     
@@ -1260,7 +1270,7 @@ export function BlockEditor({
         setCursorPosition(editorRef.current, cursorTargetPos);
       }
     }, 0);
-  }, [trigger, onChange, onAddType, onAddTag, onLinkPage, linkNames, typeNames]);
+  }, [trigger, onChange, onAddType, onAddTag, onLinkPage, linkNames, typeNames, allTypes]);
 
   // Handle create new type/tag/link
   const handleCreate = useCallback(async (name: string, keepInline: boolean) => {
@@ -1315,9 +1325,11 @@ export function BlockEditor({
     // Create updated linkNames map that includes the just-created page
     const updatedLinkNames = new Map(linkNames);
     if (trigger.type === 'link' && newPageId) {
+      // New pages don't have an icon by default - effectiveIcon will be undefined
       updatedLinkNames.set(newPageId, {
         name: name,
         isPage: true,
+        effectiveIcon: undefined, // New page - no icon yet
       });
     }
     
