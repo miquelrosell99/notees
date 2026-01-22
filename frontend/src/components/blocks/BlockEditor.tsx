@@ -24,7 +24,61 @@ import { SlashCommandPopup } from '../core/SlashCommandPopup';
 import { useNodes, useTextLinks, useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiTag } from '@mdi/js';
+import * as mdiIcons from '@mdi/js';
 import type { Node } from '@/types';
+
+/**
+ * Convert an icon name to an MDI SVG path
+ * Accepts formats: "mdi-calendar-today", "mdiCalendarToday", "calendar-today", "calendarToday"
+ */
+function getMdiPath(iconName: string): string | null {
+  // Normalize: remove "mdi-" prefix, convert kebab-case to camelCase
+  let normalized = iconName
+    .replace(/^mdi-?/i, '')  // Remove mdi- or mdi prefix
+    .replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());  // kebab to camelCase
+  
+  // Ensure first letter is lowercase, then prepend "mdi"
+  normalized = 'mdi' + normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  
+  // Look up in the mdiIcons object
+  const path = (mdiIcons as Record<string, string>)[normalized];
+  return path || null;
+}
+
+/**
+ * Check if a string is likely an emoji (not an MDI-like pattern)
+ */
+function isEmoji(icon: string): boolean {
+  // Emojis typically don't match MDI patterns and are short
+  return !icon.match(/^mdi/i) && !icon.match(/^[a-z-]+$/i) && !icon.startsWith('M');
+}
+
+/**
+ * Render an icon as HTML for contenteditable
+ * Handles: emoji, MDI icon names, and raw SVG paths
+ */
+function renderIconHtml(icon: string, size: number = 14.4): string {
+  // Check if it's an emoji
+  if (isEmoji(icon)) {
+    return `<span class="link-pill__icon" style="font-size: ${size}px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;">${icon}</span>`;
+  }
+  
+  // Check if it's already an SVG path (starts with M for moveto command)
+  let svgPath = icon;
+  if (!icon.startsWith('M')) {
+    // Try to resolve as MDI icon name
+    const mdiPath = getMdiPath(icon);
+    if (!mdiPath) {
+      // Could not resolve - don't show icon
+      return '';
+    }
+    svgPath = mdiPath;
+  }
+  
+  // Render as SVG
+  const iconSvg = `<svg viewBox="0 0 24 24" style="width: ${size}px; height: ${size}px;"><path fill="currentColor" d="${svgPath}"></path></svg>`;
+  return `<span class="link-pill__icon">${iconSvg}</span>`;
+}
 
 // Task states for cycling with Shift+Enter
 export const TASK_STATES = ['todo', 'doing', 'done', 'cancelled'] as const;
@@ -258,21 +312,20 @@ function contentToHtml(
         const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
         
         // Only show icon if getEffectiveIcon returns a value
-        // No icon = no bullet/icon at all (true inline pill)
+        // Use renderIconHtml to handle emoji, MDI icon names, and SVG paths
         let icon = '';
         if (effectiveIcon) {
-          // Node has an effective icon (own icon or inherited from type)
-          const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${effectiveIcon}"></path></svg>`;
-          icon = `<span class="link-pill__icon">${iconSvg}</span>`;
+          icon = renderIconHtml(effectiveIcon);
         }
-        // No effectiveIcon = no icon shown (true inline text-style pill)
+        // No icon (or failed to render) = no icon shown (true inline text-style pill)
+        const hasIcon = icon.length > 0;
         
         const badge = clickCount > 0 
           ? `<span class="link-pill__badge">${clickCount}</span>` 
           : '';
         
         // Add data-node-id and data-label for proper serialization
-        html += `<span class="link-pill ${pillClass}${!effectiveIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+        html += `<span class="link-pill ${pillClass}${!hasIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
       }
     } else {
       // Inline type pill
@@ -386,6 +439,7 @@ function getPillRawLength(el: HTMLElement): number {
 
 /**
  * Get cursor position in plain text content
+ * Ignores zero-width spaces (\u200B) that are added for cursor positioning
  */
 function getCursorPosition(element: HTMLElement): number {
   const selection = window.getSelection();
@@ -403,11 +457,14 @@ function getCursorPosition(element: HTMLElement): number {
   let node;
   while ((node = walker.nextNode())) {
     if (node === range.startContainer) {
-      position += range.startOffset;
+      // Count characters up to the cursor position, excluding ZWS
+      const textBeforeCursor = (node.textContent || '').substring(0, range.startOffset);
+      position += textBeforeCursor.replace(/\u200B/g, '').length;
       break;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      position += node.textContent?.length || 0;
+      // Count text length excluding ZWS
+      position += (node.textContent || '').replace(/\u200B/g, '').length;
     } else if (isPillElement(node as HTMLElement)) {
       position += getPillRawLength(node as HTMLElement);
       // Skip past this node's children
@@ -420,6 +477,7 @@ function getCursorPosition(element: HTMLElement): number {
 
 /**
  * Set cursor position in the contenteditable
+ * targetPosition is in plain text coordinates (ZWS excluded)
  */
 function setCursorPosition(element: HTMLElement, targetPosition: number): void {
   console.log('[setCursorPosition] targetPosition:', targetPosition, 'element:', element.textContent?.substring(0, 30));
@@ -435,32 +493,51 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
   while ((node = walker.nextNode())) {
     if (node.nodeType === Node.TEXT_NODE) {
       const textContent = node.textContent || '';
-      const length = textContent.length;
-      if (currentPosition + length >= targetPosition) {
+      // Calculate length excluding ZWS for position tracking
+      const contentLength = textContent.replace(/\u200B/g, '').length;
+      
+      if (currentPosition + contentLength >= targetPosition) {
         const range = document.createRange();
-        const offset = targetPosition - currentPosition;
-        console.log('[setCursorPosition] Found text node, offset:', offset, 'text:', textContent.substring(0, 20));
-        // Skip zero-width spaces at the beginning when positioning
-        // but allow positioning after them for pill spacing
-        range.setStart(node, Math.min(offset, length));
+        // Calculate the actual DOM offset accounting for ZWS
+        const targetOffsetInContent = targetPosition - currentPosition;
+        let actualOffset = 0;
+        let contentCharsCount = 0;
+        
+        for (let i = 0; i < textContent.length && contentCharsCount < targetOffsetInContent; i++) {
+          if (textContent[i] !== '\u200B') {
+            contentCharsCount++;
+          }
+          actualOffset = i + 1;
+        }
+        
+        // If we're at the start and there's a leading ZWS, skip past it
+        if (actualOffset === 0 && textContent[0] === '\u200B') {
+          actualOffset = 1;
+        }
+        
+        console.log('[setCursorPosition] Found text node, actualOffset:', actualOffset, 'text:', textContent.substring(0, 20));
+        range.setStart(node, Math.min(actualOffset, textContent.length));
         range.collapse(true);
         const selection = window.getSelection();
         selection?.removeAllRanges();
         selection?.addRange(range);
         return;
       }
-      currentPosition += length;
+      currentPosition += contentLength;
     } else if (isPillElement(node as HTMLElement)) {
       const length = getPillRawLength(node as HTMLElement);
       if (currentPosition + length >= targetPosition) {
         console.log('[setCursorPosition] Found pill, positioning after it');
-        // Position cursor after this pill - find the next text node (ZWS)
+        // Position cursor after this pill - find the next text node
         const range = document.createRange();
         const nextSibling = node.nextSibling;
         
-        // If there's a text node after the pill (should be ZWS), position at start of it
+        // If there's a text node after the pill, position after any leading ZWS
         if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE) {
-          range.setStart(nextSibling, 0);
+          const text = nextSibling.textContent || '';
+          // Skip past leading ZWS
+          const offset = text[0] === '\u200B' ? 1 : 0;
+          range.setStart(nextSibling, offset);
         } else {
           // Fallback: position after the pill in the parent
           const parent = node.parentNode;
