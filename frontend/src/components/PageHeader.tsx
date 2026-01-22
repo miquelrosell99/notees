@@ -12,15 +12,13 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { useUpdateNode, useTypes, useRemoveType, useNodes } from '@/hooks';
+import { useUpdateNode, useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
-import { NodeIcon, TagIcon } from './icons';
-import { NodeTypePill } from './NodeTypePill';
+import { NodeIcon } from './icons';
 import { EmojiPicker } from './core/EmojiPicker';
 import { isSystemPage } from '../utils/systemPages';
-import { SYSTEM_TYPE_UUIDS } from '@/constants';
 import './PageHeader.css';
 
 interface PageHeaderProps {
@@ -30,19 +28,15 @@ interface PageHeaderProps {
   compactMode?: boolean;
   /** Callback when right-clicking the header (for context menu) */
   onContextMenu?: (e: React.MouseEvent) => void;
-  /** Callback when navigating to a type or tag */
-  onNavigateToNode?: (nodeId: number) => void;
 }
 
 export function PageHeader({ 
   page, 
   compactMode = false, 
   onContextMenu,
-  onNavigateToNode 
 }: PageHeaderProps) {
   const iconRef = useRef<HTMLButtonElement>(null);
   const updateNode = useUpdateNode();
-  const removeType = useRemoveType();
   const { 
     addSidebarCard, 
     openNode,
@@ -52,23 +46,8 @@ export function PageHeader({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconPickerPos, setIconPickerPos] = useState({ x: 0, y: 0 });
   
-  // Get all types
+  // Get all types (for effective icon calculation)
   const { data: allTypes } = useTypes();
-  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback type lookup
-  
-  // Resolve type details from IDs (excluding the "page" type which is implicit)
-  // Use allNodes as fallback for system types that might not be in allTypes
-  const pageTypeDetails = useMemo(() => {
-    if (!page.types || page.types.length === 0) return [];
-    return page.types
-      .map(typeId => {
-        // First try allTypes, then fallback to allNodes
-        const fromTypes = allTypes?.find(t => t.id === typeId);
-        if (fromTypes) return fromTypes;
-        return allNodes?.find(n => n.id === typeId);
-      })
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
-  }, [page.types, allTypes, allNodes]);
   
   // Get effective icon (page's icon or first type's icon)
   const effectiveIcon = useMemo(() => getEffectiveIcon(page, allTypes), [page, allTypes]);
@@ -119,14 +98,6 @@ export function PageHeader({
       addSidebarCard(page.id, 'page');
     }
   }, [page.id, addSidebarCard]);
-
-  const handleNavigateToNode = useCallback((nodeId: number) => {
-    if (onNavigateToNode) {
-      onNavigateToNode(nodeId);
-    } else {
-      openNode(nodeId, 'page');
-    }
-  }, [onNavigateToNode, openNode]);
 
   return (
     <>
@@ -185,39 +156,6 @@ export function PageHeader({
             )}
           </div>
         </div>
-        
-        {/* Properties row: Types and Tags */}
-        {(pageTypeDetails.length > 0) || (page.tags && page.tags.length > 0) ? (
-          <div className="page-header__properties">
-            {pageTypeDetails.length > 0 && (
-              <div className="node-types">
-                {pageTypeDetails.map((typeNode) => (
-                  <NodeTypePill
-                    key={typeNode.id}
-                    typeNode={typeNode}
-                    onClick={() => handleNavigateToNode(typeNode.id)}
-                    onRemove={() => removeType.mutate({ nodeId: page.id, typeId: typeNode.id })}
-                  />
-                ))}
-              </div>
-            )}
-            {page.tags && page.tags.length > 0 && (
-              <div className="node-tags">
-                {page.tags.map((tagId) => (
-                  <button
-                    key={tagId}
-                    className="node-tag-chip"
-                    onClick={() => handleNavigateToNode(tagId)}
-                    title="Click to view tag page"
-                  >
-                    <TagIcon size="xs" />
-                    <span>Tag #{tagId}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : null}
       </header>
       
       {/* Icon Picker */}

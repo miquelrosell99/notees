@@ -40,6 +40,7 @@ import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ColorPickerRow } from '../nodes/NodeContextMenu';
 import { NodeTypePill } from '../NodeTypePill';
 import { NodeIcon } from '../icons';
+import { SYSTEM_TYPE_UUIDS } from '@/constants';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import './Block.css';
@@ -160,12 +161,12 @@ export function Block({
   const { data: allTypes } = useTypes();
   const { openNode } = useNodesStore();
   
-  // Resolve type details from IDs
+  // Resolve type details from IDs (excluding the implicit "page" type)
   const blockTypeDetails = useMemo(() => {
     if (!block.types || block.types.length === 0 || !allTypes) return [];
     return block.types
       .map(typeId => allTypes.find(t => t.id === typeId))
-      .filter((t): t is Node => t !== undefined);
+      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
   }, [block.types, allTypes]);
   
   // Determine the icon to show on the bullet
@@ -1031,15 +1032,22 @@ export function Block({
         {/* Block types - right-aligned */}
         {showTypes && blockTypeDetails.length > 0 && (
           <div className="block-types">
-            {blockTypeDetails.map((typeNode) => (
-              <NodeTypePill
-                key={typeNode.id}
-                typeNode={typeNode}
-                onClick={() => openNode(typeNode.id, 'page')}
-                onRemove={() => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
-                readOnly={readOnly}
-              />
-            ))}
+            {blockTypeDetails.map((typeNode) => {
+              const isSystemType = 
+                typeNode.uuid === SYSTEM_TYPE_UUIDS.page ||
+                typeNode.uuid === SYSTEM_TYPE_UUIDS.day ||
+                typeNode.uuid === SYSTEM_TYPE_UUIDS.month ||
+                typeNode.uuid === SYSTEM_TYPE_UUIDS.year;
+              return (
+                <NodeTypePill
+                  key={typeNode.id}
+                  typeNode={typeNode}
+                  onClick={() => openNode(typeNode.id, 'page')}
+                  onRemove={isSystemType ? undefined : () => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
+                  readOnly={readOnly}
+                />
+              );
+            })}
           </div>
         )}
         

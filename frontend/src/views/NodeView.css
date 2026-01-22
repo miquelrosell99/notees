@@ -12,16 +12,9 @@
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
 
-/* Page variant */
-.node-view--page {
-  /* Page-specific styles can go here */
-  /* Page color is applied to the main-content container, not here */
-}
+/* Page variant - page color applied to main-content container */
 
-/* Block variant */
-.node-view--block {
-  /* Block-specific styles can go here */
-}
+/* Block variant - styles applied inline via nodeStyle */
 
 /* Loading and error states */
 .node-view--loading,
@@ -37,64 +30,6 @@
   padding: var(--spacing-4);
   color: var(--color-on-surface-variant);
   font: var(--font-body-medium);
-}
-
-/* Archived badge */
-.archived-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-on-error-container);
-  background: var(--color-error-container);
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Node metadata chips (types and tags) */
-.node-metadata-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-4);
-}
-
-.node-types,
-.node-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-}
-
-.node-type-chip,
-.node-tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border: none;
-  background: var(--color-surface-container);
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
-  transition: all 0.15s ease;
-}
-
-.node-type-chip:hover,
-.node-tag-chip:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
-
-.node-type-chip {
-  border: 1px solid var(--color-primary-container);
-}
-
-.node-tag-chip {
-  border: 1px solid var(--color-secondary-container);
 }
 
 /* Footer */
@@ -114,12 +49,13 @@
 /* Page header section - CSS Grid layout for pages */
 /* Grid: [title] [cover]
          [types] [cover]
+         [tags]  [cover]
          [props] [cover] */
 .page-header-section {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto auto;
-  gap: var(--spacing-2) var(--spacing-4);
+  grid-template-rows: auto auto auto auto;
+  gap: var(--spacing-1) var(--spacing-4);
   margin-bottom: var(--spacing-4);
 }
 
@@ -128,14 +64,30 @@
   grid-row: 1;
 }
 
+/* Remove bottom margin from page-header when inside the grid section */
+.page-header-section__title .page-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* Ensure title row has no extra padding */
+.page-header-section__title .page-header__title-row {
+  margin-bottom: 0;
+}
+
 .page-header-section__types {
   grid-column: 1;
   grid-row: 2;
 }
 
-.page-header-section__properties {
+.page-header-section__tags {
   grid-column: 1;
   grid-row: 3;
+}
+
+.page-header-section__properties {
+  grid-column: 1;
+  grid-row: 4;
 }
 
 /* Cover image spans all rows */
@@ -143,91 +95,6 @@
   grid-column: 2;
   grid-row: 1 / -1;
   align-self: start;
-}
-
-/* Page types row styles */
-.page-types {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-/* Add type button wrapper - positioned relative for dropdown */
-.page-types__add-wrapper {
-  position: relative;
-}
-
-.page-types__add-btn {
-  color: var(--color-on-surface-variant);
-  opacity: 0.6;
-  transition: opacity 0.15s ease;
-}
-
-.page-types__add-btn:hover {
-  opacity: 1;
-}
-
-/* Type picker dropdown */
-.page-types__picker {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 100;
-  min-width: 200px;
-  max-width: 280px;
-  margin-top: var(--spacing-1);
-  background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  box-shadow: var(--elevation-2);
-  overflow: hidden;
-}
-
-.page-types__search {
-  width: 100%;
-  padding: var(--spacing-2);
-  border: none;
-  border-bottom: 1px solid var(--color-outline-variant);
-  background: transparent;
-  font: var(--font-body-small);
-  color: var(--color-on-surface);
-  outline: none;
-}
-
-.page-types__search::placeholder {
-  color: var(--color-on-surface-variant);
-}
-
-.page-types__options {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.page-types__option {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  padding: var(--spacing-2);
-  border: none;
-  background: transparent;
-  font: var(--font-body-small);
-  color: var(--color-on-surface);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s ease;
-}
-
-.page-types__option:hover {
-  background: var(--color-surface-container-high);
-}
-
-.page-types__no-results {
-  padding: var(--spacing-3);
-  text-align: center;
-  font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
 }
 
 /* Make properties section inside header section more compact */
