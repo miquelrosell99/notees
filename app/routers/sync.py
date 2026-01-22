@@ -62,16 +62,17 @@ async def set_setting(key: str, request: Request, user: User = Depends(get_curre
     pool = await get_pool()
     workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
-    # Convert value to JSON string for JSONB column
-    json_value = json.dumps(value) if value is not None else None
+    # Value is already a JSON-compatible Python value (string, number, list, dict, etc.)
+    # Serialize to JSON string for JSONB insertion
+    json_value = json.dumps(value) if value is not None else 'null'
     
     async with pool.acquire() as conn:
-        # Upsert the setting
+        # Upsert the setting - the ::jsonb cast will parse the JSON string
         await conn.execute("""
             INSERT INTO settings (workspace_id, key, value)
             VALUES ($1, $2, $3::jsonb)
             ON CONFLICT (workspace_id, key) 
-            DO UPDATE SET value = EXCLUDED.value
+            DO UPDATE SET value = $3::jsonb
         """, workspace_id, key, json_value)
     
     return {"status": "ok"}
