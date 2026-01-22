@@ -189,6 +189,8 @@ export function useDailyNote(date?: Date) {
     queryKey: nodeKeys.daily(dateStr),
     queryFn: async () => {
       const node = await nodesApi.getOrCreateDaily(dateStr);
+      // Also populate the detail cache so mutations can update it
+      queryClient.setQueryData(nodeKeys.detail(node.id, { include_children: true }), node);
       // Invalidate pages list since this might have created new day/month/year pages
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -330,6 +332,42 @@ export function useTasks(includeComplete = false) {
 // ==================== Node Mutations ====================
 
 /**
+ * Helper to update daily cache entries.
+ * Daily pages are just nodes, but they have a separate cache for the useDailyNote hook.
+ * This helper ensures both caches stay in sync during optimistic updates.
+ * 
+ * @param queryClient - The query client instance
+ * @param updater - Function that updates a node tree, applied to all daily cache entries
+ */
+function updateDailyCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  updater: (node: Node) => Node
+) {
+  const dailyQueryKey = [...nodeKeys.all, 'daily'];
+  queryClient.setQueriesData<Node>(
+    { queryKey: dailyQueryKey, exact: false },
+    (oldNode) => oldNode ? updater(oldNode) : oldNode
+  );
+}
+
+/**
+ * Helper to recursively update a specific node within a tree by ID.
+ * Returns a new tree with the target node updated.
+ */
+function updateNodeById(node: Node, targetId: number, updater: (n: Node) => Node): Node {
+  if (node.id === targetId) {
+    return updater(node);
+  }
+  if (node.children && node.children.length > 0) {
+    return {
+      ...node,
+      children: node.children.map(child => updateNodeById(child, targetId, updater)),
+    };
+  }
+  return node;
+}
+
+/**
  * Hook to create a node (pages or blocks)
  * 
  * For pages: pass is_page: true
@@ -401,37 +439,9 @@ export function useCreateNode() {
           }
         );
         
-        // Update daily page cache if this is a daily page
-        const dailyQueryKey = [...nodeKeys.all, 'daily'];
-        queryClient.setQueriesData<Node>(
-          { queryKey: dailyQueryKey, exact: false },
-          (oldPage) => {
-            if (!oldPage) return oldPage;
-            // Check if the parent is directly this daily page or any nested block within it
-            if (oldPage.id === parentId) {
-              return updateChildren(oldPage);
-            }
-            // Also check if the parent is a child block within this daily page
-            if (oldPage.children && oldPage.children.length > 0) {
-              const updateNestedChildren = (node: Node): Node => {
-                if (node.id === parentId) {
-                  return updateChildren(node) as Node;
-                }
-                if (node.children && node.children.length > 0) {
-                  return {
-                    ...node,
-                    children: node.children.map(updateNestedChildren),
-                  };
-                }
-                return node;
-              };
-              return {
-                ...oldPage,
-                children: oldPage.children.map(updateNestedChildren),
-              };
-            }
-            return oldPage;
-          }
+        // Update daily cache (daily pages have a separate cache key)
+        updateDailyCache(queryClient, (page) => 
+          updateNodeById(page, parentId, updateChildren)
         );
       }
       
@@ -528,12 +538,8 @@ export function useUpdateNode() {
         applyUpdate
       );
       
-      // Update daily page cache
-      const dailyQueryKey = [...nodeKeys.all, 'daily'];
-      queryClient.setQueriesData<Node>(
-        { queryKey: dailyQueryKey, exact: false },
-        applyUpdate
-      );
+      // Update daily cache (daily pages have a separate cache key)
+      updateDailyCache(queryClient, (page) => applyUpdate(page) ?? page);
     },
     onSuccess: (updatedNode, variables) => {
       // Merge the updated node with existing cached data to preserve children and other fields
@@ -665,12 +671,8 @@ export function useDeleteNode() {
         removeNode
       );
       
-      // Update daily page cache
-      const dailyQueryKey = [...nodeKeys.all, 'daily'];
-      queryClient.setQueriesData<Node>(
-        { queryKey: dailyQueryKey, exact: false },
-        removeNode
-      );
+      // Update daily cache (daily pages have a separate cache key)
+      updateDailyCache(queryClient, (page) => removeNode(page) ?? page);
     },
     onSuccess: (deletedNode, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
@@ -906,57 +908,28 @@ export function useMoveNode() {
         }
       );
       
-      // Update daily page cache
-      const dailyQueryKey = [...nodeKeys.all, 'daily'];
-      queryClient.setQueriesData<Node>(
-        { queryKey: dailyQueryKey, exact: false },
-        (oldPage) => {
-          if (!oldPage) return oldPage;
-          
-          // First remove the node from wherever it currently is (recursively)
-          let updated = {
-            ...oldPage,
-            children: oldPage.children ? removeFromChildren(oldPage.children) : [],
-          };
-          
-          // Helper to recursively insert into the correct parent
-          const insertIntoParent = (node: Node): Node => {
-            if (node.id === parentId && movedNode) {
-              const currentChildren = node.children || [];
-              const pos = position ?? currentChildren.length;
-              return {
-                ...node,
-                children: insertAtPosition(currentChildren, movedNode, pos),
-              };
-            }
-            if (node.children && node.children.length > 0) {
-              return {
-                ...node,
-                children: node.children.map(insertIntoParent),
-              };
-            }
-            return node;
-          };
-          
-          // If the daily page itself is the parent
-          if (updated.id === parentId && movedNode) {
-            const currentChildren = updated.children || [];
+      // Update daily cache (daily pages have a separate cache key)
+      updateDailyCache(queryClient, (page) => {
+        // First remove the node from wherever it currently is (recursively)
+        let updated = {
+          ...page,
+          children: page.children ? removeFromChildren(page.children) : [],
+        };
+        
+        // Insert at the correct parent using the helper
+        if (movedNode) {
+          updated = updateNodeById(updated, parentId!, (parent) => {
+            const currentChildren = parent.children || [];
             const pos = position ?? currentChildren.length;
-            updated = {
-              ...updated,
+            return {
+              ...parent,
               children: insertAtPosition(currentChildren, movedNode, pos),
             };
-          } else if (updated.children && updated.children.length > 0) {
-            // Otherwise look for the parent in nested children
-            updated = {
-              ...updated,
-              children: updated.children.map(insertIntoParent),
-            };
-          }
-          
-          return updated;
+          });
         }
-      );
+        
+        return updated;
+      });
     },
     onSuccess: (movedNode, { parentId }) => {
       // Invalidate ALL detail queries (this covers nodes with include_children: true)
