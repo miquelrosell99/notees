@@ -79,6 +79,14 @@ async def get_node_activity(
     workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
+        # First verify the node belongs to this workspace
+        node_check = await conn.fetchrow(
+            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, workspace_id
+        )
+        if not node_check:
+            raise HTTPException(404, "Node not found")
+        
         rows = await conn.fetch(
             """
             SELECT 
@@ -90,12 +98,12 @@ async def get_node_activity(
                 t.name as target_node_name,
                 a.create_date
             FROM node_activity a
-            LEFT JOIN node t ON a.target_node_id = t.id AND t.workspace_id = $3
-            WHERE a.node_id = $1 AND a.workspace_id = $3
+            LEFT JOIN node t ON a.target_node_id = t.id AND t.workspace_id = $2
+            WHERE a.node_id = $1
             ORDER BY a.create_date DESC
-            LIMIT $2
+            LIMIT $3
             """,
-            node_id, limit, workspace_id
+            node_id, workspace_id, limit
         )
     
     return [
@@ -140,11 +148,11 @@ async def create_node_activity(
         
         activity_id = await conn.fetchval(
             """
-            INSERT INTO node_activity (workspace_id, node_id, action, details, target_node_id, create_date)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
             """,
-            workspace_id, node_id, data.action, data.details, data.target_node_id, now
+            node_id, data.action, data.details, data.target_node_id, now
         )
         
         # Get target node name if exists
@@ -179,9 +187,17 @@ async def delete_node_activity(
     workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
+        # Verify node belongs to workspace before deleting activity
+        node_check = await conn.fetchrow(
+            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, workspace_id
+        )
+        if not node_check:
+            raise HTTPException(404, "Node not found")
+        
         await conn.execute(
-            "DELETE FROM node_activity WHERE id = $1 AND node_id = $2 AND workspace_id = $3",
-            activity_id, node_id, workspace_id
+            "DELETE FROM node_activity WHERE id = $1 AND node_id = $2",
+            activity_id, node_id
         )
     
     return {"success": True}
