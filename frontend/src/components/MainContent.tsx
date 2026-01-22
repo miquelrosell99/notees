@@ -111,20 +111,22 @@ export function MainContent() {
           {/* Right section - document mode selector and controls */}
           <div className="node-view-header-right">
             <div className="node-view-controls">
-              {/* Document/Bullet/Card mode selector */}
-              <SelectionButton
-                options={[
-                  { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-                  { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
-                  { value: 'card', icon: mdiCardOutline, label: 'Card mode' },
-                ]}
-                value={contentDisplayMode}
-                onChange={(val) => setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
-                size="sm"
-              />
+              {/* Document/Bullet/Card mode selector - only for pages, not blocks */}
+              {currentNodeType !== 'block' && (
+                <SelectionButton
+                  options={[
+                    { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
+                    { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
+                    { value: 'card', icon: mdiCardOutline, label: 'Card mode' },
+                  ]}
+                  value={contentDisplayMode}
+                  onChange={(val) => setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
+                  size="sm"
+                />
+              )}
               
-              {/* Card layout selector - only visible in card mode */}
-              {contentDisplayMode === 'card' && (
+              {/* Card layout selector - only visible in card mode for pages */}
+              {currentNodeType !== 'block' && contentDisplayMode === 'card' && (
                 <div className="card-layout-selector">
                   <Button 
                     variant="ghost"

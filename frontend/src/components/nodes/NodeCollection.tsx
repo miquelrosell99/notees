@@ -38,7 +38,6 @@ import {
   mdiTable, 
   mdiChartGantt, 
   mdiGraphOutline,
-  mdiGroup 
 } from '@mdi/js';
 import type { 
   NodeCollectionProps, 
@@ -46,7 +45,6 @@ import type {
   NodeCollectionContextValue,
   NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
-import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { 
   NodeListView, 
   NodeDocumentView, 
@@ -55,9 +53,9 @@ import {
   NodeGanttView, 
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
-import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { BlockCallbacksProvider, type BlockCallbacks } from '../blocks/BlockCallbacksContext';
+import { NodeCollectionToolbar } from './NodeCollectionToolbar';
+import './NodeCollectionToolbar.css';
 import './NodeCollection.css';
 
 // ==================== Context ====================
@@ -93,6 +91,8 @@ const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: s
  * 
  * Dispatches to view-specific components based on viewMode prop.
  * Includes built-in view mode switcher (hidden when only one mode available).
+ * 
+ * Use hideToolbar=true when rendering the toolbar externally via NodeCollectionToolbar.
  */
 export function NodeCollection({
   nodes,
@@ -120,6 +120,7 @@ export function NodeCollection({
   blockCallbacks,
   pageMap,
   isolatedBlockState = false,
+  hideToolbar = false,
 }: NodeCollectionProps) {
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
@@ -135,17 +136,13 @@ export function NodeCollection({
   // Determine which view modes are available
   const effectiveViewModes = availableViewModes ?? ['list', 'document', 'card', 'table', 'gantt', 'graph'];
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
-  const showGroupBy = showGroupByProp && viewMode === 'list';
+  const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
   
-  // Build SelectionButton options from available view modes
-  const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
-    effectiveViewModes.map(mode => ({
-      value: mode,
-      icon: VIEW_MODE_OPTIONS[mode].icon,
-      label: VIEW_MODE_OPTIONS[mode].label,
-    })),
-    [effectiveViewModes]
-  );
+  // Whether to show the internal toolbar
+  const showInternalToolbar = !hideToolbar && (showGroupByInToolbar || showViewSwitcher);
+  
+  // Enable grouping when groupBy is set (regardless of toolbar visibility)
+  const enableGrouping = showGroupByProp && viewMode === 'list';
 
   // Create context value
   const contextValue = useMemo<NodeCollectionContextValue>(() => ({
@@ -194,7 +191,7 @@ export function NodeCollection({
             renderItemAction={renderItemAction}
             groupBy={groupBy}
             pageMap={pageMap}
-            enableGrouping={showGroupByProp}
+            enableGrouping={enableGrouping}
           />
         );
       
@@ -260,52 +257,17 @@ export function NodeCollection({
     <NodeCollectionContext.Provider value={contextValue}>
       {wrapWithCallbacks(
         <div className={`node-collection node-collection--${viewMode} ${className}`}>
-          {/* Header with GroupBy and View Mode Switcher */}
-          {(showGroupBy || showViewSwitcher) && (
+          {/* Header with GroupBy and View Mode Switcher - hidden when hideToolbar is true */}
+          {showInternalToolbar && (
             <div className="node-collection__header">
-              {/* GroupBy selector - only shown in list view */}
-              {showGroupBy && (
-                <ButtonWithPanel
-                  icon={mdiGroup}
-                  variant="ghost"
-                  size="sm"
-                  panelPosition="bottom"
-                  panelAlignment="start"
-                  panelWidth={160}
-                  className="node-collection__group-by"
-                  tooltip="Group by"
-                >
-                  {(closePanel) => (
-                    <div className="node-collection__group-by-options">
-                      {GROUP_BY_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          className={`node-collection__group-by-option ${
-                            groupBy === option.value ? 'node-collection__group-by-option--active' : ''
-                          }`}
-                          onClick={() => {
-                            handleGroupByChange(option.value);
-                            closePanel();
-                          }}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </ButtonWithPanel>
-              )}
-              
-              {/* View Mode Switcher */}
-              {showViewSwitcher && (
-                <SelectionButton
-                  options={viewModeOptions}
-                  value={viewMode}
-                  onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
-                  size="sm"
-                  className="node-collection__view-switcher"
-                />
-              )}
+              <NodeCollectionToolbar
+                viewMode={viewMode}
+                availableViewModes={effectiveViewModes}
+                onViewModeChange={onViewModeChange}
+                showGroupBy={showGroupByInToolbar}
+                groupBy={groupBy}
+                onGroupByChange={handleGroupByChange}
+              />
             </div>
           )}
           
@@ -332,5 +294,7 @@ export function getViewModeOptions(): { mode: NodeCollectionViewMode; icon: stri
   }));
 }
 
-// Re-export types
+// Re-export types and toolbar
 export type { NodeCollectionProps, NodeCollectionViewMode } from '@/types/nodeCollection';
+export { NodeCollectionToolbar } from './NodeCollectionToolbar';
+export type { NodeCollectionToolbarProps } from './NodeCollectionToolbar';

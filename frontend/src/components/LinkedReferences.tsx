@@ -6,19 +6,82 @@
  * - Linked Blocks: Blocks that mention this node via [[links]] or ((refs))
  * 
  * NodeViewSection wrapping is handled by NodeView.
+ * 
+ * The toolbar can be rendered externally via the renderToolbar prop or
+ * LinkedReferencesToolbar component for placement in NodeViewSection headers.
  */
 import { useState, useMemo, useCallback } from 'react';
 import './LinkedReferences.css';
 import { useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
 import type { Node } from '@/types/api';
-import { NodeCollection } from './nodes/NodeCollection';
-import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import { NodeCollection, NodeCollectionToolbar } from './nodes/NodeCollection';
+import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 
 interface LinkedReferencesProps {
   nodeId: number;
   className?: string;
   onLinkClick?: (nodeId: number, pageId?: number | null, isPage?: boolean) => void;
   showContext?: boolean;
+  /** When true, hides the internal toolbar (use LinkedReferencesToolbar externally) */
+  hideToolbar?: boolean;
+}
+
+/**
+ * State and callbacks for LinkedReferences toolbar
+ * Extracted so toolbar can be rendered in NodeViewSection header
+ */
+export interface LinkedReferencesToolbarState {
+  blocksViewMode: NodeCollectionViewMode;
+  setBlocksViewMode: (mode: NodeCollectionViewMode) => void;
+  groupBy: NodeCollectionGroupBy;
+  setGroupBy: (value: NodeCollectionGroupBy) => void;
+  hasBlocks: boolean;
+}
+
+/**
+ * Hook to manage LinkedReferences view state
+ * Use this when you need to render the toolbar externally
+ */
+export function useLinkedReferencesState(nodeId: number): LinkedReferencesToolbarState {
+  const { data: refs } = useLinkedReferences(nodeId);
+  const [blocksViewMode, setBlocksViewMode] = useState<NodeCollectionViewMode>('list');
+  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  
+  return {
+    blocksViewMode,
+    setBlocksViewMode,
+    groupBy,
+    setGroupBy,
+    hasBlocks: (refs?.length ?? 0) > 0,
+  };
+}
+
+/**
+ * Standalone toolbar for LinkedReferences
+ * Render this in NodeViewSection headerActions when using hideToolbar=true
+ */
+export function LinkedReferencesToolbar({
+  state,
+  className = '',
+}: {
+  state: LinkedReferencesToolbarState;
+  className?: string;
+}) {
+  if (!state.hasBlocks) {
+    return null;
+  }
+  
+  return (
+    <NodeCollectionToolbar
+      viewMode={state.blocksViewMode}
+      availableViewModes={['list', 'card', 'table']}
+      onViewModeChange={state.setBlocksViewMode}
+      showGroupBy={true}
+      groupBy={state.groupBy}
+      onGroupByChange={state.setGroupBy}
+      className={className}
+    />
+  );
 }
 
 /**
@@ -45,20 +108,33 @@ export function useLinkedReferencesCount(nodeId: number) {
  * - Linked Pages: Pages referencing via date/node properties
  * - Linked Blocks: Blocks mentioning via [[links]] and ((refs))
  * 
- * Each section is collapsible via NodeViewSection.
+ * When using external toolbar (hideToolbar=true), pass toolbarState to control
+ * view mode and groupBy from the parent component.
  */
 export function LinkedReferences({
   nodeId,
   className = '',
   onLinkClick,
-}: LinkedReferencesProps) {
+  hideToolbar = false,
+  toolbarState,
+}: LinkedReferencesProps & {
+  /** External state for toolbar control (required when hideToolbar=true) */
+  toolbarState?: LinkedReferencesToolbarState;
+}) {
   const { data: refs, isLoading: refsLoading } = useLinkedReferences(nodeId);
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(nodeId);
   const updateNode = useUpdateNode();
 
-  // View mode state for each section
+  // View mode state for each section (internal state when not using external toolbar)
   const [pagesViewMode, setPagesViewMode] = useState<NodeCollectionViewMode>('list');
-  const [blocksViewMode, setBlocksViewMode] = useState<NodeCollectionViewMode>('list');
+  const [internalBlocksViewMode, setInternalBlocksViewMode] = useState<NodeCollectionViewMode>('list');
+  const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>('page');
+
+  // Use external state if provided, otherwise use internal state
+  const blocksViewMode = toolbarState?.blocksViewMode ?? internalBlocksViewMode;
+  const setBlocksViewMode = toolbarState?.setBlocksViewMode ?? setInternalBlocksViewMode;
+  const groupBy = toolbarState?.groupBy ?? internalGroupBy;
+  const setGroupBy = toolbarState?.setGroupBy ?? setInternalGroupBy;
 
   const isLoading = refsLoading || propLoading;
 
@@ -176,6 +252,7 @@ export function LinkedReferences({
             onNodeClick={handleNodeClick}
             showEmpty={false}
             className="linked-references__collection"
+            hideToolbar={hideToolbar}
           />
         )}
 
@@ -190,10 +267,13 @@ export function LinkedReferences({
             onNodeClick={handleNodeClick}
             onContentChange={handleContentChange}
             showEmpty={false}
-            showGroupBy={true}
+            showGroupBy={!hideToolbar}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
             pageMap={pageMap}
             className="linked-references__collection"
             isolatedBlockState={true}
+            hideToolbar={hideToolbar}
           />
         )}
       </div>
