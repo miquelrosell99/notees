@@ -195,6 +195,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const addType = useAddType();
   const removeTag = useRemoveTag();
   const addTag = useAddTag();
+  const createNode = useCreateNode();
   
   // Resolve page type details from IDs (excluding the implicit "page" type)
   // For system types (like "day", "month", etc.), we show their "type" type but make it non-removable
@@ -230,39 +231,26 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       });
   }, [node?.tags, allTags, allNodes]);
   
-  // Available types for the type picker (exclude already assigned types and system types)
-  const availableTypes = useMemo(() => {
-    if (!allTypes) return [];
-    const assignedTypeIds = new Set(node?.types ?? []);
-    return allTypes.filter(t => {
-      // Exclude already assigned types
-      if (assignedTypeIds.has(t.id)) return false;
-      // Exclude the page type (implicit)
-      if (t.uuid === SYSTEM_TYPE_UUIDS.page) return false;
-      // Exclude date types (day, month, year) - these are system-managed
-      if (t.uuid === SYSTEM_TYPE_UUIDS.day || t.uuid === SYSTEM_TYPE_UUIDS.month || t.uuid === SYSTEM_TYPE_UUIDS.year) return false;
-      return true;
-    });
-  }, [allTypes, node?.types]);
-  
-  // Available tags for the tag picker (exclude already assigned tags and type definitions)
-  const availableTags = useMemo(() => {
-    if (!allTags) return [];
-    const assignedTagIds = new Set(node?.tags ?? []);
-    return allTags.filter(t => {
-      // Exclude already assigned tags
-      if (assignedTagIds.has(t.id)) return false;
-      // Exclude type definitions (is_type=true means it's a type, not a regular page/tag)
-      if (t.is_type) return false;
-      return true;
-    });
-  }, [allTags, node?.tags]);
-  
   // Handle adding a type via NodePillRow
   const handleAddType = useCallback((typeNode: Node) => {
     if (!node) return;
     addType.mutate({ nodeId: node.id, typeId: typeNode.id });
   }, [node, addType]);
+  
+  // Handle creating a new type via NodePillRow
+  const handleCreateType = useCallback((name: string) => {
+    if (!node) return;
+    const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
+    // Create as both a page AND a type so it shows up in @ menu
+    createNode.mutate({ name, is_page: true, is_type: true }, {
+      onSuccess: (newPage) => {
+        addType.mutate({ nodeId: node.id, typeId: newPage.id });
+        if (typeType) {
+          addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+        }
+      }
+    });
+  }, [node, createNode, addType, allTypes]);
   
   // Handle removing a type via NodePillRow
   const handleRemoveType = useCallback((typeNode: Node) => {
@@ -275,6 +263,17 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     if (!node) return;
     addTag.mutate({ nodeId: node.id, tagId: tagNode.id });
   }, [node, addTag]);
+  
+  // Handle creating a new tag via NodePillRow
+  const handleCreateTag = useCallback((name: string) => {
+    if (!node) return;
+    // Create as a page (tags are just pages linked to nodes)
+    createNode.mutate({ name, is_page: true }, {
+      onSuccess: (newPage) => {
+        addTag.mutate({ nodeId: node.id, tagId: newPage.id });
+      }
+    });
+  }, [node, createNode, addTag]);
   
   // Handle removing a tag via NodePillRow
   const handleRemoveTag = useCallback((tagNode: Node) => {
@@ -483,12 +482,13 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             <div className="page-header-section__types">
               <NodePillRow
                 nodes={pageTypeDetails}
-                availableNodes={availableTypes}
+                searchMode="types"
                 emptyText="Add type"
                 searchPlaceholder="Search types..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemoveType}
                 onAdd={handleAddType}
+                onCreateNew={handleCreateType}
                 canRemove={(n) => !isSystemTypeUuid(n.uuid)}
               />
             </div>
@@ -497,12 +497,13 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             <div className="page-header-section__tags">
               <NodePillRow
                 nodes={pageTagDetails}
-                availableNodes={availableTags}
+                searchMode="tags"
                 emptyText="Add tag"
                 searchPlaceholder="Search tags..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemoveTag}
                 onAdd={handleAddTag}
+                onCreateNew={handleCreateTag}
               />
             </div>
             
