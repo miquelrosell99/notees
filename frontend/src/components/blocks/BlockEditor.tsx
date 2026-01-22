@@ -711,9 +711,10 @@ export function BlockEditor({
     // Check if we need to update the HTML
     const needsUpdate = html !== currentHtml && (html || '<br>') !== currentHtml;
     
-    // Save cursor position BEFORE updating if we're focused
+    // Save cursor position BEFORE updating if cursor was already applied
+    // Don't check document.activeElement as it may not be accurate during React updates
     let savedPos: number | undefined;
-    if (needsUpdate && initialCursorApplied.current && document.activeElement === editorRef.current) {
+    if (needsUpdate && initialCursorApplied.current) {
       savedPos = getCursorPosition(editorRef.current);
     }
     
