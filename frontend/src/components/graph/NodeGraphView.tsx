@@ -187,10 +187,10 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       targetX: 0,
       targetY: 0,
       name: apiNode.name || 'Untitled',
-      type: apiNode.type,
-      isDaily: apiNode.is_daily,
+      type: apiNode.type || 'page',
+      isDaily: apiNode.is_daily || false,
       tags: apiNode.tags || [],
-      types: apiNode.types || [],
+      types: apiNode.type_ids || apiNode.types || [],
       parentId: parentMap.get(apiNode.id) ?? null,
       glare: 'normal',
       pinned: pinnedNodes.has(apiNode.id),
@@ -199,7 +199,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       internalLinkCount: apiNode.internal_link_count ?? 0,
       createdAt: apiNode.created_at,
       visible: true,
-      isTypeNode: typeIds.has(apiNode.id),
+      isTypeNode: apiNode.is_type || typeIds.has(apiNode.id),
     }));
     
     const links: GraphLink[] = graphData.links.map(link => ({

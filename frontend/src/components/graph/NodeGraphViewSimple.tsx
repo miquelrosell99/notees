@@ -62,10 +62,10 @@ export function NodeGraphViewSimple({
       targetX: 0,
       targetY: 0,
       name: apiNode.name || 'Untitled',
-      type: apiNode.type,
-      isDaily: apiNode.is_daily,
+      type: apiNode.type || 'page',
+      isDaily: apiNode.is_daily || false,
       tags: apiNode.tags || [],
-      types: apiNode.types || [],
+      types: apiNode.type_ids || apiNode.types || [],
       parentId: parentMap.get(apiNode.id) ?? null,
       glare: 'normal',
       pinned: false,
@@ -74,7 +74,7 @@ export function NodeGraphViewSimple({
       internalLinkCount: apiNode.internal_link_count ?? 0,
       createdAt: apiNode.created_at,
       visible: true,
-      isTypeNode: false,
+      isTypeNode: apiNode.is_type || false,
     }));
     
     const links: GraphLink[] = inputLinks.map(link => ({
