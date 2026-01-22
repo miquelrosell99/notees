@@ -1008,14 +1008,14 @@ export function useMoveNode() {
 }
 
 /**
- * Hook to add a tag to a node (tags are implemented as types)
+ * Hook to add a tag to a node (tags are stored as links with is_tag=true)
  */
 export function useAddTag() {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: ({ nodeId, tagId }: { nodeId: number; tagId: number }) => 
-      nodesApi.addType(nodeId, tagId),
+      nodesApi.addTagLink(nodeId, tagId),
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
@@ -1024,25 +1024,17 @@ export function useAddTag() {
 }
 
 /**
- * Hook to remove a tag from a node (tags are implemented as types)
+ * Hook to remove a tag from a node (tags are stored as links with is_tag=true)
  */
 export function useRemoveTag() {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: ({ nodeId, tagId }: { nodeId: number; tagId: number }) => 
-      nodesApi.removeType(nodeId, tagId),
-    onSuccess: (updatedNode, { nodeId }) => {
+      nodesApi.removeTagLink(nodeId, tagId),
+    onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
-      // Also invalidate the page content if the node is a block within a page
-      if (updatedNode.page_id !== null && updatedNode.page_id !== nodeId) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_id) });
-      }
-      // Invalidate parent's page content if different
-      if (updatedNode.parent_id !== null && updatedNode.parent_id !== nodeId) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_id) });
-      }
     },
   });
 }
