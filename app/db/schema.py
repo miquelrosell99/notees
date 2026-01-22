@@ -759,23 +759,17 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
         if type_name in ("type", "page"):
             continue  # Already created
         
-        # Determine is_* flags for this type node itself
-        is_day = 1 if type_name == "day" else 0
-        is_month = 1 if type_name == "month" else 0
-        is_year = 1 if type_name == "year" else 0
-        is_asset = 1 if type_name == "asset" else 0
-        is_template = 1 if type_name == "template" else 0
-        is_comment = 1 if type_name == "comment" else 0
-        
         # Use fixed UUID for system types
         type_uuid = SYSTEM_TYPE_UUIDS.get(type_name, generate_uuid())
-            
+        
+        # All system types are type definitions and pages
+        # The is_type and is_page flags are set because they have 'type' and 'page' types assigned
+        # Other flags (is_day, is_month, etc.) should NOT be set on the type definition itself -
+        # those flags are only set on nodes that have that type assigned to them
         cursor = await conn.execute(
-            """INSERT INTO node (uuid, name, is_type, is_page, is_day, is_month, is_year, 
-                                 is_asset, is_template, is_comment, create_date, write_date)
-               VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (type_uuid, type_name, is_day, is_month, is_year, 
-             is_asset, is_template, is_comment, now, now)
+            """INSERT INTO node (uuid, name, is_type, is_page, create_date, write_date)
+               VALUES (?, ?, 1, 1, ?, ?)""",
+            (type_uuid, type_name, now, now)
         )
         new_type_id = cursor.lastrowid
         
