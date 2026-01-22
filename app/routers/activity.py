@@ -212,26 +212,25 @@ async def track_link_click(
 ):
     """Track a link click by inserting a new record."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     now = utc_now()
     
     async with pool.acquire() as conn:
         # Insert new click record
         await conn.execute(
             """
-            INSERT INTO link_click (workspace_id, source_node_id, target_node_id, click_date, user_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO link_click (source_node_id, target_node_id, click_date, user_id)
+            VALUES ($1, $2, $3, $4)
             """,
-            workspace_id, data.source_node_id, data.target_node_id, now, None
+            data.source_node_id, data.target_node_id, now, int(user.id)
         )
         
         # Get total count
         row = await conn.fetchrow(
             """
             SELECT COUNT(*) as count FROM link_click
-            WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3
+            WHERE source_node_id = $1 AND target_node_id = $2
             """,
-            workspace_id, data.source_node_id, data.target_node_id
+            data.source_node_id, data.target_node_id
         )
         click_count = row['count'] if row else 1
     
@@ -250,7 +249,6 @@ async def get_link_clicks(
 ):
     """Get all link click counts from a source node (aggregated)."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -261,10 +259,10 @@ async def get_link_clicks(
                 COUNT(*) as click_count,
                 MAX(click_date) as last_click_date
             FROM link_click
-            WHERE workspace_id = $1 AND source_node_id = $2
+            WHERE source_node_id = $1
             GROUP BY source_node_id, target_node_id
             """,
-            workspace_id, source_node_id
+            source_node_id
         )
     
     return [
@@ -286,7 +284,6 @@ async def get_link_click(
 ):
     """Get click count for a specific link."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -295,9 +292,9 @@ async def get_link_click(
                 COUNT(*) as click_count,
                 MAX(click_date) as last_click_date
             FROM link_click
-            WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3
+            WHERE source_node_id = $1 AND target_node_id = $2
             """,
-            workspace_id, source_node_id, target_node_id
+            source_node_id, target_node_id
         )
     
     return LinkClickResponse(
@@ -317,18 +314,17 @@ async def get_link_click_history(
 ):
     """Get click history for a specific link."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id, source_node_id, target_node_id, click_date
             FROM link_click
-            WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3
+            WHERE source_node_id = $1 AND target_node_id = $2
             ORDER BY click_date DESC
-            LIMIT $4
+            LIMIT $3
             """,
-            workspace_id, source_node_id, target_node_id, limit
+            source_node_id, target_node_id, limit
         )
     
     return [
@@ -350,12 +346,11 @@ async def reset_link_click(
 ):
     """Reset click counter for a specific link (deletes all click records)."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         await conn.execute(
-            "DELETE FROM link_click WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3",
-            workspace_id, source_node_id, target_node_id
+            "DELETE FROM link_click WHERE source_node_id = $1 AND target_node_id = $2",
+            source_node_id, target_node_id
         )
     
     return {"success": True}
