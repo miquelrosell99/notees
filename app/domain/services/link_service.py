@@ -155,10 +155,10 @@ class LinkParsingService:
                 target_node_id, f"Linked in {source_page.name or 'Untitled'}", source_page_id, now
             )
     
-    async def _get_utc_now(self) -> str:
-        """Get current UTC time as ISO string."""
+    async def _get_utc_now(self) -> datetime:
+        """Get current UTC time as datetime object."""
         from datetime import datetime, timezone
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(timezone.utc)
     
     async def update_node_links(self, node_id: int, content: str) -> List[NodeLink]:
         """Parse content and update link table for a node.
