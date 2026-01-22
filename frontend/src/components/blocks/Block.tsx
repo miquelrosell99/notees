@@ -40,7 +40,7 @@ import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ColorPickerRow } from '../nodes/NodeContextMenu';
 import { NodeTypePill } from '../NodeTypePill';
 import { NodeIcon } from '../icons';
-import { SYSTEM_TYPE_UUIDS } from '@/constants';
+import { SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import './Block.css';
@@ -1054,17 +1054,12 @@ export function Block({
         {showTypes && blockTypeDetails.length > 0 && (
           <div className="block-types">
             {blockTypeDetails.map((typeNode) => {
-              const isSystemType = 
-                typeNode.uuid === SYSTEM_TYPE_UUIDS.page ||
-                typeNode.uuid === SYSTEM_TYPE_UUIDS.day ||
-                typeNode.uuid === SYSTEM_TYPE_UUIDS.month ||
-                typeNode.uuid === SYSTEM_TYPE_UUIDS.year;
               return (
                 <NodeTypePill
                   key={typeNode.id}
                   typeNode={typeNode}
                   onClick={() => openNode(typeNode.id, 'page')}
-                  onRemove={isSystemType ? undefined : () => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
+                  onRemove={isSystemTypeUuid(typeNode.uuid) ? undefined : () => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
                   readOnly={readOnly}
                 />
               );

@@ -164,7 +164,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
         <header className="sidebar-node-view__header sidebar-node-view__header--page">
           <div className="sidebar-node-view__title">
             {effectiveIcon || node.is_daily || node.is_monthly || node.is_yearly ? (
-              <NodeIcon icon={effectiveIcon} isPage={true} isDaily={node.is_daily} isMonthly={node.is_monthly} isYearly={node.is_yearly} size="sm" className="sidebar-node-view__icon" />
+              <NodeIcon icon={effectiveIcon} isPage={true} size="sm" className="sidebar-node-view__icon" />
             ) : (
               <NodeIcon isPage={true} size="sm" className="sidebar-node-view__icon" />
             )}

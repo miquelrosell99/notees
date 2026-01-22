@@ -153,7 +153,7 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
     >
       <div className="node-preview-header">
         <div className="node-preview-title">
-          <NodeIcon icon={effectiveIcon} isPage={node.is_page} isDaily={node.is_daily} isMonthly={node.is_monthly} isYearly={node.is_yearly} size="sm" />
+          <NodeIcon icon={effectiveIcon} isPage={node.is_page} size="sm" />
           <span className="node-preview-name">{node.name || 'Untitled'}</span>
         </div>
         <div className="node-preview-actions">

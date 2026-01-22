@@ -104,6 +104,22 @@ SYSTEM_TYPE_UUIDS = {
     "comment": "00000000-0000-0000-0001-000000000014",
 }
 
+# Default icons for system types (MDI icon names)
+# These icons are inherited by nodes of that type if the node has no explicit icon
+SYSTEM_TYPE_ICONS = {
+    "type": "shape",
+    "day": "calendar-today",
+    "month": "calendar-month",
+    "year": "calendar-text",
+    "quote": "format-quote-close",
+    "query": "magnify",
+    "asset": "paperclip",
+    "whiteboard": "draw",
+    "card": "card-outline",
+    "template": "file-document-outline",
+    "comment": "comment-outline",
+}
+
 # System properties with fixed UUIDs (never change these - used for filtering in code)
 SYSTEM_PROPERTY_UUIDS = {
     "tags": "00000000-0000-0000-0000-000000000001",
@@ -757,7 +773,7 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
     await assign_relation_property(page_type_id, types_property_id, page_type_id, 1)
     
     # Create remaining system types (all are types and pages)
-    # Icons are intentionally left empty - views should show default MDI icons
+    # Some types (day, month, year) have default icons that nodes inherit
     asset_type_id = None  # Track asset type ID for cover property filter
     
     for type_name in SYSTEM_TYPES:
@@ -767,14 +783,17 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
         # Use fixed UUID for system types
         type_uuid = SYSTEM_TYPE_UUIDS.get(type_name, generate_uuid())
         
+        # Get default icon for this type (if any)
+        type_icon = SYSTEM_TYPE_ICONS.get(type_name)
+        
         # All system types are type definitions and pages
         # The is_type and is_page flags are set because they have 'type' and 'page' types assigned
         # Other flags (is_day, is_month, etc.) should NOT be set on the type definition itself -
         # those flags are only set on nodes that have that type assigned to them
         cursor = await conn.execute(
-            """INSERT INTO node (uuid, name, is_type, is_page, create_date, write_date)
-               VALUES (?, ?, 1, 1, ?, ?)""",
-            (type_uuid, type_name, now, now)
+            """INSERT INTO node (uuid, name, icon, is_type, is_page, create_date, write_date)
+               VALUES (?, ?, ?, 1, 1, ?, ?)""",
+            (type_uuid, type_name, type_icon, now, now)
         )
         new_type_id = cursor.lastrowid
         assert new_type_id is not None, f"Failed to insert {type_name} type node"
