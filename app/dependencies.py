@@ -54,7 +54,7 @@ async def get_node_repository(
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresNodeRepository(pool, workspace_id)
 
 
@@ -64,7 +64,7 @@ async def get_property_repository(
     """Get a PropertyRepository for the current user's workspace."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresPropertyRepository(pool, workspace_id)
 
 
@@ -74,7 +74,7 @@ async def get_link_repository(
     """Get a LinkRepository for the current user's workspace."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresLinkRepository(pool, workspace_id)
 
 
@@ -84,7 +84,7 @@ async def get_inline_type_repository(
     """Get an InlineTypeRepository for the current user's workspace."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresInlineTypeRepository(pool, workspace_id)
 
 
@@ -144,5 +144,5 @@ async def get_repositories(
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield RepositoryBundle(pool, workspace_id)
