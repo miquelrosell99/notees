@@ -41,7 +41,7 @@ async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
 async def get_settings(user: User = Depends(get_current_user)):
     """Get all user settings."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -59,7 +59,7 @@ async def set_setting(key: str, request: Request, user: User = Depends(get_curre
     value = data.get("value")
     
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         # Upsert the setting
