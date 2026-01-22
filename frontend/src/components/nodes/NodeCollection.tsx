@@ -119,6 +119,7 @@ export function NodeCollection({
   provideBlockCallbacks = false,
   blockCallbacks,
   pageMap,
+  isolatedBlockState = false,
 }: NodeCollectionProps) {
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
@@ -166,6 +167,7 @@ export function NodeCollection({
     renderNode,
     maxDepth,
     className: '',
+    isolatedBlockState,
   };
 
   // Empty state

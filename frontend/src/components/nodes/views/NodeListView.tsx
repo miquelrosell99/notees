@@ -113,6 +113,7 @@ interface NodeListItemProps {
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
+  isolatedBlockState?: boolean;
 }
 
 function NodeListItem({
@@ -131,6 +132,7 @@ function NodeListItem({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
+  isolatedBlockState = false,
 }: NodeListItemProps) {
   const rawChildren = node.children ?? [];
   // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
@@ -223,6 +225,7 @@ function NodeListItem({
           onBulletClick={handleBulletClick}
           onShiftClick={handleShiftClick}
           showBullet={showBullets}
+          isolatedState={isolatedBlockState}
           {...blockProps}
         />
       </div>
@@ -301,6 +304,7 @@ interface GroupHeaderProps {
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
+  isolatedBlockState?: boolean;
 }
 
 function GroupHeader({
@@ -314,6 +318,7 @@ function GroupHeader({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
+  isolatedBlockState = false,
 }: GroupHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -373,6 +378,7 @@ function GroupHeader({
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
               onContentChange={onContentChange}
+              isolatedBlockState={isolatedBlockState}
             />
           ))}
         </div>
@@ -403,6 +409,7 @@ export function NodeListView({
   groupBy = 'page',
   enableGrouping = false,
   className = '',
+  isolatedBlockState = false,
 }: NodeListViewProps) {
   // If sortable, use ListSortable wrapper (no grouping in sortable mode)
   if (sortable && onReorder) {
@@ -464,6 +471,7 @@ export function NodeListView({
                 onNodeClick={onNodeClick}
                 onNodeShiftClick={onNodeShiftClick}
                 onContentChange={onContentChange}
+                isolatedBlockState={isolatedBlockState}
               />
             ))}
           </div>
@@ -484,6 +492,7 @@ export function NodeListView({
             onNodeClick={onNodeClick}
             onNodeShiftClick={onNodeShiftClick}
             onContentChange={onContentChange}
+            isolatedBlockState={isolatedBlockState}
           />
         ))}
       </div>
@@ -514,6 +523,7 @@ export function NodeListView({
             onNodeClick={onNodeClick}
             onNodeShiftClick={onNodeShiftClick}
             onContentChange={onContentChange}
+            isolatedBlockState={isolatedBlockState}
           />
         );
       })}

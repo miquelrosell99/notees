@@ -193,6 +193,7 @@ export function LinkedReferences({
             showGroupBy={true}
             pageMap={pageMap}
             className="linked-references__collection"
+            isolatedBlockState={true}
           />
         )}
       </div>

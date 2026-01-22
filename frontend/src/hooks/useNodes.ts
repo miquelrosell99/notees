@@ -362,27 +362,16 @@ export function useCreateNode() {
       if (variables.parent_id) {
         const parentId = variables.parent_id;
         
-        // Helper to update a node's children array, inserting at correct position based on sequence
+        // Helper to update a node's children array
         const updateChildren = (oldNode: Node | undefined): Node | undefined => {
           if (!oldNode) return oldNode;
           // Check if the new node is already in the children (avoid duplicates)
           const alreadyExists = oldNode.children?.some(c => c.id === newNode.id);
           if (alreadyExists) return oldNode;
-          
-          const children = oldNode.children || [];
-          // Insert at correct position based on sequence
-          const newSequence = newNode.sequence ?? children.length;
-          const insertIndex = children.findIndex(c => (c.sequence ?? 0) >= newSequence);
-          
-          if (insertIndex === -1) {
-            // Append at end
-            return { ...oldNode, children: [...children, newNode] };
-          } else {
-            // Insert at correct position
-            const newChildren = [...children];
-            newChildren.splice(insertIndex, 0, newNode);
-            return { ...oldNode, children: newChildren };
-          }
+          return {
+            ...oldNode,
+            children: [...(oldNode.children || []), newNode],
+          };
         };
         
         // Update the parent node's detail cache (matches any options)
@@ -403,12 +392,6 @@ export function useCreateNode() {
             return updateChildren(oldPage);
           }
         );
-        
-        // Invalidate linked references since a new block may be a child of a referenced block
-        queryClient.invalidateQueries({ 
-          queryKey: [...nodeKeys.all, 'linked-refs'],
-          refetchType: 'active',
-        });
       }
       
       // Invalidate list queries for sidebar updates, etc.
