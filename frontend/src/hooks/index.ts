@@ -11,3 +11,5 @@ export * from './useNodeSearch';
 export * from './useQuickAdd';
 export * from './useNodeCollection';
 export * from './useDragPreview';
+export * from './useVirtualizedNodes';
+export * from './usePrefetch';
