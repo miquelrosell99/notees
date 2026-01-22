@@ -284,7 +284,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { typeColorsRef.current = typeColors; }, [typeColors]);
-  useEffect(() => { showTypeNodesRef.current = showTypeNodes; }, [showTypeNodes]);
+  useEffect(() => { 
+    showTypeNodesRef.current = showTypeNodes;
+    // Recalculate positions when type node visibility changes (affects circle/tree layout)
+    if (nodesRef.current.length > 0 && (viewMode === 'circle' || viewMode === 'tree')) {
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
+    }
+  }, [showTypeNodes, viewMode, dimensions, calculatePositions]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
   
@@ -303,21 +309,39 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     nodes: GraphNode[],
     mode: GraphViewMode,
     w: number,
-    h: number
+    h: number,
+    filterTypeNodes: boolean = false
   ) => {
     const centerX = w / 2;
     const centerY = h / 2;
     
     if (mode === 'circle') {
+      // Only position visible nodes in the circle
+      const visibleNodes = filterTypeNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
       const radius = Math.min(centerX, centerY) * 0.7;
-      nodes.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+      visibleNodes.forEach((node, i) => {
+        const angle = (2 * Math.PI * i) / visibleNodes.length - Math.PI / 2;
         node.targetX = centerX + radius * Math.cos(angle);
         node.targetY = centerY + radius * Math.sin(angle);
       });
+      // Hidden type nodes should stay at center
+      if (filterTypeNodes) {
+        nodes.filter(n => n.isTypeNode).forEach(node => {
+          node.targetX = centerX;
+          node.targetY = centerY;
+        });
+      }
     } else if (mode === 'tree') {
-      const parentNodes = nodes.filter(n => n.parentId === null);
-      const childNodes = nodes.filter(n => n.parentId !== null);
+      const baseNodes = filterTypeNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
+      const parentNodes = baseNodes.filter(n => n.parentId === null);
+      const childNodes = baseNodes.filter(n => n.parentId !== null);
+      // Hidden type nodes should stay at center
+      if (filterTypeNodes) {
+        nodes.filter(n => n.isTypeNode).forEach(node => {
+          node.targetX = centerX;
+          node.targetY = centerY;
+        });
+      }
       
       const childrenByParent = new Map<number, GraphNode[]>();
       for (const child of childNodes) {
@@ -403,15 +427,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   }, [dimensions]);
 
   // Creation time animation
-  const creationAnimationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const creationAnimationRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   
   const triggerCreationAnimation = useCallback(() => {
     const nodes = nodesRef.current;
     if (nodes.length === 0) return;
     
-    if (creationAnimationRef.current) {
-      clearTimeout(creationAnimationRef.current);
-    }
+    // Clear any existing animation timers
+    creationAnimationRef.current.forEach(timer => clearTimeout(timer));
+    creationAnimationRef.current = [];
     
     const sortedNodes = [...nodes].sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -419,20 +443,32 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       return dateA - dateB;
     });
     
-    nodes.forEach(n => n.visible = false);
+    // Hide all nodes and move them to center with slight random offset
+    const centerX = dimensions.width / 2;
+    const centerY = dimensions.height / 2;
+    const spawnRadius = 50; // Nodes spawn within this radius of center
+    
+    nodes.forEach(n => {
+      n.visible = false;
+    });
     
     const revealDelay = 80;
     sortedNodes.forEach((sortedNode, index) => {
-      creationAnimationRef.current = setTimeout(() => {
+      const timer = setTimeout(() => {
         const node = nodes.find(n => n.id === sortedNode.id);
         if (node) {
+          // Spawn at center with random offset
+          node.x = centerX + (Math.random() - 0.5) * spawnRadius;
+          node.y = centerY + (Math.random() - 0.5) * spawnRadius;
           node.visible = true;
-          node.vx = (Math.random() - 0.5) * 2;
-          node.vy = (Math.random() - 0.5) * 2;
+          // Give small initial velocity for organic spread
+          node.vx = (Math.random() - 0.5) * 3;
+          node.vy = (Math.random() - 0.5) * 3;
         }
       }, index * revealDelay);
+      creationAnimationRef.current.push(timer);
     });
-  }, []);
+  }, [dimensions.width, dimensions.height]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -470,7 +506,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     linksRef.current = [...inputLinks];
     
-    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
     startSimulation();
     
     return () => {
@@ -551,12 +587,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodes = nodesRef.current;
       const links = linksRef.current;
       const currentSettings = settingsRef.current;
+      const showTypes = showTypeNodesRef.current;
       const isConstrainedMode = viewMode === 'circle' || viewMode === 'tree';
+      
+      // Filter to only visible nodes for force calculations
+      const visibleNodes = nodes.filter(n => n.visible && (showTypes || !n.isTypeNode));
+      const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
       
       const connectedPairs = new Set<string>();
       for (const link of links) {
-        connectedPairs.add(`${link.source}-${link.target}`);
-        connectedPairs.add(`${link.target}-${link.source}`);
+        // Only consider links between visible nodes
+        if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+          connectedPairs.add(`${link.source}-${link.target}`);
+          connectedPairs.add(`${link.target}-${link.source}`);
+        }
       }
       
       const areConnected = (a: number, b: number) => 
@@ -564,7 +608,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Constrained mode return force
       if (isConstrainedMode) {
-        for (const node of nodes) {
+        for (const node of visibleNodes) {
           if (dragNodeRef.current?.id === node.id) continue;
           if (node.pinned) continue;
           
@@ -575,12 +619,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Node-to-node forces
+      // Node-to-node forces (only between visible nodes)
       if (!isConstrainedMode) {
-        for (let i = 0; i < nodes.length; i++) {
-          for (let j = i + 1; j < nodes.length; j++) {
-            const nodeA = nodes[i];
-            const nodeB = nodes[j];
+        for (let i = 0; i < visibleNodes.length; i++) {
+          for (let j = i + 1; j < visibleNodes.length; j++) {
+            const nodeA = visibleNodes[i];
+            const nodeB = visibleNodes[j];
             
             if (dragNodeRef.current?.id === nodeA.id || 
                 dragNodeRef.current?.id === nodeB.id) continue;
@@ -631,14 +675,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Dragged node pulls connected nodes
-      if (dragNodeRef.current) {
+      // Dragged node pulls connected visible nodes
+      if (dragNodeRef.current && dragNodeRef.current.visible) {
         const dragNode = dragNodeRef.current;
         const connected = getConnectedNodes(dragNode.id);
         
         for (const connectedId of connected) {
           const connectedNode = nodes.find(n => n.id === connectedId);
-          if (!connectedNode || connectedNode.pinned) continue;
+          if (!connectedNode || connectedNode.pinned || !connectedNode.visible) continue;
+          if (!showTypes && connectedNode.isTypeNode) continue;
           
           const dx = dragNode.x - connectedNode.x;
           const dy = dragNode.y - connectedNode.y;
@@ -651,8 +696,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Update positions
-      for (const node of nodes) {
+      // Update positions (for all nodes including hidden ones, but they won't be rendered)
+      for (const node of visibleNodes) {
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
           node.x += node.vx;
           node.y += node.vy;

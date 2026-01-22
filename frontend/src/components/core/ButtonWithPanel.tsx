@@ -10,6 +10,7 @@
  * </ButtonWithPanel>
  */
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 import { Card } from './Card';
 import './ButtonWithPanel.css';
@@ -62,6 +63,8 @@ export interface ButtonWithPanelProps {
   buttonProps?: Partial<ButtonProps>;
   /** Custom trigger element - replaces the default Button when provided */
   customTrigger?: ReactNode;
+  /** Render panel in a portal to escape overflow containers */
+  usePortal?: boolean;
 }
 
 export function ButtonWithPanel({
@@ -87,6 +90,7 @@ export function ButtonWithPanel({
   children,
   buttonProps = {},
   customTrigger,
+  usePortal = false,
 }: ButtonWithPanelProps) {
   // Determine if component is controlled
   const isControlled = controlledOpen !== undefined;
@@ -96,6 +100,7 @@ export function ButtonWithPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [portalPosition, setPortalPosition] = useState({ top: 0, left: 0 });
   
   // Handle open state changes
   const handleOpenChange = useCallback((newOpen: boolean) => {
@@ -147,6 +152,47 @@ export function ButtonWithPanel({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeOnEscape, closePanel]);
+
+  // Calculate portal position when panel opens
+  useEffect(() => {
+    if (!usePortal || !isOpen || !containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const gap = 8;
+    let top = 0;
+    let left = 0;
+    
+    const actualWidth = typeof panelWidth === 'number' ? panelWidth : 280;
+    
+    switch (panelPosition) {
+      case 'right':
+        left = rect.right + gap;
+        top = panelAlignment === 'start' ? rect.top 
+            : panelAlignment === 'end' ? rect.bottom 
+            : rect.top + rect.height / 2;
+        break;
+      case 'left':
+        left = rect.left - gap - actualWidth;
+        top = panelAlignment === 'start' ? rect.top 
+            : panelAlignment === 'end' ? rect.bottom 
+            : rect.top + rect.height / 2;
+        break;
+      case 'bottom':
+        top = rect.bottom + gap;
+        left = panelAlignment === 'start' ? rect.left 
+             : panelAlignment === 'end' ? rect.right - actualWidth 
+             : rect.left + rect.width / 2 - actualWidth / 2;
+        break;
+      case 'top':
+        top = rect.top - gap;
+        left = panelAlignment === 'start' ? rect.left 
+             : panelAlignment === 'end' ? rect.right - actualWidth 
+             : rect.left + rect.width / 2 - actualWidth / 2;
+        break;
+    }
+    
+    setPortalPosition({ top, left });
+  }, [usePortal, isOpen, panelPosition, panelAlignment, panelWidth]);
   
   // Calculate panel position styles
   const getPanelStyle = (): React.CSSProperties => {
@@ -224,7 +270,7 @@ export function ButtonWithPanel({
         </Button>
       )}
       
-      {isOpen && (
+      {isOpen && !usePortal && (
         <Card
           ref={panelRef}
           className={panelClasses}
@@ -252,6 +298,43 @@ export function ButtonWithPanel({
             {typeof children === 'function' ? children(closePanel) : children}
           </div>
         </Card>
+      )}
+      
+      {isOpen && usePortal && createPortal(
+        <Card
+          ref={panelRef}
+          className={`${panelClasses} btn-panel--portal`}
+          style={{
+            ...getPanelStyle(),
+            position: 'fixed',
+            top: portalPosition.top,
+            left: portalPosition.left,
+            zIndex: 9999,
+          }}
+          role="dialog"
+          aria-modal="true"
+          padding={false}
+          elevation="medium"
+        >
+          {title && (
+            <div className="btn-panel__header">
+              <h4 className="btn-panel__title">{title}</h4>
+              {showCloseButton && (
+                <button
+                  className="btn-panel__close"
+                  onClick={closePanel}
+                  aria-label="Close panel"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )}
+          <div className="btn-panel__content">
+            {typeof children === 'function' ? children(closePanel) : children}
+          </div>
+        </Card>,
+        document.body
       )}
     </div>
   );
