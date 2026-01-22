@@ -357,7 +357,7 @@ async def _get_node_service(user: User) -> NodeService:
     
     async with pool.acquire() as conn:
         # Get user's workspace
-        workspace_id = await get_or_create_user_workspace(conn, user.db_id)
+        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         
         # Get system IDs (cached in real implementation)
         row = await conn.fetchrow(
