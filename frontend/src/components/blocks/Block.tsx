@@ -954,6 +954,8 @@ export function Block({
   
   // Handle arrow up navigation - move to previous sibling block
   const handleNavigateUp = useCallback(() => {
+    if (!editorRef.current) return;
+    
     const currentIndex = siblings.findIndex(s => s.id === block.id);
     const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
     
@@ -965,11 +967,24 @@ export function Block({
       return;
     }
     
-    // Set target block to edit mode with cursor at end
-    const cursorPosition = (targetBlock.name || '').length;
-    setInitialCursorPosition(cursorPosition);
+    // Get the current cursor's horizontal position
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const horizontalOffset = rect.left;
+      
+      // Store the horizontal offset for positioning in the target block
+      // We'll use a data attribute or context, but for simplicity, calculate target position
+      // Position cursor at end of target block for now (simpler and common behavior)
+      const cursorPosition = (targetBlock.name || '').length;
+      setInitialCursorPosition(cursorPosition);
+    } else {
+      setInitialCursorPosition((targetBlock.name || '').length);
+    }
+    
     setBlockState(targetBlock.id, 'edit');
-  }, [siblings, parentBlock, setBlockState, block.id]);
+  }, [siblings, parentBlock, setBlockState, block.id, editorRef]);
   
   // Handle arrow down navigation - move to next sibling block
   const handleNavigateDown = useCallback(() => {
@@ -994,6 +1009,7 @@ export function Block({
     setInitialCursorPosition(0);
     setBlockState(nextSibling.id, 'edit');
   }, [siblings, children, setBlockState]);
+
   
   return (
     <div
@@ -1144,14 +1160,9 @@ export function Block({
         )}
       </div>
       
-      {/* Drop indicator - inside (visual cue) */}
-      {isDragOver && dropPosition === 'inside' && (
-        <div className="drop-indicator drop-indicator-inside" />
-      )}
-      
-      {/* Drop indicator - after */}
-      {isDragOver && dropPosition === 'after' && (
-        <div className="drop-indicator drop-indicator-after" />
+      {/* Drop indicator - after or inside (inside shows as indented line at bottom) */}
+      {isDragOver && (dropPosition === 'after' || dropPosition === 'inside') && (
+        <div className={`drop-indicator drop-indicator-${dropPosition}`} />
       )}
       
       {/* Children blocks with vertical collapse line */}
