@@ -362,15 +362,27 @@ export function useCreateNode() {
       if (variables.parent_id) {
         const parentId = variables.parent_id;
         
-        // Helper to update a node's children array
+        // Helper to update a node's children array, inserting at the correct position by sequence
         const updateChildren = (oldNode: Node | undefined): Node | undefined => {
           if (!oldNode) return oldNode;
           // Check if the new node is already in the children (avoid duplicates)
           const alreadyExists = oldNode.children?.some(c => c.id === newNode.id);
           if (alreadyExists) return oldNode;
+          
+          const existingChildren = oldNode.children || [];
+          // Insert the new node at the correct position based on sequence
+          const insertIndex = existingChildren.findIndex(c => c.sequence >= newNode.sequence);
+          const newChildren = insertIndex === -1
+            ? [...existingChildren, newNode] // Add at end if no child has higher sequence
+            : [
+                ...existingChildren.slice(0, insertIndex),
+                newNode,
+                ...existingChildren.slice(insertIndex),
+              ];
+          
           return {
             ...oldNode,
-            children: [...(oldNode.children || []), newNode],
+            children: newChildren,
           };
         };
         
