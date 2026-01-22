@@ -4,9 +4,10 @@
  * Centralized view routing - determines which view to show based on mainViewType.
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
+import { getNodeColorStyles } from '@/utils/color';
 import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline } from '@mdi/js';
 import { NodeBreadcrumbs } from './nodes/NodeBreadcrumbs';
 import { SelectionButton } from './core/SelectionButton';
@@ -24,15 +25,27 @@ export function MainContent() {
   // Fetch current node to get color (only for pages)
   const { data: currentNode } = useNode(currentNodeId ?? null);
   
-  // Compute background color for page nodes only
-  const pageBackgroundStyle = useMemo(() => {
+  // Track dark mode for color styling
+  const [isDarkMode, setIsDarkMode] = useState(() => 
+    document.documentElement.getAttribute('data-theme') === 'dark'
+  );
+  
+  // Listen for theme changes
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.getAttribute('data-theme') === 'dark');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  
+  // Compute color styles for page nodes (gradient border + tint)
+  const pageColorStyle = useMemo(() => {
     if (!currentNode || currentNodeType !== 'page' || !currentNode.color) {
       return undefined;
     }
-    return {
-      backgroundColor: currentNode.color,
-    } as React.CSSProperties;
-  }, [currentNode, currentNodeType]);
+    return getNodeColorStyles(currentNode.color, isDarkMode);
+  }, [currentNode, currentNodeType, isDarkMode]);
   
   // Handle shift-click on page bullets in All Pages view
   const handlePageShiftClick = (page: Node) => {
@@ -196,8 +209,8 @@ export function MainContent() {
       
       {/* Scrollable content area */}
       <main 
-        className={`main-content${pageBackgroundStyle ? ' has-page-color' : ''}`}
-        style={pageBackgroundStyle}
+        className={`main-content${pageColorStyle ? ' has-page-color' : ''}`}
+        style={pageColorStyle}
       >
         <NodeView nodeId={currentNodeId} nodeType={currentNodeType} viewMode={viewMode} />
       </main>

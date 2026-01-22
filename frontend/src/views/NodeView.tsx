@@ -19,9 +19,10 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveType, useRemoveTag, useNodes, useTags } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { getNodeColorStyles } from '@/utils/color';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -435,16 +436,30 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     }
   }, [node, bannerProperty, setPropertyMutation]);
   
-  // Block-only background style based on color (pages are colored at main-content level)
+  // Track dark mode for block color styling
+  const [isDarkMode, setIsDarkMode] = useState(() => 
+    typeof document !== 'undefined' 
+      ? document.documentElement.getAttribute('data-theme') === 'dark'
+      : false
+  );
+  
+  // Listen for theme changes
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.getAttribute('data-theme') === 'dark');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  
+  // Block color style using unified gradient border + tint approach (same as pages)
+  // Note: Pages are colored at main-content level, blocks are colored here
   // Note: Must be before early returns to maintain hooks order
   const nodeStyle = useMemo(() => {
-    // Only apply inline color for blocks, not pages (pages color the main-content container)
+    // Only apply color styling for blocks, not pages (pages color the main-content container)
     if (resolvedType === 'page' || !node?.color) return undefined;
-    return {
-      backgroundColor: node.color,
-      '--node-bg-color': node.color,
-    } as React.CSSProperties;
-  }, [node?.color, resolvedType]);
+    return getNodeColorStyles(node.color, isDarkMode);
+  }, [node?.color, resolvedType, isDarkMode]);
 
   // Loading state
   if (isLoading) {
@@ -466,7 +481,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
 
   return (
     <article 
-      className={`node-view node-view--${resolvedType} ${viewMode}`} 
+      className={`node-view node-view--${resolvedType}${nodeStyle ? ' has-block-color' : ''} ${viewMode}`} 
       style={nodeStyle}
     >
       {/* Page Header or Block Header based on variant */}

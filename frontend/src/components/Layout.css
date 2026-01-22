@@ -112,9 +112,42 @@
   pointer-events: auto;
 }
 
-/* Page with color - applies background to entire main content area */
+/* ==================== Page Color Styling ==================== */
+/* 
+ * Page color uses a two-part gradient left border and subtle background tint.
+ * CSS variables are set via inline style from getNodeColorStyles():
+ *   --node-color: the main color
+ *   --node-color-rgb: RGB values for rgba() usage
+ *   --node-tint: very low opacity background tint
+ *   --node-border-solid: solid color for inner stripe
+ *   --node-border-halo: semi-transparent halo for outer stripe
+ */
 .main-content.has-page-color {
-  /* Background color is set via inline style */
+  /* Gradient left border: inner solid stripe (~2px) + outer halo stripe (~4px) */
+  border-left: 6px solid transparent;
+  border-image: linear-gradient(
+    to right,
+    var(--node-border-solid) 0%,
+    var(--node-border-solid) 33%,
+    var(--node-border-halo) 33%,
+    var(--node-border-halo) 100%
+  ) 1;
+  
+  /* Subtle background tint */
+  background: linear-gradient(
+    to right,
+    var(--node-tint) 0%,
+    var(--node-tint) 100%
+  ), var(--color-surface);
+}
+
+/* Ensure sticky header inherits the tinted background */
+.main-content.has-page-color .node-view-sticky-header {
+  background: linear-gradient(
+    to right,
+    var(--node-tint) 0%,
+    var(--node-tint) 100%
+  ), var(--color-surface) !important;
 }
 
 /* ==================== Right Container (Right Sidebar) ==================== */
