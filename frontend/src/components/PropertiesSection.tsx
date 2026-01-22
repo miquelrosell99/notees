@@ -641,7 +641,7 @@ export function PropertiesSection({
               className="properties-add-btn" 
               onClick={() => setShowPickerModal(true)}
               title="Add property"
-              size="sm"
+              size="xs"
               variant="ghost"
             >
               Add property
