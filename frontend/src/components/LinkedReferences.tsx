@@ -109,7 +109,7 @@ export function LinkedReferences({
       types: ref.source_node.types || [],
       tags: ref.source_node.tags || [],
       collapsed: ref.source_node.collapsed || false,
-      children: [],
+      children: ref.source_node.children || [],
     }));
   }, [refs]);
 

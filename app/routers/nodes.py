@@ -207,6 +207,60 @@ def _node_to_response(
     )
 
 
+def _build_children_response(children: List[Node]) -> List[NodeResponse]:
+    """Build a nested NodeResponse list from a flat list of children.
+    
+    Assumes children are ordered by sequence and reconstructs the hierarchy
+    based on parent_id relationships.
+    """
+    if not children:
+        return []
+    
+    # Build lookup maps
+    node_map: dict[int, NodeResponse] = {}
+    root_children: list[NodeResponse] = []
+    
+    # First pass: convert all nodes to responses
+    for node in children:
+        response = _node_to_response(node)
+        response.children = []
+        if node.id:
+            node_map[node.id] = response
+    
+    # Second pass: build hierarchy
+    for node in children:
+        if not node.id:
+            continue
+        response = node_map[node.id]
+        if node.parent_id and node.parent_id in node_map:
+            parent = node_map[node.parent_id]
+            parent.children.append(response)
+        else:
+            root_children.append(response)
+    
+    return root_children
+
+
+async def _get_descendants(node_repo, parent_id: int) -> List[Node]:
+    """Get all descendants of a node recursively.
+    
+    Returns a flat list of all descendants, ordered by sequence at each level.
+    """
+    all_descendants: List[Node] = []
+    to_process = [parent_id]
+    
+    while to_process:
+        current_id = to_process.pop(0)
+        children = await node_repo.get_children(current_id)
+        all_descendants.extend(children)
+        # Add children to process queue for next level
+        for child in children:
+            if child.id:
+                to_process.append(child.id)
+    
+    return all_descendants
+
+
 async def _get_type_ids(service: NodeService, node_id: int) -> List[int]:
     """Helper to get type IDs for a node."""
     types = await service.get_node_types(node_id)
@@ -1801,7 +1855,7 @@ async def get_linked_references(
     node_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Get linked references to a node with context."""
+    """Get linked references to a node with context, including children hierarchy."""
     service = await _get_node_service(user)
     
     backlinks = await service._link_service.get_backlinks(node_id)
@@ -1811,6 +1865,9 @@ async def get_linked_references(
         source = await service._node_repo.get_by_id(link.source_node_id)
         if not source:
             continue
+        
+        # Get all descendants of the source node recursively
+        children = await _get_descendants(service._node_repo, source.id)
         
         source_page = None
         if source.page_id:
@@ -1835,8 +1892,12 @@ async def get_linked_references(
             for seg in link.breadcrumb_path
         ] if hasattr(link, 'breadcrumb_path') and link.breadcrumb_path else []
         
+        # Convert source node to response with children
+        source_response = _node_to_response(source)
+        source_response.children = _build_children_response(children) if children else []
+        
         result.append(LinkedReferenceResponse(
-            source_node=_node_to_response(source),
+            source_node=source_response,
             source_page=_node_to_response(source_page) if source_page else None,
             link_type="property" if link.property_id else "text",
             context=context,
