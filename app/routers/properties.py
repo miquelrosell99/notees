@@ -203,7 +203,7 @@ class TypeExtendsRequest(BaseModel):
 async def _get_property_repo(user: User) -> PostgresPropertyRepository:
     """Get PropertyRepository for user's workspace."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     return PostgresPropertyRepository(pool, workspace_id)
 
 
@@ -995,7 +995,7 @@ async def get_type_extends(
 ):
     """Get all types that this type extends (inherits from)."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     repo = PostgresPropertyRepository(pool, workspace_id)
     
     extends = await repo.get_type_extends(type_node_id)
@@ -1037,7 +1037,7 @@ async def add_type_extends(
 ):
     """Add a type that this type extends (inherits from)."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     repo = PostgresPropertyRepository(pool, workspace_id)
     
     try:
@@ -1098,7 +1098,7 @@ async def get_nodes_with_property(
 ):
     """Get all nodes that have this property assigned."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     repo = PostgresPropertyRepository(pool, workspace_id)
     
     # Check property exists
