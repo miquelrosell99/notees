@@ -505,12 +505,23 @@ export function useUpdateNode() {
       // This ensures backlink badges and linked references update in real-time
       // when block references are added/removed (e.g., [[linkId]] or ((uuid)))
       if (variables.data.name !== undefined) {
-        // Invalidate linked references for all nodes (we don't know which nodes were linked/unlinked)
-        queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'] });
+        // Invalidate and refetch linked references for all nodes
+        // We use refetchQueries to ensure immediate refetch even if the query
+        // was already marked stale by a previous rapid mutation
+        queryClient.refetchQueries({ 
+          queryKey: ['nodes', 'linked-refs'],
+          type: 'active',
+        });
         // Invalidate backlinks queries
-        queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'] });
+        queryClient.refetchQueries({ 
+          queryKey: ['nodes', 'backlinks'],
+          type: 'active',
+        });
         // Invalidate property backlinks (in case content had property-like references)
-        queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'] });
+        queryClient.refetchQueries({ 
+          queryKey: ['nodes', 'property-backlinks'],
+          type: 'active',
+        });
         
         // Invalidate the parent page's detail query to refresh children's backlink_count
         // This is needed because backlink_count is included in the children data

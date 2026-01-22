@@ -623,7 +623,7 @@ async def get_or_create_monthly(
         # Ensure month type is assigned (for legacy pages created before types were added)
         type_ids = await _get_type_ids(service, existing.id) if existing.id else []
         if month_type_id not in type_ids:
-            await service.add_type(existing.id, month_type_id)
+            await service.add_type(existing.id, month_type_id, _system_call=True)
             type_ids.append(month_type_id)
         return _node_to_response(existing, types=type_ids)
     
@@ -697,7 +697,7 @@ async def get_or_create_yearly(
         # Ensure year type is assigned (for legacy pages created before types were added)
         type_ids = await _get_type_ids(service, existing.id) if existing.id else []
         if year_type_id not in type_ids:
-            await service.add_type(existing.id, year_type_id)
+            await service.add_type(existing.id, year_type_id, _system_call=True)
             type_ids.append(year_type_id)
         return _node_to_response(existing, types=type_ids)
     
@@ -1001,6 +1001,33 @@ async def get_node(
     
     # Get types for the node
     type_ids = await _get_type_ids(service, node_id)
+    
+    # Auto-fix legacy date nodes that don't have their date type assigned
+    if node.is_day or node.is_month or node.is_year:
+        page_type_id = service._page_type_id
+        
+        # Ensure page type is assigned
+        if page_type_id and page_type_id not in type_ids:
+            await service.add_type(node_id, page_type_id, _system_call=True)
+            type_ids.append(page_type_id)
+        
+        # Ensure date-specific type is assigned
+        if node.is_day:
+            day_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["day"])
+            if day_type and day_type.id and day_type.id not in type_ids:
+                await service.add_type(node_id, day_type.id, _system_call=True)
+                type_ids.append(day_type.id)
+        elif node.is_month:
+            month_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["month"])
+            if month_type and month_type.id and month_type.id not in type_ids:
+                await service.add_type(node_id, month_type.id, _system_call=True)
+                type_ids.append(month_type.id)
+        elif node.is_year:
+            year_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["year"])
+            if year_type and year_type.id and year_type.id not in type_ids:
+                await service.add_type(node_id, year_type.id, _system_call=True)
+                type_ids.append(year_type.id)
+    
     response = _node_to_response(node, types=type_ids)
     
     if include_children:
