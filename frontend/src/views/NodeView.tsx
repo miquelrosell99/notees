@@ -211,7 +211,12 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
   }, [node?.types, allTypes, allNodes]);
   
-  // Resolve page tag details from IDs
+  // Find the "type" type to filter it from tags
+  const typeTypeId = useMemo(() => {
+    return allTypes?.find(t => t.uuid === SYSTEM_TYPE_UUIDS.type)?.id;
+  }, [allTypes]);
+  
+  // Resolve page tag details from IDs (excluding nodes typed as "type")
   const pageTagDetails = useMemo(() => {
     if (!node?.tags || node.tags.length === 0) return [];
     return node.tags
@@ -221,8 +226,13 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         if (fromTags) return fromTags;
         return allNodes?.find(n => n.id === tagId);
       })
-      .filter((t): t is Node => t !== undefined);
-  }, [node?.tags, allTags, allNodes]);
+      .filter((t): t is Node => {
+        if (t === undefined) return false;
+        // Hide tags that are typed as "type" (type definitions shouldn't show as tags)
+        if (typeTypeId && t.types?.includes(typeTypeId)) return false;
+        return true;
+      });
+  }, [node?.tags, allTags, allNodes, typeTypeId]);
   
   // Available types for the type picker (exclude already assigned types and system types)
   const availableTypes = useMemo(() => {
@@ -239,12 +249,18 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     });
   }, [allTypes, node?.types]);
   
-  // Available tags for the tag picker (exclude already assigned tags)
+  // Available tags for the tag picker (exclude already assigned tags and type definitions)
   const availableTags = useMemo(() => {
     if (!allTags) return [];
     const assignedTagIds = new Set(node?.tags ?? []);
-    return allTags.filter(t => !assignedTagIds.has(t.id));
-  }, [allTags, node?.tags]);
+    return allTags.filter(t => {
+      // Exclude already assigned tags
+      if (assignedTagIds.has(t.id)) return false;
+      // Exclude nodes typed as "type" (type definitions shouldn't appear in tag picker)
+      if (typeTypeId && t.types?.includes(typeTypeId)) return false;
+      return true;
+    });
+  }, [allTags, node?.tags, typeTypeId]);
   
   // Handle adding a type via NodePillRow
   const handleAddType = useCallback((typeNode: Node) => {

@@ -2,7 +2,7 @@
 
 Handles all node (page, block, tag) CRUD operations.
 """
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
@@ -533,7 +533,7 @@ async def list_daily_pages(
 
 @router.post("/daily")
 async def get_or_create_daily(
-    date_str: str,  # YYYY-MM-DD
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
     user: User = Depends(get_current_user),
 ):
     """Get or create a daily note.
@@ -548,7 +548,7 @@ async def get_or_create_daily(
     
     # Parse date
     try:
-        d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        d = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
     
@@ -1330,7 +1330,7 @@ async def get_page_content(
         placeholders = ','.join(['?' for _ in block_ids])
         cursor = await conn.execute(f"""
             SELECT target_node_id, COUNT(*) as count 
-            FROM link 
+            FROM node_link 
             WHERE target_node_id IN ({placeholders})
             GROUP BY target_node_id
         """, block_ids)
