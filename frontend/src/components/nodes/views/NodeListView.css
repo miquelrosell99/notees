@@ -91,12 +91,14 @@
 .node-list-group__header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1);
+  position: relative;
   padding: var(--spacing-1) 0;
 }
 
-/* Collapse arrow button */
+/* Collapse arrow button - positioned to the left of the header */
 .node-list-group__collapse-arrow {
+  position: absolute;
+  left: -22px; /* Position arrow to the left of header */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,7 +135,7 @@
   font-style: italic;
 }
 
-/* Group children - blocks indented under page header */
+/* Group children - blocks indented from the header */
 .node-list-group__children {
-  padding-left: 1.25rem; /* Indent children under the group header */
+  padding-left: 1.25rem; /* Indent children from the header text */
 }
