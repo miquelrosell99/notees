@@ -6,8 +6,6 @@
 
 .node-document-view {
   width: 100%;
-  max-width: 72ch; /* Optimal reading width */
-  margin: 0 auto;
 }
 
 .document-node {
