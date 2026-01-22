@@ -667,6 +667,8 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
             (node_id, property_id)
         )
         np_row = await cursor.fetchone()
+        if np_row is None:
+            raise RuntimeError(f"node_property not found for node_id={node_id}, property_id={property_id}")
         node_property_id = np_row['id']
         
         # Insert the relation value
@@ -688,6 +690,7 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
         (type_uuid, now, now)
     )
     type_node_id = cursor.lastrowid
+    assert type_node_id is not None, "Failed to insert type node"
     
     # Create 'page' type node (also a type, and a page)
     cursor = await conn.execute(
@@ -696,6 +699,7 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
         (page_uuid, now, now)
     )
     page_type_id = cursor.lastrowid
+    assert page_type_id is not None, "Failed to insert page type node"
     
     # Create 'types' property (node type, multi, filtered by 'type')
     # Use fixed UUID for system property identification
@@ -706,6 +710,7 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
         (types_prop_uuid, now, now)
     )
     types_property_id = cursor.lastrowid
+    assert types_property_id is not None, "Failed to insert types property"
     
     # Set type filter for 'types' property to 'type' node
     await conn.execute(
@@ -772,6 +777,7 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
             (type_uuid, type_name, now, now)
         )
         new_type_id = cursor.lastrowid
+        assert new_type_id is not None, f"Failed to insert {type_name} type node"
         
         # Track asset type ID for cover property filter
         if type_name == "asset":
@@ -807,6 +813,7 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
             (generate_uuid(), page_name, now, now)
         )
         new_page_id = cursor.lastrowid
+        assert new_page_id is not None, f"Failed to insert {page_name} page"
         
         # Assign 'page' type only
         await assign_relation_property(new_page_id, types_property_id, page_type_id, 0)
