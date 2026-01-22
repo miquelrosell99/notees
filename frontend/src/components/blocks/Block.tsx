@@ -26,10 +26,10 @@
  * - Children auto-selected when parent is selected
  * - Shift+click on bullet opens in sidebar
  */
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useTypes, useRemoveType } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useNodesStore, useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useBlockSelectionActions, useOpenNodeAction } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
 import { Bullet } from './Bullet';
@@ -145,7 +145,17 @@ export function Block({
   const createNode = useCreateNode();
   const removeType = useRemoveType();
   const { data: allTypes } = useTypes();
-  const { openNode } = useNodesStore();
+  
+  // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
+  const openNode = useOpenNodeAction();
+  
+  // PERFORMANCE: Use fine-grained selectors for selection state
+  // These only trigger re-renders when THIS block's state changes
+  const globalIsSelected = useIsBlockSelected(block.id);
+  const globalIsPrimarySelected = useIsPrimarySelected(block.id);
+  const globalBlockState = useBlockStateSelector(block.id);
+  const globalIsBeingDragged = useIsBlockDragging(block.id);
+  const selectionMode = useSelectionMode();
   
   // Resolve type details from IDs (excluding the implicit "page" type)
   const blockTypeDetails = useMemo(() => {
@@ -173,11 +183,9 @@ export function Block({
   const hasChildren = children && children.length > 0;
   const isCollapsed = block.collapsed ?? false;
   
+  // PERFORMANCE: Only subscribe to actions and non-per-block state
+  // Per-block state (selection, editing) comes from optimized selectors above
   const {
-    selectedBlockIds,
-    primarySelectedBlockId,
-    selectionMode,
-    dragState,
     selectBlock,
     addToSelection,
     startDrag,
@@ -186,17 +194,17 @@ export function Block({
     registerBlock,
     unregisterBlock,
     getNextBlockId,
-    getBlockState,
     setBlockState: setGlobalBlockState,
     extendSelectionKeyboard,
     blockParentMap,
     clearSelection,
+    selectedBlockIds, // Still need for multi-select operations
   } = useBlockSelectionStore();
   
   // Get block state - use local state for isolated blocks, global state otherwise
   // If canEdit is false, always stay in display state
-  const globalBlockState: BlockState = !canEdit ? 'display' : getBlockState(block.id);
-  const blockState: BlockState = isolatedState ? localBlockState : globalBlockState;
+  const resolvedBlockState: BlockState = !canEdit ? 'display' : globalBlockState;
+  const blockState: BlockState = isolatedState ? localBlockState : resolvedBlockState;
   
   // Wrapper to set block state - uses local or global based on isolatedState
   const setBlockState = useCallback((blockId: number, state: BlockState) => {
@@ -209,10 +217,10 @@ export function Block({
   }, [isolatedState, setGlobalBlockState, canEdit]);
   
   // For isolated blocks or non-selectable blocks, selection is handled locally/disabled
-  const isSelected = (isolatedState || !canSelect) ? false : selectedBlockIds.has(block.id);
-  const isPrimarySelected = (isolatedState || !canSelect) ? false : primarySelectedBlockId === block.id;
+  const isSelected = (isolatedState || !canSelect) ? false : globalIsSelected;
+  const isPrimarySelected = (isolatedState || !canSelect) ? false : globalIsPrimarySelected;
   const isEditing = blockState === 'edit';
-  const isBeingDragged = (isolatedState || !canMove) ? false : dragState.draggedBlockIds.includes(block.id);
+  const isBeingDragged = (isolatedState || !canMove) ? false : globalIsBeingDragged;
   
   // Register this block element (skip for isolated/non-selectable blocks to avoid conflicts)
   useEffect(() => {
@@ -1212,4 +1220,72 @@ export function Block({
   );
 }
 
+/**
+ * PERFORMANCE: Custom comparison for React.memo
+ * 
+ * Only re-render when render-affecting props change.
+ * This prevents cascading re-renders from parent updates.
+ * 
+ * Props that affect render:
+ * - block.id, block.name, block.collapsed, block.color, block.icon
+ * - children length (not deep comparison)
+ * - depth, canEdit, canMove, canSelect, showBullet, showTypes, showChildren
+ * - commentCount, backlinkCount (badges)
+ * 
+ * Props that DON'T require re-render (callbacks are stable if useCallback'd):
+ * - onContentChange, onBulletClick, etc. (should be stable)
+ */
+function blockPropsAreEqual(
+  prevProps: Readonly<BlockProps>,
+  nextProps: Readonly<BlockProps>
+): boolean {
+  // Block identity and content
+  if (prevProps.block.id !== nextProps.block.id) return false;
+  if (prevProps.block.name !== nextProps.block.name) return false;
+  if (prevProps.block.collapsed !== nextProps.block.collapsed) return false;
+  if (prevProps.block.color !== nextProps.block.color) return false;
+  if (prevProps.block.icon !== nextProps.block.icon) return false;
+  
+  // Children - shallow compare by length and IDs
+  const prevChildren = prevProps.children ?? [];
+  const nextChildren = nextProps.children ?? [];
+  if (prevChildren.length !== nextChildren.length) return false;
+  for (let i = 0; i < prevChildren.length; i++) {
+    if (prevChildren[i].id !== nextChildren[i].id) return false;
+    // Also check children's names for content updates
+    if (prevChildren[i].name !== nextChildren[i].name) return false;
+    if (prevChildren[i].collapsed !== nextChildren[i].collapsed) return false;
+  }
+  
+  // Structural props
+  if (prevProps.depth !== nextProps.depth) return false;
+  if (prevProps.parentId !== nextProps.parentId) return false;
+  
+  // Capability flags
+  if (prevProps.canEdit !== nextProps.canEdit) return false;
+  if (prevProps.canMove !== nextProps.canMove) return false;
+  if (prevProps.canSelect !== nextProps.canSelect) return false;
+  if (prevProps.showBullet !== nextProps.showBullet) return false;
+  if (prevProps.showTypes !== nextProps.showTypes) return false;
+  if (prevProps.showChildren !== nextProps.showChildren) return false;
+  if (prevProps.isolatedState !== nextProps.isolatedState) return false;
+  if (prevProps.suppressColor !== nextProps.suppressColor) return false;
+  
+  // Badge counts
+  if (prevProps.commentCount !== nextProps.commentCount) return false;
+  if (prevProps.backlinkCount !== nextProps.backlinkCount) return false;
+  
+  // Types array (shallow ID comparison)
+  const prevTypes = prevProps.block.types ?? [];
+  const nextTypes = nextProps.block.types ?? [];
+  if (prevTypes.length !== nextTypes.length) return false;
+  for (let i = 0; i < prevTypes.length; i++) {
+    if (prevTypes[i] !== nextTypes[i]) return false;
+  }
+  
+  return true;
+}
+
+// Export memoized component
+export const MemoizedBlock = memo(Block, blockPropsAreEqual);
 export default Block;

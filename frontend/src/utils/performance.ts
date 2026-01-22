@@ -48,6 +48,23 @@ export interface NodeLoadMetric {
   totalDuration?: number;
 }
 
+export interface PerformanceGauges {
+  /** Current number of mounted NodeView components */
+  mountedNodeViews: number;
+  /** Peak NodeView count during session */
+  peakNodeViews: number;
+  /** Current number of rendered Block components */
+  mountedBlocks: number;
+  /** Peak Block count during session */
+  peakBlocks: number;
+  /** Time to focused view ready (ms) */
+  lastFocusedViewReadyMs: number | null;
+  /** Average focused view load time */
+  avgFocusedViewReadyMs: number;
+  /** Focused view load count (for averaging) */
+  focusedViewLoadCount: number;
+}
+
 // ==================== Performance Store ====================
 
 class PerformanceStore {
@@ -55,6 +72,17 @@ class PerformanceStore {
   private renderMetrics: Map<string, RenderMetric> = new Map();
   private nodeLoadMetrics: Map<number, NodeLoadMetric> = new Map();
   private enabled: boolean = import.meta.env?.DEV ?? false;
+  
+  // Gauges for Phase 6 instrumentation
+  private gauges: PerformanceGauges = {
+    mountedNodeViews: 0,
+    peakNodeViews: 0,
+    mountedBlocks: 0,
+    peakBlocks: 0,
+    lastFocusedViewReadyMs: null,
+    avgFocusedViewReadyMs: 0,
+    focusedViewLoadCount: 0,
+  };
   
   constructor() {
     // Check for performance API availability
@@ -69,6 +97,54 @@ class PerformanceStore {
   
   isEnabled() {
     return this.enabled;
+  }
+
+  // ==================== Gauge Tracking (Phase 6) ====================
+  
+  /**
+   * Track NodeView mount/unmount for max NodeView count metric
+   */
+  nodeViewMounted() {
+    this.gauges.mountedNodeViews++;
+    if (this.gauges.mountedNodeViews > this.gauges.peakNodeViews) {
+      this.gauges.peakNodeViews = this.gauges.mountedNodeViews;
+    }
+  }
+  
+  nodeViewUnmounted() {
+    this.gauges.mountedNodeViews = Math.max(0, this.gauges.mountedNodeViews - 1);
+  }
+  
+  /**
+   * Track Block mount/unmount for nodes mounted metric
+   */
+  blockMounted() {
+    this.gauges.mountedBlocks++;
+    if (this.gauges.mountedBlocks > this.gauges.peakBlocks) {
+      this.gauges.peakBlocks = this.gauges.mountedBlocks;
+    }
+  }
+  
+  blockUnmounted() {
+    this.gauges.mountedBlocks = Math.max(0, this.gauges.mountedBlocks - 1);
+  }
+  
+  /**
+   * Track focused view ready time
+   */
+  focusedViewReady(durationMs: number) {
+    this.gauges.lastFocusedViewReadyMs = durationMs;
+    this.gauges.focusedViewLoadCount++;
+    // Calculate rolling average
+    const prevTotal = this.gauges.avgFocusedViewReadyMs * (this.gauges.focusedViewLoadCount - 1);
+    this.gauges.avgFocusedViewReadyMs = (prevTotal + durationMs) / this.gauges.focusedViewLoadCount;
+  }
+  
+  /**
+   * Get current gauge values
+   */
+  getGauges(): PerformanceGauges {
+    return { ...this.gauges };
   }
 
   // ==================== General Marks ====================
@@ -185,11 +261,13 @@ class PerformanceStore {
     marks: PerformanceMetric[];
     renders: RenderMetric[];
     nodeLoads: NodeLoadMetric[];
+    gauges: PerformanceGauges;
   } {
     return {
       marks: Array.from(this.metrics.values()),
       renders: this.getRenderMetrics(),
       nodeLoads: Array.from(this.nodeLoadMetrics.values()),
+      gauges: this.getGauges(),
     };
   }
   
@@ -197,6 +275,9 @@ class PerformanceStore {
     this.metrics.clear();
     this.renderMetrics.clear();
     this.nodeLoadMetrics.clear();
+    // Reset gauges but keep peaks for session analysis
+    this.gauges.mountedNodeViews = 0;
+    this.gauges.mountedBlocks = 0;
     
     // Clear native marks
     try {
@@ -213,6 +294,16 @@ class PerformanceStore {
     console.group('🔬 Notees Performance Report');
     
     const report = this.getReport();
+    
+    // Phase 6: Gauges first for quick visibility
+    console.group('📊 Current Gauges');
+    console.log(`NodeViews mounted: ${report.gauges.mountedNodeViews} (peak: ${report.gauges.peakNodeViews})`);
+    console.log(`Blocks mounted: ${report.gauges.mountedBlocks} (peak: ${report.gauges.peakBlocks})`);
+    if (report.gauges.lastFocusedViewReadyMs !== null) {
+      console.log(`Last focused view ready: ${report.gauges.lastFocusedViewReadyMs.toFixed(2)}ms`);
+      console.log(`Avg focused view ready: ${report.gauges.avgFocusedViewReadyMs.toFixed(2)}ms (n=${report.gauges.focusedViewLoadCount})`);
+    }
+    console.groupEnd();
     
     console.group('⏱️ Timing Marks');
     report.marks
@@ -333,6 +424,53 @@ export function useTimeToFirstRender(name: string) {
   if (!mounted.current) {
     perfStore.markStart(`${name}:firstRender`);
   }
+}
+
+/**
+ * Hook to track NodeView mount/unmount (Phase 6)
+ * Add this to NodeView components to track max mounted count
+ */
+export function useNodeViewTracking() {
+  useEffect(() => {
+    perfStore.nodeViewMounted();
+    return () => perfStore.nodeViewUnmounted();
+  }, []);
+}
+
+/**
+ * Hook to track Block mount/unmount (Phase 6)
+ * Add this to Block components to track total rendered nodes
+ */
+export function useBlockTracking() {
+  useEffect(() => {
+    perfStore.blockMounted();
+    return () => perfStore.blockUnmounted();
+  }, []);
+}
+
+/**
+ * Hook to track focused view ready time (Phase 6)
+ * Use in useFocusedView or NodeView to measure navigation performance
+ */
+export function useFocusedViewTracking(nodeId: number | null, isReady: boolean) {
+  const startTimeRef = useRef<number | null>(null);
+  const trackedRef = useRef<number | null>(null);
+  
+  useEffect(() => {
+    // New navigation - start tracking
+    if (nodeId && nodeId !== trackedRef.current && !isReady) {
+      startTimeRef.current = performance.now();
+      trackedRef.current = null;
+    }
+    
+    // Navigation complete - record duration
+    if (nodeId && isReady && startTimeRef.current && trackedRef.current !== nodeId) {
+      const duration = performance.now() - startTimeRef.current;
+      perfStore.focusedViewReady(duration);
+      trackedRef.current = nodeId;
+      startTimeRef.current = null;
+    }
+  }, [nodeId, isReady]);
 }
 
 // ==================== Development Helpers ====================

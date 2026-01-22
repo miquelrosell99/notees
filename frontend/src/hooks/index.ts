@@ -13,3 +13,4 @@ export * from './useNodeCollection';
 export * from './useDragPreview';
 export * from './useVirtualizedNodes';
 export * from './usePrefetch';
+export * from './useFocusedView';

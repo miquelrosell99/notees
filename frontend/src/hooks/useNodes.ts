@@ -34,6 +34,12 @@ export const nodeKeys = {
   types: () => [...nodeKeys.all, 'types'] as const,
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
+  
+  // PERFORMANCE: Metadata-only keys for lightweight queries
+  // These are separate from detail queries to avoid cache pollution
+  metadata: (id: number) => [...nodeKeys.all, 'metadata', id] as const,
+  childrenOnly: (id: number) => [...nodeKeys.all, 'children-only', id] as const,
+  breadcrumbs: (id: number) => [...nodeKeys.all, 'breadcrumbs', id] as const,
 };
 
 export const propertyKeys = {
@@ -76,6 +82,46 @@ export function useNode(
     queryKey: nodeKeys.detail(id ?? 0, options),
     queryFn: () => nodesApi.getNode(id!, options),
     enabled: !!id,
+  });
+}
+
+/**
+ * PERFORMANCE: Metadata-only node fetch
+ * 
+ * Loads minimal node data without children, backlinks, or properties.
+ * Use for breadcrumbs, link previews, and other lightweight displays.
+ * 
+ * This uses a separate cache key to avoid polluting the full detail cache.
+ */
+export function useNodeMetadata(id: number | null) {
+  return useQuery({
+    queryKey: nodeKeys.metadata(id ?? 0),
+    queryFn: () => nodesApi.getNode(id!, {
+      include_children: false,
+      include_backlinks: false,
+      include_properties: false,
+    }),
+    enabled: !!id,
+    // Metadata is stable, cache longer
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+}
+
+/**
+ * PERFORMANCE: Children-only fetch
+ * 
+ * Loads just the direct children of a node, useful for lazy-loading tree views.
+ * Results are normalized into the main node cache on success.
+ */
+export function useNodeChildren(parentId: number | null) {
+  return useQuery({
+    queryKey: nodeKeys.childrenOnly(parentId ?? 0),
+    queryFn: async () => {
+      const parent = await nodesApi.getNode(parentId!, { include_children: true });
+      return parent.children ?? [];
+    },
+    enabled: !!parentId,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
