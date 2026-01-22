@@ -256,8 +256,6 @@
   background-color: var(--color-primary);
   pointer-events: none;
   z-index: 10;
-  border-radius: 1px;
-  box-shadow: 0 0 4px var(--color-primary);
 }
 
 .drop-indicator-before {
