@@ -177,7 +177,9 @@ export function NodeTableView({
             onContentChange={handleContentChange}
             showBullet={false}
             showTypes={false}
-            readOnly={!editable}
+            canEdit={editable}
+            canMove={false}
+            canSelect={false}
             {...blockProps}
           />
         </div>

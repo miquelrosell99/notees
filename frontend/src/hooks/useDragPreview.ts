@@ -2,7 +2,7 @@
  * useDragPreview Hook
  * 
  * Manages drag preview state for block drag-and-drop operations.
- * Use with BlockPreviewDrag component for visual feedback.
+ * Use with BlockDrag component for visual feedback.
  * 
  * @example
  * const { draggedBlock, dragPosition, isDragging, startDrag, endDrag } = useDragPreview();
@@ -13,7 +13,7 @@
  * // Render the preview
  * {isDragging && draggedBlock && (
  *   <div style={{ position: 'fixed', left: dragPosition.x + 10, top: dragPosition.y + 10 }}>
- *     <BlockPreviewDrag node={draggedBlock} />
+ *     <BlockDrag node={draggedBlock} />
  *   </div>
  * )}
  */
