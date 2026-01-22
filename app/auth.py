@@ -1,19 +1,19 @@
 """Authentication module for Notees.
 
 Handles user authentication, JWT tokens, and password hashing.
+Uses PostgreSQL for user storage.
 Default admin credentials: admin/admin
 """
-import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from pathlib import Path
-import secrets
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from .config import settings
 from .logging_config import get_logger
+from .db.connection import get_connection
 
 logger = get_logger(__name__)
 
@@ -21,16 +21,9 @@ logger = get_logger(__name__)
 # Use pbkdf2_sha256 to avoid any bcrypt backend interaction and length limits
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-USERS_DIR = settings.database_dir / "users"
-
-
-def ensure_dirs():
-    """Ensure required directories exist."""
-    USERS_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
+    """Hash a password."""
     return pwd_context.hash(password)
 
 
@@ -71,72 +64,85 @@ def decode_token(token: str) -> Optional[dict]:
         return None
 
 
-def get_user_file(user_id: str) -> Path:
-    """Get the file path for a user."""
-    return USERS_DIR / f"{user_id}.json"
-
-
 async def get_user_by_id(user_id: str) -> Optional[dict]:
-    """Get a user by ID."""
-    user_file = get_user_file(user_id)
-    if user_file.exists():
-        with open(user_file, "r") as f:
-            return json.load(f)
+    """Get a user by ID (numeric or UUID string)."""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            '''
+            SELECT id, uuid, username, password_hash as hashed_password, 
+                   is_active, create_date as created_at
+            FROM "user" 
+            WHERE id::text = $1 OR uuid::text = $1
+            ''',
+            user_id
+        )
+        if row:
+            return {
+                "id": str(row['id']),
+                "uuid": str(row['uuid']),
+                "username": row['username'],
+                "hashed_password": row['hashed_password'],
+                "is_active": row['is_active'],
+                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+            }
     return None
 
 
 async def get_user_by_username(username: str) -> Optional[dict]:
     """Get a user by username."""
-    ensure_dirs()
-    matches = []
-    for user_file in USERS_DIR.glob("*.json"):
-        with open(user_file, "r", encoding="utf-8") as f:
-            try:
-                user = json.load(f)
-            except Exception:
-                continue
-            if user.get("username") == username:
-                matches.append(user)
-
-    if not matches:
-        return None
-
-    # Return the most recently created matching user (deterministic)
-    try:
-        matches.sort(key=lambda u: u.get("created_at", ""))
-    except Exception:
-        pass
-
-    return matches[-1]
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            '''
+            SELECT id, uuid, username, password_hash as hashed_password, 
+                   is_active, create_date as created_at
+            FROM "user" 
+            WHERE username = $1
+            ''',
+            username
+        )
+        if row:
+            return {
+                "id": str(row['id']),
+                "uuid": str(row['uuid']),
+                "username": row['username'],
+                "hashed_password": row['hashed_password'],
+                "is_active": row['is_active'],
+                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+            }
+    return None
 
 
 async def create_user(username: str, password: str) -> dict:
     """Create a new user."""
-    ensure_dirs()
-    
     # Check if username exists
     existing = await get_user_by_username(username)
     if existing:
         logger.warning(f"Attempted to create duplicate user: {username}")
         raise ValueError(f"Username '{username}' already exists")
     
-    user_id = secrets.token_hex(8)
-    now = datetime.now(timezone.utc).isoformat()
+    hashed = hash_password(password)
     
-    user = {
-        "id": user_id,
-        "username": username,
-        "hashed_password": hash_password(password),
-        "created_at": now,
-        "is_active": True
-    }
-    
-    user_file = get_user_file(user_id)
-    with open(user_file, "w") as f:
-        json.dump(user, f, indent=2)
-    
-    logger.info(f"Created new user: {username} (ID: {user_id})")
-    return user
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            '''
+            INSERT INTO "user" (username, password_hash, is_active)
+            VALUES ($1, $2, TRUE)
+            RETURNING id, uuid, username, is_active, create_date as created_at
+            ''',
+            username, hashed
+        )
+        
+        user = {
+            "id": str(row['id']),
+            "uuid": str(row['uuid']),
+            "username": row['username'],
+            "hashed_password": hashed,
+            "is_active": row['is_active'],
+            "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+        }
+        
+        logger.info(f"Created new user: {username} (ID: {user['id']})")
+        return user
 
 
 async def authenticate_user(username: str, password: str) -> Optional[dict]:
@@ -162,8 +168,6 @@ async def authenticate_user(username: str, password: str) -> Optional[dict]:
 
 async def ensure_admin_user():
     """Ensure the default admin user exists."""
-    ensure_dirs()
-    
     existing = await get_user_by_username("admin")
     if not existing:
         logger.info("Creating default admin user...")
