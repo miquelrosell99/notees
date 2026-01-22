@@ -1,0 +1,47 @@
+/**
+ * NodePlaceholder Component Styles
+ * 
+ * Minimal styling for virtualized node placeholders.
+ */
+
+.node-placeholder {
+  display: block;
+  background: var(--color-surface-secondary, #f5f5f5);
+  border-radius: var(--radius-sm, 4px);
+  margin: 2px 0;
+}
+
+/* Shimmer animation for loading state */
+.node-placeholder--shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.node-placeholder--shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: node-placeholder-shimmer 1.5s infinite;
+}
+
+@keyframes node-placeholder-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Reduce motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .node-placeholder--shimmer::after {
+    animation: none;
+  }
+}

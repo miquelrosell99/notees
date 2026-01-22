@@ -1,0 +1,345 @@
+/**
+ * Performance Instrumentation Utilities
+ * 
+ * Tools for measuring and monitoring render performance in Notees.
+ * These utilities help identify performance bottlenecks and verify optimizations.
+ * 
+ * Metrics tracked:
+ * - Time to first node render
+ * - Time to focused view ready
+ * - Node count vs render cost
+ * - Component render frequency
+ * 
+ * Usage:
+ * ```tsx
+ * // In NodeView
+ * const { markStart, markEnd, measure } = usePerformanceMarks('NodeView');
+ * 
+ * useEffect(() => {
+ *   markStart('load');
+ *   return () => markEnd('load');
+ * }, []);
+ * ```
+ */
+
+// ==================== Types ====================
+
+export interface PerformanceMetric {
+  name: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RenderMetric {
+  componentName: string;
+  renderCount: number;
+  totalDuration: number;
+  avgDuration: number;
+  lastRenderTime: number;
+}
+
+export interface NodeLoadMetric {
+  nodeId: number;
+  loadStartTime: number;
+  contentReadyTime?: number;
+  childrenReadyTime?: number;
+  totalDuration?: number;
+}
+
+// ==================== Performance Store ====================
+
+class PerformanceStore {
+  private metrics: Map<string, PerformanceMetric> = new Map();
+  private renderMetrics: Map<string, RenderMetric> = new Map();
+  private nodeLoadMetrics: Map<number, NodeLoadMetric> = new Map();
+  private enabled: boolean = import.meta.env?.DEV ?? false;
+  
+  constructor() {
+    // Check for performance API availability
+    if (typeof performance === 'undefined') {
+      this.enabled = false;
+    }
+  }
+  
+  setEnabled(enabled: boolean) {
+    this.enabled = enabled;
+  }
+  
+  isEnabled() {
+    return this.enabled;
+  }
+
+  // ==================== General Marks ====================
+  
+  markStart(name: string, metadata?: Record<string, unknown>) {
+    if (!this.enabled) return;
+    
+    this.metrics.set(name, {
+      name,
+      startTime: performance.now(),
+      metadata,
+    });
+    
+    // Also use native Performance API for DevTools
+    performance.mark(`notees:${name}:start`);
+  }
+  
+  markEnd(name: string, metadata?: Record<string, unknown>) {
+    if (!this.enabled) return;
+    
+    const metric = this.metrics.get(name);
+    if (!metric) return;
+    
+    const endTime = performance.now();
+    metric.endTime = endTime;
+    metric.duration = endTime - metric.startTime;
+    
+    if (metadata) {
+      metric.metadata = { ...metric.metadata, ...metadata };
+    }
+    
+    // Native Performance API
+    performance.mark(`notees:${name}:end`);
+    try {
+      performance.measure(
+        `notees:${name}`,
+        `notees:${name}:start`,
+        `notees:${name}:end`
+      );
+    } catch {
+      // Marks may have been cleared
+    }
+    
+    return metric.duration;
+  }
+  
+  measure(name: string): number | undefined {
+    return this.metrics.get(name)?.duration;
+  }
+
+  // ==================== Render Tracking ====================
+  
+  trackRender(componentName: string, duration: number) {
+    if (!this.enabled) return;
+    
+    const existing = this.renderMetrics.get(componentName);
+    if (existing) {
+      existing.renderCount++;
+      existing.totalDuration += duration;
+      existing.avgDuration = existing.totalDuration / existing.renderCount;
+      existing.lastRenderTime = performance.now();
+    } else {
+      this.renderMetrics.set(componentName, {
+        componentName,
+        renderCount: 1,
+        totalDuration: duration,
+        avgDuration: duration,
+        lastRenderTime: performance.now(),
+      });
+    }
+  }
+  
+  getRenderMetrics(): RenderMetric[] {
+    return Array.from(this.renderMetrics.values());
+  }
+
+  // ==================== Node Load Tracking ====================
+  
+  nodeLoadStart(nodeId: number) {
+    if (!this.enabled) return;
+    
+    this.nodeLoadMetrics.set(nodeId, {
+      nodeId,
+      loadStartTime: performance.now(),
+    });
+  }
+  
+  nodeContentReady(nodeId: number) {
+    if (!this.enabled) return;
+    
+    const metric = this.nodeLoadMetrics.get(nodeId);
+    if (metric) {
+      metric.contentReadyTime = performance.now();
+    }
+  }
+  
+  nodeChildrenReady(nodeId: number) {
+    if (!this.enabled) return;
+    
+    const metric = this.nodeLoadMetrics.get(nodeId);
+    if (metric) {
+      metric.childrenReadyTime = performance.now();
+      metric.totalDuration = metric.childrenReadyTime - metric.loadStartTime;
+    }
+  }
+  
+  getNodeLoadMetric(nodeId: number): NodeLoadMetric | undefined {
+    return this.nodeLoadMetrics.get(nodeId);
+  }
+
+  // ==================== Reporting ====================
+  
+  getReport(): {
+    marks: PerformanceMetric[];
+    renders: RenderMetric[];
+    nodeLoads: NodeLoadMetric[];
+  } {
+    return {
+      marks: Array.from(this.metrics.values()),
+      renders: this.getRenderMetrics(),
+      nodeLoads: Array.from(this.nodeLoadMetrics.values()),
+    };
+  }
+  
+  clear() {
+    this.metrics.clear();
+    this.renderMetrics.clear();
+    this.nodeLoadMetrics.clear();
+    
+    // Clear native marks
+    try {
+      performance.clearMarks();
+      performance.clearMeasures();
+    } catch {
+      // May not be supported
+    }
+  }
+  
+  log() {
+    if (!this.enabled) return;
+    
+    console.group('🔬 Notees Performance Report');
+    
+    const report = this.getReport();
+    
+    console.group('⏱️ Timing Marks');
+    report.marks
+      .filter(m => m.duration !== undefined)
+      .sort((a, b) => (b.duration ?? 0) - (a.duration ?? 0))
+      .forEach(m => {
+        console.log(`${m.name}: ${m.duration?.toFixed(2)}ms`, m.metadata || '');
+      });
+    console.groupEnd();
+    
+    console.group('🔄 Render Metrics');
+    report.renders
+      .sort((a, b) => b.renderCount - a.renderCount)
+      .slice(0, 20)
+      .forEach(r => {
+        console.log(
+          `${r.componentName}: ${r.renderCount} renders, avg ${r.avgDuration.toFixed(2)}ms`
+        );
+      });
+    console.groupEnd();
+    
+    console.group('📦 Node Load Times');
+    report.nodeLoads
+      .filter(n => n.totalDuration !== undefined)
+      .sort((a, b) => (b.totalDuration ?? 0) - (a.totalDuration ?? 0))
+      .slice(0, 10)
+      .forEach(n => {
+        console.log(`Node ${n.nodeId}: ${n.totalDuration?.toFixed(2)}ms total`);
+      });
+    console.groupEnd();
+    
+    console.groupEnd();
+  }
+}
+
+// Singleton instance
+export const perfStore = new PerformanceStore();
+
+// ==================== React Hooks ====================
+
+import { useEffect, useRef, useCallback } from 'react';
+
+/**
+ * Hook for performance marks in components
+ */
+export function usePerformanceMarks(componentName: string) {
+  const markStart = useCallback((name: string, metadata?: Record<string, unknown>) => {
+    perfStore.markStart(`${componentName}:${name}`, metadata);
+  }, [componentName]);
+  
+  const markEnd = useCallback((name: string, metadata?: Record<string, unknown>) => {
+    return perfStore.markEnd(`${componentName}:${name}`, metadata);
+  }, [componentName]);
+  
+  const measure = useCallback((name: string) => {
+    return perfStore.measure(`${componentName}:${name}`);
+  }, [componentName]);
+  
+  return { markStart, markEnd, measure };
+}
+
+/**
+ * Hook to track component renders
+ */
+export function useRenderTracking(componentName: string) {
+  const renderStartRef = useRef<number>(0);
+  
+  // Track render start
+  renderStartRef.current = performance.now();
+  
+  useEffect(() => {
+    // Track render end (after commit)
+    const duration = performance.now() - renderStartRef.current;
+    perfStore.trackRender(componentName, duration);
+  });
+}
+
+/**
+ * Hook to track node loading performance
+ */
+export function useNodeLoadTracking(nodeId: number | null, isLoading: boolean) {
+  const trackedRef = useRef(false);
+  
+  useEffect(() => {
+    if (!nodeId) return;
+    
+    if (isLoading && !trackedRef.current) {
+      trackedRef.current = true;
+      perfStore.nodeLoadStart(nodeId);
+    } else if (!isLoading && trackedRef.current) {
+      perfStore.nodeContentReady(nodeId);
+    }
+  }, [nodeId, isLoading]);
+  
+  const markChildrenReady = useCallback(() => {
+    if (nodeId) {
+      perfStore.nodeChildrenReady(nodeId);
+    }
+  }, [nodeId]);
+  
+  return { markChildrenReady };
+}
+
+/**
+ * Hook to measure time to first render
+ */
+export function useTimeToFirstRender(name: string) {
+  const mounted = useRef(false);
+  
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      perfStore.markEnd(`${name}:firstRender`);
+    }
+  }, [name]);
+  
+  // Mark start on first call
+  if (!mounted.current) {
+    perfStore.markStart(`${name}:firstRender`);
+  }
+}
+
+// ==================== Development Helpers ====================
+
+// Expose to window for manual inspection in dev
+if (import.meta.env?.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __NOTEES_PERF__: PerformanceStore }).__NOTEES_PERF__ = perfStore;
+}
+
+export default perfStore;
