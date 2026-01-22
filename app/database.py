@@ -30,7 +30,6 @@ _active_workspaces: Dict[str, str] = {}
 
 
 # ============== Workspace/Database Management ==============
-# These functions manage workspaces (the PostgreSQL equivalent of SQLite databases)
 
 async def _get_numeric_user_id(user_id: str) -> Optional[int]:
     """Convert string user_id to numeric PostgreSQL ID."""
@@ -281,6 +280,126 @@ async def import_database(user_id: str, file_path: Path, name: str) -> Dict[str,
     """Import a workspace from a JSON file."""
     logger.warning(f"Import not fully implemented - creating empty workspace '{name}'")
     return await create_database(user_id, name)
+
+
+async def export_nodes(
+    user_id: str,
+    node_ids: List[str],
+    format: Any,  # ExportFormat enum
+    include_children: bool = True
+) -> tuple:
+    """Export nodes to various formats.
+    
+    Returns: (content: bytes, filename: str, mime_type: str)
+    """
+    from .models import ExportFormat
+    
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        raise ValueError(f"User not found: {user_id}")
+    
+    # Get user's active workspace
+    workspace_name = _active_workspaces.get(user_id)
+    
+    async with get_connection() as conn:
+        # Find workspace
+        if workspace_name:
+            workspace = await conn.fetchrow(
+                "SELECT id FROM workspace WHERE owner_id = $1 AND name = $2",
+                numeric_user_id, workspace_name
+            )
+        else:
+            workspace = await conn.fetchrow(
+                "SELECT id FROM workspace WHERE owner_id = $1 ORDER BY create_date LIMIT 1",
+                numeric_user_id
+            )
+        
+        if not workspace:
+            raise ValueError("No workspace found")
+        
+        workspace_id = workspace['id']
+        
+        # Fetch nodes
+        nodes_data = []
+        for node_uuid in node_ids:
+            if include_children:
+                # Get node and all descendants using recursive CTE
+                rows = await conn.fetch(
+                    """
+                    WITH RECURSIVE tree AS (
+                        SELECT id, uuid, name, parent_id, 0 as depth
+                        FROM node 
+                        WHERE workspace_id = $1 AND uuid::text = $2
+                        UNION ALL
+                        SELECT n.id, n.uuid, n.name, n.parent_id, t.depth + 1
+                        FROM node n
+                        JOIN tree t ON n.parent_id = t.id
+                        WHERE n.workspace_id = $1
+                    )
+                    SELECT * FROM tree ORDER BY depth, id
+                    """,
+                    workspace_id, node_uuid
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT id, uuid, name, parent_id FROM node WHERE workspace_id = $1 AND uuid::text = $2",
+                    workspace_id, node_uuid
+                )
+            
+            for row in rows:
+                nodes_data.append({
+                    "uuid": str(row['uuid']),
+                    "name": row['name'],
+                })
+    
+    if not nodes_data:
+        raise ValueError("No nodes found to export")
+    
+    # Generate content based on format
+    if format == ExportFormat.MARKDOWN or format == "markdown":
+        content = _export_to_markdown(nodes_data)
+        filename = "export.md"
+        mime_type = "text/markdown"
+    elif format == ExportFormat.HTML or format == "html":
+        content = _export_to_html(nodes_data)
+        filename = "export.html"
+        mime_type = "text/html"
+    elif format == ExportFormat.PDF or format == "pdf":
+        # PDF export not fully implemented - return HTML
+        content = _export_to_html(nodes_data)
+        filename = "export.html"
+        mime_type = "text/html"
+    else:
+        raise ValueError(f"Unsupported format: {format}")
+    
+    return content.encode('utf-8'), filename, mime_type
+
+
+def _export_to_markdown(nodes: List[Dict]) -> str:
+    """Convert nodes to Markdown format."""
+    lines = []
+    for node in nodes:
+        name = node.get('name', '')
+        lines.append(f"- {name}")
+    return "\n".join(lines)
+
+
+def _export_to_html(nodes: List[Dict]) -> str:
+    """Convert nodes to HTML format."""
+    items = []
+    for node in nodes:
+        name = node.get('name', '')
+        items.append(f"  <li>{name}</li>")
+    
+    return f"""<!DOCTYPE html>
+<html>
+<head><title>Notees Export</title></head>
+<body>
+<ul>
+{chr(10).join(items)}
+</ul>
+</body>
+</html>"""
 
 
 # ============== Stub Functions ==============

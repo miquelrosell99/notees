@@ -108,7 +108,7 @@ async def import_database(
 ):
     """Import a database file."""
     # Save uploaded file temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = Path(tmp.name)
     

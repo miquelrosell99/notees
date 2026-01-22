@@ -2,9 +2,8 @@
 
 Handles client-server synchronization and user settings.
 
-NOTE: Sync functionality is currently a stub. It was designed for the SQLite
-per-user database model. For PostgreSQL with workspaces, sync needs to be
-redesigned to work with the shared database model.
+NOTE: Sync functionality is currently a stub and needs to be redesigned
+for the shared workspace model.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
 from datetime import datetime, timezone

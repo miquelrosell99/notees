@@ -1,7 +1,6 @@
 """PostgreSQL connection pool manager.
 
 Provides async connection pooling for PostgreSQL using asyncpg.
-Replaces the per-user SQLite file-based model with a shared PostgreSQL database.
 """
 from __future__ import annotations
 
