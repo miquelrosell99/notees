@@ -47,47 +47,41 @@
 }
 
 /* Page header section - CSS Grid layout for pages */
-/* Grid: [title] [cover]
-         [types] [cover]
-         [tags]  [cover]
-         [props] [cover] */
+/* Grid: [header (title+types+tags)] [cover]
+         [properties]                [cover] */
 .page-header-section {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto auto auto;
-  gap: var(--spacing-1) var(--spacing-4);
+  grid-template-rows: auto auto;
+  gap: var(--spacing-2) var(--spacing-4);
   margin-bottom: var(--spacing-4);
 }
 
-.page-header-section__title {
+.page-header-section__header {
   grid-column: 1;
   grid-row: 1;
 }
 
 /* Remove bottom margin from page-header when inside the grid section */
-.page-header-section__title .page-header {
+.page-header-section__header .page-header {
   margin-bottom: 0;
   padding-bottom: 0;
 }
 
 /* Ensure title row has no extra padding */
-.page-header-section__title .page-header__title-row {
+.page-header-section__header .page-header__title-row {
   margin-bottom: 0;
 }
 
-.page-header-section__types {
-  grid-column: 1;
-  grid-row: 2;
-}
-
+/* Types and tags rows inside header */
+.page-header-section__types,
 .page-header-section__tags {
-  grid-column: 1;
-  grid-row: 3;
+  padding-left: calc(48px + var(--spacing-3));  /* Align with title text (after icon) */
 }
 
 .page-header-section__properties {
   grid-column: 1;
-  grid-row: 4;
+  grid-row: 2;
 }
 
 /* Cover image spans all rows */
