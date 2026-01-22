@@ -46,6 +46,18 @@ ALL_SYSTEM_TYPE_UUIDS = set(SYSTEM_TYPE_UUIDS.values())
 # The 'type' type UUID - nodes with this UUID cannot have 'type' removed from them
 TYPE_TYPE_UUID = SYSTEM_TYPE_UUIDS["type"]
 
+# Mapping from type UUID to the node flag field name
+TYPE_UUID_TO_FLAG = {
+    SYSTEM_TYPE_UUIDS["type"]: "is_type",
+    SYSTEM_TYPE_UUIDS["page"]: "is_page",
+    SYSTEM_TYPE_UUIDS["day"]: "is_day",
+    SYSTEM_TYPE_UUIDS["month"]: "is_month",
+    SYSTEM_TYPE_UUIDS["year"]: "is_year",
+    SYSTEM_TYPE_UUIDS["asset"]: "is_asset",
+    SYSTEM_TYPE_UUIDS["template"]: "is_template",
+    SYSTEM_TYPE_UUIDS["comment"]: "is_comment",
+}
+
 
 class NodeService:
     """Domain service for node operations."""
@@ -354,6 +366,12 @@ class NodeService:
             node_id, self._types_property_id, type_node_id, max_order + 1
         )
         
+        # Update the corresponding flag if this is a system type with a flag
+        if type_node and type_node.uuid in TYPE_UUID_TO_FLAG:
+            flag_name = TYPE_UUID_TO_FLAG[type_node.uuid]
+            update_data = NodeUpdateData(**{flag_name: True})
+            await self._node_repo.update(node_id, update_data)
+        
         # Apply SuperType properties
         type_properties = await self._property_repo.get_type_properties(type_node_id)
         for tp in type_properties:
@@ -397,6 +415,13 @@ class NodeService:
             if val.target_node_id == type_node_id:
                 # Remove this specific relation value
                 await self._property_repo.remove_relation_value(val.id)
+                
+                # Update the corresponding flag if this is a system type with a flag
+                if type_node and type_node.uuid in TYPE_UUID_TO_FLAG:
+                    flag_name = TYPE_UUID_TO_FLAG[type_node.uuid]
+                    update_data = NodeUpdateData(**{flag_name: False})
+                    await self._node_repo.update(node_id, update_data)
+                
                 return True
         
         return False  # Type was not assigned to this node

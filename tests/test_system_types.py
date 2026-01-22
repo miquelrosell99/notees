@@ -250,3 +250,103 @@ async def test_can_remove_type_from_user_type(node_service, test_db):
     # May return True or False depending on whether the type was actually set,
     # but importantly it should NOT raise SystemTypeConstraintError
     assert isinstance(success, bool)
+
+
+@pytest.mark.asyncio
+async def test_adding_type_type_sets_is_type_flag(node_service, test_db):
+    """Test that adding 'type' type to a page sets is_type=True on the node."""
+    conn = test_db
+    service = node_service
+    
+    # Get 'type' type ID
+    cursor = await conn.execute("SELECT id FROM node WHERE name = 'type' AND is_type = 1 LIMIT 1")
+    row = await cursor.fetchone()
+    type_type_id = row['id']
+    
+    # Create a page (not a type initially)
+    page = await service.create_page("Test Page For Type")
+    
+    # Verify is_type is False initially
+    node = await service.get_node(page.id)
+    assert node is not None
+    assert node.is_type is False
+    
+    # Add 'type' type to the page
+    success = await service.add_type(page.id, type_type_id)
+    assert success is True
+    
+    # Verify is_type is now True
+    node = await service.get_node(page.id)
+    assert node is not None
+    assert node.is_type is True
+
+
+@pytest.mark.asyncio
+async def test_removing_type_type_clears_is_type_flag(node_service, test_db):
+    """Test that removing 'type' type from a user-created type sets is_type=False."""
+    conn = test_db
+    service = node_service
+    
+    # Get 'type' type ID
+    cursor = await conn.execute("SELECT id FROM node WHERE name = 'type' AND is_type = 1 LIMIT 1")
+    row = await cursor.fetchone()
+    type_type_id = row['id']
+    
+    # Create a page and add 'type' type to make it a type
+    page = await service.create_page("User Created Type")
+    await service.add_type(page.id, type_type_id)
+    
+    # Verify is_type is True
+    node = await service.get_node(page.id)
+    assert node is not None
+    assert node.is_type is True
+    
+    # Remove 'type' type
+    success = await service.remove_type(page.id, type_type_id)
+    assert success is True
+    
+    # Verify is_type is now False
+    node = await service.get_node(page.id)
+    assert node is not None
+    assert node.is_type is False
+
+
+@pytest.mark.asyncio
+async def test_page_type_sets_is_page_flag(node_service, test_db):
+    """Test that adding/removing 'page' type sets is_page flag correctly."""
+    from app.domain.entities import NodeCreateData
+    
+    conn = test_db
+    service = node_service
+    
+    # Get 'page' type ID
+    cursor = await conn.execute("SELECT id FROM node WHERE name = 'page' AND is_type = 1 LIMIT 1")
+    row = await cursor.fetchone()
+    page_type_id = row['id']
+    
+    # Create a block (not a page initially)
+    parent = await service.create_page("Parent Page")
+    block = await service.create_block("Test Block", parent.id)
+    
+    # Verify is_page is False initially
+    node = await service.get_node(block.id)
+    assert node is not None
+    assert node.is_page is False
+    
+    # Add 'page' type to the block
+    success = await service.add_type(block.id, page_type_id)
+    assert success is True
+    
+    # Verify is_page is now True
+    node = await service.get_node(block.id)
+    assert node is not None
+    assert node.is_page is True
+    
+    # Remove 'page' type
+    success = await service.remove_type(block.id, page_type_id)
+    assert success is True
+    
+    # Verify is_page is now False
+    node = await service.get_node(block.id)
+    assert node is not None
+    assert node.is_page is False

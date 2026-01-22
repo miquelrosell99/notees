@@ -177,7 +177,11 @@ def _node_to_response(
     comment_count: int = 0,
     backlink_count: int = 0,
 ) -> NodeResponse:
-    """Convert domain Node to API response."""
+    """Convert domain Node to API response.
+    
+    The is_type, is_page, is_daily, etc. flags are stored on the node and
+    automatically updated when types change (via add_type/remove_type).
+    """
     return NodeResponse(
         id=node.id or 0,
         uuid=node.uuid,
