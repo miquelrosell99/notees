@@ -17,11 +17,17 @@ const BASE = '/nodes';
 
 /**
  * List nodes with optional filters
+ * 
+ * @param params.pages_only - Only return pages (no blocks)
+ * @param params.parent_id - Only return children of this node
+ * @param params.tag_id - Only return nodes with this tag
+ * @param params.type_filters - Comma-separated type IDs to filter by
  */
 export async function listNodes(params?: {
   pages_only?: boolean;
   parent_id?: number;
   tag_id?: number;
+  type_filters?: string;
 }): Promise<Node[]> {
   const response = await api.get<NodesResponse>(BASE, { params });
   return response.data.nodes;
@@ -240,10 +246,13 @@ export async function moveNode(
 
 /**
  * Search nodes by name
+ * 
+ * @param query - Search query string
+ * @param type_filters - Optional comma-separated type IDs to filter results
  */
-export async function searchNodes(query: string): Promise<Node[]> {
+export async function searchNodes(query: string, type_filters?: string): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/search`, {
-    params: { q: query },
+    params: { q: query, type_filters },
   });
   return response.data.nodes;
 }
