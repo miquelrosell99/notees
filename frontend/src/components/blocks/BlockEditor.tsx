@@ -775,6 +775,9 @@ export function BlockEditor({
   const linkNamesSize = linkNames.size;
   const typeNamesSize = typeNames.size;
   
+  // Track if editor is currently focused to avoid cursor manipulation when not active
+  const isEditorFocused = useRef(false);
+  
   // Single effect to handle content rendering and cursor positioning
   useEffect(() => {
     if (!editorRef.current) return;
@@ -785,20 +788,16 @@ export function BlockEditor({
       return;
     }
     
-    console.log('[BlockEditor effect] linkNamesSize:', linkNamesSize, 'typeNamesSize:', typeNamesSize, 'initialCursorApplied:', initialCursorApplied.current);
-    
     const html = contentToHtml(content, linkNames, typeNames);
     const currentHtml = editorRef.current.innerHTML;
-    
-    console.log('[BlockEditor effect] html length:', html.length, 'has icon?:', html.includes('link-pill__icon'));
     
     // Check if we need to update the HTML
     const needsUpdate = html !== currentHtml && (html || '<br>') !== currentHtml;
     
-    // Save cursor position BEFORE updating if cursor was already applied
-    // Don't check document.activeElement as it may not be accurate during React updates
+    // Only save/restore cursor if the editor is focused
+    const editorIsFocused = document.activeElement === editorRef.current;
     let savedPos: number | undefined;
-    if (needsUpdate && initialCursorApplied.current) {
+    if (needsUpdate && initialCursorApplied.current && editorIsFocused) {
       savedPos = getCursorPosition(editorRef.current);
     }
     
@@ -807,18 +806,16 @@ export function BlockEditor({
       lastContentRef.current = content;
     }
     
-    // Focus the editor
-    if (document.activeElement !== editorRef.current) {
+    // Focus the editor only if initial cursor not yet applied (entering edit mode)
+    if (!initialCursorApplied.current && document.activeElement !== editorRef.current) {
       editorRef.current.focus();
     }
     
     // Apply initial cursor position if not yet applied
     if (initialCursorPosition !== undefined && !initialCursorApplied.current) {
-      console.log('[BlockEditor] Applying initialCursorPosition:', initialCursorPosition);
       setCursorPosition(editorRef.current, initialCursorPosition);
       initialCursorApplied.current = true;
     } else if (!initialCursorApplied.current) {
-      console.log('[BlockEditor] No initialCursorPosition, setting to end');
       // Position cursor at end if no initial position specified
       const range = document.createRange();
       range.selectNodeContents(editorRef.current);
@@ -828,8 +825,8 @@ export function BlockEditor({
       selection?.addRange(range);
       initialCursorApplied.current = true;
     }
-    // If cursor was already applied and HTML updated, restore saved position
-    else if (needsUpdate && savedPos !== undefined) {
+    // If cursor was already applied, editor is focused, and HTML updated, restore saved position
+    else if (needsUpdate && savedPos !== undefined && editorIsFocused) {
       setCursorPosition(editorRef.current, savedPos);
     }
   }, [content, linkNamesSize, typeNamesSize, linkNames, typeNames, initialCursorPosition]);
