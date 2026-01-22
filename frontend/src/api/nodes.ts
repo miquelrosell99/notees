@@ -100,7 +100,7 @@ export async function listDailyPages(): Promise<Node[]> {
  */
 export async function getOrCreateDaily(dateStr: string): Promise<Node> {
   const response = await api.post<Node>(`${BASE}/daily`, null, {
-    params: { date_str: dateStr },
+    params: { date: dateStr },
   });
   return response.data;
 }

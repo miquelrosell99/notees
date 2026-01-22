@@ -225,7 +225,9 @@ export function TextPropertyBlock({
               onContentChange={handleChildContentChange}
               onBulletClick={handleChildBulletClick}
               onShiftClick={handleShiftClick}
-              readOnly={readOnly}
+              canEdit={!readOnly}
+              canMove={!readOnly}
+              canSelect={false}
               backlinkCount={child.backlink_count}
               onOpenBacklinks={() => handleShiftClick?.(child.id)}
             />

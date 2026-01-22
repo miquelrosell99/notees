@@ -51,7 +51,6 @@ function RecentItem({ nodeId, isActive, onClick }: RecentItemProps) {
   
   return (
     <BlockPreview
-      variant="simple"
       node={node}
       showBullet={true}
       onClick={onClick}

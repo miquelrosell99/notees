@@ -28,7 +28,10 @@ export { BlockEditor, TASK_STATES } from './blocks/BlockEditor';
 export type { TaskState } from './blocks/BlockEditor';
 export { BlockContent } from './blocks/BlockContent';
 export { BlockPreview } from './blocks/BlockPreview';
-export type { BlockPreviewProps, BlockPreviewVariant, BlockPreviewSize } from './blocks/BlockPreview';
+export type { BlockPreviewProps } from './blocks/BlockPreview';
+export { BlockDrag } from './blocks/BlockDrag';
+export type { BlockDragProps } from './blocks/BlockDrag';
+// Legacy export (deprecated)
 export { BlockPreviewDrag } from './blocks/BlockPreviewDrag';
 export type { BlockPreviewDragProps, BlockPreviewDragVariant } from './blocks/BlockPreviewDrag';
 export { Bullet } from './blocks/Bullet';

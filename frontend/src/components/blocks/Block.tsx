@@ -91,7 +91,7 @@ interface BlockProps {
   parentId: number | null;
   /** Parent block (for merging up into parent) */
   parentBlock?: Node | null;
-  onContentChange: (blockId: number, content: string) => void;
+  onContentChange?: (blockId: number, content: string) => void;
   onBulletClick?: (blockId: number) => void;
   onShiftClick?: (blockId: number) => void;
   onAddType?: (typeNodeId: number, keepInline: boolean, typeName: string) => void;
@@ -104,17 +104,26 @@ interface BlockProps {
   onAssetUpload?: (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) => void;
   commentCount?: number;
   backlinkCount?: number;
-  readOnly?: boolean;
   /** Callback when task state changes (Shift+Enter) */
   onTaskStateChange?: (blockId: number, newState: string) => void;
   /** Ref to the editor element for focus management */
   editorRef?: React.RefObject<HTMLDivElement>;
   /** Callback when backlinks badge is clicked */
   onOpenBacklinks?: () => void;
-  /** Whether to show the bullet (default: true). Set to false for inline references without icons */
+  
+  // ============== Capability Flags ==============
+  /** Whether the block can be moved/reordered via drag-drop (default: true) */
+  canMove?: boolean;
+  /** Whether the block content can be edited (default: true) */
+  canEdit?: boolean;
+  /** Whether the block participates in selection (default: true) */
+  canSelect?: boolean;
+  /** Whether to show the bullet (default: true) */
   showBullet?: boolean;
-  /** Whether to show the type pills (default: true). Set to false for table views */
+  /** Whether to show the type pills (default: true) */
   showTypes?: boolean;
+  /** Whether to render children blocks (default: true) */
+  showChildren?: boolean;
   /** Use isolated local state instead of global block selection store. Use for blocks that appear in multiple places (e.g., linked references) */
   isolatedState?: boolean;
 }
@@ -139,11 +148,15 @@ export function Block({
   onAssetUpload,
   commentCount = 0,
   backlinkCount = 0,
-  readOnly = false,
   onTaskStateChange,
   onOpenBacklinks,
+  // Capability flags
+  canMove = true,
+  canEdit = true,
+  canSelect = true,
   showBullet = true,
   showTypes = true,
+  showChildren = true,
   isolatedState = false,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -214,34 +227,36 @@ export function Block({
   } = useBlockSelectionStore();
   
   // Get block state - use local state for isolated blocks, global state otherwise
-  const globalBlockState: BlockState = readOnly ? 'display' : getBlockState(block.id);
+  // If canEdit is false, always stay in display state
+  const globalBlockState: BlockState = !canEdit ? 'display' : getBlockState(block.id);
   const blockState: BlockState = isolatedState ? localBlockState : globalBlockState;
   
   // Wrapper to set block state - uses local or global based on isolatedState
   const setBlockState = useCallback((blockId: number, state: BlockState) => {
+    if (!canEdit && state === 'edit') return; // Prevent entering edit mode if canEdit is false
     if (isolatedState) {
       setLocalBlockState(state);
     } else {
       setGlobalBlockState(blockId, state);
     }
-  }, [isolatedState, setGlobalBlockState]);
+  }, [isolatedState, setGlobalBlockState, canEdit]);
   
-  // For isolated blocks, selection is handled locally
-  const isSelected = isolatedState ? false : selectedBlockIds.has(block.id);
-  const isPrimarySelected = isolatedState ? false : primarySelectedBlockId === block.id;
+  // For isolated blocks or non-selectable blocks, selection is handled locally/disabled
+  const isSelected = (isolatedState || !canSelect) ? false : selectedBlockIds.has(block.id);
+  const isPrimarySelected = (isolatedState || !canSelect) ? false : primarySelectedBlockId === block.id;
   const isEditing = blockState === 'edit';
-  const isBeingDragged = isolatedState ? false : dragState.draggedBlockIds.includes(block.id);
+  const isBeingDragged = (isolatedState || !canMove) ? false : dragState.draggedBlockIds.includes(block.id);
   
-  // Register this block element (skip for isolated blocks to avoid conflicts)
+  // Register this block element (skip for isolated/non-selectable blocks to avoid conflicts)
   useEffect(() => {
-    if (isolatedState) return; // Don't register isolated blocks
+    if (isolatedState || !canSelect) return; // Don't register non-selectable blocks
     if (containerRef.current) {
       registerBlock(block.id, containerRef.current);
     }
     return () => {
-      if (!isolatedState) unregisterBlock(block.id);
+      if (!isolatedState && canSelect) unregisterBlock(block.id);
     };
-  }, [block.id, registerBlock, unregisterBlock, isolatedState]);
+  }, [block.id, registerBlock, unregisterBlock, isolatedState, canSelect]);
   
   // Clear local drag state when global drag ends (handles edge cases where dragend doesn't fire on element)
   useEffect(() => {
@@ -276,7 +291,7 @@ export function Block({
   
   // Handle drag start
   const handleDragStart = useCallback((e: React.DragEvent) => {
-    if (readOnly) return;
+    if (!canMove) return;
     
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(block.id));
@@ -300,11 +315,11 @@ export function Block({
     }
     
     startDrag(block.id);
-  }, [block.id, readOnly, startDrag]);
+  }, [block.id, canMove, startDrag]);
   
   // Handle drag over
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (readOnly || isBeingDragged) return;
+    if (!canMove || isBeingDragged) return;
     
     e.preventDefault();
     e.stopPropagation();
@@ -326,7 +341,7 @@ export function Block({
     setIsDragOver(true);
     setDropPosition(position);
     updateDragTarget(block.id, position);
-  }, [block.id, isBeingDragged, readOnly, updateDragTarget]);
+  }, [block.id, isBeingDragged, canMove, updateDragTarget]);
   
   // Handle drag leave
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -352,7 +367,7 @@ export function Block({
     setIsDragOver(false);
     setDropPosition(null);
     
-    if (readOnly || isBeingDragged) {
+    if (!canMove || isBeingDragged) {
       endDrag();
       return;
     }
@@ -395,7 +410,7 @@ export function Block({
         position: targetSequence + 1,
       });
     }
-  }, [block.id, block.sequence, dropPosition, endDrag, isBeingDragged, moveNode, parentId, readOnly]);
+  }, [block.id, block.sequence, dropPosition, endDrag, isBeingDragged, moveNode, parentId, canMove]);
   
   // Handle drag end
   const handleDragEnd = useCallback(() => {
@@ -406,7 +421,7 @@ export function Block({
   
   // Handle block click (for selection)
   const handleBlockClick = useCallback((e: React.MouseEvent) => {
-    if (readOnly) return;
+    if (!canSelect) return;
     
     // Shift+click adds to selection
     if (e.shiftKey) {
@@ -417,7 +432,7 @@ export function Block({
     
     // Regular click outside content area doesn't do anything special
     // Content area click is handled by handleContentClick
-  }, [addToSelection, block.id, readOnly]);
+  }, [addToSelection, block.id, canSelect]);
   
   // Calculate cursor position from click event using browser's caret position APIs
   const getCursorPositionFromClick = useCallback((e: React.MouseEvent): number | undefined => {
@@ -504,7 +519,7 @@ export function Block({
   
   // Handle content area click - enters edit mode
   const handleContentClick = useCallback((e: React.MouseEvent) => {
-    if (readOnly) return;
+    if (!canEdit) return;
     
     e.stopPropagation();
     
@@ -515,7 +530,7 @@ export function Block({
     
     // Enter edit mode
     setBlockState(block.id, 'edit');
-  }, [block.id, block.name, readOnly, setBlockState, getCursorPositionFromClick]);
+  }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick]);
   
   // Reset initial cursor position when exiting edit mode
   useEffect(() => {
@@ -742,10 +757,10 @@ export function Block({
   
   // Handle focus (enter edit mode)
   const handleFocus = useCallback(() => {
-    if (!readOnly && blockState !== 'edit') {
+    if (canEdit && blockState !== 'edit') {
       setBlockState(block.id, 'edit');
     }
-  }, [block.id, blockState, readOnly, setBlockState]);
+  }, [block.id, blockState, canEdit, setBlockState]);
   
   // Compute class names
   const classNames = useMemo(() => {
@@ -760,9 +775,9 @@ export function Block({
     if (block.color) classes.push('has-color');
     if (hasChildren) classes.push('has-children');
     if (isCollapsed) classes.push('collapsed');
-    if (readOnly) classes.push('readonly');
+    if (!canEdit) classes.push('readonly');
     return classes.join(' ');
-  }, [blockState, isSelected, isPrimarySelected, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, isCollapsed, readOnly]);
+  }, [blockState, isSelected, isPrimarySelected, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, isCollapsed, canEdit]);
   
   // Indentation style (color now applied to block-content only)
   const blockStyle = useMemo(() => {
@@ -964,11 +979,11 @@ export function Block({
             nodeId={block.id}
             icon={bulletIcon}
             isPage={false}
-            interactive={!readOnly}
+            interactive={canMove || canSelect}
             hasChildren={hasChildren}
             collapsed={isCollapsed}
             onDragStart={handleDragStart}
-            draggable={!readOnly && blockState !== 'edit'}
+            draggable={canMove && blockState !== 'edit'}
             onClick={handleBulletClickInternal}
             onContextMenu={handleBulletContextMenu}
             onCollapseToggle={handleCollapseToggle}
@@ -1004,7 +1019,7 @@ export function Block({
               onCreatePageLink={onCreatePageLink}
               onOpenComments={onOpenComments}
               onAssetUpload={onAssetUpload}
-              readOnly={readOnly}
+              readOnly={!canEdit}
               isTask={Boolean(block.properties?.state)}
               taskState={(block.properties?.state as TaskState) || 'todo'}
               onTaskStateChange={onTaskStateChange ? (newState) => onTaskStateChange(block.id, newState) : undefined}
@@ -1060,7 +1075,7 @@ export function Block({
                   typeNode={typeNode}
                   onClick={() => openNode(typeNode.id, 'page')}
                   onRemove={isSystemTypeUuid(typeNode.uuid) ? undefined : () => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
-                  readOnly={readOnly}
+                  readOnly={!canEdit}
                 />
               );
             })}
@@ -1095,7 +1110,7 @@ export function Block({
       )}
       
       {/* Children blocks with vertical collapse line */}
-      {hasChildren && !isCollapsed && (
+      {showChildren && hasChildren && !isCollapsed && (
         <div className="children-container">
           {/* Vertical line for collapsing children */}
           <div 
@@ -1128,7 +1143,9 @@ export function Block({
                 onAssetUpload={onAssetUpload}
                 commentCount={child.comment_count}
                 backlinkCount={child.backlink_count}
-                readOnly={readOnly}
+                canMove={canMove}
+                canEdit={canEdit}
+                canSelect={canSelect}
                 onTaskStateChange={onTaskStateChange}
                 onOpenBacklinks={onOpenBacklinks}
               />
