@@ -22,7 +22,9 @@ from ..domain.entities import (
     NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     SCALAR_TYPES, RELATION_TYPES, ALWAYS_SINGLE_TYPES,
 )
-from ..domain.repositories import SQLitePropertyRepository
+from ..domain.repositories import PostgresPropertyRepository
+from ..db.connection import get_pool
+from ..db.schema import get_or_create_user_workspace
 from .auth import get_current_user
 from ..models import User
 
@@ -198,12 +200,11 @@ class TypeExtendsRequest(BaseModel):
 
 # ============== Helper Functions ==============
 
-async def _get_property_repo(user: User) -> SQLitePropertyRepository:
-    """Get PropertyRepository for user's database."""
-    from ..db.connection import get_db
-    
-    db = await get_db(user.id)
-    return SQLitePropertyRepository(db)
+async def _get_property_repo(user: User) -> PostgresPropertyRepository:
+    """Get PropertyRepository for user's workspace."""
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    return PostgresPropertyRepository(pool, workspace_id)
 
 
 def _property_to_response(prop: Property) -> PropertyResponse:
@@ -993,39 +994,37 @@ async def get_type_extends(
     user: User = Depends(get_current_user),
 ):
     """Get all types that this type extends (inherits from)."""
-    from ..db.connection import get_db
-    
-    db = await get_db(user.id)
-    repo = SQLitePropertyRepository(db)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    repo = PostgresPropertyRepository(pool, workspace_id)
     
     extends = await repo.get_type_extends(type_node_id)
     
     result = []
-    for ext in extends:
-        # Get the parent type name
-        cursor = await db.execute(
-            "SELECT name FROM node WHERE id = ?",
-            (ext.extends_type_node_id,)
-        )
-        row = await cursor.fetchone()
-        parent_name = row['name'] if row else ""
-        
-        # Get the child type name
-        cursor = await db.execute(
-            "SELECT name FROM node WHERE id = ?",
-            (ext.type_node_id,)
-        )
-        row = await cursor.fetchone()
-        type_name = row['name'] if row else ""
-        
-        result.append(TypeExtendsResponse(
-            id=ext.id,
-            type_node_id=ext.type_node_id,
-            type_node_name=type_name,
-            extends_type_node_id=ext.extends_type_node_id,
-            extends_type_node_name=parent_name,
-            sequence=ext.sequence,
-        ))
+    async with pool.acquire() as conn:
+        for ext in extends:
+            # Get the parent type name
+            row = await conn.fetchrow(
+                "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+                ext.extends_type_node_id, workspace_id
+            )
+            parent_name = row['name'] if row else ""
+            
+            # Get the child type name
+            row = await conn.fetchrow(
+                "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+                ext.type_node_id, workspace_id
+            )
+            type_name = row['name'] if row else ""
+            
+            result.append(TypeExtendsResponse(
+                id=ext.id,
+                type_node_id=ext.type_node_id,
+                type_node_name=type_name,
+                extends_type_node_id=ext.extends_type_node_id,
+                extends_type_node_name=parent_name,
+                sequence=ext.sequence,
+            ))
     
     return {"extends": result}
 
@@ -1037,10 +1036,9 @@ async def add_type_extends(
     user: User = Depends(get_current_user),
 ):
     """Add a type that this type extends (inherits from)."""
-    from ..db.connection import get_db
-    
-    db = await get_db(user.id)
-    repo = SQLitePropertyRepository(db)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    repo = PostgresPropertyRepository(pool, workspace_id)
     
     try:
         ext = await repo.add_type_extends(
@@ -1052,19 +1050,18 @@ async def add_type_extends(
         raise HTTPException(400, str(e))
     
     # Get type names for response
-    cursor = await db.execute(
-        "SELECT name FROM node WHERE id = ?",
-        (ext.extends_type_node_id,)
-    )
-    row = await cursor.fetchone()
-    parent_name = row['name'] if row else ""
-    
-    cursor = await db.execute(
-        "SELECT name FROM node WHERE id = ?",
-        (ext.type_node_id,)
-    )
-    row = await cursor.fetchone()
-    type_name = row['name'] if row else ""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+            ext.extends_type_node_id, workspace_id
+        )
+        parent_name = row['name'] if row else ""
+        
+        row = await conn.fetchrow(
+            "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+            ext.type_node_id, workspace_id
+        )
+        type_name = row['name'] if row else ""
     
     return TypeExtendsResponse(
         id=ext.id,
@@ -1100,7 +1097,9 @@ async def get_nodes_with_property(
     user: User = Depends(get_current_user),
 ):
     """Get all nodes that have this property assigned."""
-    repo = await _get_property_repo(user)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    repo = PostgresPropertyRepository(pool, workspace_id)
     
     # Check property exists
     prop = await repo.get_by_id(property_id)
@@ -1111,33 +1110,31 @@ async def get_nodes_with_property(
     node_ids = await repo.get_node_ids_with_property(property_id)
     
     # Build response with node details
-    from ..db.connection import get_db
-    db = await get_db(user.id)
-    
     result = []
-    for node_id in node_ids:
-        # Get node details
-        cursor = await db.execute(
-            "SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_type, "
-            "create_date, write_date FROM node WHERE id = ? AND active = 1",
-            (node_id,)
-        )
-        node_row = await cursor.fetchone()
-        if not node_row:
-            continue
-        
-        result.append({
-            "node_id": node_row['id'],
-            "node_uuid": node_row['uuid'],
-            "node_name": node_row['name'],
-            "node_icon": node_row['icon'],
-            "node_color": node_row['color'],
-            "parent_id": node_row['parent_id'],
-            "page_id": node_row['page_id'],
-            "is_page": bool(node_row['is_page']),
-            "is_type": bool(node_row['is_type']),
-            "create_date": node_row['create_date'],
-            "write_date": node_row['write_date'],
-        })
+    async with pool.acquire() as conn:
+        for node_id in node_ids:
+            # Get node details
+            node_row = await conn.fetchrow(
+                """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_type,
+                   create_date, write_date FROM node 
+                   WHERE id = $1 AND workspace_id = $2 AND active = TRUE""",
+                node_id, workspace_id
+            )
+            if not node_row:
+                continue
+            
+            result.append({
+                "node_id": node_row['id'],
+                "node_uuid": node_row['uuid'],
+                "node_name": node_row['name'],
+                "node_icon": node_row['icon'],
+                "node_color": node_row['color'],
+                "parent_id": node_row['parent_id'],
+                "page_id": node_row['page_id'],
+                "is_page": bool(node_row['is_page']),
+                "is_type": bool(node_row['is_type']),
+                "create_date": node_row['create_date'].isoformat() if node_row['create_date'] else None,
+                "write_date": node_row['write_date'].isoformat() if node_row['write_date'] else None,
+            })
     
     return {"nodes": result, "property": _property_to_response(prop)}

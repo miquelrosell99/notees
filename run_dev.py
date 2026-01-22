@@ -15,10 +15,16 @@ from pathlib import Path
 FRONTEND_PORT = 5173
 BACKEND_PORT = 8000
 BACKEND_HOST = '0.0.0.0'
+POSTGRES_PORT = 5432
+POSTGRES_CONTAINER = 'notees-postgres-local'
+
+# Default PostgreSQL connection for local dev
+DEFAULT_DATABASE_URL = 'postgresql://notees:change_me_dev_password@localhost:5432/notees'
 
 COLORS = {
     'frontend': '\033[36m',  # Cyan
     'backend': '\033[35m',   # Magenta
+    'postgres': '\033[34m',  # Blue
     'info': '\033[32m',      # Green
     'warn': '\033[33m',      # Yellow
     'error': '\033[31m',     # Red
@@ -89,13 +95,86 @@ def check_prerequisites():
     if not Path('frontend/node_modules').exists():
         errors.append("frontend/node_modules not found - run 'npm install' in frontend/")
     
-    # Check ports are available
+    # Check ports are available (excluding postgres, we'll start it)
     if is_port_in_use(FRONTEND_PORT):
         errors.append(f"Port {FRONTEND_PORT} is already in use (frontend)")
     if is_port_in_use(BACKEND_PORT):
         errors.append(f"Port {BACKEND_PORT} is already in use (backend)")
     
+    # Check Docker is available for PostgreSQL
+    try:
+        result = subprocess.run(['docker', '--version'], capture_output=True, timeout=5)
+        if result.returncode != 0:
+            errors.append("Docker is required for PostgreSQL. Install Docker Desktop.")
+    except FileNotFoundError:
+        errors.append("Docker is required for PostgreSQL. Install Docker Desktop.")
+    except subprocess.TimeoutExpired:
+        errors.append("Docker check timed out. Is Docker running?")
+    
     return errors
+
+
+def start_postgres():
+    """Start PostgreSQL container if not running."""
+    # Check if container exists and is running
+    result = subprocess.run(
+        ['docker', 'ps', '-q', '-f', f'name={POSTGRES_CONTAINER}'],
+        capture_output=True, text=True
+    )
+    
+    if result.stdout.strip():
+        log(f"PostgreSQL container '{POSTGRES_CONTAINER}' is already running", 'postgres')
+        return True
+    
+    # Check if container exists but is stopped
+    result = subprocess.run(
+        ['docker', 'ps', '-aq', '-f', f'name={POSTGRES_CONTAINER}'],
+        capture_output=True, text=True
+    )
+    
+    if result.stdout.strip():
+        log(f"Starting existing PostgreSQL container '{POSTGRES_CONTAINER}'...", 'postgres')
+        result = subprocess.run(['docker', 'start', POSTGRES_CONTAINER], capture_output=True)
+        if result.returncode != 0:
+            log(f"Failed to start PostgreSQL container: {result.stderr.decode()}", 'error')
+            return False
+    else:
+        # Create new container
+        log(f"Creating PostgreSQL container '{POSTGRES_CONTAINER}'...", 'postgres')
+        result = subprocess.run([
+            'docker', 'run', '-d',
+            '--name', POSTGRES_CONTAINER,
+            '-e', 'POSTGRES_USER=notees',
+            '-e', 'POSTGRES_PASSWORD=change_me_dev_password',
+            '-e', 'POSTGRES_DB=notees',
+            '-p', f'{POSTGRES_PORT}:5432',
+            'postgres:16-alpine'
+        ], capture_output=True)
+        
+        if result.returncode != 0:
+            log(f"Failed to create PostgreSQL container: {result.stderr.decode()}", 'error')
+            return False
+    
+    # Wait for PostgreSQL to be ready
+    log("Waiting for PostgreSQL to be ready...", 'postgres')
+    for i in range(30):
+        time.sleep(1)
+        result = subprocess.run([
+            'docker', 'exec', POSTGRES_CONTAINER,
+            'pg_isready', '-U', 'notees', '-d', 'notees'
+        ], capture_output=True)
+        if result.returncode == 0:
+            log("PostgreSQL is ready", 'postgres')
+            return True
+    
+    log("PostgreSQL failed to start within timeout", 'error')
+    return False
+
+
+def stop_postgres():
+    """Stop PostgreSQL container."""
+    log(f"Stopping PostgreSQL container '{POSTGRES_CONTAINER}'...", 'postgres')
+    subprocess.run(['docker', 'stop', POSTGRES_CONTAINER], capture_output=True)
 
 def kill_process_tree(proc):
     """Kill a process and all its children."""
@@ -203,6 +282,14 @@ def main():
     
     log("Prerequisites check passed", 'info')
 
+    # Start PostgreSQL
+    if not start_postgres():
+        log("Failed to start PostgreSQL. Exiting.", 'error')
+        sys.exit(1)
+
+    # Set DATABASE_URL environment variable for backend
+    os.environ['DATABASE_URL'] = DEFAULT_DATABASE_URL
+
     processes = []
 
     try:
@@ -249,9 +336,10 @@ def main():
         if frontend_ready and backend_ready:
             print()
             log("All services running!", 'info')
-            print(f"\n  Frontend: {COLORS['frontend']}http://localhost:{FRONTEND_PORT}{COLORS['reset']}")
-            print(f"  Backend:  {COLORS['backend']}http://localhost:{BACKEND_PORT}{COLORS['reset']}")
-            print(f"  API Docs: {COLORS['backend']}http://localhost:{BACKEND_PORT}/docs{COLORS['reset']}")
+            print(f"\n  Frontend:  {COLORS['frontend']}http://localhost:{FRONTEND_PORT}{COLORS['reset']}")
+            print(f"  Backend:   {COLORS['backend']}http://localhost:{BACKEND_PORT}{COLORS['reset']}")
+            print(f"  API Docs:  {COLORS['backend']}http://localhost:{BACKEND_PORT}/docs{COLORS['reset']}")
+            print(f"  PostgreSQL:{COLORS['postgres']}localhost:{POSTGRES_PORT}{COLORS['reset']}")
             print(f"\n  Press {COLORS['warn']}Ctrl+C{COLORS['reset']} to stop all services.\n")
             
             # Optionally open browser (uncomment if desired)
@@ -280,7 +368,10 @@ def main():
             kill_process_tree(proc)
             thread.join(timeout=3)
 
-        log("Development environment stopped", 'info')
+        # Note: PostgreSQL container is left running for faster restarts
+        # To stop it, run: docker stop notees-postgres-local
+        log("Development environment stopped (PostgreSQL still running)", 'info')
+        log(f"To stop PostgreSQL: docker stop {POSTGRES_CONTAINER}", 'info')
         sys.exit(0)
 
 if __name__ == "__main__":

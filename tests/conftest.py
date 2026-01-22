@@ -1,11 +1,20 @@
 """Pytest configuration and fixtures for Notees tests.
 
-This module provides shared fixtures for testing the Notees application.
+This module provides shared fixtures for testing the Notees application
+using PostgreSQL. Supports two modes:
+
+1. **Testcontainers (default)**: Spins up a PostgreSQL container per session
+   - Requires Docker running
+   - Fully isolated test database
+
+2. **External database**: Uses an existing PostgreSQL instance
+   - Set TEST_DATABASE_URL environment variable
+   - Useful for CI/CD or when Docker isn't available
+   - Database is cleaned between tests
 """
 import asyncio
 import os
 import sys
-import tempfile
 import secrets
 from pathlib import Path
 from typing import AsyncGenerator, Generator
@@ -23,15 +32,70 @@ from app.config import settings
 
 # ==================== PYTEST CONFIGURATION ====================
 
-# Configure pytest-asyncio mode
 pytest_plugins = ('pytest_asyncio',)
 
 
 # ==================== DATABASE FIXTURES ====================
 
+# Check for external database URL
+_EXTERNAL_DB_URL = os.environ.get("TEST_DATABASE_URL")
+
+# Flag to track if testcontainers import succeeded
+_USE_TESTCONTAINERS = False
+_PostgresContainer = None
+
+if not _EXTERNAL_DB_URL:
+    try:
+        from testcontainers.postgres import PostgresContainer as _PostgresContainer
+        _USE_TESTCONTAINERS = True
+    except ImportError:
+        pass
+
+
+@pytest.fixture(scope="session")
+def postgres_container():
+    """Start a PostgreSQL container for the entire test session.
+    
+    This fixture uses testcontainers to spin up a real PostgreSQL instance.
+    The container is started once per session and shared across all tests.
+    
+    If TEST_DATABASE_URL is set, this fixture is skipped and the external
+    database is used instead.
+    """
+    if _EXTERNAL_DB_URL:
+        # No container needed - using external database
+        yield None
+        return
+        
+    if not _USE_TESTCONTAINERS:
+        pytest.skip(
+            "Docker not available and TEST_DATABASE_URL not set. "
+            "Either start Docker or set TEST_DATABASE_URL=postgresql://user:pass@host:port/dbname"
+        )
+        
+    with _PostgresContainer(
+        image="postgres:16-alpine",
+        username="test",
+        password="test",
+        dbname="notees_test",
+    ) as postgres:
+        yield postgres
+
+
+@pytest.fixture(scope="session")
+def database_url(postgres_container) -> str:
+    """Get the database URL for the test PostgreSQL instance."""
+    if _EXTERNAL_DB_URL:
+        return _EXTERNAL_DB_URL
+        
+    return postgres_container.get_connection_url().replace(
+        "postgresql+psycopg2://", "postgresql://"
+    )
+
+
 @pytest.fixture(scope="function")
 def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
-    """Create a temporary data directory for tests."""
+    """Create a temporary data directory for user files (not database)."""
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "users").mkdir(exist_ok=True)
@@ -40,51 +104,83 @@ def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
     original_dir = settings.database_dir
     settings.database_dir = data_dir
     
-    # Also update the auth module's USERS_DIR
+    # Update auth module's USERS_DIR for user files
     from app import auth
     original_users_dir = auth.USERS_DIR
     auth.USERS_DIR = data_dir / "users"
-    
-    # Update database module's DATA_DIR (main module)
-    from app import database
-    original_db_data_dir = database.DATA_DIR
-    database.DATA_DIR = data_dir
-    
-    # Update db/connection module's DATA_DIR
-    from app.db import connection
-    original_conn_data_dir = connection.DATA_DIR
-    connection.DATA_DIR = data_dir
     
     yield data_dir
     
     # Restore
     settings.database_dir = original_dir
     auth.USERS_DIR = original_users_dir
-    database.DATA_DIR = original_db_data_dir
-    connection.DATA_DIR = original_conn_data_dir
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_user(temp_data_dir: Path) -> dict:
-    """Create a test user and return user data with auth token."""
+async def db_pool(database_url: str, temp_data_dir: Path):
+    """Initialize the PostgreSQL connection pool and schema for each test.
+    
+    This creates a fresh schema for each test by:
+    1. Dropping all tables
+    2. Re-running schema initialization
+    """
+    import asyncpg
+    from app.db import connection, schema
+    
+    # Set the DATABASE_URL for the connection module
+    os.environ['DATABASE_URL'] = database_url
+    
+    # Initialize the connection pool
+    pool = await connection.init_pool()
+    
+    # Clean database before each test - drop all tables
+    async with pool.acquire() as conn:
+        # Drop all tables in public schema
+        await conn.execute("""
+            DO $$ DECLARE
+                r RECORD;
+            BEGIN
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                    EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+                END LOOP;
+            END $$;
+        """)
+        
+        # Drop extensions and recreate
+        await conn.execute("DROP EXTENSION IF EXISTS pg_trgm CASCADE")
+    
+    # Initialize fresh schema
+    await schema.init_database(pool)
+    
+    yield pool
+    
+    # Close pool after test
+    await connection.close_pool()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_user(db_pool, temp_data_dir: Path) -> dict:
+    """Create a test user and workspace, return user data with auth token."""
     from app import auth
-    from app import database as db
+    from app.db import schema
     
     # Use unique username per test to avoid conflicts
     unique_id = secrets.token_hex(4)
     username = f"testuser_{unique_id}"
     
+    # Create user via auth module
     user = await auth.create_user(username, "testpassword123")
     
-    # Initialize database for user (this creates the nodes table)
-    await db.init_db(user["id"], "default")
-    db.set_active_db(user["id"], "default")
+    # Initialize workspace for user (this creates the user's workspace and seeds system types)
+    workspace_id = await schema.get_or_create_user_workspace(db_pool, user["id"])
     
+    # Generate auth token
     token = auth.create_token(user["id"], user["username"])
     
     return {
         "id": user["id"],
         "username": user["username"],
+        "workspace_id": workspace_id,
         "token": token,
         "auth_header": {"Authorization": f"Bearer {token}"}
     }
@@ -93,8 +189,12 @@ async def test_user(temp_data_dir: Path) -> dict:
 # ==================== HTTP CLIENT FIXTURES ====================
 
 @pytest_asyncio.fixture(scope="function")
-async def client() -> AsyncGenerator[AsyncClient, None]:
-    """Create an async HTTP client for testing."""
+async def client(db_pool) -> AsyncGenerator[AsyncClient, None]:
+    """Create an async HTTP client for testing.
+    
+    The db_pool fixture ensures the database is initialized before
+    any HTTP requests are made.
+    """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -115,6 +215,29 @@ async def authenticated_client(
 async def auth_client(authenticated_client: AsyncClient) -> AsyncClient:
     """Alias for authenticated_client for integration tests."""
     return authenticated_client
+
+
+# ==================== REPOSITORY FIXTURES ====================
+
+@pytest_asyncio.fixture(scope="function")
+async def node_repository(db_pool, test_user):
+    """Create a node repository for the test user's workspace."""
+    from app.domain.repositories import PostgresNodeRepository
+    return PostgresNodeRepository(db_pool, test_user["workspace_id"])
+
+
+@pytest_asyncio.fixture(scope="function")
+async def property_repository(db_pool, test_user):
+    """Create a property repository for the test user's workspace."""
+    from app.domain.repositories import PostgresPropertyRepository
+    return PostgresPropertyRepository(db_pool, test_user["workspace_id"])
+
+
+@pytest_asyncio.fixture(scope="function")
+async def link_repository(db_pool, test_user):
+    """Create a link repository for the test user's workspace."""
+    from app.domain.repositories import PostgresLinkRepository
+    return PostgresLinkRepository(db_pool, test_user["workspace_id"])
 
 
 # ==================== NODE FIXTURES ====================
@@ -164,3 +287,4 @@ def sample_sync_request() -> dict:
         "nodes": [],
         "deleted_nodes": []
     }
+

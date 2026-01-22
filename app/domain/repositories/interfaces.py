@@ -80,10 +80,10 @@ class NodeRepository(ABC):
     
     @abstractmethod
     def get_connection(self) -> Any:
-        """Get the underlying database connection.
+        """Get the underlying database connection pool.
         
         This is needed for raw SQL queries that aren't abstracted by the repository.
-        Returns the connection object (e.g., aiosqlite.Connection).
+        Returns the pool object (e.g., asyncpg.Pool).
         """
         pass
     
@@ -382,10 +382,10 @@ class LinkRepository(ABC):
     
     @abstractmethod
     def get_connection(self) -> Any:
-        """Get the underlying database connection.
+        """Get the underlying database connection pool.
         
         This is needed for raw SQL queries that aren't abstracted by the repository.
-        Returns the connection object (e.g., aiosqlite.Connection).
+        Returns the pool object (e.g., asyncpg.Pool).
         """
         pass
 

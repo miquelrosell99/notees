@@ -1,158 +1,150 @@
-"""Database connection and initialization utilities.
+"""PostgreSQL connection pool manager.
 
-Database folder structure:
-  data/users/{user_id}/databases/{db_name}/
-    ├── db.sqlite      # The SQLite database file
-    └── assets/        # Assets folder for uploaded files
+Provides async connection pooling for PostgreSQL using asyncpg.
+Replaces the per-user SQLite file-based model with a shared PostgreSQL database.
 """
-import aiosqlite
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional
-import uuid as uuid_module
+from __future__ import annotations
 
-# Base data directory
+import os
+from contextlib import asynccontextmanager
+from typing import Optional, AsyncIterator
+from pathlib import Path
+
+import asyncpg
+
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
+
+# Global connection pool
+_pool: Optional[asyncpg.Pool] = None
+
+# Base data directory for assets (still file-based)
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
-# Cache for current user context
-_current_user_id: Optional[str] = None
-_current_db_name: Optional[str] = None
+
+def get_database_url() -> str:
+    """Get PostgreSQL connection URL from environment."""
+    return os.getenv(
+        'DATABASE_URL',
+        'postgresql://notees:change_me_dev_password@localhost:5432/notees'
+    )
 
 
-def set_current_user(user_id: str):
-    """Set the current user context."""
-    global _current_user_id
-    _current_user_id = user_id
-
-
-def get_current_user() -> Optional[str]:
-    """Get the current user ID."""
-    return _current_user_id
-
-
-def get_user_data_dir(user_id: str) -> Path:
-    """Get the data directory for a user."""
-    user_dir = DATA_DIR / "users" / user_id
-    user_dir.mkdir(parents=True, exist_ok=True)
-    return user_dir
-
-
-def get_databases_dir(user_id: str) -> Path:
-    """Get the databases directory for a user."""
-    db_dir = get_user_data_dir(user_id) / "databases"
-    db_dir.mkdir(parents=True, exist_ok=True)
-    return db_dir
-
-
-def get_database_folder(user_id: str, name: str) -> Path:
-    """Get the folder for a specific database.
+async def init_pool() -> asyncpg.Pool:
+    """Initialize the connection pool on app startup.
     
-    Each database has its own folder containing:
-    - db.sqlite: The database file
-    - assets/: Folder for uploaded assets
+    Configuration is read from environment variables:
+    - DATABASE_URL: PostgreSQL connection string
+    - POSTGRES_POOL_MIN: Minimum pool size (default: 5)
+    - POSTGRES_POOL_MAX: Maximum pool size (default: 20)
+    - POSTGRES_POOL_MAX_INACTIVE_TIME: Max idle time in seconds (default: 300)
+    - POSTGRES_STATEMENT_CACHE_SIZE: Prepared statement cache size (default: 100)
     """
-    db_folder = get_databases_dir(user_id) / name
-    db_folder.mkdir(parents=True, exist_ok=True)
-    return db_folder
+    global _pool
+    
+    if _pool is not None:
+        return _pool
+    
+    database_url = get_database_url()
+    
+    _pool = await asyncpg.create_pool(
+        dsn=database_url,
+        min_size=int(os.getenv('POSTGRES_POOL_MIN', 5)),
+        max_size=int(os.getenv('POSTGRES_POOL_MAX', 20)),
+        max_inactive_connection_lifetime=float(
+            os.getenv('POSTGRES_POOL_MAX_INACTIVE_TIME', 300)
+        ),
+        statement_cache_size=int(
+            os.getenv('POSTGRES_STATEMENT_CACHE_SIZE', 100)
+        ),
+        command_timeout=60,
+    )
+    
+    logger.info(
+        f"PostgreSQL pool initialized: min={_pool.get_min_size()}, "
+        f"max={_pool.get_max_size()}"
+    )
+    return _pool
 
 
-def get_assets_dir(user_id: str, db_name: Optional[str] = None) -> Path:
-    """Get the assets directory for a database.
+async def close_pool() -> None:
+    """Close the connection pool on app shutdown."""
+    global _pool
+    
+    if _pool is not None:
+        await _pool.close()
+        logger.info("PostgreSQL pool closed")
+        _pool = None
+
+
+async def get_pool() -> asyncpg.Pool:
+    """Get the connection pool, initializing if needed."""
+    global _pool
+    if _pool is None:
+        _pool = await init_pool()
+    return _pool
+
+
+@asynccontextmanager
+async def get_connection() -> AsyncIterator[asyncpg.Connection]:
+    """Get a connection from the pool with automatic release.
+    
+    Usage:
+        async with get_connection() as conn:
+            result = await conn.fetch("SELECT * FROM node")
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        yield conn
+
+
+@asynccontextmanager
+async def get_transaction() -> AsyncIterator[asyncpg.Connection]:
+    """Get a connection with an active transaction.
+    
+    The transaction is committed on successful exit, rolled back on exception.
+    
+    Usage:
+        async with get_transaction() as conn:
+            await conn.execute("INSERT INTO node ...")
+            await conn.execute("INSERT INTO node_link ...")
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            yield conn
+
+
+def get_pool_stats() -> dict:
+    """Get current pool statistics for monitoring."""
+    if _pool is None:
+        return {"status": "not_initialized"}
+    
+    return {
+        "status": "active",
+        "size": _pool.get_size(),
+        "min_size": _pool.get_min_size(),
+        "max_size": _pool.get_max_size(),
+        "free_size": _pool.get_idle_size(),
+    }
+
+
+# ============== Asset Directory Management ==============
+# Assets are still stored as files, organized by workspace
+
+def get_workspace_assets_dir(workspace_id: int) -> Path:
+    """Get the assets directory for a workspace.
     
     Assets are stored as files named with their node UUID.
     """
-    if db_name is None:
-        db_name = get_active_db_name(user_id)
-    assets_dir = get_database_folder(user_id, db_name) / "assets"
+    assets_dir = DATA_DIR / "workspaces" / str(workspace_id) / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
     return assets_dir
 
 
-def get_export_dir(user_id: str, db_name: str) -> Path:
-    """Get the export directory for a database."""
-    export_dir = get_user_data_dir(user_id) / "export" / db_name
+def get_export_dir(workspace_id: int) -> Path:
+    """Get the export directory for a workspace."""
+    export_dir = DATA_DIR / "workspaces" / str(workspace_id) / "export"
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir
-
-
-def get_active_db_file(user_id: str) -> Path:
-    """Get the file that stores the active database name."""
-    return get_user_data_dir(user_id) / ".active_database"
-
-
-def _db_exists(user_id: str, name: str) -> bool:
-    """Check if a database exists (folder-based format)."""
-    db_folder = get_databases_dir(user_id) / name
-    return db_folder.is_dir() and (db_folder / "db.sqlite").exists()
-
-
-def get_active_db_name(user_id: str) -> Optional[str]:
-    """Get the name of the currently active database for a user.
-    
-    Returns None if no active database is set or if the active database doesn't exist.
-    """
-    active_file = get_active_db_file(user_id)
-    
-    if active_file.exists():
-        name = active_file.read_text().strip()
-        if name and _db_exists(user_id, name):
-            return name
-    
-    return None
-
-
-def set_active_db(user_id: str, name: str) -> bool:
-    """Set the active database for a user."""
-    global _current_db_name
-    
-    if not _db_exists(user_id, name):
-        return False
-    
-    _current_db_name = name
-    get_active_db_file(user_id).write_text(name)
-    
-    return True
-
-
-def clear_active_db(user_id: str) -> None:
-    """Clear the active database for a user (set to none)."""
-    global _current_db_name
-    _current_db_name = None
-    active_file = get_active_db_file(user_id)
-    if active_file.exists():
-        active_file.unlink()
-
-
-def get_db_path(user_id: str, name: Optional[str] = None) -> Path:
-    """Get path to a database file (folder-based format)."""
-    if name is None:
-        name = get_active_db_name(user_id)
-    
-    db_folder = get_databases_dir(user_id) / name
-    return db_folder / "db.sqlite"
-
-
-async def get_db(user_id: str, name: Optional[str] = None) -> aiosqlite.Connection:
-    """Get database connection for a user's database."""
-    db_path = get_db_path(user_id, name)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    db = await aiosqlite.connect(db_path)
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA foreign_keys = ON")
-    await db.execute("PRAGMA journal_mode = WAL")
-    await db.execute("PRAGMA busy_timeout = 5000")  # Wait up to 5 seconds if locked
-    return db
-
-
-async def init_db(user_id: str, name: Optional[str] = None) -> aiosqlite.Connection:
-    """Initialize database tables using the proper schema from schema.py."""
-    from .schema import init_database
-    
-    # Ensure the database folder and assets directory exist
-    if name is None:
-        name = get_active_db_name(user_id)
-    get_assets_dir(user_id, name)
-    
-    db_path = get_db_path(user_id, name)
-    return await init_database(db_path)

@@ -1,11 +1,14 @@
-"""Repository implementations package."""
+"""Repository implementations package.
 
-from .node_repository import NodeRepository, SQLiteNodeRepository
-from .user_repository import UserRepository, SQLiteUserRepository
+Re-exports interfaces and PostgreSQL implementations from the domain layer.
+"""
+from app.domain.repositories.interfaces import NodeRepository, UserRepository
+from app.domain.repositories.postgres_node import PostgresNodeRepository
+from app.domain.repositories.postgres_user import PostgresUserRepository
 
 __all__ = [
     "NodeRepository",
     "UserRepository",
-    "SQLiteNodeRepository",
-    "SQLiteUserRepository",
+    "PostgresNodeRepository",
+    "PostgresUserRepository",
 ]
