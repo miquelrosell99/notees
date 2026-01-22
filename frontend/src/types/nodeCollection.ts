@@ -153,6 +153,9 @@ export interface NodeCollectionProps {
   
   /** Maximum depth for recursive rendering (default: unlimited) */
   maxDepth?: number;
+  
+  /** Use isolated block state (for blocks that appear in multiple places like linked references) */
+  isolatedBlockState?: boolean;
 }
 
 // ==================== View-Specific Props ====================
@@ -187,6 +190,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Additional CSS class */
   className?: string;
+  
+  /** Use isolated block state (for blocks that appear in multiple places like linked references) */
+  isolatedBlockState?: boolean;
 }
 
 /**

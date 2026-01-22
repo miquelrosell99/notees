@@ -115,6 +115,8 @@ interface BlockProps {
   showBullet?: boolean;
   /** Whether to show the type pills (default: true). Set to false for table views */
   showTypes?: boolean;
+  /** Use isolated local state instead of global block selection store. Use for blocks that appear in multiple places (e.g., linked references) */
+  isolatedState?: boolean;
 }
 
 export function Block({
@@ -142,6 +144,7 @@ export function Block({
   onOpenBacklinks,
   showBullet = true,
   showTypes = true,
+  isolatedState = false,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -152,6 +155,9 @@ export function Block({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [initialCursorPosition, setInitialCursorPosition] = useState<number | undefined>(undefined);
+  
+  // Local state for isolated mode (blocks that appear in multiple places like linked references)
+  const [localBlockState, setLocalBlockState] = useState<BlockState>('display');
   
   const moveNode = useMoveNode();
   const updateNode = useUpdateNode();
@@ -201,26 +207,41 @@ export function Block({
     unregisterBlock,
     getNextBlockId,
     getBlockState,
-    setBlockState,
+    setBlockState: setGlobalBlockState,
     extendSelectionKeyboard,
     blockParentMap,
     clearSelection,
   } = useBlockSelectionStore();
   
-  // Get block state (display, edit, or selected)
-  const blockState: BlockState = readOnly ? 'display' : getBlockState(block.id);
-  const isSelected = selectedBlockIds.has(block.id);
-  const isPrimarySelected = primarySelectedBlockId === block.id;
-  const isEditing = blockState === 'edit';
-  const isBeingDragged = dragState.draggedBlockIds.includes(block.id);
+  // Get block state - use local state for isolated blocks, global state otherwise
+  const globalBlockState: BlockState = readOnly ? 'display' : getBlockState(block.id);
+  const blockState: BlockState = isolatedState ? localBlockState : globalBlockState;
   
-  // Register this block element
+  // Wrapper to set block state - uses local or global based on isolatedState
+  const setBlockState = useCallback((blockId: number, state: BlockState) => {
+    if (isolatedState) {
+      setLocalBlockState(state);
+    } else {
+      setGlobalBlockState(blockId, state);
+    }
+  }, [isolatedState, setGlobalBlockState]);
+  
+  // For isolated blocks, selection is handled locally
+  const isSelected = isolatedState ? false : selectedBlockIds.has(block.id);
+  const isPrimarySelected = isolatedState ? false : primarySelectedBlockId === block.id;
+  const isEditing = blockState === 'edit';
+  const isBeingDragged = isolatedState ? false : dragState.draggedBlockIds.includes(block.id);
+  
+  // Register this block element (skip for isolated blocks to avoid conflicts)
   useEffect(() => {
+    if (isolatedState) return; // Don't register isolated blocks
     if (containerRef.current) {
       registerBlock(block.id, containerRef.current);
     }
-    return () => unregisterBlock(block.id);
-  }, [block.id, registerBlock, unregisterBlock]);
+    return () => {
+      if (!isolatedState) unregisterBlock(block.id);
+    };
+  }, [block.id, registerBlock, unregisterBlock, isolatedState]);
   
   // Clear local drag state when global drag ends (handles edge cases where dragend doesn't fire on element)
   useEffect(() => {
