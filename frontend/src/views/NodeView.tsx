@@ -460,50 +460,50 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             height="medium"
           />
           
-          {/* Grid layout: Title, Types, Properties on left | Cover spanning all rows on right */}
+          {/* Grid layout: Header content on left | Cover spanning all rows on right */}
           <div className="page-header-section">
-            {/* Row 1: Page Header (title + icon) */}
-            <div className="page-header-section__title">
+            {/* Row 1: Page Header (title + icon + types + tags) */}
+            <div className="page-header-section__header">
               <PageHeader
                 page={node}
                 compactMode={compactMode}
                 onContextMenu={handleContextMenu}
               />
+              
+              {/* Types */}
+              <div className="page-header-section__types">
+                <NodePillRow
+                  nodes={pageTypeDetails}
+                  availableNodes={availableTypes}
+                  emptyText="Add type"
+                  searchPlaceholder="Search types..."
+                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onRemove={handleRemoveType}
+                  onAdd={handleAddType}
+                  canRemove={(n) => 
+                    n.uuid !== SYSTEM_TYPE_UUIDS.page &&
+                    n.uuid !== SYSTEM_TYPE_UUIDS.day && 
+                    n.uuid !== SYSTEM_TYPE_UUIDS.month && 
+                    n.uuid !== SYSTEM_TYPE_UUIDS.year
+                  }
+                />
+              </div>
+              
+              {/* Tags */}
+              <div className="page-header-section__tags">
+                <NodePillRow
+                  nodes={pageTagDetails}
+                  availableNodes={availableTags}
+                  emptyText="Add tag"
+                  searchPlaceholder="Search tags..."
+                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onRemove={handleRemoveTag}
+                  onAdd={handleAddTag}
+                />
+              </div>
             </div>
             
-            {/* Row 2: Page Types */}
-            <div className="page-header-section__types">
-              <NodePillRow
-                nodes={pageTypeDetails}
-                availableNodes={availableTypes}
-                emptyText="Add type"
-                searchPlaceholder="Search types..."
-                onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemoveType}
-                onAdd={handleAddType}
-                canRemove={(n) => 
-                  n.uuid !== SYSTEM_TYPE_UUIDS.page &&
-                  n.uuid !== SYSTEM_TYPE_UUIDS.day && 
-                  n.uuid !== SYSTEM_TYPE_UUIDS.month && 
-                  n.uuid !== SYSTEM_TYPE_UUIDS.year
-                }
-              />
-            </div>
-            
-            {/* Row 3: Page Tags */}
-            <div className="page-header-section__tags">
-              <NodePillRow
-                nodes={pageTagDetails}
-                availableNodes={availableTags}
-                emptyText="Add tag"
-                searchPlaceholder="Search tags..."
-                onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemoveTag}
-                onAdd={handleAddTag}
-              />
-            </div>
-            
-            {/* Row 4: Properties Section */}
+            {/* Row 2: Properties Section */}
             <div className="page-header-section__properties">
               <PropertiesSection 
                 nodeId={node.id}
