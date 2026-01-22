@@ -82,7 +82,8 @@
 }
 
 .node-view-section__content {
-  /* Content follows header directly */
+  /* Align content with the section title (after toggle button + gap) */
+  padding-left: calc(20px + var(--spacing-2));
 }
 
 /* When collapsed, hide content */
