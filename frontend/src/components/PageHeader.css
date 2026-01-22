@@ -16,14 +16,6 @@
   gap: var(--spacing-3);
 }
 
-/* Properties row: Types and Tags */
-.page-header__properties {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  padding-left: calc(48px + var(--spacing-3));  /* Align with title, after icon */
-}
-
 .page-icon-btn {
   display: flex;
   align-items: center;
@@ -145,45 +137,3 @@
   letter-spacing: 0.5px;
 }
 
-.page-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-/* Type and Tag chips (inside page-header__properties) */
-.node-types,
-.node-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-}
-
-.node-type-chip,
-.node-tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border: none;
-  background: var(--color-surface-container);
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
-  transition: all 0.15s ease;
-}
-
-.node-type-chip:hover,
-.node-tag-chip:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
-
-.node-type-chip {
-  border: 1px solid var(--color-primary-container);
-}
-
-.node-tag-chip {
-  border: 1px solid var(--color-secondary-container);
-}

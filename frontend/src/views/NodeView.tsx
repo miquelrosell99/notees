@@ -19,15 +19,15 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveType, useNodes } from '@/hooks';
+import { useState, useMemo, useCallback } from 'react';
+import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveType, useRemoveTag, useNodes, useTags } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
 import { PageHeader } from '../components/PageHeader';
-import { NodeTypePill } from '../components/NodeTypePill';
+import { NodePillRow } from '../components/NodePillRow';
 import { BannerImage } from '../components/BannerImage';
 import { CoverImage } from '../components/CoverImage';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
@@ -42,9 +42,8 @@ import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
 import { ChildPagesSection } from '../components/ChildPagesSection';
 import { NodeActivityLogSection, useActivityCount } from '../components/nodes/NodeActivityLogSection';
 import { LinkedReferences, useLinkedReferencesCount } from '../components/LinkedReferences';
-import { TableIcon, PageIcon, LinkIcon, NodeIcon } from '../components/icons';
-import { Button } from '../components/core/Button';
-import { mdiHistory, mdiRefresh, mdiPlus } from '@mdi/js';
+import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
+import { mdiHistory, mdiRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_TYPE_UUIDS } from '@/constants';
 import type { Asset } from '../api/assets';
@@ -187,39 +186,14 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Hooks (needed for page header sections)
   const { data: allTypes } = useTypes();
-  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback type lookup
+  const { data: allTags } = useTags();
+  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback type/tag lookup
   const { data: allProperties } = useProperties();
   const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
   const removeType = useRemoveType();
   const addType = useAddType();
-  
-  // Type picker state
-  const [isTypePickerOpen, setIsTypePickerOpen] = useState(false);
-  const [typeSearchQuery, setTypeSearchQuery] = useState('');
-  const typePickerRef = useRef<HTMLDivElement>(null);
-  const typeSearchInputRef = useRef<HTMLInputElement>(null);
-  
-  // Close type picker when clicking outside
-  useEffect(() => {
-    if (!isTypePickerOpen) return;
-    
-    const handleClickOutside = (e: MouseEvent) => {
-      if (typePickerRef.current && !typePickerRef.current.contains(e.target as HTMLElement)) {
-        setIsTypePickerOpen(false);
-        setTypeSearchQuery('');
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isTypePickerOpen]);
-  
-  // Focus search input when picker opens
-  useEffect(() => {
-    if (isTypePickerOpen && typeSearchInputRef.current) {
-      typeSearchInputRef.current.focus();
-    }
-  }, [isTypePickerOpen]);
+  const removeTag = useRemoveTag();
+  const addTag = useAddTag();
   
   // Resolve page type details from IDs (excluding the implicit "page" type)
   // Use allNodes as fallback for system types that might not be in allTypes
@@ -235,6 +209,19 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
   }, [node?.types, allTypes, allNodes]);
   
+  // Resolve page tag details from IDs
+  const pageTagDetails = useMemo(() => {
+    if (!node?.tags || node.tags.length === 0) return [];
+    return node.tags
+      .map(tagId => {
+        // First try allTags, then fallback to allNodes
+        const fromTags = allTags?.find(t => t.id === tagId);
+        if (fromTags) return fromTags;
+        return allNodes?.find(n => n.id === tagId);
+      })
+      .filter((t): t is Node => t !== undefined);
+  }, [node?.tags, allTags, allNodes]);
+  
   // Available types for the type picker (exclude already assigned types and system types)
   const availableTypes = useMemo(() => {
     if (!allTypes) return [];
@@ -246,19 +233,40 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       if (t.uuid === SYSTEM_TYPE_UUIDS.page) return false;
       // Exclude date types (day, month, year) - these are system-managed
       if (t.uuid === SYSTEM_TYPE_UUIDS.day || t.uuid === SYSTEM_TYPE_UUIDS.month || t.uuid === SYSTEM_TYPE_UUIDS.year) return false;
-      // Filter by search query
-      if (typeSearchQuery && !t.name?.toLowerCase().includes(typeSearchQuery.toLowerCase())) return false;
       return true;
     });
-  }, [allTypes, node?.types, typeSearchQuery]);
+  }, [allTypes, node?.types]);
   
-  // Handle adding a type
-  const handleAddType = useCallback((typeId: number) => {
+  // Available tags for the tag picker (exclude already assigned tags)
+  const availableTags = useMemo(() => {
+    if (!allTags) return [];
+    const assignedTagIds = new Set(node?.tags ?? []);
+    return allTags.filter(t => !assignedTagIds.has(t.id));
+  }, [allTags, node?.tags]);
+  
+  // Handle adding a type via NodePillRow
+  const handleAddType = useCallback((typeNode: Node) => {
     if (!node) return;
-    addType.mutate({ nodeId: node.id, typeId });
-    setIsTypePickerOpen(false);
-    setTypeSearchQuery('');
+    addType.mutate({ nodeId: node.id, typeId: typeNode.id });
   }, [node, addType]);
+  
+  // Handle removing a type via NodePillRow
+  const handleRemoveType = useCallback((typeNode: Node) => {
+    if (!node) return;
+    removeType.mutate({ nodeId: node.id, typeId: typeNode.id });
+  }, [node, removeType]);
+  
+  // Handle adding a tag via NodePillRow
+  const handleAddTag = useCallback((tagNode: Node) => {
+    if (!node) return;
+    addTag.mutate({ nodeId: node.id, tagId: tagNode.id });
+  }, [node, addTag]);
+  
+  // Handle removing a tag via NodePillRow
+  const handleRemoveTag = useCallback((tagNode: Node) => {
+    if (!node) return;
+    removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
+  }, [node, removeTag]);
   
   // Check if node is used as a type
   const { data: typedNodes } = useNodesWithType(node?.id ?? 0);
@@ -460,68 +468,42 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 page={node}
                 compactMode={compactMode}
                 onContextMenu={handleContextMenu}
-                onNavigateToNode={handleNavigateToNode}
               />
             </div>
             
             {/* Row 2: Page Types */}
             <div className="page-header-section__types">
-              <div className="page-types">
-                {pageTypeDetails.map((typeNode) => (
-                  <NodeTypePill
-                    key={typeNode.id}
-                    typeNode={typeNode}
-                    onClick={() => handleNavigateToNode(typeNode.id)}
-                    onRemove={() => removeType.mutate({ nodeId: node.id, typeId: typeNode.id })}
-                  />
-                ))}
-                
-                {/* Add Type Button */}
-                <div className="page-types__add-wrapper" ref={typePickerRef}>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    icon={mdiPlus}
-                    className="page-types__add-btn"
-                    onClick={() => setIsTypePickerOpen(!isTypePickerOpen)}
-                    title="Add type"
-                  >
-                    {pageTypeDetails.length === 0 ? 'Add type' : ''}
-                  </Button>
-                  
-                  {/* Type Picker Dropdown */}
-                  {isTypePickerOpen && (
-                    <div className="page-types__picker">
-                      <input
-                        ref={typeSearchInputRef}
-                        type="text"
-                        className="page-types__search"
-                        placeholder="Search types..."
-                        value={typeSearchQuery}
-                        onChange={(e) => setTypeSearchQuery(e.target.value)}
-                      />
-                      <div className="page-types__options">
-                        {availableTypes.slice(0, 10).map((typeNode) => (
-                          <button
-                            key={typeNode.id}
-                            className="page-types__option"
-                            onClick={() => handleAddType(typeNode.id)}
-                          >
-                            <NodeIcon icon={typeNode.icon} isPage={true} size="xs" />
-                            <span>{typeNode.name}</span>
-                          </button>
-                        ))}
-                        {availableTypes.length === 0 && (
-                          <div className="page-types__no-results">No types found</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <NodePillRow
+                nodes={pageTypeDetails}
+                availableNodes={availableTypes}
+                emptyText="Add type"
+                searchPlaceholder="Search types..."
+                onNodeClick={(n) => handleNavigateToNode(n.id)}
+                onRemove={handleRemoveType}
+                onAdd={handleAddType}
+                canRemove={(n) => 
+                  n.uuid !== SYSTEM_TYPE_UUIDS.page &&
+                  n.uuid !== SYSTEM_TYPE_UUIDS.day && 
+                  n.uuid !== SYSTEM_TYPE_UUIDS.month && 
+                  n.uuid !== SYSTEM_TYPE_UUIDS.year
+                }
+              />
             </div>
             
-            {/* Row 3: Properties Section */}
+            {/* Row 3: Page Tags */}
+            <div className="page-header-section__tags">
+              <NodePillRow
+                nodes={pageTagDetails}
+                availableNodes={availableTags}
+                emptyText="Add tag"
+                searchPlaceholder="Search tags..."
+                onNodeClick={(n) => handleNavigateToNode(n.id)}
+                onRemove={handleRemoveTag}
+                onAdd={handleAddTag}
+              />
+            </div>
+            
+            {/* Row 4: Properties Section */}
             <div className="page-header-section__properties">
               <PropertiesSection 
                 nodeId={node.id}
