@@ -267,7 +267,7 @@ export function LinkedReferences({
             onNodeClick={handleNodeClick}
             onContentChange={handleContentChange}
             showEmpty={false}
-            showGroupBy={!hideToolbar}
+            showGroupBy={true}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             pageMap={pageMap}
