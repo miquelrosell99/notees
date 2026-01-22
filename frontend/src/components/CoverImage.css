@@ -13,7 +13,8 @@
 .cover-image-card {
   position: relative;
   flex-shrink: 0;
-  height: 100px;
+  height: 100%;
+  min-height: 100px;
   margin-left: 0;
   margin-right: 0;
   transition: width 0.25s ease, margin 0.25s ease, opacity 0.2s ease;
@@ -24,7 +25,7 @@
   /* Use padding to extend hover area for actions on the left */
   padding-left: 4px;
   margin-left: -4px;
-  height: auto;
+  height: 100%;
   width: fit-content;  /* Shrink to image width */
 }
 

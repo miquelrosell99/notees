@@ -336,20 +336,24 @@
 /* ==================== Add Property Button ==================== */
 
 .properties-add {
-  margin-top: var(--spacing-1);
+  margin-top: 0;
 }
 
 .properties-add-btn {
-  /* Prevent button from stretching full width in flex column container */
+  /* Match NodePillRow add button styling */
   align-self: flex-start;
   color: var(--color-on-surface-variant);
   border: none;
   background: transparent;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+  padding-left: 0;  /* Align with other add buttons */
 }
 
 .properties-add-btn:hover {
-  color: var(--color-primary);
+  color: var(--color-on-surface-variant);
   background: transparent;
+  opacity: 1;
 }
 
 /* ==================== Block Variant (Compact) ==================== */
