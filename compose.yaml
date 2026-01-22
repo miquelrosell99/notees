@@ -9,8 +9,7 @@ services:
       POSTGRES_DB: notees
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # Not exposed externally - only accessible within Docker network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U notees -d notees"]
       interval: 5s
@@ -25,7 +24,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: notees-backend-dev
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-8080}:8000"
     volumes:
       # Mount source code for hot reload
       - ./app:/app/app:ro
