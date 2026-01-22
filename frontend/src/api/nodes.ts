@@ -310,12 +310,17 @@ export async function listTasks(includeComplete = false): Promise<Node[]> {
  */
 export interface GraphNode {
   id: number;
-  title: string;
-  type: 'page' | 'block';
-  tags: string[];
-  types: number[];
-  properties: Record<string, unknown>;
-  is_daily: boolean;
+  name: string;
+  type?: 'page' | 'block';
+  tags?: string[];
+  types?: number[];
+  type_ids?: number[];
+  properties?: Record<string, unknown>;
+  is_daily?: boolean;
+  is_type?: boolean;
+  is_monthly?: boolean;
+  is_yearly?: boolean;
+  icon?: string;
   created_at?: string;
   backlink_count?: number;
   internal_link_count?: number;

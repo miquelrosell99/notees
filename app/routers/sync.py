@@ -55,19 +55,23 @@ async def get_settings(user: User = Depends(get_current_user)):
 @router.put("/settings/{key}")
 async def set_setting(key: str, request: Request, user: User = Depends(get_current_user)):
     """Set a user setting."""
+    import json
     data = await request.json()
     value = data.get("value")
     
     pool = await get_pool()
     workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
+    # Convert value to JSON string for JSONB column
+    json_value = json.dumps(value) if value is not None else None
+    
     async with pool.acquire() as conn:
         # Upsert the setting
         await conn.execute("""
-            INSERT INTO settings (workspace_id, key, value, write_date)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO settings (workspace_id, key, value)
+            VALUES ($1, $2, $3::jsonb)
             ON CONFLICT (workspace_id, key) 
-            DO UPDATE SET value = EXCLUDED.value, write_date = EXCLUDED.write_date
-        """, workspace_id, key, str(value), _get_utc_now())
+            DO UPDATE SET value = EXCLUDED.value
+        """, workspace_id, key, json_value)
     
     return {"status": "ok"}

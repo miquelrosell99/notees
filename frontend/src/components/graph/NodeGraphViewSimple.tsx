@@ -61,7 +61,7 @@ export function NodeGraphViewSimple({
       vy: 0,
       targetX: 0,
       targetY: 0,
-      name: apiNode.title || 'Untitled',
+      name: apiNode.name || 'Untitled',
       type: apiNode.type,
       isDaily: apiNode.is_daily,
       tags: apiNode.tags || [],
