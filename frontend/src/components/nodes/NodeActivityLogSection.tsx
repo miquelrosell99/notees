@@ -47,7 +47,7 @@ const ACTION_ICONS: Record<string, string> = {
   edited: '✏️',
   link_added: '🔗',
   link_removed: '🔗',
-  link_inserted: '🔗',
+  link_inserted: '',
   archived: '📦',
   unarchived: '📤',
   type_added: '🏷️',
@@ -112,7 +112,7 @@ function activityToNode(activity: NodeActivity): Node {
   
   return {
     id: activity.id,
-    name: `${icon} ${message} — ${time}`,
+    name: icon ? `${icon} ${message} — ${time}` : `${message} — ${time}`,
     is_page: false,
     active: true,
     create_date: activity.create_date,
