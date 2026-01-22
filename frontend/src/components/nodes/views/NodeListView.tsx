@@ -12,16 +12,19 @@
  * - Recursive children handling
  * - Sortable mode with drag-and-drop reordering
  * - Breadcrumbs for top-level nodes (showing page hierarchy)
+ * - GroupBy support: groups blocks by page (pages shown as collapsed headers)
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Block } from '../../blocks/Block';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { Bullet } from '../../blocks/Bullet';
+import { ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
+import { sortNodes, compareNodes } from '@/utils/sorting';
 import './NodeListView.css';
 
 /**
@@ -35,6 +38,63 @@ function filterPagesRecursively(nodes: Node[]): Node[] {
       ...n,
       children: n.children ? filterPagesRecursively(n.children) : undefined,
     }));
+}
+
+/**
+ * Group blocks by their page_id
+ * Returns: { pages: sorted page nodes, groups: array of { page, blocks } }
+ */
+function groupBlocksByPage(
+  nodes: Node[],
+  pageMap?: Map<number, Node>
+): {
+  pages: Node[];
+  groups: { page: Node | null; blocks: Node[] }[];
+} {
+  // Separate pages from blocks
+  const pageNodes: Node[] = [];
+  const blockNodes: Node[] = [];
+  
+  for (const node of nodes) {
+    if (node.is_page) {
+      pageNodes.push(node);
+    } else {
+      blockNodes.push(node);
+    }
+  }
+  
+  // Group blocks by page_id
+  const groupMap = new Map<number | null, Node[]>();
+  for (const block of blockNodes) {
+    const pageId = block.page_id ?? null;
+    const existing = groupMap.get(pageId);
+    if (existing) {
+      existing.push(block);
+    } else {
+      groupMap.set(pageId, [block]);
+    }
+  }
+  
+  // Convert to array with page nodes and sort
+  const groups: { page: Node | null; blocks: Node[] }[] = [];
+  for (const [pageId, blocks] of groupMap.entries()) {
+    const page = pageId !== null && pageMap ? pageMap.get(pageId) ?? null : null;
+    groups.push({ page, blocks });
+  }
+  
+  // Sort groups by page (using compareNodes for smart date handling)
+  groups.sort((a, b) => {
+    // Nulls (no page) come last
+    if (!a.page && !b.page) return 0;
+    if (!a.page) return 1;
+    if (!b.page) return -1;
+    return compareNodes(a.page, b.page);
+  });
+  
+  return {
+    pages: sortNodes(pageNodes),
+    groups,
+  };
 }
 
 interface NodeListItemProps {
@@ -226,6 +286,102 @@ function NodeListItem({
 }
 
 /**
+ * GroupHeader - Renders a page as a group header using BlockPreview
+ * Treats the page as a "parent" with collapsible children
+ */
+interface GroupHeaderProps {
+  page: Node | null;
+  blocks: Node[];
+  editable: boolean;
+  maxDepth: number;
+  showBullets: boolean;
+  showIndentation: boolean;
+  pagesOnly: boolean;
+  pageMap?: Map<number, Node>;
+  onNodeClick?: (node: Node) => void;
+  onNodeShiftClick?: (node: Node) => void;
+  onContentChange?: (nodeId: number, content: string) => void;
+}
+
+function GroupHeader({
+  page,
+  blocks,
+  editable,
+  maxDepth,
+  showBullets,
+  showIndentation,
+  pagesOnly,
+  onNodeClick,
+  onNodeShiftClick,
+  onContentChange,
+}: GroupHeaderProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCollapsed(prev => !prev);
+  }, []);
+
+  return (
+    <div className={`node-list-group ${isCollapsed ? 'node-list-group--collapsed' : ''}`}>
+      {/* Group header - page as parent with collapse arrow */}
+      <div className="node-list-group__header">
+        {/* Collapse arrow */}
+        {blocks.length > 0 && (
+          <button
+            className="node-list-group__collapse-arrow"
+            onClick={handleCollapseToggle}
+            title={isCollapsed ? 'Expand' : 'Collapse'}
+            aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {isCollapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
+          </button>
+        )}
+        {page ? (
+          <BlockPreview
+            variant="simple"
+            node={page}
+            showBullet={false}
+            showIcon={true}
+            onClick={() => onNodeClick?.(page)}
+            onShiftClick={() => onNodeShiftClick?.(page)}
+            className="node-list-group__page-header"
+          />
+        ) : (
+          <span className="node-list-group__no-page-label">Unknown Page</span>
+        )}
+      </div>
+      
+      {/* Group children - blocks indented as if children of the page */}
+      {!isCollapsed && (
+        <div className="node-list-group__children">
+          {blocks.map((block) => (
+            <NodeListItem
+              key={block.id}
+              node={block}
+              depth={1} // Start at depth 1 since page header is depth 0
+              editable={editable}
+              maxDepth={maxDepth}
+              showBullets={showBullets}
+              showIndentation={showIndentation}
+              showBreadcrumbs={false}
+              pagesOnly={pagesOnly}
+              siblings={blocks}
+              parentBlock={page}
+              page={page}
+              onNodeClick={onNodeClick}
+              onNodeShiftClick={onNodeShiftClick}
+              onContentChange={onContentChange}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * NodeListView - List/outline view for NodeCollection
  */
 export function NodeListView({
@@ -244,9 +400,11 @@ export function NodeListView({
   onNodeShiftClick,
   onContentChange,
   pageMap,
+  groupBy = 'page',
+  enableGrouping = false,
   className = '',
 }: NodeListViewProps) {
-  // If sortable, use ListSortable wrapper
+  // If sortable, use ListSortable wrapper (no grouping in sortable mode)
   if (sortable && onReorder) {
     return (
       <ListSortable
@@ -281,7 +439,58 @@ export function NodeListView({
   // Filter top-level nodes if pagesOnly is set
   const filteredNodes = pagesOnly ? nodes.filter(n => n.is_page) : nodes;
 
-  // Regular non-sortable list
+  // Group by page mode (only when grouping is enabled)
+  if (enableGrouping && groupBy === 'page') {
+    const { pages, groups } = groupBlocksByPage(filteredNodes, pageMap);
+    
+    return (
+      <div className={`node-list-view node-list-view--grouped ${className}`}>
+        {/* Render standalone pages first (sorted) */}
+        {pages.length > 0 && (
+          <div className="node-list-view__pages-section">
+            {pages.map((node) => (
+              <NodeListItem
+                key={node.id}
+                node={node}
+                depth={depth}
+                editable={editable}
+                maxDepth={maxDepth}
+                showBullets={showBullets}
+                showIndentation={showIndentation}
+                showBreadcrumbs={false}
+                pagesOnly={pagesOnly}
+                siblings={pages}
+                parentBlock={null}
+                onNodeClick={onNodeClick}
+                onNodeShiftClick={onNodeShiftClick}
+                onContentChange={onContentChange}
+              />
+            ))}
+          </div>
+        )}
+        
+        {/* Render grouped blocks */}
+        {groups.map(({ page, blocks }) => (
+          <GroupHeader
+            key={page?.id ?? 'no-page'}
+            page={page}
+            blocks={blocks}
+            editable={editable}
+            maxDepth={maxDepth}
+            showBullets={showBullets}
+            showIndentation={showIndentation}
+            pagesOnly={pagesOnly}
+            pageMap={pageMap}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            onContentChange={onContentChange}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // No grouping - regular non-sortable list
   return (
     <div className={`node-list-view ${className}`}>
       {filteredNodes.map((node) => {

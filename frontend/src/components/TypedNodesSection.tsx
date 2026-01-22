@@ -37,6 +37,18 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
     return PAGE_ONLY_TYPES.includes(typeName.toLowerCase());
   }, [typeName]);
 
+  // Build pageMap from nodes that are pages (for grouping blocks by their parent page)
+  const pageMap = useMemo(() => {
+    if (!nodes) return new Map<number, Node>();
+    const map = new Map<number, Node>();
+    for (const node of nodes) {
+      if (node.is_page) {
+        map.set(node.id, node);
+      }
+    }
+    return map;
+  }, [nodes]);
+
   // View mode state for NodeCollection
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
 
@@ -153,6 +165,8 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
           sortable={false}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
+          showGroupBy={true}
+          pageMap={pageMap}
         />
       )}
     </div>

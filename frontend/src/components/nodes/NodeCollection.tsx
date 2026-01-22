@@ -30,20 +30,23 @@
  * └─ NodeGraphView (graph)
  *     └─ GraphRenderer → nodes only with is_page = true
  */
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { 
   mdiFormatListBulleted, 
   mdiFileDocumentOutline, 
   mdiViewGrid, 
   mdiTable, 
   mdiChartGantt, 
-  mdiGraphOutline 
+  mdiGraphOutline,
+  mdiGroup 
 } from '@mdi/js';
 import type { 
   NodeCollectionProps, 
   NodeCollectionViewMode, 
-  NodeCollectionContextValue 
+  NodeCollectionContextValue,
+  NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
+import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { 
   NodeListView, 
   NodeDocumentView, 
@@ -53,6 +56,7 @@ import {
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
+import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { BlockCallbacksProvider, type BlockCallbacks } from '../blocks/BlockCallbacksContext';
 import './NodeCollection.css';
 
@@ -104,7 +108,9 @@ export function NodeCollection({
   onNodeShiftClick,
   onContentChange,
   className = '',
-  groupBy: _groupBy = 'none', // Reserved for future grouping support
+  groupBy: groupByProp = 'page',
+  onGroupByChange,
+  showGroupBy: showGroupByProp = false,
   pagesOnly = false,
   showEmpty = true,
   emptyMessage = 'No items',
@@ -112,10 +118,23 @@ export function NodeCollection({
   tableColumns,
   provideBlockCallbacks = false,
   blockCallbacks,
+  pageMap,
 }: NodeCollectionProps) {
+  // Internal groupBy state (controlled or uncontrolled)
+  const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
+  const groupBy = onGroupByChange ? groupByProp : internalGroupBy;
+  const handleGroupByChange = (value: NodeCollectionGroupBy) => {
+    if (onGroupByChange) {
+      onGroupByChange(value);
+    } else {
+      setInternalGroupBy(value);
+    }
+  };
+  
   // Determine which view modes are available
   const effectiveViewModes = availableViewModes ?? ['list', 'document', 'card', 'table', 'gantt', 'graph'];
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
+  const showGroupBy = showGroupByProp && viewMode === 'list';
   
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
@@ -171,6 +190,9 @@ export function NodeCollection({
             sortable={sortable}
             onReorder={onReorder}
             renderItemAction={renderItemAction}
+            groupBy={groupBy}
+            pageMap={pageMap}
+            enableGrouping={showGroupByProp}
           />
         );
       
@@ -236,16 +258,52 @@ export function NodeCollection({
     <NodeCollectionContext.Provider value={contextValue}>
       {wrapWithCallbacks(
         <div className={`node-collection node-collection--${viewMode} ${className}`}>
-          {/* View Mode Switcher - only shown when multiple modes available */}
-          {showViewSwitcher && (
+          {/* Header with GroupBy and View Mode Switcher */}
+          {(showGroupBy || showViewSwitcher) && (
             <div className="node-collection__header">
-              <SelectionButton
-                options={viewModeOptions}
-                value={viewMode}
-                onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
-                size="sm"
-                className="node-collection__view-switcher"
-              />
+              {/* GroupBy selector - only shown in list view */}
+              {showGroupBy && (
+                <ButtonWithPanel
+                  icon={mdiGroup}
+                  variant="ghost"
+                  size="sm"
+                  panelPosition="bottom"
+                  panelAlignment="start"
+                  panelWidth={160}
+                  className="node-collection__group-by"
+                  tooltip="Group by"
+                >
+                  {(closePanel) => (
+                    <div className="node-collection__group-by-options">
+                      {GROUP_BY_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          className={`node-collection__group-by-option ${
+                            groupBy === option.value ? 'node-collection__group-by-option--active' : ''
+                          }`}
+                          onClick={() => {
+                            handleGroupByChange(option.value);
+                            closePanel();
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </ButtonWithPanel>
+              )}
+              
+              {/* View Mode Switcher */}
+              {showViewSwitcher && (
+                <SelectionButton
+                  options={viewModeOptions}
+                  value={viewMode}
+                  onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
+                  size="sm"
+                  className="node-collection__view-switcher"
+                />
+              )}
             </div>
           )}
           

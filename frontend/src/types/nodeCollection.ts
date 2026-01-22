@@ -7,6 +7,29 @@
 import type { Node } from './api';
 import type { ReactNode } from 'react';
 
+// ==================== GroupBy Options ====================
+
+/**
+ * Available groupBy options for NodeCollection
+ */
+export type NodeCollectionGroupBy = 'none' | 'page';
+
+/**
+ * GroupBy option with label for UI display
+ */
+export interface GroupByOption {
+  value: NodeCollectionGroupBy;
+  label: string;
+}
+
+/**
+ * Default groupBy options
+ */
+export const GROUP_BY_OPTIONS: GroupByOption[] = [
+  { value: 'none', label: 'None' },
+  { value: 'page', label: 'Page' },
+];
+
 // ==================== View Modes ====================
 
 /**
@@ -74,11 +97,20 @@ export interface NodeCollectionProps {
   /** Additional CSS class */
   className?: string;
   
-  /** Group by option (for grouped views) */
-  groupBy?: 'none' | 'page' | 'type' | 'date';
+  /** Group by option (default: 'page' for list view) */
+  groupBy?: NodeCollectionGroupBy;
+  
+  /** Called when groupBy changes */
+  onGroupByChange?: (groupBy: NodeCollectionGroupBy) => void;
+  
+  /** Whether to show the groupBy selector (default: false) */
+  showGroupBy?: boolean;
   
   /** Only show nodes with is_page=true in list view (filters both top-level and children) */
   pagesOnly?: boolean;
+  
+  /** Page map for resolving page nodes by ID (needed for groupBy='page') */
+  pageMap?: Map<number, Node>;
   
   /** Columns for table view (optional, uses defaults if not provided) */
   tableColumns?: {
@@ -184,6 +216,12 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   
   /** Page map for breadcrumb resolution */
   pageMap?: Map<number, Node>;
+  
+  /** Group by option (default: 'none' when showGroupBy is false) */
+  groupBy?: NodeCollectionGroupBy;
+  
+  /** Whether grouping is enabled (default: false) */
+  enableGrouping?: boolean;
 }
 
 /**
