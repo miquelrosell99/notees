@@ -1,12 +1,13 @@
-"""Database schema for Notees.
+"""PostgreSQL database schema for Notees.
 
-This module defines the SQLite schema and provides initialization functions.
+This module defines the PostgreSQL schema, initialization, and seeding functions.
+All tables support multi-user workspaces and include optimistic locking.
 """
-import aiosqlite
-from pathlib import Path
+from __future__ import annotations
+
+import asyncpg
 from datetime import datetime, timezone, date
 from typing import Optional
-import uuid as uuid_module
 
 from ..domain.entities import generate_uuid
 
@@ -62,22 +63,21 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
 
 
 # System type names - these are created on database initialization
-# Types define what kind of node something is (can have multiple types)
 SYSTEM_TYPES = [
-    "type",     # Meta-type: nodes that define types themselves
-    "page",     # Regular pages
-    "year",     # Year journal pages
-    "month",    # Month journal pages  
-    "day",      # Day journal pages
-    "quote",    # Quote blocks
-    "query",    # Query/search blocks
-    "code",     # Code blocks
-    "asset",    # Asset/file blocks
-    "whiteboard", # Whiteboard pages
-    "card",     # Card blocks
-    "task",     # Task items
-    "template", # Template pages
-    "comment",  # Comment blocks attached to nodes
+    "type",
+    "page",
+    "year",
+    "month",
+    "day",
+    "quote",
+    "query",
+    "code",
+    "asset",
+    "whiteboard",
+    "card",
+    "task",
+    "template",
+    "comment",
 ]
 
 # Default pages created on initialization
@@ -86,7 +86,7 @@ DEFAULT_PAGES = [
     "Quick Add",
 ]
 
-# System types with fixed UUIDs (never change these - used for lookup in code)
+# System types with fixed UUIDs (never change these)
 SYSTEM_TYPE_UUIDS = {
     "type": "00000000-0000-0000-0001-000000000001",
     "page": "00000000-0000-0000-0001-000000000002",
@@ -105,7 +105,6 @@ SYSTEM_TYPE_UUIDS = {
 }
 
 # Default icons for system types (MDI icon names)
-# These icons are inherited by nodes of that type if the node has no explicit icon
 SYSTEM_TYPE_ICONS = {
     "type": "shape",
     "day": "calendar-today",
@@ -120,7 +119,7 @@ SYSTEM_TYPE_ICONS = {
     "comment": "comment-outline",
 }
 
-# System properties with fixed UUIDs (never change these - used for filtering in code)
+# System properties with fixed UUIDs
 SYSTEM_PROPERTY_UUIDS = {
     "tags": "00000000-0000-0000-0000-000000000001",
     "types": "00000000-0000-0000-0000-000000000002",
@@ -134,104 +133,143 @@ SYSTEM_PROPERTIES = [
     {"name": "tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
     {"name": "types", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["types"]},
     {"name": "show_hierarchy", "type": "boolean", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"]},
-    {"name": "used_in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},  # For templates: tracks nodes created from this template
-    {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},  # Cover image (asset node reference)
-    {"name": "banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},  # Banner image (full-width header background)
+    {"name": "used_in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
+    {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
+    {"name": "banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
 ]
 
 
+# ============== PostgreSQL Schema DDL ==============
+
 SCHEMA_SQL = """
--- User table
-CREATE TABLE IF NOT EXISTS user (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- User table (global, not per workspace)
+CREATE TABLE IF NOT EXISTS "user" (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    username VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    is_active INTEGER DEFAULT 1,
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL
+    is_active BOOLEAN DEFAULT TRUE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Workspace for multi-tenant support
+CREATE TABLE IF NOT EXISTS workspace (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    owner_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    is_shared BOOLEAN DEFAULT FALSE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_owner ON workspace(owner_id);
+
+-- Workspace membership
+CREATE TABLE IF NOT EXISTS workspace_member (
+    id SERIAL PRIMARY KEY,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'viewer',  -- owner, editor, viewer
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(workspace_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_member_workspace ON workspace_member(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_member_user ON workspace_member(user_id);
 
 -- Node table - the core entity
 CREATE TABLE IF NOT EXISTS node (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT UNIQUE NOT NULL,
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT '',
-    icon TEXT,
-    color TEXT,
+    icon VARCHAR(100),
+    color VARCHAR(50),
     parent_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     page_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     sequence INTEGER DEFAULT 0,
-    collapsed INTEGER DEFAULT 0,
-    active INTEGER DEFAULT 1,
-    -- Type flags (computed/denormalized for fast queries, not mutually exclusive)
-    is_type INTEGER DEFAULT 0,      -- This node defines a type
-    is_page INTEGER DEFAULT 0,      -- Regular page
-    is_day INTEGER DEFAULT 0,       -- Daily journal page
-    is_month INTEGER DEFAULT 0,     -- Monthly journal page
-    is_year INTEGER DEFAULT 0,      -- Yearly journal page  
-    is_asset INTEGER DEFAULT 0,     -- Asset/file block
-    is_template INTEGER DEFAULT 0,  -- Template page
-    is_comment INTEGER DEFAULT 0,   -- Comment block
-    -- Type-specific fields (only meaningful when is_type = 1)
-    usable_in TEXT DEFAULT 'both',  -- Where this type can be applied: 'pages', 'blocks', 'both'
-    -- Cover image (references an asset node)
+    collapsed BOOLEAN DEFAULT FALSE,
+    active BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,  -- Optimistic locking
+    -- Type flags (denormalized for fast queries)
+    is_type BOOLEAN DEFAULT FALSE,
+    is_page BOOLEAN DEFAULT FALSE,
+    is_day BOOLEAN DEFAULT FALSE,
+    is_month BOOLEAN DEFAULT FALSE,
+    is_year BOOLEAN DEFAULT FALSE,
+    is_asset BOOLEAN DEFAULT FALSE,
+    is_template BOOLEAN DEFAULT FALSE,
+    is_comment BOOLEAN DEFAULT FALSE,
+    usable_in VARCHAR(20) DEFAULT 'both',
     cover_image_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
-    -- Types Path: inherited type IDs from ancestors (JSON array, for queries not backlinks)
-    types_path TEXT DEFAULT '[]',
-    -- Open date: timestamp when page was last opened/viewed (NULL by default, only set for pages when viewed)
-    open_date TEXT,
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL,
-    create_uid INTEGER REFERENCES user(id),
-    write_uid INTEGER REFERENCES user(id)
+    types_path JSONB DEFAULT '[]'::jsonb,
+    open_date TIMESTAMPTZ,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    create_uid INTEGER REFERENCES "user"(id),
+    write_uid INTEGER REFERENCES "user"(id),
+    -- Full-text search
+    search_vector tsvector,
+    search_language VARCHAR(50) DEFAULT 'english'
 );
 
+-- Node indexes
+CREATE INDEX IF NOT EXISTS idx_node_workspace ON node(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_node_uuid ON node(uuid);
 CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 CREATE INDEX IF NOT EXISTS idx_node_name ON node(name);
-CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = 1;
-CREATE INDEX IF NOT EXISTS idx_node_is_type ON node(is_type) WHERE is_type = 1;
-CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = 1;
+CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_is_type ON node(is_type) WHERE is_type = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_node_types_path ON node USING GIN (types_path);
+CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 
--- Property table - defines property schemas
--- name uniqueness: Global properties must have unique names
--- Local properties (is_local=1) must have unique names per node_id (which must be a page node)
+-- Property definition
 CREATE TABLE IF NOT EXISTS property (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    uuid TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    icon TEXT,
-    type TEXT NOT NULL DEFAULT 'text',  -- integer, float, boolean (scalar) | node, text, image, date (relation) | selection
-    is_multi INTEGER DEFAULT 0,  -- Allow multiple values (always 0 for text/image types)
-    is_system INTEGER DEFAULT 0,
-    is_local INTEGER DEFAULT 0,  -- Local properties are unique per node_id, not globally
-    node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,  -- For local properties: the page node this belongs to
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL,
-    -- Constraint: node_id can only be set if is_local=1
-    CHECK (is_local = 1 OR node_id IS NULL),
-    -- Constraint: text and image types are always single value
-    CHECK (type NOT IN ('text', 'image') OR is_multi = 0)
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    workspace_id INTEGER REFERENCES workspace(id) ON DELETE CASCADE,  -- NULL for global
+    name VARCHAR(255) NOT NULL,
+    icon VARCHAR(100),
+    type VARCHAR(50) NOT NULL DEFAULT 'text',
+    is_multi BOOLEAN DEFAULT FALSE,
+    is_system BOOLEAN DEFAULT FALSE,
+    is_local BOOLEAN DEFAULT FALSE,
+    node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (is_local = TRUE OR node_id IS NULL),
+    CHECK (type NOT IN ('text', 'image') OR is_multi = FALSE)
 );
 
 CREATE INDEX IF NOT EXISTS idx_property_uuid ON property(uuid);
 CREATE INDEX IF NOT EXISTS idx_property_name ON property(name);
+CREATE INDEX IF NOT EXISTS idx_property_workspace ON property(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_property_node_id ON property(node_id) WHERE node_id IS NOT NULL;
--- Unique constraint for global properties (non-local)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_global ON property(name) WHERE is_local = 0;
+-- Unique constraint for global properties (workspace NULL, non-local)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_global ON property(name) 
+    WHERE is_local = FALSE AND workspace_id IS NULL;
+-- Unique constraint for workspace properties
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_workspace ON property(name, workspace_id) 
+    WHERE is_local = FALSE AND workspace_id IS NOT NULL;
 -- Unique constraint for local properties (unique name per node_id)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_local ON property(name, node_id) WHERE is_local = 1;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_local ON property(name, node_id) 
+    WHERE is_local = TRUE;
 
--- Node property assignment table - links properties to nodes (without values)
+-- Node property assignment table
 CREATE TABLE IF NOT EXISTS node_property (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(node_id, property_id)
 );
 
@@ -239,21 +277,18 @@ CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_property_property ON node_property(property_id);
 
 -- Property value scalar - for integer, float, boolean types
--- property_id and node_id are computed from node_property for query convenience
 CREATE TABLE IF NOT EXISTS property_value_scalar (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     node_property_id INTEGER NOT NULL REFERENCES node_property(id) ON DELETE CASCADE,
-    property_id INTEGER NOT NULL,  -- Computed from node_property
-    node_id INTEGER NOT NULL,  -- Computed from node_property
+    property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     value_text TEXT,
-    value_boolean INTEGER,
-    value_float REAL,
-    value_integer INTEGER,
-    "order" INTEGER DEFAULT 0,  -- For multi-value properties
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL,
-    FOREIGN KEY (property_id) REFERENCES property(id) ON DELETE CASCADE,
-    FOREIGN KEY (node_id) REFERENCES node(id) ON DELETE CASCADE
+    value_boolean BOOLEAN,
+    value_float DOUBLE PRECISION,
+    value_integer BIGINT,
+    "order" INTEGER DEFAULT 0,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pvs_node_property ON property_value_scalar(node_property_id);
@@ -261,24 +296,15 @@ CREATE INDEX IF NOT EXISTS idx_pvs_property ON property_value_scalar(property_id
 CREATE INDEX IF NOT EXISTS idx_pvs_node ON property_value_scalar(node_id);
 
 -- Property value relation - for node, text, image, date types
--- property_id and node_id are computed from node_property for query convenience
--- For text/image types: target_node_id points to a content block that:
---   - Can only be assigned to ONE property_value (enforced in application, not schema)
---   - Has page_id computed from node_property.node_id
---   - Does not require parent_id (like pages)
---   - Gets deleted when the property_value is removed
--- For node/date types: target_node_id can be referenced by multiple property values
 CREATE TABLE IF NOT EXISTS property_value_relation (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     node_property_id INTEGER NOT NULL REFERENCES node_property(id) ON DELETE CASCADE,
-    property_id INTEGER NOT NULL,  -- Computed from node_property
-    node_id INTEGER NOT NULL,  -- Computed from node_property
+    property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    "order" INTEGER DEFAULT 0,  -- For multi-value properties
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL,
-    FOREIGN KEY (property_id) REFERENCES property(id) ON DELETE CASCADE,
-    FOREIGN KEY (node_id) REFERENCES node(id) ON DELETE CASCADE
+    "order" INTEGER DEFAULT 0,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pvr_node_property ON property_value_relation(node_property_id);
@@ -287,33 +313,28 @@ CREATE INDEX IF NOT EXISTS idx_pvr_node ON property_value_relation(node_id);
 CREATE INDEX IF NOT EXISTS idx_pvr_target ON property_value_relation(target_node_id);
 
 -- Property selection line - options for selection-type properties
--- Cannot be deleted if used in property_value_selection (enforced in application)
--- Cascade deleted when parent property is deleted
 CREATE TABLE IF NOT EXISTS property_selection_line (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    icon TEXT,
+    name VARCHAR(255) NOT NULL,
+    icon VARCHAR(100),
     "order" INTEGER DEFAULT 0,
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_selection_line_property ON property_selection_line(property_id);
 
 -- Property value selection - for selection-type properties
--- property_id and node_id are computed from node_property for query convenience
 CREATE TABLE IF NOT EXISTS property_value_selection (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     node_property_id INTEGER NOT NULL REFERENCES node_property(id) ON DELETE CASCADE,
-    property_id INTEGER NOT NULL,  -- Computed from node_property
-    node_id INTEGER NOT NULL,  -- Computed from node_property
+    property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     selection_line_id INTEGER NOT NULL REFERENCES property_selection_line(id) ON DELETE RESTRICT,
-    "order" INTEGER DEFAULT 0,  -- For multi-value properties
-    create_date TEXT NOT NULL,
-    write_date TEXT NOT NULL,
-    FOREIGN KEY (property_id) REFERENCES property(id) ON DELETE CASCADE,
-    FOREIGN KEY (node_id) REFERENCES node(id) ON DELETE CASCADE
+    "order" INTEGER DEFAULT 0,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pvsel_node_property ON property_value_selection(node_property_id);
@@ -321,9 +342,9 @@ CREATE INDEX IF NOT EXISTS idx_pvsel_property ON property_value_selection(proper
 CREATE INDEX IF NOT EXISTS idx_pvsel_node ON property_value_selection(node_id);
 CREATE INDEX IF NOT EXISTS idx_pvsel_selection_line ON property_value_selection(selection_line_id);
 
--- Property type filters (for node-type properties - which types filter selectable nodes)
+-- Property type filters
 CREATE TABLE IF NOT EXISTS property_type_filter (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
     type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     UNIQUE(property_id, type_node_id)
@@ -331,17 +352,17 @@ CREATE TABLE IF NOT EXISTS property_type_filter (
 
 CREATE INDEX IF NOT EXISTS idx_type_filter_property ON property_type_filter(property_id);
 
--- Type properties (which properties a type/class applies to nodes with that type)
+-- Type properties
 CREATE TABLE IF NOT EXISTS type_property (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
     sequence INTEGER DEFAULT 0,
-    hidden INTEGER DEFAULT 0,
-    default_integer INTEGER,
-    default_float REAL,
+    hidden BOOLEAN DEFAULT FALSE,
+    default_integer BIGINT,
+    default_float DOUBLE PRECISION,
     default_text TEXT,
-    default_boolean INTEGER,
+    default_boolean BOOLEAN,
     default_node_id INTEGER REFERENCES node(id),
     default_selection_id INTEGER REFERENCES property_selection_line(id),
     UNIQUE(type_node_id, property_id)
@@ -350,9 +371,9 @@ CREATE TABLE IF NOT EXISTS type_property (
 CREATE INDEX IF NOT EXISTS idx_type_property_type ON type_property(type_node_id);
 CREATE INDEX IF NOT EXISTS idx_type_property_property ON type_property(property_id);
 
--- Type extends (inheritance - which types a type extends to inherit their properties)
+-- Type extends (inheritance)
 CREATE TABLE IF NOT EXISTS type_extends (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     extends_type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     sequence INTEGER DEFAULT 0,
@@ -362,443 +383,250 @@ CREATE TABLE IF NOT EXISTS type_extends (
 CREATE INDEX IF NOT EXISTS idx_type_extends_type ON type_extends(type_node_id);
 CREATE INDEX IF NOT EXISTS idx_type_extends_parent ON type_extends(extends_type_node_id);
 
--- Node links (parsed from node name field or property values) - unified [[nodeId]] format
--- For text links: source_node_id = block T containing [[id]], property_id = NULL
--- For property links: source_node_id = property owner B, property_id = the property
--- System property 'types' is excluded from this table entirely
--- is_tag: If true, this link is a tag reference (displayed with #) rather than a regular link
+-- Node links (backlinks)
 CREATE TABLE IF NOT EXISTS node_link (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
     property_id INTEGER REFERENCES property(id) ON DELETE CASCADE,
-    is_tag INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    is_tag BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_link_source ON node_link(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_target ON node_link(target_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_property ON node_link(property_id) WHERE property_id IS NOT NULL;
+-- Composite indexes for common join patterns
+CREATE INDEX IF NOT EXISTS idx_link_source_target ON node_link(source_node_id, target_node_id);
+CREATE INDEX IF NOT EXISTS idx_link_target_property ON node_link(target_node_id, property_id);
 
--- Inline type references (parsed from node name field) - {{typeId}} format
--- Stores inline type mentions in block content, similar to node_link but for types
--- source_node_id = block containing {{typeId}}, type_node_id = the type node being referenced
+-- Inline type references
 CREATE TABLE IF NOT EXISTS inline_type (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_inline_type_source ON inline_type(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_inline_type_target ON inline_type(type_node_id);
 
--- Node comments (comments attached to nodes - each comment is a node tree)
+-- Node comments
 CREATE TABLE IF NOT EXISTS node_comment (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     comment_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     sequence INTEGER DEFAULT 0,
-    create_date TEXT NOT NULL,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(node_id, comment_node_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_comment_node ON node_comment(node_id);
 CREATE INDEX IF NOT EXISTS idx_comment_comment_node ON node_comment(comment_node_id);
 
--- User settings (key-value store for user preferences)
+-- Workspace settings (key-value store)
 CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
+    workspace_id INTEGER REFERENCES workspace(id) ON DELETE CASCADE,
+    key VARCHAR(255) NOT NULL,
+    value JSONB,
+    PRIMARY KEY (workspace_id, key)
 );
 
--- Node activity log (tracks actions on nodes)
+-- Node activity log
 CREATE TABLE IF NOT EXISTS node_activity (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    action TEXT NOT NULL,
+    action VARCHAR(100) NOT NULL,
     details TEXT,
     target_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
-    create_date TEXT NOT NULL
+    user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_node ON node_activity(node_id);
-CREATE INDEX IF NOT EXISTS idx_activity_create_date ON node_activity(create_date);
+CREATE INDEX IF NOT EXISTS idx_activity_date ON node_activity(create_date);
+CREATE INDEX IF NOT EXISTS idx_activity_user ON node_activity(user_id);
 
--- Link click tracking (stores individual clicks with timestamps)
+-- Link click tracking
 CREATE TABLE IF NOT EXISTS link_click (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    click_date TEXT NOT NULL,
-    user_id INTEGER REFERENCES user(id) ON DELETE SET NULL
+    click_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_link_click_source ON link_click(source_node_id);
-CREATE INDEX IF NOT EXISTS idx_link_click_target ON link_click(target_node_id);
-CREATE INDEX IF NOT EXISTS idx_link_click_date ON link_click(click_date);
-CREATE INDEX IF NOT EXISTS idx_link_click_source_target ON link_click(source_node_id, target_node_id);
+CREATE INDEX IF NOT EXISTS idx_click_source ON link_click(source_node_id);
+CREATE INDEX IF NOT EXISTS idx_click_target ON link_click(target_node_id);
+CREATE INDEX IF NOT EXISTS idx_click_date ON link_click(click_date);
+CREATE INDEX IF NOT EXISTS idx_click_source_target ON link_click(source_node_id, target_node_id);
 
 -- Schema metadata
 CREATE TABLE IF NOT EXISTS schema_meta (
-    key TEXT PRIMARY KEY,
-    value TEXT
+    key VARCHAR(255) PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Full-text search trigger
+CREATE OR REPLACE FUNCTION update_node_search_vector()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.search_vector := to_tsvector(
+        COALESCE(NEW.search_language, 'english')::regconfig,
+        COALESCE(NEW.name, '')
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS node_search_update ON node;
+CREATE TRIGGER node_search_update
+    BEFORE INSERT OR UPDATE OF name, search_language ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION update_node_search_vector();
 """
 
 
-async def init_database(db_path: Path) -> aiosqlite.Connection:
-    """Initialize the database with schema and seed data."""
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+async def init_database(conn: asyncpg.Connection) -> None:
+    """Initialize the database with schema.
     
-    conn = await aiosqlite.connect(str(db_path))
-    conn.row_factory = aiosqlite.Row
-    await conn.execute("PRAGMA busy_timeout = 5000")  # Wait up to 5 seconds if locked
-    
-    # Create schema
-    await conn.executescript(SCHEMA_SQL)
-    
-    # Check if already seeded
-    cursor = await conn.execute(
-        "SELECT value FROM schema_meta WHERE key = 'seeded'"
-    )
-    row = await cursor.fetchone()
-    
-    if not row:
-        # Seed new database first
-        await seed_database(conn)
-        await conn.execute(
-            "INSERT INTO schema_meta (key, value) VALUES ('seeded', '1')"
-        )
-        await conn.commit()
-    
-    # Run migrations for existing databases (after seed, so we don't conflict)
-    await run_migrations(conn)
+    This creates all tables, indexes, and triggers.
+    Call this during application startup.
+    """
+    # Execute schema
+    await conn.execute(SCHEMA_SQL)
     
     # Store schema version
-    await conn.execute(
-        "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)",
-        (str(SCHEMA_VERSION),)
-    )
-    
-    await conn.commit()
-    return conn
-
-
-async def run_migrations(conn: aiosqlite.Connection) -> None:
-    """Run database migrations for existing databases."""
-    # Migration: Add usable_in column to node table if it doesn't exist
-    cursor = await conn.execute("PRAGMA table_info(node)")
-    columns = await cursor.fetchall()
-    column_names = [col['name'] for col in columns]
-    
-    if 'usable_in' not in column_names:
-        await conn.execute("ALTER TABLE node ADD COLUMN usable_in TEXT DEFAULT 'both'")
-        await conn.commit()
-    
-    # Migration: Create node_activity table if it doesn't exist
-    cursor = await conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='node_activity'"
-    )
-    if not await cursor.fetchone():
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS node_activity (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-                action TEXT NOT NULL,
-                details TEXT,
-                target_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
-                create_date TEXT NOT NULL
-            )
-        """)
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_node ON node_activity(node_id)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_create_date ON node_activity(create_date)")
-        await conn.commit()
-    
-    # Migration: Create link_click table if it doesn't exist (new schema with individual clicks)
-    cursor = await conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='link_click'"
-    )
-    if not await cursor.fetchone():
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS link_click (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-                target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-                click_date TEXT NOT NULL,
-                user_id INTEGER REFERENCES user(id) ON DELETE SET NULL
-            )
-        """)
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_source ON link_click(source_node_id)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_target ON link_click(target_node_id)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_date ON link_click(click_date)")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_source_target ON link_click(source_node_id, target_node_id)")
-        await conn.commit()
-    else:
-        # Migration: Convert old link_click table (with click_count) to new schema (individual clicks)
-        cursor = await conn.execute("PRAGMA table_info(link_click)")
-        columns = await cursor.fetchall()
-        column_names = [col['name'] for col in columns]
-        
-        if 'click_count' in column_names:
-            # Old schema detected - migrate to new schema
-            # First, backup old data
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS link_click_old AS SELECT * FROM link_click
-            """)
-            # Drop old table
-            await conn.execute("DROP TABLE link_click")
-            # Create new table
-            await conn.execute("""
-                CREATE TABLE link_click (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-                    target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-                    click_date TEXT NOT NULL,
-                    user_id INTEGER REFERENCES user(id) ON DELETE SET NULL
-                )
-            """)
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_source ON link_click(source_node_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_target ON link_click(target_node_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_date ON link_click(click_date)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_link_click_source_target ON link_click(source_node_id, target_node_id)")
-            # Migrate old data - create one click record per count with last_click_date
-            await conn.execute("""
-                INSERT INTO link_click (source_node_id, target_node_id, click_date)
-                SELECT source_node_id, target_node_id, last_click_date 
-                FROM link_click_old
-            """)
-            # Drop backup
-            await conn.execute("DROP TABLE link_click_old")
-            await conn.commit()
-    
-    # Migration: Add cover_image_id column to node table if it doesn't exist
-    cursor = await conn.execute("PRAGMA table_info(node)")
-    columns = await cursor.fetchall()
-    column_names = [col['name'] for col in columns]
-    
-    if 'cover_image_id' not in column_names:
-        await conn.execute("ALTER TABLE node ADD COLUMN cover_image_id INTEGER REFERENCES node(id) ON DELETE SET NULL")
-        await conn.commit()
-    
-    # Migration: Add 'cover' system property if it doesn't exist
-    cursor = await conn.execute(
-        "SELECT id FROM property WHERE uuid = ?",
-        (SYSTEM_PROPERTY_UUIDS["cover"],)
-    )
-    row = await cursor.fetchone()
-    if not row:
-        # Create the cover property
-        now = utc_now_iso()
-        cursor = await conn.execute(
-            """INSERT INTO property (uuid, name, type, multi, is_system, create_date, write_date)
-               VALUES (?, 'cover', 'node', 0, 1, ?, ?)""",
-            (SYSTEM_PROPERTY_UUIDS["cover"], now, now)
-        )
-        cover_property_id = cursor.lastrowid
-        
-        # Get asset type ID for type filter
-        cursor = await conn.execute(
-            "SELECT id FROM node WHERE name = 'asset' AND is_type = 1 LIMIT 1"
-        )
-        asset_row = await cursor.fetchone()
-        if asset_row:
-            await conn.execute(
-                """INSERT INTO property_type_filter (property_id, type_node_id)
-                   VALUES (?, ?)""",
-                (cover_property_id, asset_row['id'])
-            )
-        
-        await conn.commit()
-    
-    # Migration: Add 'banner' system property if it doesn't exist
-    cursor = await conn.execute(
-        "SELECT id FROM property WHERE uuid = ?",
-        (SYSTEM_PROPERTY_UUIDS["banner"],)
-    )
-    row = await cursor.fetchone()
-    if not row:
-        # Create the banner property
-        now = utc_now_iso()
-        cursor = await conn.execute(
-            """INSERT INTO property (uuid, name, type, multi, is_system, create_date, write_date)
-               VALUES (?, 'banner', 'node', 0, 1, ?, ?)""",
-            (SYSTEM_PROPERTY_UUIDS["banner"], now, now)
-        )
-        banner_property_id = cursor.lastrowid
-        
-        # Get asset type ID for type filter
-        cursor = await conn.execute(
-            "SELECT id FROM node WHERE name = 'asset' AND is_type = 1 LIMIT 1"
-        )
-        asset_row = await cursor.fetchone()
-        if asset_row:
-            await conn.execute(
-                """INSERT INTO property_type_filter (property_id, type_node_id)
-                   VALUES (?, ?)""",
-                (banner_property_id, asset_row['id'])
-            )
-        
-        await conn.commit()
-    
-    # Migration: Add open_date column to node table if it doesn't exist
-    cursor = await conn.execute("PRAGMA table_info(node)")
-    columns = await cursor.fetchall()
-    column_names = [col['name'] for col in columns]
-    
-    if 'open_date' not in column_names:
-        await conn.execute("ALTER TABLE node ADD COLUMN open_date TEXT")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL")
-        await conn.commit()
-    
-    # Migration: Ensure system type nodes have create_date and write_date set
-    # This fixes any system nodes that may have been created with empty dates
-    now = utc_now_iso()
     await conn.execute("""
-        UPDATE node 
-        SET create_date = ?, write_date = ?
-        WHERE is_type = 1 AND (create_date IS NULL OR create_date = '' OR write_date IS NULL OR write_date = '')
-    """, (now, now))
-    await conn.commit()
+        INSERT INTO schema_meta (key, value, updated_at) 
+        VALUES ('version', $1, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+    """, str(SCHEMA_VERSION))
 
 
-async def seed_database(conn: aiosqlite.Connection) -> None:
-    """Seed the database with system types, properties, and default pages."""
-    now = utc_now_iso()
+async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
+    """Seed a workspace with system types, properties, and default pages.
     
-    # Helper function to assign a relation property value to a node
+    This should be called when creating a new workspace.
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Helper to assign a relation property value
     async def assign_relation_property(node_id: int, property_id: int, target_node_id: int, order: int = 0):
-        """Assign a relation property value to a node using the new schema."""
-        # First create or get node_property assignment
-        cursor = await conn.execute(
-            """INSERT OR IGNORE INTO node_property (node_id, property_id, create_date, write_date)
-               VALUES (?, ?, ?, ?)""",
-            (node_id, property_id, now, now)
+        # Create or get node_property assignment
+        await conn.execute("""
+            INSERT INTO node_property (node_id, property_id, create_date, write_date)
+            VALUES ($1, $2, $3, $3)
+            ON CONFLICT (node_id, property_id) DO NOTHING
+        """, node_id, property_id, now)
+        
+        # Get node_property id
+        np_row = await conn.fetchrow(
+            "SELECT id FROM node_property WHERE node_id = $1 AND property_id = $2",
+            node_id, property_id
         )
-        # Get the node_property id
-        cursor = await conn.execute(
-            "SELECT id FROM node_property WHERE node_id = ? AND property_id = ?",
-            (node_id, property_id)
-        )
-        np_row = await cursor.fetchone()
         if np_row is None:
             raise RuntimeError(f"node_property not found for node_id={node_id}, property_id={property_id}")
         node_property_id = np_row['id']
         
         # Insert the relation value
-        await conn.execute(
-            """INSERT INTO property_value_relation 
-               (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (node_property_id, property_id, node_id, target_node_id, order, now, now)
-        )
+        await conn.execute("""
+            INSERT INTO property_value_relation 
+            (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $6)
+        """, node_property_id, property_id, node_id, target_node_id, order, now)
     
-    # First, create the 'type' and 'page' type nodes using fixed UUIDs
+    # Create 'type' node
     type_uuid = SYSTEM_TYPE_UUIDS["type"]
+    type_row = await conn.fetchrow("""
+        INSERT INTO node (uuid, workspace_id, name, is_type, is_page, create_date, write_date)
+        VALUES ($1, $2, 'type', TRUE, TRUE, $3, $3)
+        RETURNING id
+    """, type_uuid, workspace_id, now)
+    type_node_id = type_row['id']
+    
+    # Create 'page' type node
     page_uuid = SYSTEM_TYPE_UUIDS["page"]
+    page_row = await conn.fetchrow("""
+        INSERT INTO node (uuid, workspace_id, name, is_type, is_page, create_date, write_date)
+        VALUES ($1, $2, 'page', TRUE, TRUE, $3, $3)
+        RETURNING id
+    """, page_uuid, workspace_id, now)
+    page_type_id = page_row['id']
     
-    # Create 'type' node (the meta-type - it IS a type itself)
-    cursor = await conn.execute(
-        """INSERT INTO node (uuid, name, is_type, is_page, create_date, write_date)
-           VALUES (?, 'type', 1, 1, ?, ?)""",
-        (type_uuid, now, now)
-    )
-    type_node_id = cursor.lastrowid
-    assert type_node_id is not None, "Failed to insert type node"
-    
-    # Create 'page' type node (also a type, and a page)
-    cursor = await conn.execute(
-        """INSERT INTO node (uuid, name, is_type, is_page, create_date, write_date)
-           VALUES (?, 'page', 1, 1, ?, ?)""",
-        (page_uuid, now, now)
-    )
-    page_type_id = cursor.lastrowid
-    assert page_type_id is not None, "Failed to insert page type node"
-    
-    # Create 'types' property (node type, multi, filtered by 'type')
-    # Use fixed UUID for system property identification
+    # Create 'types' property (global, not workspace-specific for now)
     types_prop_uuid = SYSTEM_PROPERTY_UUIDS["types"]
-    cursor = await conn.execute(
-        """INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
-           VALUES (?, 'types', 'node', 1, 1, ?, ?)""",
-        (types_prop_uuid, now, now)
-    )
-    types_property_id = cursor.lastrowid
-    assert types_property_id is not None, "Failed to insert types property"
+    types_row = await conn.fetchrow("""
+        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
+        VALUES ($1, 'types', 'node', TRUE, TRUE, $2, $2)
+        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        RETURNING id
+    """, types_prop_uuid, now)
+    types_property_id = types_row['id']
     
-    # Set type filter for 'types' property to 'type' node
-    await conn.execute(
-        """INSERT INTO property_type_filter (property_id, type_node_id)
-           VALUES (?, ?)""",
-        (types_property_id, type_node_id)
-    )
+    # Set type filter for 'types' property
+    await conn.execute("""
+        INSERT INTO property_type_filter (property_id, type_node_id)
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+    """, types_property_id, type_node_id)
     
-    # Create 'show_hierarchy' boolean property
-    # Use fixed UUID for system property identification
+    # Create other system properties
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
-    await conn.execute(
-        """INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
-           VALUES (?, 'show_hierarchy', 'boolean', 0, 1, ?, ?)""",
-        (show_hier_uuid, now, now)
-    )
+    await conn.execute("""
+        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
+        VALUES ($1, 'show_hierarchy', 'boolean', FALSE, TRUE, $2, $2)
+        ON CONFLICT (uuid) DO NOTHING
+    """, show_hier_uuid, now)
     
-    # Create 'cover' property (image type - single value, filtered by 'asset' - filter added later)
-    # Use fixed UUID for system property identification
+    # Create 'cover' property
     cover_uuid = SYSTEM_PROPERTY_UUIDS["cover"]
-    cursor = await conn.execute(
-        """INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
-           VALUES (?, 'cover', 'image', 0, 1, ?, ?)""",
-        (cover_uuid, now, now)
-    )
-    cover_property_id = cursor.lastrowid
+    cover_row = await conn.fetchrow("""
+        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
+        VALUES ($1, 'cover', 'image', FALSE, TRUE, $2, $2)
+        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        RETURNING id
+    """, cover_uuid, now)
+    cover_property_id = cover_row['id']
     
-    # Create 'banner' property (image type - single value, filtered by 'asset' - filter added later)
-    # Use fixed UUID for system property identification
+    # Create 'banner' property
     banner_uuid = SYSTEM_PROPERTY_UUIDS["banner"]
-    cursor = await conn.execute(
-        """INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
-           VALUES (?, 'banner', 'image', 0, 1, ?, ?)""",
-        (banner_uuid, now, now)
-    )
-    banner_property_id = cursor.lastrowid
+    banner_row = await conn.fetchrow("""
+        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date)
+        VALUES ($1, 'banner', 'image', FALSE, TRUE, $2, $2)
+        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        RETURNING id
+    """, banner_uuid, now)
+    banner_property_id = banner_row['id']
     
-    # Assign types to 'type' node (it is a type and a page)
+    # Assign types to 'type' node
     await assign_relation_property(type_node_id, types_property_id, type_node_id, 0)
     await assign_relation_property(type_node_id, types_property_id, page_type_id, 1)
     
-    # Assign types to 'page' node (it is a type and a page)
+    # Assign types to 'page' node
     await assign_relation_property(page_type_id, types_property_id, type_node_id, 0)
     await assign_relation_property(page_type_id, types_property_id, page_type_id, 1)
     
-    # Create remaining system types (all are types and pages)
-    # Some types (day, month, year) have default icons that nodes inherit
-    asset_type_id = None  # Track asset type ID for cover property filter
+    # Create remaining system types
+    asset_type_id = None
     
     for type_name in SYSTEM_TYPES:
         if type_name in ("type", "page"):
-            continue  # Already created
+            continue
         
-        # Use fixed UUID for system types
         type_uuid = SYSTEM_TYPE_UUIDS.get(type_name, generate_uuid())
-        
-        # Get default icon for this type (if any)
         type_icon = SYSTEM_TYPE_ICONS.get(type_name)
         
-        # All system types are type definitions and pages
-        # The is_type and is_page flags are set because they have 'type' and 'page' types assigned
-        # Other flags (is_day, is_month, etc.) should NOT be set on the type definition itself -
-        # those flags are only set on nodes that have that type assigned to them
-        cursor = await conn.execute(
-            """INSERT INTO node (uuid, name, icon, is_type, is_page, create_date, write_date)
-               VALUES (?, ?, ?, 1, 1, ?, ?)""",
-            (type_uuid, type_name, type_icon, now, now)
-        )
-        new_type_id = cursor.lastrowid
-        assert new_type_id is not None, f"Failed to insert {type_name} type node"
+        row = await conn.fetchrow("""
+            INSERT INTO node (uuid, workspace_id, name, icon, is_type, is_page, create_date, write_date)
+            VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5)
+            RETURNING id
+        """, type_uuid, workspace_id, type_name, type_icon, now)
+        new_type_id = row['id']
         
-        # Track asset type ID for cover property filter
         if type_name == "asset":
             asset_type_id = new_type_id
         
@@ -806,46 +634,82 @@ async def seed_database(conn: aiosqlite.Connection) -> None:
         await assign_relation_property(new_type_id, types_property_id, type_node_id, 0)
         await assign_relation_property(new_type_id, types_property_id, page_type_id, 1)
     
-    # Set type filter for 'cover' property to 'asset' node
+    # Set type filter for 'cover' and 'banner' properties
     if asset_type_id:
-        await conn.execute(
-            """INSERT INTO property_type_filter (property_id, type_node_id)
-               VALUES (?, ?)""",
-            (cover_property_id, asset_type_id)
-        )
+        await conn.execute("""
+            INSERT INTO property_type_filter (property_id, type_node_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+        """, cover_property_id, asset_type_id)
+        await conn.execute("""
+            INSERT INTO property_type_filter (property_id, type_node_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+        """, banner_property_id, asset_type_id)
     
-    # Set type filter for 'banner' property to 'asset' node
-    if asset_type_id:
-        await conn.execute(
-            """INSERT INTO property_type_filter (property_id, type_node_id)
-               VALUES (?, ?)""",
-            (banner_property_id, asset_type_id)
-        )
-    
-    # Create default pages (have is_page=1, type is 'page')
-    # Icons are intentionally left empty - views should show default MDI icons
-    
+    # Create default pages
     for page_name in DEFAULT_PAGES:
-        cursor = await conn.execute(
-            """INSERT INTO node (uuid, name, is_page, create_date, write_date)
-               VALUES (?, ?, 1, ?, ?)""",
-            (generate_uuid(), page_name, now, now)
-        )
-        new_page_id = cursor.lastrowid
-        assert new_page_id is not None, f"Failed to insert {page_name} page"
+        row = await conn.fetchrow("""
+            INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date)
+            VALUES ($1, $2, $3, TRUE, $4, $4)
+            RETURNING id
+        """, generate_uuid(), workspace_id, page_name, now)
+        new_page_id = row['id']
         
-        # Assign 'page' type only
+        # Assign 'page' type
         await assign_relation_property(new_page_id, types_property_id, page_type_id, 0)
-    
-    await conn.commit()
 
 
-async def get_database(db_path: Path) -> aiosqlite.Connection:
-    """Get a database connection, initializing if needed."""
-    if not db_path.exists():
-        return await init_database(db_path)
+async def create_workspace_for_user(
+    conn: asyncpg.Connection,
+    user_id: int,
+    name: str = "Default"
+) -> int:
+    """Create a new workspace for a user and seed it with system data.
     
-    conn = await aiosqlite.connect(str(db_path))
-    conn.row_factory = aiosqlite.Row
-    await conn.execute("PRAGMA busy_timeout = 5000")  # Wait up to 5 seconds if locked
-    return conn
+    Returns the workspace ID.
+    """
+    now = datetime.now(timezone.utc)
+    
+    # Create workspace
+    row = await conn.fetchrow("""
+        INSERT INTO workspace (name, owner_id, create_date, write_date)
+        VALUES ($1, $2, $3, $3)
+        RETURNING id
+    """, name, user_id, now)
+    workspace_id = row['id']
+    
+    # Add owner as workspace member
+    await conn.execute("""
+        INSERT INTO workspace_member (workspace_id, user_id, role, create_date)
+        VALUES ($1, $2, 'owner', $3)
+    """, workspace_id, user_id, now)
+    
+    # Seed workspace with system data
+    await seed_workspace(conn, workspace_id)
+    
+    return workspace_id
+
+
+async def get_or_create_user_workspace(
+    conn: asyncpg.Connection,
+    user_id: int
+) -> int:
+    """Get the user's default workspace or create one if it doesn't exist.
+    
+    Returns the workspace ID.
+    """
+    # Check for existing workspace
+    row = await conn.fetchrow("""
+        SELECT w.id FROM workspace w
+        JOIN workspace_member wm ON w.id = wm.workspace_id
+        WHERE wm.user_id = $1
+        ORDER BY w.create_date ASC
+        LIMIT 1
+    """, user_id)
+    
+    if row:
+        return row['id']
+    
+    # Create new workspace
+    return await create_workspace_for_user(conn, user_id)

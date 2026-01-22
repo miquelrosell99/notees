@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 
 from .auth import get_current_user
 from ..models import User
-from ..db.connection import get_db
+from ..db.connection import get_pool
+from ..db.schema import get_or_create_user_workspace
 from ..logging_config import get_logger
 
 
@@ -17,9 +18,9 @@ router = APIRouter(prefix="/api/activity", tags=["Activity"])
 logger = get_logger(__name__)
 
 
-def utc_now_iso() -> str:
-    """Get current UTC time as ISO string."""
-    return datetime.now(timezone.utc).isoformat()
+def utc_now() -> datetime:
+    """Get current UTC time."""
+    return datetime.now(timezone.utc)
 
 
 # ============== Pydantic Models ==============
@@ -74,27 +75,28 @@ async def get_node_activity(
     user: User = Depends(get_current_user),
 ):
     """Get activity log for a node."""
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    cursor = await db.execute(
-        """
-        SELECT 
-            a.id,
-            a.node_id,
-            a.action,
-            a.details,
-            a.target_node_id,
-            t.name as target_node_name,
-            a.create_date
-        FROM node_activity a
-        LEFT JOIN node t ON a.target_node_id = t.id
-        WHERE a.node_id = ?
-        ORDER BY a.create_date DESC
-        LIMIT ?
-        """,
-        (node_id, limit)
-    )
-    rows = await cursor.fetchall()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT 
+                a.id,
+                a.node_id,
+                a.action,
+                a.details,
+                a.target_node_id,
+                t.name as target_node_name,
+                a.create_date
+            FROM node_activity a
+            LEFT JOIN node t ON a.target_node_id = t.id AND t.workspace_id = $3
+            WHERE a.node_id = $1 AND a.workspace_id = $3
+            ORDER BY a.create_date DESC
+            LIMIT $2
+            """,
+            node_id, limit, workspace_id
+        )
     
     return [
         NodeActivityResponse(
@@ -104,7 +106,7 @@ async def get_node_activity(
             details=row['details'],
             target_node_id=row['target_node_id'],
             target_node_name=row['target_node_name'],
-            create_date=row['create_date'],
+            create_date=row['create_date'].isoformat() if row['create_date'] else None,
         )
         for row in rows
     ]
@@ -120,41 +122,40 @@ async def create_node_activity(
     
     Only tracks activity for page nodes (is_page=1).
     """
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    # Check if the node is a page
-    cursor = await db.execute(
-        "SELECT is_page FROM node WHERE id = ?",
-        (node_id,)
-    )
-    row = await cursor.fetchone()
-    if not row:
-        raise HTTPException(404, "Node not found")
-    if not row['is_page']:
-        raise HTTPException(400, "Activity tracking only available for page nodes")
-    
-    now = utc_now_iso()
-    
-    cursor = await db.execute(
-        """
-        INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (node_id, data.action, data.details, data.target_node_id, now)
-    )
-    activity_id = cursor.lastrowid
-    await db.commit()
-    
-    # Get target node name if exists
-    target_name = None
-    if data.target_node_id:
-        cursor = await db.execute(
-            "SELECT name FROM node WHERE id = ?",
-            (data.target_node_id,)
+    async with pool.acquire() as conn:
+        # Check if the node is a page
+        row = await conn.fetchrow(
+            "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, workspace_id
         )
-        row = await cursor.fetchone()
-        if row:
-            target_name = row['name']
+        if not row:
+            raise HTTPException(404, "Node not found")
+        if not row['is_page']:
+            raise HTTPException(400, "Activity tracking only available for page nodes")
+        
+        now = utc_now()
+        
+        activity_id = await conn.fetchval(
+            """
+            INSERT INTO node_activity (workspace_id, node_id, action, details, target_node_id, create_date)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+            """,
+            workspace_id, node_id, data.action, data.details, data.target_node_id, now
+        )
+        
+        # Get target node name if exists
+        target_name = None
+        if data.target_node_id:
+            row = await conn.fetchrow(
+                "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+                data.target_node_id, workspace_id
+            )
+            if row:
+                target_name = row['name']
     
     return NodeActivityResponse(
         id=activity_id,
@@ -163,7 +164,7 @@ async def create_node_activity(
         details=data.details,
         target_node_id=data.target_node_id,
         target_node_name=target_name,
-        create_date=now,
+        create_date=now.isoformat(),
     )
 
 
@@ -174,13 +175,14 @@ async def delete_node_activity(
     user: User = Depends(get_current_user),
 ):
     """Delete a node activity entry."""
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    await db.execute(
-        "DELETE FROM node_activity WHERE id = ? AND node_id = ?",
-        (activity_id, node_id)
-    )
-    await db.commit()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM node_activity WHERE id = $1 AND node_id = $2 AND workspace_id = $3",
+            activity_id, node_id, workspace_id
+        )
     
     return {"success": True}
 
@@ -193,35 +195,35 @@ async def track_link_click(
     user: User = Depends(get_current_user),
 ):
     """Track a link click by inserting a new record."""
-    db = await get_db(user.id)
-    now = utc_now_iso()
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    now = utc_now()
     
-    # Insert new click record
-    await db.execute(
-        """
-        INSERT INTO link_click (source_node_id, target_node_id, click_date, user_id)
-        VALUES (?, ?, ?, ?)
-        """,
-        (data.source_node_id, data.target_node_id, now, None)  # user_id from session if needed
-    )
-    await db.commit()
-    
-    # Get total count
-    cursor = await db.execute(
-        """
-        SELECT COUNT(*) as count FROM link_click
-        WHERE source_node_id = ? AND target_node_id = ?
-        """,
-        (data.source_node_id, data.target_node_id)
-    )
-    row = await cursor.fetchone()
-    click_count = row['count'] if row else 1
+    async with pool.acquire() as conn:
+        # Insert new click record
+        await conn.execute(
+            """
+            INSERT INTO link_click (workspace_id, source_node_id, target_node_id, click_date, user_id)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            workspace_id, data.source_node_id, data.target_node_id, now, None
+        )
+        
+        # Get total count
+        row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) as count FROM link_click
+            WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3
+            """,
+            workspace_id, data.source_node_id, data.target_node_id
+        )
+        click_count = row['count'] if row else 1
     
     return LinkClickResponse(
         source_node_id=data.source_node_id,
         target_node_id=data.target_node_id,
         click_count=click_count,
-        last_click_date=now,
+        last_click_date=now.isoformat(),
     )
 
 
@@ -231,29 +233,30 @@ async def get_link_clicks(
     user: User = Depends(get_current_user),
 ):
     """Get all link click counts from a source node (aggregated)."""
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    cursor = await db.execute(
-        """
-        SELECT 
-            source_node_id, 
-            target_node_id, 
-            COUNT(*) as click_count,
-            MAX(click_date) as last_click_date
-        FROM link_click
-        WHERE source_node_id = ?
-        GROUP BY source_node_id, target_node_id
-        """,
-        (source_node_id,)
-    )
-    rows = await cursor.fetchall()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT 
+                source_node_id, 
+                target_node_id, 
+                COUNT(*) as click_count,
+                MAX(click_date) as last_click_date
+            FROM link_click
+            WHERE workspace_id = $1 AND source_node_id = $2
+            GROUP BY source_node_id, target_node_id
+            """,
+            workspace_id, source_node_id
+        )
     
     return [
         LinkClickResponse(
             source_node_id=row['source_node_id'],
             target_node_id=row['target_node_id'],
             click_count=row['click_count'],
-            last_click_date=row['last_click_date'],
+            last_click_date=row['last_click_date'].isoformat() if row['last_click_date'] else None,
         )
         for row in rows
     ]
@@ -266,25 +269,26 @@ async def get_link_click(
     user: User = Depends(get_current_user),
 ):
     """Get click count for a specific link."""
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    cursor = await db.execute(
-        """
-        SELECT 
-            COUNT(*) as click_count,
-            MAX(click_date) as last_click_date
-        FROM link_click
-        WHERE source_node_id = ? AND target_node_id = ?
-        """,
-        (source_node_id, target_node_id)
-    )
-    row = await cursor.fetchone()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 
+                COUNT(*) as click_count,
+                MAX(click_date) as last_click_date
+            FROM link_click
+            WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3
+            """,
+            workspace_id, source_node_id, target_node_id
+        )
     
     return LinkClickResponse(
         source_node_id=source_node_id,
         target_node_id=target_node_id,
         click_count=row['click_count'] if row else 0,
-        last_click_date=row['last_click_date'] if row else None,
+        last_click_date=row['last_click_date'].isoformat() if row and row['last_click_date'] else None,
     )
 
 
@@ -296,26 +300,27 @@ async def get_link_click_history(
     user: User = Depends(get_current_user),
 ):
     """Get click history for a specific link."""
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    cursor = await db.execute(
-        """
-        SELECT id, source_node_id, target_node_id, click_date
-        FROM link_click
-        WHERE source_node_id = ? AND target_node_id = ?
-        ORDER BY click_date DESC
-        LIMIT ?
-        """,
-        (source_node_id, target_node_id, limit)
-    )
-    rows = await cursor.fetchall()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, source_node_id, target_node_id, click_date
+            FROM link_click
+            WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3
+            ORDER BY click_date DESC
+            LIMIT $4
+            """,
+            workspace_id, source_node_id, target_node_id, limit
+        )
     
     return [
         LinkClickHistoryResponse(
             id=row['id'],
             source_node_id=row['source_node_id'],
             target_node_id=row['target_node_id'],
-            click_date=row['click_date'],
+            click_date=row['click_date'].isoformat() if row['click_date'] else None,
         )
         for row in rows
     ]
@@ -328,12 +333,13 @@ async def reset_link_click(
     user: User = Depends(get_current_user),
 ):
     """Reset click counter for a specific link (deletes all click records)."""
-    db = await get_db(user.id)
+    pool = await get_pool()
+    workspace_id = await get_or_create_user_workspace(pool, user.id)
     
-    await db.execute(
-        "DELETE FROM link_click WHERE source_node_id = ? AND target_node_id = ?",
-        (source_node_id, target_node_id)
-    )
-    await db.commit()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM link_click WHERE workspace_id = $1 AND source_node_id = $2 AND target_node_id = $3",
+            workspace_id, source_node_id, target_node_id
+        )
     
     return {"success": True}
