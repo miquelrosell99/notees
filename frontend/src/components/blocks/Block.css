@@ -247,10 +247,9 @@
   pointer-events: none;
 }
 
-/* Drop indicators - only shown when actively dragging over */
+/* Drop indicators - always a line, indentation indicates nesting level */
 .drop-indicator {
   position: absolute;
-  left: 24px;
   right: 0;
   height: 2px;
   background-color: var(--color-primary);
@@ -260,24 +259,21 @@
 
 .drop-indicator-before {
   top: 0;
+  left: 24px;
   transform: translateY(-1px);
 }
 
 .drop-indicator-after {
   bottom: 0;
+  left: 24px;
   transform: translateY(1px);
 }
 
+/* Inside = nested, so indent the line to indicate child level */
 .drop-indicator-inside {
-  top: 4px;
-  left: 24px;
-  right: 4px;
-  bottom: 4px;
-  height: auto;
-  background-color: transparent;
-  border: 2px dashed var(--color-primary);
-  border-radius: var(--radius-md);
-  box-shadow: none;
+  bottom: 0;
+  left: 48px;
+  transform: translateY(1px);
 }
 
 /* Remove the old pseudo-element based drop indicators - use real elements instead */

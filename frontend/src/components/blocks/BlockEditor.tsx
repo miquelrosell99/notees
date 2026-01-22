@@ -487,6 +487,68 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
   selection?.addRange(range);
 }
 
+/**
+ * Calculate text position from horizontal pixel offset
+ * Used for maintaining cursor column when navigating between blocks
+ */
+function getPositionFromHorizontalOffset(element: HTMLElement, horizontalOffset: number, verticalPosition: 'start' | 'end' = 'start'): number {
+  // Use caretPositionFromPoint or caretRangeFromPoint to find the character at the horizontal offset
+  const rect = element.getBoundingClientRect();
+  
+  // Calculate Y coordinate - use top for 'start', bottom for 'end'
+  const y = verticalPosition === 'start' 
+    ? rect.top + 5  // 5px from top
+    : rect.bottom - 5;  // 5px from bottom
+  
+  let range: Range | null = null;
+  
+  // Try standard API first (Firefox, newer browsers)
+  if ('caretPositionFromPoint' in document) {
+    const pos = (document as any).caretPositionFromPoint(horizontalOffset, y);
+    if (pos) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+  // Fallback to WebKit API (Chrome, Safari)
+  else if ('caretRangeFromPoint' in document) {
+    range = document.caretRangeFromPoint(horizontalOffset, y);
+  }
+  
+  if (!range) {
+    // Fallback: return 0 for start, end for end
+    return verticalPosition === 'start' ? 0 : (element.textContent?.length || 0);
+  }
+  
+  // Convert DOM position to text position
+  let position = 0;
+  const targetContainer = range.startContainer;
+  const targetOffset = range.startOffset;
+  
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+    null
+  );
+  
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node === targetContainer) {
+      position += targetOffset;
+      break;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      position += node.textContent?.length || 0;
+    } else if (isPillElement(node as HTMLElement)) {
+      position += getPillRawLength(node as HTMLElement);
+      walker.nextSibling();
+    }
+  }
+  
+  return position;
+}
+
 export function BlockEditor({ 
   nodeId,
   isPage,
@@ -940,21 +1002,40 @@ export function BlockEditor({
       handleArrowNavigation(e);
     }
 
-    // Arrow up at beginning of text navigates to previous block
-    if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (cursorPos === 0) {
-        e.preventDefault();
-        onNavigateUp?.();
-        return;
-      }
-    }
-
-    // Arrow down at end of text navigates to next block
-    if (e.key === 'ArrowDown' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (cursorPos === currentContent.length) {
-        e.preventDefault();
-        onNavigateDown?.();
-        return;
+    // Arrow up/down navigation - check if cursor is on first/last line
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (!editorRef.current) return;
+      
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      const range = selection.getRangeAt(0);
+      
+      // Get the current cursor position in the DOM
+      const editorRect = editorRef.current.getBoundingClientRect();
+      const rangeRect = range.getBoundingClientRect();
+      
+      // Calculate approximate line height
+      const lineHeight = parseFloat(getComputedStyle(editorRef.current).lineHeight) || 24;
+      
+      if (e.key === 'ArrowUp') {
+        // Check if cursor is on the first line
+        // If the cursor's top is within one line height of the editor's top, we're on the first line
+        const cursorRelativeTop = rangeRect.top - editorRect.top;
+        if (cursorRelativeTop < lineHeight && onNavigateUp) {
+          e.preventDefault();
+          onNavigateUp();
+          return;
+        }
+      } else if (e.key === 'ArrowDown') {
+        // Check if cursor is on the last line
+        // If the cursor's bottom is within one line height of the editor's bottom, we're on the last line
+        const cursorRelativeBottom = editorRect.bottom - rangeRect.bottom;
+        if (cursorRelativeBottom < lineHeight && onNavigateDown) {
+          e.preventDefault();
+          onNavigateDown();
+          return;
+        }
       }
     }
   }, [selectedPill, onChange, onEscape, onNavigateUp, onNavigateDown, onExtendSelection, isTask, taskState, onTaskStateChange, onEnterCreateBlock, onBackspaceAtStart, onDeleteAtEnd, onIndent, onOutdent, trigger.isOpen, slashCommand.isOpen, nodeUuid]);
