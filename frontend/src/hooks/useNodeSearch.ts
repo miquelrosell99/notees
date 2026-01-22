@@ -17,6 +17,7 @@
 import { useMemo } from 'react';
 import { useSearch, usePages, useNodes, useTypes, useSearchTypes } from './useNodes';
 import type { Node } from '@/types';
+import { SYSTEM_TYPE_UUIDS } from '@/constants';
 
 export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'types' | 'tags';
 
@@ -97,6 +98,12 @@ export function useNodeSearch(
 
   // Filter and organize results
   const { pageResults, blockResults } = useMemo(() => {
+    // Find the "type" type ID to filter out type definitions from tags
+    const typeTypeId = allTypeNodes?.find(t => t.uuid === SYSTEM_TYPE_UUIDS.type)?.id;
+    
+    // Helper to check if a node is typed as "type" (is a type definition)
+    const isTypedAsType = (node: Node) => typeTypeId && node.types?.includes(typeTypeId);
+    
     // Types mode - special handling for @ trigger
     if (mode === 'types') {
       const results = query.length > 0
@@ -114,10 +121,12 @@ export function useNodeSearch(
     }
 
     // Tags mode - show all pages (tags are pages in Notees)
+    // Exclude nodes that are typed as "type" (type definitions shouldn't appear as tags)
     if (mode === 'tags') {
-      const results = query.length > 0
+      const results = (query.length > 0
         ? (searchResults ?? []).filter(n => n.is_page)
-        : (allPages ?? []).slice(0, maxResults);
+        : (allPages ?? []).slice(0, maxResults * 2)  // Get extra to account for filtering
+      ).filter(n => !isTypedAsType(n)).slice(0, maxResults);
 
       return {
         pageResults: results.map(node => ({
