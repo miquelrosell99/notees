@@ -186,7 +186,7 @@ export function LinkedReferences({
             viewMode={blocksViewMode}
             availableViewModes={['list', 'card', 'table']}
             onViewModeChange={setBlocksViewMode}
-            editable={false}
+            editable={true}
             onNodeClick={handleNodeClick}
             onContentChange={handleContentChange}
             showEmpty={false}
