@@ -952,6 +952,49 @@ export function Block({
     });
   }, [block.id, parentId, parentBlock, moveNode]);
   
+  // Handle arrow up navigation - move to previous sibling block
+  const handleNavigateUp = useCallback(() => {
+    const currentIndex = siblings.findIndex(s => s.id === block.id);
+    const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+    
+    // Target is either previous sibling or parent block
+    const targetBlock = prevSibling || parentBlock;
+    
+    if (!targetBlock) {
+      // No block above to navigate to
+      return;
+    }
+    
+    // Set target block to edit mode with cursor at end
+    const cursorPosition = (targetBlock.name || '').length;
+    setInitialCursorPosition(cursorPosition);
+    setBlockState(targetBlock.id, 'edit');
+  }, [siblings, parentBlock, setBlockState, block.id]);
+  
+  // Handle arrow down navigation - move to next sibling block
+  const handleNavigateDown = useCallback(() => {
+    const currentIndex = siblings.findIndex(s => s.id === block.id);
+    const nextSibling = currentIndex >= 0 && currentIndex < siblings.length - 1 
+      ? siblings[currentIndex + 1] 
+      : null;
+    
+    if (!nextSibling) {
+      // Try to navigate to first child if current block has children
+      if (children.length > 0) {
+        const firstChild = children[0];
+        setInitialCursorPosition(0);
+        setBlockState(firstChild.id, 'edit');
+        return;
+      }
+      // No block below to navigate to
+      return;
+    }
+    
+    // Set next sibling to edit mode with cursor at beginning
+    setInitialCursorPosition(0);
+    setBlockState(nextSibling.id, 'edit');
+  }, [siblings, children, setBlockState]);
+  
   return (
     <div
       ref={containerRef}
@@ -1030,6 +1073,8 @@ export function Block({
               onDeleteAtEnd={handleDeleteAtEnd}
               onIndent={handleIndent}
               onOutdent={handleOutdent}
+              onNavigateUp={handleNavigateUp}
+              onNavigateDown={handleNavigateDown}
             />
           ) : (
             <div 
