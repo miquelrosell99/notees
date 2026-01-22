@@ -174,14 +174,15 @@ export function useNodeSearch(
           ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
         ];
 
-    // Apply tag filters if provided
+    // Apply tag filters if provided (filter by assigned types)
+    // Now that list/search endpoints reliably populate `types`, we can use it directly
     if (tagFilters.length > 0) {
       baseResults = baseResults.filter(node => {
         // Always include pages
         if (node.is_page || node.parent_id === null) return true;
-        // Include nodes with matching type
-        if (node.types) {
-          return tagFilters.some(filterId => node.types?.includes(filterId));
+        // Include nodes with matching type - types is now reliably populated
+        if (node.types && node.types.length > 0) {
+          return tagFilters.some(filterId => node.types!.includes(filterId));
         }
         return false;
       });

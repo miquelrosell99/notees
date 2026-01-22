@@ -271,6 +271,43 @@ async def _get_type_ids(service: NodeService, node_id: int) -> List[int]:
     return [t.id for t in types if t.id]
 
 
+async def _get_type_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]:
+    """Efficiently fetch type_ids for multiple nodes in a single query.
+    
+    Uses GROUP_CONCAT to aggregate type IDs per node, avoiding N+1 queries.
+    Returns a dict mapping node_id -> list of type_ids.
+    """
+    if not node_ids:
+        return {}
+    
+    # Initialize result with empty lists for all requested nodes
+    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
+    
+    placeholders = ','.join(['?' for _ in node_ids])
+    cursor = await conn.execute(f"""
+        SELECT 
+            pvr.node_id,
+            GROUP_CONCAT(pvr.target_node_id) as type_ids
+        FROM property_value_relation pvr
+        JOIN property p ON pvr.property_id = p.id
+        WHERE p.name = 'types' 
+          AND pvr.node_id IN ({placeholders})
+          AND pvr.target_node_id IS NOT NULL
+        GROUP BY pvr.node_id
+        ORDER BY pvr.node_id, pvr."order"
+    """, node_ids)
+    
+    rows = await cursor.fetchall()
+    for row in rows:
+        node_id = row['node_id']
+        type_ids_str = row['type_ids']
+        if type_ids_str:
+            # Split comma-separated string and convert to ints
+            result[node_id] = [int(tid) for tid in type_ids_str.split(',') if tid]
+    
+    return result
+
+
 async def _get_node_service(user: User) -> NodeService:
     """Get NodeService instance for user's database.
     
@@ -328,12 +365,51 @@ async def get_graph_data_endpoint(
 async def search_nodes(
     q: str,
     limit: int = 50,
+    type_filters: Optional[str] = None,  # Comma-separated type IDs to filter by
     user: User = Depends(get_current_user),
 ):
-    """Search nodes by name."""
+    """Search nodes by name.
+    
+    Args:
+        q: Search query
+        limit: Maximum number of results
+        type_filters: Optional comma-separated list of type IDs to filter results
+    
+    Returns nodes with type_ids populated for reliable filtering.
+    """
     service = await _get_node_service(user)
     nodes = await service.search(q, limit)
-    return {"nodes": [_node_to_response(n) for n in nodes]}
+    
+    # Parse type filters if provided
+    filter_type_ids: Optional[set] = None
+    if type_filters:
+        try:
+            filter_type_ids = {int(tid.strip()) for tid in type_filters.split(',') if tid.strip()}
+        except ValueError:
+            pass  # Ignore invalid filter values
+    
+    # Get node IDs for batch type lookup
+    node_ids = [n.id for n in nodes if n.id is not None]
+    
+    # Batch fetch type_ids for all nodes
+    conn = service._node_repo.get_connection()
+    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    
+    # Build response, optionally filtering by types
+    result = []
+    for n in nodes:
+        if n.id is None:
+            continue
+        node_type_ids = type_ids_map.get(n.id, [])
+        
+        # Apply type filter if specified
+        if filter_type_ids:
+            if not any(tid in filter_type_ids for tid in node_type_ids):
+                continue
+        
+        result.append(_node_to_response(n, types=node_type_ids))
+    
+    return {"nodes": result}
 
 
 @router.get("/types")
@@ -344,6 +420,8 @@ async def list_types(
     
     Types are nodes that have is_type=1. This includes system types like
     day, month, year, as well as user-defined types.
+    
+    Returns nodes with type_ids populated (types can themselves be typed).
     """
     service = await _get_node_service(user)
     
@@ -356,7 +434,14 @@ async def list_types(
     
     nodes = [service._node_repo._row_to_node(row) for row in rows]
     
-    return {"nodes": [_node_to_response(n) for n in nodes]}
+    # Batch fetch type_ids for all type nodes
+    node_ids = [n.id for n in nodes if n.id is not None]
+    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    
+    return {"nodes": [
+        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else []) 
+        for n in nodes
+    ]}
 
 
 @router.get("/types/search")
@@ -365,13 +450,25 @@ async def search_types(
     limit: int = 20,
     user: User = Depends(get_current_user),
 ):
-    """Search for types by name."""
+    """Search for types by name.
+    
+    Returns nodes with type_ids populated.
+    """
     service = await _get_node_service(user)
     # Search pages only (types are pages)
     nodes = await service.search(q, limit)
     # Filter to pages only (no parent_id)
     pages = [n for n in nodes if n.parent_id is None]
-    return {"nodes": [_node_to_response(n) for n in pages]}
+    
+    # Batch fetch type_ids
+    conn = service._node_repo.get_connection()
+    node_ids = [n.id for n in pages if n.id is not None]
+    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    
+    return {"nodes": [
+        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
+        for n in pages
+    ]}
 
 
 @router.get("/types/{type_id}/nodes")
@@ -382,6 +479,7 @@ async def get_nodes_with_type(
     """Get all nodes that have a specific type.
     
     Returns nodes that have been categorized with the given type node.
+    Uses batch fetching for type_ids to avoid N+1 queries.
     """
     service = await _get_node_service(user)
     
@@ -406,14 +504,16 @@ async def get_nodes_with_type(
     """, (types_property_id, type_id))
     rows = await cursor.fetchall()
     
-    result = []
-    for row in rows:
-        node = service._node_repo.row_to_node(row)
-        types = await service.get_node_types(node.id) if node.id else []
-        
-        result.append(_node_to_response(node, types=[t.id for t in types if t.id]))
+    nodes = [service._node_repo.row_to_node(row) for row in rows]
     
-    return {"nodes": result}
+    # Batch fetch type_ids for all nodes
+    node_ids = [n.id for n in nodes if n.id is not None]
+    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    
+    return {"nodes": [
+        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
+        for n in nodes
+    ]}
 
 
 @router.get("")
@@ -421,9 +521,19 @@ async def list_nodes(
     pages_only: bool = False,
     parent_id: Optional[int] = None,
     type_id: Optional[int] = None,
+    type_filters: Optional[str] = None,  # Comma-separated type IDs to filter by
     user: User = Depends(get_current_user),
 ):
-    """List nodes with optional filters."""
+    """List nodes with optional filters.
+    
+    Args:
+        pages_only: Only return pages (no blocks)
+        parent_id: Only return children of this node
+        type_id: Only return nodes with this type
+        type_filters: Additional comma-separated type IDs to filter by
+    
+    Returns nodes with type_ids populated for reliable filtering.
+    """
     service = await _get_node_service(user)
     
     if parent_id:
@@ -435,7 +545,34 @@ async def list_nodes(
     else:
         nodes = await service.search("", limit=1000)
     
-    return {"nodes": [_node_to_response(n) for n in nodes]}
+    # Parse type filters if provided
+    filter_type_ids: Optional[set] = None
+    if type_filters:
+        try:
+            filter_type_ids = {int(tid.strip()) for tid in type_filters.split(',') if tid.strip()}
+        except ValueError:
+            pass
+    
+    # Batch fetch type_ids for all nodes
+    conn = service._node_repo.get_connection()
+    node_ids = [n.id for n in nodes if n.id is not None]
+    type_ids_map = await _get_type_ids_batch(conn, node_ids)
+    
+    # Build response, optionally filtering by types
+    result = []
+    for n in nodes:
+        if n.id is None:
+            continue
+        node_type_ids = type_ids_map.get(n.id, [])
+        
+        # Apply type filter if specified
+        if filter_type_ids:
+            if not any(tid in filter_type_ids for tid in node_type_ids):
+                continue
+        
+        result.append(_node_to_response(n, types=node_type_ids))
+    
+    return {"nodes": result}
 
 
 @router.post("")
