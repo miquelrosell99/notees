@@ -1195,8 +1195,7 @@ async def get_node(
     type_ids = await _get_type_ids(service, node_id)
     
     # Get tags for the node (from node_link with is_tag=1)
-    conn = service._node_repo.get_connection()
-    tag_ids = await _get_tag_ids(conn, node_id)
+    tag_ids = await _get_tag_ids(service._pool, service._workspace_id, node_id)
     
     # Auto-fix legacy date nodes that don't have their date type assigned
     if node.is_day or node.is_month or node.is_year:
@@ -1227,21 +1226,20 @@ async def get_node(
     response = _node_to_response(node, tags=tag_ids, types=type_ids)
     
     if include_children:
-        conn = service._node_repo.get_connection()
+        pool = service._node_repo.get_connection()
         
         # Get ALL descendants recursively using a CTE based on parent_id
-        cursor = await conn.execute("""
+        rows = await pool.fetch("""
             WITH RECURSIVE descendants AS (
                 -- Base case: direct children of the target node
-                SELECT * FROM node WHERE parent_id = ?
+                SELECT * FROM node WHERE parent_id = $1
                 UNION ALL
                 -- Recursive case: children of descendants
                 SELECT n.* FROM node n
                 INNER JOIN descendants d ON n.parent_id = d.id
             )
             SELECT * FROM descendants ORDER BY sequence
-        """, (node_id,))
-        rows = await cursor.fetchall()
+        """, node_id)
         all_descendants = [service._node_repo.row_to_node(row) for row in rows]
         
         # Get all descendant IDs
@@ -1250,28 +1248,24 @@ async def get_node(
         # Get comment counts for all descendants in one query
         comment_counts: Dict[int, int] = {}
         if descendant_ids:
-            placeholders = ','.join(['?' for _ in descendant_ids])
-            cursor = await conn.execute(f"""
+            rows = await pool.fetch("""
                 SELECT node_id, COUNT(*) as count 
                 FROM node_comment 
-                WHERE node_id IN ({placeholders})
+                WHERE node_id = ANY($1)
                 GROUP BY node_id
             """, descendant_ids)
-            rows = await cursor.fetchall()
             for row in rows:
                 comment_counts[row['node_id']] = row['count']
         
         # Get backlink counts for all descendants in one query
         backlink_counts: Dict[int, int] = {}
         if descendant_ids:
-            placeholders = ','.join(['?' for _ in descendant_ids])
-            cursor = await conn.execute(f"""
+            rows = await pool.fetch("""
                 SELECT target_node_id, COUNT(*) as count 
                 FROM node_link 
-                WHERE target_node_id IN ({placeholders})
+                WHERE target_node_id = ANY($1)
                 GROUP BY target_node_id
             """, descendant_ids)
-            rows = await cursor.fetchall()
             for row in rows:
                 backlink_counts[row['target_node_id']] = row['count']
         
@@ -1279,15 +1273,13 @@ async def get_node(
         node_type_map: Dict[int, List[int]] = {nid: [] for nid in descendant_ids}
         
         if descendant_ids:
-            placeholders = ','.join(['?' for _ in descendant_ids])
-            cursor = await conn.execute(f"""
+            rows = await pool.fetch("""
                 SELECT pvr.node_id, pvr.target_node_id
                 FROM property_value_relation pvr
                 JOIN property p ON pvr.property_id = p.id
-                WHERE p.name = 'types' AND pvr.node_id IN ({placeholders})
+                WHERE p.name = 'types' AND pvr.node_id = ANY($1)
                 ORDER BY pvr.node_id, pvr."order"
             """, descendant_ids)
-            rows = await cursor.fetchall()
             for row in rows:
                 nid = row['node_id']
                 tid = row['target_node_id']
@@ -1444,35 +1436,31 @@ async def get_page_content(
     backlinks = content["backlinks"]
     
     # Get connection early to avoid unbound variable
-    conn = service._node_repo.get_connection()
+    pool = service._node_repo.get_connection()
     
     # Get comment counts for all blocks
     block_ids = [b.id for b in blocks if b.id is not None]
     comment_counts = {}
     if block_ids:
         # Query comment counts for all blocks in one go
-        placeholders = ','.join(['?' for _ in block_ids])
-        cursor = await conn.execute(f"""
+        rows = await pool.fetch("""
             SELECT node_id, COUNT(*) as count 
             FROM node_comment 
-            WHERE node_id IN ({placeholders})
+            WHERE node_id = ANY($1)
             GROUP BY node_id
         """, block_ids)
-        rows = await cursor.fetchall()
         for row in rows:
             comment_counts[row['node_id']] = row['count']
     
     # Get backlink counts for all blocks
     backlink_counts: Dict[int, int] = {}
     if block_ids:
-        placeholders = ','.join(['?' for _ in block_ids])
-        cursor = await conn.execute(f"""
+        rows = await pool.fetch("""
             SELECT target_node_id, COUNT(*) as count 
             FROM node_link 
-            WHERE target_node_id IN ({placeholders})
+            WHERE target_node_id = ANY($1)
             GROUP BY target_node_id
         """, block_ids)
-        rows = await cursor.fetchall()
         for row in rows:
             backlink_counts[row['target_node_id']] = row['count']
     
@@ -1481,15 +1469,13 @@ async def get_page_content(
     node_type_map: Dict[int, List[int]] = {nid: [] for nid in all_node_ids}
     
     if all_node_ids:
-        placeholders = ','.join(['?' for _ in all_node_ids])
-        cursor = await conn.execute(f"""
+        rows = await pool.fetch("""
             SELECT pvr.node_id, pvr.target_node_id
             FROM property_value_relation pvr
             JOIN property p ON pvr.property_id = p.id
-            WHERE p.name = 'types' AND pvr.node_id IN ({placeholders})
+            WHERE p.name = 'types' AND pvr.node_id = ANY($1)
             ORDER BY pvr.node_id, pvr."order"
         """, all_node_ids)
-        rows = await cursor.fetchall()
         for row in rows:
             node_id = row['node_id']
             type_id = row['target_node_id']
@@ -2125,14 +2111,13 @@ async def get_property_backlinks(
         date_str = f"{year:04d}-{month:02d}-{day:02d}"
         
         # Find all property values with this date
-        conn = service._node_repo.get_connection()
-        cursor = await conn.execute("""
+        pool = service._node_repo.get_connection()
+        rows = await pool.fetch("""
             SELECT DISTINCT pvs.node_id, pvs.property_id, p.name as property_name
             FROM property_value_scalar pvs
             JOIN property p ON pvs.property_id = p.id
-            WHERE pvs.value_text = ? AND p.type = 'date'
-        """, (date_str,))
-        rows = await cursor.fetchall()
+            WHERE pvs.value_text = $1 AND p.type = 'date'
+        """, date_str)
         
         for row in rows:
             # Get the page for this node
@@ -2154,14 +2139,13 @@ async def get_property_backlinks(
             ))
     
     # Also check for node-type properties pointing to this node
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute("""
+    pool = service._node_repo.get_connection()
+    rows = await pool.fetch("""
         SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
         FROM property_value_relation pvr
         JOIN property p ON pvr.property_id = p.id
-        WHERE pvr.target_node_id = ? AND p.type = 'node'
-    """, (node_id,))
-    rows = await cursor.fetchall()
+        WHERE pvr.target_node_id = $1 AND p.type = 'node'
+    """, node_id)
     
     for row in rows:
         node = await service._node_repo.get_by_id(row['node_id'])
@@ -2251,14 +2235,13 @@ async def get_comments(
         raise HTTPException(404, "Node not found")
     
     # Get comment nodes for this node
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute("""
+    pool = service._node_repo.get_connection()
+    rows = await pool.fetch("""
         SELECT nc.comment_node_id, nc.sequence
         FROM node_comment nc
-        WHERE nc.node_id = ?
+        WHERE nc.node_id = $1
         ORDER BY nc.sequence, nc.create_date
-    """, (node_id,))
-    rows = await cursor.fetchall()
+    """, node_id)
     
     comments = []
     for row in rows:
@@ -2290,11 +2273,10 @@ async def create_comment(
         raise HTTPException(404, "Node not found")
     
     # Get the 'comment' type ID
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute(
-        "SELECT id FROM node WHERE name = 'comment' AND is_type = 1 LIMIT 1"
+    pool = service._node_repo.get_connection()
+    row = await pool.fetchrow(
+        "SELECT id FROM node WHERE name = 'comment' AND is_type = TRUE LIMIT 1"
     )
-    row = await cursor.fetchone()
     
     if not row:
         raise HTTPException(500, "Comment type not found - database may need reinitialization")
@@ -2318,20 +2300,18 @@ async def create_comment(
         raise HTTPException(500, "Failed to create comment node")
     
     # Get the next sequence number
-    cursor = await conn.execute("""
+    seq_row = await pool.fetchrow("""
         SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
-        FROM node_comment WHERE node_id = ?
-    """, (node_id,))
-    seq_row = await cursor.fetchone()
+        FROM node_comment WHERE node_id = $1
+    """, node_id)
     next_seq = seq_row['next_seq'] if seq_row else 0
     
     # Link the comment to the target node
     from ..db.schema import utc_now_iso
-    await conn.execute("""
+    await pool.execute("""
         INSERT INTO node_comment (node_id, comment_node_id, sequence, create_date)
-        VALUES (?, ?, ?, ?)
-    """, (node_id, comment_node.id, next_seq, utc_now_iso()))
-    await conn.commit()
+        VALUES ($1, $2, $3, $4)
+    """, node_id, comment_node.id, next_seq, utc_now_iso())
     
     return _node_to_comment_response(comment_node)
 
@@ -2349,25 +2329,22 @@ async def delete_comment(
     service = await _get_node_service(user)
     
     # Verify the comment link exists
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute("""
+    pool = service._node_repo.get_connection()
+    row = await pool.fetchrow("""
         SELECT id FROM node_comment 
-        WHERE node_id = ? AND comment_node_id = ?
-    """, (node_id, comment_id))
-    row = await cursor.fetchone()
+        WHERE node_id = $1 AND comment_node_id = $2
+    """, node_id, comment_id)
     
     if not row:
         raise HTTPException(404, "Comment not found for this node")
     
     # Remove the comment link
-    await conn.execute("""
-        DELETE FROM node_comment WHERE node_id = ? AND comment_node_id = ?
-    """, (node_id, comment_id))
+    await pool.execute("""
+        DELETE FROM node_comment WHERE node_id = $1 AND comment_node_id = $2
+    """, node_id, comment_id)
     
     # Delete the comment node (and children via cascade)
     await service.delete_node(comment_id)
-    
-    await conn.commit()
     
     return {"status": "ok"}
 
@@ -2383,11 +2360,10 @@ async def get_comment_count(
     """
     service = await _get_node_service(user)
     
-    conn = service._node_repo.get_connection()
-    cursor = await conn.execute("""
-        SELECT COUNT(*) as count FROM node_comment WHERE node_id = ?
-    """, (node_id,))
-    row = await cursor.fetchone()
+    pool = service._node_repo.get_connection()
+    row = await pool.fetchrow("""
+        SELECT COUNT(*) as count FROM node_comment WHERE node_id = $1
+    """, node_id)
     
     return {"count": row['count'] if row else 0}
 

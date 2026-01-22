@@ -76,7 +76,7 @@ async def get_node_activity(
 ):
     """Get activity log for a node."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -123,7 +123,7 @@ async def create_node_activity(
     Only tracks activity for page nodes (is_page=1).
     """
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         # Check if the node is a page
@@ -176,7 +176,7 @@ async def delete_node_activity(
 ):
     """Delete a node activity entry."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         await conn.execute(
@@ -196,7 +196,7 @@ async def track_link_click(
 ):
     """Track a link click by inserting a new record."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     now = utc_now()
     
     async with pool.acquire() as conn:
@@ -234,7 +234,7 @@ async def get_link_clicks(
 ):
     """Get all link click counts from a source node (aggregated)."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -270,7 +270,7 @@ async def get_link_click(
 ):
     """Get click count for a specific link."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -301,7 +301,7 @@ async def get_link_click_history(
 ):
     """Get click history for a specific link."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -334,7 +334,7 @@ async def reset_link_click(
 ):
     """Reset click counter for a specific link (deletes all click records)."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user.id)
+    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
         await conn.execute(
