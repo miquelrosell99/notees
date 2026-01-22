@@ -1329,12 +1329,12 @@ async def get_node(
             
             response.backlinks.append(BacklinkResponse(
                 source_node_id=info.source_node_id,
-                source_node_uuid=info.source_node_uuid or "",
+                source_node_uuid=str(info.source_node_uuid) if info.source_node_uuid else "",
                 source_node_name=info.source_node_name or "",
                 source_is_page=info.source_is_page,
                 source_page_id=info.source_page_id,
                 source_page_name=info.source_page_name,
-                source_page_uuid=info.source_page_uuid,
+                source_page_uuid=str(info.source_page_uuid) if info.source_page_uuid else None,
                 property_id=info.property_id,
                 property_name=info.property_name,
                 breadcrumb_path=breadcrumb_segments,
@@ -1402,12 +1402,12 @@ async def get_node_by_uuid(
             
             response.backlinks.append(BacklinkResponse(
                 source_node_id=info.source_node_id,
-                source_node_uuid=info.source_node_uuid or "",
+                source_node_uuid=str(info.source_node_uuid) if info.source_node_uuid else "",
                 source_node_name=info.source_node_name or "",
                 source_is_page=info.source_is_page,
                 source_page_id=info.source_page_id,
                 source_page_name=info.source_page_name,
-                source_page_uuid=info.source_page_uuid,
+                source_page_uuid=str(info.source_page_uuid) if info.source_page_uuid else None,
                 property_id=info.property_id,
                 property_name=info.property_name,
                 breadcrumb_path=breadcrumb_segments,
@@ -1970,7 +1970,7 @@ async def get_backlinks(
         
         result.append(BacklinkResponse(
             source_node_id=link.source_node_id,
-            source_node_uuid=source.uuid if source else "",
+            source_node_uuid=str(source.uuid) if source and source.uuid else "",
             source_node_name=source.name if source else "",
             source_page_id=source.page_id if source else None,
             source_page_name=source_page.name if source_page else None,
