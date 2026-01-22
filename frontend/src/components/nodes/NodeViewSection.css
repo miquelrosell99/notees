@@ -82,7 +82,7 @@
 }
 
 .node-view-section__content {
-  padding-top: var(--spacing-2);
+  /* Content follows header directly */
 }
 
 /* When collapsed, hide content */

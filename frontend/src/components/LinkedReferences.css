@@ -3,9 +3,7 @@
  */
 
 .linked-references {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-outline-variant);
+  /* Styling handled by NodeViewSection container */
 }
 
 .linked-references-title {
@@ -55,11 +53,7 @@
 
 /* ==================== Linked References ==================== */
 
-.linked-references {
-  margin-top: var(--spacing-6);
-  padding-top: var(--spacing-4);
-  border-top: 1px solid var(--color-outline-variant);
-}
+/* Note: spacing and divider handled by NodeViewSection container */
 
 .linked-references__content {
   display: flex;
