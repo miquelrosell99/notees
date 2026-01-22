@@ -89,3 +89,8 @@
 .node-view-section.collapsed .node-view-section__content {
   display: none;
 }
+
+/* When collapsed, hide header actions (toolbar) */
+.node-view-section.collapsed .node-view-section__actions {
+  display: none;
+}
