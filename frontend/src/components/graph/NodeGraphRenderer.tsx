@@ -280,20 +280,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   
-  // Keep refs in sync
-  useEffect(() => { transformRef.current = transform; }, [transform]);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
-  useEffect(() => { typeColorsRef.current = typeColors; }, [typeColors]);
-  useEffect(() => { 
-    showTypeNodesRef.current = showTypeNodes;
-    // Recalculate positions when type node visibility changes (affects circle/tree layout)
-    if (nodesRef.current.length > 0 && (viewMode === 'circle' || viewMode === 'tree')) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
-    }
-  }, [showTypeNodes, viewMode, dimensions, calculatePositions]);
-  useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
-  useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
-  
   // Build adjacency for connected nodes
   const getConnectedNodes = useCallback((nodeId: number): Set<number> => {
     const connected = new Set<number>();
@@ -387,6 +373,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       });
     }
   }, []);
+
+  // Keep refs in sync
+  useEffect(() => { transformRef.current = transform; }, [transform]);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { typeColorsRef.current = typeColors; }, [typeColors]);
+  useEffect(() => { 
+    showTypeNodesRef.current = showTypeNodes;
+    // Recalculate positions when type node visibility changes (affects circle/tree layout)
+    if (nodesRef.current.length > 0 && (viewMode === 'circle' || viewMode === 'tree')) {
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
+    }
+  }, [showTypeNodes, viewMode, dimensions, calculatePositions]);
+  useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
+  useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
 
   // Recenter/fit graph
   const recenter = useCallback(() => {
