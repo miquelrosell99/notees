@@ -135,5 +135,5 @@
 
 /* Group children - blocks indented under page header */
 .node-list-group__children {
-  /* Children rendered with depth=1 automatically get indentation */
+  padding-left: 1.25rem; /* Indent children under the group header */
 }
