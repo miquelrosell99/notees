@@ -143,11 +143,7 @@
 
 /* Ensure sticky header inherits the tinted background */
 .main-content.has-page-color .node-view-sticky-header {
-  background: linear-gradient(
-    to right,
-    var(--node-tint) 0%,
-    var(--node-tint) 100%
-  ), var(--color-surface) !important;
+  background: var(--node-tint) !important;
 }
 
 /* ==================== Right Container (Right Sidebar) ==================== */
