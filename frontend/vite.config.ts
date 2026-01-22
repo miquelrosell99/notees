@@ -17,6 +17,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    allowedHosts: ['atlas'],
     proxy: {
       // Proxy API requests to the FastAPI backend
       '/api': {
