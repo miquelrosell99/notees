@@ -271,6 +271,46 @@ async def _get_type_ids(service: NodeService, node_id: int) -> List[int]:
     return [t.id for t in types if t.id]
 
 
+async def _get_tag_ids(conn, node_id: int) -> List[int]:
+    """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
+    cursor = await conn.execute("""
+        SELECT target_node_id FROM node_link 
+        WHERE source_node_id = ? AND is_tag = 1 AND property_id IS NULL
+        ORDER BY position
+    """, (node_id,))
+    rows = await cursor.fetchall()
+    return [row['target_node_id'] for row in rows]
+
+
+async def _get_tag_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]:
+    """Efficiently fetch tag_ids for multiple nodes in a single query.
+    
+    Returns a dict mapping node_id -> list of tag_ids.
+    """
+    if not node_ids:
+        return {}
+    
+    # Initialize result with empty lists for all requested nodes
+    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
+    
+    placeholders = ','.join(['?' for _ in node_ids])
+    cursor = await conn.execute(f"""
+        SELECT source_node_id, target_node_id
+        FROM node_link 
+        WHERE source_node_id IN ({placeholders}) AND is_tag = 1 AND property_id IS NULL
+        ORDER BY source_node_id, position
+    """, node_ids)
+    
+    rows = await cursor.fetchall()
+    for row in rows:
+        source_id = row['source_node_id']
+        target_id = row['target_node_id']
+        if source_id in result and target_id:
+            result[source_id].append(target_id)
+    
+    return result
+
+
 async def _get_type_ids_batch(conn, node_ids: List[int]) -> Dict[int, List[int]]:
     """Efficiently fetch type_ids for multiple nodes in a single query.
     
@@ -1197,6 +1237,10 @@ async def get_node(
     # Get types for the node
     type_ids = await _get_type_ids(service, node_id)
     
+    # Get tags for the node (from node_link with is_tag=1)
+    conn = service._node_repo.get_connection()
+    tag_ids = await _get_tag_ids(conn, node_id)
+    
     # Auto-fix legacy date nodes that don't have their date type assigned
     if node.is_day or node.is_month or node.is_year:
         page_type_id = service._page_type_id
@@ -1223,7 +1267,7 @@ async def get_node(
                 await service.add_type(node_id, year_type.id, _system_call=True)
                 type_ids.append(year_type.id)
     
-    response = _node_to_response(node, types=type_ids)
+    response = _node_to_response(node, tags=tag_ids, types=type_ids)
     
     if include_children:
         conn = service._node_repo.get_connection()
@@ -1495,6 +1539,9 @@ async def get_page_content(
             if node_id in node_type_map and type_id:
                 node_type_map[node_id].append(type_id)
     
+    # Get tags for all nodes in one batch (from node_link with is_tag=1)
+    node_tag_map = await _get_tag_ids_batch(conn, all_node_ids)
+    
     # Build tree structure from flat list
     block_map = {}
     for b in blocks:
@@ -1502,7 +1549,8 @@ async def get_page_content(
             count = comment_counts.get(b.id, 0)
             bcount = backlink_counts.get(b.id, 0)
             type_ids = node_type_map.get(b.id, [])
-            block_map[b.id] = _node_to_response(b, types=type_ids, comment_count=count, backlink_count=bcount)
+            tag_ids = node_tag_map.get(b.id, [])
+            block_map[b.id] = _node_to_response(b, tags=tag_ids, types=type_ids, comment_count=count, backlink_count=bcount)
     
     root_children = []
     
@@ -1522,7 +1570,8 @@ async def get_page_content(
     
     page_comment_count = comment_counts.get(page_id, 0)
     page_type_ids = node_type_map.get(page_id, [])
-    page_response = _node_to_response(page, types=page_type_ids, comment_count=page_comment_count)
+    page_tag_ids = node_tag_map.get(page_id, [])
+    page_response = _node_to_response(page, tags=page_tag_ids, types=page_type_ids, comment_count=page_comment_count)
     page_response.children = root_children
     
     # Add properties - get the full property values
