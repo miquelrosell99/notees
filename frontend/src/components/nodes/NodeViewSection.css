@@ -90,7 +90,7 @@
   display: none;
 }
 
-/* When collapsed, hide header actions (toolbar) */
+/* When collapsed, hide header actions (toolbar) but preserve space */
 .node-view-section.collapsed .node-view-section__actions {
-  display: none;
+  visibility: hidden;
 }
