@@ -532,12 +532,16 @@ export function Block({
     setBlockState(block.id, 'edit');
   }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick]);
   
-  // Reset initial cursor position when exiting edit mode
+  // Reset initial cursor position when entering edit mode (after a short delay to allow it to be applied)
   useEffect(() => {
-    if (blockState !== 'edit') {
-      setInitialCursorPosition(undefined);
+    if (blockState === 'edit' && initialCursorPosition !== undefined) {
+      // Clear after a short delay to allow the editor to apply it
+      const timer = setTimeout(() => {
+        setInitialCursorPosition(undefined);
+      }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [blockState]);
+  }, [blockState, initialCursorPosition]);
   
   // Handle bullet click for navigation
   const handleBulletClickInternal = useCallback((e: React.MouseEvent) => {

@@ -1011,29 +1011,56 @@ export function BlockEditor({
       
       const range = selection.getRangeAt(0);
       
-      // Get the current cursor position in the DOM
-      const editorRect = editorRef.current.getBoundingClientRect();
-      const rangeRect = range.getBoundingClientRect();
-      
-      // Calculate approximate line height
-      const lineHeight = parseFloat(getComputedStyle(editorRef.current).lineHeight) || 24;
-      
       if (e.key === 'ArrowUp') {
-        // Check if cursor is on the first line
-        // If the cursor's top is within one line height of the editor's top, we're on the first line
-        const cursorRelativeTop = rangeRect.top - editorRect.top;
-        if (cursorRelativeTop < lineHeight && onNavigateUp) {
+        // Check if cursor is at the start or on the first line
+        if (cursorPos === 0) {
           e.preventDefault();
-          onNavigateUp();
+          onNavigateUp?.();
+          return;
+        }
+        
+        // Check if cursor is on the first line visually
+        const rangeRect = range.getBoundingClientRect();
+        const editorRect = editorRef.current.getBoundingClientRect();
+        
+        // Calculate line height
+        const computedStyle = getComputedStyle(editorRef.current);
+        const lineHeight = parseFloat(computedStyle.lineHeight) || parseFloat(computedStyle.fontSize) * 1.5 || 24;
+        
+        // Use the top of the range rect, fallback to bottom if collapsed
+        const cursorTop = rangeRect.height > 0 ? rangeRect.top : rangeRect.bottom;
+        const relativeTop = cursorTop - editorRect.top;
+        
+        // If cursor is within 1.5 line heights from top, consider it on first line
+        if (relativeTop < lineHeight * 1.5) {
+          e.preventDefault();
+          onNavigateUp?.();
           return;
         }
       } else if (e.key === 'ArrowDown') {
-        // Check if cursor is on the last line
-        // If the cursor's bottom is within one line height of the editor's bottom, we're on the last line
-        const cursorRelativeBottom = editorRect.bottom - rangeRect.bottom;
-        if (cursorRelativeBottom < lineHeight && onNavigateDown) {
+        // Check if we're at the end of content
+        if (cursorPos === currentContent.length) {
           e.preventDefault();
-          onNavigateDown();
+          onNavigateDown?.();
+          return;
+        }
+        
+        // Check if cursor is on the last line visually
+        const rangeRect = range.getBoundingClientRect();
+        const editorRect = editorRef.current.getBoundingClientRect();
+        
+        // Calculate line height
+        const computedStyle = getComputedStyle(editorRef.current);
+        const lineHeight = parseFloat(computedStyle.lineHeight) || parseFloat(computedStyle.fontSize) * 1.5 || 24;
+        
+        // Use the bottom of the range rect, fallback to top if collapsed
+        const cursorBottom = rangeRect.height > 0 ? rangeRect.bottom : rangeRect.top;
+        const relativeBottom = editorRect.bottom - cursorBottom;
+        
+        // If cursor is within 1.5 line heights from bottom, consider it on last line
+        if (relativeBottom < lineHeight * 1.5) {
+          e.preventDefault();
+          onNavigateDown?.();
           return;
         }
       }
