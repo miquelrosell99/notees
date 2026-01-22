@@ -7,56 +7,56 @@
 
 :root {
   /* ==================== Primary (Monochrome) ==================== */
-  --color-primary: #171717;
+  --color-primary: #111111;
   --color-on-primary: #ffffff;
-  --color-primary-container: #e5e5e5;
-  --color-on-primary-container: #171717;
-  --color-primary-hover: #262626;
-  --color-primary-pressed: #404040;
+  --color-primary-container: #f0f0f0;
+  --color-on-primary-container: #111111;
+  --color-primary-hover: #1a1a1a;
+  --color-primary-pressed: #333333;
 
   /* ==================== Secondary ==================== */
-  --color-secondary: #525252;
+  --color-secondary: #333333;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #f5f5f5;
-  --color-on-secondary-container: #262626;
-  --color-secondary-hover: #404040;
-  --color-secondary-pressed: #525252;
+  --color-secondary-container: #f7f7f7;
+  --color-on-secondary-container: #333333;
+  --color-secondary-hover: #555555;
+  --color-secondary-pressed: #444444;
 
   /* ==================== Tertiary ==================== */
-  --color-tertiary: #737373;
+  --color-tertiary: #555555;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #e5e5e5;
-  --color-on-tertiary-container: #262626;
-  --color-tertiary-hover: #525252;
-  --color-tertiary-pressed: #404040;
+  --color-tertiary-container: #f0f0f0;
+  --color-on-tertiary-container: #333333;
+  --color-tertiary-hover: #444444;
+  --color-tertiary-pressed: #333333;
 
   /* ==================== Error ==================== */
-  --color-error: #525252;
+  --color-error: #c0392b;
   --color-on-error: #ffffff;
-  --color-error-container: #e5e5e5;
-  --color-on-error-container: #171717;
-  --color-error-hover: #404040;
-  --color-error-pressed: #262626;
+  --color-error-container: #fdecea;
+  --color-on-error-container: #611a15;
+  --color-error-hover: #a83227;
+  --color-error-pressed: #89211f;
 
   /* ==================== Warning ==================== */
-  --color-warning: #525252;
+  --color-warning: #d97706;
   --color-on-warning: #ffffff;
-  --color-warning-container: #f5f5f5;
-  --color-on-warning-container: #262626;
+  --color-warning-container: #fffbeb;
+  --color-on-warning-container: #78350f;
 
   /* ==================== Success ==================== */
-  --color-success: #404040;
+  --color-success: #16a34a;
   --color-on-success: #ffffff;
-  --color-success-container: #e5e5e5;
-  --color-on-success-container: #171717;
+  --color-success-container: #d1fae5;
+  --color-on-success-container: #14532d;
 
   /* ==================== Background & Surface ==================== */
   --color-background: #fafafa;
-  --color-on-background: #171717;
+  --color-on-background: #111111;
   --color-surface: #ffffff;
-  --color-on-surface: #171717;
-  --color-surface-variant: #f5f5f5;
-  --color-on-surface-variant: #525252;
+  --color-on-surface: #111111;
+  --color-surface-variant: #f2f2f2;
+  --color-on-surface-variant: #555555;
   --color-surface-dim: #e5e5e5;
   --color-surface-bright: #ffffff;
   --color-surface-container: #fafafa;
@@ -64,7 +64,7 @@
   --color-surface-container-high: #e5e5e5;
   --color-surface-container-highest: #d4d4d4;
   --color-surface-container-lowest: #ffffff;
-  --color-inverse-surface: #171717;
+  --color-inverse-surface: #111111;
   --color-inverse-on-surface: #fafafa;
   --color-inverse-primary: #a3a3a3;
 
@@ -85,15 +85,15 @@
   --color-accent: #404040;
   --color-accent-subtle: #737373;
 
-  /* ==================== Preset Colors (for color picker) ==================== */
-  --color-preset-red: #ef4444;
-  --color-preset-orange: #f97316;
-  --color-preset-yellow: #eab308;
-  --color-preset-green: #22c55e;
-  --color-preset-teal: #14b8a6;
-  --color-preset-blue: #3b82f6;
-  --color-preset-purple: #8b5cf6;
-  --color-preset-pink: #ec4899;
+  /* ==================== Preset Colors (Unified for Light & Dark Mode) ==================== */
+  --color-preset-red: #ef5550;
+  --color-preset-orange: #f28b3f;
+  --color-preset-yellow: #e4b50f;
+  --color-preset-green: #29b672;
+  --color-preset-teal: #22a89b;
+  --color-preset-blue: #3a7ef6;
+  --color-preset-purple: #895ef6;
+  --color-preset-pink: #e94895;
 
   /* ==================== Typography ==================== */
   --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -183,59 +183,49 @@
   --topbar-height: 44px;
   --container-gap: 8px;
   --container-radius: var(--shape-large);
-
-  /* ==================== Preset Colors (Unified for Light & Dark Mode) ==================== */
-  --color-preset-red: #ef5550;
-  --color-preset-orange: #f28b3f;
-  --color-preset-yellow: #e4b50f;
-  --color-preset-green: #29b672;
-  --color-preset-teal: #22a89b;
-  --color-preset-blue: #3a7ef6;
-  --color-preset-purple: #895ef6;
-  --color-preset-pink: #e94895;
 }
 
-/* ==================== Dark Theme (Monochrome) ==================== */
+/* ==================== Dark Theme ==================== */
 [data-theme="dark"] {
   /* Primary */
   --color-primary: #e5e5e5;
-  --color-on-primary: #171717;
+  --color-on-primary: #111111;
   --color-primary-container: #262626;
   --color-on-primary-container: #e5e5e5;
   --color-primary-hover: #d4d4d4;
   --color-primary-pressed: #a3a3a3;
 
   /* Secondary */
-  --color-secondary: #a3a3a3;
-  --color-on-secondary: #171717;
+  --color-secondary: #c0c0c0;
+  --color-on-secondary: #111111;
   --color-secondary-container: #262626;
   --color-on-secondary-container: #d4d4d4;
   --color-secondary-hover: #d4d4d4;
   --color-secondary-pressed: #737373;
 
   /* Tertiary */
-  --color-tertiary: #737373;
-  --color-on-tertiary: #171717;
+  --color-tertiary: #9e9e9e;
+  --color-on-tertiary: #111111;
   --color-tertiary-container: #262626;
-  --color-on-tertiary-container: #a3a3a3;
+  --color-on-tertiary-container: #c0c0c0;
 
   /* Error */
-  --color-error: #a3a3a3;
-  --color-on-error: #171717;
-  --color-error-container: #262626;
-  --color-on-error-container: #e5e5e5;
+  --color-error: #ef5550;
+  --color-on-error: #111111;
+  --color-error-container: #611a15;
+  --color-on-error-container: #fdecea;
 
   /* Warning */
-  --color-warning: #a3a3a3;
-  --color-on-warning: #171717;
-  --color-warning-container: #262626;
-  --color-on-warning-container: #d4d4d4;
+  --color-warning: #f28b3f;
+  --color-on-warning: #111111;
+  --color-warning-container: #78350f;
+  --color-on-warning-container: #fffbeb;
 
   /* Success */
-  --color-success: #a3a3a3;
-  --color-on-success: #171717;
-  --color-success-container: #262626;
-  --color-on-success-container: #d4d4d4;
+  --color-success: #29b672;
+  --color-on-success: #111111;
+  --color-success-container: #14532d;
+  --color-on-success-container: #d1fae5;
 
   /* Background & Surface */
   --color-background: #0a0a0a;
@@ -252,7 +242,7 @@
   --color-surface-container-highest: #404040;
   --color-surface-container-lowest: #0a0a0a;
   --color-inverse-surface: #e5e5e5;
-  --color-inverse-on-surface: #171717;
+  --color-inverse-on-surface: #111111;
   --color-inverse-primary: #525252;
 
   /* Outline & Utility */
@@ -271,11 +261,4 @@
   /* Accent */
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
-
-  /* Elevation - minimal for dark theme */
-  --elevation-1: none;
-  --elevation-2: none;
-  --elevation-3: 0 1px 4px rgba(0, 0, 0, 0.2), 0 2px 12px rgba(0, 0, 0, 0.15);
-  --elevation-4: 0 2px 6px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.18);
-  --elevation-5: 0 4px 8px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.2);
 }
