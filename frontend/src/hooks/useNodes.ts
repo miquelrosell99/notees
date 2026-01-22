@@ -620,19 +620,28 @@ export function useUpdateNode() {
       // This ensures backlink badges and linked references update in real-time
       // when block references are added/removed (e.g., [[linkId]] or ((uuid)))
       if (variables.data.name !== undefined) {
-        // Invalidate and refetch linked references for all nodes
-        // We use refetchQueries to ensure immediate refetch even if the query
-        // was already marked stale by a previous rapid mutation
+        // Invalidate linked references for all nodes - this marks them stale
+        // so they will refetch when next observed
+        queryClient.invalidateQueries({ 
+          queryKey: ['nodes', 'linked-refs'],
+        });
+        // Also immediately refetch any active queries
         queryClient.refetchQueries({ 
           queryKey: ['nodes', 'linked-refs'],
           type: 'active',
         });
-        // Invalidate backlinks queries
+        // Invalidate and refetch backlinks queries
+        queryClient.invalidateQueries({ 
+          queryKey: ['nodes', 'backlinks'],
+        });
         queryClient.refetchQueries({ 
           queryKey: ['nodes', 'backlinks'],
           type: 'active',
         });
-        // Invalidate property backlinks (in case content had property-like references)
+        // Invalidate and refetch property backlinks (in case content had property-like references)
+        queryClient.invalidateQueries({ 
+          queryKey: ['nodes', 'property-backlinks'],
+        });
         queryClient.refetchQueries({ 
           queryKey: ['nodes', 'property-backlinks'],
           type: 'active',
