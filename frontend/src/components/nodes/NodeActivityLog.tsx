@@ -43,17 +43,17 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ACTION_ICONS: Record<string, string> = {
-  created: '✨',
-  edited: '✏️',
-  link_added: '🔗',
-  link_removed: '🔗',
-  link_inserted: '🔗',
-  archived: '📦',
-  unarchived: '📤',
-  type_added: '🏷️',
-  type_removed: '🏷️',
-  property_changed: '⚙️',
-  moved: '📁',
+  created: '',
+  edited: '',
+  link_added: '',
+  link_removed: '',
+  link_inserted: '',
+  archived: '',
+  unarchived: '',
+  type_added: '',
+  type_removed: '',
+  property_changed: '',
+  moved: '',
 };
 
 function formatDate(dateStr: string): string {
@@ -112,11 +112,19 @@ function activityToNode(activity: NodeActivity): Node {
   
   return {
     id: activity.id,
+    uuid: `activity-${activity.id}`,
     name: `${icon} ${message} — ${time}`,
+    icon: null,
+    color: null,
     is_page: false,
+    parent_id: null,
+    page_id: null,
+    is_type: false,
     active: true,
     create_date: activity.create_date,
     write_date: activity.create_date,
+    sequence: 0,
+    collapsed: false,
   };
 }
 

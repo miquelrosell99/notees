@@ -71,8 +71,26 @@
   transition: background 0.1s ease;
 }
 
-.node-pill-row__option:hover {
+.node-pill-row__option:hover,
+.node-pill-row__option--selected {
   background: var(--color-surface-container-high);
+}
+
+.node-pill-row__option--create {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.node-pill-row__option--create:hover,
+.node-pill-row__option--create.node-pill-row__option--selected {
+  background: var(--color-primary-container);
+}
+
+.node-pill-row__loading {
+  padding: var(--spacing-3);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
 }
 
 .node-pill-row__no-results {

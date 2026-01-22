@@ -5,21 +5,22 @@
  * - Show pills for each node
  * - Navigate to a node on click
  * - Remove a node (optional)
- * - Add new nodes via a picker dropdown (optional)
+ * - Add new nodes via a picker dropdown using useNodeSearch (same as SuggestionPopup)
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { NodeTypePill } from './NodeTypePill';
-import { NodeIcon } from './icons';
+import { NodeIcon, AddIcon } from './icons';
 import { Button } from './core/Button';
 import { mdiPlus } from '@mdi/js';
+import { useNodeSearch, type NodeSearchMode } from '@/hooks';
 import type { Node } from '@/types';
 import './NodePillRow.css';
 
 interface NodePillRowProps {
   /** The nodes to display as pills */
   nodes: Node[];
-  /** Available nodes for the add picker (if provided, shows add button) */
-  availableNodes?: Node[];
+  /** Search mode for the picker - determines what types of nodes to show */
+  searchMode?: NodeSearchMode;
   /** Placeholder text for empty state add button */
   emptyText?: string;
   /** Placeholder for search input */
@@ -30,6 +31,8 @@ interface NodePillRowProps {
   onRemove?: (node: Node) => void;
   /** Callback when adding a node from the picker */
   onAdd?: (node: Node) => void;
+  /** Callback when creating a new node (if provided, shows create option) */
+  onCreateNew?: (name: string) => void;
   /** Function to determine if a node can be removed (default: all can be removed) */
   canRemove?: (node: Node) => boolean;
   /** Whether pills are read-only (hides remove button) */
@@ -40,20 +43,48 @@ interface NodePillRowProps {
 
 export function NodePillRow({
   nodes,
-  availableNodes,
+  searchMode = 'pages',
   emptyText = 'Add',
   searchPlaceholder = 'Search...',
   onNodeClick,
   onRemove,
   onAdd,
+  onCreateNew,
   canRemove,
   readOnly = false,
   className = '',
 }: NodePillRowProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const pickerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Use shared search hook (same as SuggestionPopup)
+  const { pageResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(searchQuery, {
+    mode: searchMode,
+    maxResults: 10,
+  });
+
+  // Filter out already assigned nodes
+  const assignedIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
+  
+  const filteredResults = useMemo(() => {
+    return pageResults
+      .filter(item => !assignedIds.has(item.node.id))
+      .map(item => item.node);
+  }, [pageResults, assignedIds]);
+
+  // Only show create option if onCreate is provided and there's a query
+  const showCreateOption = onCreateNew && searchShowCreate && searchQuery.trim().length > 0;
+  
+  // Total selectable items
+  const totalItems = filteredResults.length + (showCreateOption ? 1 : 0);
+
+  // Reset selection when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filteredResults.length, searchQuery]);
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -77,18 +108,47 @@ export function NodePillRow({
     }
   }, [isPickerOpen]);
 
-  // Filter available nodes by search query
-  const filteredNodes = availableNodes?.filter(n => 
-    !searchQuery || n.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) ?? [];
-
   const handleAdd = useCallback((node: Node) => {
     onAdd?.(node);
     setIsPickerOpen(false);
     setSearchQuery('');
   }, [onAdd]);
 
-  const showAddButton = !!availableNodes && !!onAdd;
+  const handleCreateNew = useCallback(() => {
+    if (!searchQuery.trim()) return;
+    onCreateNew?.(searchQuery.trim());
+    setIsPickerOpen(false);
+    setSearchQuery('');
+  }, [searchQuery, onCreateNew]);
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(i => Math.max(i - 1, 0));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedIndex < filteredResults.length) {
+          handleAdd(filteredResults[selectedIndex]);
+        } else if (showCreateOption) {
+          handleCreateNew();
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsPickerOpen(false);
+        setSearchQuery('');
+        break;
+    }
+  }, [totalItems, selectedIndex, filteredResults, showCreateOption, handleAdd, handleCreateNew]);
+
+  const showAddButton = !!onAdd;
 
   return (
     <div className={`node-pill-row ${className}`}>
@@ -127,20 +187,41 @@ export function NodePillRow({
                 placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
               <div className="node-pill-row__options">
-                {filteredNodes.slice(0, 10).map((node) => (
-                  <button
-                    key={node.id}
-                    className="node-pill-row__option"
-                    onClick={() => handleAdd(node)}
-                  >
-                    <NodeIcon icon={node.icon} isPage={true} size="xs" />
-                    <span>{node.name}</span>
-                  </button>
-                ))}
-                {filteredNodes.length === 0 && (
-                  <div className="node-pill-row__no-results">No results found</div>
+                {isLoading && searchQuery.length > 0 ? (
+                  <div className="node-pill-row__loading">Searching...</div>
+                ) : filteredResults.length === 0 && !showCreateOption ? (
+                  <div className="node-pill-row__no-results">
+                    {searchQuery ? 'No matches found' : 'Start typing to search'}
+                  </div>
+                ) : (
+                  <>
+                    {filteredResults.map((node, index) => (
+                      <button
+                        key={node.id}
+                        className={`node-pill-row__option ${index === selectedIndex ? 'node-pill-row__option--selected' : ''}`}
+                        onClick={() => handleAdd(node)}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                      >
+                        <NodeIcon icon={node.icon} isPage={true} size="xs" />
+                        <span>{node.name || 'Untitled'}</span>
+                      </button>
+                    ))}
+                    {showCreateOption && (
+                      <button
+                        className={`node-pill-row__option node-pill-row__option--create ${
+                          selectedIndex === filteredResults.length ? 'node-pill-row__option--selected' : ''
+                        }`}
+                        onClick={handleCreateNew}
+                        onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                      >
+                        <AddIcon size="xs" />
+                        <span>Create "{searchQuery.trim()}"</span>
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

@@ -166,18 +166,21 @@ export function Block({
   }, [block.types, allTypes]);
   
   // Determine the icon to show on the bullet
-  // Priority: first type's icon > block's own icon
+  // Priority: block's own icon > first type's icon
   const bulletIcon = useMemo(() => {
-    // If block has types with icons, use the first type's icon
+    // Prefer block's own icon first
+    if (block.icon) {
+      return block.icon;
+    }
+    // Fall back to first type's icon if block has no icon
     if (blockTypeDetails.length > 0) {
       const firstTypeWithIcon = blockTypeDetails.find(t => t.icon);
       if (firstTypeWithIcon?.icon) {
         return firstTypeWithIcon.icon;
       }
     }
-    // Fall back to block's own icon
-    return block.icon;
-  }, [blockTypeDetails, block.icon]);
+    return null;
+  }, [block.icon, blockTypeDetails]);
   
   // Determine if block has children
   const hasChildren = children && children.length > 0;
