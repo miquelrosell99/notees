@@ -125,7 +125,7 @@ class LinkParsingService:
         
         Creates two activity entries:
         1. On source page: "Link to [target page name] inserted"
-        2. On target page: "[source page name] linked in [this page]"
+        2. On target page: "Linked in [source page name]"
         
         Only logs for page links (target is a page).
         """
@@ -148,12 +148,12 @@ class LinkParsingService:
                 (source_page_id, f"Link to {target_node.name or 'Untitled'} inserted", target_node_id, now)
             )
         
-        # 2. Log on target page: "[source page] linked in [this page]"
+        # 2. Log on target page: "Linked in [source page]"
         if source_page:
             await conn.execute(
                 """INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
                    VALUES (?, 'link_inserted', ?, ?, ?)""",
-                (target_node_id, f"{source_page.name or 'Untitled'} linked in {target_node.name or 'Untitled'}", source_page_id, now)
+                (target_node_id, f"Linked in {source_page.name or 'Untitled'}", source_page_id, now)
             )
         
         await conn.commit()
@@ -171,7 +171,7 @@ class LinkParsingService:
         
         Also logs activity for new page link insertions:
         - On source page: "Link to [target] inserted"
-        - On target page: "[source page] linked in [target]"
+        - On target page: "Linked in [source page]"
         
         Args:
             node_id: The block T containing the link
