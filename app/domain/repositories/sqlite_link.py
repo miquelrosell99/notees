@@ -101,6 +101,10 @@ class SQLiteLinkRepository(LinkRepository):
         rows = await cursor.fetchall()
         return [self._row_to_link(row) for row in rows]
     
+    def get_connection(self) -> aiosqlite.Connection:
+        """Get the underlying database connection."""
+        return self._conn
+    
     async def bulk_create(self, links: List[NodeLink]) -> List[NodeLink]:
         """Create multiple links at once (for efficiency when parsing)."""
         if not links:

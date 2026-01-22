@@ -379,6 +379,15 @@ class LinkRepository(ABC):
     async def get_outgoing_links(self, source_node_id: int) -> List[NodeLink]:
         """Get all links from a source node."""
         pass
+    
+    @abstractmethod
+    def get_connection(self) -> Any:
+        """Get the underlying database connection.
+        
+        This is needed for raw SQL queries that aren't abstracted by the repository.
+        Returns the connection object (e.g., aiosqlite.Connection).
+        """
+        pass
 
 
 class UserRepository(ABC):
