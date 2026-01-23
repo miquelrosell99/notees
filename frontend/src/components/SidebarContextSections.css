@@ -1,0 +1,143 @@
+/**
+ * SidebarContextSections Styles
+ * 
+ * Bottom-anchored context sections in the right sidebar.
+ * Visually lighter than cards, with capped height and internal scrolling.
+ */
+
+.sidebar-context-sections {
+  /* Anchor to bottom of sidebar, after cards */
+  margin-top: auto;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+}
+
+/* Individual section styling - lighter than cards */
+.sidebar-context-section {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sidebar-context-section:last-child {
+  border-bottom: none;
+}
+
+/* Override NodeViewSection header for lighter appearance */
+.sidebar-context-section .node-view-section__header {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: transparent;
+  min-height: 32px;
+}
+
+.sidebar-context-section .node-view-section__title {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.sidebar-context-section .node-view-section__count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+/* Content area with capped height and internal scrolling */
+.sidebar-context-section .node-view-section__content {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* Loading state */
+.sidebar-section-loading {
+  padding: var(--spacing-sm);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+/* Empty state */
+.sidebar-section-empty {
+  padding: var(--spacing-sm);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  font-style: italic;
+}
+
+/* Comments list */
+.sidebar-comments-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Comment row */
+.sidebar-comment-row {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sidebar-comment-row:last-child {
+  border-bottom: none;
+}
+
+.sidebar-comment-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.sidebar-comment-row__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-comment-row__snippet {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.sidebar-comment-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.sidebar-comment-row__time {
+  white-space: nowrap;
+}
+
+/* Activity section - use existing NodeActivityLogSection styles */
+.sidebar-context-section--activity .node-activity-log {
+  padding: 0;
+}
+
+.sidebar-context-section--activity .node-activity-list {
+  padding: 0;
+}
+
+.sidebar-context-section--activity .node-activity-item {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sidebar-context-section--activity .node-activity-item:last-child {
+  border-bottom: none;
+}
+
+.sidebar-context-section--activity .node-activity-empty {
+  padding: var(--spacing-sm);
+  text-align: center;
+}

@@ -40,11 +40,8 @@ import { PropertiesSection } from '../components/PropertiesSection';
 import { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } from '../components/TypedNodesSection';
 import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
 import { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from '../components/ChildPagesSection';
-import { NodeActivityLogSection, useActivityCount } from '../components/nodes/NodeActivityLogSection';
 import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../components/LinkedReferences';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
-import { mdiHistory, mdiRefresh } from '@mdi/js';
-import Icon from '@mdi/react';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
 import type { Asset } from '../api/assets';
 
@@ -292,7 +289,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Section metadata hooks
   const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
-  const { count: activityCount, refetch: refetchActivity } = useActivityCount(nodeId);
   
   // Linked references toolbar state (for external rendering in section header)
   const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
@@ -653,27 +649,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           }}
         />
       </NodeViewSection>
-      
-      {/* Node Activity Log - pages only */}
-      {resolvedType === 'page' && (
-        <NodeViewSection
-          title="Activity"
-          icon={<Icon path={mdiHistory} size={0.7} />}
-          count={activityCount}
-          defaultExpanded={false}
-          headerActions={
-            <button
-              className="node-activity-btn"
-              onClick={(e) => { e.stopPropagation(); refetchActivity(); }}
-              title="Refresh"
-            >
-              <Icon path={mdiRefresh} size={0.6} />
-            </button>
-          }
-        >
-          <NodeActivityLogSection nodeId={node.id} />
-        </NodeViewSection>
-      )}
       
       {/* Footer */}
       <footer className="node-view-footer">
