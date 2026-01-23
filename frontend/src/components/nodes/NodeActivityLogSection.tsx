@@ -6,7 +6,7 @@
  * NodeViewSection wrapping is handled by NodeView.
  * Users can delete entries but not edit them.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { mdiTrashCanOutline } from '@mdi/js';
 import { BlockPreview } from '../blocks/BlockPreview';
@@ -97,7 +97,14 @@ function activityToNode(activity: NodeActivity): Node {
   
   return {
     id: activity.id,
+    uuid: `activity-${activity.id}`,
     name: `${message} — ${time}`,
+    icon: null,
+    color: null,
+    parent_id: null,
+    page_id: null,
+    sequence: 0,
+    collapsed: false,
     is_page: false,
     active: true,
     create_date: activity.create_date,

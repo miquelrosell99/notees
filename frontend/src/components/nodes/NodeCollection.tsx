@@ -233,6 +233,7 @@ export function NodeCollection({
             id: n.id,
             title: n.name || 'Untitled',
             type: 'page' as const,
+            name: n.name || 'Untitled',
             tags: [],
             types: [],
             properties: {},

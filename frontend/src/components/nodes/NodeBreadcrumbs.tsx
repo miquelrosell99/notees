@@ -263,11 +263,6 @@ export function InlineNodeBreadcrumbs({
   if (breadcrumbs.length === 0 && !context) {
     return null;
   }
-  
-  const handleClick = (item: BreadcrumbItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onNavigate?.(item.id, item.isPage ? 'page' : 'block');
-  };
 
   return (
     <nav 

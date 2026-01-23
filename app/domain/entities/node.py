@@ -24,14 +24,8 @@ import uuid as uuid_module
 NodeId = int
 
 
-def utc_now() -> datetime:
-    """Get current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
-
-
-def utc_now_iso() -> str:
-    """Get current UTC time as ISO string for database storage."""
-    return datetime.now(timezone.utc).isoformat()
+# Import from shared utility for consistency
+from ...utils import utc_now, utc_now_iso
 
 
 def generate_uuid() -> str:

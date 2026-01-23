@@ -172,14 +172,13 @@ export function LinkedReferences({
     if (!refs) return [];
     return refs
       .filter(ref => {
-        // If the source node has this node as a type, only show if it's a text link
-        // (meaning there's an explicit [[link]], not just the {{type}})
+        // If the source node has this node as a type, don't show it as a linked reference
+        // since it's already shown in the "typed with" section
         const nodeTypes = ref.source_node.types || [];
         const isTypedWithThisNode = nodeTypes.includes(nodeId);
-        if (isTypedWithThisNode) {
-          return ref.link_type === 'text';
-        }
-        return true;
+        // Filter out nodes that only have this as a type (not an explicit [[link]])
+        // Since we can't distinguish link types, we hide type-only references
+        return !isTypedWithThisNode;
       })
       .map(ref => ({
         id: ref.source_node.id,

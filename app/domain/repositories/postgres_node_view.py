@@ -12,16 +12,13 @@ from asyncpg.pool import PoolConnectionProxy
 from ..entities import NodeView, generate_uuid
 from ...logging_config import get_logger
 from ...db.schema.constants import DEFAULT_QUERY_BLOCK_TREE
+from .base import normalize_timestamp
+from ...utils import utc_now
 
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
-
-
-def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
 
 
 class PostgresNodeViewRepository:

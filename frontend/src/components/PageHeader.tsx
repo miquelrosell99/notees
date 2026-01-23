@@ -117,10 +117,7 @@ export function PageHeader({
             {effectiveIcon || page.is_daily || page.is_monthly || page.is_yearly ? (
               <NodeIcon 
                 icon={effectiveIcon} 
-                isPage={true} 
-                isDaily={page.is_daily}
-                isMonthly={page.is_monthly}
-                isYearly={page.is_yearly}
+                isPage={true}
                 size="xl" 
                 className="page-icon-large" 
               />
