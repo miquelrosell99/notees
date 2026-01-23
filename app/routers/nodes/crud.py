@@ -32,7 +32,7 @@ from .helpers import (
 router = APIRouter()
 
 
-@router.post("")
+@router.post("/", name="create_node")
 async def create_node(
     request: NodeCreateRequest,
     user: User = Depends(get_current_user),
