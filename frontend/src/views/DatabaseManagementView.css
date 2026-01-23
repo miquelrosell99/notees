@@ -227,8 +227,17 @@
 }
 
 .db-management__card--delete-confirm {
-  background-color: var(--color-error-container, rgba(186, 26, 26, 0.15));
   border-color: var(--color-error, #ba1a1a);
+  animation: delete-confirm-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes delete-confirm-pulse {
+  0%, 100% {
+    box-shadow: 0 0 4px 0 var(--color-error, #ba1a1a);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px var(--color-error, #ba1a1a);
+  }
 }
 
 .db-management__card-content {
