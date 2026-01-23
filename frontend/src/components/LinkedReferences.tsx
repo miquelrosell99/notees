@@ -189,6 +189,8 @@ export function LinkedReferences({
         is_page: ref.source_node.is_page || false,
         parent_id: ref.source_node.parent_id ?? null,
         page_id: ref.source_page?.id ?? null,
+        page_name: ref.source_page?.name ?? null,
+        page_uuid: ref.source_page?.uuid ?? null,
         sequence: ref.source_node.sequence || 0,
         active: ref.source_node.active ?? true,
         create_date: ref.source_node.create_date || '',
