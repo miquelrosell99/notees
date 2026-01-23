@@ -130,20 +130,26 @@ def get_pool_stats() -> dict:
 
 
 # ============== Asset Directory Management ==============
-# Assets are still stored as files, organized by workspace
+# Assets are stored as files, organized by graph
 
-def get_workspace_assets_dir(workspace_id: int) -> Path:
-    """Get the assets directory for a workspace.
+def get_graph_assets_dir(graph_id: int) -> Path:
+    """Get the assets directory for a graph.
     
     Assets are stored as files named with their node UUID.
     """
-    assets_dir = DATA_DIR / "workspaces" / str(workspace_id) / "assets"
+    assets_dir = DATA_DIR / "graphs" / str(graph_id) / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
     return assets_dir
 
 
-def get_export_dir(workspace_id: int) -> Path:
-    """Get the export directory for a workspace."""
-    export_dir = DATA_DIR / "workspaces" / str(workspace_id) / "export"
+def get_export_dir(graph_id: int) -> Path:
+    """Get the export directory for a graph."""
+    export_dir = DATA_DIR / "graphs" / str(graph_id) / "export"
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir
+
+
+# Legacy aliases for backward compatibility
+def get_workspace_assets_dir(workspace_id: int) -> Path:
+    """Alias for get_graph_assets_dir. Deprecated, use get_graph_assets_dir."""
+    return get_graph_assets_dir(workspace_id)

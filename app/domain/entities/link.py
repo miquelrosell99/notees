@@ -5,12 +5,10 @@ Links use the unified [[nodeId]] format for both pages and blocks.
 
 Link sources can be:
 1. Text links: Direct [[id]] syntax in a block's name field
-   - source_node_id = the block T containing the link
-   - property_id = NULL (direct text link)
+   - source_id = the block T containing the link
    
 2. Node-type property links: References via node-type properties
-   - source_node_id = the property owner B
-   - property_id = the property through which the link is made
+   - Stored via property_value_relation table, not node_link
    
 The system property `types` is excluded from backlinks entirely.
 
@@ -35,19 +33,35 @@ class NodeLink:
     All links use the unified [[nodeId]] format. The target node's
     is_page flag determines whether it's a page or block link.
     
-    For text links: source_node_id is block T, property_id is None
-    For property links: source_node_id is property owner B, property_id is set
-    
     If is_tag is True, the link is a tag reference (displayed with #)
     rather than a regular [[link]].
+    
+    Schema fields:
+    - source_id: Node containing the link
+    - target_id: Referenced node
+    - is_tag: Whether this is a tag link
+    - create_date: When the link was created
+    - create_uid: User who created the link
     """
     id: Optional[int] = None
-    source_node_id: int = 0  # Node containing the link (T for text, B for property)
-    target_node_id: int = 0  # Referenced node (X)
-    position: int = 0  # Character position in name (for text links only)
-    property_id: Optional[int] = None  # Property ID if this is a property link
+    source_id: int = 0  # Node containing the link
+    target_id: int = 0  # Referenced node
     is_tag: bool = False  # True if this is a tag reference (displayed with #)
-    created_at: datetime = field(default_factory=utc_now)
+    create_date: datetime = field(default_factory=utc_now)
+    create_uid: Optional[int] = None
+    
+    # Legacy aliases for backward compatibility
+    @property
+    def source_node_id(self) -> int:
+        return self.source_id
+    
+    @property
+    def target_node_id(self) -> int:
+        return self.target_id
+    
+    @property
+    def created_at(self) -> datetime:
+        return self.create_date
 
 
 @dataclass
@@ -57,14 +71,32 @@ class InlineType:
     Uses {{typeId}} format in content. Similar to NodeLink but
     specifically for type references that appear inline in text.
     
-    source_node_id = block containing the {{typeId}} reference
-    type_node_id = the type node being referenced
+    Schema fields (type_inline table):
+    - node_id: Block containing the {{typeId}} reference
+    - type_id: The type node being referenced
+    - position: Character position in content
+    - create_date: When the reference was created
+    - create_uid: User who created it
     """
     id: Optional[int] = None
-    source_node_id: int = 0  # Block containing the inline type reference
-    type_node_id: int = 0  # Referenced type node
+    node_id: int = 0  # Block containing the inline type reference
+    type_id: int = 0  # Referenced type node
     position: int = 0  # Character position in content
-    created_at: datetime = field(default_factory=utc_now)
+    create_date: datetime = field(default_factory=utc_now)
+    create_uid: Optional[int] = None
+    
+    # Legacy aliases for backward compatibility
+    @property
+    def source_node_id(self) -> int:
+        return self.node_id
+    
+    @property
+    def type_node_id(self) -> int:
+        return self.type_id
+    
+    @property
+    def created_at(self) -> datetime:
+        return self.create_date
 
 
 @dataclass

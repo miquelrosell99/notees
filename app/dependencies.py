@@ -3,7 +3,10 @@
 This module provides FastAPI dependencies that wire up
 the application layer (use cases) with the infrastructure layer (repositories).
 
-Provides PostgreSQL-based repositories scoped to user workspaces.
+Updated for graph-based schema:
+- workspace_id -> graph_id
+- Repositories now take user_id for audit trails and permission checks
+- Uses get_or_create_user_graph instead of get_or_create_user_workspace
 """
 from __future__ import annotations
 
@@ -16,7 +19,7 @@ import asyncpg
 from .routers.auth import get_current_user
 from .models import User
 from .db.connection import get_pool
-from .db.schema import get_or_create_user_workspace
+from .db.schema import get_or_create_user_graph
 from .domain.repositories import (
     PostgresNodeRepository,
     PostgresPropertyRepository,
@@ -29,20 +32,20 @@ from .domain.repositories import (
 )
 
 
-async def _get_system_ids(conn: asyncpg.Connection, workspace_id: int) -> tuple[int, int]:
+async def _get_system_ids(conn: asyncpg.Connection, graph_id: int) -> tuple[int, int]:
     """Get system IDs for page type and types property.
     
     Returns (page_type_id, types_property_id).
     """
     row = await conn.fetchrow(
-        "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND workspace_id = $1 LIMIT 1",
-        workspace_id
+        "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND graph_id = $1 LIMIT 1",
+        graph_id
     )
     page_type_id = row['id'] if row else 1
     
     row = await conn.fetchrow(
-        "SELECT id FROM property WHERE name = 'types' AND (workspace_id = $1 OR workspace_id IS NULL) LIMIT 1",
-        workspace_id
+        "SELECT id FROM property WHERE name = 'types' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
+        graph_id
     )
     types_property_id = row['id'] if row else 1
     
@@ -50,90 +53,101 @@ async def _get_system_ids(conn: asyncpg.Connection, workspace_id: int) -> tuple[
 
 
 @asynccontextmanager
-async def get_workspace_context(user_id: int):
-    """Context manager for database operations with workspace context.
+async def get_graph_context(user_id: int):
+    """Context manager for database operations with graph context.
     
-    Acquires a connection from the pool and resolves the user's workspace.
+    Acquires a connection from the pool and resolves the user's graph.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, user_id)
-        yield conn, workspace_id
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        yield conn, graph_id
 
 
 async def get_node_repository(
     user: User = Depends(get_current_user)
 ) -> AsyncGenerator[PostgresNodeRepository, None]:
-    """Get a NodeRepository for the current user's workspace.
+    """Get a NodeRepository for the current user's graph.
     
     This dependency:
     1. Gets the current user from auth
-    2. Gets/creates their workspace
-    3. Creates a PostgresNodeRepository with workspace context
+    2. Gets/creates their graph
+    3. Creates a PostgresNodeRepository with graph context and user_id
     4. Yields it for use in the route
     """
     pool = await get_pool()
+    user_id = int(user.id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        page_type_id, types_property_id = await _get_system_ids(conn, workspace_id)
-        yield PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        page_type_id, types_property_id = await _get_system_ids(conn, graph_id)
+        yield PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
 
 
 async def get_property_repository(
     user: User = Depends(get_current_user)
 ) -> AsyncGenerator[PostgresPropertyRepository, None]:
-    """Get a PropertyRepository for the current user's workspace."""
+    """Get a PropertyRepository for the current user's graph."""
     pool = await get_pool()
+    user_id = int(user.id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        yield PostgresPropertyRepository(pool, workspace_id)
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        yield PostgresPropertyRepository(pool, graph_id, user_id)
 
 
 async def get_link_repository(
     user: User = Depends(get_current_user)
 ) -> AsyncGenerator[PostgresLinkRepository, None]:
-    """Get a LinkRepository for the current user's workspace."""
+    """Get a LinkRepository for the current user's graph."""
     pool = await get_pool()
+    user_id = int(user.id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        yield PostgresLinkRepository(pool, workspace_id)
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        yield PostgresLinkRepository(pool, graph_id, user_id)
 
 
 async def get_inline_type_repository(
     user: User = Depends(get_current_user)
 ) -> AsyncGenerator[PostgresInlineTypeRepository, None]:
-    """Get an InlineTypeRepository for the current user's workspace."""
+    """Get an InlineTypeRepository for the current user's graph."""
     pool = await get_pool()
+    user_id = int(user.id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        yield PostgresInlineTypeRepository(pool, workspace_id)
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        yield PostgresInlineTypeRepository(pool, graph_id, user_id)
 
 
 async def get_user_repository() -> AsyncGenerator[PostgresUserRepository, None]:
-    """Get a UserRepository (not workspace-scoped)."""
+    """Get a UserRepository (not graph-scoped)."""
     pool = await get_pool()
     yield PostgresUserRepository(pool)
 
 
 class RepositoryBundle:
-    """Bundle of all repositories for a user's workspace."""
+    """Bundle of all repositories for a user's graph.
+    
+    Updated for graph-based schema:
+    - workspace_id -> graph_id
+    - Repositories now receive user_id for audit trails and permission checks
+    """
     
     def __init__(
         self,
         pool: asyncpg.Pool,
-        workspace_id: int,
+        graph_id: int,
         page_type_id: int,
         types_property_id: int,
+        user_id: int,
     ):
         self.pool = pool
-        self.workspace_id = workspace_id
+        self.graph_id = graph_id
         self.page_type_id = page_type_id
         self.types_property_id = types_property_id
+        self.user_id = user_id
         self._node_repo: Optional[PostgresNodeRepository] = None
         self._property_repo: Optional[PostgresPropertyRepository] = None
         self._link_repo: Optional[PostgresLinkRepository] = None
@@ -143,40 +157,41 @@ class RepositoryBundle:
     def node(self) -> PostgresNodeRepository:
         if self._node_repo is None:
             self._node_repo = PostgresNodeRepository(
-                self.pool, self.workspace_id, self.page_type_id, self.types_property_id
+                self.pool, self.graph_id, self.page_type_id, self.types_property_id, self.user_id
             )
         return self._node_repo
     
     @property
     def props(self) -> PostgresPropertyRepository:
         if self._property_repo is None:
-            self._property_repo = PostgresPropertyRepository(self.pool, self.workspace_id)
+            self._property_repo = PostgresPropertyRepository(self.pool, self.graph_id, self.user_id)
         return self._property_repo
     
     @property
     def link(self) -> PostgresLinkRepository:
         if self._link_repo is None:
-            self._link_repo = PostgresLinkRepository(self.pool, self.workspace_id)
+            self._link_repo = PostgresLinkRepository(self.pool, self.graph_id, self.user_id)
         return self._link_repo
     
     @property
     def inline_type(self) -> PostgresInlineTypeRepository:
         if self._inline_type_repo is None:
-            self._inline_type_repo = PostgresInlineTypeRepository(self.pool, self.workspace_id)
+            self._inline_type_repo = PostgresInlineTypeRepository(self.pool, self.graph_id, self.user_id)
         return self._inline_type_repo
 
 
 async def get_repositories(
     user: User = Depends(get_current_user)
 ) -> AsyncGenerator[RepositoryBundle, None]:
-    """Get a bundle of all repositories for the current user's workspace.
+    """Get a bundle of all repositories for the current user's graph.
     
     Use this when you need multiple repository types in a single endpoint
-    to avoid creating multiple workspace lookups.
+    to avoid creating multiple graph lookups.
     """
     pool = await get_pool()
+    user_id = int(user.id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        page_type_id, types_property_id = await _get_system_ids(conn, workspace_id)
-        yield RepositoryBundle(pool, workspace_id, page_type_id, types_property_id)
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        page_type_id, types_property_id = await _get_system_ids(conn, graph_id)
+        yield RepositoryBundle(pool, graph_id, page_type_id, types_property_id, user_id)

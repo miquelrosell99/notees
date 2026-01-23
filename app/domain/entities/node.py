@@ -49,6 +49,9 @@ class Node:
     id: Optional[int] = None
     uuid: str = field(default_factory=generate_uuid)
     
+    # Graph context (replaces workspace)
+    graph_id: Optional[int] = None
+    
     # Content
     name: str = ""  # The main content, contains [[page links]] and ((block refs))
     icon: Optional[str] = None  # Optional icon identifier
@@ -59,7 +62,8 @@ class Node:
     page_id: Optional[int] = None  # Containing page (NULL for pages, computed for blocks)
     sequence: int = 0  # Order among siblings
     collapsed: bool = False  # UI state
-    active: bool = True  # Whether node is active (not archived)
+    active: bool = True  # Whether node is active (soft-delete flag)
+    is_shared: bool = False  # Whether this node is shared with other users
     
     # Type flags (stored for fast queries, not mutually exclusive)
     is_type: bool = False      # This node defines a type
@@ -71,8 +75,8 @@ class Node:
     is_template: bool = False  # Template page
     is_comment: bool = False   # Comment block
     
-    # Type-specific fields (only meaningful when is_type = True)
-    usable_in: str = "both"    # Where this type can be applied: 'pages', 'blocks', 'both'
+    # Type-specific fields
+    usable_in: str = "both"  # Where this type can be applied: 'page', 'block', or 'both'
     
     # Open date - when the page was last opened/viewed (NULL by default)
     open_date: Optional[str] = None
@@ -138,8 +142,6 @@ class NodeCreateData:
     is_asset: bool = False
     is_template: bool = False
     is_comment: bool = False
-    # Type-specific fields
-    usable_in: str = "both"  # Where this type can be applied: 'pages', 'blocks', 'both'
 
 
 @dataclass
@@ -163,7 +165,5 @@ class NodeUpdateData:
     is_month: Optional[bool] = None
     is_year: Optional[bool] = None
     is_asset: Optional[bool] = None
-    # Type-specific fields
-    usable_in: Optional[str] = None  # Where this type can be applied: 'pages', 'blocks', 'both'
     is_template: Optional[bool] = None
     is_comment: Optional[bool] = None

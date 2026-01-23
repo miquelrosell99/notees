@@ -95,10 +95,10 @@ async def get_recent_pages(
                    is_page, is_type, is_day, is_month, is_year,
                    create_date, write_date, open_date
             FROM node 
-            WHERE is_page = TRUE AND active = TRUE AND open_date IS NOT NULL AND workspace_id = $1
+            WHERE is_page = TRUE AND active = TRUE AND open_date IS NOT NULL AND graph_id = $1
             ORDER BY open_date DESC
             LIMIT $2
-        """, service._workspace_id, limit)
+        """, service._graph_id, limit)
     
     nodes = []
     for row in rows:
@@ -161,7 +161,7 @@ async def get_node(
     type_ids = await _get_type_ids(service, node_id)
     
     # Get tags for the node (from node_link with is_tag=1)
-    tag_ids = await _get_tag_ids(service._pool, service._workspace_id or 0, node_id)
+    tag_ids = await _get_tag_ids(service._pool, service._graph_id or 0, node_id)
     
     # Auto-fix legacy date nodes that don't have their date type assigned
     if node.is_day or node.is_month or node.is_year:
@@ -227,20 +227,20 @@ async def get_node(
         backlink_counts: Dict[int, int] = {}
         if descendant_ids:
             rows = await pool.fetch("""
-                SELECT target_node_id, COUNT(*) as count 
+                SELECT target_id, COUNT(*) as count 
                 FROM node_link 
-                WHERE target_node_id = ANY($1)
-                GROUP BY target_node_id
+                WHERE target_id = ANY($1)
+                GROUP BY target_id
             """, descendant_ids)
             for row in rows:
-                backlink_counts[row['target_node_id']] = row['count']
+                backlink_counts[row['target_id']] = row['count']
         
         # Get types for all descendants in one batch (avoid N+1 queries)
         node_type_map: Dict[int, List[int]] = {nid: [] for nid in descendant_ids}
         
         if descendant_ids:
             rows = await pool.fetch("""
-                SELECT pvr.node_id, pvr.target_node_id
+                SELECT pvr.node_id, pvr.target_id
                 FROM property_value_relation pvr
                 JOIN property p ON pvr.property_id = p.id
                 WHERE p.name = 'types' AND pvr.node_id = ANY($1)
@@ -248,7 +248,7 @@ async def get_node(
             """, descendant_ids)
             for row in rows:
                 nid = row['node_id']
-                tid = row['target_node_id']
+                tid = row['target_id']
                 if nid in node_type_map and tid:
                     node_type_map[nid].append(tid)
         
@@ -422,13 +422,13 @@ async def get_page_content(
     backlink_counts: Dict[int, int] = {}
     if block_ids:
         rows = await pool.fetch("""
-            SELECT target_node_id, COUNT(*) as count 
+            SELECT target_id, COUNT(*) as count 
             FROM node_link 
-            WHERE target_node_id = ANY($1)
-            GROUP BY target_node_id
+            WHERE target_id = ANY($1)
+            GROUP BY target_id
         """, block_ids)
         for row in rows:
-            backlink_counts[row['target_node_id']] = row['count']
+            backlink_counts[row['target_id']] = row['count']
     
     # Get types for all blocks in one batch (avoid N+1 queries)
     all_node_ids = [page_id] + block_ids
@@ -436,7 +436,7 @@ async def get_page_content(
     
     if all_node_ids:
         rows = await pool.fetch("""
-            SELECT pvr.node_id, pvr.target_node_id
+            SELECT pvr.node_id, pvr.target_id
             FROM property_value_relation pvr
             JOIN property p ON pvr.property_id = p.id
             WHERE p.name = 'types' AND pvr.node_id = ANY($1)
@@ -444,12 +444,12 @@ async def get_page_content(
         """, all_node_ids)
         for row in rows:
             node_id = row['node_id']
-            type_id = row['target_node_id']
+            type_id = row['target_id']
             if node_id in node_type_map and type_id:
                 node_type_map[node_id].append(type_id)
     
     # Get tags for all nodes in one batch (from node_link with is_tag=1)
-    node_tag_map = await _get_tag_ids_batch(pool, service._workspace_id or 0, all_node_ids)
+    node_tag_map = await _get_tag_ids_batch(pool, service._graph_id or 0, all_node_ids)
     
     # Build tree structure from flat list
     block_map = {}
@@ -612,8 +612,8 @@ async def delete_node(
         raise HTTPException(404, "Node not found")
     
     # Try to delete any associated asset file
-    if node.uuid and service._workspace_id is not None:
-        assets_dir = get_workspace_assets_dir(service._workspace_id)
+    if node.uuid and service._graph_id is not None:
+        assets_dir = get_workspace_assets_dir(service._graph_id)
         # Check for asset files with any extension
         for asset_file in assets_dir.glob(f"{node.uuid}.*"):
             try:
@@ -677,8 +677,8 @@ async def mark_page_opened(
     async with service._pool.acquire() as conn:
         # Verify it's a page and exists
         row = await conn.fetchrow(
-            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
-            node_id, service._workspace_id
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND graph_id = $2",
+            node_id, service._graph_id
         )
         
         if not row:

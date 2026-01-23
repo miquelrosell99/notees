@@ -6,6 +6,9 @@ This package contains:
 - init: Database initialization and seeding functions
 
 All public symbols are re-exported here for backward compatibility.
+
+Note: "workspace" terminology has been replaced with "graph" in v2.
+Legacy aliases are provided for backward compatibility.
 """
 from .constants import (
     SCHEMA_VERSION,
@@ -26,6 +29,10 @@ from .sql import SCHEMA_SQL
 
 from .init import (
     init_database,
+    seed_graph,
+    create_graph_for_user,
+    get_or_create_user_graph,
+    # Legacy aliases
     seed_workspace,
     create_workspace_for_user,
     get_or_create_user_workspace,
@@ -48,8 +55,12 @@ __all__ = [
     "parse_date_uuid",
     # SQL
     "SCHEMA_SQL",
-    # Init functions
+    # Init functions (new)
     "init_database",
+    "seed_graph",
+    "create_graph_for_user",
+    "get_or_create_user_graph",
+    # Init functions (legacy aliases)
     "seed_workspace",
     "create_workspace_for_user",
     "get_or_create_user_workspace",

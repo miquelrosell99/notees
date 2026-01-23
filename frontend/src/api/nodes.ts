@@ -29,7 +29,8 @@ export async function listNodes(params?: {
   tag_id?: number;
   type_filters?: string;
 }): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(BASE, { params });
+  // Use trailing slash to match FastAPI route
+  const response = await api.get<NodesResponse>(`${BASE}/`, { params });
   return response.data.nodes;
 }
 
@@ -74,7 +75,8 @@ export async function getPageContent(pageId: number): Promise<Node> {
  * Create a new node
  */
 export async function createNode(data: NodeCreate): Promise<Node> {
-  const response = await api.post<Node>(BASE, data);
+  // Use trailing slash to match FastAPI route
+  const response = await api.post<Node>(`${BASE}/`, data);
   return response.data;
 }
 

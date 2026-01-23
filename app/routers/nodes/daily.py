@@ -37,16 +37,16 @@ async def list_daily_pages(
     async with service._pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT * FROM node 
-            WHERE is_day = TRUE AND active = TRUE AND is_type = FALSE AND workspace_id = $1
+            WHERE is_day = TRUE AND active = TRUE AND is_type = FALSE AND graph_id = $1
             ORDER BY uuid DESC
-        """, service._workspace_id)
+        """, service._graph_id)
     
     # Get node IDs for batch type lookup
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch types for all nodes
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     result = []
     for node in nodes:
@@ -119,8 +119,8 @@ async def get_or_create_daily(
     # Get user's date format preference
     async with service._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT value FROM settings WHERE key = $1 AND workspace_id = $2",
-            "date_format", service._workspace_id
+            "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
+            "date_format", int(user.id)
         )
     date_format = row["value"] if row else "YYYY/MM/DD"
     
@@ -229,8 +229,8 @@ async def get_or_create_monthly(
     # Get user's date format preference and create month with year as parent
     async with service._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT value FROM settings WHERE key = $1 AND workspace_id = $2",
-            "date_format", service._workspace_id
+            "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
+            "date_format", int(user.id)
         )
     date_format = row["value"] if row else "YYYY/MM/DD"
     name = _format_month_with_pattern(year, month, date_format)
