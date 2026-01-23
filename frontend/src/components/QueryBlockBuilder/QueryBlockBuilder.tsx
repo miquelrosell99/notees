@@ -9,20 +9,18 @@
  * - Card component for each query block
  * - X button to delete blocks
  * - Dynamic query mode for node-type filters
+ * - System blocks (with placeholders) are hidden from users
  */
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
 import { FilterBlock } from './FilterBlocks';
 import { AddFilterButton } from './AddFilterButton';
-import { ROOT_LOGIC_OPTIONS, createDefaultBlock } from './constants';
+import { ROOT_LOGIC_OPTIONS, createDefaultBlock, isSystemBlock } from './constants';
 import type {
   QueryBlock,
   QueryBlockTree,
   QueryBlockType,
-} from '@/types/query';
-import {
-  createEmptyBlockTree,
 } from '@/types/query';
 import './QueryBlockBuilder.css';
 
@@ -48,6 +46,23 @@ export function QueryBlockBuilder({
   className = '',
 }: QueryBlockBuilderProps) {
   
+  // Filter out system blocks (those with placeholder values like {current_node_uuid})
+  // These are default query blocks that users shouldn't see or edit
+  const { visibleBlocks, hiddenIndices } = useMemo(() => {
+    const hidden: number[] = [];
+    const visible: { block: QueryBlock; originalIndex: number }[] = [];
+    
+    blockTree.blocks.forEach((block, index) => {
+      if (isSystemBlock(block)) {
+        hidden.push(index);
+      } else {
+        visible.push({ block, originalIndex: index });
+      }
+    });
+    
+    return { visibleBlocks: visible, hiddenIndices: hidden };
+  }, [blockTree.blocks]);
+  
   const handleRootTypeChange = useCallback((newType: string) => {
     onChange({
       ...blockTree,
@@ -62,20 +77,42 @@ export function QueryBlockBuilder({
     });
   }, [blockTree, onChange]);
   
-  const handleUpdateBlock = useCallback((index: number, updated: QueryBlock) => {
+  const handleUpdateBlock = useCallback((originalIndex: number, updated: QueryBlock) => {
     const newBlocks = [...blockTree.blocks];
-    newBlocks[index] = updated;
+    newBlocks[originalIndex] = updated;
     onChange({ ...blockTree, blocks: newBlocks });
   }, [blockTree, onChange]);
   
-  const handleDeleteBlock = useCallback((index: number) => {
-    const newBlocks = blockTree.blocks.filter((_, i) => i !== index);
+  const handleDeleteBlock = useCallback((originalIndex: number) => {
+    const newBlocks = blockTree.blocks.filter((_, i) => i !== originalIndex);
     onChange({ ...blockTree, blocks: newBlocks });
   }, [blockTree, onChange]);
+  
+  const handleMoveBlock = useCallback((originalIndex: number, direction: 'up' | 'down') => {
+    const newBlocks = [...blockTree.blocks];
+    const targetIndex = direction === 'up' ? originalIndex - 1 : originalIndex + 1;
+    
+    // Don't move past array bounds
+    if (targetIndex < 0 || targetIndex >= newBlocks.length) return;
+    
+    // Skip over system blocks when moving
+    let finalTarget = targetIndex;
+    while (hiddenIndices.includes(finalTarget) && finalTarget >= 0 && finalTarget < newBlocks.length) {
+      finalTarget = direction === 'up' ? finalTarget - 1 : finalTarget + 1;
+    }
+    
+    if (finalTarget < 0 || finalTarget >= newBlocks.length) return;
+    
+    // Swap
+    [newBlocks[originalIndex], newBlocks[finalTarget]] = [newBlocks[finalTarget], newBlocks[originalIndex]];
+    onChange({ ...blockTree, blocks: newBlocks });
+  }, [blockTree, onChange, hiddenIndices]);
   
   const handleClear = useCallback(() => {
-    onChange(createEmptyBlockTree());
-  }, [onChange]);
+    // Keep system blocks, only clear user-added blocks
+    const systemBlocks = blockTree.blocks.filter((block) => isSystemBlock(block));
+    onChange({ ...blockTree, blocks: systemBlocks });
+  }, [blockTree, onChange]);
   
   return (
     <div className={`query-block-builder ${className}`}>
@@ -84,7 +121,7 @@ export function QueryBlockBuilder({
         <span className="query-block-builder__title">Filters</span>
         <div className="query-block-builder__spacer" />
         
-        {!readOnly && blockTree.blocks.length > 0 && (
+        {!readOnly && visibleBlocks.length > 0 && (
           <>
             <SelectionButton
               options={ROOT_LOGIC_OPTIONS}
@@ -101,18 +138,22 @@ export function QueryBlockBuilder({
       
       {/* Filter blocks */}
       <div className="query-block-builder__blocks">
-        {blockTree.blocks.length === 0 ? (
+        {visibleBlocks.length === 0 ? (
           <div className="query-block-builder__empty">
             <p>No custom filters. Add filters to refine results.</p>
           </div>
         ) : (
-          blockTree.blocks.map((block, index) => (
+          visibleBlocks.map(({ block, originalIndex }, visibleIndex) => (
             <FilterBlock
-              key={index}
+              key={originalIndex}
               block={block}
-              onUpdate={(updated) => handleUpdateBlock(index, updated)}
-              onDelete={() => handleDeleteBlock(index)}
+              onUpdate={(updated) => handleUpdateBlock(originalIndex, updated)}
+              onDelete={() => handleDeleteBlock(originalIndex)}
               readOnly={readOnly}
+              index={visibleIndex}
+              totalSiblings={visibleBlocks.length}
+              onMoveUp={() => handleMoveBlock(originalIndex, 'up')}
+              onMoveDown={() => handleMoveBlock(originalIndex, 'down')}
             />
           ))
         )}
