@@ -144,8 +144,9 @@ function useCommonMenuItems(node: Node, onClose: () => void, onDeleteClick: () =
     // Delete (dangerous)
     items.push({
       id: 'delete',
-      label: 'Delete permanently',
+      label: 'Delete',
       danger: true,
+      keepOpen: true, // Keep menu open so modal can show
       onClick: () => {
         // Don't call onClose here - let the modal show first
         // The modal's onConfirm/onCancel will handle cleanup
@@ -199,7 +200,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
-        confirmLabel="Delete permanently"
+        confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
         onConfirm={handleConfirmDelete}
@@ -341,7 +342,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
-        confirmLabel="Delete permanently"
+        confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
         onConfirm={handleConfirmDelete}
@@ -445,7 +446,7 @@ export function BlockContextMenu({
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
-        confirmLabel="Delete permanently"
+        confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
         onConfirm={handleConfirmDelete}
