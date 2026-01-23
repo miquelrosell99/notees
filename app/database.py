@@ -52,7 +52,7 @@ async def list_graphs(user_id: str) -> List[Dict[str, Any]]:
         user_id: User ID (string or UUID)
         
     Returns:
-        List of graph info dicts with uuid, name, created_at, is_shared
+        List of graph info dicts with uuid, name, created_at, updated_at, is_shared
     """
     numeric_user_id = await _get_numeric_user_id(user_id)
     if not numeric_user_id:
@@ -61,7 +61,7 @@ async def list_graphs(user_id: str) -> List[Dict[str, Any]]:
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT g.uuid, g.name, g.create_date, g.is_shared
+            SELECT DISTINCT g.uuid, g.name, g.create_date, g.write_date, g.is_shared
             FROM graph g
             LEFT JOIN graph_share gs ON g.id = gs.graph_id
             WHERE g.create_uid = $1 OR gs.user_id = $1
@@ -75,6 +75,7 @@ async def list_graphs(user_id: str) -> List[Dict[str, Any]]:
                 "uuid": str(row['uuid']),
                 "name": row['name'],
                 "created_at": row['create_date'].isoformat() if row['create_date'] else None,
+                "updated_at": row['write_date'].isoformat() if row['write_date'] else None,
                 "is_shared": row['is_shared'],
             }
             for row in rows

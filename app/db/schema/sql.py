@@ -507,4 +507,27 @@ CREATE TRIGGER property_write_date
     BEFORE UPDATE ON property
     FOR EACH ROW
     EXECUTE FUNCTION update_write_date();
+
+-- Function to update graph's write_date when nodes are modified
+CREATE OR REPLACE FUNCTION update_graph_write_date()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- For INSERT and UPDATE, use NEW.graph_id
+    -- For DELETE, use OLD.graph_id
+    IF (TG_OP = 'DELETE') THEN
+        UPDATE graph SET write_date = NOW() WHERE id = OLD.graph_id;
+        RETURN OLD;
+    ELSE
+        UPDATE graph SET write_date = NOW() WHERE id = NEW.graph_id;
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update graph write_date on node changes
+DROP TRIGGER IF EXISTS node_update_graph_write_date ON node;
+CREATE TRIGGER node_update_graph_write_date
+    AFTER INSERT OR UPDATE OR DELETE ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION update_graph_write_date();
 """
