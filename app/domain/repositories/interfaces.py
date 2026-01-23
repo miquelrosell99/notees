@@ -79,6 +79,20 @@ class NodeRepository(ABC):
         pass
     
     @abstractmethod
+    async def move(
+        self,
+        node_id: int,
+        new_parent_id: Optional[int],
+        new_sequence: Optional[int] = None,
+        user_id: Optional[int] = None
+    ) -> Optional[Node]:
+        """Move a node to a new parent and/or sequence position.
+        
+        Handles sibling resequencing to maintain order consistency.
+        """
+        pass
+    
+    @abstractmethod
     def get_connection(self) -> Any:
         """Get the underlying database connection pool.
         
