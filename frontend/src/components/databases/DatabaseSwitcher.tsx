@@ -1,8 +1,8 @@
 /**
  * DatabaseSwitcher Component
  * 
- * Dropdown at the top of the sidebar showing current database,
- * sync status, and ability to switch or add databases.
+ * Dropdown at the top of the sidebar showing current graph,
+ * sync status, and ability to switch or add graphs.
  */
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -123,8 +123,8 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
 
   // Add separator options for actions
   const actionOptions: DropdownOption<string>[] = [
-    { value: '__add__', label: 'Add Database', icon: mdiPlus },
-    { value: '__manage__', label: 'Manage Databases', icon: mdiCog },
+    { value: '__add__', label: 'Add Graph', icon: mdiPlus },
+    { value: '__manage__', label: 'Manage Graphs', icon: mdiCog },
   ];
 
   const allOptions = [
@@ -145,7 +145,7 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
 
   const displayName = isLoading 
     ? 'Loading...' 
-    : (data?.active || 'No Database');
+    : (data?.active || 'No Graph');
 
   return (
     <div className="db-switcher">
@@ -153,7 +153,7 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
         options={allOptions}
         value={data?.active || null}
         onChange={handleChange}
-        placeholder="Select database..."
+        placeholder="Select graph..."
         disabled={isLoading}
         size="md"
         className="db-switcher__dropdown"

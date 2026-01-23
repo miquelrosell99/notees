@@ -1,8 +1,8 @@
 /**
  * DatabaseManagementView Component
  * 
- * Fullscreen view for managing databases. Shown when user has no databases
- * or accessed through settings. Allows creating, importing, and managing databases.
+ * Fullscreen view for managing graphs. Shown when user has no graphs
+ * or accessed through settings. Allows creating, importing, and managing graphs.
  */
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -278,14 +278,14 @@ export function DatabaseManagementView({
           <div className="db-management__welcome">
             <h2>
               {hasNoDatabases 
-                ? 'Welcome! Create your first database'
-                : 'Your Databases'
+                ? 'Welcome! Create your first graph'
+                : 'Your Graphs'
               }
             </h2>
             <p className="db-management__subtitle">
               {hasNoDatabases
-                ? 'A database stores all your notes, pages, and graphs. Get started by creating one.'
-                : 'Select a database to open, or create a new one.'
+                ? 'A graph stores all your notes and pages. Get started by creating one.'
+                : 'Select a graph to open, or create a new one.'
               }
             </p>
           </div>
@@ -298,7 +298,7 @@ export function DatabaseManagementView({
               size="md"
               onClick={() => setIsCreateModalOpen(true)}
             >
-              Create New Database
+              Create New Graph
             </Button>
             <Button 
               className="db-management__action-btn"
@@ -306,7 +306,7 @@ export function DatabaseManagementView({
               size="md"
               onClick={() => setIsImportOptionsOpen(true)}
             >
-              Import Database
+              Import Graph
             </Button>
           </div>
 
@@ -314,7 +314,7 @@ export function DatabaseManagementView({
           {isLoading ? (
             <div className="db-management__loading">
               <div className="db-management__spinner" />
-              <span>Loading databases...</span>
+              <span>Loading graphs...</span>
             </div>
           ) : databases.length > 0 ? (
             <div className="db-management__grid">
@@ -435,21 +435,21 @@ export function DatabaseManagementView({
         onClose={handleImportNameModalClose}
         onSubmit={handleImportNameSubmit}
         title={importNameModalState.type === 'zip' 
-          ? 'Name Your Imported Database' 
-          : 'Name Your Imported Database'
+          ? 'Name Your Imported Graph' 
+          : 'Name Your Imported Graph'
         }
-        submitLabel="Import Database"
+        submitLabel="Import Graph"
         isLoading={importMutation.isPending}
         error={importError}
       />
 
-      {/* Rename Database Modal */}
+      {/* Rename Graph Modal */}
       <DatabaseNameModal
         isOpen={renameModalState.isOpen}
         onClose={handleRenameModalClose}
         onSubmit={handleRenameSubmit}
         title={`Rename "${renameModalState.dbName}"`}
-        submitLabel="Rename Database"
+        submitLabel="Rename Graph"
         isLoading={renameMutation.isPending}
         error={renameError}
       />
