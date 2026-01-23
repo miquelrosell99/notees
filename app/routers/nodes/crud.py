@@ -195,18 +195,15 @@ async def get_node(
     if include_children:
         pool = service._node_repo.get_connection()
         
-        # Get ALL descendants recursively using a CTE based on parent_id
+        # Get ALL descendants using closure table (node_path)
         rows = await pool.fetch("""
-            WITH RECURSIVE descendants AS (
-                -- Base case: direct children of the target node (active only)
-                SELECT * FROM node WHERE parent_id = $1 AND active = TRUE
-                UNION ALL
-                -- Recursive case: children of descendants (active only)
-                SELECT n.* FROM node n
-                INNER JOIN descendants d ON n.parent_id = d.id
-                WHERE n.active = TRUE
-            )
-            SELECT * FROM descendants ORDER BY sequence
+            SELECT n.* 
+            FROM node_path np
+            JOIN node n ON n.id = np.descendant_id
+            WHERE np.ancestor_id = $1 
+              AND np.depth > 0
+              AND n.active = TRUE
+            ORDER BY np.depth, n.sequence
         """, node_id)
         all_descendants = [service._node_repo.row_to_node(row) for row in rows]
         

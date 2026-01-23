@@ -121,6 +121,64 @@ class NodeRepository(ABC):
         Used for date nodes (day/month/year) which have deterministic UUIDs.
         """
         pass
+    
+    @abstractmethod
+    async def get_breadcrumbs(
+        self,
+        exit_node_id: int,
+        enter_node_id: Optional[int] = None
+    ) -> List[Node]:
+        """Get the breadcrumb path for a node using the closure table.
+        
+        Returns ordered list of ancestor nodes from root (or enter_node) down to exit_node.
+        Uses the node_path closure table for efficient O(1) ancestor lookup.
+        
+        Args:
+            exit_node_id: The node to get breadcrumbs for
+            enter_node_id: Optional starting ancestor (if None, starts from root)
+            
+        Returns:
+            List of Node entities ordered from root/enter_node to exit_node
+        """
+        pass
+    
+    @abstractmethod
+    async def get_ancestors(
+        self,
+        node_id: int,
+        include_self: bool = False
+    ) -> List[int]:
+        """Get all ancestor IDs of a node using the closure table.
+        
+        Uses the node_path closure table for efficient O(1) lookup.
+        
+        Args:
+            node_id: The node to get ancestors for
+            include_self: Whether to include the node itself in the result
+            
+        Returns:
+            List of ancestor node IDs (ordered from root to immediate parent)
+        """
+        pass
+    
+    @abstractmethod
+    async def get_descendants(
+        self,
+        node_id: int,
+        include_self: bool = False
+    ) -> List[int]:
+        """Get all descendant IDs of a node using the closure table.
+        
+        Uses the node_path closure table for efficient O(1) lookup.
+        
+        Args:
+            node_id: The node to get descendants for
+            include_self: Whether to include the node itself in the result
+            
+        Returns:
+            List of descendant node IDs
+        """
+        pass
 
 
 class PropertyRepository(ABC):

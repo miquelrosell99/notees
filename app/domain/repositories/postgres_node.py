@@ -134,22 +134,21 @@ class PostgresNodeRepository(NodeRepository):
         )
     
     async def _compute_page_id(self, parent_id: int) -> Optional[int]:
-        """Walk up parent chain to find containing page using recursive CTE."""
+        """Walk up parent chain to find containing page using closure table.
+        
+        Uses node_path for O(1) ancestor lookup instead of recursive CTE.
+        """
         async with self._pool.acquire() as conn:
+            # Use node_path to find nearest page ancestor
             row = await conn.fetchrow("""
-                WITH RECURSIVE ancestors AS (
-                    SELECT id, parent_id, is_page, 1 as depth
-                    FROM node 
-                    WHERE id = $1 AND graph_id = $2
-                    UNION ALL
-                    SELECT n.id, n.parent_id, n.is_page, a.depth + 1
-                    FROM node n
-                    JOIN ancestors a ON n.id = a.parent_id
-                    WHERE n.graph_id = $2 AND a.depth < 100
-                )
-                SELECT id FROM ancestors 
-                WHERE is_page = TRUE 
-                ORDER BY depth ASC
+                SELECT n.id
+                FROM node_path np
+                JOIN node n ON n.id = np.ancestor_id
+                WHERE np.descendant_id = $1 
+                  AND n.is_page = TRUE 
+                  AND n.graph_id = $2
+                  AND n.active = TRUE
+                ORDER BY np.depth ASC
                 LIMIT 1
             """, parent_id, self._graph_id)
             return row['id'] if row else None
@@ -595,16 +594,12 @@ class PostgresNodeRepository(NodeRepository):
             await self.permissions.require_node_delete(node_id)
         
         async with self._pool.acquire() as conn:
-            # Use recursive CTE to get all descendants
+            # Use closure table (node_path) to get all descendants
             rows = await conn.fetch("""
-                WITH RECURSIVE descendants AS (
-                    SELECT id FROM node WHERE id = $1 AND graph_id = $2
-                    UNION ALL
-                    SELECT n.id FROM node n
-                    JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.graph_id = $2
-                )
-                SELECT id FROM descendants
+                SELECT np.descendant_id as id
+                FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 AND n.graph_id = $2
             """, node_id, self._graph_id)
             
             if not rows:
@@ -628,16 +623,12 @@ class PostgresNodeRepository(NodeRepository):
             await self.permissions.require_node_delete(node_id)
         
         async with self._pool.acquire() as conn:
-            # Use recursive CTE to get all descendants
+            # Use closure table (node_path) to get all descendants
             rows = await conn.fetch("""
-                WITH RECURSIVE descendants AS (
-                    SELECT id FROM node WHERE id = $1 AND graph_id = $2
-                    UNION ALL
-                    SELECT n.id FROM node n
-                    JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.graph_id = $2
-                )
-                SELECT id FROM descendants
+                SELECT np.descendant_id as id
+                FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 AND n.graph_id = $2
             """, node_id, self._graph_id)
             
             if not rows:
@@ -750,3 +741,122 @@ class PostgresNodeRepository(NodeRepository):
                 RETURNING *
             """, now, node_id, self._graph_id)
             return self._row_to_node(row) if row else None
+
+    # ============================================================
+    # CLOSURE TABLE METHODS (node_path)
+    # ============================================================
+    # These methods use the node_path closure table for efficient
+    # hierarchy queries without recursive CTEs.
+    
+    async def get_breadcrumbs(
+        self,
+        exit_node_id: int,
+        enter_node_id: Optional[int] = None
+    ) -> List[Node]:
+        """Get the breadcrumb path for a node using the closure table.
+        
+        Returns ordered list of ancestor nodes from root (or enter_node) down to exit_node.
+        Uses the get_breadcrumbs() Postgres function which queries node_path.
+        
+        Args:
+            exit_node_id: The node to get breadcrumbs for
+            enter_node_id: Optional starting ancestor (if None, starts from root)
+            
+        Returns:
+            List of Node entities ordered from root/enter_node to exit_node
+        """
+        async with self._pool.acquire() as conn:
+            # Call the Postgres get_breadcrumbs function
+            # It returns: id, uuid, name, is_page, is_type, is_day, is_month, is_year, parent_id, depth
+            if enter_node_id is not None:
+                rows = await conn.fetch(
+                    "SELECT * FROM get_breadcrumbs($1, $2)",
+                    exit_node_id, enter_node_id
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT * FROM get_breadcrumbs($1)",
+                    exit_node_id
+                )
+            
+            # Convert to Node entities - fetch full node data for each
+            nodes = []
+            for row in rows:
+                node_row = await conn.fetchrow(
+                    "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
+                    row['id'], self._graph_id
+                )
+                if node_row:
+                    nodes.append(self._row_to_node(node_row))
+            
+            return nodes
+    
+    async def get_ancestors(
+        self,
+        node_id: int,
+        include_self: bool = False
+    ) -> List[int]:
+        """Get all ancestor IDs of a node using the closure table.
+        
+        Uses node_path for O(1) lookup instead of recursive CTE.
+        
+        Args:
+            node_id: The node to get ancestors for
+            include_self: Whether to include the node itself in the result
+            
+        Returns:
+            List of ancestor node IDs (ordered from root to immediate parent)
+        """
+        async with self._pool.acquire() as conn:
+            if include_self:
+                rows = await conn.fetch("""
+                    SELECT np.ancestor_id
+                    FROM node_path np
+                    JOIN node n ON n.id = np.ancestor_id
+                    WHERE np.descendant_id = $1 AND n.graph_id = $2 AND n.active = TRUE
+                    ORDER BY np.depth DESC
+                """, node_id, self._graph_id)
+            else:
+                rows = await conn.fetch("""
+                    SELECT np.ancestor_id
+                    FROM node_path np
+                    JOIN node n ON n.id = np.ancestor_id
+                    WHERE np.descendant_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE
+                    ORDER BY np.depth DESC
+                """, node_id, self._graph_id)
+            
+            return [row['ancestor_id'] for row in rows]
+    
+    async def get_descendants(
+        self,
+        node_id: int,
+        include_self: bool = False
+    ) -> List[int]:
+        """Get all descendant IDs of a node using the closure table.
+        
+        Uses node_path for O(1) lookup instead of recursive CTE.
+        
+        Args:
+            node_id: The node to get descendants for
+            include_self: Whether to include the node itself in the result
+            
+        Returns:
+            List of descendant node IDs (no specific order)
+        """
+        async with self._pool.acquire() as conn:
+            if include_self:
+                rows = await conn.fetch("""
+                    SELECT np.descendant_id
+                    FROM node_path np
+                    JOIN node n ON n.id = np.descendant_id
+                    WHERE np.ancestor_id = $1 AND n.graph_id = $2 AND n.active = TRUE
+                """, node_id, self._graph_id)
+            else:
+                rows = await conn.fetch("""
+                    SELECT np.descendant_id
+                    FROM node_path np
+                    JOIN node n ON n.id = np.descendant_id
+                    WHERE np.ancestor_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE
+                """, node_id, self._graph_id)
+            
+            return [row['descendant_id'] for row in rows]
