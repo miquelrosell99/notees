@@ -6,13 +6,15 @@ Assets are stored as files in workspace's assets folder:
 Each asset is associated with a node that has the 'asset' type tag.
 Supported file types: Images (JPEG, PNG), Audio (MP3, WAV, OGG, OPUS, WebM)
 """
+from typing import cast, Optional, List
+from pathlib import Path
+from datetime import datetime, timezone
+import uuid as uuid_module
+
+import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional, List
-from pathlib import Path
-import uuid as uuid_module
-from datetime import datetime, timezone
 
 from ..db.connection import get_pool, get_workspace_assets_dir
 from ..db.schema import get_or_create_user_workspace, SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
@@ -181,7 +183,9 @@ async def upload_asset(
     
     user_id = current_user.id
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user_id)
+    
+    async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
     
     try:
         page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, workspace_id)
@@ -191,7 +195,7 @@ async def upload_asset(
         category = get_asset_category(content_type)
         
         # Create repository
-        node_repo = PostgresNodeRepository(pool, workspace_id)
+        node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
         
         # Create the asset node with 'asset' type
         data = NodeCreateData(
@@ -265,7 +269,10 @@ async def get_asset(
     
     user_id = user.id
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user_id)
+    
+    async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
+    
     assets_dir = get_workspace_assets_dir(workspace_id)
     
     # Find the asset file (we don't know the extension)
@@ -296,10 +303,12 @@ async def get_asset_info(
     """Get metadata about an asset."""
     user_id = current_user.id
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user_id)
+    
+    async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
     
     page_type_id, types_property_id, _ = await _get_system_ids(pool, workspace_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id)
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
     
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
@@ -340,10 +349,12 @@ async def delete_asset(
     """Delete an asset and its associated node."""
     user_id = current_user.id
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user_id)
+    
+    async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
     
     page_type_id, types_property_id, _ = await _get_system_ids(pool, workspace_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id)
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
     
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
@@ -378,10 +389,12 @@ async def list_assets(
     """List all assets in the current workspace."""
     user_id = current_user.id
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, user_id)
+    
+    async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
     
     page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, workspace_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id)
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
     
     # Get nodes that have the 'asset' type
     if asset_type_id is None:
