@@ -244,13 +244,24 @@ export function InlineNodeBreadcrumbs({
     const items: BreadcrumbItem[] = [];
     
     // For blocks, show the page first
-    if (!node.is_page && page) {
-      items.push({
-        id: page.id,
-        name: page.name || 'Untitled',
-        icon: page.icon,
-        isPage: true,
-      });
+    if (!node.is_page) {
+      if (page) {
+        // Use the provided page object
+        items.push({
+          id: page.id,
+          name: page.name || 'Untitled',
+          icon: page.icon,
+          isPage: true,
+        });
+      } else if (node.page_id && node.page_name) {
+        // Fallback: use page info from the node itself
+        items.push({
+          id: node.page_id,
+          name: node.page_name,
+          icon: null,
+          isPage: true,
+        });
+      }
     }
     
     // For pages with parent hierarchy, we could show that too
