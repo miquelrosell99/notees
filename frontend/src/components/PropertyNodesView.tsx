@@ -305,6 +305,7 @@ export function PropertyNodesView({
           <NodeGraphViewSimple
             nodes={nodes.filter(n => n.is_page).map(n => ({
               id: n.id,
+              name: n.name || 'Untitled',
               title: n.name || 'Untitled',
               type: 'page' as const,
               tags: n.tags?.map(t => String(t)) || [],

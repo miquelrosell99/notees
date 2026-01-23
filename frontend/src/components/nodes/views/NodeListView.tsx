@@ -25,6 +25,7 @@ import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { sortNodes, compareNodes } from '@/utils/sorting';
+import { findNodeById } from '@/utils/nodeTree';
 import './NodeListView.css';
 
 /**
@@ -148,18 +149,6 @@ function NodeListItem({
   // Get block callbacks from context (only available in editable mode with provider)
   const blockCallbacks = useBlockCallbacks();
 
-  // Helper to find a node by ID in the tree (for child bullet clicks)
-  const findNodeById = useCallback((id: number, nodes: Node[]): Node | null => {
-    for (const n of nodes) {
-      if (n.id === id) return n;
-      if (n.children) {
-        const found = findNodeById(id, n.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  }, []);
-
   // Handlers
   const handleBulletClick = useCallback((blockId: number) => {
     // If clicking the same node, use it directly
@@ -175,7 +164,7 @@ function NodeListItem({
         onNodeClick?.({ id: blockId, is_page: false } as Node);
       }
     }
-  }, [node, children, onNodeClick, findNodeById]);
+  }, [node, children, onNodeClick]);
 
   const handleShiftClick = useCallback((blockId: number) => {
     if (blockId === node.id) {
@@ -188,7 +177,7 @@ function NodeListItem({
         onNodeShiftClick?.({ id: blockId, is_page: false } as Node);
       }
     }
-  }, [node, children, onNodeShiftClick, findNodeById]);
+  }, [node, children, onNodeShiftClick]);
 
   const handleContentChange = useCallback((blockId: number, content: string) => {
     onContentChange?.(blockId, content);

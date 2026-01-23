@@ -566,68 +566,6 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
   selection?.addRange(range);
 }
 
-/**
- * Calculate text position from horizontal pixel offset
- * Used for maintaining cursor column when navigating between blocks
- */
-function getPositionFromHorizontalOffset(element: HTMLElement, horizontalOffset: number, verticalPosition: 'start' | 'end' = 'start'): number {
-  // Use caretPositionFromPoint or caretRangeFromPoint to find the character at the horizontal offset
-  const rect = element.getBoundingClientRect();
-  
-  // Calculate Y coordinate - use top for 'start', bottom for 'end'
-  const y = verticalPosition === 'start' 
-    ? rect.top + 5  // 5px from top
-    : rect.bottom - 5;  // 5px from bottom
-  
-  let range: Range | null = null;
-  
-  // Try standard API first (Firefox, newer browsers)
-  if ('caretPositionFromPoint' in document) {
-    const pos = (document as any).caretPositionFromPoint(horizontalOffset, y);
-    if (pos) {
-      range = document.createRange();
-      range.setStart(pos.offsetNode, pos.offset);
-      range.collapse(true);
-    }
-  }
-  // Fallback to WebKit API (Chrome, Safari)
-  else if ('caretRangeFromPoint' in document) {
-    range = document.caretRangeFromPoint(horizontalOffset, y);
-  }
-  
-  if (!range) {
-    // Fallback: return 0 for start, end for end
-    return verticalPosition === 'start' ? 0 : (element.textContent?.length || 0);
-  }
-  
-  // Convert DOM position to text position
-  let position = 0;
-  const targetContainer = range.startContainer;
-  const targetOffset = range.startOffset;
-  
-  const walker = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-    null
-  );
-  
-  let node;
-  while ((node = walker.nextNode())) {
-    if (node === targetContainer) {
-      position += targetOffset;
-      break;
-    }
-    if (node.nodeType === Node.TEXT_NODE) {
-      position += node.textContent?.length || 0;
-    } else if (isPillElement(node as HTMLElement)) {
-      position += getPillRawLength(node as HTMLElement);
-      walker.nextSibling();
-    }
-  }
-  
-  return position;
-}
-
 export function BlockEditor({ 
   nodeId,
   isPage,
@@ -774,9 +712,6 @@ export function BlockEditor({
   // Track linkNames and typeNames size to detect when node data loads
   const linkNamesSize = linkNames.size;
   const typeNamesSize = typeNames.size;
-  
-  // Track if editor is currently focused to avoid cursor manipulation when not active
-  const isEditorFocused = useRef(false);
   
   // Single effect to handle content rendering and cursor positioning
   useEffect(() => {

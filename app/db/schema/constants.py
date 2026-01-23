@@ -8,14 +8,11 @@ from __future__ import annotations
 from datetime import datetime, timezone, date
 from typing import Optional
 
+# Import from shared utility for consistency
+from ...utils import utc_now_iso
 
 # Schema version for migrations
 SCHEMA_VERSION = 1
-
-
-def utc_now_iso() -> str:
-    """Get current UTC time as ISO string."""
-    return datetime.now(timezone.utc).isoformat()
 
 
 def generate_day_uuid(d: date) -> str:

@@ -15,11 +15,8 @@ import asyncpg
 
 from ..entities import NodeLink, InlineType
 from .interfaces import LinkRepository
-
-
-def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+from .base import normalize_timestamp
+from ...utils import utc_now
 
 
 class PostgresLinkRepository(LinkRepository):

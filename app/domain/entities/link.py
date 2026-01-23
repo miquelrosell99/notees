@@ -20,10 +20,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
-
-def utc_now() -> datetime:
-    """Get current UTC time as timezone-aware datetime."""
-    return datetime.now(timezone.utc)
+# Import from shared utility for consistency
+from ...utils import utc_now
 
 
 @dataclass

@@ -597,7 +597,6 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             nodeId={node.id}
             onLinkClick={handleLinkClick}
             className="sidebar-node-view__linked-refs"
-            defaultCollapsed={true}
           />
         </div>
       )}

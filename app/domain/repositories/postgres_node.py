@@ -13,17 +13,14 @@ from ..entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
 from ..errors import OptimisticLockError
 from ..permissions import PermissionChecker
 from .interfaces import NodeRepository
+from .base import normalize_timestamp
+from ...utils import utc_now
 
 if TYPE_CHECKING:
     pass
 
 # Type alias for connection types
 ConnectionType = Union[Connection, PoolConnectionProxy]
-
-
-def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
 
 
 class PostgresNodeRepository(NodeRepository):

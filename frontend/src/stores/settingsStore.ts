@@ -162,7 +162,7 @@ export const useSettingsStore = create<SettingsState>()(
       showDailyNotes: true,
       fontSize: 'medium',
       quickAddDestination: 'today',
-      useDynamicNodeViews: false, // Feature flag - disabled by default
+      useDynamicNodeViews: true, // Feature flag - enable dynamic query views
       
       // Actions
       setTheme: (theme) => {

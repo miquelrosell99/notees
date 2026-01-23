@@ -30,11 +30,8 @@ from ..entities import (
     generate_uuid,
 )
 from .interfaces import PropertyRepository
-
-
-def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+from .base import normalize_timestamp
+from ...utils import utc_now
 
 
 class PostgresPropertyRepository(PropertyRepository):

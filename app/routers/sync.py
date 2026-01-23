@@ -10,21 +10,16 @@ NOTE: Sync functionality is currently a stub and needs to be redesigned
 for the shared graph model.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
-from datetime import datetime, timezone
 
 from ..models import SyncRequest, SyncResponse, Node as NodeModel, User
 from ..domain import Node
 from .auth import get_current_user
 from ..db.connection import get_pool
 from ..logging_config import logger
+from ..utils import utc_now
 
 
 router = APIRouter(prefix="/api", tags=["Sync & Settings"])
-
-
-def _get_utc_now() -> datetime:
-    """Get current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
 
 
 @router.post("/sync")

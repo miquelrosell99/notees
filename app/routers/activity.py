@@ -3,7 +3,6 @@
 Handles logging and retrieving node activity (edits, link additions, etc.)
 """
 from typing import cast, Optional, List
-from datetime import datetime, timezone
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, Depends
@@ -14,15 +13,11 @@ from ..models import User
 from ..db.connection import get_pool
 from ..db.schema import get_or_create_user_graph
 from ..logging_config import get_logger
+from ..utils import utc_now
 
 
 router = APIRouter(prefix="/api/activity", tags=["Activity"])
 logger = get_logger(__name__)
-
-
-def utc_now() -> datetime:
-    """Get current UTC time."""
-    return datetime.now(timezone.utc)
 
 
 # ============== Pydantic Models ==============

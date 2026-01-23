@@ -18,6 +18,7 @@ import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import { Block } from '../../blocks/Block';
 import { BlockPreview } from '../../blocks/BlockPreview';
+import { findNodeById } from '@/utils/nodeTree';
 import './NodeDocumentView.css';
 
 interface DocumentNodeProps {
@@ -46,18 +47,6 @@ function DocumentNode({
   const children = node.children ?? [];
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
 
-  // Helper to find a node by ID in the tree (for child bullet clicks)
-  const findNodeById = useCallback((id: number, nodes: Node[]): Node | null => {
-    for (const n of nodes) {
-      if (n.id === id) return n;
-      if (n.children) {
-        const found = findNodeById(id, n.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  }, []);
-
   // Handlers
   const handleBulletClick = useCallback((blockId: number) => {
     if (blockId === node.id) {
@@ -70,7 +59,7 @@ function DocumentNode({
         onNodeClick?.({ id: blockId, is_page: false } as Node);
       }
     }
-  }, [node, children, onNodeClick, findNodeById]);
+  }, [node, children, onNodeClick]);
 
   const handleShiftClick = useCallback((blockId: number) => {
     if (blockId === node.id) {
@@ -83,7 +72,7 @@ function DocumentNode({
         onNodeShiftClick?.({ id: blockId, is_page: false } as Node);
       }
     }
-  }, [node, children, onNodeShiftClick, findNodeById]);
+  }, [node, children, onNodeShiftClick]);
 
   const handleContentChange = useCallback((blockId: number, content: string) => {
     onContentChange?.(blockId, content);
