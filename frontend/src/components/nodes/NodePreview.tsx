@@ -116,15 +116,18 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
   }, [updateNode]);
 
   const handleAddBlock = useCallback(async () => {
+    // Compute next sequence from all node children
+    const maxSequence = node?.children?.reduce((max, child) => 
+      Math.max(max, child.sequence ?? 0), -1) ?? -1;
+    
     const newNode = await createNode.mutateAsync({ 
       name: '', 
       parent_id: nodeId,
-      // Add at the end of the children list
-      sequence: node?.children?.length ?? 0,
+      sequence: maxSequence + 1,
     });
     // Set the new block to edit mode so the user can start typing right away
     enterEditMode(newNode.id);
-  }, [nodeId, node?.children?.length, createNode, enterEditMode]);
+  }, [nodeId, node?.children, createNode, enterEditMode]);
 
   if (isLoading) {
     return (

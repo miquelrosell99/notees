@@ -80,15 +80,19 @@ export function NodeContent({
   }, [updateNode]);
 
   const handleAddBlock = useCallback(async () => {
+    // Compute next sequence from all node children (not just filtered ones)
+    // Find the max sequence and add 1, or default to 0 if no children
+    const maxSequence = node.children?.reduce((max, child) => 
+      Math.max(max, child.sequence ?? 0), -1) ?? -1;
+    
     const newNode = await createNode.mutateAsync({
       name: '',
       parent_id: node.id,
-      // Add at the end of the children list
-      sequence: children.length,
+      sequence: maxSequence + 1,
     });
     // Set the new block to edit mode so the user can start typing right away
     enterEditMode(newNode.id);
-  }, [createNode, node.id, children.length, enterEditMode]);
+  }, [createNode, node.id, node.children, enterEditMode]);
 
   const handleNodeClick = useCallback((clickedNode: Node) => {
     openNode(clickedNode.id, clickedNode.is_page ? 'page' : 'block');

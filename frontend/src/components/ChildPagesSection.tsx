@@ -35,12 +35,16 @@ export function useChildPagesSectionState(pageId: number, childPages?: Node[]): 
   const createNode = useCreateNode();
   
   const onAdd = useCallback(() => {
-    createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: childPages?.length ?? 0 }, {
+    // Compute next sequence from existing child pages
+    const maxSequence = childPages?.reduce((max, child) => 
+      Math.max(max, child.sequence ?? 0), -1) ?? -1;
+    
+    createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: maxSequence + 1 }, {
       onSuccess: (newPage) => {
         openNode(newPage.id, 'page');
       }
     });
-  }, [createNode, pageId, childPages?.length, openNode]);
+  }, [createNode, pageId, childPages, openNode]);
   
   return {
     viewMode,
@@ -113,12 +117,16 @@ export function ChildPagesSection({
   }, [addSidebarCard]);
   
   const handleAddChildPage = useCallback(() => {
-    createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: childPages?.length ?? 0 }, {
+    // Compute next sequence from existing child pages
+    const maxSequence = childPages?.reduce((max, child) => 
+      Math.max(max, child.sequence ?? 0), -1) ?? -1;
+    
+    createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: maxSequence + 1 }, {
       onSuccess: (newPage) => {
         openNode(newPage.id, 'page');
       }
     });
-  }, [createNode, pageId, childPages?.length, openNode]);
+  }, [createNode, pageId, childPages, openNode]);
   
   // Don't render if no child pages
   if (count === 0) {
