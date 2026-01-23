@@ -104,16 +104,18 @@ def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
     original_dir = settings.database_dir
     settings.database_dir = data_dir
     
-    # Update auth module's USERS_DIR for user files
+    # Update auth module's USERS_DIR for user files (if it exists)
     from app import auth
-    original_users_dir = auth.USERS_DIR
-    auth.USERS_DIR = data_dir / "users"
+    original_users_dir = getattr(auth, 'USERS_DIR', None)
+    if original_users_dir is not None:
+        auth.USERS_DIR = data_dir / "users"
     
     yield data_dir
     
     # Restore
     settings.database_dir = original_dir
-    auth.USERS_DIR = original_users_dir
+    if original_users_dir is not None:
+        auth.USERS_DIR = original_users_dir
 
 
 @pytest_asyncio.fixture(scope="function")

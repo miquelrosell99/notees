@@ -4,6 +4,7 @@ from typing import Optional, List, Dict
 from fastapi import APIRouter, HTTPException, Depends
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
+from ...domain.errors import DatePageDeletionError
 from ...db.schema import SYSTEM_TYPE_UUIDS
 from ...db.connection import get_workspace_assets_dir
 from ..auth import get_current_user
@@ -603,6 +604,10 @@ async def delete_node(
     """Delete a node and all its children.
     
     Also deletes any associated asset files (files named with the node's UUID).
+    
+    Raises:
+        HTTPException 400: If trying to delete a month/year page with active day children
+        HTTPException 404: If node not found
     """
     service = await _get_node_service(user)
     
@@ -622,7 +627,11 @@ async def delete_node(
             except Exception as e:
                 logger.warning(f"Failed to delete asset file {asset_file}: {e}")
     
-    success = await service.delete_node(node_id)
+    try:
+        success = await service.delete_node(node_id)
+    except DatePageDeletionError as e:
+        raise HTTPException(400, e.message)
+    
     if not success:
         raise HTTPException(404, "Node not found")
     

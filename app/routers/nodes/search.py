@@ -57,7 +57,7 @@ async def get_graph_data_endpoint(
                 "types": node_type_ids,
             })
         
-        # Get links between pages (only page-to-page links)
+        # Get reference links between pages (only page-to-page links)
         link_rows = await conn.fetch(
             """
             SELECT DISTINCT nl.source_id, nl.target_id
@@ -73,7 +73,7 @@ async def get_graph_data_endpoint(
             service._graph_id
         )
         
-        # Build links - source is the page containing the block that links
+        # Build reference links - source is the page containing the block that links
         links = []
         page_id_set = {row['id'] for row in page_rows}
         
@@ -96,13 +96,39 @@ async def get_graph_data_endpoint(
                 links.append({
                     "source": source_page_id,
                     "target": target_id,
+                    "type": "reference",
                 })
         
-        # Remove duplicate links
+        # Get parent relationships between pages
+        parent_rows = await conn.fetch(
+            """
+            SELECT child.id as child_id, parent.id as parent_id
+            FROM node child
+            JOIN node parent ON child.parent_id = parent.id
+            WHERE child.graph_id = $1 
+              AND child.is_page = TRUE 
+              AND parent.is_page = TRUE
+              AND child.active = TRUE
+              AND parent.active = TRUE
+            """,
+            service._graph_id
+        )
+        
+        for row in parent_rows:
+            child_id = row['child_id']
+            parent_id = row['parent_id']
+            if child_id in page_id_set and parent_id in page_id_set:
+                links.append({
+                    "source": parent_id,
+                    "target": child_id,
+                    "type": "parent",
+                })
+        
+        # Remove duplicate links (keeping first occurrence)
         seen = set()
         unique_links = []
         for link in links:
-            key = (link['source'], link['target'])
+            key = (link['source'], link['target'], link['type'])
             if key not in seen:
                 seen.add(key)
                 unique_links.append(link)

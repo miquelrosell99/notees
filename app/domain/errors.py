@@ -101,6 +101,23 @@ class SystemTypeConstraintError(NodeError):
         super().__init__(message=message, code="SYSTEM_TYPE_CONSTRAINT")
 
 
+class DatePageDeletionError(NodeError):
+    """Raised when trying to delete a month or year page that has active day children.
+    
+    Month and year pages are automatically created as parents for daily pages,
+    and cannot be deleted while they have active daily page descendants.
+    """
+    
+    def __init__(self, node_type: str, child_count: int):
+        self.node_type = node_type
+        self.child_count = child_count
+        super().__init__(
+            message=f"Cannot delete {node_type} page: it has {child_count} active day page(s). "
+                    f"Delete all day pages first.",
+            code="DATE_PAGE_HAS_CHILDREN"
+        )
+
+
 # ==================== User Errors ====================
 
 class UserError(DomainError):
