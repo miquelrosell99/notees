@@ -321,7 +321,7 @@ export function DatabaseManagementView({
               {databases.map((db) => (
                 <Card 
                   key={db.name} 
-                  className={`db-management__card ${db.name === data?.active ? 'db-management__card--active' : ''}`}
+                  className={`db-management__card ${db.name === data?.active ? 'db-management__card--active' : ''} ${deleteConfirm === db.name ? 'db-management__card--delete-confirm' : ''}`}
                   elevation="low"
                   padding={false}
                   interactive
