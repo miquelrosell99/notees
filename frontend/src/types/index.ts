@@ -4,3 +4,4 @@
 export * from './api';
 export * from './views';
 export * from './nodeCollection';
+export * from './query';

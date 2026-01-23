@@ -11,7 +11,7 @@
  * - Drag-and-drop row reordering
  * - Depth-based row indentation
  */
-import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } from 'react';
 import { Checkbox } from './Checkbox';
 import './Table.css';
 
@@ -389,9 +389,8 @@ export function Table<T>({
     ].filter(Boolean).join(' ');
 
     return (
-      <>
+      <Fragment key={key}>
         <tr
-          key={key}
           className={rowClasses}
           onClick={(e) => handleRowClick(row, e)}
         >
@@ -438,7 +437,7 @@ export function Table<T>({
         {shouldShowChildren && children.map((child, childIndex) => 
           renderRow(child, childIndex, currentDepth + 1)
         )}
-      </>
+      </Fragment>
     );
   };
 

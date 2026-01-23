@@ -34,6 +34,24 @@ from .user import (
     UserCredentials,
     AuthenticatedUser,
 )
+from .query import (
+    QueryBlockType,
+    PropertyOperator,
+    ContentOperator,
+    QueryBlock,
+    ContainerBlock,
+    NotBlock,
+    TypeBlock,
+    PropertyBlock,
+    ContentBlock,
+    ReferenceBlock,
+    ReferencePathBlock,
+    AncestorPathBlock,
+    UuidBlock,
+    QueryBlockTree,
+    NodeView,
+    QUERY_PLACEHOLDERS,
+)
 
 __all__ = [
     # Node
@@ -65,4 +83,21 @@ __all__ = [
     "UserCreateData",
     "UserCredentials",
     "AuthenticatedUser",
+    # Query
+    "QueryBlockType",
+    "PropertyOperator",
+    "ContentOperator",
+    "QueryBlock",
+    "ContainerBlock",
+    "NotBlock",
+    "TypeBlock",
+    "PropertyBlock",
+    "ContentBlock",
+    "ReferenceBlock",
+    "ReferencePathBlock",
+    "AncestorPathBlock",
+    "UuidBlock",
+    "QueryBlockTree",
+    "NodeView",
+    "QUERY_PLACEHOLDERS",
 ]

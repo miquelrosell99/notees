@@ -46,6 +46,9 @@ interface SettingsState {
   fontSize: 'small' | 'medium' | 'large';
   quickAddDestination: QuickAddDestination;
   
+  // Feature flags
+  useDynamicNodeViews: boolean;
+  
   // Actions
   setTheme: (theme: ThemePreference) => void;
   setDateFormat: (format: DateFormat) => void;
@@ -53,6 +56,7 @@ interface SettingsState {
   setShowDailyNotes: (show: boolean) => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setQuickAddDestination: (destination: QuickAddDestination) => void;
+  setUseDynamicNodeViews: (use: boolean) => void;
 }
 
 /**
@@ -158,6 +162,7 @@ export const useSettingsStore = create<SettingsState>()(
       showDailyNotes: true,
       fontSize: 'medium',
       quickAddDestination: 'today',
+      useDynamicNodeViews: false, // Feature flag - disabled by default
       
       // Actions
       setTheme: (theme) => {
@@ -183,8 +188,10 @@ export const useSettingsStore = create<SettingsState>()(
       
       setQuickAddDestination: (quickAddDestination) => {
         set({ quickAddDestination });
-      },
-    }),
+      },      
+      setUseDynamicNodeViews: (useDynamicNodeViews) => {
+        set({ useDynamicNodeViews });
+      },    }),
     {
       name: 'notees-settings',
       // Initialize theme on rehydration
