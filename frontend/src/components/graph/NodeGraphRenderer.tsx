@@ -875,7 +875,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const displayName = node.name.length > 18 
         ? node.name.slice(0, 18) + '...' 
         : node.name;
-      ctx.fillText(displayName, node.x, node.y + baseRadius + 6);
+      ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
     
