@@ -112,16 +112,32 @@ class PostgresNodeViewRepository:
             query_json = DEFAULT_QUERY_BLOCK_TREE.copy()
         
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                INSERT INTO node_view (
-                    uuid, node_id, name, query_json, view_type, 
-                    order_index, is_default, active,
-                    create_date, write_date, create_uid, write_uid
-                )
-                VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE, $8, $8, $9, $9)
-                RETURNING *
-            """, uuid, node_id, name, json.dumps(query_json), view_type,
-                order_index, is_default, now, self._user_id)
+            # Use ON CONFLICT to handle the unique constraint on default views
+            # If a default view already exists for this node+view_type, return the existing one
+            if is_default:
+                row = await conn.fetchrow("""
+                    INSERT INTO node_view (
+                        uuid, node_id, name, query_json, view_type, 
+                        order_index, is_default, active,
+                        create_date, write_date, create_uid, write_uid
+                    )
+                    VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE, $8, $8, $9, $9)
+                    ON CONFLICT (node_id, view_type) WHERE is_default = TRUE
+                    DO UPDATE SET write_date = EXCLUDED.write_date
+                    RETURNING *
+                """, uuid, node_id, name, json.dumps(query_json), view_type,
+                    order_index, is_default, now, self._user_id)
+            else:
+                row = await conn.fetchrow("""
+                    INSERT INTO node_view (
+                        uuid, node_id, name, query_json, view_type, 
+                        order_index, is_default, active,
+                        create_date, write_date, create_uid, write_uid
+                    )
+                    VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE, $8, $8, $9, $9)
+                    RETURNING *
+                """, uuid, node_id, name, json.dumps(query_json), view_type,
+                    order_index, is_default, now, self._user_id)
             
             if not row:
                 raise RuntimeError(f"Failed to create NodeView for node {node_id}")

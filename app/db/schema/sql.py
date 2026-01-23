@@ -409,6 +409,11 @@ CREATE INDEX IF NOT EXISTS idx_node_view_view_type ON node_view(view_type);
 CREATE INDEX IF NOT EXISTS idx_node_view_node_view_type ON node_view(node_id, view_type);
 CREATE INDEX IF NOT EXISTS idx_node_view_order ON node_view(node_id, view_type, order_index);
 
+-- Ensure only one default view per node+view_type combination
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_view_default_unique 
+    ON node_view(node_id, view_type) 
+    WHERE is_default = TRUE;
+
 -- ============================================================
 -- SETTINGS & ACTIVITY
 -- ============================================================
