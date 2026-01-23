@@ -2,10 +2,12 @@
 
 Handles all node (page, block, tag) CRUD operations.
 """
+from typing import cast, Optional, List, Dict, Any
+from datetime import datetime, date
+
+import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
 
 from ..domain.entities import Node, NodeCreateData, NodeUpdateData
 from ..domain.services import NodeService, LinkParsingService
@@ -240,7 +242,8 @@ def _build_children_response(children: List[Node]) -> List[NodeResponse]:
         response = node_map[node.id]
         if node.parent_id and node.parent_id in node_map:
             parent = node_map[node.parent_id]
-            parent.children.append(response)
+            if parent.children is not None:
+                parent.children.append(response)
         else:
             root_children.append(response)
     
@@ -357,7 +360,7 @@ async def _get_node_service(user: User) -> NodeService:
     
     async with pool.acquire() as conn:
         # Get user's workspace
-        workspace_id = await get_or_create_user_workspace(conn, int(user.id))
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
         
         # Get system IDs (cached in real implementation)
         row = await conn.fetchrow(
@@ -418,7 +421,7 @@ async def get_graph_data_endpoint(
         
         # Get types for each page
         page_ids = [row['id'] for row in page_rows]
-        type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, page_ids) if page_ids else {}
+        type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, page_ids) if page_ids else {}
         
         # Build nodes
         nodes = []
@@ -516,7 +519,7 @@ async def search_nodes(
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch type_ids for all nodes using PostgreSQL
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     # Build response, optionally filtering by types
     result = []
@@ -555,11 +558,11 @@ async def list_types(
             service._workspace_id
         )
     
-    nodes = [service._node_repo._row_to_node(row) for row in rows]
+    nodes = [service._node_repo.row_to_node(row) for row in rows]
     
     # Batch fetch type_ids for all type nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else []) 
@@ -585,7 +588,7 @@ async def search_types(
     
     # Batch fetch type_ids
     node_ids = [n.id for n in pages if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
@@ -625,11 +628,11 @@ async def get_nodes_with_type(
             ORDER BY n.write_date DESC
         """, types_property_id, type_id, service._workspace_id)
     
-    nodes = [service._node_repo._row_to_node(row) for row in rows]
+    nodes = [service._node_repo.row_to_node(row) for row in rows]
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
@@ -676,7 +679,7 @@ async def list_nodes(
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     # Build response, optionally filtering by types
     result = []
@@ -758,11 +761,11 @@ async def list_daily_pages(
         """, service._workspace_id)
     
     # Get node IDs for batch type lookup
-    nodes = [service._node_repo._row_to_node(row) for row in rows]
+    nodes = [service._node_repo.row_to_node(row) for row in rows]
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch types for all nodes
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     result = []
     for node in nodes:
@@ -813,7 +816,7 @@ async def get_or_create_daily(
     if existing:
         # Ensure day type is assigned (for legacy pages created before types were added)
         type_ids = await _get_type_ids(service, existing.id) if existing.id else []
-        if day_type_id not in type_ids:
+        if day_type_id not in type_ids and existing.id is not None:
             await service.add_type(existing.id, day_type_id, _system_call=True)
             type_ids.append(day_type_id)
         return _node_to_response(existing, types=type_ids)
@@ -918,7 +921,7 @@ async def get_or_create_monthly(
     if existing:
         # Ensure month type is assigned (for legacy pages created before types were added)
         type_ids = await _get_type_ids(service, existing.id) if existing.id else []
-        if month_type_id not in type_ids:
+        if month_type_id not in type_ids and existing.id is not None:
             await service.add_type(existing.id, month_type_id, _system_call=True)
             type_ids.append(month_type_id)
         return _node_to_response(existing, types=type_ids)
@@ -992,7 +995,7 @@ async def get_or_create_yearly(
     if existing:
         # Ensure year type is assigned (for legacy pages created before types were added)
         type_ids = await _get_type_ids(service, existing.id) if existing.id else []
-        if year_type_id not in type_ids:
+        if year_type_id not in type_ids and existing.id is not None:
             await service.add_type(existing.id, year_type_id, _system_call=True)
             type_ids.append(year_type_id)
         return _node_to_response(existing, types=type_ids)
@@ -1276,7 +1279,7 @@ async def get_node(
     type_ids = await _get_type_ids(service, node_id)
     
     # Get tags for the node (from node_link with is_tag=1)
-    tag_ids = await _get_tag_ids(service._pool, service._workspace_id, node_id)
+    tag_ids = await _get_tag_ids(service._pool, service._workspace_id or 0, node_id)
     
     # Auto-fix legacy date nodes that don't have their date type assigned
     if node.is_day or node.is_month or node.is_year:
@@ -1564,7 +1567,7 @@ async def get_page_content(
                 node_type_map[node_id].append(type_id)
     
     # Get tags for all nodes in one batch (from node_link with is_tag=1)
-    node_tag_map = await _get_tag_ids_batch(conn, all_node_ids)
+    node_tag_map = await _get_tag_ids_batch(pool, service._workspace_id or 0, all_node_ids)
     
     # Build tree structure from flat list
     block_map = {}
@@ -1727,9 +1730,9 @@ async def delete_node(
         raise HTTPException(404, "Node not found")
     
     # Try to delete any associated asset file
-    if node.uuid:
-        from ..db.connection import get_assets_dir
-        assets_dir = get_assets_dir(user.id)
+    if node.uuid and service._workspace_id is not None:
+        from ..db.connection import get_workspace_assets_dir
+        assets_dir = get_workspace_assets_dir(service._workspace_id)
         # Check for asset files with any extension
         for asset_file in assets_dir.glob(f"{node.uuid}.*"):
             try:
@@ -2040,7 +2043,8 @@ async def get_backlinks(
     """Get backlinks to a node."""
     service = await _get_node_service(user)
     
-    backlinks = await service._link_service.get_backlinks(node_id, include_inherited)
+    # Note: include_inherited parameter is not yet implemented in the service
+    backlinks = await service._link_service.get_backlinks(node_id)
     
     result = []
     for link in backlinks:
@@ -2079,7 +2083,7 @@ async def get_linked_references(
             continue
         
         # Get all descendants of the source node recursively
-        children = await _get_descendants(service._node_repo, source.id)
+        children = await _get_descendants(service._node_repo, source.id) if source.id else []
         
         source_page = None
         if source.page_id:
@@ -2505,8 +2509,12 @@ async def update_date_format(
     pattern = request.new_format
     
     # Also save the user's date format preference
-    from ..db.utils import set_user_setting
-    await set_user_setting(user.id, "date_format", pattern)
+    async with service._pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO settings (workspace_id, key, value) 
+            VALUES ($1, 'date_format', $2)
+            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+        """, service._workspace_id, pattern)
     
     updated_count = 0
     errors = []

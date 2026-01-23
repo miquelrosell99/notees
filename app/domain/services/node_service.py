@@ -44,6 +44,10 @@ TYPE_UUID_TO_FLAG = {
 class NodeService:
     """Domain service for node operations."""
     
+    # Optional attributes set by routers for direct pool/workspace access
+    _pool: Any = None
+    _workspace_id: Optional[int] = None
+    
     def __init__(
         self,
         node_repository: NodeRepository,
