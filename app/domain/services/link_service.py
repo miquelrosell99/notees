@@ -209,10 +209,8 @@ class LinkParsingService:
             is_tag = target_id in existing_tag_targets
             
             link = NodeLink(
-                source_node_id=node_id,
-                target_node_id=target_id,
-                position=position,
-                property_id=None,  # Text link, not property link
+                source_id=node_id,
+                target_id=target_id,
                 is_tag=is_tag,
             )
             created_link = await self._link_repo.create(link)
@@ -280,17 +278,15 @@ class LinkParsingService:
             )
             return NodeLink(
                 id=row['id'],
-                source_node_id=source_node_id,
-                target_node_id=target_node_id,
+                source_id=source_node_id,
+                target_id=target_node_id,
                 is_tag=True,
             )
         else:
             # Create new tag link
             link = NodeLink(
-                source_node_id=source_node_id,
-                target_node_id=target_node_id,
-                position=0,
-                property_id=None,
+                source_id=source_node_id,
+                target_id=target_node_id,
                 is_tag=True,
             )
             return await self._link_repo.create(link)
@@ -344,8 +340,8 @@ class LinkParsingService:
                 continue
             
             inline_type = InlineType(
-                source_node_id=node_id,
-                type_node_id=type_id,
+                node_id=node_id,
+                type_id=type_id,
                 position=position,
             )
             created_type = await self._inline_type_repo.create(inline_type)
@@ -411,10 +407,8 @@ class LinkParsingService:
                 continue
             
             link = NodeLink(
-                source_node_id=node_id,
-                target_node_id=target_id,
-                position=0,
-                property_id=property_id,
+                source_id=node_id,
+                target_id=target_id,
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)
@@ -467,10 +461,8 @@ class LinkParsingService:
         for row in rows:
             link = NodeLink(
                 id=row['id'],
-                source_node_id=row['source_id'],
-                target_node_id=row['target_id'],
-                position=row['position'],
-                property_id=row['property_id'],
+                source_id=row['source_id'],
+                target_id=row['target_id'],
             )
             
             # Build breadcrumb path
