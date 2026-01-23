@@ -1,0 +1,171 @@
+"""Pydantic models for the Properties API."""
+from typing import Optional, List, Any
+from pydantic import BaseModel
+
+
+# ============== Response Models ==============
+
+class PropertyResponse(BaseModel):
+    """Property response model."""
+    id: int
+    uuid: str
+    name: str
+    icon: Optional[str] = None
+    type: str
+    is_multi: bool = False
+    is_system: bool = False
+    is_local: bool = False
+    node_id: Optional[int] = None  # For local properties
+    create_date: str
+    write_date: str
+    # For relation-type properties
+    type_filters: List[int] = []
+    # For selection-type properties
+    selection_lines: List["SelectionLineResponse"] = []
+
+
+class SelectionLineResponse(BaseModel):
+    """Selection line (option) response."""
+    id: int
+    property_id: int
+    name: str
+    icon: Optional[str] = None
+    order: int = 0
+
+
+class NodePropertyResponse(BaseModel):
+    """Node property assignment response."""
+    id: int
+    node_id: int
+    property_id: int
+    create_date: str
+    write_date: str
+
+
+class ScalarValueResponse(BaseModel):
+    """Scalar value response."""
+    id: int
+    node_property_id: int
+    property_id: int
+    node_id: int
+    value_text: Optional[str] = None
+    value_boolean: Optional[bool] = None
+    value_float: Optional[float] = None
+    value_integer: Optional[int] = None
+    order: int = 0
+
+
+class RelationValueResponse(BaseModel):
+    """Relation value response."""
+    id: int
+    node_property_id: int
+    property_id: int
+    node_id: int
+    target_node_id: int
+    order: int = 0
+
+
+class SelectionValueResponse(BaseModel):
+    """Selection value response."""
+    id: int
+    node_property_id: int
+    property_id: int
+    node_id: int
+    selection_line_id: int
+    order: int = 0
+
+
+class TypePropertyResponse(BaseModel):
+    """Type/class property response."""
+    id: int
+    type_node_id: int
+    type_node_name: str
+    property_id: int
+    property_name: str
+    property_type: str
+    sequence: int = 0
+    default_value: Optional[Any] = None
+    hidden: bool = False
+
+
+class TypeExtendsResponse(BaseModel):
+    """Type inheritance (extends) response."""
+    id: int
+    type_node_id: int
+    type_node_name: str
+    extends_type_node_id: int
+    extends_type_node_name: str
+    sequence: int = 0
+
+
+# ============== Request Models ==============
+
+class PropertyCreateRequest(BaseModel):
+    """Request to create a property."""
+    name: str
+    icon: Optional[str] = None
+    type: str = "text"  # integer, float, boolean (scalar) | node, text, image, date (relation) | selection
+    is_multi: bool = False
+    is_local: bool = False
+    node_id: Optional[int] = None  # For local properties (must be a page node)
+    # For relation-type: which types filter selectable nodes
+    type_filters: List[int] = []
+    # For selection-type: initial options
+    selection_lines: List[str] = []
+
+
+class PropertyUpdateRequest(BaseModel):
+    """Request to update a property."""
+    name: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class PropertyTypeChangeRequest(BaseModel):
+    """Request to change a property's type."""
+    new_type: str
+    new_is_multi: Optional[bool] = None
+
+
+class SelectionLineRequest(BaseModel):
+    """Request to add/update a selection line."""
+    name: str
+    icon: Optional[str] = None
+    order: int = 0
+
+
+class SelectionLineUpdateRequest(BaseModel):
+    """Request to update a selection line."""
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    order: Optional[int] = None
+
+
+class ScalarValueRequest(BaseModel):
+    """Request to set a scalar value."""
+    value: Any
+    order: int = 0
+
+
+class RelationValueRequest(BaseModel):
+    """Request to set a relation value."""
+    target_node_id: int
+    order: int = 0
+
+
+class SelectionValueRequest(BaseModel):
+    """Request to set a selection value."""
+    selection_line_id: int
+    order: int = 0
+
+
+class TypePropertyRequest(BaseModel):
+    """Request to link a property to a type/class."""
+    property_id: int
+    sequence: int = 0
+    default_value: Optional[Any] = None
+
+
+class TypeExtendsRequest(BaseModel):
+    """Request to add a type extension (inheritance)."""
+    extends_type_node_id: int
+    sequence: int = 0

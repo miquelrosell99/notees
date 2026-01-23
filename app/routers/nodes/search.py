@@ -160,7 +160,7 @@ async def search_nodes(
     return {"nodes": result}
 
 
-@router.get("")
+@router.get("/", name="list_nodes")
 async def list_nodes(
     pages_only: bool = False,
     parent_id: Optional[int] = None,
