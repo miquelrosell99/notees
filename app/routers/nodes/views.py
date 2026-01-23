@@ -17,7 +17,7 @@ from .helpers import _get_node_service
 
 
 logger = get_logger(__name__)
-router = APIRouter()
+router = APIRouter(tags=["NodeViews"])
 
 
 # ==================== Pydantic Models ====================
@@ -123,7 +123,7 @@ async def _node_view_to_response(
 
 # ==================== Endpoints ====================
 
-@router.get("/")
+@router.get("")
 async def list_node_views(
     node_id: int,
     view_type: Optional[str] = None,
@@ -196,7 +196,7 @@ async def get_default_view(
     )
 
 
-@router.post("/")
+@router.post("")
 async def create_node_view(
     request: NodeViewCreateRequest,
     user: User = Depends(get_current_user),

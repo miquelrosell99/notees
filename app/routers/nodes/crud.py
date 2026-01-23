@@ -1,7 +1,7 @@
 """CRUD operations for nodes."""
 from typing import Optional, List, Dict
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError
@@ -145,7 +145,7 @@ async def get_archived_pages(
 
 @router.get("/{node_id}")
 async def get_node(
-    node_id: int,
+    node_id: int = Path(..., ge=1, description="Node ID (must be a positive integer)"),
     include_children: bool = False,
     include_backlinks: bool = False,
     include_properties: bool = False,
