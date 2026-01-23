@@ -15,6 +15,8 @@ import {
   mdiSetAll,
   mdiSetCenter,
   mdiCancel,
+  mdiChevronUp,
+  mdiChevronDown,
 } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Card } from '../core/Card';
@@ -56,6 +58,61 @@ export interface FilterBlockProps {
   onDelete: () => void;
   readOnly?: boolean;
   depth?: number;
+  /** Index in parent's blocks array, for reordering */
+  index?: number;
+  /** Total number of siblings, for reordering */
+  totalSiblings?: number;
+  /** Callback to move block up */
+  onMoveUp?: () => void;
+  /** Callback to move block down */
+  onMoveDown?: () => void;
+}
+
+// ==================== Filter Block Actions ====================
+
+interface FilterBlockActionsProps {
+  readOnly?: boolean;
+  index?: number;
+  totalSiblings?: number;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDelete: () => void;
+}
+
+function FilterBlockActions({ readOnly, index, totalSiblings, onMoveUp, onMoveDown, onDelete }: FilterBlockActionsProps) {
+  if (readOnly) return null;
+  
+  const canMoveUp = index !== undefined && index > 0 && onMoveUp;
+  const canMoveDown = index !== undefined && totalSiblings !== undefined && index < totalSiblings - 1 && onMoveDown;
+  const showReorderButtons = onMoveUp || onMoveDown;
+  
+  return (
+    <div className="filter-block__actions">
+      {showReorderButtons && (
+        <>
+          <button
+            type="button"
+            className="filter-block__reorder-btn"
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            title="Move up"
+          >
+            <Icon path={mdiChevronUp} size={0.6} />
+          </button>
+          <button
+            type="button"
+            className="filter-block__reorder-btn"
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            title="Move down"
+          >
+            <Icon path={mdiChevronDown} size={0.6} />
+          </button>
+        </>
+      )}
+      <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
+    </div>
+  );
 }
 
 // ==================== Dynamic Query Section ====================
@@ -82,6 +139,14 @@ function DynamicQuerySection({ blocks, onUpdate, readOnly, depth }: DynamicQuery
     onUpdate(blocks.filter((_, i) => i !== index));
   }, [blocks, onUpdate]);
   
+  const handleMoveBlock = useCallback((fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= blocks.length) return;
+    const newBlocks = [...blocks];
+    const [moved] = newBlocks.splice(fromIndex, 1);
+    newBlocks.splice(toIndex, 0, moved);
+    onUpdate(newBlocks);
+  }, [blocks, onUpdate]);
+  
   return (
     <div className="filter-block__dynamic-query">
       <div className="filter-block__dynamic-query-hint">
@@ -95,6 +160,10 @@ function DynamicQuerySection({ blocks, onUpdate, readOnly, depth }: DynamicQuery
           onDelete={() => handleDeleteBlock(index)}
           readOnly={readOnly}
           depth={depth + 1}
+          index={index}
+          totalSiblings={blocks.length}
+          onMoveUp={() => handleMoveBlock(index, index - 1)}
+          onMoveDown={() => handleMoveBlock(index, index + 1)}
         />
       ))}
       {!readOnly && (
@@ -106,7 +175,7 @@ function DynamicQuerySection({ blocks, onUpdate, readOnly, depth }: DynamicQuery
 
 // ==================== Type Filter Block ====================
 
-export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly }: FilterBlockProps) {
+export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
   const typeBlock = block as TypeBlock;
   const { data: types } = useTypes();
   
@@ -144,9 +213,14 @@ export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly }: FilterB
           ))}
         </select>
         <div className="filter-block__spacer" />
-        {!readOnly && (
-          <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
-        )}
+        <FilterBlockActions
+          readOnly={readOnly}
+          index={index}
+          totalSiblings={totalSiblings}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDelete={onDelete}
+        />
       </div>
       <div className="filter-block__value">
         <NodeSelector
@@ -164,7 +238,7 @@ export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly }: FilterB
 
 // ==================== Content Filter Block ====================
 
-export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly }: FilterBlockProps) {
+export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
   const contentBlock = block as ContentBlock;
   
   return (
@@ -183,9 +257,14 @@ export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly }: Filt
           ))}
         </select>
         <div className="filter-block__spacer" />
-        {!readOnly && (
-          <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
-        )}
+        <FilterBlockActions
+          readOnly={readOnly}
+          index={index}
+          totalSiblings={totalSiblings}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDelete={onDelete}
+        />
       </div>
       <div className="filter-block__value">
         <input
@@ -207,7 +286,7 @@ export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly }: Filt
  * ReferenceFilterBlock - Filter nodes that reference a specific page
  * Supports both static page selection and dynamic query mode.
  */
-export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0 }: FilterBlockProps) {
+export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
   const refBlock = block as ReferenceBlock;
   const { data: pages } = usePages();
   
@@ -270,9 +349,14 @@ export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, dept
             size="sm"
           />
         )}
-        {!readOnly && (
-          <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
-        )}
+        <FilterBlockActions
+          readOnly={readOnly}
+          index={index}
+          totalSiblings={totalSiblings}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDelete={onDelete}
+        />
       </div>
       <div className="filter-block__value">
         {isPlaceholder ? (
@@ -315,7 +399,7 @@ export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, dept
  * AncestorPathFilterBlock - Filter nodes by parent page
  * Supports both static page selection and dynamic query mode.
  */
-export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0 }: FilterBlockProps) {
+export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
   const ancestorBlock = block as AncestorPathBlock;
   const { data: pages } = usePages();
   
@@ -383,9 +467,14 @@ export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, d
             size="sm"
           />
         )}
-        {!readOnly && (
-          <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
-        )}
+        <FilterBlockActions
+          readOnly={readOnly}
+          index={index}
+          totalSiblings={totalSiblings}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDelete={onDelete}
+        />
       </div>
       <div className="filter-block__value">
         {isDynamic ? (
@@ -411,7 +500,7 @@ export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, d
 
 // ==================== Property Filter Block ====================
 
-export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly }: FilterBlockProps) {
+export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
   const propBlock = block as PropertyBlock;
   
   const operators = useMemo(() => {
@@ -429,9 +518,14 @@ export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly }: Fil
         <Icon path={mdiCodeBraces} size={0.7} className="filter-block__icon" />
         <span className="filter-block__label">Property</span>
         <div className="filter-block__spacer" />
-        {!readOnly && (
-          <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
-        )}
+        <FilterBlockActions
+          readOnly={readOnly}
+          index={index}
+          totalSiblings={totalSiblings}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDelete={onDelete}
+        />
       </div>
       <div className="filter-block__row">
         <input
@@ -481,7 +575,7 @@ export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly }: Fil
 
 // ==================== Container Filter Block ====================
 
-export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0 }: FilterBlockProps) {
+export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
   const isNotBlock = block.type === 'NOT_CONTAINER';
   const containerBlock = block as ContainerBlock | NotBlock;
   const nestedBlocks = isNotBlock
@@ -532,20 +626,41 @@ export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, dept
         <Icon path={icon} size={0.7} className="filter-block__icon" />
         <span className="filter-block__label">{label}</span>
         <div className="filter-block__spacer" />
-        {!readOnly && (
-          <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={onDelete} className="filter-block__delete" />
-        )}
+        <FilterBlockActions
+          readOnly={readOnly}
+          index={index}
+          totalSiblings={totalSiblings}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onDelete={onDelete}
+        />
       </div>
       
       <div className="filter-block__nested">
-        {nestedBlocks.map((nested, index) => (
+        {nestedBlocks.map((nested, idx) => (
           <FilterBlock
-            key={index}
+            key={idx}
             block={nested}
-            onUpdate={(updated) => handleUpdateNestedBlock(index, updated)}
-            onDelete={() => handleDeleteNestedBlock(index)}
+            onUpdate={(updated) => handleUpdateNestedBlock(idx, updated)}
+            onDelete={() => handleDeleteNestedBlock(idx)}
             readOnly={readOnly}
             depth={depth + 1}
+            index={idx}
+            totalSiblings={nestedBlocks.length}
+            onMoveUp={() => {
+              if (idx > 0 && !isNotBlock) {
+                const newBlocks = [...nestedBlocks];
+                [newBlocks[idx - 1], newBlocks[idx]] = [newBlocks[idx], newBlocks[idx - 1]];
+                onUpdate({ ...containerBlock, blocks: newBlocks } as ContainerBlock);
+              }
+            }}
+            onMoveDown={() => {
+              if (idx < nestedBlocks.length - 1 && !isNotBlock) {
+                const newBlocks = [...nestedBlocks];
+                [newBlocks[idx], newBlocks[idx + 1]] = [newBlocks[idx + 1], newBlocks[idx]];
+                onUpdate({ ...containerBlock, blocks: newBlocks } as ContainerBlock);
+              }
+            }}
           />
         ))}
         

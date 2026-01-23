@@ -132,3 +132,31 @@ export function createDefaultBlock(type: QueryBlockType): QueryBlock {
       return { type: 'AND_CONTAINER', blocks: [] };
   }
 }
+
+/**
+ * Check if a block is a system default block that should be hidden.
+ * System blocks use placeholders like {current_node_uuid} or {current_node_id}.
+ */
+export function isSystemBlock(block: QueryBlock): boolean {
+  // Check for placeholder values that indicate system blocks
+  if (block.type === 'REFERENCE') {
+    const refBlock = block as { target_uuid?: string };
+    return refBlock.target_uuid?.startsWith('{') ?? false;
+  }
+  if (block.type === 'UUID') {
+    const uuidBlock = block as { value?: string };
+    return uuidBlock.value?.startsWith('{') ?? false;
+  }
+  if (block.type === 'ANCESTOR_PATH') {
+    const ancestorBlock = block as { blocks?: QueryBlock[] };
+    // Check if any nested block is a system block
+    return ancestorBlock.blocks?.some(b => isSystemBlock(b)) ?? false;
+  }
+  // Container blocks are system blocks if ALL their children are system blocks
+  if (block.type === 'AND_CONTAINER' || block.type === 'OR_CONTAINER') {
+    const containerBlock = block as { blocks?: QueryBlock[] };
+    if (!containerBlock.blocks || containerBlock.blocks.length === 0) return false;
+    return containerBlock.blocks.every(b => isSystemBlock(b));
+  }
+  return false;
+}
