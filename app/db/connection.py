@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
-from typing import Optional, AsyncIterator
+from typing import Optional, AsyncIterator, cast
 from pathlib import Path
 
 import asyncpg
@@ -95,7 +95,7 @@ async def get_connection() -> AsyncIterator[asyncpg.Connection]:
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        yield conn
+        yield cast(asyncpg.Connection, conn)
 
 
 @asynccontextmanager
@@ -112,7 +112,7 @@ async def get_transaction() -> AsyncIterator[asyncpg.Connection]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            yield conn
+            yield cast(asyncpg.Connection, conn)
 
 
 def get_pool_stats() -> dict:
