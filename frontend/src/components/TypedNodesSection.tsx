@@ -8,6 +8,7 @@
  * for placement in NodeViewSection headers.
  */
 import { useState, useMemo, useCallback } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import './TypedNodesSection.css';
 import { useNodesWithType, useCreateNode, useAddType } from '@/hooks';
 import { useNodesStore } from '@/stores';
@@ -42,7 +43,7 @@ export function useTypedNodesSectionState(typeId: number): TypedNodesSectionTool
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
   const [isCreating, setIsCreating] = useState(false);
-  const { data } = useNodesWithType(typeId);
+  const { data: nodes } = useNodesWithType(typeId);
   
   return {
     viewMode,
@@ -51,7 +52,7 @@ export function useTypedNodesSectionState(typeId: number): TypedNodesSectionTool
     setGroupBy,
     isCreating,
     setIsCreating,
-    hasItems: (data?.nodes?.length ?? 0) > 0,
+    hasItems: (nodes?.length ?? 0) > 0,
   };
 }
 
@@ -95,9 +96,7 @@ export function TypedNodesView({ typeId, typeName, hideToolbar = false, toolbarS
   const [internalIsCreating, setInternalIsCreating] = useState(false);
   const [newNodeName, setNewNodeName] = useState('');
   
-  const { data, isLoading, error } = useNodesWithType(typeId);
-  const nodes = data?.nodes ?? [];
-  const parentPages = data?.pages ?? [];
+  const { data: nodes = [], isLoading, error } = useNodesWithType(typeId);
   
   const createNode = useCreateNode();
   const addType = useAddType();
@@ -109,7 +108,28 @@ export function TypedNodesView({ typeId, typeName, hideToolbar = false, toolbarS
     return PAGE_ONLY_TYPES.includes(typeName.toLowerCase());
   }, [typeName]);
 
-  // Build pageMap from nodes that are pages AND from parentPages for grouping blocks
+  // Find page IDs that are needed for grouping but aren't in the nodes list
+  const missingPageIds = useMemo(() => {
+    const pageIdsInNodes = new Set(nodes.filter(n => n.is_page).map(n => n.id));
+    const neededPageIds = new Set<number>();
+    for (const node of nodes) {
+      if (!node.is_page && node.page_id && !pageIdsInNodes.has(node.page_id)) {
+        neededPageIds.add(node.page_id);
+      }
+    }
+    return Array.from(neededPageIds);
+  }, [nodes]);
+
+  // Fetch missing pages for grouping
+  const missingPagesQueries = useQueries({
+    queries: missingPageIds.map(pageId => ({
+      queryKey: ['nodes', 'metadata', pageId],
+      queryFn: () => import('@/api/nodes').then(m => m.getNode(pageId)),
+      staleTime: 1000 * 60 * 10, // 10 minutes
+    })),
+  });
+
+  // Build pageMap from nodes that are pages AND from fetched missing pages
   const pageMap = useMemo(() => {
     const map = new Map<number, Node>();
     // Add pages from the typed nodes themselves
@@ -118,14 +138,14 @@ export function TypedNodesView({ typeId, typeName, hideToolbar = false, toolbarS
         map.set(node.id, node);
       }
     }
-    // Add parent pages for blocks (from the new pages field)
-    for (const page of parentPages) {
-      if (!map.has(page.id)) {
-        map.set(page.id, page);
+    // Add fetched missing pages
+    for (const query of missingPagesQueries) {
+      if (query.data) {
+        map.set(query.data.id, query.data);
       }
     }
     return map;
-  }, [nodes, parentPages]);
+  }, [nodes, missingPagesQueries]);
 
   // View mode state for NodeCollection (internal state when not using external toolbar)
   const [internalViewMode, setInternalViewMode] = useState<NodeCollectionViewMode>('list');
