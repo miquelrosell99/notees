@@ -96,19 +96,16 @@ class NodeService:
             await self._link_service.update_inline_types(node.id, node.name)
         
         # Apply SuperType properties if any types have associated properties
-        if node.id is not None:
-            for type_id in data.types:
-                type_properties = await self._property_repo.get_type_properties(type_id)
-                for tp in type_properties:
-                    # Get default value based on property type
-                    default_value = (
-                        tp.default_integer or tp.default_float or tp.default_text or
-                        tp.default_boolean or tp.default_node_id or tp.default_selection_id
-                    )
-                    if default_value is not None:
-                        await self._property_repo.set_node_property(
-                            node.id, tp.property_id, default_value, tp.sequence
-                        )
+        # TODO: Implement property value setting based on TypeProperty defaults
+        # This requires determining the property type and using the appropriate
+        # set_scalar_value, set_relation_value, or set_selection_value method
+        # if node.id is not None:
+        #     for type_id in data.types:
+        #         type_properties = await self._property_repo.get_type_properties(type_id)
+        #         for tp in type_properties:
+        #             default_value = (...)
+        #             if default_value is not None:
+        #                 await self._property_repo.set_*_value(...)
         
         return node
     
@@ -230,11 +227,14 @@ class NodeService:
             if not source_node or not source_node.name:
                 continue
             
+            # Determine link type based on whether target is a page or block
+            link_type = "page" if node.is_page else "block"
+            
             # Replace the link in the source node's content
             updated_content = await self._remove_link_from_content(
                 source_node.name,
                 node,
-                link.link_type
+                link_type
             )
             
             if updated_content != source_node.name:
@@ -369,7 +369,8 @@ class NodeService:
         # Update the corresponding flag if this is a system type with a flag
         if type_node and type_node.uuid in TYPE_UUID_TO_FLAG:
             flag_name = TYPE_UUID_TO_FLAG[type_node.uuid]
-            update_data = NodeUpdateData(**{flag_name: True})
+            update_data = NodeUpdateData()
+            setattr(update_data, flag_name, True)
             await self._node_repo.update(node_id, update_data)
         
         # Apply SuperType properties
@@ -414,12 +415,14 @@ class NodeService:
         for val in values:
             if val.target_node_id == type_node_id:
                 # Remove this specific relation value
-                await self._property_repo.remove_relation_value(val.id)
+                if val.id is not None:
+                    await self._property_repo.remove_relation_value(val.id)
                 
                 # Update the corresponding flag if this is a system type with a flag
                 if type_node and type_node.uuid in TYPE_UUID_TO_FLAG:
                     flag_name = TYPE_UUID_TO_FLAG[type_node.uuid]
-                    update_data = NodeUpdateData(**{flag_name: False})
+                    update_data = NodeUpdateData()
+                    setattr(update_data, flag_name, False)
                     await self._node_repo.update(node_id, update_data)
                 
                 return True
