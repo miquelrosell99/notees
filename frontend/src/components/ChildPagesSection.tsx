@@ -3,13 +3,75 @@
  * 
  * Uses NodeCollection to display pages. NodeViewSection wrapping is handled by NodeView.
  * Supports list, table, and card view modes.
+ * 
+ * The toolbar can be rendered externally via ChildPagesSectionToolbar component
+ * for placement in NodeViewSection headers.
  */
 import { useCallback, useState } from 'react';
-import { NodeCollection } from './nodes/NodeCollection';
+import { NodeCollection, NodeCollectionToolbar } from './nodes/NodeCollection';
 import { useNodesStore } from '@/stores';
 import { useCreateNode } from '@/hooks';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+
+/**
+ * State and callbacks for ChildPagesSection toolbar
+ * Extracted so toolbar can be rendered in NodeViewSection header
+ */
+export interface ChildPagesSectionToolbarState {
+  viewMode: NodeCollectionViewMode;
+  setViewMode: (mode: NodeCollectionViewMode) => void;
+  onAdd: () => void;
+  hasItems: boolean;
+}
+
+/**
+ * Hook to manage ChildPagesSection view state
+ * Use this when you need to render the toolbar externally
+ */
+export function useChildPagesSectionState(pageId: number, childPages?: Node[]): ChildPagesSectionToolbarState {
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const { openNode } = useNodesStore();
+  const createNode = useCreateNode();
+  
+  const onAdd = useCallback(() => {
+    createNode.mutate({ name: '', is_page: true, parent_id: pageId }, {
+      onSuccess: (newPage) => {
+        openNode(newPage.id, 'page');
+      }
+    });
+  }, [createNode, pageId, openNode]);
+  
+  return {
+    viewMode,
+    setViewMode,
+    onAdd,
+    hasItems: (childPages?.length ?? 0) > 0,
+  };
+}
+
+/**
+ * Standalone toolbar for ChildPagesSection
+ * Render this in NodeViewSection headerActions when using hideToolbar=true
+ */
+export function ChildPagesSectionToolbar({
+  state,
+  className = '',
+}: {
+  state: ChildPagesSectionToolbarState;
+  className?: string;
+}) {
+  return (
+    <NodeCollectionToolbar
+      viewMode={state.viewMode}
+      availableViewModes={['list', 'table', 'card']}
+      onViewModeChange={state.setViewMode}
+      showAddButton={true}
+      onAdd={state.onAdd}
+      className={className}
+    />
+  );
+}
 
 interface ChildPagesSectionProps {
   pageId: number;
@@ -17,16 +79,29 @@ interface ChildPagesSectionProps {
   childPages?: Node[];
   /** Default view mode */
   defaultViewMode?: NodeCollectionViewMode;
+  /** When true, hides the internal toolbar (use ChildPagesSectionToolbar externally) */
+  hideToolbar?: boolean;
+  /** External state for toolbar control (required when hideToolbar=true) */
+  toolbarState?: ChildPagesSectionToolbarState;
 }
 
 export function ChildPagesSection({ 
   pageId,
   childPages,
   defaultViewMode = 'list',
+  hideToolbar = false,
+  toolbarState,
 }: ChildPagesSectionProps) {
   const { openNode, addSidebarCard } = useNodesStore();
   const createNode = useCreateNode();
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(defaultViewMode);
+  
+  // Internal state when not using external toolbar
+  const [internalViewMode, setInternalViewMode] = useState<NodeCollectionViewMode>(defaultViewMode);
+  
+  // Use external state if provided, otherwise use internal
+  const viewMode = toolbarState?.viewMode ?? internalViewMode;
+  const setViewMode = toolbarState?.setViewMode ?? setInternalViewMode;
+  
   const count = childPages?.length ?? 0;
   
   const handleNodeClick = useCallback((node: Node) => {
@@ -60,8 +135,9 @@ export function ChildPagesSection({
       pagesOnly={true}
       onNodeClick={handleNodeClick}
       onNodeShiftClick={handleNodeShiftClick}
-      showAddButton={true}
+      showAddButton={!hideToolbar}
       onAdd={handleAddChildPage}
+      hideToolbar={hideToolbar}
     />
   );
 }

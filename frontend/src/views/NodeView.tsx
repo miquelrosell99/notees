@@ -37,9 +37,9 @@ import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext'
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { PropertiesSection } from '../components/PropertiesSection';
-import { TypedNodesView } from '../components/TypedNodesSection';
+import { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } from '../components/TypedNodesSection';
 import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
-import { ChildPagesSection } from '../components/ChildPagesSection';
+import { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from '../components/ChildPagesSection';
 import { NodeActivityLogSection, useActivityCount } from '../components/nodes/NodeActivityLogSection';
 import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../components/LinkedReferences';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
@@ -290,6 +290,12 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Linked references toolbar state (for external rendering in section header)
   const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
+  
+  // Typed nodes section toolbar state (for external rendering in section header)
+  const typedNodesToolbarState = useTypedNodesSectionState(node?.id ?? 0);
+  
+  // Child pages section toolbar state (for external rendering in section header)
+  const childPagesToolbarState = useChildPagesSectionState(node?.id ?? 0, node?.children?.filter(c => c.is_page));
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -579,8 +585,14 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           count={typedNodes?.length ?? 0}
           defaultExpanded={true}
           hideWhenEmpty={true}
+          headerActions={<TypedNodesSectionToolbar state={typedNodesToolbarState} />}
         >
-          <TypedNodesView typeId={node.id} typeName={node.name || 'Untitled'} />
+          <TypedNodesView 
+            typeId={node.id} 
+            typeName={node.name || 'Untitled'} 
+            hideToolbar={true}
+            toolbarState={typedNodesToolbarState}
+          />
         </NodeViewSection>
       )}
       
@@ -591,8 +603,14 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           icon={<PageIcon size="sm" />}
           count={pageChildren.length}
           defaultExpanded={true}
+          headerActions={<ChildPagesSectionToolbar state={childPagesToolbarState} />}
         >
-          <ChildPagesSection pageId={node.id} childPages={pageChildren} />
+          <ChildPagesSection 
+            pageId={node.id} 
+            childPages={pageChildren} 
+            hideToolbar={true}
+            toolbarState={childPagesToolbarState}
+          />
         </NodeViewSection>
       )}
       

@@ -3,30 +3,102 @@
  * and allows creating new nodes with that type
  * 
  * Renders just the content - NodeViewSection wrapping is done by NodeView.
+ * 
+ * The toolbar can be rendered externally via TypedNodesSectionToolbar component
+ * for placement in NodeViewSection headers.
  */
 import { useState, useMemo, useCallback } from 'react';
 import './TypedNodesSection.css';
 import { useNodesWithType, useCreateNode, useAddType } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
-import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { mdiPlus } from '@mdi/js';
-import { NodeCollection } from './nodes/NodeCollection';
+import { NodeCollection, NodeCollectionToolbar } from './nodes/NodeCollection';
 import { Button } from './core/Button';
 
 // Types that can only be applied to pages, not blocks
 const PAGE_ONLY_TYPES = ['type', 'day', 'month', 'year'];
 
+/**
+ * State and callbacks for TypedNodesSection toolbar
+ * Extracted so toolbar can be rendered in NodeViewSection header
+ */
+export interface TypedNodesSectionToolbarState {
+  viewMode: NodeCollectionViewMode;
+  setViewMode: (mode: NodeCollectionViewMode) => void;
+  groupBy: NodeCollectionGroupBy;
+  setGroupBy: (value: NodeCollectionGroupBy) => void;
+  isCreating: boolean;
+  setIsCreating: (value: boolean) => void;
+  hasItems: boolean;
+}
+
+/**
+ * Hook to manage TypedNodesSection view state
+ * Use this when you need to render the toolbar externally
+ */
+export function useTypedNodesSectionState(typeId: number): TypedNodesSectionToolbarState {
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  const [isCreating, setIsCreating] = useState(false);
+  const { data } = useNodesWithType(typeId);
+  
+  return {
+    viewMode,
+    setViewMode,
+    groupBy,
+    setGroupBy,
+    isCreating,
+    setIsCreating,
+    hasItems: (data?.nodes?.length ?? 0) > 0,
+  };
+}
+
+/**
+ * Standalone toolbar for TypedNodesSection
+ * Render this in NodeViewSection headerActions when using hideToolbar=true
+ */
+export function TypedNodesSectionToolbar({
+  state,
+  className = '',
+}: {
+  state: TypedNodesSectionToolbarState;
+  className?: string;
+}) {
+  return (
+    <NodeCollectionToolbar
+      viewMode={state.viewMode}
+      availableViewModes={['list', 'table', 'card']}
+      onViewModeChange={state.setViewMode}
+      showGroupBy={true}
+      groupBy={state.groupBy}
+      onGroupByChange={state.setGroupBy}
+      showAddButton={true}
+      onAdd={() => state.setIsCreating(true)}
+      className={className}
+    />
+  );
+}
+
 interface TypedNodesViewProps {
   typeId: number;
   typeName?: string;
+  /** When true, hides the internal toolbar (use TypedNodesSectionToolbar externally) */
+  hideToolbar?: boolean;
+  /** External state for toolbar control (required when hideToolbar=true) */
+  toolbarState?: TypedNodesSectionToolbarState;
 }
 
-export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
-  const [isCreating, setIsCreating] = useState(false);
+export function TypedNodesView({ typeId, typeName, hideToolbar = false, toolbarState }: TypedNodesViewProps) {
+  // Internal creating state when not using external toolbar
+  const [internalIsCreating, setInternalIsCreating] = useState(false);
   const [newNodeName, setNewNodeName] = useState('');
   
-  const { data: nodes, isLoading, error } = useNodesWithType(typeId);
+  const { data, isLoading, error } = useNodesWithType(typeId);
+  const nodes = data?.nodes ?? [];
+  const parentPages = data?.pages ?? [];
+  
   const createNode = useCreateNode();
   const addType = useAddType();
   const { openNode, addSidebarCard } = useNodesStore();
@@ -37,20 +109,35 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
     return PAGE_ONLY_TYPES.includes(typeName.toLowerCase());
   }, [typeName]);
 
-  // Build pageMap from nodes that are pages (for grouping blocks by their parent page)
+  // Build pageMap from nodes that are pages AND from parentPages for grouping blocks
   const pageMap = useMemo(() => {
-    if (!nodes) return new Map<number, Node>();
     const map = new Map<number, Node>();
+    // Add pages from the typed nodes themselves
     for (const node of nodes) {
       if (node.is_page) {
         map.set(node.id, node);
       }
     }
+    // Add parent pages for blocks (from the new pages field)
+    for (const page of parentPages) {
+      if (!map.has(page.id)) {
+        map.set(page.id, page);
+      }
+    }
     return map;
-  }, [nodes]);
+  }, [nodes, parentPages]);
 
-  // View mode state for NodeCollection
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  // View mode state for NodeCollection (internal state when not using external toolbar)
+  const [internalViewMode, setInternalViewMode] = useState<NodeCollectionViewMode>('list');
+  const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>('page');
+  
+  // Use external state if provided, otherwise use internal
+  const viewMode = toolbarState?.viewMode ?? internalViewMode;
+  const setViewMode = toolbarState?.setViewMode ?? setInternalViewMode;
+  const groupBy = toolbarState?.groupBy ?? internalGroupBy;
+  const setGroupBy = toolbarState?.setGroupBy ?? setInternalGroupBy;
+  const isCreating = toolbarState?.isCreating ?? internalIsCreating;
+  const setIsCreating = toolbarState?.setIsCreating ?? setInternalIsCreating;
 
   const handleNodeClick = useCallback((node: Node) => {
     openNode(node.id, node.is_page ? 'page' : 'block');
@@ -100,7 +187,7 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
     }
   };
 
-  const count = nodes?.length ?? 0;
+  const count = nodes.length;
 
   if (isLoading) {
     return <div className="typed-nodes-loading">Loading...</div>;
@@ -158,21 +245,22 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
         </div>
       ) : (
         <NodeCollection
-          nodes={nodes ?? []}
+          nodes={nodes}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           availableViewModes={['list', 'table', 'card']}
           sortable={false}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
-          showGroupBy={true}
+          showGroupBy={!hideToolbar}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
           pageMap={pageMap}
-          showAddButton={true}
+          showAddButton={!hideToolbar}
           onAdd={() => setIsCreating(true)}
+          hideToolbar={hideToolbar}
         />
       )}
     </div>
   );
 }
-
-export default TypedNodesView;
