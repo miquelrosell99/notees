@@ -396,9 +396,8 @@ class NodeService:
             return False  # Already has this type
         
         # Add the type using set_relation_value
-        max_order = max((v.order for v in existing_values), default=-1)
         await self._property_repo.set_relation_value(
-            node_id, self._types_property_id, type_node_id, max_order + 1
+            node_id, self._types_property_id, type_node_id
         )
         
         # Update the corresponding flag if this is a system type with a flag
