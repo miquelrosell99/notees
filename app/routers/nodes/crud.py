@@ -662,8 +662,11 @@ async def mark_page_opened(
     
     This should only be called for pages (is_page=1).
     The open_date is set to the current UTC time.
+    
+    Also ensures default NodeViews exist for the page (lazy initialization).
     """
     from datetime import datetime, timezone
+    from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
     async with service._pool.acquire() as conn:
@@ -685,5 +688,13 @@ async def mark_page_opened(
             "UPDATE node SET open_date = $1 WHERE id = $2",
             now, node_id
         )
+    
+    # Ensure default NodeViews exist for this page (lazy initialization)
+    try:
+        view_service = NodeViewService(service._pool, service._graph_id, user.id)
+        await view_service.ensure_default_views(node_id)
+    except Exception as e:
+        # Log but don't fail the open operation if view creation fails
+        logger.warning(f"Failed to ensure default views for node {node_id}: {e}")
     
     return {"status": "ok", "open_date": now.isoformat()}
