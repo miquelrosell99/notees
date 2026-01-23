@@ -89,8 +89,6 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
             pass
     
     return None
-    
-    return None
 
 
 # System type names - these are created on database initialization
@@ -577,6 +575,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
         VALUES ($1, $2, 'type', TRUE, TRUE, $3, $3)
         RETURNING id
     """, type_uuid, workspace_id, now)
+    if type_row is None:
+        raise RuntimeError("Failed to create 'type' node")
     type_node_id = type_row['id']
     
     # Create 'page' type node
@@ -586,6 +586,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
         VALUES ($1, $2, 'page', TRUE, TRUE, $3, $3)
         RETURNING id
     """, page_uuid, workspace_id, now)
+    if page_row is None:
+        raise RuntimeError("Failed to create 'page' node")
     page_type_id = page_row['id']
     
     # Create 'types' property (global, not workspace-specific for now)
@@ -596,6 +598,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
         ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
     """, types_prop_uuid, now)
+    if types_row is None:
+        raise RuntimeError("Failed to create 'types' property")
     types_property_id = types_row['id']
     
     # Set type filter for 'types' property
@@ -621,6 +625,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
         ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
     """, cover_uuid, now)
+    if cover_row is None:
+        raise RuntimeError("Failed to create 'cover' property")
     cover_property_id = cover_row['id']
     
     # Create 'banner' property
@@ -631,6 +637,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
         ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
     """, banner_uuid, now)
+    if banner_row is None:
+        raise RuntimeError("Failed to create 'banner' property")
     banner_property_id = banner_row['id']
     
     # Assign types to 'type' node
@@ -656,6 +664,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
             VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5)
             RETURNING id
         """, type_uuid, workspace_id, type_name, type_icon, now)
+        if row is None:
+            raise RuntimeError(f"Failed to create '{type_name}' type node")
         new_type_id = row['id']
         
         if type_name == "asset":
@@ -685,6 +695,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int) -> None:
             VALUES ($1, $2, $3, TRUE, $4, $4)
             RETURNING id
         """, generate_uuid(), workspace_id, page_name, now)
+        if row is None:
+            raise RuntimeError(f"Failed to create '{page_name}' page")
         new_page_id = row['id']
         
         # Assign 'page' type
@@ -708,6 +720,8 @@ async def create_workspace_for_user(
         VALUES ($1, $2, $3, $3)
         RETURNING id
     """, name, user_id, now)
+    if row is None:
+        raise RuntimeError("Failed to create workspace")
     workspace_id = row['id']
     
     # Add owner as workspace member
