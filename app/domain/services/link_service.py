@@ -656,9 +656,9 @@ class LinkParsingService:
         
         pool = self._link_repo.get_connection()
         
-        # Get all descendants
+        # Get all active descendants
         children = await pool.fetch(
-            "SELECT id FROM node WHERE parent_id = $1",
+            "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE",
             node_id
         )
         
