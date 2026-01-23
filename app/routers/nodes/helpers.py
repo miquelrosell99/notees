@@ -202,12 +202,17 @@ async def _get_node_service(user: User) -> NodeService:
     
     Uses PostgreSQL connection pool with graph context.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     pool = await get_pool()
     user_id = int(user.id)
     
     async with pool.acquire() as conn:
         # Get user's graph
+        logger.info(f"Getting or creating graph for user {user_id}")
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        logger.info(f"Got graph_id: {graph_id}")
         
         # Get system IDs (cached in real implementation)
         row = await conn.fetchrow(
@@ -215,12 +220,14 @@ async def _get_node_service(user: User) -> NodeService:
             graph_id
         )
         page_type_id = row['id'] if row else 1
+        logger.info(f"page_type_id: {page_type_id}, row: {row}")
         
         row = await conn.fetchrow(
             "SELECT id FROM property WHERE name = 'types' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
             graph_id
         )
         types_property_id = row['id'] if row else 1
+        logger.info(f"types_property_id: {types_property_id}, row: {row}")
     
     # Create repositories with graph context
     node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
