@@ -167,14 +167,19 @@ export function LinkedReferences({
   }, [propertyBacklinks]);
 
   // Convert linked references to block nodes for NodeCollection
-  // Filter out nodes that have this node as their type (those appear in TypedNodes section)
+  // Filter out nodes that have this node as their type, UNLESS they also have a text link [[...]]
   const blockNodes: Node[] = useMemo(() => {
     if (!refs) return [];
     return refs
       .filter(ref => {
-        // Exclude nodes where this node is their type (typed nodes should appear in TypedNodes section)
+        // If the source node has this node as a type, only show if it's a text link
+        // (meaning there's an explicit [[link]], not just the {{type}})
         const nodeTypes = ref.source_node.types || [];
-        return !nodeTypes.includes(nodeId);
+        const isTypedWithThisNode = nodeTypes.includes(nodeId);
+        if (isTypedWithThisNode) {
+          return ref.link_type === 'text';
+        }
+        return true;
       })
       .map(ref => ({
         id: ref.source_node.id,
