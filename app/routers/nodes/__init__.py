@@ -85,5 +85,5 @@ router.include_router(crud_router)
 # Links endpoints (GET/POST/DELETE /{node_id}/text-links, backlinks, etc.)
 router.include_router(links_router)
 
-# Comments endpoints - DISABLED (legacy node_comment table, comments are now child nodes typed as 'comment')
-# router.include_router(comments_router)
+# Comments endpoints (GET/POST/DELETE /{node_id}/comments)
+router.include_router(comments_router)
