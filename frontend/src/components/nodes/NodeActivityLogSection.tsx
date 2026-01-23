@@ -42,20 +42,6 @@ const ACTION_LABELS: Record<string, string> = {
   moved: 'Moved',
 };
 
-const ACTION_ICONS: Record<string, string> = {
-  created: '✨',
-  edited: '✏️',
-  link_added: '🔗',
-  link_removed: '🔗',
-  link_inserted: '',
-  archived: '📦',
-  unarchived: '📤',
-  type_added: '🏷️',
-  type_removed: '🏷️',
-  property_changed: '⚙️',
-  moved: '📁',
-};
-
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -106,13 +92,12 @@ function formatActivityMessage(activity: NodeActivity): string {
  * Convert an activity entry to a pseudo-node for BlockPreview
  */
 function activityToNode(activity: NodeActivity): Node {
-  const icon = ACTION_ICONS[activity.action] || '📝';
   const message = formatActivityMessage(activity);
   const time = formatDate(activity.create_date);
   
   return {
     id: activity.id,
-    name: icon ? `${icon} ${message} — ${time}` : `${message} — ${time}`,
+    name: `${message} — ${time}`,
     is_page: false,
     active: true,
     create_date: activity.create_date,
