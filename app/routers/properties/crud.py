@@ -248,13 +248,14 @@ async def get_nodes_with_property(
     from typing import cast
     import asyncpg
     from ...db.connection import get_pool
-    from ...db.schema import get_or_create_user_workspace
+    from ...db.schema import get_or_create_user_graph
     from ...domain.repositories import PostgresPropertyRepository
     
     pool = await get_pool()
+    user_id = int(user.id)
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
-    repo = PostgresPropertyRepository(pool, workspace_id)
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+    repo = PostgresPropertyRepository(pool, graph_id, user_id)
     
     # Check property exists
     prop = await repo.get_by_id(property_id)
@@ -272,8 +273,8 @@ async def get_nodes_with_property(
             node_row = await conn.fetchrow(
                 """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_type,
                    create_date, write_date FROM node 
-                   WHERE id = $1 AND workspace_id = $2 AND active = TRUE""",
-                node_id, workspace_id
+                   WHERE id = $1 AND graph_id = $2 AND active = TRUE""",
+                node_id, graph_id
             )
             if not node_row:
                 continue

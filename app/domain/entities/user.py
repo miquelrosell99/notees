@@ -16,13 +16,18 @@ class User:
     password_hash: str
     id: Optional[int] = None
     uuid: str = field(default_factory=generate_uuid)
-    is_active: bool = True
+    active: bool = True  # soft-delete flag
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
     
+    # Legacy alias for backward compatibility
+    @property
+    def is_active(self) -> bool:
+        return self.active
+    
     def deactivate(self) -> None:
         """Deactivate the user account."""
-        self.is_active = False
+        self.active = False
         self.write_date = utc_now_iso()
 
 

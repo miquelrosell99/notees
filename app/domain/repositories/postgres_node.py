@@ -11,6 +11,7 @@ from asyncpg.pool import PoolConnectionProxy
 
 from ..entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
 from ..errors import OptimisticLockError
+from ..permissions import PermissionChecker
 from .interfaces import NodeRepository
 
 if TYPE_CHECKING:
@@ -29,7 +30,8 @@ class PostgresNodeRepository(NodeRepository):
     """PostgreSQL implementation of the NodeRepository.
     
     Supports:
-    - Multi-tenant workspaces
+    - Multi-tenant graphs (replaces workspaces)
+    - Permission checking via ownership and shares
     - Optimistic locking via version column
     - Full-text search
     - Hierarchical queries with CTEs
@@ -38,22 +40,35 @@ class PostgresNodeRepository(NodeRepository):
     def __init__(
         self, 
         pool: asyncpg.Pool,
-        workspace_id: int,
+        graph_id: int,
         page_type_id: int,
-        types_property_id: int
+        types_property_id: int,
+        user_id: Optional[int] = None
     ):
-        """Initialize with connection pool and workspace context.
+        """Initialize with connection pool and graph context.
         
         Args:
             pool: asyncpg connection pool
-            workspace_id: Current workspace ID for multi-tenant queries
+            graph_id: Current graph ID for multi-tenant queries
             page_type_id: ID of the 'page' type node
             types_property_id: ID of the 'types' property
+            user_id: Current user ID for permission checks and audit
         """
         self._pool = pool
-        self._workspace_id = workspace_id
+        self._graph_id = graph_id
         self._page_type_id = page_type_id
         self._types_property_id = types_property_id
+        self._user_id = user_id
+        self._permissions: Optional[PermissionChecker] = None
+    
+    @property
+    def permissions(self) -> PermissionChecker:
+        """Get permission checker, creating if needed."""
+        if self._permissions is None and self._user_id is not None:
+            self._permissions = PermissionChecker(self._pool, self._user_id)
+        elif self._permissions is None:
+            raise RuntimeError("User ID required for permission checks")
+        return self._permissions
     
     def get_connection(self) -> asyncpg.Pool:
         """Get the underlying connection pool."""
@@ -90,6 +105,7 @@ class PostgresNodeRepository(NodeRepository):
         return Node(
             id=row['id'],
             uuid=str(row['uuid']),
+            graph_id=row.get('graph_id'),
             name=row['name'],
             icon=row.get('icon'),
             color=row.get('color'),
@@ -98,6 +114,7 @@ class PostgresNodeRepository(NodeRepository):
             sequence=row.get('sequence', 0),
             collapsed=row.get('collapsed', False),
             active=row.get('active', True),
+            is_shared=row.get('is_shared', False),
             is_type=row.get('is_type', False),
             is_page=row.get('is_page', False),
             is_day=row.get('is_day', False),
@@ -106,12 +123,12 @@ class PostgresNodeRepository(NodeRepository):
             is_asset=row.get('is_asset', False),
             is_template=row.get('is_template', False),
             is_comment=row.get('is_comment', False),
-            usable_in=row.get('usable_in', 'both'),
             open_date=open_date,
             create_date=create_date,
             write_date=write_date,
             create_uid=row.get('create_uid'),
             write_uid=row.get('write_uid'),
+            usable_in=row.get('usable_in', 'both'),
             types_path=types_path,
             version=row.get('version', 1),
         )
@@ -123,26 +140,26 @@ class PostgresNodeRepository(NodeRepository):
                 WITH RECURSIVE ancestors AS (
                     SELECT id, parent_id, is_page, 1 as depth
                     FROM node 
-                    WHERE id = $1 AND workspace_id = $2
+                    WHERE id = $1 AND graph_id = $2
                     UNION ALL
                     SELECT n.id, n.parent_id, n.is_page, a.depth + 1
                     FROM node n
                     JOIN ancestors a ON n.id = a.parent_id
-                    WHERE n.workspace_id = $2 AND a.depth < 100
+                    WHERE n.graph_id = $2 AND a.depth < 100
                 )
                 SELECT id FROM ancestors 
                 WHERE is_page = TRUE 
                 ORDER BY depth ASC
                 LIMIT 1
-            """, parent_id, self._workspace_id)
+            """, parent_id, self._graph_id)
             return row['id'] if row else None
     
     async def _is_page(self, node_id: int) -> bool:
         """Check if a node is a page."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id
+                "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
+                node_id, self._graph_id
             )
             return row['is_page'] if row else False
     
@@ -150,24 +167,28 @@ class PostgresNodeRepository(NodeRepository):
         """Shift siblings at or after the given sequence to make room for insertion."""
         await conn.execute("""
             UPDATE node SET sequence = sequence + 1 
-            WHERE parent_id = $1 AND sequence >= $2 AND workspace_id = $3
-        """, parent_id, sequence, self._workspace_id)
+            WHERE parent_id = $1 AND sequence >= $2 AND graph_id = $3
+        """, parent_id, sequence, self._graph_id)
     
     async def _close_sequence_gap(self, conn: ConnectionType, parent_id: int, old_sequence: int) -> None:
         """Close the gap left by a node that moved away."""
         await conn.execute("""
             UPDATE node SET sequence = sequence - 1 
-            WHERE parent_id = $1 AND sequence > $2 AND workspace_id = $3
-        """, parent_id, old_sequence, self._workspace_id)
+            WHERE parent_id = $1 AND sequence > $2 AND graph_id = $3
+        """, parent_id, old_sequence, self._graph_id)
     
     async def move(
         self,
         node_id: int,
-        new_parent_id: int,
-        new_sequence: int,
+        new_parent_id: Optional[int] = None,
+        new_sequence: Optional[int] = None,
         user_id: Optional[int] = None
     ) -> Optional[Node]:
         """Move a node to a new parent and/or position with proper sibling resequencing."""
+        # Permission check - need write permission on the node
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
+        
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 node = await self.get_by_id(node_id)
@@ -177,49 +198,60 @@ class PostgresNodeRepository(NodeRepository):
                 old_parent_id = node.parent_id
                 old_sequence = node.sequence
                 now = utc_now()
+                uid = user_id or self._user_id
+                
+                # Use existing values if not specified
+                effective_parent_id = new_parent_id if new_parent_id is not None else old_parent_id
+                effective_sequence = new_sequence if new_sequence is not None else old_sequence
                 
                 # Compute new page_id
-                if await self._is_page(new_parent_id):
-                    new_page_id = new_parent_id
+                if effective_parent_id is not None and await self._is_page(effective_parent_id):
+                    new_page_id = effective_parent_id
                 else:
-                    new_page_id = await self._compute_page_id(new_parent_id)
+                    new_page_id = await self._compute_page_id(effective_parent_id) if effective_parent_id else None
                 
                 # Same parent - just resequence
-                if old_parent_id == new_parent_id:
-                    if old_sequence == new_sequence:
+                if old_parent_id == effective_parent_id:
+                    if old_sequence == effective_sequence:
                         return node
                     
-                    if old_sequence < new_sequence:
+                    if old_sequence < effective_sequence:
                         await conn.execute("""
                             UPDATE node SET sequence = sequence - 1 
                             WHERE parent_id = $1 AND sequence > $2 AND sequence <= $3 
-                            AND id != $4 AND workspace_id = $5
-                        """, new_parent_id, old_sequence, new_sequence, node_id, self._workspace_id)
+                            AND id != $4 AND graph_id = $5
+                        """, effective_parent_id, old_sequence, effective_sequence, node_id, self._graph_id)
                     else:
                         await conn.execute("""
                             UPDATE node SET sequence = sequence + 1 
                             WHERE parent_id = $1 AND sequence >= $2 AND sequence < $3 
-                            AND id != $4 AND workspace_id = $5
-                        """, new_parent_id, new_sequence, old_sequence, node_id, self._workspace_id)
+                            AND id != $4 AND graph_id = $5
+                        """, effective_parent_id, effective_sequence, old_sequence, node_id, self._graph_id)
                 else:
                     if old_parent_id is not None:
                         await self._close_sequence_gap(conn, old_parent_id, old_sequence)
-                    await self._shift_siblings_for_insert(conn, new_parent_id, new_sequence)
+                    if effective_parent_id is not None:
+                        await self._shift_siblings_for_insert(conn, effective_parent_id, effective_sequence)
                 
                 # Update the node
                 await conn.execute("""
                     UPDATE node 
                     SET parent_id = $1, page_id = $2, sequence = $3, 
                         write_date = $4, write_uid = $5, version = version + 1
-                    WHERE id = $6 AND workspace_id = $7
-                """, new_parent_id, new_page_id, new_sequence, now, user_id, node_id, self._workspace_id)
+                    WHERE id = $6 AND graph_id = $7
+                """, effective_parent_id, new_page_id, effective_sequence, now, uid, node_id, self._graph_id)
                 
                 return await self.get_by_id(node_id)
     
     async def create(self, data: NodeCreateData, user_id: Optional[int] = None) -> Node:
         """Create a new node."""
+        # Permission check - need create permission on graph
+        if self._user_id:
+            await self.permissions.require_graph_create(self._graph_id)
+        
         now = utc_now()
         uuid = generate_uuid()
+        uid = user_id or self._user_id
         
         # Compute page_id for blocks
         page_id = None
@@ -238,30 +270,33 @@ class PostgresNodeRepository(NodeRepository):
                 # Insert node
                 row = await conn.fetchrow("""
                     INSERT INTO node (
-                        uuid, workspace_id, name, icon, color, parent_id, page_id,
+                        uuid, graph_id, name, icon, color, parent_id, page_id,
                         sequence, collapsed,
                         is_type, is_page, is_day, is_month, is_year,
-                        is_asset, is_template, is_comment, usable_in,
+                        is_asset, is_template, is_comment,
                         create_date, write_date, create_uid, write_uid
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $19, $19)
                     RETURNING id
-                """, uuid, self._workspace_id, data.name, data.icon, data.color,
+                """, uuid, self._graph_id, data.name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
                     data.is_type, data.is_page, data.is_day,
                     data.is_month, data.is_year, data.is_asset,
-                    data.is_template, data.is_comment, data.usable_in,
-                    now, user_id)
+                    data.is_template, data.is_comment,
+                    now, uid)
                 
+                if row is None:
+                    raise RuntimeError("Failed to create node")
                 node_id = row['id']
                 
                 # Add types as property values
                 if data.types:
+                    np_uuid = generate_uuid()
                     await conn.execute("""
-                        INSERT INTO node_property (node_id, property_id, create_date, write_date)
-                        VALUES ($1, $2, $3, $3)
+                        INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
+                        VALUES ($1, $2, $3, $4, $4, $5, $5)
                         ON CONFLICT (node_id, property_id) DO NOTHING
-                    """, node_id, self._types_property_id, now)
+                    """, np_uuid, node_id, self._types_property_id, now, uid)
                     
                     np_row = await conn.fetchrow(
                         "SELECT id FROM node_property WHERE node_id = $1 AND property_id = $2",
@@ -271,16 +306,18 @@ class PostgresNodeRepository(NodeRepository):
                         raise RuntimeError(f"Failed to create node_property for node {node_id}")
                     node_property_id = np_row['id']
                     
-                    for seq, type_id in enumerate(data.types):
+                    for type_id in data.types:
+                        pvr_uuid = generate_uuid()
                         await conn.execute("""
                             INSERT INTO property_value_relation 
-                            (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date)
-                            VALUES ($1, $2, $3, $4, $5, $6, $6)
-                        """, node_property_id, self._types_property_id, node_id, type_id, seq, now)
+                            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
+                            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
+                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, type_id, now, uid)
         
         return Node(
             id=node_id,
             uuid=uuid,
+            graph_id=self._graph_id,
             name=data.name,
             icon=data.icon,
             color=data.color,
@@ -297,11 +334,10 @@ class PostgresNodeRepository(NodeRepository):
             is_asset=data.is_asset,
             is_template=data.is_template,
             is_comment=data.is_comment,
-            usable_in=data.usable_in,
             create_date=now.isoformat(),
             write_date=now.isoformat(),
-            create_uid=user_id,
-            write_uid=user_id,
+            create_uid=uid,
+            write_uid=uid,
             version=1,
         )
     
@@ -312,7 +348,12 @@ class PostgresNodeRepository(NodeRepository):
         user_id: Optional[int] = None
     ) -> Node:
         """Create a new node with a specific UUID (for date nodes)."""
+        # Permission check - need create permission on graph
+        if self._user_id:
+            await self.permissions.require_graph_create(self._graph_id)
+        
         now = utc_now()
+        uid = user_id or self._user_id
         
         # Compute page_id for blocks
         page_id = None
@@ -326,30 +367,33 @@ class PostgresNodeRepository(NodeRepository):
             async with conn.transaction():
                 row = await conn.fetchrow("""
                     INSERT INTO node (
-                        uuid, workspace_id, name, icon, color, parent_id, page_id,
+                        uuid, graph_id, name, icon, color, parent_id, page_id,
                         sequence, collapsed,
                         is_type, is_page, is_day, is_month, is_year,
-                        is_asset, is_template, is_comment, usable_in,
+                        is_asset, is_template, is_comment,
                         create_date, write_date, create_uid, write_uid
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $19, $19)
                     RETURNING id
-                """, uuid, self._workspace_id, data.name, data.icon, data.color,
+                """, uuid, self._graph_id, data.name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
                     data.is_type, data.is_page, data.is_day,
                     data.is_month, data.is_year, data.is_asset,
-                    data.is_template, data.is_comment, data.usable_in,
-                    now, user_id)
+                    data.is_template, data.is_comment,
+                    now, uid)
                 
+                if row is None:
+                    raise RuntimeError("Failed to create node with UUID")
                 node_id = row['id']
                 
                 # Add types
                 if data.types:
+                    np_uuid = generate_uuid()
                     await conn.execute("""
-                        INSERT INTO node_property (node_id, property_id, create_date, write_date)
-                        VALUES ($1, $2, $3, $3)
+                        INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
+                        VALUES ($1, $2, $3, $4, $4, $5, $5)
                         ON CONFLICT (node_id, property_id) DO NOTHING
-                    """, node_id, self._types_property_id, now)
+                    """, np_uuid, node_id, self._types_property_id, now, uid)
                     
                     np_row = await conn.fetchrow(
                         "SELECT id FROM node_property WHERE node_id = $1 AND property_id = $2",
@@ -359,16 +403,18 @@ class PostgresNodeRepository(NodeRepository):
                         raise RuntimeError(f"Failed to create node_property for node {node_id}")
                     node_property_id = np_row['id']
                     
-                    for seq, type_id in enumerate(data.types):
+                    for type_id in data.types:
+                        pvr_uuid = generate_uuid()
                         await conn.execute("""
                             INSERT INTO property_value_relation 
-                            (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date)
-                            VALUES ($1, $2, $3, $4, $5, $6, $6)
-                        """, node_property_id, self._types_property_id, node_id, type_id, seq, now)
+                            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
+                            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
+                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, type_id, now, uid)
         
         return Node(
             id=node_id,
             uuid=uuid,
+            graph_id=self._graph_id,
             name=data.name,
             icon=data.icon,
             color=data.color,
@@ -385,11 +431,10 @@ class PostgresNodeRepository(NodeRepository):
             is_asset=data.is_asset,
             is_template=data.is_template,
             is_comment=data.is_comment,
-            usable_in=data.usable_in,
             create_date=now.isoformat(),
             write_date=now.isoformat(),
-            create_uid=user_id,
-            write_uid=user_id,
+            create_uid=uid,
+            write_uid=uid,
             version=1,
         )
     
@@ -397,19 +442,35 @@ class PostgresNodeRepository(NodeRepository):
         """Get node by internal ID."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id
+                "SELECT * FROM node WHERE id = $1 AND graph_id = $2 AND active = TRUE",
+                node_id, self._graph_id
             )
-            return self._row_to_node(row) if row else None
+            if not row:
+                return None
+            
+            # Permission check - need read permission
+            if self._user_id:
+                if not await self.permissions.can_read_node(node_id):
+                    return None
+            
+            return self._row_to_node(row)
     
     async def get_by_uuid(self, uuid: str) -> Optional[Node]:
         """Get node by UUID."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE uuid = $1 AND workspace_id = $2",
-                uuid, self._workspace_id
+                "SELECT * FROM node WHERE uuid = $1 AND graph_id = $2 AND active = TRUE",
+                uuid, self._graph_id
             )
-            return self._row_to_node(row) if row else None
+            if not row:
+                return None
+            
+            # Permission check - need read permission
+            if self._user_id:
+                if not await self.permissions.can_read_node(row['id']):
+                    return None
+            
+            return self._row_to_node(row)
     
     async def update(
         self,
@@ -429,11 +490,16 @@ class PostgresNodeRepository(NodeRepository):
         Raises:
             OptimisticLockError: If version doesn't match
         """
+        # Permission check - need write permission
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
+        
         now = utc_now()
+        uid = user_id or self._user_id
         
         # Build update query dynamically
         set_clauses = ["version = version + 1", "write_date = $1", "write_uid = $2"]
-        params: List[Any] = [now, user_id]
+        params: List[Any] = [now, uid]
         param_idx = 3
         
         if data.name is not None:
@@ -487,15 +553,10 @@ class PostgresNodeRepository(NodeRepository):
                 params.append(value)
                 param_idx += 1
         
-        if data.usable_in is not None:
-            set_clauses.append(f"usable_in = ${param_idx}")
-            params.append(data.usable_in)
-            param_idx += 1
-        
         # Build WHERE clause
-        where_clause = f"id = ${param_idx} AND workspace_id = ${param_idx + 1}"
+        where_clause = f"id = ${param_idx} AND graph_id = ${param_idx + 1}"
         params.append(node_id)
-        params.append(self._workspace_id)
+        params.append(self._graph_id)
         param_idx += 2
         
         if expected_version is not None:
@@ -515,8 +576,8 @@ class PostgresNodeRepository(NodeRepository):
             if row is None and expected_version is not None:
                 # Check if node exists with different version
                 check_row = await conn.fetchrow(
-                    "SELECT version FROM node WHERE id = $1 AND workspace_id = $2",
-                    node_id, self._workspace_id
+                    "SELECT version FROM node WHERE id = $1 AND graph_id = $2",
+                    node_id, self._graph_id
                 )
                 if check_row:
                     raise OptimisticLockError(
@@ -528,29 +589,66 @@ class PostgresNodeRepository(NodeRepository):
             return self._row_to_node(row) if row else None
     
     async def delete(self, node_id: int) -> bool:
-        """Delete a node and all its children."""
+        """Delete a node and all its children (soft delete)."""
+        # Permission check - need delete permission
+        if self._user_id:
+            await self.permissions.require_node_delete(node_id)
+        
         async with self._pool.acquire() as conn:
             # Use recursive CTE to get all descendants
             rows = await conn.fetch("""
                 WITH RECURSIVE descendants AS (
-                    SELECT id FROM node WHERE id = $1 AND workspace_id = $2
+                    SELECT id FROM node WHERE id = $1 AND graph_id = $2
                     UNION ALL
                     SELECT n.id FROM node n
                     JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.workspace_id = $2
+                    WHERE n.graph_id = $2
                 )
                 SELECT id FROM descendants
-            """, node_id, self._workspace_id)
+            """, node_id, self._graph_id)
             
             if not rows:
                 return False
             
             ids_to_delete = [row['id'] for row in rows]
             
-            # Delete all nodes (cascades to property values, links)
+            # Soft delete all nodes
+            now = utc_now()
+            await conn.execute("""
+                UPDATE node SET active = FALSE, write_date = $1, write_uid = $2
+                WHERE id = ANY($3) AND graph_id = $4
+            """, now, self._user_id, ids_to_delete, self._graph_id)
+            
+            return True
+    
+    async def hard_delete(self, node_id: int) -> bool:
+        """Permanently delete a node and all its children."""
+        # Permission check - need delete permission
+        if self._user_id:
+            await self.permissions.require_node_delete(node_id)
+        
+        async with self._pool.acquire() as conn:
+            # Use recursive CTE to get all descendants
+            rows = await conn.fetch("""
+                WITH RECURSIVE descendants AS (
+                    SELECT id FROM node WHERE id = $1 AND graph_id = $2
+                    UNION ALL
+                    SELECT n.id FROM node n
+                    JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.graph_id = $2
+                )
+                SELECT id FROM descendants
+            """, node_id, self._graph_id)
+            
+            if not rows:
+                return False
+            
+            ids_to_delete = [row['id'] for row in rows]
+            
+            # Hard delete all nodes (cascades to property values, links)
             await conn.execute(
-                "DELETE FROM node WHERE id = ANY($1) AND workspace_id = $2",
-                ids_to_delete, self._workspace_id
+                "DELETE FROM node WHERE id = ANY($1) AND graph_id = $2",
+                ids_to_delete, self._graph_id
             )
             
             return True
@@ -559,8 +657,8 @@ class PostgresNodeRepository(NodeRepository):
         """Get direct children of a node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE parent_id = $1 AND workspace_id = $2 ORDER BY sequence",
-                parent_id, self._workspace_id
+                "SELECT * FROM node WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE ORDER BY sequence",
+                parent_id, self._graph_id
             )
             return [self._row_to_node(row) for row in rows]
     
@@ -569,9 +667,9 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
-                WHERE is_page = TRUE AND active = TRUE AND workspace_id = $1
+                WHERE is_page = TRUE AND active = TRUE AND graph_id = $1
                 ORDER BY write_date DESC
-            """, self._workspace_id)
+            """, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
     async def get_page_content(self, page_id: int) -> List[Node]:
@@ -579,9 +677,9 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node 
-                WHERE (page_id = $1 OR id = $1) AND workspace_id = $2
+                WHERE (page_id = $1 OR id = $1) AND graph_id = $2 AND active = TRUE
                 ORDER BY sequence
-            """, page_id, self._workspace_id)
+            """, page_id, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
     async def search(self, query: str, limit: int = 50) -> List[Node]:
@@ -592,15 +690,15 @@ class PostgresNodeRepository(NodeRepository):
                 rows = await conn.fetch("""
                     SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node
-                    WHERE workspace_id = $2 
+                    WHERE graph_id = $2 AND active = TRUE
                     AND (search_vector @@ plainto_tsquery('english', $1) OR name ILIKE $3)
                     ORDER BY rank DESC, write_date DESC
                     LIMIT $4
-                """, query, self._workspace_id, f'%{query}%', limit)
+                """, query, self._graph_id, f'%{query}%', limit)
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM node WHERE name ILIKE $1 AND workspace_id = $2 LIMIT $3",
-                    f'%{query}%', self._workspace_id, limit
+                    "SELECT * FROM node WHERE name ILIKE $1 AND graph_id = $2 AND active = TRUE LIMIT $3",
+                    f'%{query}%', self._graph_id, limit
                 )
             return [self._row_to_node(row) for row in rows]
     
@@ -610,20 +708,25 @@ class PostgresNodeRepository(NodeRepository):
             rows = await conn.fetch("""
                 SELECT n.* FROM node n
                 JOIN property_value_relation pvr ON n.id = pvr.node_id
-                WHERE pvr.property_id = $1 AND pvr.target_node_id = $2 AND n.workspace_id = $3
-            """, self._types_property_id, type_node_id, self._workspace_id)
+                WHERE pvr.property_id = $1 AND pvr.target_id = $2 AND n.graph_id = $3 AND n.active = TRUE
+            """, self._types_property_id, type_node_id, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
     async def set_active(self, node_id: int, active: bool, user_id: Optional[int] = None) -> Optional[Node]:
         """Set the active status of a node (archive/unarchive)."""
+        # Permission check - need write permission
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
+        
         now = utc_now()
+        uid = user_id or self._user_id
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
                 UPDATE node 
                 SET active = $1, write_date = $2, write_uid = $3, version = version + 1
-                WHERE id = $4 AND workspace_id = $5
+                WHERE id = $4 AND graph_id = $5
                 RETURNING *
-            """, active, now, user_id, node_id, self._workspace_id)
+            """, active, now, uid, node_id, self._graph_id)
             return self._row_to_node(row) if row else None
     
     async def get_archived_pages(self) -> List[Node]:
@@ -631,9 +734,9 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
-                WHERE is_page = TRUE AND active = FALSE AND workspace_id = $1
+                WHERE is_page = TRUE AND active = FALSE AND graph_id = $1
                 ORDER BY write_date DESC
-            """, self._workspace_id)
+            """, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
     async def update_open_date(self, node_id: int) -> Optional[Node]:
@@ -643,7 +746,7 @@ class PostgresNodeRepository(NodeRepository):
             row = await conn.fetchrow("""
                 UPDATE node 
                 SET open_date = $1
-                WHERE id = $2 AND workspace_id = $3
+                WHERE id = $2 AND graph_id = $3
                 RETURNING *
-            """, now, node_id, self._workspace_id)
+            """, now, node_id, self._graph_id)
             return self._row_to_node(row) if row else None

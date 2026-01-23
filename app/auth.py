@@ -70,7 +70,7 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
         row = await conn.fetchrow(
             '''
             SELECT id, uuid, username, password_hash as hashed_password, 
-                   is_active, create_date as created_at
+                   active, create_date as created_at
             FROM "user" 
             WHERE id::text = $1 OR uuid::text = $1
             ''',
@@ -82,7 +82,7 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
                 "uuid": str(row['uuid']),
                 "username": row['username'],
                 "hashed_password": row['hashed_password'],
-                "is_active": row['is_active'],
+                "is_active": row['active'],
                 "created_at": row['created_at'].isoformat() if row['created_at'] else None,
             }
     return None
@@ -94,7 +94,7 @@ async def get_user_by_username(username: str) -> Optional[dict]:
         row = await conn.fetchrow(
             '''
             SELECT id, uuid, username, password_hash as hashed_password, 
-                   is_active, create_date as created_at
+                   active, create_date as created_at
             FROM "user" 
             WHERE username = $1
             ''',
@@ -106,7 +106,7 @@ async def get_user_by_username(username: str) -> Optional[dict]:
                 "uuid": str(row['uuid']),
                 "username": row['username'],
                 "hashed_password": row['hashed_password'],
-                "is_active": row['is_active'],
+                "is_active": row['active'],
                 "created_at": row['created_at'].isoformat() if row['created_at'] else None,
             }
     return None
@@ -125,9 +125,9 @@ async def create_user(username: str, password: str) -> dict:
     async with get_connection() as conn:
         row = await conn.fetchrow(
             '''
-            INSERT INTO "user" (username, password_hash, is_active)
+            INSERT INTO "user" (username, password_hash, active)
             VALUES ($1, $2, TRUE)
-            RETURNING id, uuid, username, is_active, create_date as created_at
+            RETURNING id, uuid, username, active, create_date as created_at
             ''',
             username, hashed
         )
@@ -139,7 +139,7 @@ async def create_user(username: str, password: str) -> dict:
             "uuid": str(row['uuid']),
             "username": row['username'],
             "hashed_password": hashed,
-            "is_active": row['is_active'],
+            "is_active": row['active'],
             "created_at": row['created_at'].isoformat() if row['created_at'] else None,
         }
         

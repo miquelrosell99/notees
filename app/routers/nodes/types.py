@@ -30,15 +30,15 @@ async def list_types(
     # Get all nodes where is_type=1 using PostgreSQL
     async with service._pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT * FROM node WHERE is_type = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name""",
-            service._workspace_id
+            """SELECT * FROM node WHERE is_type = TRUE AND active = TRUE AND graph_id = $1 ORDER BY name""",
+            service._graph_id
         )
     
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     
     # Batch fetch type_ids for all type nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else []) 
@@ -64,7 +64,7 @@ async def search_types(
     
     # Batch fetch type_ids
     node_ids = [n.id for n in pages if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
@@ -87,8 +87,8 @@ async def get_nodes_with_type(
     # Get the 'types' property ID
     async with service._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM property WHERE name = 'types' AND (workspace_id = $1 OR workspace_id IS NULL) LIMIT 1",
-            service._workspace_id
+            "SELECT id FROM property WHERE name = 'types' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
+            service._graph_id
         )
         
         if not row:
@@ -100,15 +100,15 @@ async def get_nodes_with_type(
         rows = await conn.fetch("""
             SELECT DISTINCT n.* FROM node n
             JOIN property_value_relation pvr ON n.id = pvr.node_id
-            WHERE pvr.property_id = $1 AND pvr.target_node_id = $2 AND n.workspace_id = $3
+            WHERE pvr.property_id = $1 AND pvr.target_id = $2 AND n.graph_id = $3
             ORDER BY n.write_date DESC
-        """, types_property_id, type_id, service._workspace_id)
+        """, types_property_id, type_id, service._graph_id)
     
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])

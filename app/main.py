@@ -80,7 +80,8 @@ app = FastAPI(
     title="Notees",
     version="2.0.0",
     description="A self-hosted note-taking app with bidirectional linking",
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=True  # Redirect /api/nodes to /api/nodes/
 )
 
 
@@ -203,11 +204,15 @@ async def service_worker():
 
 # ============ SPA Fallback (must be last) ============
 
-@app.get("/{full_path:path}", response_class=HTMLResponse)
+@app.get("/{full_path:path}", response_class=HTMLResponse, include_in_schema=False)
 async def spa_fallback(full_path: str):
     """Serve index.html for any non-API route to enable client-side routing."""
-    # Avoid intercepting API/static/assets/manifest/sw
-    if full_path.startswith(("api", "static", "assets")) or full_path in {"manifest.json", "sw.js"}:
+    # Don't handle API routes - let them 404 properly or redirect
+    if full_path.startswith("api/") or full_path == "api":
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Avoid intercepting static/assets/manifest/sw
+    if full_path.startswith(("static", "assets")) or full_path in {"manifest.json", "sw.js"}:
         raise HTTPException(status_code=404, detail="Not found")
 
     index_path = dist_path / "index.html"

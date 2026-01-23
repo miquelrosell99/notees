@@ -13,7 +13,8 @@ from .property import (
     PropertySelectionLine,
     PropertyTypeFilter,
     TypeProperty,
-    TypeExtends,
+    TypeExtend,
+    TypeExtends,  # Legacy alias
     NodeProperty,
     PropertyValueScalar,
     PropertyValueRelation,
@@ -47,7 +48,8 @@ __all__ = [
     "PropertySelectionLine",
     "PropertyTypeFilter",
     "TypeProperty",
-    "TypeExtends",
+    "TypeExtend",
+    "TypeExtends",  # Legacy alias
     "NodeProperty",
     "PropertyValueScalar",
     "PropertyValueRelation",

@@ -82,7 +82,7 @@ class NodeRepository(ABC):
     async def move(
         self,
         node_id: int,
-        new_parent_id: Optional[int],
+        new_parent_id: Optional[int] = None,
         new_sequence: Optional[int] = None,
         user_id: Optional[int] = None
     ) -> Optional[Node]:
@@ -224,7 +224,7 @@ class PropertyRepository(ABC):
     # ============== Scalar Values ==============
     
     @abstractmethod
-    async def set_scalar_value(self, node_id: int, property_id: int, value: Any, order: int = 0) -> PropertyValueScalar:
+    async def set_scalar_value(self, node_id: int, property_id: int, value: Any) -> PropertyValueScalar:
         """Set a scalar property value for a node."""
         pass
     
@@ -246,7 +246,7 @@ class PropertyRepository(ABC):
     # ============== Relation Values ==============
     
     @abstractmethod
-    async def set_relation_value(self, node_id: int, property_id: int, target_node_id: int, order: int = 0) -> PropertyValueRelation:
+    async def set_relation_value(self, node_id: int, property_id: int, target_id: int) -> PropertyValueRelation:
         """Set a relation property value for a node."""
         pass
     
@@ -279,7 +279,7 @@ class PropertyRepository(ABC):
     # ============== Selection Lines (Options) ==============
     
     @abstractmethod
-    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None, order: int = 0) -> PropertySelectionLine:
+    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None) -> PropertySelectionLine:
         """Add an option to a selection-type property."""
         pass
     
@@ -290,7 +290,7 @@ class PropertyRepository(ABC):
     
     @abstractmethod
     async def update_selection_line(self, line_id: int, name: Optional[str] = None,
-                                     icon: Optional[str] = None, order: Optional[int] = None) -> Optional[PropertySelectionLine]:
+                                     icon: Optional[str] = None) -> Optional[PropertySelectionLine]:
         """Update a selection option."""
         pass
     
@@ -307,7 +307,7 @@ class PropertyRepository(ABC):
     # ============== Selection Values ==============
     
     @abstractmethod
-    async def set_selection_value(self, node_id: int, property_id: int, selection_line_id: int, order: int = 0) -> PropertyValueSelection:
+    async def set_selection_value(self, node_id: int, property_id: int, selection_line_id: int) -> PropertyValueSelection:
         """Set a selection property value for a node."""
         pass
     

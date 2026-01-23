@@ -1,4 +1,8 @@
-"""PostgreSQL implementation of User repository."""
+"""PostgreSQL implementation of User repository.
+
+Updated for graph-based schema:
+- is_active -> active
+"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -16,7 +20,11 @@ def utc_now() -> datetime:
 
 
 class PostgresUserRepository(UserRepository):
-    """PostgreSQL implementation of the UserRepository."""
+    """PostgreSQL implementation of the UserRepository.
+    
+    Updated for new schema:
+    - is_active -> active
+    """
     
     def __init__(self, pool: asyncpg.Pool):
         """Initialize with connection pool."""
@@ -37,7 +45,7 @@ class PostgresUserRepository(UserRepository):
             uuid=str(row['uuid']),
             username=row['username'],
             password_hash=row['password_hash'],
-            is_active=row['is_active'],
+            active=row['active'],  # Changed from is_active
             create_date=create_date,
             write_date=write_date,
         )
@@ -49,11 +57,13 @@ class PostgresUserRepository(UserRepository):
         
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO "user" (uuid, username, password_hash, is_active, create_date, write_date)
+                INSERT INTO "user" (uuid, username, password_hash, active, create_date, write_date)
                 VALUES ($1, $2, $3, TRUE, $4, $4)
                 RETURNING *
             """, uuid, data.username, password_hash, now)
             
+            if row is None:
+                raise RuntimeError("Failed to create user - no row returned")
             return self._row_to_user(row)
     
     async def get_by_id(self, user_id: int) -> Optional[User]:
@@ -95,12 +105,12 @@ class PostgresUserRepository(UserRepository):
             return result == "UPDATE 1"
     
     async def deactivate(self, user_id: int) -> bool:
-        """Deactivate a user."""
+        """Deactivate a user (soft delete)."""
         now = utc_now()
         async with self._pool.acquire() as conn:
             result = await conn.execute("""
                 UPDATE "user" 
-                SET is_active = FALSE, write_date = $1
+                SET active = FALSE, write_date = $1
                 WHERE id = $2
             """, now, user_id)
             return result == "UPDATE 1"
