@@ -1,0 +1,154 @@
+/* NodeViewTabs.css */
+
+.node-view-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.node-view-tabs--loading {
+  padding: var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Tab bar */
+.node-view-tabs__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--spacing-xs);
+}
+
+.node-view-tabs__tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.node-view-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.node-view-tabs__tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.node-view-tabs__tab--active {
+  color: var(--text-primary);
+  background: var(--surface-secondary);
+  border-color: var(--border-color);
+  position: relative;
+}
+
+.node-view-tabs__tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--surface-secondary);
+}
+
+.node-view-tabs__tab-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-view-tabs__tab-edit {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.node-view-tabs__tab:hover .node-view-tabs__tab-edit {
+  opacity: 1;
+}
+
+.node-view-tabs__actions {
+  display: flex;
+  gap: 2px;
+}
+
+/* Results info */
+.node-view-tabs__results-info {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  padding: var(--spacing-xs) 0;
+}
+
+/* Create form */
+.node-view-tabs__create-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.node-view-tabs__create-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.node-view-tabs__create-form input {
+  padding: var(--spacing-sm);
+  font-size: 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+}
+
+.node-view-tabs__create-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-alpha);
+}
+
+.node-view-tabs__create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* Edit form */
+.node-view-tabs__edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.node-view-tabs__edit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.node-view-tabs__delete-btn {
+  color: var(--color-error);
+}
+
+.node-view-tabs__edit-spacer {
+  flex: 1;
+}

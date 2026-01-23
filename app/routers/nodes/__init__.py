@@ -23,6 +23,7 @@ from .favorites import router as favorites_router
 from .links import router as links_router
 from .comments import router as comments_router
 from .settings import router as settings_router
+from .views import router as views_router
 
 # Re-export models for backwards compatibility
 from .models import (
@@ -78,6 +79,9 @@ router.include_router(favorites_router)
 
 # Settings endpoints (POST /settings/update-date-format)
 router.include_router(settings_router)
+
+# Views endpoints (NodeViews for dynamic query tabs)
+router.include_router(views_router, prefix="/views")
 
 # CRUD endpoints (POST "", POST /page, GET /recents, GET /archived, GET/PUT/DELETE /{node_id}, etc.)
 router.include_router(crud_router)

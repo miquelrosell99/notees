@@ -3,6 +3,7 @@
  */
 export * from './auth';
 export * from './nodes';
+export * from './nodeViews';
 export * from './properties';
 export * from './databases';
 export * from './assets';

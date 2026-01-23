@@ -9,6 +9,7 @@ from .postgres_node import PostgresNodeRepository
 from .postgres_property import PostgresPropertyRepository
 from .postgres_link import PostgresLinkRepository, PostgresInlineTypeRepository
 from .postgres_user import PostgresUserRepository
+from .postgres_node_view import PostgresNodeViewRepository
 
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "PostgresLinkRepository",
     "PostgresInlineTypeRepository",
     "PostgresUserRepository",
+    "PostgresNodeViewRepository",
 ]

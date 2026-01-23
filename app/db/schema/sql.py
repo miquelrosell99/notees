@@ -382,6 +382,34 @@ CREATE INDEX IF NOT EXISTS idx_type_inline_type_id ON type_inline(type_id);
 CREATE INDEX IF NOT EXISTS idx_type_inline_graph_id ON type_inline(graph_id);
 
 -- ============================================================
+-- NODE VIEWS (DYNAMIC QUERY TABS)
+-- ============================================================
+-- NodeViews store references to query nodes that define dynamic collections.
+-- Each node can have multiple views per view_type, displayed as tabs.
+-- The query_json stores the query block tree directly.
+
+CREATE TABLE IF NOT EXISTS node_view (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    query_json JSONB NOT NULL DEFAULT '{"type": "AND_CONTAINER", "blocks": []}'::jsonb,
+    view_type TEXT NOT NULL, -- e.g., child_pages, typed_nodes, linked_references, main_content
+    order_index INTEGER DEFAULT 0,
+    is_default BOOLEAN DEFAULT FALSE,
+    active BOOLEAN DEFAULT TRUE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_view_node_id ON node_view(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_view_view_type ON node_view(view_type);
+CREATE INDEX IF NOT EXISTS idx_node_view_node_view_type ON node_view(node_id, view_type);
+CREATE INDEX IF NOT EXISTS idx_node_view_order ON node_view(node_id, view_type, order_index);
+
+-- ============================================================
 -- SETTINGS & ACTIVITY
 -- ============================================================
 
