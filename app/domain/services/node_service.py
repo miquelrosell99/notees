@@ -200,12 +200,21 @@ class NodeService:
         - ((uuid)) links are replaced with the block's content text
         - Type/tag references are removed from properties but leave inline text
         
+        Works for both active and archived nodes.
+        
         Raises:
             DatePageDeletionError: If trying to delete a month/year page that has active day children
         """
-        node = await self._node_repo.get_by_id(node_id)
-        if not node:
+        # Get node including archived ones (bypassing active=TRUE filter)
+        pool = self._node_repo.get_connection()
+        row = await pool.fetchrow(
+            "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
+            node_id, self._graph_id
+        )
+        if not row:
             return False
+        
+        node = self._node_repo._row_to_node(row)
         
         # Prevent deletion of month/year pages that have active day children
         if node.is_month or node.is_year:
