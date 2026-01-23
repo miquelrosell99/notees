@@ -108,6 +108,19 @@ class NodeRepository(ABC):
         This is useful when executing raw SQL queries that return node rows.
         """
         pass
+    
+    @abstractmethod
+    async def create_with_uuid(
+        self,
+        uuid: str,
+        data: NodeCreateData,
+        user_id: Optional[int] = None
+    ) -> Node:
+        """Create a new node with a specific UUID.
+        
+        Used for date nodes (day/month/year) which have deterministic UUIDs.
+        """
+        pass
 
 
 class PropertyRepository(ABC):
