@@ -153,6 +153,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "used_in": "00000000-0000-0000-0000-000000000004",
     "cover": "00000000-0000-0000-0000-000000000005",
     "banner": "00000000-0000-0000-0000-000000000006",
+    "_query_block_tree": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes
 }
 
 SYSTEM_PROPERTIES = [
@@ -162,4 +163,19 @@ SYSTEM_PROPERTIES = [
     {"name": "used_in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
     {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
     {"name": "banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
+    {"name": "_query_block_tree", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_block_tree"]},
 ]
+
+# Default view types for NodeViews
+DEFAULT_VIEW_TYPES = [
+    "child_pages",
+    "typed_nodes", 
+    "linked_references",
+    "main_content",
+]
+
+# Default empty query block tree (AND container with no blocks)
+DEFAULT_QUERY_BLOCK_TREE = {
+    "type": "AND_CONTAINER",
+    "blocks": []
+}

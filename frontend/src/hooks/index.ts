@@ -2,6 +2,7 @@
  * Hooks module - exports all custom hooks
  */
 export * from './useNodes';
+export * from './useNodeViews';
 export * from './useRouter';
 export { RouterSync } from './RouterSync';
 export * from './useBlockSelection';

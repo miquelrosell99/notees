@@ -200,5 +200,10 @@ export type { NodeCardProps } from './nodes/views/NodeCard';
 export { NodeTableView } from './nodes/views/NodeTableView';
 export { NodeGanttView } from './nodes/views/NodeGanttView';
 
+// Query builder components
+export { QueryBlockBuilder } from './QueryBlockBuilder';
+export { NodeViewTabs } from './NodeViewTabs';
+export type { ViewType } from './NodeViewTabs';
+
 // Icons
 export * from './icons';

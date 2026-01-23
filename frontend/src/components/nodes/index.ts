@@ -29,6 +29,9 @@ export { NodePreview } from './NodePreview';
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';
 
+export { DynamicNodeViewSection } from './DynamicNodeViewSection';
+export type { DynamicNodeViewSectionProps } from './DynamicNodeViewSection';
+
 // NodeCollection - Universal node collection component
 export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './NodeCollection';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';

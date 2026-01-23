@@ -35,7 +35,7 @@ import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
-import { NodeViewSection } from '../components/nodes/NodeViewSection';
+import { NodeViewSection, DynamicNodeViewSection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
 import { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } from '../components/TypedNodesSection';
 import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
@@ -181,6 +181,9 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     include_properties: true,
     include_backlinks: true
   });
+  
+  // Settings
+  const useDynamicNodeViews = useSettingsStore(state => state.useDynamicNodeViews);
   
   // Hooks (needed for page header sections)
   const { data: allTypes } = useTypes();
@@ -631,24 +634,37 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       )}
       
       {/* Linked References - shows all references to this node (universal for all nodes) */}
-      <NodeViewSection
-        title="Linked References"
-        icon={<LinkIcon size="sm" />}
-        count={linkedRefsCount}
-        defaultExpanded={!linkedRefsCollapsed}
-        hideWhenEmpty={true}
-        headerActions={<LinkedReferencesToolbar state={linkedRefsToolbarState} />}
-      >
-        <LinkedReferences 
-          nodeId={node.id} 
-          hideToolbar={true}
-          toolbarState={linkedRefsToolbarState}
-          onLinkClick={(nodeId, _pageId, isPage) => {
-            // Open the actual clicked node (block or page)
-            openNode(nodeId, isPage ? 'page' : 'block');
-          }}
+      {useDynamicNodeViews ? (
+        <DynamicNodeViewSection
+          nodeId={node.id}
+          nodeUuid={node.uuid}
+          viewType="linked_references"
+          title="Linked References"
+          icon={<LinkIcon size="sm" />}
+          defaultExpanded={!linkedRefsCollapsed}
+          hideWhenEmpty={true}
+          onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
         />
-      </NodeViewSection>
+      ) : (
+        <NodeViewSection
+          title="Linked References"
+          icon={<LinkIcon size="sm" />}
+          count={linkedRefsCount}
+          defaultExpanded={!linkedRefsCollapsed}
+          hideWhenEmpty={true}
+          headerActions={<LinkedReferencesToolbar state={linkedRefsToolbarState} />}
+        >
+          <LinkedReferences 
+            nodeId={node.id} 
+            hideToolbar={true}
+            toolbarState={linkedRefsToolbarState}
+            onLinkClick={(nodeId, _pageId, isPage) => {
+              // Open the actual clicked node (block or page)
+              openNode(nodeId, isPage ? 'page' : 'block');
+            }}
+          />
+        </NodeViewSection>
+      )}
       
       {/* Footer */}
       <footer className="node-view-footer">

@@ -19,7 +19,8 @@ import { useNodesStore } from '@/stores';
 import { useComments, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from './nodes/NodeViewSection';
 import { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
-import { CommentIcon, ClockIcon } from './icons';
+import { Button } from './core/Button';
+import { CommentIcon, ClockIcon, AddIcon } from './icons';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
 
@@ -161,6 +162,13 @@ export function SidebarContextSections() {
     }
   }, [currentNodeId, openCommentsForNode]);
   
+  // Handle adding a new comment - opens the comments sidebar
+  const handleAddComment = useCallback(() => {
+    if (currentNodeId) {
+      openCommentsForNode(currentNodeId);
+    }
+  }, [currentNodeId, openCommentsForNode]);
+  
   // Don't render anything if not viewing a node or no sections to show
   if (mainViewType !== 'node' || !currentNodeId) {
     return null;
@@ -182,6 +190,16 @@ export function SidebarContextSections() {
           onExpandedChange={setCommentsExpanded}
           className="sidebar-context-section sidebar-context-section--comments"
           hideWhenEmpty={false}
+          headerActions={
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={handleAddComment}
+              title="Add comment"
+            >
+              <AddIcon size="xs" />
+            </Button>
+          }
         >
           {commentsLoading ? (
             <div className="sidebar-section-loading">Loading...</div>
