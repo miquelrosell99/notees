@@ -49,7 +49,8 @@ async def lifespan(app: FastAPI):
     logger.info("PostgreSQL connection pool initialized")
     
     # Initialize database schema
-    await init_database(pool)
+    async with pool.acquire() as conn:
+        await init_database(conn)
     logger.info("Database schema initialized")
     
     # Ensure admin user exists
