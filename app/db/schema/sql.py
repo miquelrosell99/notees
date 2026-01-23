@@ -562,6 +562,48 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================
+-- REBUILD_NODE_PATH FUNCTION
+-- ============================================================
+-- Rebuilds the entire node_path closure table from scratch.
+-- Use this to repair missing entries or after bulk data imports.
+-- This is idempotent - can be run multiple times safely.
+--
+-- Usage: SELECT rebuild_node_path();
+
+CREATE OR REPLACE FUNCTION rebuild_node_path()
+RETURNS void AS $$
+BEGIN
+    -- Clear existing data
+    TRUNCATE node_path;
+    
+    -- Insert self-references for all active nodes (depth 0)
+    INSERT INTO node_path (ancestor_id, descendant_id, depth)
+    SELECT id, id, 0 FROM node WHERE active = TRUE;
+    
+    -- Build full closure using recursive CTE
+    -- This finds all ancestor-descendant pairs and their depths
+    WITH RECURSIVE node_closure AS (
+        -- Base case: direct parent-child relationships (depth 1)
+        SELECT parent_id as ancestor_id, id as descendant_id, 1 as depth
+        FROM node
+        WHERE parent_id IS NOT NULL AND active = TRUE
+        
+        UNION ALL
+        
+        -- Recursive case: extend paths through the hierarchy
+        SELECT nc.ancestor_id, n.id, nc.depth + 1
+        FROM node_closure nc
+        JOIN node n ON n.parent_id = nc.descendant_id
+        WHERE n.active = TRUE
+    )
+    INSERT INTO node_path (ancestor_id, descendant_id, depth)
+    SELECT ancestor_id, descendant_id, depth FROM node_closure;
+    
+    RAISE NOTICE 'node_path table rebuilt with % entries', (SELECT COUNT(*) FROM node_path);
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
 -- GET_BREADCRUMBS FUNCTION
 -- ============================================================
 -- Returns ordered list of nodes from root (or enter_node) down to exit_node.
@@ -772,3 +814,4 @@ CREATE TRIGGER node_update_graph_write_date
 --     SELECT 1 FROM node_path 
 --     WHERE ancestor_id = A AND descendant_id = B
 --   );
+"""

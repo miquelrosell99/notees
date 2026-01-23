@@ -304,17 +304,16 @@ class NodeService:
             return 0
         
         async with self._pool.acquire() as conn:
-            # Use recursive CTE to find all descendants, then count day pages
+            # Use closure table (node_path) to find all descendants, then count day pages
             row = await conn.fetchrow("""
-                WITH RECURSIVE descendants AS (
-                    SELECT id, is_day FROM node 
-                    WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE
-                    UNION ALL
-                    SELECT n.id, n.is_day FROM node n
-                    JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.graph_id = $2 AND n.active = TRUE
-                )
-                SELECT COUNT(*) as day_count FROM descendants WHERE is_day = TRUE
+                SELECT COUNT(*) as day_count 
+                FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 
+                  AND np.depth > 0
+                  AND n.graph_id = $2 
+                  AND n.active = TRUE
+                  AND n.is_day = TRUE
             """, node_id, self._graph_id)
             
             return row['day_count'] if row else 0

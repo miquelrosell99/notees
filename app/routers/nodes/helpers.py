@@ -98,10 +98,23 @@ def _build_children_response(children: List[Node]) -> List[NodeResponse]:
 
 
 async def _get_descendants(node_repo, parent_id: int) -> List[Node]:
-    """Get all descendants of a node recursively.
+    """Get all descendants of a node using the closure table.
     
-    Returns a flat list of all descendants, ordered by sequence at each level.
+    Returns a flat list of all descendants, ordered by depth then sequence.
+    Uses node_path for efficient O(1) lookup instead of recursive traversal.
     """
+    # Use the repository's get_descendants method if available
+    if hasattr(node_repo, 'get_descendants'):
+        descendant_ids = await node_repo.get_descendants(parent_id, include_self=False)
+        # Fetch full node data for each descendant
+        descendants = []
+        for desc_id in descendant_ids:
+            node = await node_repo.get_by_id(desc_id)
+            if node:
+                descendants.append(node)
+        return descendants
+    
+    # Fallback to manual traversal if method not available
     all_descendants: List[Node] = []
     to_process = [parent_id]
     
@@ -109,7 +122,6 @@ async def _get_descendants(node_repo, parent_id: int) -> List[Node]:
         current_id = to_process.pop(0)
         children = await node_repo.get_children(current_id)
         all_descendants.extend(children)
-        # Add children to process queue for next level
         for child in children:
             if child.id:
                 to_process.append(child.id)

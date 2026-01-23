@@ -496,6 +496,9 @@ class LinkParsingService:
     ) -> List[Tuple[Optional[int], str, bool]]:
         """Build breadcrumb path from source to page ancestor.
         
+        Uses the node_path closure table via get_breadcrumbs() for efficient
+        ancestor lookup without recursive queries.
+        
         Format: [(node_id, name, is_property_segment), ...]
         - For text links: T → ... → page
         - For property links: T → property_name → B → ... → page
@@ -504,45 +507,42 @@ class LinkParsingService:
         """
         breadcrumbs = []
         
-        if not hasattr(self._link_repo, 'get_connection'):
+        # Use the node repository's get_breadcrumbs method (uses closure table)
+        try:
+            ancestor_nodes = await self._node_repo.get_breadcrumbs(source_node_id)
+        except Exception:
+            # Fallback: return empty if method not available or fails
             return breadcrumbs
         
-        pool = self._link_repo.get_connection()
+        if not ancestor_nodes:
+            return breadcrumbs
         
-        # Walk up the hierarchy from source to page
-        current_id = source_node_id
-        visited = set()
+        # ancestor_nodes is ordered from root to exit_node
+        # We want: source → ... → page (source first)
+        # So reverse: exit_node (source) first, then up to the containing page
+        reversed_nodes = list(reversed(ancestor_nodes))
+        
         first_node = True
-        
-        while current_id and current_id not in visited:
-            visited.add(current_id)
-            
-            row = await pool.fetchrow(
-                "SELECT id, name, parent_id, is_page FROM node WHERE id = $1",
-                current_id
-            )
-            if not row:
-                break
-            
+        for node in reversed_nodes:
             # Add property segment after the first node (the source block)
             # Breadcrumb: source → property_name → ... → page
             if first_node and property_name:
-                breadcrumbs.append((row['id'], row['name'] or '', False))
+                breadcrumbs.append((node.id, node.name or '', False))
                 breadcrumbs.append((None, property_name, True))  # Property segment
                 first_node = False
             else:
-                breadcrumbs.append((row['id'], row['name'] or '', False))
+                breadcrumbs.append((node.id, node.name or '', False))
             
             # Stop at page
-            if row['is_page']:
+            if node.is_page:
                 break
-            
-            current_id = row['parent_id']
         
         return breadcrumbs
     
     async def get_path_references(self, node_id: int) -> List[int]:
         """Get all nodes referenced in the path from this node to root.
+        
+        Uses the node_path closure table for efficient ancestor lookup.
         
         This includes:
         - All text links from ancestors
@@ -556,36 +556,30 @@ class LinkParsingService:
         pool = self._link_repo.get_connection()
         referenced_ids = set()
         
-        # Walk up hierarchy
-        current_id = node_id
-        visited = set()
+        # Get all ancestor IDs using closure table
+        try:
+            ancestor_ids = await self._node_repo.get_ancestors(node_id, include_self=True)
+        except Exception:
+            return []
         
-        while current_id and current_id not in visited:
-            visited.add(current_id)
-            
-            # Get all links from this node (excluding types property)
-            rows = await pool.fetch("""
-                SELECT nl.target_id
-                FROM node_link nl
-                LEFT JOIN property p ON nl.property_id = p.id
-                WHERE nl.source_id = $1
-                  AND (p.name IS NULL OR p.name != $2)
-            """, current_id, TYPES_PROPERTY_NAME)
-            
-            for row in rows:
-                referenced_ids.add(row['target_id'])
-            
-            # Get parent
-            row = await pool.fetchrow(
-                "SELECT parent_id FROM node WHERE id = $1",
-                current_id
-            )
-            current_id = row['parent_id'] if row else None
+        if not ancestor_ids:
+            return []
         
-        return list(referenced_ids)
+        # Get all links from all ancestors in one query (excluding types property)
+        rows = await pool.fetch("""
+            SELECT DISTINCT nl.target_id
+            FROM node_link nl
+            LEFT JOIN property p ON nl.property_id = p.id
+            WHERE nl.source_id = ANY($1)
+              AND (p.name IS NULL OR p.name != $2)
+        """, ancestor_ids, TYPES_PROPERTY_NAME)
+        
+        return [row['target_id'] for row in rows]
     
     async def update_types_path(self, node_id: int) -> List[int]:
         """Compute and store the Types Path for a node.
+        
+        Uses the node_path closure table for efficient ancestor lookup.
         
         Types Path = ordered list of type node IDs inherited from ancestors'
         `types` properties.
@@ -608,33 +602,23 @@ class LinkParsingService:
             """, node_id, self._types_property_id)
             types_path.extend(row['target_id'] for row in rows)
         
-        # Walk up hierarchy and collect ancestor types
-        row = await pool.fetchrow(
-            "SELECT parent_id FROM node WHERE id = $1",
-            node_id
-        )
-        parent_id = row['parent_id'] if row else None
+        # Get ancestor IDs using closure table (ordered from root to parent)
+        try:
+            ancestor_ids = await self._node_repo.get_ancestors(node_id, include_self=False)
+        except Exception:
+            ancestor_ids = []
         
-        visited = {node_id}
-        while parent_id and parent_id not in visited:
-            visited.add(parent_id)
+        # Collect types from all ancestors in one query
+        if ancestor_ids and self._types_property_id:
+            rows = await pool.fetch("""
+                SELECT DISTINCT pvr.target_id
+                FROM property_value_relation pvr
+                WHERE pvr.node_id = ANY($1) AND pvr.property_id = $2
+            """, ancestor_ids, self._types_property_id)
             
-            if self._types_property_id:
-                rows = await pool.fetch("""
-                    SELECT pvr.target_id
-                    FROM property_value_relation pvr
-                    WHERE pvr.node_id = $1 AND pvr.property_id = $2
-                    ORDER BY pvr."order"
-                """, parent_id, self._types_property_id)
-                for row in rows:
-                    if row['target_id'] not in types_path:
-                        types_path.append(row['target_id'])
-            
-            row = await pool.fetchrow(
-                "SELECT parent_id FROM node WHERE id = $1",
-                parent_id
-            )
-            parent_id = row['parent_id'] if row else None
+            for row in rows:
+                if row['target_id'] not in types_path:
+                    types_path.append(row['target_id'])
         
         # Store types_path
         await pool.execute(
@@ -647,23 +631,20 @@ class LinkParsingService:
     async def update_types_path_for_descendants(self, node_id: int) -> None:
         """Update types_path for a node and all its descendants.
         
+        Uses the node_path closure table to efficiently get all descendants.
         Called when a node's types change or when a node is reparented.
         """
-        await self.update_types_path(node_id)
-        
-        if not hasattr(self._link_repo, 'get_connection'):
+        # Get all descendant IDs using closure table (includes self)
+        try:
+            descendant_ids = await self._node_repo.get_descendants(node_id, include_self=True)
+        except Exception:
+            # Fallback to just updating the current node
+            await self.update_types_path(node_id)
             return
         
-        pool = self._link_repo.get_connection()
-        
-        # Get all active descendants
-        children = await pool.fetch(
-            "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE",
-            node_id
-        )
-        
-        for child in children:
-            await self.update_types_path_for_descendants(child['id'])
+        # Update types_path for each descendant
+        for desc_id in descendant_ids:
+            await self.update_types_path(desc_id)
     
     def strip_links(self, content: str) -> str:
         """Remove link markup from content, leaving just the node IDs as text.
