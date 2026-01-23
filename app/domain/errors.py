@@ -3,6 +3,7 @@
 These exceptions represent domain-level error conditions,
 independent of how they're presented to users (HTTP status codes, etc.)
 """
+from typing import Optional
 
 
 class DomainError(Exception):
@@ -71,7 +72,7 @@ class OptimisticLockError(NodeError):
 class NodeValidationError(NodeError):
     """Raised when node data fails validation."""
     
-    def __init__(self, message: str, field: str = None):
+    def __init__(self, message: str, field: Optional[str] = None):
         self.field = field
         super().__init__(message=message, code="NODE_VALIDATION_ERROR")
 
