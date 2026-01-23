@@ -1,7 +1,7 @@
 /**
  * QueryBlockBuilder Component
  * 
- * Odoo-style query builder UI with:
+ * Query builder UI with:
  * - Top-level AND/OR toggle using SelectionButton
  * - Filter rows with field → operator → value layout
  * - NodePicker for relational fields (types, references, pages)
