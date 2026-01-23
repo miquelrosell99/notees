@@ -131,6 +131,8 @@ async def create_user(username: str, password: str) -> dict:
             ''',
             username, hashed
         )
+        if row is None:
+            raise RuntimeError("Failed to create user")
         
         user = {
             "id": str(row['id']),
