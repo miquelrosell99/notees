@@ -91,6 +91,7 @@ import time
 @app.middleware("http")
 async def log_requests(request, call_next):
     """Log all incoming requests with timing."""
+    import traceback
     start_time = time.perf_counter()
     
     # Skip logging for static assets
@@ -100,7 +101,12 @@ async def log_requests(request, call_next):
     if not is_static:
         logger.debug(f"→ {request.method} {path}")
     
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        logger.error(f"Exception in {request.method} {path}: {e}")
+        logger.error(traceback.format_exc())
+        raise
     
     duration_ms = (time.perf_counter() - start_time) * 1000
     
