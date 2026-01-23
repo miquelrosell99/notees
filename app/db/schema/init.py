@@ -31,6 +31,10 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Execute schema
     await conn.execute(SCHEMA_SQL)
     
+    # Rebuild the node_path closure table to ensure consistency
+    # This is idempotent and handles cases where nodes exist but node_path is empty
+    await conn.execute("SELECT rebuild_node_path()")
+    
     # Store schema version
     await conn.execute("""
         INSERT INTO schema_meta (key, value, updated_at) 

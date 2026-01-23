@@ -442,20 +442,15 @@ async def export_nodes(
         nodes_data = []
         for node_uuid in node_ids:
             if include_children:
-                # Get node and all descendants using recursive CTE
+                # Get node and all descendants using closure table (node_path)
                 rows = await conn.fetch(
                     """
-                    WITH RECURSIVE tree AS (
-                        SELECT id, uuid, name, parent_id, 0 as depth
-                        FROM node 
-                        WHERE graph_id = $1 AND uuid::text = $2
-                        UNION ALL
-                        SELECT n.id, n.uuid, n.name, n.parent_id, t.depth + 1
-                        FROM node n
-                        JOIN tree t ON n.parent_id = t.id
-                        WHERE n.graph_id = $1
-                    )
-                    SELECT * FROM tree ORDER BY depth, id
+                    SELECT n.id, n.uuid, n.name, n.parent_id, np.depth
+                    FROM node n
+                    JOIN node_path np ON np.descendant_id = n.id
+                    WHERE n.graph_id = $1 
+                      AND np.ancestor_id = (SELECT id FROM node WHERE graph_id = $1 AND uuid::text = $2)
+                    ORDER BY np.depth, n.id
                     """,
                     graph_id, node_uuid
                 )
