@@ -193,6 +193,11 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     removeType.mutate({ nodeId: node.id, typeId: typeNode.id });
   }, [node, removeType]);
   
+  // Handle color change for type/tag nodes
+  const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
+    updateNode.mutate({ id: targetNode.id, data: { color } });
+  }, [updateNode]);
+  
   const handleAddPageTag = useCallback((tagNode: Node) => {
     if (!node) return;
     addTag.mutate({ nodeId: node.id, tagId: tagNode.id });
@@ -400,6 +405,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                 searchPlaceholder="Search types..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemovePageType}
+                onColorChange={handleNodeColorChange}
                 onAdd={handleAddPageType}
                 onCreateNew={handleCreatePageType}
                 canRemove={(n) => !isSystemTypeUuid(n.uuid)}
@@ -415,6 +421,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                 searchPlaceholder="Search tags..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemovePageTag}
+                onColorChange={handleNodeColorChange}
                 onAdd={handleAddPageTag}
                 onCreateNew={handleCreatePageTag}
               />
