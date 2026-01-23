@@ -43,7 +43,8 @@ class PostgresNodeViewRepository:
         """
         self._pool = pool
         self._graph_id = graph_id
-        self._user_id = user_id
+        # Convert user_id to int for database columns
+        self._user_id = int(user_id) if user_id is not None else None
     
     def _row_to_node_view(self, row: asyncpg.Record) -> NodeView:
         """Convert database row to NodeView entity."""
