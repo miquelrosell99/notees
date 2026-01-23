@@ -101,10 +101,13 @@
 }
 
 .dynamic-section__delete-btn {
+  /* Position at start of actions row */
+}
+
+.dynamic-section__delete-btn .btn--danger {
   color: var(--color-danger);
 }
 
-.dynamic-section__delete-btn:hover {
-  color: var(--color-danger);
+.dynamic-section__delete-btn:hover .btn--danger {
   background-color: var(--color-danger-bg);
 }

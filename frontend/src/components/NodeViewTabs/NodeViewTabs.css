@@ -146,7 +146,11 @@
 }
 
 .node-view-tabs__delete-btn {
-  color: var(--color-error);
+  /* Position at start of actions row */
+}
+
+.node-view-tabs__delete-btn .btn--danger {
+  color: var(--color-danger);
 }
 
 .node-view-tabs__edit-spacer {

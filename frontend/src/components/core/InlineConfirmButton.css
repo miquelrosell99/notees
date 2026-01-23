@@ -1,0 +1,19 @@
+/**
+ * InlineConfirmButton Styles
+ */
+
+.inline-confirm-button {
+  display: inline-flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.inline-confirm-button--confirming {
+  animation: inline-confirm-shake 0.2s ease-in-out;
+}
+
+@keyframes inline-confirm-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
