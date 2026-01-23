@@ -466,3 +466,32 @@
   font-size: 0.75rem;
   color: var(--text-tertiary);
 }
+
+/* ==================== Dynamic Query Section ==================== */
+.filter-block__dynamic-query {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-color);
+}
+
+.filter-block__dynamic-query-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+  margin-bottom: var(--spacing-2xs);
+}
+
+/* Nested filter blocks in dynamic query have smaller padding */
+.filter-block__dynamic-query .filter-block {
+  background: var(--surface-primary);
+}
+
+/* Mode toggle in filter header */
+.filter-block__header .selection-button {
+  margin-left: auto;
+  margin-right: var(--spacing-xs);
+}
