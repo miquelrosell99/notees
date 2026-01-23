@@ -18,25 +18,29 @@
 .dynamic-section__tabs {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
-  background-color: var(--bg-subtle);
+  gap: 0;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
 }
 
 .dynamic-section__tab {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 4px 12px;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
-  background: transparent;
+  background: var(--bg-primary);
   border: none;
-  border-radius: var(--radius-xs);
+  border-right: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.dynamic-section__tab:last-child {
+  border-right: none;
 }
 
 .dynamic-section__tab:hover {
@@ -45,7 +49,7 @@
 }
 
 .dynamic-section__tab--active {
-  background-color: var(--bg-primary);
+  background-color: var(--bg-accent);
   color: var(--text-primary);
 }
 

@@ -203,9 +203,14 @@ export function useCreateNodeView() {
   return useMutation({
     mutationFn: (data: NodeViewCreate) => createNodeView(data),
     onSuccess: (newView) => {
-      // Invalidate list queries for the node
+      // Invalidate ALL list queries for this node (any viewType)
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(newView.node_id),
+        queryKey: nodeViewKeys.lists(),
+        predicate: (query) => {
+          const key = query.queryKey;
+          // Match ['nodeViews', 'list', nodeId, ...]
+          return key[0] === 'nodeViews' && key[1] === 'list' && key[2] === newView.node_id;
+        },
       });
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.byType(newView.node_id),
