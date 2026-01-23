@@ -107,11 +107,11 @@ class LinkParsingService:
         if hasattr(self._link_repo, 'get_connection'):
             pool = self._link_repo.get_connection()
             rows = await pool.fetch(
-                "SELECT target_node_id FROM node_link WHERE source_node_id = $1 AND property_id IS NULL",
+                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL",
                 source_node_id
             )
             for row in rows:
-                existing.add(row['target_node_id'])
+                existing.add(row['target_id'])
         return existing
     
     async def _log_link_activity(
@@ -230,11 +230,11 @@ class LinkParsingService:
         if hasattr(self._link_repo, 'get_connection'):
             pool = self._link_repo.get_connection()
             rows = await pool.fetch(
-                "SELECT target_node_id FROM node_link WHERE source_node_id = $1 AND property_id IS NULL AND is_tag = TRUE",
+                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = TRUE",
                 source_node_id
             )
             for row in rows:
-                existing.add(row['target_node_id'])
+                existing.add(row['target_id'])
         return existing
     
     async def _delete_non_tag_text_links(self, source_node_id: int) -> None:
@@ -242,7 +242,7 @@ class LinkParsingService:
         if hasattr(self._link_repo, 'get_connection'):
             pool = self._link_repo.get_connection()
             await pool.execute(
-                "DELETE FROM node_link WHERE source_node_id = $1 AND property_id IS NULL AND is_tag = FALSE",
+                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE",
                 source_node_id
             )
     
@@ -268,7 +268,7 @@ class LinkParsingService:
         
         # Check if link already exists
         row = await pool.fetchrow(
-            "SELECT id FROM node_link WHERE source_node_id = $1 AND target_node_id = $2 AND property_id IS NULL",
+            "SELECT id FROM node_link WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL",
             source_node_id, target_node_id
         )
         
@@ -308,7 +308,7 @@ class LinkParsingService:
         pool = self._link_repo.get_connection()
         
         result = await pool.execute(
-            "UPDATE node_link SET is_tag = FALSE WHERE source_node_id = $1 AND target_node_id = $2 AND property_id IS NULL AND is_tag = TRUE",
+            "UPDATE node_link SET is_tag = FALSE WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE",
             source_node_id, target_node_id
         )
         # asyncpg execute returns a status string like 'UPDATE 1'
@@ -426,7 +426,7 @@ class LinkParsingService:
         if hasattr(self._link_repo, 'get_connection'):
             pool = self._link_repo.get_connection()
             await pool.execute(
-                "DELETE FROM node_link WHERE source_node_id = $1 AND property_id = $2",
+                "DELETE FROM node_link WHERE source_id = $1 AND property_id = $2",
                 source_node_id, property_id
             )
     
@@ -448,17 +448,17 @@ class LinkParsingService:
         # Get all links pointing to this node, with property info
         rows = await pool.fetch("""
             SELECT 
-                nl.id, nl.source_node_id, nl.target_node_id, nl.position, nl.property_id,
-                nl.created_at,
+                nl.id, nl.source_id, nl.target_id, nl.position, nl.property_id,
+                nl.create_date,
                 n.name as source_name, n.uuid as source_uuid, n.is_page as source_is_page,
                 n.page_id as source_page_id,
                 p.name as property_name,
                 page.name as page_name, page.uuid as page_uuid
             FROM node_link nl
-            JOIN node n ON nl.source_node_id = n.id
+            JOIN node n ON nl.source_id = n.id
             LEFT JOIN property p ON nl.property_id = p.id
             LEFT JOIN node page ON n.page_id = page.id
-            WHERE nl.target_node_id = $1
+            WHERE nl.target_id = $1
               AND (p.name IS NULL OR p.name != $2)
         """, target_node_id, TYPES_PROPERTY_NAME)
         
@@ -467,21 +467,21 @@ class LinkParsingService:
         for row in rows:
             link = NodeLink(
                 id=row['id'],
-                source_node_id=row['source_node_id'],
-                target_node_id=row['target_node_id'],
+                source_node_id=row['source_id'],
+                target_node_id=row['target_id'],
                 position=row['position'],
                 property_id=row['property_id'],
             )
             
             # Build breadcrumb path
             breadcrumb_path = await self._build_breadcrumb_path(
-                source_node_id=row['source_node_id'],
+                source_node_id=row['source_id'],
                 property_name=row['property_name'],
             )
             
             backlink_info = BacklinkInfo(
                 link=link,
-                source_node_id=row['source_node_id'],
+                source_node_id=row['source_id'],
                 source_node_name=row['source_name'] or '',
                 source_node_uuid=row['source_uuid'],
                 source_is_page=bool(row['source_is_page']),
@@ -572,15 +572,15 @@ class LinkParsingService:
             
             # Get all links from this node (excluding types property)
             rows = await pool.fetch("""
-                SELECT nl.target_node_id
+                SELECT nl.target_id
                 FROM node_link nl
                 LEFT JOIN property p ON nl.property_id = p.id
-                WHERE nl.source_node_id = $1
+                WHERE nl.source_id = $1
                   AND (p.name IS NULL OR p.name != $2)
             """, current_id, TYPES_PROPERTY_NAME)
             
             for row in rows:
-                referenced_ids.add(row['target_node_id'])
+                referenced_ids.add(row['target_id'])
             
             # Get parent
             row = await pool.fetchrow(
@@ -608,12 +608,12 @@ class LinkParsingService:
         # Get own types first
         if self._types_property_id:
             rows = await pool.fetch("""
-                SELECT pvr.target_node_id
+                SELECT pvr.target_id
                 FROM property_value_relation pvr
                 WHERE pvr.node_id = $1 AND pvr.property_id = $2
                 ORDER BY pvr."order"
             """, node_id, self._types_property_id)
-            types_path.extend(row['target_node_id'] for row in rows)
+            types_path.extend(row['target_id'] for row in rows)
         
         # Walk up hierarchy and collect ancestor types
         row = await pool.fetchrow(
@@ -628,14 +628,14 @@ class LinkParsingService:
             
             if self._types_property_id:
                 rows = await pool.fetch("""
-                    SELECT pvr.target_node_id
+                    SELECT pvr.target_id
                     FROM property_value_relation pvr
                     WHERE pvr.node_id = $1 AND pvr.property_id = $2
                     ORDER BY pvr."order"
                 """, parent_id, self._types_property_id)
                 for row in rows:
-                    if row['target_node_id'] not in types_path:
-                        types_path.append(row['target_node_id'])
+                    if row['target_id'] not in types_path:
+                        types_path.append(row['target_id'])
             
             row = await pool.fetchrow(
                 "SELECT parent_id FROM node WHERE id = $1",
