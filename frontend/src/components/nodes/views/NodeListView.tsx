@@ -44,6 +44,9 @@ function filterPagesRecursively(nodes: Node[]): Node[] {
 /**
  * Group blocks by their page_id
  * Returns: { pages: sorted page nodes, groups: array of { page, blocks } }
+ * 
+ * Uses page_name/page_uuid from nodes when pageMap is not available
+ * (query results include these fields from the server-side join)
  */
 function groupBlocksByPage(
   nodes: Node[],
@@ -79,7 +82,31 @@ function groupBlocksByPage(
   // Convert to array with page nodes and sort
   const groups: { page: Node | null; blocks: Node[] }[] = [];
   for (const [pageId, blocks] of groupMap.entries()) {
-    const page = pageId !== null && pageMap ? pageMap.get(pageId) ?? null : null;
+    // Try to get page from pageMap first
+    let page: Node | null = pageId !== null && pageMap ? pageMap.get(pageId) ?? null : null;
+    
+    // If no pageMap or page not found, construct a minimal page object from the first block's page_name
+    if (!page && pageId !== null && blocks.length > 0) {
+      const firstBlock = blocks[0];
+      if (firstBlock.page_name) {
+        page = {
+          id: pageId,
+          uuid: firstBlock.page_uuid ?? '',
+          name: firstBlock.page_name,
+          icon: null,
+          color: null,
+          parent_id: null,
+          page_id: null,
+          sequence: 0,
+          collapsed: false,
+          active: true,
+          is_page: true,
+          create_date: '',
+          write_date: '',
+        };
+      }
+    }
+    
     groups.push({ page, blocks });
   }
   
