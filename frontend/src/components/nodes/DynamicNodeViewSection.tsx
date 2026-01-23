@@ -25,7 +25,9 @@ import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
 import { NodeViewSection } from './NodeViewSection';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
+import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { QueryBlockBuilder } from '../QueryBlockBuilder';
+import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { mdiPlus, mdiPencil, mdiPlayCircleOutline } from '@mdi/js';
@@ -178,7 +180,6 @@ export function DynamicNodeViewSection({
 
   const handleDeleteView = useCallback(async () => {
     if (!editingView) return;
-    if (!window.confirm(`Delete view "${editingView.name}"?`)) return;
     
     try {
       await deleteViewMutation.mutateAsync(editingView.id);
@@ -331,13 +332,16 @@ export function DynamicNodeViewSection({
               onChange={setEditBlockTree}
             />
             <div className="dynamic-section__edit-actions">
-              <Button
-                variant="ghost"
-                onClick={handleDeleteView}
+              <InlineConfirmButton
+                onConfirm={handleDeleteView}
+                variant="danger"
+                size="sm"
+                title="Delete view"
+                confirmTitle="Confirm delete"
                 className="dynamic-section__delete-btn"
               >
-                Delete view
-              </Button>
+                <DeleteIcon size="sm" />
+              </InlineConfirmButton>
               <div className="dynamic-section__edit-spacer" />
               <Button
                 variant="ghost"

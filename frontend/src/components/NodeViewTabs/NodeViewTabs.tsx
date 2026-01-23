@@ -12,7 +12,9 @@ import {
 } from '@mdi/js';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
+import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { QueryBlockBuilder } from '../QueryBlockBuilder';
+import { DeleteIcon } from '../icons';
 import {
   useNodeViews,
   useCreateNodeView,
@@ -163,8 +165,6 @@ export function NodeViewTabs({
   }, [editingView, editedBlockTree, updateBlockTreeMutation]);
 
   const handleDeleteView = useCallback(async (view: NodeView) => {
-    if (!window.confirm(`Delete view "${view.name}"?`)) return;
-
     try {
       await deleteMutation.mutateAsync(view.id);
       if (activeViewId === view.id) {
@@ -278,13 +278,16 @@ export function NodeViewTabs({
               onChange={setEditedBlockTree}
             />
             <div className="node-view-tabs__edit-actions">
-              <Button
-                variant="ghost"
-                onClick={() => handleDeleteView(editingView)}
+              <InlineConfirmButton
+                onConfirm={() => handleDeleteView(editingView)}
+                variant="danger"
+                size="sm"
+                title="Delete view"
+                confirmTitle="Confirm delete"
                 className="node-view-tabs__delete-btn"
               >
-                Delete view
-              </Button>
+                <DeleteIcon size="sm" />
+              </InlineConfirmButton>
               <div className="node-view-tabs__edit-spacer" />
               <Button
                 variant="ghost"
