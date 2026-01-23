@@ -22,6 +22,7 @@ from .helpers import (
     _node_to_response,
     _get_descendants,
     _build_children_response,
+    _get_type_ids_batch,
 )
 
 
@@ -242,7 +243,10 @@ async def get_linked_references(
     
     backlinks = await service._link_service.get_backlinks(node_id)
     
-    result = []
+    # Collect all source node IDs for batch type fetching
+    source_node_ids = []
+    sources_data = []  # Store (source, children, source_page, link) tuples
+    
     for link in backlinks:
         source = await service._node_repo.get_by_id(link.source_node_id)
         if not source:
@@ -255,6 +259,15 @@ async def get_linked_references(
         if source.page_id:
             source_page = await service._node_repo.get_by_id(source.page_id)
         
+        if source.id:
+            source_node_ids.append(source.id)
+        sources_data.append((source, children, source_page, link))
+    
+    # Batch fetch type_ids for all source nodes
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, source_node_ids)
+    
+    result = []
+    for source, children, source_page, link in sources_data:
         # Extract context around the link
         context = source.name or ""
         # Use position from the inner NodeLink object
@@ -274,8 +287,9 @@ async def get_linked_references(
             for seg in link.breadcrumb_path
         ] if hasattr(link, 'breadcrumb_path') and link.breadcrumb_path else []
         
-        # Convert source node to response with children
-        source_response = _node_to_response(source)
+        # Convert source node to response with children and types
+        source_types = type_ids_map.get(source.id, []) if source.id else []
+        source_response = _node_to_response(source, types=source_types)
         source_response.children = _build_children_response(children) if children else []
         
         result.append(LinkedReferenceResponse(
