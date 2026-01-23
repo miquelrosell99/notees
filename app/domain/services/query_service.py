@@ -133,10 +133,13 @@ class QuerySQLGenerator:
         # Build the WHERE clause
         where_clause = self._generate_where_clause(block_tree, runtime_params, "n")
         
-        # Build the full query
+        # Build the full query - include page_name for grouping purposes
         sql = f"""
-            SELECT DISTINCT n.*
+            SELECT DISTINCT n.*, 
+                   page.name AS page_name,
+                   page.uuid AS page_uuid
             FROM node n
+            LEFT JOIN node page ON page.id = n.page_id AND page.active = TRUE
             WHERE n.graph_id = {self._next_param(self._graph_id)}
               AND n.active = TRUE
         """
@@ -788,6 +791,9 @@ class QueryExecutor:
             # Convert UUID to string
             if 'uuid' in node_dict:
                 node_dict['uuid'] = str(node_dict['uuid'])
+            # Convert page_uuid to string
+            if 'page_uuid' in node_dict and node_dict['page_uuid']:
+                node_dict['page_uuid'] = str(node_dict['page_uuid'])
             # Convert timestamps to ISO strings
             for key in ('create_date', 'write_date', 'open_date'):
                 if key in node_dict and node_dict[key]:

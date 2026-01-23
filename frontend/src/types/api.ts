@@ -37,6 +37,10 @@ export interface Node {
   write_date: string;
   open_date?: string | null; // When the page was last opened/viewed
   
+  // Page information for grouping (populated by query results)
+  page_name?: string | null;
+  page_uuid?: string | null;
+  
   // Computed fields
   display_name?: string | null;
   tags?: number[];  // Tag node IDs (descriptive linking with #)
