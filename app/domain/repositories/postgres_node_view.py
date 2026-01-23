@@ -226,6 +226,29 @@ class PostgresNodeViewRepository:
         """
         return await self.list_by_node(node_id, view_type=view_type)
     
+    async def count_by_view_type(
+        self,
+        node_id: int,
+        view_type: str,
+    ) -> int:
+        """Count active NodeViews for a specific view_type.
+        
+        Args:
+            node_id: The node ID
+            view_type: The view type to count
+            
+        Returns:
+            Number of active views of this type
+        """
+        async with self._pool.acquire() as conn:
+            count = await conn.fetchval("""
+                SELECT COUNT(*) FROM node_view nv
+                JOIN node n ON n.id = nv.node_id
+                WHERE nv.node_id = $1 AND nv.view_type = $2
+                  AND nv.active = TRUE AND n.graph_id = $3
+            """, node_id, view_type, self._graph_id)
+            return count or 0
+    
     async def get_default_view(
         self,
         node_id: int,
