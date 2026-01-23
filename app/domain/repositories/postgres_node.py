@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, List, Any, TYPE_CHECKING, Union
 
 import asyncpg
+from asyncpg import Connection
+from asyncpg.pool import PoolConnectionProxy
 
 from ..entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
 from ..errors import OptimisticLockError
@@ -13,6 +15,9 @@ from .interfaces import NodeRepository
 
 if TYPE_CHECKING:
     pass
+
+# Type alias for connection types
+ConnectionType = Union[Connection, PoolConnectionProxy]
 
 
 def utc_now() -> datetime:
@@ -141,14 +146,14 @@ class PostgresNodeRepository(NodeRepository):
             )
             return row['is_page'] if row else False
     
-    async def _shift_siblings_for_insert(self, conn: asyncpg.Connection, parent_id: int, sequence: int) -> None:
+    async def _shift_siblings_for_insert(self, conn: ConnectionType, parent_id: int, sequence: int) -> None:
         """Shift siblings at or after the given sequence to make room for insertion."""
         await conn.execute("""
             UPDATE node SET sequence = sequence + 1 
             WHERE parent_id = $1 AND sequence >= $2 AND workspace_id = $3
         """, parent_id, sequence, self._workspace_id)
     
-    async def _close_sequence_gap(self, conn: asyncpg.Connection, parent_id: int, old_sequence: int) -> None:
+    async def _close_sequence_gap(self, conn: ConnectionType, parent_id: int, old_sequence: int) -> None:
         """Close the gap left by a node that moved away."""
         await conn.execute("""
             UPDATE node SET sequence = sequence - 1 
