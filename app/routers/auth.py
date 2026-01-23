@@ -7,7 +7,6 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ..models import UserCreate, UserLogin, Token, User
 from .. import auth
-from .. import database as db
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
