@@ -8,7 +8,7 @@ Provides PostgreSQL-based repositories scoped to user workspaces.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, cast
 from fastapi import Depends
 
 import asyncpg
@@ -29,6 +29,26 @@ from .domain.repositories import (
 )
 
 
+async def _get_system_ids(conn: asyncpg.Connection, workspace_id: int) -> tuple[int, int]:
+    """Get system IDs for page type and types property.
+    
+    Returns (page_type_id, types_property_id).
+    """
+    row = await conn.fetchrow(
+        "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND workspace_id = $1 LIMIT 1",
+        workspace_id
+    )
+    page_type_id = row['id'] if row else 1
+    
+    row = await conn.fetchrow(
+        "SELECT id FROM property WHERE name = 'types' AND (workspace_id = $1 OR workspace_id IS NULL) LIMIT 1",
+        workspace_id
+    )
+    types_property_id = row['id'] if row else 1
+    
+    return page_type_id, types_property_id
+
+
 @asynccontextmanager
 async def get_workspace_context(user_id: int):
     """Context manager for database operations with workspace context.
@@ -37,6 +57,7 @@ async def get_workspace_context(user_id: int):
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
         workspace_id = await get_or_create_user_workspace(conn, user_id)
         yield conn, workspace_id
 
@@ -54,8 +75,10 @@ async def get_node_repository(
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
         workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        yield PostgresNodeRepository(pool, workspace_id)
+        page_type_id, types_property_id = await _get_system_ids(conn, workspace_id)
+        yield PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
 
 
 async def get_property_repository(
@@ -64,6 +87,7 @@ async def get_property_repository(
     """Get a PropertyRepository for the current user's workspace."""
     pool = await get_pool()
     async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
         workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresPropertyRepository(pool, workspace_id)
 
@@ -74,6 +98,7 @@ async def get_link_repository(
     """Get a LinkRepository for the current user's workspace."""
     pool = await get_pool()
     async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
         workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresLinkRepository(pool, workspace_id)
 
@@ -84,6 +109,7 @@ async def get_inline_type_repository(
     """Get an InlineTypeRepository for the current user's workspace."""
     pool = await get_pool()
     async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
         workspace_id = await get_or_create_user_workspace(conn, int(user.id))
         yield PostgresInlineTypeRepository(pool, workspace_id)
 
@@ -101,9 +127,13 @@ class RepositoryBundle:
         self,
         pool: asyncpg.Pool,
         workspace_id: int,
+        page_type_id: int,
+        types_property_id: int,
     ):
         self.pool = pool
         self.workspace_id = workspace_id
+        self.page_type_id = page_type_id
+        self.types_property_id = types_property_id
         self._node_repo: Optional[PostgresNodeRepository] = None
         self._property_repo: Optional[PostgresPropertyRepository] = None
         self._link_repo: Optional[PostgresLinkRepository] = None
@@ -112,11 +142,13 @@ class RepositoryBundle:
     @property
     def node(self) -> PostgresNodeRepository:
         if self._node_repo is None:
-            self._node_repo = PostgresNodeRepository(self.pool, self.workspace_id)
+            self._node_repo = PostgresNodeRepository(
+                self.pool, self.workspace_id, self.page_type_id, self.types_property_id
+            )
         return self._node_repo
     
     @property
-    def property(self) -> PostgresPropertyRepository:
+    def props(self) -> PostgresPropertyRepository:
         if self._property_repo is None:
             self._property_repo = PostgresPropertyRepository(self.pool, self.workspace_id)
         return self._property_repo
@@ -144,5 +176,7 @@ async def get_repositories(
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
         workspace_id = await get_or_create_user_workspace(conn, int(user.id))
-        yield RepositoryBundle(pool, workspace_id)
+        page_type_id, types_property_id = await _get_system_ids(conn, workspace_id)
+        yield RepositoryBundle(pool, workspace_id, page_type_id, types_property_id)
