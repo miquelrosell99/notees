@@ -191,13 +191,6 @@ async def delete_database(user_id: str, name: str) -> bool:
         return False
     
     async with get_connection() as conn:
-        count = await conn.fetchval(
-            "SELECT COUNT(*) FROM workspace WHERE owner_id = $1",
-            numeric_user_id
-        )
-        if count <= 1:
-            raise ValueError("Cannot delete the last database")
-        
         result = await conn.execute(
             "DELETE FROM workspace WHERE owner_id = $1 AND name = $2",
             numeric_user_id, name
