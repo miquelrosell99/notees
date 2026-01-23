@@ -20,7 +20,7 @@ const BASE = '/properties';
  * List all property definitions
  */
 export async function listProperties(): Promise<Property[]> {
-  const response = await api.get<PropertiesResponse>(BASE);
+  const response = await api.get<PropertiesResponse>(`${BASE}/`);
   return response.data.properties;
 }
 

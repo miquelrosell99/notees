@@ -419,6 +419,7 @@ CREATE TABLE IF NOT EXISTS node_activity (
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     action VARCHAR(100) NOT NULL,
     details TEXT,
+    target_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
@@ -428,17 +429,18 @@ CREATE INDEX IF NOT EXISTS idx_node_activity_node_id ON node_activity(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_activity_user_id ON node_activity(user_id);
 CREATE INDEX IF NOT EXISTS idx_node_activity_create_date ON node_activity(create_date);
 
--- Link click tracking
-CREATE TABLE IF NOT EXISTS node_link_click (
+-- Link click tracking (source-target based)
+CREATE TABLE IF NOT EXISTS link_click (
     id SERIAL PRIMARY KEY,
-    node_link_id INTEGER NOT NULL REFERENCES node_link(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
+    source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    click_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_node_link_click_node_link_id ON node_link_click(node_link_id);
-CREATE INDEX IF NOT EXISTS idx_node_link_click_user_id ON node_link_click(user_id);
+CREATE INDEX IF NOT EXISTS idx_link_click_source_node_id ON link_click(source_node_id);
+CREATE INDEX IF NOT EXISTS idx_link_click_target_node_id ON link_click(target_node_id);
+CREATE INDEX IF NOT EXISTS idx_link_click_user_id ON link_click(user_id);
 
 -- ============================================================
 -- SCHEMA METADATA
