@@ -1011,7 +1011,7 @@ export function Block({
             nodeId={block.id}
             icon={bulletIcon}
             isPage={false}
-            interactive={canMove || canSelect}
+            interactive={canMove || canSelect || !!onBulletClick}
             hasChildren={hasChildren}
             collapsed={isCollapsed}
             onDragStart={handleDragStart}
