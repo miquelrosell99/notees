@@ -137,5 +137,10 @@
 
 /* Group children - blocks indented from the header */
 .node-list-group__children {
-  padding-left: 1.25rem; /* Indent children from the header text */
+  padding-left: 1.5rem; /* Indent children from the header text */
+}
+
+/* Ensure proper padding for items within groups */
+.node-list-group__children .node-list-item {
+  padding-left: 0.5rem;
 }
