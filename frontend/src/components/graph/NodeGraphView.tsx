@@ -219,6 +219,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     if (event.shiftKey) {
       addSidebarCard(node.id, node.type);
     } else if (event.ctrlKey) {
+      // Ctrl+click: toggle selection
       setSelectedNodes(prev => {
         const exists = prev.find(s => s.id === node.id);
         if (exists) {
@@ -228,9 +229,12 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
         }
       });
     } else {
+      // Regular click: toggle selection (add if not selected, remove if selected)
       setSelectedNodes(prev => {
         const exists = prev.find(s => s.id === node.id);
-        if (exists) return prev;
+        if (exists) {
+          return prev.filter(s => s.id !== node.id);
+        }
         return [...prev, { id: node.id, name: node.name, order: prev.length }];
       });
     }

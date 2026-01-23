@@ -263,6 +263,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const lastClickedNodeRef = useRef<number | null>(null);
   const renderRef = useRef<((ctx: CanvasRenderingContext2D) => void) | null>(null);
   const wasJustDraggingRef = useRef(false);
+  const dragLiftProgressRef = useRef(0); // 0 to 1 for drag lift animation
+  const dragStartTimeRef = useRef<number | null>(null);
   
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
@@ -694,6 +696,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE);
           }
         }
+        
+        // Update drag lift animation progress
+        if (dragStartTimeRef.current !== null) {
+          const elapsed = Date.now() - dragStartTimeRef.current;
+          dragLiftProgressRef.current = Math.min(1, elapsed / 150); // 150ms to fully lift
+        }
+      } else {
+        // Animate lift down when not dragging
+        if (dragLiftProgressRef.current > 0) {
+          dragLiftProgressRef.current = Math.max(0, dragLiftProgressRef.current - 0.1);
+        }
       }
       
       // Update positions (for all nodes including hidden ones, but they won't be rendered)
@@ -747,13 +760,36 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       maxTotalLinks = Math.max(maxTotalLinks, node.backlinkCount + node.internalLinkCount);
     }
     
-    // Draw links
+    // Build link direction map - check if reverse link exists for bidirectional arrows
+    const linkDirections = new Map<string, { forward: boolean; reverse: boolean }>();
+    for (const link of visibleLinks) {
+      const key = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}`;
+      if (!linkDirections.has(key)) {
+        linkDirections.set(key, { forward: false, reverse: false });
+      }
+      const dir = linkDirections.get(key)!;
+      if (link.source < link.target) {
+        dir.forward = true;
+      } else {
+        dir.reverse = true;
+      }
+    }
+    
+    // Draw links (deduped - draw each pair only once)
+    const drawnLinks = new Set<string>();
     for (const link of visibleLinks) {
       const source = visibleNodes.find(n => n.id === link.source);
       const target = visibleNodes.find(n => n.id === link.target);
       if (!source || !target) continue;
       
+      // Skip if we've already drawn this link pair
+      const linkKey = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}-${link.type}`;
+      if (drawnLinks.has(linkKey)) continue;
+      drawnLinks.add(linkKey);
+      
       const isParentLink = link.type === 'parent';
+      const dirKey = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}`;
+      const directions = linkDirections.get(dirKey);
       
       ctx.beginPath();
       ctx.strokeStyle = isParentLink 
@@ -771,13 +807,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.lineTo(target.x, target.y);
       ctx.stroke();
       
-      // Arrow for parent links
-      if (isParentLink) {
-        const angle = Math.atan2(target.y - source.y, target.x - source.x);
-        const arrowSize = 8;
-        const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
-        const arrowX = target.x - (targetRadius + 5) * Math.cos(angle);
-        const arrowY = target.y - (targetRadius + 5) * Math.sin(angle);
+      // Draw arrows
+      const arrowSize = 8;
+      const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
+      const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
+      
+      // Helper function to draw an arrow
+      const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, nodeRadius: number) => {
+        const angle = Math.atan2(toY - fromY, toX - fromX);
+        const arrowX = toX - (nodeRadius + 5) * Math.cos(angle);
+        const arrowY = toY - (nodeRadius + 5) * Math.sin(angle);
         
         ctx.beginPath();
         ctx.setLineDash([]);
@@ -792,19 +831,67 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           arrowY - arrowSize * Math.sin(angle + Math.PI / 6)
         );
         ctx.stroke();
+      };
+      
+      if (isParentLink) {
+        // Parent links always have arrow pointing to child (target)
+        drawArrow(source.x, source.y, target.x, target.y, targetRadius);
+      } else {
+        // Reference links - draw directional arrows
+        // Arrow pointing from source to target (at target end)
+        if (link.source === source.id) {
+          drawArrow(source.x, source.y, target.x, target.y, targetRadius);
+        }
+        
+        // If bidirectional, draw arrow pointing back (at source end)
+        if (directions?.forward && directions?.reverse) {
+          drawArrow(target.x, target.y, source.x, source.y, sourceRadius);
+        }
       }
     }
     
     ctx.setLineDash([]);
     
-    // Draw nodes
-    for (const node of visibleNodes) {
+    // Get dragged node info for shadow rendering
+    const draggedNodeId = dragNodeRef.current?.id ?? null;
+    const liftProgress = dragLiftProgressRef.current;
+    
+    // Draw nodes (dragged node last to be on top)
+    const sortedNodes = [...visibleNodes].sort((a, b) => {
+      if (a.id === draggedNodeId) return 1;
+      if (b.id === draggedNodeId) return -1;
+      return 0;
+    });
+    
+    for (const node of sortedNodes) {
       if (!node.visible) continue;
       
       const isHovered = hoveredNode?.id === node.id;
+      const isDragging = node.id === draggedNodeId;
       const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
       const nodeColor = getNodeColor(node, currentTypeColors, accentColor);
+      
+      // Draw shadow for dragged node
+      if (isDragging && liftProgress > 0) {
+        const shadowOffset = 4 * liftProgress;
+        const shadowBlur = 12 * liftProgress;
+        const shadowOpacity = 0.3 * liftProgress;
+        
+        ctx.save();
+        ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`;
+        ctx.shadowBlur = shadowBlur;
+        ctx.shadowOffsetX = shadowOffset;
+        ctx.shadowOffsetY = shadowOffset;
+        
+        // Draw shadow circle
+        ctx.beginPath();
+        ctx.fillStyle = nodeColor;
+        ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.restore();
+      }
       
       // Glare properties
       let glareRadius = GLARE_RADIUS_NORMAL;
@@ -981,6 +1068,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     if (node) {
       dragNodeRef.current = node;
+      dragStartTimeRef.current = Date.now();
     } else {
       isPanningRef.current = true;
       panStartRef.current = { x: screenX, y: screenY };
@@ -998,6 +1086,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     dragNodeRef.current = null;
+    dragStartTimeRef.current = null;
     isPanningRef.current = false;
     didDragMoveRef.current = false;
     
