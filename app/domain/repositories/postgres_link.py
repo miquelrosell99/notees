@@ -63,11 +63,11 @@ class PostgresLinkRepository(LinkRepository):
         """Create a new link."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO node_link (source_id, target_id, is_tag, create_date, create_uid)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO node_link (source_id, target_id, is_tag, create_date, create_uid, graph_id)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING id
             """, link.source_id, link.target_id, link.is_tag, 
-                link.create_date, link.create_uid or self._user_id)
+                link.create_date, link.create_uid or self._user_id, self._graph_id)
             
             if row is None:
                 raise RuntimeError("Failed to create link - no row returned")
