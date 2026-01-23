@@ -83,10 +83,12 @@ export function NodeContent({
     const newNode = await createNode.mutateAsync({
       name: '',
       parent_id: node.id,
+      // Add at the end of the children list
+      sequence: children.length,
     });
     // Set the new block to edit mode so the user can start typing right away
     enterEditMode(newNode.id);
-  }, [createNode, node.id, enterEditMode]);
+  }, [createNode, node.id, children.length, enterEditMode]);
 
   const handleNodeClick = useCallback((clickedNode: Node) => {
     openNode(clickedNode.id, clickedNode.is_page ? 'page' : 'block');

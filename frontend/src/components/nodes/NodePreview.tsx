@@ -116,10 +116,15 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
   }, [updateNode]);
 
   const handleAddBlock = useCallback(async () => {
-    const newNode = await createNode.mutateAsync({ name: '', parent_id: nodeId });
+    const newNode = await createNode.mutateAsync({ 
+      name: '', 
+      parent_id: nodeId,
+      // Add at the end of the children list
+      sequence: node?.children?.length ?? 0,
+    });
     // Set the new block to edit mode so the user can start typing right away
     enterEditMode(newNode.id);
-  }, [nodeId, createNode, enterEditMode]);
+  }, [nodeId, node?.children?.length, createNode, enterEditMode]);
 
   if (isLoading) {
     return (
