@@ -8,38 +8,25 @@
 .sidebar-context-sections {
   /* Anchor to bottom of sidebar, after cards */
   margin-top: auto;
-  border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-outline-variant);
   flex-shrink: 0;
 }
 
 /* Individual section styling - lighter than cards */
-.sidebar-context-section {
-  border-bottom: 1px solid var(--color-border-subtle);
+.sidebar-context-section.node-view-section {
+  margin-top: 0;
+  border-top: none;
+  border-bottom: 1px solid var(--color-outline-variant);
+  padding-top: 0;
 }
 
-.sidebar-context-section:last-child {
+.sidebar-context-section.node-view-section:last-child {
   border-bottom: none;
 }
 
-/* Override NodeViewSection header for lighter appearance */
+/* Override NodeViewSection header for sidebar context */
 .sidebar-context-section .node-view-section__header {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background: transparent;
-  min-height: 32px;
-}
-
-.sidebar-context-section .node-view-section__title {
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-.sidebar-context-section .node-view-section__count {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
 }
 
 /* Content area with capped height and internal scrolling */
@@ -51,17 +38,17 @@
 
 /* Loading state */
 .sidebar-section-loading {
-  padding: var(--spacing-sm);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
   text-align: center;
 }
 
 /* Empty state */
 .sidebar-section-empty {
-  padding: var(--spacing-sm);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
   text-align: center;
   font-style: italic;
 }
@@ -76,10 +63,10 @@
 .sidebar-comment-row {
   display: flex;
   align-items: flex-start;
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-1) var(--spacing-3);
   cursor: pointer;
   transition: background-color 0.15s ease;
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .sidebar-comment-row:last-child {
@@ -87,7 +74,7 @@
 }
 
 .sidebar-comment-row:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-surface-container);
 }
 
 .sidebar-comment-row__content {
@@ -99,8 +86,8 @@
 }
 
 .sidebar-comment-row__snippet {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -110,9 +97,9 @@
 .sidebar-comment-row__meta {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
+  gap: var(--spacing-1);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
 }
 
 .sidebar-comment-row__time {
@@ -129,8 +116,8 @@
 }
 
 .sidebar-context-section--activity .node-activity-item {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border-subtle);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .sidebar-context-section--activity .node-activity-item:last-child {
@@ -138,6 +125,6 @@
 }
 
 .sidebar-context-section--activity .node-activity-empty {
-  padding: var(--spacing-sm);
+  padding: var(--spacing-2) var(--spacing-3);
   text-align: center;
 }
