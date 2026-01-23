@@ -35,12 +35,12 @@ export function useChildPagesSectionState(pageId: number, childPages?: Node[]): 
   const createNode = useCreateNode();
   
   const onAdd = useCallback(() => {
-    createNode.mutate({ name: '', is_page: true, parent_id: pageId }, {
+    createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: childPages?.length ?? 0 }, {
       onSuccess: (newPage) => {
         openNode(newPage.id, 'page');
       }
     });
-  }, [createNode, pageId, openNode]);
+  }, [createNode, pageId, childPages?.length, openNode]);
   
   return {
     viewMode,
@@ -113,12 +113,12 @@ export function ChildPagesSection({
   }, [addSidebarCard]);
   
   const handleAddChildPage = useCallback(() => {
-    createNode.mutate({ name: '', is_page: true, parent_id: pageId }, {
+    createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: childPages?.length ?? 0 }, {
       onSuccess: (newPage) => {
         openNode(newPage.id, 'page');
       }
     });
-  }, [createNode, pageId, openNode]);
+  }, [createNode, pageId, childPages?.length, openNode]);
   
   // Don't render if no child pages
   if (count === 0) {
