@@ -29,7 +29,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useTypes, useRemoveType } from '@/hooks';
-import { useNodesStore, useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useBlockSelectionActions, useOpenNodeAction } from '@/stores';
+import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
 import { Bullet } from './Bullet';
@@ -39,7 +39,6 @@ import { ContextMenu } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ColorPickerRow } from '../nodes/NodeContextMenu';
 import { NodeTypePill } from '../NodeTypePill';
-import { NodeIcon } from '../icons';
 import { SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
@@ -432,7 +431,7 @@ export function Block({
     }
     // Fallback to WebKit API (Chrome, Safari)
     else if ('caretRangeFromPoint' in document) {
-      range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      range = (document as Document).caretRangeFromPoint(e.clientX, e.clientY);
     }
     
     if (!range) return undefined;
@@ -950,12 +949,6 @@ export function Block({
     // Get the current cursor's horizontal position
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const horizontalOffset = rect.left;
-      
-      // Store the horizontal offset for positioning in the target block
-      // We'll use a data attribute or context, but for simplicity, calculate target position
       // Position cursor at end of target block for now (simpler and common behavior)
       const cursorPosition = (targetBlock.name || '').length;
       setInitialCursorPosition(cursorPosition);
@@ -1048,7 +1041,7 @@ export function Block({
               isPage={block.is_page}
               nodeUuid={block.uuid}
               content={block.name || ''}
-              onChange={(content) => onContentChange(block.id, content)}
+              onChange={(content) => onContentChange?.(block.id, content)}
               initialCursorPosition={initialCursorPosition}
               editorRef={editorRef}
               onAddType={onAddType}
@@ -1057,7 +1050,7 @@ export function Block({
               onCreateTag={onCreateTag}
               onLinkPage={onLinkPage}
               onCreatePageLink={onCreatePageLink}
-              onOpenComments={onOpenComments}
+              onOpenComments={onOpenComments ?? undefined}
               onAssetUpload={onAssetUpload}
               readOnly={!canEdit}
               isTask={Boolean(block.properties?.state)}

@@ -12,11 +12,8 @@ import asyncpg
 
 from ..entities import User, UserCreateData, generate_uuid
 from .interfaces import UserRepository
-
-
-def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+from .base import normalize_timestamp
+from ...utils import utc_now
 
 
 class PostgresUserRepository(UserRepository):
