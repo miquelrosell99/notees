@@ -1,8 +1,8 @@
 /**
  * DatabaseNameModal Component
  * 
- * Reusable modal for entering a database name. Used for both creating
- * new databases and naming imported databases.
+ * Reusable modal for entering a graph name. Used for both creating
+ * new graphs and naming imported graphs.
  */
 import { useState, useEffect } from 'react';
 import './DatabaseModal.css';
@@ -67,12 +67,12 @@ export function DatabaseNameModal({
     setError(null);
 
     if (!name.trim()) {
-      setError('Please enter a database name');
+      setError('Please enter a graph name');
       return;
     }
 
     if (name.trim().length < 2) {
-      setError('Database name must be at least 2 characters');
+      setError('Graph name must be at least 2 characters');
       return;
     }
 
@@ -104,7 +104,7 @@ export function DatabaseNameModal({
 
         <form className="database-modal__form" onSubmit={handleSubmit}>
           <div className="database-modal__field">
-            <label className="database-modal__label">Database Name</label>
+            <label className="database-modal__label">Graph Name</label>
             <div className="database-modal__input-wrapper">
               <input
                 type="text"

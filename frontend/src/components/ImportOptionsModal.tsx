@@ -1,7 +1,7 @@
 /**
  * ImportOptionsModal Component
  * 
- * Modal that displays import options for databases:
+ * Modal that displays import options for graphs:
  * - Import db.sqlite file
  * - Import zip file with db.sqlite and assets folder
  */
@@ -61,13 +61,13 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
     <div className="modal-backdrop" onClick={handleBackdropClick}>
       <div className="import-options-modal">
         <div className="import-options-modal__header">
-          <h2 className="import-options-modal__title">Import Database</h2>
+          <h2 className="import-options-modal__title">Import Graph</h2>
           <Button icon={mdiClose} iconOnly className="import-options-modal__close" onClick={onClose} size="sm" variant="ghost" />
         </div>
 
         <div className="import-options-modal__content">
           <p className="import-options-modal__description">
-            Choose how you want to import your database:
+            Choose how you want to import your graph:
           </p>
 
           <div className="import-options-modal__options">

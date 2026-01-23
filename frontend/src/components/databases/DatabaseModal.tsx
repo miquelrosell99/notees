@@ -1,7 +1,7 @@
 /**
  * DatabaseModal Component
  * 
- * Modal for creating a new database.
+ * Modal for creating a new graph.
  */
 import { useState } from 'react';
 import './DatabaseModal.css';
@@ -40,7 +40,7 @@ export function DatabaseModal({ isOpen, onClose, onSuccess }: DatabaseModalProps
       handleClose();
     },
     onError: (err: Error) => {
-      setError(err.message || 'Failed to create database');
+      setError(err.message || 'Failed to create graph');
     },
   });
 
@@ -55,12 +55,12 @@ export function DatabaseModal({ isOpen, onClose, onSuccess }: DatabaseModalProps
     setError(null);
 
     if (!name.trim()) {
-      setError('Please enter a database name');
+      setError('Please enter a graph name');
       return;
     }
 
     if (name.trim().length < 2) {
-      setError('Database name must be at least 2 characters');
+      setError('Graph name must be at least 2 characters');
       return;
     }
 
@@ -82,13 +82,13 @@ export function DatabaseModal({ isOpen, onClose, onSuccess }: DatabaseModalProps
     <div className="modal-backdrop" onClick={handleBackdropClick}>
       <div className="database-modal">
         <div className="database-modal__header">
-          <h2 className="database-modal__title">Create New Database</h2>
+          <h2 className="database-modal__title">Create New Graph</h2>
           <Button icon={mdiClose} iconOnly className="database-modal__close" onClick={handleClose} size="sm" variant="ghost" />
         </div>
 
         <form className="database-modal__form" onSubmit={handleSubmit}>
           <div className="database-modal__field">
-            <label className="database-modal__label">Database Name</label>
+            <label className="database-modal__label">Graph Name</label>
             <div className="database-modal__input-wrapper">
               <input
                 type="text"
@@ -154,7 +154,7 @@ export function DatabaseModal({ isOpen, onClose, onSuccess }: DatabaseModalProps
                   Creating...
                 </>
               ) : (
-                'Create Database'
+'Create Graph'
               )}
             </Button>
           </div>
