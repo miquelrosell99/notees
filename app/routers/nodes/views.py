@@ -269,8 +269,24 @@ async def delete_node_view(
     view_id: int,
     user: User = Depends(get_current_user),
 ) -> Dict[str, bool]:
-    """Delete a NodeView."""
+    """Delete a NodeView.
+    
+    Cannot delete the last view of a given type for a node.
+    """
     repo = await _get_node_view_repo(user)
+    
+    # Get the view first to know its node_id and view_type
+    view = await repo.get_by_id(view_id)
+    if not view:
+        raise HTTPException(status_code=404, detail="NodeView not found")
+    
+    # Check if this is the last view of its type
+    count = await repo.count_by_view_type(view.node_id, view.view_type)
+    if count <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete the last view of type '{view.view_type}'. Each node must have at least one view per type."
+        )
     
     deleted = await repo.delete(view_id)
     
