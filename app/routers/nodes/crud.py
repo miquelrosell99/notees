@@ -578,23 +578,34 @@ async def delete_node(
     """Delete a node and all its children.
     
     Also deletes any associated asset files (files named with the node's UUID).
+    Works for both active and archived nodes.
     
     Raises:
         HTTPException 400: If trying to delete a month/year page with active day children
         HTTPException 404: If node not found
     """
     service = await _get_node_service(user)
+    pool = service._node_repo.get_connection()
     
-    # Get the node first to get its UUID for asset cleanup
-    node = await service.get_node(node_id)
-    if not node:
-        raise HTTPException(404, "Node not found")
+    # Get the node including archived ones (for UUID and asset cleanup)
+    row = await pool.fetchrow(
+        "SELECT uuid FROM node WHERE id = $1 AND graph_id = $2",
+        node_id, service._graph_id
+    )
+    if not row:
+        # Debug: check if node exists at all
+        debug_row = await pool.fetchrow("SELECT id, graph_id, active FROM node WHERE id = $1", node_id)
+        if debug_row:
+            raise HTTPException(404, f"Node {node_id} exists in graph {debug_row['graph_id']} (active={debug_row['active']}), but current user graph is {service._graph_id}")
+        raise HTTPException(404, f"Node {node_id} not found in any graph")
+    
+    node_uuid = row['uuid']
     
     # Try to delete any associated asset file
-    if node.uuid and service._graph_id is not None:
+    if node_uuid and service._graph_id is not None:
         assets_dir = get_workspace_assets_dir(service._graph_id)
         # Check for asset files with any extension
-        for asset_file in assets_dir.glob(f"{node.uuid}.*"):
+        for asset_file in assets_dir.glob(f"{node_uuid}.*"):
             try:
                 asset_file.unlink()
                 logger.info(f"Deleted asset file {asset_file} for node {node_id}")
