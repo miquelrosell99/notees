@@ -2,10 +2,12 @@
 
 Handles logging and retrieving node activity (edits, link additions, etc.)
 """
+from typing import cast, Optional, List
+from datetime import datetime, timezone
+
+import asyncpg
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, timezone
 
 from .auth import get_current_user
 from ..models import User
@@ -76,9 +78,9 @@ async def get_node_activity(
 ):
     """Get activity log for a node."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
         # First verify the node belongs to this workspace
         node_check = await conn.fetchrow(
             "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
@@ -114,7 +116,7 @@ async def get_node_activity(
             details=row['details'],
             target_node_id=row['target_node_id'],
             target_node_name=row['target_node_name'],
-            create_date=row['create_date'].isoformat() if row['create_date'] else None,
+            create_date=row['create_date'].isoformat() if row['create_date'] else "",
         )
         for row in rows
     ]
@@ -131,9 +133,9 @@ async def create_node_activity(
     Only tracks activity for page nodes (is_page=1).
     """
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
         # Check if the node is a page
         row = await conn.fetchrow(
             "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
@@ -184,9 +186,9 @@ async def delete_node_activity(
 ):
     """Delete a node activity entry."""
     pool = await get_pool()
-    workspace_id = await get_or_create_user_workspace(pool, int(user.id))
     
     async with pool.acquire() as conn:
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
         # Verify node belongs to workspace before deleting activity
         node_check = await conn.fetchrow(
             "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
@@ -332,7 +334,7 @@ async def get_link_click_history(
             id=row['id'],
             source_node_id=row['source_node_id'],
             target_node_id=row['target_node_id'],
-            click_date=row['click_date'].isoformat() if row['click_date'] else None,
+            click_date=row['click_date'].isoformat() if row['click_date'] else "",
         )
         for row in rows
     ]
