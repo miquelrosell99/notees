@@ -463,6 +463,7 @@ class LinkParsingService:
                 id=row['id'],
                 source_id=row['source_id'],
                 target_id=row['target_id'],
+                position=row['position'] or 0,
             )
             
             # Build breadcrumb path
