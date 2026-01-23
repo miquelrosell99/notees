@@ -18,6 +18,8 @@ export interface ContextMenuItem {
   danger?: boolean;
   disabled?: boolean;
   separator?: boolean;
+  /** If true, don't close the menu when this item is clicked */
+  keepOpen?: boolean;
   onClick?: () => void;
 }
 
@@ -75,7 +77,9 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
         const item = navigableItems[focusedIndex];
         if (item && !item.disabled) {
           item.onClick?.();
-          onClose();
+          if (!item.keepOpen) {
+            onClose();
+          }
         }
       }
     };
@@ -115,7 +119,9 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
   const handleItemClick = (item: ContextMenuItem) => {
     if (item.disabled || item.separator) return;
     item.onClick?.();
-    onClose();
+    if (!item.keepOpen) {
+      onClose();
+    }
   };
 
   // Track index in navigable items for focus
