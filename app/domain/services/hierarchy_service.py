@@ -48,12 +48,12 @@ class HierarchyService:
             return  # Moving to root is always valid
         
         if node_id == new_parent_id:
-            raise CircularReferenceError(node_id, new_parent_id)
+            raise CircularReferenceError(str(node_id), str(new_parent_id))
         
         # Check if node_id is an ancestor of new_parent_id
         ancestors = get_ancestors(new_parent_id)
         if node_id in ancestors:
-            raise CircularReferenceError(node_id, new_parent_id)
+            raise CircularReferenceError(str(node_id), str(new_parent_id))
     
     @staticmethod
     async def validate_parent_assignment_async(
@@ -66,11 +66,11 @@ class HierarchyService:
             return
         
         if node_id == new_parent_id:
-            raise CircularReferenceError(node_id, new_parent_id)
+            raise CircularReferenceError(str(node_id), str(new_parent_id))
         
         ancestors = await get_ancestors(new_parent_id)
         if node_id in ancestors:
-            raise CircularReferenceError(node_id, new_parent_id)
+            raise CircularReferenceError(str(node_id), str(new_parent_id))
     
     @staticmethod
     def compute_path(
@@ -111,7 +111,7 @@ class HierarchyService:
             if not node:
                 return None
             
-            if node.is_page():
+            if node.is_page:
                 return node.id
             
             current_id = node.parent_id
@@ -150,14 +150,14 @@ class HierarchyService:
     def reorder_siblings(
         siblings: List[Node],
         moved_id: NodeId,
-        new_order: int,
+        new_sequence: int,
     ) -> List[Node]:
         """Reorder siblings after a move operation.
         
-        Returns the updated list with corrected order values.
+        Returns the updated list with corrected sequence values.
         """
-        # Sort by current order
-        sorted_siblings = sorted(siblings, key=lambda n: n.order)
+        # Sort by current sequence
+        sorted_siblings = sorted(siblings, key=lambda n: n.sequence)
         
         # Remove the moved node
         others = [n for n in sorted_siblings if n.id != moved_id]
@@ -167,11 +167,11 @@ class HierarchyService:
             return sorted_siblings
         
         # Insert at new position
-        new_order = max(0, min(new_order, len(others)))
-        others.insert(new_order, moved_node)
+        new_sequence = max(0, min(new_sequence, len(others)))
+        others.insert(new_sequence, moved_node)
         
-        # Reassign order values
+        # Reassign sequence values
         for i, node in enumerate(others):
-            node.order = i
+            node.sequence = i
         
         return others
