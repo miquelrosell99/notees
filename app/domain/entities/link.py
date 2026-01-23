@@ -39,6 +39,7 @@ class NodeLink:
     Schema fields:
     - source_id: Node containing the link
     - target_id: Referenced node
+    - position: Character position in the source node's content
     - is_tag: Whether this is a tag link
     - create_date: When the link was created
     - create_uid: User who created the link
@@ -46,6 +47,7 @@ class NodeLink:
     id: Optional[int] = None
     source_id: int = 0  # Node containing the link
     target_id: int = 0  # Referenced node
+    position: int = 0  # Character position in the source node's content
     is_tag: bool = False  # True if this is a tag reference (displayed with #)
     create_date: datetime = field(default_factory=utc_now)
     create_uid: Optional[int] = None
