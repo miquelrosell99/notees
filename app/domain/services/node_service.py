@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import SystemTypeConstraintError
+from ..errors import SystemTypeConstraintError, DatePageDeletionError
 from ...db.schema.constants import SYSTEM_TYPE_UUIDS
 
 if TYPE_CHECKING:
@@ -199,10 +199,20 @@ class NodeService:
         - [[Page Name]] links are replaced with just "Page Name"
         - ((uuid)) links are replaced with the block's content text
         - Type/tag references are removed from properties but leave inline text
+        
+        Raises:
+            DatePageDeletionError: If trying to delete a month/year page that has active day children
         """
         node = await self._node_repo.get_by_id(node_id)
         if not node:
             return False
+        
+        # Prevent deletion of month/year pages that have active day children
+        if node.is_month or node.is_year:
+            day_count = await self._count_active_day_descendants(node_id)
+            if day_count > 0:
+                node_type = "month" if node.is_month else "year"
+                raise DatePageDeletionError(node_type, day_count)
         
         # Get all backlinks to this node
         backlinks = await self._link_service.get_backlinks(node_id)
@@ -269,6 +279,36 @@ class NodeService:
         # For now, we'll rely on the database to handle this via foreign key cascades
         # TODO: Implement proper cleanup of type/tag references
         pass
+    
+    async def _count_active_day_descendants(self, node_id: int) -> int:
+        """Count active day pages that are descendants of this node.
+        
+        Used to prevent deletion of month/year pages that have active daily pages.
+        
+        Args:
+            node_id: The ID of the month or year node to check
+            
+        Returns:
+            Number of active day pages that are descendants of this node
+        """
+        if self._pool is None or self._graph_id is None:
+            return 0
+        
+        async with self._pool.acquire() as conn:
+            # Use recursive CTE to find all descendants, then count day pages
+            row = await conn.fetchrow("""
+                WITH RECURSIVE descendants AS (
+                    SELECT id, is_day FROM node 
+                    WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE
+                    UNION ALL
+                    SELECT n.id, n.is_day FROM node n
+                    JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.graph_id = $2 AND n.active = TRUE
+                )
+                SELECT COUNT(*) as day_count FROM descendants WHERE is_day = TRUE
+            """, node_id, self._graph_id)
+            
+            return row['day_count'] if row else 0
     
     async def get_node(self, node_id: int) -> Optional[Node]:
         """Get a node by ID."""
