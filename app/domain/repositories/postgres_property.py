@@ -1,5 +1,12 @@
 """PostgreSQL implementation of Property repository.
 
+Updated for graph-based schema:
+- workspace_id -> graph_id
+- target_node_id -> target_id in property_value_relation
+- Removed: order fields from property_value_scalar, property_value_relation, property_value_selection
+- Removed: property_selection_line.order
+- Added: uuid, create_uid, write_uid fields to value tables
+
 Property system with separate tables for:
 - property: Property definitions
 - node_property: Assignment of properties to nodes
@@ -17,7 +24,7 @@ import asyncpg
 
 from ..entities import (
     Property, PropertyType, PropertySelectionLine,
-    PropertyTypeFilter, TypeProperty, TypeExtends,
+    PropertyTypeFilter, TypeProperty, TypeExtend,
     NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     SCALAR_TYPES, RELATION_TYPES, ALWAYS_SINGLE_TYPES,
     generate_uuid,
@@ -31,12 +38,25 @@ def utc_now() -> datetime:
 
 
 class PostgresPropertyRepository(PropertyRepository):
-    """PostgreSQL implementation of the PropertyRepository."""
+    """PostgreSQL implementation of the PropertyRepository.
     
-    def __init__(self, pool: asyncpg.Pool, workspace_id: int):
-        """Initialize with connection pool and workspace context."""
+    Updated for new schema:
+    - workspace_id -> graph_id
+    - target_node_id -> target_id
+    - Removed order fields from value tables
+    """
+    
+    def __init__(self, pool: asyncpg.Pool, graph_id: int, user_id: Optional[int] = None):
+        """Initialize with connection pool and graph context.
+        
+        Args:
+            pool: asyncpg connection pool
+            graph_id: The graph this repository operates on
+            user_id: Optional current user ID for audit trails
+        """
         self._pool = pool
-        self._workspace_id = workspace_id
+        self._graph_id = graph_id
+        self._user_id = user_id
     
     def _row_to_property(self, row: asyncpg.Record) -> Property:
         """Convert database row to Property entity."""
@@ -72,10 +92,13 @@ class PostgresPropertyRepository(PropertyRepository):
             
         return NodeProperty(
             id=row['id'],
+            uuid=str(row.get('uuid', '')) if row.get('uuid') else generate_uuid(),
             node_id=row['node_id'],
             property_id=row['property_id'],
             create_date=create_date,
             write_date=write_date,
+            create_uid=row.get('create_uid'),
+            write_uid=row.get('write_uid'),
         )
     
     def _row_to_scalar_value(self, row: asyncpg.Record) -> PropertyValueScalar:
@@ -89,6 +112,7 @@ class PostgresPropertyRepository(PropertyRepository):
             
         return PropertyValueScalar(
             id=row['id'],
+            uuid=str(row.get('uuid', '')) if row.get('uuid') else generate_uuid(),
             node_property_id=row['node_property_id'],
             property_id=row['property_id'],
             node_id=row['node_id'],
@@ -96,9 +120,10 @@ class PostgresPropertyRepository(PropertyRepository):
             value_boolean=row.get('value_boolean'),
             value_float=row.get('value_float'),
             value_integer=row.get('value_integer'),
-            order=row.get('order', 0),
             create_date=create_date,
             write_date=write_date,
+            create_uid=row.get('create_uid'),
+            write_uid=row.get('write_uid'),
         )
     
     def _row_to_relation_value(self, row: asyncpg.Record) -> PropertyValueRelation:
@@ -112,13 +137,15 @@ class PostgresPropertyRepository(PropertyRepository):
             
         return PropertyValueRelation(
             id=row['id'],
+            uuid=str(row.get('uuid', '')) if row.get('uuid') else generate_uuid(),
             node_property_id=row['node_property_id'],
             property_id=row['property_id'],
             node_id=row['node_id'],
-            target_node_id=row['target_node_id'],
-            order=row.get('order', 0),
+            target_id=row['target_id'],  # Changed from target_node_id
             create_date=create_date,
             write_date=write_date,
+            create_uid=row.get('create_uid'),
+            write_uid=row.get('write_uid'),
         )
     
     def _row_to_selection_value(self, row: asyncpg.Record) -> PropertyValueSelection:
@@ -132,13 +159,15 @@ class PostgresPropertyRepository(PropertyRepository):
             
         return PropertyValueSelection(
             id=row['id'],
+            uuid=str(row.get('uuid', '')) if row.get('uuid') else generate_uuid(),
             node_property_id=row['node_property_id'],
             property_id=row['property_id'],
             node_id=row['node_id'],
             selection_line_id=row['selection_line_id'],
-            order=row.get('order', 0),
             create_date=create_date,
             write_date=write_date,
+            create_uid=row.get('create_uid'),
+            write_uid=row.get('write_uid'),
         )
     
     def _row_to_selection_line(self, row: asyncpg.Record) -> PropertySelectionLine:
@@ -155,7 +184,7 @@ class PostgresPropertyRepository(PropertyRepository):
             property_id=row['property_id'],
             name=row['name'],
             icon=row.get('icon'),
-            order=row.get('order', 0),
+            order=0,  # order removed from schema
             create_date=create_date,
             write_date=write_date,
         )
@@ -194,22 +223,25 @@ class PostgresPropertyRepository(PropertyRepository):
                 raise ValueError("Local properties must have a node_id")
             async with self._pool.acquire() as conn:
                 row = await conn.fetchrow(
-                    "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
-                    property.node_id, self._workspace_id
+                    "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
+                    property.node_id, self._graph_id
                 )
                 if not row or not row['is_page']:
                     raise ValueError("Local property node_id must reference a page node")
         
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, is_local, node_id, create_date, write_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+                INSERT INTO property (uuid, graph_id, name, icon, type, is_multi, is_system, is_local, node_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $11)
                 RETURNING id
-            """, uuid, self._workspace_id if not property.is_system else None,
+            """, uuid, self._graph_id if not property.is_system else None,
                 property.name, property.icon, property.type.value,
                 is_multi, property.is_system, property.is_local,
-                property.node_id, now)
+                property.node_id, now, self._user_id)
             
+            if row is None:
+                raise RuntimeError("Failed to create property - no row returned")
+                
             property.id = row['id']
             property.uuid = uuid
             property.is_multi = is_multi
@@ -222,7 +254,7 @@ class PostgresPropertyRepository(PropertyRepository):
         """Get property by ID with type filters and selection lines."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM property WHERE id = $1",
+                "SELECT * FROM property WHERE id = $1 AND active = TRUE",
                 property_id
             )
             if not row:
@@ -241,7 +273,7 @@ class PostgresPropertyRepository(PropertyRepository):
             # Load selection lines
             if prop.type == PropertyType.SELECTION:
                 line_rows = await conn.fetch(
-                    'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY "order"',
+                    'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY name',
                     property_id
                 )
                 prop._selection_lines = [self._row_to_selection_line(l) for l in line_rows]
@@ -252,7 +284,7 @@ class PostgresPropertyRepository(PropertyRepository):
         """Get property by UUID."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id FROM property WHERE uuid = $1",
+                "SELECT id FROM property WHERE uuid = $1 AND active = TRUE",
                 uuid
             )
             if not row:
@@ -265,7 +297,7 @@ class PostgresPropertyRepository(PropertyRepository):
             if node_id is not None:
                 # Look for local property first
                 row = await conn.fetchrow(
-                    "SELECT id FROM property WHERE name = $1 AND is_local = TRUE AND node_id = $2",
+                    "SELECT id FROM property WHERE name = $1 AND is_local = TRUE AND node_id = $2 AND active = TRUE",
                     name, node_id
                 )
                 if row:
@@ -273,7 +305,7 @@ class PostgresPropertyRepository(PropertyRepository):
             
             # Fall back to global property
             row = await conn.fetchrow(
-                "SELECT id FROM property WHERE name = $1 AND is_local = FALSE",
+                "SELECT id FROM property WHERE name = $1 AND is_local = FALSE AND active = TRUE",
                 name
             )
             if not row:
@@ -285,13 +317,13 @@ class PostgresPropertyRepository(PropertyRepository):
         async with self._pool.acquire() as conn:
             if include_local:
                 rows = await conn.fetch(
-                    "SELECT * FROM property WHERE workspace_id = $1 OR workspace_id IS NULL ORDER BY name",
-                    self._workspace_id
+                    "SELECT * FROM property WHERE (graph_id = $1 OR graph_id IS NULL) AND active = TRUE ORDER BY name",
+                    self._graph_id
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM property WHERE (workspace_id = $1 OR workspace_id IS NULL) AND is_local = FALSE ORDER BY name",
-                    self._workspace_id
+                    "SELECT * FROM property WHERE (graph_id = $1 OR graph_id IS NULL) AND is_local = FALSE AND active = TRUE ORDER BY name",
+                    self._graph_id
                 )
             return [self._row_to_property(row) for row in rows]
     
@@ -299,7 +331,7 @@ class PostgresPropertyRepository(PropertyRepository):
         """Get all local properties for a specific page node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM property WHERE is_local = TRUE AND node_id = $1 ORDER BY name",
+                "SELECT * FROM property WHERE is_local = TRUE AND node_id = $1 AND active = TRUE ORDER BY name",
                 node_id
             )
             return [self._row_to_property(row) for row in rows]
@@ -333,6 +365,12 @@ class PostgresPropertyRepository(PropertyRepository):
             updates.append(f"write_date = ${param_idx}")
             params.append(now)
             param_idx += 1
+            
+            if self._user_id:
+                updates.append(f"write_uid = ${param_idx}")
+                params.append(self._user_id)
+                param_idx += 1
+            
             params.append(property_id)
             
             async with self._pool.acquire() as conn:
@@ -351,7 +389,7 @@ class PostgresPropertyRepository(PropertyRepository):
                 "SELECT COUNT(*) as cnt FROM property_value_scalar WHERE property_id = $1",
                 property_id
             )
-            if row['cnt'] > 0:
+            if row and row['cnt'] > 0:
                 return False, f"Property has {row['cnt']} scalar value(s)"
             
             # Check for relation values
@@ -359,7 +397,7 @@ class PostgresPropertyRepository(PropertyRepository):
                 "SELECT COUNT(*) as cnt FROM property_value_relation WHERE property_id = $1",
                 property_id
             )
-            if row['cnt'] > 0:
+            if row and row['cnt'] > 0:
                 return False, f"Property has {row['cnt']} relation value(s)"
             
             # Check for selection values
@@ -367,7 +405,7 @@ class PostgresPropertyRepository(PropertyRepository):
                 "SELECT COUNT(*) as cnt FROM property_value_selection WHERE property_id = $1",
                 property_id
             )
-            if row['cnt'] > 0:
+            if row and row['cnt'] > 0:
                 return False, f"Property has {row['cnt']} selection value(s)"
             
             return True, ""
@@ -401,8 +439,8 @@ class PostgresPropertyRepository(PropertyRepository):
         
         async with self._pool.acquire() as conn:
             await conn.execute(
-                "UPDATE property SET type = $1, is_multi = $2, write_date = $3 WHERE id = $4",
-                new_type.value, is_multi, now, property_id
+                "UPDATE property SET type = $1, is_multi = $2, write_date = $3, write_uid = $4 WHERE id = $5",
+                new_type.value, is_multi, now, self._user_id, property_id
             )
             
             if new_type not in RELATION_TYPES:
@@ -420,7 +458,7 @@ class PostgresPropertyRepository(PropertyRepository):
         return await self.get_by_id(property_id)
     
     async def delete(self, property_id: int) -> bool:
-        """Delete a property if no values exist."""
+        """Delete a property (soft delete using active flag)."""
         prop = await self.get_by_id(property_id)
         if not prop:
             return False
@@ -433,7 +471,11 @@ class PostgresPropertyRepository(PropertyRepository):
             raise ValueError(reason)
         
         async with self._pool.acquire() as conn:
-            await conn.execute("DELETE FROM property WHERE id = $1", property_id)
+            # Soft delete by setting active = FALSE
+            await conn.execute(
+                "UPDATE property SET active = FALSE, write_date = $1, write_uid = $2 WHERE id = $3",
+                utc_now(), self._user_id, property_id
+            )
         return True
     
     # ============== Node Property (Assignment) ==============
@@ -452,11 +494,13 @@ class PostgresPropertyRepository(PropertyRepository):
                 return self._row_to_node_property(row)
             
             row = await conn.fetchrow("""
-                INSERT INTO node_property (node_id, property_id, create_date, write_date)
-                VALUES ($1, $2, $3, $3)
+                INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $4, $5, $5)
                 RETURNING *
-            """, node_id, property_id, now)
+            """, generate_uuid(), node_id, property_id, now, self._user_id)
             
+            if row is None:
+                raise RuntimeError("Failed to assign property to node - no row returned")
             return self._row_to_node_property(row)
     
     async def get_node_property(self, node_id: int, property_id: int) -> Optional[NodeProperty]:
@@ -485,11 +529,11 @@ class PostgresPropertyRepository(PropertyRepository):
             if prop and prop.type in (PropertyType.TEXT, PropertyType.IMAGE):
                 # Delete target nodes for text/image types
                 rows = await conn.fetch(
-                    "SELECT target_node_id FROM property_value_relation WHERE node_id = $1 AND property_id = $2",
+                    "SELECT target_id FROM property_value_relation WHERE node_id = $1 AND property_id = $2",
                     node_id, property_id
                 )
                 for row in rows:
-                    await conn.execute("DELETE FROM node WHERE id = $1", row['target_node_id'])
+                    await conn.execute("DELETE FROM node WHERE id = $1", row['target_id'])
             
             result = await conn.execute(
                 "DELETE FROM node_property WHERE node_id = $1 AND property_id = $2",
@@ -508,7 +552,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     # ============== Scalar Values ==============
     
-    async def set_scalar_value(self, node_id: int, property_id: int, value: Any, order: int = 0) -> PropertyValueScalar:
+    async def set_scalar_value(self, node_id: int, property_id: int, value: Any) -> PropertyValueScalar:
         """Set a scalar property value for a node."""
         prop = await self.get_by_id(property_id)
         if not prop:
@@ -541,18 +585,20 @@ class PostgresPropertyRepository(PropertyRepository):
             
             row = await conn.fetchrow("""
                 INSERT INTO property_value_scalar 
-                (node_property_id, property_id, node_id, value_text, value_boolean, value_float, value_integer, "order", create_date, write_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+                (uuid, node_property_id, property_id, node_id, value_text, value_boolean, value_float, value_integer, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $10)
                 RETURNING *
-            """, np.id, property_id, node_id, value_text, value_boolean, value_float, value_integer, order, now)
+            """, generate_uuid(), np.id, property_id, node_id, value_text, value_boolean, value_float, value_integer, now, self._user_id)
             
+            if row is None:
+                raise RuntimeError("Failed to set scalar value - no row returned")
             return self._row_to_scalar_value(row)
     
     async def get_scalar_values(self, node_id: int, property_id: int) -> List[PropertyValueScalar]:
         """Get all scalar values for a property on a node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                'SELECT * FROM property_value_scalar WHERE node_id = $1 AND property_id = $2 ORDER BY "order"',
+                'SELECT * FROM property_value_scalar WHERE node_id = $1 AND property_id = $2',
                 node_id, property_id
             )
             return [self._row_to_scalar_value(row) for row in rows]
@@ -577,7 +623,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     # ============== Relation Values ==============
     
-    async def set_relation_value(self, node_id: int, property_id: int, target_node_id: int, order: int = 0) -> PropertyValueRelation:
+    async def set_relation_value(self, node_id: int, property_id: int, target_id: int) -> PropertyValueRelation:
         """Set a relation property value for a node."""
         prop = await self.get_by_id(property_id)
         if not prop:
@@ -598,18 +644,20 @@ class PostgresPropertyRepository(PropertyRepository):
             
             row = await conn.fetchrow("""
                 INSERT INTO property_value_relation 
-                (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $6)
+                (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
                 RETURNING *
-            """, np.id, property_id, node_id, target_node_id, order, now)
+            """, generate_uuid(), np.id, property_id, node_id, target_id, now, self._user_id)
             
+            if row is None:
+                raise RuntimeError("Failed to set relation value - no row returned")
             return self._row_to_relation_value(row)
     
     async def get_relation_values(self, node_id: int, property_id: int) -> List[PropertyValueRelation]:
         """Get all relation values for a property on a node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                'SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = $2 ORDER BY "order"',
+                'SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = $2',
                 node_id, property_id
             )
             return [self._row_to_relation_value(row) for row in rows]
@@ -619,11 +667,11 @@ class PostgresPropertyRepository(PropertyRepository):
         async with self._pool.acquire() as conn:
             if delete_target_node:
                 row = await conn.fetchrow(
-                    "SELECT target_node_id FROM property_value_relation WHERE id = $1",
+                    "SELECT target_id FROM property_value_relation WHERE id = $1",
                     value_id
                 )
                 if row:
-                    await conn.execute("DELETE FROM node WHERE id = $1", row['target_node_id'])
+                    await conn.execute("DELETE FROM node WHERE id = $1", row['target_id'])
             
             result = await conn.execute(
                 "DELETE FROM property_value_relation WHERE id = $1",
@@ -636,11 +684,11 @@ class PostgresPropertyRepository(PropertyRepository):
         async with self._pool.acquire() as conn:
             if delete_target_nodes:
                 rows = await conn.fetch(
-                    "SELECT target_node_id FROM property_value_relation WHERE node_id = $1 AND property_id = $2",
+                    "SELECT target_id FROM property_value_relation WHERE node_id = $1 AND property_id = $2",
                     node_id, property_id
                 )
                 for row in rows:
-                    await conn.execute("DELETE FROM node WHERE id = $1", row['target_node_id'])
+                    await conn.execute("DELETE FROM node WHERE id = $1", row['target_id'])
             
             result = await conn.execute(
                 "DELETE FROM property_value_relation WHERE node_id = $1 AND property_id = $2",
@@ -650,28 +698,31 @@ class PostgresPropertyRepository(PropertyRepository):
     
     # ============== Selection Lines ==============
     
-    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None, order: int = 0) -> PropertySelectionLine:
+    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None) -> PropertySelectionLine:
         """Add an option to a selection-type property."""
         now = utc_now()
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property_selection_line (property_id, name, icon, "order", create_date, write_date)
-                VALUES ($1, $2, $3, $4, $5, $5)
+                INSERT INTO property_selection_line (property_id, name, icon, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $4, $5, $5)
                 RETURNING *
-            """, property_id, name, icon, order, now)
+            """, property_id, name, icon, now, self._user_id)
+            
+            if row is None:
+                raise RuntimeError("Failed to add selection line - no row returned")
             return self._row_to_selection_line(row)
     
     async def get_selection_lines(self, property_id: int) -> List[PropertySelectionLine]:
         """Get all selection options for a property."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY "order"',
+                'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY name',
                 property_id
             )
             return [self._row_to_selection_line(row) for row in rows]
     
     async def update_selection_line(self, line_id: int, name: Optional[str] = None,
-                                     icon: Optional[str] = None, order: Optional[int] = None) -> Optional[PropertySelectionLine]:
+                                     icon: Optional[str] = None) -> Optional[PropertySelectionLine]:
         """Update a selection option."""
         now = utc_now()
         updates = []
@@ -688,11 +739,6 @@ class PostgresPropertyRepository(PropertyRepository):
             params.append(icon)
             param_idx += 1
         
-        if order is not None:
-            updates.append(f'"order" = ${param_idx}')
-            params.append(order)
-            param_idx += 1
-        
         if not updates:
             async with self._pool.acquire() as conn:
                 row = await conn.fetchrow(
@@ -704,6 +750,12 @@ class PostgresPropertyRepository(PropertyRepository):
         updates.append(f"write_date = ${param_idx}")
         params.append(now)
         param_idx += 1
+        
+        if self._user_id:
+            updates.append(f"write_uid = ${param_idx}")
+            params.append(self._user_id)
+            param_idx += 1
+        
         params.append(line_id)
         
         async with self._pool.acquire() as conn:
@@ -720,7 +772,7 @@ class PostgresPropertyRepository(PropertyRepository):
                 "SELECT COUNT(*) as cnt FROM property_value_selection WHERE selection_line_id = $1",
                 line_id
             )
-            if row['cnt'] > 0:
+            if row and row['cnt'] > 0:
                 return False, f"Selection option is used by {row['cnt']} node(s)"
             return True, ""
     
@@ -739,7 +791,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     # ============== Selection Values ==============
     
-    async def set_selection_value(self, node_id: int, property_id: int, selection_line_id: int, order: int = 0) -> PropertyValueSelection:
+    async def set_selection_value(self, node_id: int, property_id: int, selection_line_id: int) -> PropertyValueSelection:
         """Set a selection property value for a node."""
         np = await self.assign_property_to_node(node_id, property_id)
         now = utc_now()
@@ -755,18 +807,20 @@ class PostgresPropertyRepository(PropertyRepository):
             
             row = await conn.fetchrow("""
                 INSERT INTO property_value_selection 
-                (node_property_id, property_id, node_id, selection_line_id, "order", create_date, write_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $6)
+                (uuid, node_property_id, property_id, node_id, selection_line_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
                 RETURNING *
-            """, np.id, property_id, node_id, selection_line_id, order, now)
+            """, generate_uuid(), np.id, property_id, node_id, selection_line_id, now, self._user_id)
             
+            if row is None:
+                raise RuntimeError("Failed to set selection value - no row returned")
             return self._row_to_selection_value(row)
     
     async def get_selection_values(self, node_id: int, property_id: int) -> List[PropertyValueSelection]:
         """Get all selection values for a property on a node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                'SELECT * FROM property_value_selection WHERE node_id = $1 AND property_id = $2 ORDER BY "order"',
+                'SELECT * FROM property_value_selection WHERE node_id = $1 AND property_id = $2',
                 node_id, property_id
             )
             return [self._row_to_selection_value(row) for row in rows]
@@ -848,7 +902,7 @@ class PostgresPropertyRepository(PropertyRepository):
                        p.create_date as p_create_date, p.write_date as p_write_date
                 FROM node_property np
                 JOIN property p ON np.property_id = p.id
-                WHERE np.node_id = $1
+                WHERE np.node_id = $1 AND p.active = TRUE
             """, node_id)
             
             # Build property and node_property objects
@@ -960,6 +1014,9 @@ class PostgresPropertyRepository(PropertyRepository):
                 ON CONFLICT (type_node_id, property_id) DO UPDATE SET sequence = $3
                 RETURNING *
             """, type_node_id, property_id, sequence)
+            
+            if row is None:
+                raise RuntimeError("Failed to add type property - no row returned")
             return self._row_to_type_property(row)
     
     async def remove_type_property(self, type_node_id: int, property_id: int) -> bool:
@@ -975,19 +1032,20 @@ class PostgresPropertyRepository(PropertyRepository):
         """Get all properties for a type including inherited ones."""
         async with self._pool.acquire() as conn:
             # Use recursive CTE to get inherited properties
+            # Note: type_extend uses target_id (child) and source_id (parent)
             rows = await conn.fetch("""
                 WITH RECURSIVE type_hierarchy AS (
-                    SELECT type_node_id, extends_type_node_id, 0 as depth
-                    FROM type_extends WHERE type_node_id = $1
+                    SELECT target_id, source_id, 0 as depth
+                    FROM type_extend WHERE target_id = $1
                     UNION ALL
-                    SELECT te.type_node_id, te.extends_type_node_id, th.depth + 1
-                    FROM type_extends te
-                    JOIN type_hierarchy th ON te.type_node_id = th.extends_type_node_id
+                    SELECT te.target_id, te.source_id, th.depth + 1
+                    FROM type_extend te
+                    JOIN type_hierarchy th ON te.target_id = th.source_id
                     WHERE th.depth < 10
                 )
                 SELECT DISTINCT tp.* FROM type_property tp
                 WHERE tp.type_node_id = $1
-                   OR tp.type_node_id IN (SELECT extends_type_node_id FROM type_hierarchy)
+                   OR tp.type_node_id IN (SELECT source_id FROM type_hierarchy)
                 ORDER BY tp.sequence
             """, type_node_id)
             return [self._row_to_type_property(row) for row in rows]

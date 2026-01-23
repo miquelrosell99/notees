@@ -22,8 +22,8 @@ async def get_favorites(
     service = await _get_node_service(user)
     async with service._pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
-            service._workspace_id
+            "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
+            int(user.id)
         )
     
     if not row or not row['value']:
@@ -59,10 +59,10 @@ async def set_favorites(
     async with service._pool.acquire() as conn:
         favorites_json = json.dumps(favorites)
         await conn.execute("""
-            INSERT INTO settings (workspace_id, key, value) 
+            INSERT INTO setting_user (user_id, key, value) 
             VALUES ($1, 'favorites', $2)
-            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
-        """, service._workspace_id, favorites_json)
+            ON CONFLICT (user_id, key) DO UPDATE SET value = $2
+        """, int(user.id), favorites_json)
     
     return {"status": "ok", "favorites": favorites}
 
@@ -87,8 +87,8 @@ async def reorder_favorites(
     async with service._pool.acquire() as conn:
         # Get current favorites
         row = await conn.fetchrow(
-            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
-            service._workspace_id
+            "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
+            int(user.id)
         )
         
         favorites = []
@@ -111,10 +111,10 @@ async def reorder_favorites(
         favorites.insert(to_index, item)
         
         await conn.execute("""
-            INSERT INTO settings (workspace_id, key, value) 
+            INSERT INTO setting_user (user_id, key, value) 
             VALUES ($1, 'favorites', $2)
-            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
-        """, service._workspace_id, json.dumps(favorites))
+            ON CONFLICT (user_id, key) DO UPDATE SET value = $2
+        """, int(user.id), json.dumps(favorites))
     
     return {"status": "ok", "favorites": favorites}
 
@@ -129,8 +129,8 @@ async def add_favorite(
     async with service._pool.acquire() as conn:
         # Verify the node exists and is a page
         row = await conn.fetchrow(
-            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
-            node_id, service._workspace_id
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND graph_id = $2",
+            node_id, service._graph_id
         )
         
         if not row:
@@ -140,8 +140,8 @@ async def add_favorite(
         
         # Get current favorites
         fav_row = await conn.fetchrow(
-            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
-            service._workspace_id
+            "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
+            int(user.id)
         )
         
         favorites = []
@@ -157,10 +157,10 @@ async def add_favorite(
         if node_id not in favorites:
             favorites.append(node_id)
             await conn.execute("""
-                INSERT INTO settings (workspace_id, key, value) 
+                INSERT INTO setting_user (user_id, key, value) 
                 VALUES ($1, 'favorites', $2)
-                ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
-            """, service._workspace_id, json.dumps(favorites))
+                ON CONFLICT (user_id, key) DO UPDATE SET value = $2
+            """, int(user.id), json.dumps(favorites))
     
     return {"status": "ok", "favorites": favorites}
 
@@ -175,8 +175,8 @@ async def remove_favorite(
     async with service._pool.acquire() as conn:
         # Get current favorites
         row = await conn.fetchrow(
-            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
-            service._workspace_id
+            "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
+            int(user.id)
         )
         
         favorites = []
@@ -192,9 +192,9 @@ async def remove_favorite(
         if node_id in favorites:
             favorites.remove(node_id)
             await conn.execute("""
-                INSERT INTO settings (workspace_id, key, value) 
+                INSERT INTO setting_user (user_id, key, value) 
                 VALUES ($1, 'favorites', $2)
-                ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
-            """, service._workspace_id, json.dumps(favorites))
+                ON CONFLICT (user_id, key) DO UPDATE SET value = $2
+            """, int(user.id), json.dumps(favorites))
     
     return {"status": "ok", "favorites": favorites}

@@ -31,15 +31,15 @@ async def get_graph_data_endpoint(
             """
             SELECT id, uuid, name, icon, is_type, is_day, is_month, is_year
             FROM node 
-            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+            WHERE graph_id = $1 AND is_page = TRUE AND active = TRUE
             ORDER BY name
             """,
-            service._workspace_id
+            service._graph_id
         )
         
         # Get types for each page
         page_ids = [row['id'] for row in page_rows]
-        type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, page_ids) if page_ids else {}
+        type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, page_ids) if page_ids else {}
         
         # Build nodes
         nodes = []
@@ -60,17 +60,17 @@ async def get_graph_data_endpoint(
         # Get links between pages (only page-to-page links)
         link_rows = await conn.fetch(
             """
-            SELECT DISTINCT nl.source_node_id, nl.target_node_id
+            SELECT DISTINCT nl.source_id, nl.target_id
             FROM node_link nl
-            JOIN node source ON nl.source_node_id = source.id
-            JOIN node target ON nl.target_node_id = target.id
-            WHERE source.workspace_id = $1 
-              AND target.workspace_id = $1
+            JOIN node source ON nl.source_id = source.id
+            JOIN node target ON nl.target_id = target.id
+            WHERE source.graph_id = $1 
+              AND target.graph_id = $1
               AND target.is_page = TRUE
               AND source.active = TRUE
               AND target.active = TRUE
             """,
-            service._workspace_id
+            service._graph_id
         )
         
         # Build links - source is the page containing the block that links
@@ -78,8 +78,8 @@ async def get_graph_data_endpoint(
         page_id_set = {row['id'] for row in page_rows}
         
         for row in link_rows:
-            source_id = row['source_node_id']
-            target_id = row['target_node_id']
+            source_id = row['source_id']
+            target_id = row['target_id']
             
             # Get the source page (may be the block's page_id)
             source_page_id = source_id
@@ -141,7 +141,7 @@ async def search_nodes(
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch type_ids for all nodes using PostgreSQL
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     # Build response, optionally filtering by types
     result = []
@@ -199,7 +199,7 @@ async def list_nodes(
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     # Build response, optionally filtering by types
     result = []

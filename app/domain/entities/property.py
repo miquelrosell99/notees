@@ -150,10 +150,13 @@ class NodeProperty:
     to enable helper methods for working with values.
     """
     id: Optional[int] = None
+    uuid: str = field(default_factory=generate_uuid)
     node_id: int = 0
     property_id: int = 0
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
+    create_uid: Optional[int] = None
+    write_uid: Optional[int] = None
     
     # Populated by repository (not stored in node_property table)
     property_type: Optional[PropertyType] = field(default=None, repr=False)
@@ -219,7 +222,7 @@ class PropertyValueScalar:
     Used for integer, float, and boolean property types.
     For multi-value properties, multiple rows are created.
     
-    Fields:
+    Schema fields (property_value_scalar table):
     - node_property_id: Links to node_property
     - property_id: Computed from node_property
     - node_id: Computed from node_property
@@ -227,9 +230,9 @@ class PropertyValueScalar:
     - value_boolean: For boolean type
     - value_float: For float type
     - value_integer: For integer type
-    - order: For multi-value properties, determines display order
     """
     id: Optional[int] = None
+    uuid: str = field(default_factory=generate_uuid)
     node_property_id: int = 0
     property_id: int = 0  # Computed from node_property
     node_id: int = 0  # Computed from node_property
@@ -237,9 +240,10 @@ class PropertyValueScalar:
     value_boolean: Optional[bool] = None
     value_float: Optional[float] = None
     value_integer: Optional[int] = None
-    order: int = 0
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
+    create_uid: Optional[int] = None
+    write_uid: Optional[int] = None
     
     def get_value(self, property_type: PropertyType) -> Any:
         """Get the value based on property type."""
@@ -279,29 +283,30 @@ class PropertyValueRelation:
     Used for node, text, image, and date property types.
     For multi-value properties, multiple rows are created.
     
-    Fields:
+    Schema fields (property_value_relation table):
     - node_property_id: Links to node_property
     - property_id: Computed from node_property
     - node_id: Computed from node_property
-    - target_node_id: The referenced node (content node for text, asset for image, day page for date, any node for node)
-    - order: For multi-value properties, determines display order
+    - target_id: The referenced node (content node for text, asset for image, day page for date, any node for node)
     - property_type: Optional, for validation only (not stored in DB)
     """
     id: Optional[int] = None
+    uuid: str = field(default_factory=generate_uuid)
     node_property_id: int = 0
     property_id: int = 0  # Computed from node_property
     node_id: int = 0  # Computed from node_property
-    target_node_id: int = 0
-    order: int = 0
+    target_id: int = 0
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
+    create_uid: Optional[int] = None
+    write_uid: Optional[int] = None
     # Optional field for validation (not stored in DB)
     property_type: Optional[PropertyType] = field(default=None, repr=False)
     
-    def __post_init__(self):
-        """Validate that text/image properties cannot have multiple values."""
-        if self.property_type in ALWAYS_SINGLE_TYPES and self.order != 0:
-            raise ValueError("Text/Image properties cannot have multiple values")
+    # Legacy alias for backward compatibility
+    @property
+    def target_node_id(self) -> int:
+        return self.target_id
 
 
 @dataclass
@@ -310,21 +315,22 @@ class PropertyValueSelection:
     
     For multi-value selection properties, multiple rows are created.
     
-    Fields:
+    Schema fields (property_value_selection table):
     - node_property_id: Links to node_property
     - property_id: Computed from node_property
     - node_id: Computed from node_property
     - selection_line_id: The selected option from property_selection_line
-    - order: For multi-value properties, determines display order
     """
     id: Optional[int] = None
+    uuid: str = field(default_factory=generate_uuid)
     node_property_id: int = 0
     property_id: int = 0  # Computed from node_property
     node_id: int = 0  # Computed from node_property
     selection_line_id: int = 0
-    order: int = 0
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
+    create_uid: Optional[int] = None
+    write_uid: Optional[int] = None
 
 
 @dataclass
@@ -350,13 +356,31 @@ class TypeProperty:
 
 
 @dataclass
-class TypeExtends:
+class TypeExtend:
     """Links a type/class to other types it extends (inherits from).
     
     When a type extends another type, nodes with that type will
     also have the properties defined on the extended types.
+    
+    Schema fields (type_extend table):
+    - target_id: The child type node that extends another
+    - source_id: The parent type node being extended
+    - sequence: Order of extended types
     """
     id: Optional[int] = None
-    type_node_id: int = 0  # The child type node
-    extends_type_node_id: int = 0  # The parent type node being extended
+    target_id: int = 0  # The child type node
+    source_id: int = 0  # The parent type node being extended
     sequence: int = 0  # Order of extended types
+    
+    # Legacy aliases for backward compatibility
+    @property
+    def type_node_id(self) -> int:
+        return self.target_id
+    
+    @property
+    def extends_type_node_id(self) -> int:
+        return self.source_id
+
+
+# Legacy alias for backward compatibility
+TypeExtends = TypeExtend

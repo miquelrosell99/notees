@@ -12,7 +12,7 @@ from ...domain.repositories import (
     PostgresInlineTypeRepository,
 )
 from ...db.connection import get_pool
-from ...db.schema import get_or_create_user_workspace
+from ...db.schema import get_or_create_user_graph
 from ...models import User
 from ...logging_config import get_logger
 from .models import NodeResponse, CommentResponse
@@ -123,18 +123,18 @@ async def _get_type_ids(service: NodeService, node_id: int) -> List[int]:
     return [t.id for t in types if t.id]
 
 
-async def _get_tag_ids(pool, workspace_id: int, node_id: int) -> List[int]:
+async def _get_tag_ids(pool, graph_id: int, node_id: int) -> List[int]:
     """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT target_node_id FROM node_link 
-            WHERE source_node_id = $1 AND is_tag = TRUE AND property_id IS NULL
+            SELECT target_id FROM node_link 
+            WHERE source_id = $1 AND is_tag = TRUE AND property_id IS NULL
             ORDER BY position
         """, node_id)
-        return [row['target_node_id'] for row in rows]
+        return [row['target_id'] for row in rows]
 
 
-async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
     """Efficiently fetch tag_ids for multiple nodes in a single query.
     
     Returns a dict mapping node_id -> list of tag_ids.
@@ -147,22 +147,22 @@ async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Di
     
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT source_node_id, target_node_id
+            SELECT source_id, target_id
             FROM node_link 
-            WHERE source_node_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
-            ORDER BY source_node_id, position
+            WHERE source_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
+            ORDER BY source_id, position
         """, node_ids)
     
         for row in rows:
-            source_id = row['source_node_id']
-            target_id = row['target_node_id']
+            source_id = row['source_id']
+            target_id = row['target_id']
             if source_id in result and target_id:
                 result[source_id].append(target_id)
     
     return result
 
 
-async def _get_type_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+async def _get_type_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
     """Efficiently fetch type_ids for multiple nodes in a single query.
     
     Returns a dict mapping node_id -> list of type_ids.
@@ -177,17 +177,16 @@ async def _get_type_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> D
         rows = await conn.fetch("""
             SELECT 
                 pvr.node_id,
-                array_agg(pvr.target_node_id ORDER BY pvr."order") as type_ids
+                array_agg(pvr.target_id) as type_ids
             FROM property_value_relation pvr
             JOIN property p ON pvr.property_id = p.id
-            JOIN node_property np ON pvr.node_property_id = np.id
-            JOIN node n ON np.node_id = n.id
+            JOIN node n ON pvr.node_id = n.id
             WHERE p.name = 'types' 
-              AND n.workspace_id = $2
+              AND n.graph_id = $2
               AND pvr.node_id = ANY($1)
-              AND pvr.target_node_id IS NOT NULL
+              AND pvr.target_id IS NOT NULL
             GROUP BY pvr.node_id
-        """, node_ids, workspace_id)
+        """, node_ids, graph_id)
     
         for row in rows:
             node_id = row['node_id']
@@ -199,34 +198,35 @@ async def _get_type_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> D
 
 
 async def _get_node_service(user: User) -> NodeService:
-    """Get NodeService instance for user's workspace.
+    """Get NodeService instance for user's graph.
     
-    Uses PostgreSQL connection pool with workspace context.
+    Uses PostgreSQL connection pool with graph context.
     """
     pool = await get_pool()
+    user_id = int(user.id)
     
     async with pool.acquire() as conn:
-        # Get user's workspace
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
+        # Get user's graph
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
         
         # Get system IDs (cached in real implementation)
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND workspace_id = $1 LIMIT 1",
-            workspace_id
+            "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND graph_id = $1 LIMIT 1",
+            graph_id
         )
         page_type_id = row['id'] if row else 1
         
         row = await conn.fetchrow(
-            "SELECT id FROM property WHERE name = 'types' AND (workspace_id = $1 OR workspace_id IS NULL) LIMIT 1",
-            workspace_id
+            "SELECT id FROM property WHERE name = 'types' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
+            graph_id
         )
         types_property_id = row['id'] if row else 1
     
-    # Create repositories with workspace context
-    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
-    property_repo = PostgresPropertyRepository(pool, workspace_id)
-    link_repo = PostgresLinkRepository(pool, workspace_id)
-    inline_type_repo = PostgresInlineTypeRepository(pool, workspace_id)
+    # Create repositories with graph context
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+    property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
+    link_repo = PostgresLinkRepository(pool, graph_id, user_id)
+    inline_type_repo = PostgresInlineTypeRepository(pool, graph_id, user_id)
     
     # Create services
     link_service = LinkParsingService(node_repo, link_repo, inline_type_repository=inline_type_repo)
@@ -235,9 +235,9 @@ async def _get_node_service(user: User) -> NodeService:
         page_type_id, types_property_id
     )
     
-    # Store workspace context for use in helper functions
+    # Store graph context for use in helper functions
     node_service._pool = pool
-    node_service._workspace_id = workspace_id
+    node_service._graph_id = graph_id
     
     return node_service
 

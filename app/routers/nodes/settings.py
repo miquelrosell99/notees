@@ -34,10 +34,10 @@ async def update_date_format(
     # Also save the user's date format preference
     async with service._pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO settings (workspace_id, key, value) 
+            INSERT INTO setting_user (user_id, key, value) 
             VALUES ($1, 'date_format', $2)
-            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
-        """, service._workspace_id, pattern)
+            ON CONFLICT (user_id, key) DO UPDATE SET value = $2
+        """, int(user.id), pattern)
     
     updated_count = 0
     errors = []

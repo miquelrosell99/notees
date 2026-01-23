@@ -1,7 +1,13 @@
 """Assets router - handles file uploads and downloads.
 
-Assets are stored as files in workspace's assets folder:
-  workspaces/{workspace_id}/assets/{node_uuid}.{extension}
+Updated for graph-based schema:
+- workspace_id -> graph_id
+- Uses get_or_create_user_graph
+- Repositories now take user_id for audit trails
+- target_node_id -> target_id in property_value_relation
+
+Assets are stored as files in graph's assets folder:
+  graphs/{graph_id}/assets/{node_uuid}.{extension}
 
 Each asset is associated with a node that has the 'asset' type tag.
 Supported file types: Images (JPEG, PNG), Audio (MP3, WAV, OGG, OPUS, WebM)
@@ -17,8 +23,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..db.connection import get_pool, get_workspace_assets_dir
-from ..db.schema import get_or_create_user_workspace, SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
-from ..domain.entities import NodeCreateData
+from ..db.schema import get_or_create_user_graph, SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
+from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
 from ..domain.services import NodeService, LinkParsingService
 from .auth import get_current_user, get_current_user_optional
@@ -80,9 +86,9 @@ class AssetListResponse(BaseModel):
     total: int
 
 
-def get_asset_path(workspace_id: int, asset_uuid: str, extension: str) -> Path:
+def get_asset_path(graph_id: int, asset_uuid: str, extension: str) -> Path:
     """Get the file path for an asset."""
-    assets_dir = get_workspace_assets_dir(workspace_id)
+    assets_dir = get_workspace_assets_dir(graph_id)
     return assets_dir / f"{asset_uuid}{extension}"
 
 
@@ -91,13 +97,13 @@ def get_extension_from_content_type(content_type: str) -> str:
     return ALLOWED_CONTENT_TYPES.get(content_type, "")
 
 
-async def _get_system_ids(pool, workspace_id: int):
+async def _get_system_ids(pool, graph_id: int, user_id: int):
     """Get system type IDs from the database."""
     async with pool.acquire() as conn:
         # Get page type ID
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-            SYSTEM_TYPE_UUIDS['page'], workspace_id
+            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+            SYSTEM_TYPE_UUIDS['page'], graph_id
         )
         page_type_id = row['id'] if row else 1
         
@@ -108,42 +114,43 @@ async def _get_system_ids(pool, workspace_id: int):
         )
         types_property_id = row['id'] if row else 1
         
+        now = datetime.now(timezone.utc)
+        
         # Get or create asset type ID
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'asset' AND is_type = TRUE AND workspace_id = $1",
-            workspace_id
+            "SELECT id FROM node WHERE name = 'asset' AND is_type = TRUE AND graph_id = $1",
+            graph_id
         )
         if row:
             asset_type_id = row['id']
         else:
             # Create the asset type
-            now = datetime.now(timezone.utc)
-            uuid = str(uuid_module.uuid4())
+            uuid = generate_uuid()
             asset_type_id = await conn.fetchval("""
-                INSERT INTO node (workspace_id, uuid, name, icon, is_type, is_asset, create_date, write_date)
-                VALUES ($1, $2, 'asset', NULL, TRUE, TRUE, $3, $3)
+                INSERT INTO node (graph_id, uuid, name, icon, is_type, is_asset, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, 'asset', NULL, TRUE, TRUE, $3, $3, $4, $4)
                 RETURNING id
-            """, workspace_id, uuid, now)
+            """, graph_id, uuid, now, user_id)
             
             # Give it the 'type' type itself
             type_row = await conn.fetchrow(
-                "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-                SYSTEM_TYPE_UUIDS['type'], workspace_id
+                "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+                SYSTEM_TYPE_UUIDS['type'], graph_id
             )
             if type_row:
                 # Create node_property assignment first
                 np_id = await conn.fetchval("""
-                    INSERT INTO node_property (node_id, property_id, create_date, write_date)
-                    VALUES ($1, $2, $3, $3)
+                    INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
+                    VALUES ($1, $2, $3, $4, $4, $5, $5)
                     RETURNING id
-                """, asset_type_id, types_property_id, now)
+                """, generate_uuid(), asset_type_id, types_property_id, now, user_id)
                 
-                # Add type value to property_value_relation
+                # Add type value to property_value_relation (target_id instead of target_node_id)
                 await conn.execute("""
                     INSERT INTO property_value_relation 
-                        (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date)
-                    VALUES ($1, $2, $3, $4, 0, $5, $5)
-                """, np_id, types_property_id, asset_type_id, type_row['id'], now)
+                        (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
+                    VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
+                """, generate_uuid(), np_id, types_property_id, asset_type_id, type_row['id'], now, user_id)
     
     return page_type_id, types_property_id, asset_type_id
 
@@ -157,7 +164,7 @@ async def upload_asset(
     """Upload a new asset file.
     
     Creates a node with the 'asset' type and stores the file
-    in the workspace's assets folder.
+    in the graph's assets folder.
     
     Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)
     Max file size: 50MB
@@ -181,21 +188,21 @@ async def upload_asset(
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB"
         )
     
-    user_id = current_user.id
+    user_id = int(current_user.id)
     pool = await get_pool()
     
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     try:
-        page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, workspace_id)
+        page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
         
         # Get file extension and category
         extension = get_extension_from_content_type(content_type)
         category = get_asset_category(content_type)
         
         # Create repository
-        node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
+        node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
         
         # Create the asset node with 'asset' type
         data = NodeCreateData(
@@ -208,7 +215,7 @@ async def upload_asset(
         node = await node_repo.create(data)
         
         # Save file to assets directory using node UUID
-        asset_path = get_asset_path(workspace_id, node.uuid, extension)
+        asset_path = get_asset_path(graph_id, node.uuid, extension)
         asset_path.write_bytes(content)
         
         logger.info(f"Uploaded {category} asset '{file.filename}' as {node.uuid} for user {user_id}")
@@ -267,13 +274,13 @@ async def get_asset(
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    user_id = user.id
+    user_id = int(user.id)
     pool = await get_pool()
     
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    assets_dir = get_workspace_assets_dir(workspace_id)
+    assets_dir = get_workspace_assets_dir(graph_id)
     
     # Find the asset file (we don't know the extension)
     for ext in ALLOWED_CONTENT_TYPES.values():
@@ -301,21 +308,21 @@ async def get_asset_info(
     current_user: User = Depends(get_current_user)
 ):
     """Get metadata about an asset."""
-    user_id = current_user.id
+    user_id = int(current_user.id)
     pool = await get_pool()
     
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, types_property_id, _ = await _get_system_ids(pool, workspace_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
+    page_type_id, types_property_id, _ = await _get_system_ids(pool, graph_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
     
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
     # Find the asset file
-    assets_dir = get_workspace_assets_dir(workspace_id)
+    assets_dir = get_workspace_assets_dir(graph_id)
     for ext in ALLOWED_CONTENT_TYPES.values():
         asset_path = assets_dir / f"{asset_uuid}{ext}"
         if asset_path.exists():
@@ -347,21 +354,21 @@ async def delete_asset(
     current_user: User = Depends(get_current_user)
 ):
     """Delete an asset and its associated node."""
-    user_id = current_user.id
+    user_id = int(current_user.id)
     pool = await get_pool()
     
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, types_property_id, _ = await _get_system_ids(pool, workspace_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
+    page_type_id, types_property_id, _ = await _get_system_ids(pool, graph_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
     
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
     # Delete the file first
-    assets_dir = get_workspace_assets_dir(workspace_id)
+    assets_dir = get_workspace_assets_dir(graph_id)
     deleted_file = False
     for ext in ALLOWED_CONTENT_TYPES.values():
         asset_path = assets_dir / f"{asset_uuid}{ext}"
@@ -387,14 +394,14 @@ async def list_assets(
     current_user: User = Depends(get_current_user)
 ):
     """List all assets in the current workspace."""
-    user_id = current_user.id
+    user_id = int(current_user.id)
     pool = await get_pool()
     
     async with pool.acquire() as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, workspace_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, types_property_id)
+    page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
     
     # Get nodes that have the 'asset' type
     if asset_type_id is None:
@@ -407,7 +414,7 @@ async def list_assets(
     paged_nodes = nodes[start:end]
     
     assets = []
-    assets_dir = get_workspace_assets_dir(workspace_id)
+    assets_dir = get_workspace_assets_dir(graph_id)
     
     for node in paged_nodes:
         # Find the file for this asset

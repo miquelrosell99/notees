@@ -41,9 +41,9 @@ async def get_text_links(
     service = await _get_node_service(user)
     async with service._pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT id, source_node_id, target_node_id, is_tag, position
+            SELECT id, source_id, target_id, is_tag, position
             FROM node_link
-            WHERE source_node_id = $1 AND property_id IS NULL
+            WHERE source_id = $1 AND property_id IS NULL
             ORDER BY position
         """, node_id)
     
@@ -51,8 +51,8 @@ async def get_text_links(
         "links": [
             NodeLinkResponse(
                 id=row['id'],
-                source_node_id=row['source_node_id'],
-                target_node_id=row['target_node_id'],
+                source_node_id=row['source_id'],
+                target_node_id=row['target_id'],
                 is_tag=row['is_tag'],
                 position=row['position'],
             )
@@ -76,16 +76,16 @@ async def add_tag_link(
     async with service._pool.acquire() as conn:
         # Verify source node exists
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id, service._workspace_id
+            "SELECT id FROM node WHERE id = $1 AND graph_id = $2",
+            node_id, service._graph_id
         )
         if not row:
             raise HTTPException(404, "Source node not found")
         
         # Verify target node exists and is a page
         target_row = await conn.fetchrow(
-            "SELECT id, is_page, parent_id FROM node WHERE id = $1 AND workspace_id = $2",
-            request.target_node_id, service._workspace_id
+            "SELECT id, is_page, parent_id FROM node WHERE id = $1 AND graph_id = $2",
+            request.target_node_id, service._graph_id
         )
         if not target_row:
             raise HTTPException(404, "Target node not found")
@@ -95,8 +95,8 @@ async def add_tag_link(
         # Check if link already exists
         row = await conn.fetchrow("""
             SELECT id FROM node_link 
-            WHERE source_node_id = $1 AND target_node_id = $2 AND property_id IS NULL AND workspace_id = $3
-        """, node_id, request.target_node_id, service._workspace_id)
+            WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND graph_id = $3
+        """, node_id, request.target_node_id, service._graph_id)
         
         now = datetime.now(timezone.utc)
         
@@ -116,10 +116,10 @@ async def add_tag_link(
         else:
             # Create new tag link
             new_row = await conn.fetchrow("""
-                INSERT INTO node_link (source_node_id, target_node_id, position, property_id, is_tag, created_at)
-                VALUES ($1, $2, 0, NULL, TRUE, $3)
+                INSERT INTO node_link (source_id, target_id, position, property_id, is_tag, create_date, graph_id)
+                VALUES ($1, $2, 0, NULL, TRUE, $3, $4)
                 RETURNING id
-            """, node_id, request.target_node_id, now)
+            """, node_id, request.target_node_id, now, service._graph_id)
             return NodeLinkResponse(
                 id=new_row['id'],
                 source_node_id=node_id,
@@ -140,8 +140,8 @@ async def remove_tag_link(
     async with service._pool.acquire() as conn:
         result = await conn.execute("""
             UPDATE node_link SET is_tag = FALSE 
-            WHERE source_node_id = $1 AND target_node_id = $2 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $3
-        """, node_id, target_id, service._workspace_id)
+            WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND graph_id = $3
+        """, node_id, target_id, service._graph_id)
     
     return {"removed": result == "UPDATE 1"}
 
@@ -380,7 +380,7 @@ async def get_property_backlinks(
         SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
         FROM property_value_relation pvr
         JOIN property p ON pvr.property_id = p.id
-        WHERE pvr.target_node_id = $1 AND p.type = 'node'
+        WHERE pvr.target_id = $1 AND p.type = 'node'
     """, node_id)
     
     for row in rows:
