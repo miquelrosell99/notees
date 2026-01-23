@@ -819,6 +819,7 @@ export function useNodesWithType(typeId: number | null) {
     queryKey: ['nodes', 'by-type', typeId],
     queryFn: () => nodesApi.getNodesWithType(typeId!),
     enabled: !!typeId,
+    select: (nodes) => nodes,  // Returns Node[]
   });
 }
 
