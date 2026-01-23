@@ -52,6 +52,11 @@
   font: inherit;
 }
 
+/* Reset block padding inside breadcrumbs for proper centering */
+.node-breadcrumb-link .block {
+  padding: 0;
+}
+
 .node-breadcrumb-link:hover {
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
