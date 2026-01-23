@@ -1,0 +1,200 @@
+"""Favorites management endpoints."""
+import json
+
+from fastapi import APIRouter, HTTPException, Depends, Request
+
+from ..auth import get_current_user
+from ...models import User
+from .helpers import _get_node_service
+
+
+router = APIRouter()
+
+
+@router.get("/favorites")
+async def get_favorites(
+    user: User = Depends(get_current_user),
+):
+    """Get the list of favorite page IDs.
+    
+    Favorites are stored as a JSON array of node IDs in the settings table.
+    """
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
+        )
+    
+    if not row or not row['value']:
+        return {"favorites": []}
+    
+    try:
+        favorites = json.loads(row['value'])
+        return {"favorites": favorites if isinstance(favorites, list) else []}
+    except json.JSONDecodeError:
+        return {"favorites": []}
+
+
+@router.put("/favorites")
+async def set_favorites(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Set the list of favorite page IDs.
+    
+    Expects JSON body: { "favorites": [nodeId1, nodeId2, ...] }
+    """
+    data = await request.json()
+    favorites = data.get("favorites", [])
+    
+    if not isinstance(favorites, list):
+        raise HTTPException(status_code=400, detail="favorites must be a list")
+    
+    # Validate all items are integers
+    if not all(isinstance(f, int) for f in favorites):
+        raise HTTPException(status_code=400, detail="favorites must be a list of integers")
+    
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        favorites_json = json.dumps(favorites)
+        await conn.execute("""
+            INSERT INTO settings (workspace_id, key, value) 
+            VALUES ($1, 'favorites', $2)
+            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+        """, service._workspace_id, favorites_json)
+    
+    return {"status": "ok", "favorites": favorites}
+
+
+@router.put("/favorites/reorder")
+async def reorder_favorites(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Reorder favorites by moving an item from one position to another.
+    
+    Expects JSON body: { "from_index": number, "to_index": number }
+    """
+    data = await request.json()
+    from_index = data.get("from_index")
+    to_index = data.get("to_index")
+    
+    if from_index is None or to_index is None:
+        raise HTTPException(status_code=400, detail="from_index and to_index are required")
+    
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        # Get current favorites
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
+        )
+        
+        favorites = []
+        if row and row['value']:
+            try:
+                favorites = json.loads(row['value'])
+                if not isinstance(favorites, list):
+                    favorites = []
+            except json.JSONDecodeError:
+                favorites = []
+        
+        # Validate indices
+        if from_index < 0 or from_index >= len(favorites):
+            raise HTTPException(status_code=400, detail="from_index out of bounds")
+        if to_index < 0 or to_index >= len(favorites):
+            raise HTTPException(status_code=400, detail="to_index out of bounds")
+        
+        # Reorder
+        item = favorites.pop(from_index)
+        favorites.insert(to_index, item)
+        
+        await conn.execute("""
+            INSERT INTO settings (workspace_id, key, value) 
+            VALUES ($1, 'favorites', $2)
+            ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+        """, service._workspace_id, json.dumps(favorites))
+    
+    return {"status": "ok", "favorites": favorites}
+
+
+@router.post("/favorites/{node_id}")
+async def add_favorite(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Add a page to favorites."""
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        # Verify the node exists and is a page
+        row = await conn.fetchrow(
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+            node_id, service._workspace_id
+        )
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Node not found")
+        if not row['is_page']:
+            raise HTTPException(status_code=400, detail="Only pages can be favorited")
+        
+        # Get current favorites
+        fav_row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
+        )
+        
+        favorites = []
+        if fav_row and fav_row['value']:
+            try:
+                favorites = json.loads(fav_row['value'])
+                if not isinstance(favorites, list):
+                    favorites = []
+            except json.JSONDecodeError:
+                favorites = []
+        
+        # Add if not already present
+        if node_id not in favorites:
+            favorites.append(node_id)
+            await conn.execute("""
+                INSERT INTO settings (workspace_id, key, value) 
+                VALUES ($1, 'favorites', $2)
+                ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+            """, service._workspace_id, json.dumps(favorites))
+    
+    return {"status": "ok", "favorites": favorites}
+
+
+@router.delete("/favorites/{node_id}")
+async def remove_favorite(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Remove a page from favorites."""
+    service = await _get_node_service(user)
+    async with service._pool.acquire() as conn:
+        # Get current favorites
+        row = await conn.fetchrow(
+            "SELECT value FROM settings WHERE key = 'favorites' AND workspace_id = $1",
+            service._workspace_id
+        )
+        
+        favorites = []
+        if row and row['value']:
+            try:
+                favorites = json.loads(row['value'])
+                if not isinstance(favorites, list):
+                    favorites = []
+            except json.JSONDecodeError:
+                favorites = []
+        
+        # Remove if present
+        if node_id in favorites:
+            favorites.remove(node_id)
+            await conn.execute("""
+                INSERT INTO settings (workspace_id, key, value) 
+                VALUES ($1, 'favorites', $2)
+                ON CONFLICT (workspace_id, key) DO UPDATE SET value = $2
+            """, service._workspace_id, json.dumps(favorites))
+    
+    return {"status": "ok", "favorites": favorites}

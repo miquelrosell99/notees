@@ -1,0 +1,200 @@
+"""Pydantic models for the Nodes API."""
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
+
+
+class NodeResponse(BaseModel):
+    """Node response model."""
+    id: int
+    uuid: str
+    name: str
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    parent_id: Optional[int] = None
+    page_id: Optional[int] = None
+    sequence: int = 0
+    collapsed: bool = False
+    active: bool = True
+    is_page: bool = False  # Whether this node is a page
+    is_type: bool = False  # Whether this node defines a type
+    is_daily: bool = False  # Daily journal page
+    is_monthly: bool = False  # Monthly journal page
+    is_yearly: bool = False  # Yearly journal page
+    usable_in: str = "both"  # Where this type can be applied (only meaningful when is_type=True)
+    create_date: str
+    write_date: str
+    open_date: Optional[str] = None  # When the page was last opened/viewed
+    # Computed fields
+    display_name: Optional[str] = None
+    tags: List[int] = []  # Tag node IDs (descriptive linking with #)
+    types: List[int] = []  # Type node IDs (categorization with @)
+    properties: Dict[str, Any] = {}
+    # Linked references - types_path (inherited types from ancestors)
+    types_path: List[int] = []  # Inherited type node IDs from ancestors' types properties
+    # For tree responses
+    children: Optional[List["NodeResponse"]] = None
+    # Backlinks
+    backlinks: Optional[List["BacklinkResponse"]] = None
+    linked_references: Optional[List["LinkedReferenceResponse"]] = None
+    backlink_count: int = 0  # Count of backlinks to this node
+    # Comments
+    comment_count: int = 0
+    
+    class Config:
+        from_attributes = True
+
+
+class BreadcrumbSegment(BaseModel):
+    """A segment in the breadcrumb path."""
+    node_id: Optional[int] = None  # None for property segments
+    name: str
+    is_property: bool = False  # True if this is a property name segment
+
+
+class BacklinkResponse(BaseModel):
+    """Backlink info with full provenance.
+    
+    For text links: source is the block T containing [[id]]
+    For property links: source is the property owner B
+    """
+    source_node_id: int
+    source_node_uuid: str
+    source_node_name: str
+    source_is_page: bool = False
+    source_page_id: Optional[int] = None
+    source_page_name: Optional[str] = None
+    source_page_uuid: Optional[str] = None
+    # Property info (for node-type property links)
+    property_id: Optional[int] = None
+    property_name: Optional[str] = None
+    # Breadcrumb path with property provenance
+    breadcrumb_path: List[BreadcrumbSegment] = []
+    link_type: str  # "text" or "property"
+    position: int
+
+
+class LinkedReferenceResponse(BaseModel):
+    """Linked reference with context."""
+    source_node: NodeResponse
+    source_page: Optional[NodeResponse] = None
+    link_type: str
+    context: str  # Text around the link
+    breadcrumb_path: List[BreadcrumbSegment] = []  # Path from source to page
+
+
+class PropertyValueResponse(BaseModel):
+    """Property value for a node."""
+    property_id: int
+    property_name: str
+    property_type: str
+    value: Any
+    display_value: str
+
+
+class NodeCreateRequest(BaseModel):
+    """Request to create a node."""
+    name: str = ""
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    parent_id: Optional[int] = None
+    sequence: int = 0
+    types: List[int] = []  # Type node IDs
+    properties: Dict[int, Any] = {}  # property_id -> value
+    is_page: bool = False  # Whether to create as a page
+    is_type: bool = False  # Whether to create as a type definition
+    # For date nodes
+    is_daily: bool = False
+    daily_date: Optional[str] = None  # YYYY-MM-DD
+    is_monthly: bool = False
+    monthly_date: Optional[str] = None  # YYYY-MM
+    is_yearly: bool = False
+    yearly_date: Optional[str] = None  # YYYY
+
+
+class NodeUpdateRequest(BaseModel):
+    """Request to update a node."""
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    parent_id: Optional[int] = None
+    sequence: Optional[int] = None
+    collapsed: Optional[bool] = None
+
+
+class TypeRequest(BaseModel):
+    """Request to add/remove a type."""
+    type_node_id: int
+
+
+class PropertyRequest(BaseModel):
+    """Request to set a property value."""
+    property_id: int
+    value: Any
+
+
+class MoveNodeRequest(BaseModel):
+    """Request to move a node to a new parent and/or position."""
+    parent_id: Optional[int] = None
+    position: Optional[int] = None
+
+
+class TagLinkRequest(BaseModel):
+    """Request to add a tag link."""
+    target_node_id: int
+
+
+class NodeLinkResponse(BaseModel):
+    """Response for a node link."""
+    id: int
+    source_node_id: int
+    target_node_id: int
+    is_tag: bool
+    position: int
+
+
+class InlineTypeResponse(BaseModel):
+    """Inline type reference in content."""
+    type_node_id: int
+    type_node_name: str
+    type_node_icon: Optional[str] = None
+    position: int
+
+
+class PropertyBacklinkResponse(BaseModel):
+    """A page that references a target node via property."""
+    source_page: NodeResponse
+    property_id: int
+    property_name: str
+
+
+class CommentCreateRequest(BaseModel):
+    """Request to create a comment on a node."""
+    name: str = ""  # Initial comment content
+
+
+class CommentResponse(BaseModel):
+    """Response with comment node data."""
+    id: int
+    uuid: str
+    name: str
+    icon: str | None = None
+    parent_id: int | None = None
+    sequence: int = 0
+    collapsed: bool = False
+    create_date: str
+    write_date: str
+    children: list["CommentResponse"] | None = None
+    
+    class Config:
+        from_attributes = True
+
+
+class CommentsResponse(BaseModel):
+    """Response with list of comments."""
+    comments: list[CommentResponse]
+    comment_count: int
+
+
+class DateFormatUpdateRequest(BaseModel):
+    """Request to update date format for all date nodes."""
+    new_format: str  # e.g., "YYYY/MM/DD", "DD-MM-YYYY", etc.
