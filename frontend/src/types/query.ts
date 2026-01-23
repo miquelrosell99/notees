@@ -235,6 +235,7 @@ export interface QueryExecuteRequest {
   limit?: number;
   offset?: number;
   order_by?: string;
+  include_children?: boolean;
 }
 
 // ==================== Runtime Parameters ====================

@@ -30,7 +30,7 @@ import { QueryBlockBuilder } from '../QueryBlockBuilder';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { mdiPlus, mdiPencil, mdiPlayCircleOutline } from '@mdi/js';
+import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiPencil } from '@mdi/js';
 import Icon from '@mdi/react';
 import './DynamicNodeViewSection.css';
 
@@ -150,6 +150,8 @@ export function DynamicNodeViewSection({
       current_node_uuid: nodeUuid,
       current_node_id: nodeId,
     },
+    // Include children for linked_references and any view that needs nested blocks
+    includeChildren: viewType === 'linked_references',
     enabled: !!activeView && nodeId > 0,
   });
 
@@ -242,7 +244,7 @@ export function DynamicNodeViewSection({
       {/* Edit query button (always visible when there's an active view) */}
       {activeView && views.length <= 1 && (
         <Button
-          icon={mdiPencil}
+          icon={mdiFilterOutline}
           iconOnly
           variant="ghost"
           size="xs"
@@ -253,7 +255,7 @@ export function DynamicNodeViewSection({
       
       {/* Add view button */}
       <Button
-        icon={mdiPlus}
+        icon={mdiPlusBox}
         iconOnly
         variant="ghost"
         size="xs"
@@ -273,7 +275,7 @@ export function DynamicNodeViewSection({
       
       {/* Refresh button */}
       <Button
-        icon={mdiPlayCircleOutline}
+        icon={mdiRefresh}
         iconOnly
         variant="ghost"
         size="xs"

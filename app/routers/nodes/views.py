@@ -62,6 +62,7 @@ class QueryExecuteRequest(BaseModel):
     limit: Optional[int] = 100
     offset: Optional[int] = None
     order_by: Optional[str] = None
+    include_children: Optional[bool] = False  # Whether to include children for each result
 
 
 class NodeViewReorderRequest(BaseModel):
@@ -93,6 +94,60 @@ async def _get_query_executor(user: User) -> QueryExecutor:
         graph_id=service._graph_id,
         user_id=user.id,
     )
+
+
+async def _include_children_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Recursively fetch children for each node in results.
+    
+    This adds 'children' to each node dict, populated with their child nodes.
+    """
+    if not results:
+        return results
+    
+    service = await _get_node_service(user)
+    
+    # Get node IDs from results
+    node_ids = [r.get("id") for r in results if r.get("id")]
+    
+    if not node_ids:
+        return results
+    
+    # Fetch all children for each node recursively
+    # We'll use the repository's get_children method which returns direct children
+    children_by_parent: Dict[int, List[Dict[str, Any]]] = {}
+    
+    async def fetch_children_recursive(parent_id: int):
+        """Recursively fetch children and convert to dict format."""
+        children = await service._node_repo.get_children(parent_id)
+        child_dicts = []
+        for child in children:
+            child_dict = child.to_dict() if hasattr(child, 'to_dict') else {
+                "id": child.id,
+                "uuid": child.uuid,
+                "name": child.name,
+                "parent_id": child.parent_id,
+                "page_id": child.page_id,
+                "is_page": child.is_page,
+                "is_journal": child.is_journal,
+                "sequence": child.sequence,
+                "collapsed": child.collapsed,
+            }
+            # Recursively fetch this child's children
+            await fetch_children_recursive(child.id)
+            child_dict["children"] = children_by_parent.get(child.id, [])
+            child_dicts.append(child_dict)
+        children_by_parent[parent_id] = child_dicts
+    
+    # Fetch children for each result node
+    for node_id in node_ids:
+        await fetch_children_recursive(node_id)
+    
+    # Assign children to each result
+    for result in results:
+        node_id = result.get("id")
+        result["children"] = children_by_parent.get(node_id, [])
+    
+    return results
 
 
 async def _node_view_to_response(
@@ -350,6 +405,10 @@ async def execute_node_view_query(
         order_by=request.order_by,
     )
     
+    # If include_children is requested, fetch children for each node
+    if request.include_children:
+        results = await _include_children_for_results(user, results)
+    
     return {"nodes": results}
 
 
@@ -378,6 +437,10 @@ async def execute_query(
         offset=request.offset,
         order_by=request.order_by,
     )
+    
+    # If include_children is requested, fetch children for each node
+    if request.include_children:
+        results = await _include_children_for_results(user, results)
     
     return {"nodes": results}
 

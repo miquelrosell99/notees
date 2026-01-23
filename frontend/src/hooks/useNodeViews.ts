@@ -137,19 +137,21 @@ export function useNodeViewQuery(
     limit?: number;
     offset?: number;
     orderBy?: string;
+    includeChildren?: boolean;
     enabled?: boolean;
   }
 ) {
-  const { runtimeParams, limit, offset, orderBy, enabled = true } = options ?? {};
+  const { runtimeParams, limit, offset, orderBy, includeChildren, enabled = true } = options ?? {};
 
   return useQuery({
-    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy }),
+    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren }),
     queryFn: () =>
       executeNodeViewQuery(viewId, {
         runtime_params: runtimeParams,
         limit,
         offset,
         order_by: orderBy,
+        include_children: includeChildren,
       }),
     enabled: enabled && viewId > 0,
   });

@@ -95,6 +95,23 @@
   padding: var(--spacing-1) 0;
 }
 
+/* Make the page header clickable */
+.node-list-group__page-header {
+  flex: 1;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease;
+}
+
+.node-list-group__page-header:hover {
+  background-color: var(--bg-hover);
+}
+
+.node-list-group__page-header .block-preview__content {
+  font-weight: 600;
+}
+
 /* Collapse arrow button - positioned to the left of the header */
 .node-list-group__collapse-arrow {
   position: absolute;
@@ -119,15 +136,6 @@
   background-color: var(--bg-hover);
 }
 
-.node-list-group__page-header {
-  flex: 1;
-  font-weight: 600;
-}
-
-.node-list-group__page-header .block-preview__content {
-  font-weight: 600;
-}
-
 /* No page fallback */
 .node-list-group__no-page-label {
   font-size: var(--font-size-sm);
@@ -137,10 +145,10 @@
 
 /* Group children - blocks indented from the header */
 .node-list-group__children {
-  padding-left: 1.5rem; /* Indent children from the header text */
+  padding-left: 0.25rem; /* Minimal indent, bullets provide visual hierarchy */
 }
 
 /* Ensure proper padding for items within groups */
 .node-list-group__children .node-list-item {
-  padding-left: 0.5rem;
+  padding-left: 0;
 }
