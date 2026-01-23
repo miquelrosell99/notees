@@ -571,10 +571,22 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         />
       ) : (
         /* Focused Block View - renders the block itself as a top-level list item */
-        <FocusedBlockContent
-          node={node}
-          onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
-        />
+        <>
+          {/* Properties Section for focused block */}
+          <PropertiesSection 
+            nodeId={node.id}
+            variant="block"
+            showHiddenSection={true}
+            showAddProperty={true}
+            onNavigateToNode={handleNavigateToNode}
+            onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+            defaultCollapsed={propertiesCollapsed}
+          />
+          <FocusedBlockContent
+            node={node}
+            onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
+          />
+        </>
       )}
       
       {/* Show nodes that have this node as their type - only for type nodes */}
