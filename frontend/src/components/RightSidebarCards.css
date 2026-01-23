@@ -14,10 +14,17 @@
 
 .right-sidebar-cards--empty {
   display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.right-sidebar-cards__empty-content {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--spacing-4);
-  height: 100%;
 }
 
 .right-sidebar-cards__empty-text {
