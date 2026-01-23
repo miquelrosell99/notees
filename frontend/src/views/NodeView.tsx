@@ -21,7 +21,7 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveType, useRemoveTag, useNodes, useTags } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -640,8 +640,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       {/* Footer */}
       <footer className="node-view-footer">
         <div className="node-view-metadata">
-          <span>Created: {new Date(node.create_date).toLocaleDateString()}</span>
-          <span>Updated: {new Date(node.write_date).toLocaleDateString()}</span>
+          <span>Created: {formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</span>
+          <span>Updated: {formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</span>
         </div>
       </footer>
       

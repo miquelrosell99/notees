@@ -167,6 +167,8 @@ export function TypedNodesView({ typeId, typeName }: TypedNodesViewProps) {
           onNodeShiftClick={handleNodeShiftClick}
           showGroupBy={true}
           pageMap={pageMap}
+          showAddButton={true}
+          onAdd={() => setIsCreating(true)}
         />
       )}
     </div>

@@ -258,3 +258,32 @@
   right: var(--spacing-2);
   z-index: 10;
 }
+
+/* ==================== Sidebar Wrapper (for resize handles) ==================== */
+.sidebar-wrapper {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.sidebar-wrapper--right {
+  flex-direction: row-reverse;
+}
+
+/* ==================== Sidebar Resize Handles ==================== */
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 100;
+}
+
+.sidebar-resize-handle--left {
+  right: -4px;
+}
+
+.sidebar-resize-handle--right {
+  left: -4px;
+}

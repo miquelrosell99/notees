@@ -162,6 +162,12 @@ export interface NodeCollectionProps {
   
   /** Hide the internal toolbar (use when rendering toolbar externally via NodeCollectionToolbar) */
   hideToolbar?: boolean;
+  
+  /** Show "Add" button in the toolbar (default: false) */
+  showAddButton?: boolean;
+  
+  /** Callback when Add button is clicked */
+  onAdd?: () => void;
 }
 
 // ==================== View-Specific Props ====================

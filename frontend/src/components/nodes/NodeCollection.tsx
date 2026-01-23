@@ -122,6 +122,8 @@ export function NodeCollection({
   isolatedBlockState = false,
   suppressRootColor = false,
   hideToolbar = false,
+  showAddButton = false,
+  onAdd,
 }: NodeCollectionProps) {
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
@@ -138,9 +140,10 @@ export function NodeCollection({
   const effectiveViewModes = availableViewModes ?? ['list', 'document', 'card', 'table', 'gantt', 'graph'];
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
   const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
+  const showAdd = showAddButton && onAdd;
   
   // Whether to show the internal toolbar
-  const showInternalToolbar = !hideToolbar && (showGroupByInToolbar || showViewSwitcher);
+  const showInternalToolbar = !hideToolbar && (showGroupByInToolbar || showViewSwitcher || showAdd);
   
   // Enable grouping when groupBy is set (regardless of toolbar visibility)
   const enableGrouping = showGroupByProp && viewMode === 'list';
@@ -269,6 +272,8 @@ export function NodeCollection({
                 showGroupBy={showGroupByInToolbar}
                 groupBy={groupBy}
                 onGroupByChange={handleGroupByChange}
+                showAddButton={showAddButton}
+                onAdd={onAdd}
               />
             </div>
           )}
