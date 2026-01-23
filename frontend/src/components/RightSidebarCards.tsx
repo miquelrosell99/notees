@@ -11,6 +11,7 @@ import { useCallback } from 'react';
 import { useNodesStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { SidebarCardLocalGraph, SidebarCardNode } from './sidebarCards';
+import { SidebarContextSections } from './SidebarContextSections';
 import { Button } from './core/Button';
 import './RightSidebarCards.css';
 
@@ -67,9 +68,13 @@ export function RightSidebarCards() {
   if (sidebarCards.length === 0) {
     return (
       <div className="right-sidebar-cards right-sidebar-cards--empty">
-        <p className="right-sidebar-cards__empty-text">
-          Shift+click on a bullet to add blocks here
-        </p>
+        <div className="right-sidebar-cards__empty-content">
+          <p className="right-sidebar-cards__empty-text">
+            Shift+click on a bullet to add blocks here
+          </p>
+        </div>
+        {/* Context sections always appear at bottom */}
+        <SidebarContextSections />
       </div>
     );
   }
@@ -99,6 +104,8 @@ export function RightSidebarCards() {
           />
         ))}
       </div>
+      {/* Context sections always appear at bottom, after all cards */}
+      <SidebarContextSections />
     </div>
   );
 }
