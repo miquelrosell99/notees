@@ -226,6 +226,11 @@
   border-color: var(--color-primary);
 }
 
+.db-management__card--delete-confirm {
+  background-color: var(--color-error-container, rgba(186, 26, 26, 0.15));
+  border-color: var(--color-error, #ba1a1a);
+}
+
 .db-management__card-content {
   flex: 1;
   display: flex;
