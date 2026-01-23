@@ -198,12 +198,13 @@ async def get_node(
         # Get ALL descendants recursively using a CTE based on parent_id
         rows = await pool.fetch("""
             WITH RECURSIVE descendants AS (
-                -- Base case: direct children of the target node
-                SELECT * FROM node WHERE parent_id = $1
+                -- Base case: direct children of the target node (active only)
+                SELECT * FROM node WHERE parent_id = $1 AND active = TRUE
                 UNION ALL
-                -- Recursive case: children of descendants
+                -- Recursive case: children of descendants (active only)
                 SELECT n.* FROM node n
                 INNER JOIN descendants d ON n.parent_id = d.id
+                WHERE n.active = TRUE
             )
             SELECT * FROM descendants ORDER BY sequence
         """, node_id)
