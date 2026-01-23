@@ -8,36 +8,18 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemTypeConstraintError
+from ...db.schema.constants import SYSTEM_TYPE_UUIDS
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
     from .link_service import LinkParsingService
 
 
-# System type UUIDs that cannot be added/removed manually by users
-# These are date-related types that are automatically assigned by the system
+# Date-related types that are automatically assigned by the system (cannot be manually added/removed)
 PROTECTED_DATE_TYPE_UUIDS = {
-    "00000000-0000-0000-0001-000000000003",  # year
-    "00000000-0000-0000-0001-000000000004",  # month
-    "00000000-0000-0000-0001-000000000005",  # day
-}
-
-# System type UUIDs for all system types (cannot have 'type' removed)
-SYSTEM_TYPE_UUIDS = {
-    "type": "00000000-0000-0000-0001-000000000001",
-    "page": "00000000-0000-0000-0001-000000000002",
-    "year": "00000000-0000-0000-0001-000000000003",
-    "month": "00000000-0000-0000-0001-000000000004",
-    "day": "00000000-0000-0000-0001-000000000005",
-    "quote": "00000000-0000-0000-0001-000000000006",
-    "query": "00000000-0000-0000-0001-000000000007",
-    "code": "00000000-0000-0000-0001-000000000008",
-    "asset": "00000000-0000-0000-0001-000000000009",
-    "whiteboard": "00000000-0000-0000-0001-000000000010",
-    "card": "00000000-0000-0000-0001-000000000011",
-    "task": "00000000-0000-0000-0001-000000000012",
-    "template": "00000000-0000-0000-0001-000000000013",
-    "comment": "00000000-0000-0000-0001-000000000014",
+    SYSTEM_TYPE_UUIDS["year"],
+    SYSTEM_TYPE_UUIDS["month"],
+    SYSTEM_TYPE_UUIDS["day"],
 }
 
 # Set of all system type UUIDs for quick lookup
