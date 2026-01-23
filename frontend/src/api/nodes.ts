@@ -173,11 +173,19 @@ export async function getArchivedPages(): Promise<Node[]> {
 }
 
 /**
- * Get all nodes with a specific type
+ * Response type for typed nodes endpoint
  */
-export async function getNodesWithType(typeId: number): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/types/${typeId}/nodes`);
-  return response.data.nodes;
+export interface TypedNodesResponse {
+  nodes: Node[];
+  pages: Node[];
+}
+
+/**
+ * Get all nodes with a specific type, along with their parent pages for grouping
+ */
+export async function getNodesWithType(typeId: number): Promise<TypedNodesResponse> {
+  const response = await api.get<TypedNodesResponse>(`${BASE}/types/${typeId}/nodes`);
+  return response.data;
 }
 
 /**

@@ -81,6 +81,7 @@ async def get_nodes_with_type(
     
     Returns nodes that have been categorized with the given type node.
     Uses batch fetching for type_ids to avoid N+1 queries.
+    Also returns parent pages for blocks in 'pages' field for grouping.
     """
     service = await _get_node_service(user)
     
@@ -92,7 +93,7 @@ async def get_nodes_with_type(
         )
         
         if not row:
-            return {"nodes": []}
+            return {"nodes": [], "pages": []}
         
         types_property_id = row['id']
         
@@ -110,10 +111,31 @@ async def get_nodes_with_type(
     node_ids = [n.id for n in nodes if n.id is not None]
     type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
-    return {"nodes": [
-        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
-        for n in nodes
-    ]}
+    # Collect page_ids for blocks that have a page_id and aren't pages themselves
+    page_ids_to_fetch = set()
+    for n in nodes:
+        if not n.is_page and n.page_id is not None:
+            page_ids_to_fetch.add(n.page_id)
+    
+    # Fetch the pages for grouping
+    pages = []
+    if page_ids_to_fetch:
+        async with service._pool.acquire() as conn:
+            page_rows = await conn.fetch("""
+                SELECT * FROM node WHERE id = ANY($1) AND graph_id = $2
+            """, list(page_ids_to_fetch), service._graph_id)
+        pages = [service._node_repo.row_to_node(row) for row in page_rows]
+    
+    return {
+        "nodes": [
+            _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
+            for n in nodes
+        ],
+        "pages": [
+            _node_to_response(p)
+            for p in pages
+        ]
+    }
 
 
 @router.post("/{node_id}/types")

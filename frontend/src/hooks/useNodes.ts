@@ -1058,6 +1058,9 @@ export function useAddType() {
       queryClient.invalidateQueries({ queryKey: propertyKeys.forType(typeId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forTypeInherited(typeId) });
       
+      // Invalidate the typed nodes list so the new node appears immediately
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-type', typeId] });
+      
       // Also invalidate lists and page content
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
       
@@ -1086,9 +1089,13 @@ export function useRemoveType() {
   return useMutation({
     mutationFn: ({ nodeId, typeId }: { nodeId: number; typeId: number }) => 
       nodesApi.removeType(nodeId, typeId),
-    onSuccess: (updatedNode, { nodeId }) => {
+    onSuccess: (updatedNode, { nodeId, typeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      
+      // Invalidate the typed nodes list so the removed node disappears immediately
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-type', typeId] });
+      
       // Also invalidate the page content if the node is a block within a page
       if (updatedNode.page_id !== null && updatedNode.page_id !== nodeId) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_id) });
