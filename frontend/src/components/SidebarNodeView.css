@@ -123,6 +123,48 @@
   gap: var(--spacing-2);
 }
 
+/* Section wrappers for pages */
+.sidebar-node-view__section {
+  margin-bottom: var(--spacing-3);
+}
+
+.sidebar-node-view__types,
+.sidebar-node-view__tags {
+  padding: var(--spacing-1) 0;
+}
+
+.sidebar-node-view__properties {
+  margin-bottom: var(--spacing-4);
+}
+
+/* NodeCollection in sidebar - compact styling */
+.sidebar-node-view__children .node-collection {
+  font-size: 0.9rem;
+}
+
+.sidebar-node-view__children .node-list-view {
+  gap: var(--spacing-1);
+}
+
+.sidebar-node-view__children .block {
+  padding: var(--spacing-1) 0;
+}
+
+/* NodeViewSection in sidebar - compact styling */
+.sidebar-node-view .node-view-section {
+  margin-top: var(--spacing-3);
+  border-top: 1px solid var(--color-outline-variant);
+  padding-top: var(--spacing-2);
+}
+
+.sidebar-node-view .node-view-section__header {
+  padding: var(--spacing-2) 0;
+}
+
+.sidebar-node-view .node-view-section__title {
+  font: var(--font-label-medium);
+}
+
 .sidebar-node-view__children-label {
   font: var(--font-label-small);
   text-transform: uppercase;
