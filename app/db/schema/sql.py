@@ -453,6 +453,178 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 );
 
 -- ============================================================
+-- NODE PATH (CLOSURE TABLE FOR HIERARCHY)
+-- ============================================================
+-- This table stores the transitive closure of the node hierarchy.
+-- For each node, it contains rows for all ancestors (including self).
+-- This enables efficient breadcrumb queries without recursion.
+
+CREATE TABLE IF NOT EXISTS node_path (
+    ancestor_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    descendant_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    depth INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (ancestor_id, descendant_id)
+);
+
+-- Index for fast descendant queries (find all descendants of a node)
+CREATE INDEX IF NOT EXISTS idx_node_path_ancestor ON node_path(ancestor_id, depth);
+
+-- Index for fast ancestor/breadcrumb queries (find all ancestors of a node)
+CREATE INDEX IF NOT EXISTS idx_node_path_descendant ON node_path(descendant_id, depth);
+
+-- ============================================================
+-- NODE PATH MAINTENANCE FUNCTIONS
+-- ============================================================
+
+-- Function: Insert paths for a new node
+-- When a node is inserted, we add:
+--   1. A self-reference row (ancestor=self, descendant=self, depth=0)
+--   2. Rows linking all ancestors of parent to this new node (depth = parent's depth + 1)
+CREATE OR REPLACE FUNCTION node_path_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Always insert self-reference (every node is its own ancestor at depth 0)
+    INSERT INTO node_path (ancestor_id, descendant_id, depth)
+    VALUES (NEW.id, NEW.id, 0);
+    
+    -- If node has a parent, copy all ancestor paths from parent
+    -- and increment depth by 1
+    IF NEW.parent_id IS NOT NULL THEN
+        INSERT INTO node_path (ancestor_id, descendant_id, depth)
+        SELECT np.ancestor_id, NEW.id, np.depth + 1
+        FROM node_path np
+        WHERE np.descendant_id = NEW.parent_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function: Update paths when a node's parent changes
+-- This is the most complex operation:
+--   1. Remove all paths from OLD ancestors to this node and its subtree
+--   2. Add new paths from NEW ancestors to this node and its subtree
+CREATE OR REPLACE FUNCTION node_path_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Only proceed if parent_id actually changed
+    IF OLD.parent_id IS DISTINCT FROM NEW.parent_id THEN
+        -- Step 1: Delete all paths where:
+        --   - The descendant is this node or any of its descendants
+        --   - The ancestor is NOT this node or any of its descendants
+        -- (We keep the internal subtree paths intact)
+        DELETE FROM node_path
+        WHERE descendant_id IN (
+            -- All descendants of the moved node (including itself)
+            SELECT descendant_id FROM node_path WHERE ancestor_id = NEW.id
+        )
+        AND ancestor_id NOT IN (
+            -- Ancestors that are part of the subtree (keep these)
+            SELECT descendant_id FROM node_path WHERE ancestor_id = NEW.id
+        );
+        
+        -- Step 2: Insert new paths from new ancestors to moved subtree
+        IF NEW.parent_id IS NOT NULL THEN
+            INSERT INTO node_path (ancestor_id, descendant_id, depth)
+            SELECT 
+                ancestors.ancestor_id,
+                subtree.descendant_id,
+                ancestors.depth + subtree.depth + 1
+            FROM 
+                -- All ancestors of the new parent (including new parent itself)
+                node_path ancestors
+            CROSS JOIN 
+                -- All descendants of moved node (including itself)
+                node_path subtree
+            WHERE 
+                ancestors.descendant_id = NEW.parent_id
+                AND subtree.ancestor_id = NEW.id;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function: Delete paths when a node is deleted
+-- PostgreSQL CASCADE will handle most cleanup, but we explicitly
+-- remove paths for clarity and to handle subtree deletion properly
+CREATE OR REPLACE FUNCTION node_path_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Delete all paths where this node is ancestor or descendant
+    -- (CASCADE on FK will do this, but being explicit)
+    DELETE FROM node_path 
+    WHERE ancestor_id = OLD.id OR descendant_id = OLD.id;
+    
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- GET_BREADCRUMBS FUNCTION
+-- ============================================================
+-- Returns ordered list of nodes from root (or enter_node) down to exit_node.
+-- Uses node_path closure table for efficient ancestor lookup.
+--
+-- Parameters:
+--   exit_node_id: The node to get breadcrumbs for (required)
+--   enter_node_id: Optional starting ancestor (if NULL, starts from root)
+--
+-- Returns: Table of nodes ordered from root/enter_node to exit_node
+--
+-- Example usage:
+--   SELECT * FROM get_breadcrumbs(123);           -- Full path from root
+--   SELECT * FROM get_breadcrumbs(123, 45);       -- Path from node 45 to node 123
+
+CREATE OR REPLACE FUNCTION get_breadcrumbs(
+    exit_node_id INTEGER,
+    enter_node_id INTEGER DEFAULT NULL
+)
+RETURNS TABLE (
+    id INTEGER,
+    uuid UUID,
+    name TEXT,
+    is_page BOOLEAN,
+    is_type BOOLEAN,
+    is_day BOOLEAN,
+    is_month BOOLEAN,
+    is_year BOOLEAN,
+    parent_id INTEGER,
+    depth INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        n.id,
+        n.uuid,
+        n.name,
+        n.is_page,
+        n.is_type,
+        n.is_day,
+        n.is_month,
+        n.is_year,
+        n.parent_id,
+        np.depth
+    FROM node_path np
+    JOIN node n ON n.id = np.ancestor_id
+    WHERE np.descendant_id = exit_node_id
+      AND n.active = TRUE
+      -- If enter_node_id is specified, only include ancestors at or below that depth
+      AND (
+          enter_node_id IS NULL 
+          OR np.depth <= (
+              SELECT np2.depth 
+              FROM node_path np2 
+              WHERE np2.ancestor_id = enter_node_id 
+                AND np2.descendant_id = exit_node_id
+          )
+      )
+    ORDER BY np.depth DESC;  -- Root first (highest depth), exit_node last (depth 0)
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- ============================================================
 -- TRIGGERS
 -- ============================================================
 
@@ -473,6 +645,37 @@ CREATE TRIGGER node_search_update
     BEFORE INSERT OR UPDATE OF name, search_language ON node
     FOR EACH ROW
     EXECUTE FUNCTION update_node_search_vector();
+
+-- ============================================================
+-- NODE PATH TRIGGERS (Closure Table Maintenance)
+-- ============================================================
+-- These triggers automatically maintain the node_path closure table
+-- whenever nodes are inserted, updated (parent change), or deleted.
+
+-- Trigger: Maintain node_path on INSERT
+-- Fires AFTER insert so we have the new node's ID
+DROP TRIGGER IF EXISTS node_path_after_insert ON node;
+CREATE TRIGGER node_path_after_insert
+    AFTER INSERT ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION node_path_insert();
+
+-- Trigger: Maintain node_path on UPDATE (parent_id change)
+-- Only fires when parent_id changes to avoid unnecessary work
+DROP TRIGGER IF EXISTS node_path_after_update ON node;
+CREATE TRIGGER node_path_after_update
+    AFTER UPDATE OF parent_id ON node
+    FOR EACH ROW
+    WHEN (OLD.parent_id IS DISTINCT FROM NEW.parent_id)
+    EXECUTE FUNCTION node_path_update();
+
+-- Trigger: Maintain node_path on DELETE
+-- Fires BEFORE delete so we can still access the node's relationships
+DROP TRIGGER IF EXISTS node_path_before_delete ON node;
+CREATE TRIGGER node_path_before_delete
+    BEFORE DELETE ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION node_path_delete();
 
 -- Auto-update write_date trigger
 CREATE OR REPLACE FUNCTION update_write_date()
@@ -530,4 +733,42 @@ CREATE TRIGGER node_update_graph_write_date
     AFTER INSERT OR UPDATE OR DELETE ON node
     FOR EACH ROW
     EXECUTE FUNCTION update_graph_write_date();
-"""
+
+-- ============================================================
+-- EXAMPLE USAGE: BREADCRUMBS
+-- ============================================================
+-- 
+-- Example 1: Get full breadcrumb path from root to a document node
+--   SELECT * FROM get_breadcrumbs(123);
+--   
+--   This returns all ancestors from the root down to node 123:
+--   | id  | uuid | name        | is_page | depth |
+--   |-----|------|-------------|---------|-------|
+--   | 1   | ...  | Root Page   | true    | 3     |
+--   | 45  | ...  | Chapter 1   | true    | 2     |
+--   | 89  | ...  | Section A   | false   | 1     |
+--   | 123 | ...  | My Document | false   | 0     |
+--
+-- Example 2: Get breadcrumb path starting from a specific ancestor
+--   SELECT * FROM get_breadcrumbs(123, 45);
+--   
+--   This returns the path from node 45 down to node 123:
+--   | id  | uuid | name        | is_page | depth |
+--   |-----|------|-------------|---------|-------|
+--   | 45  | ...  | Chapter 1   | true    | 2     |
+--   | 89  | ...  | Section A   | false   | 1     |
+--   | 123 | ...  | My Document | false   | 0     |
+--
+-- Example 3: Get only page ancestors (filter in app layer)
+--   SELECT * FROM get_breadcrumbs(123) WHERE is_page = TRUE;
+--
+-- Example 4: Get all descendants of a node (useful for subtree operations)
+--   SELECT n.* FROM node_path np
+--   JOIN node n ON n.id = np.descendant_id
+--   WHERE np.ancestor_id = 45 AND np.depth > 0;
+--
+-- Example 5: Check if node A is an ancestor of node B
+--   SELECT EXISTS(
+--     SELECT 1 FROM node_path 
+--     WHERE ancestor_id = A AND descendant_id = B
+--   );
