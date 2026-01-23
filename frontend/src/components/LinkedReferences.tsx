@@ -167,27 +167,34 @@ export function LinkedReferences({
   }, [propertyBacklinks]);
 
   // Convert linked references to block nodes for NodeCollection
+  // Filter out nodes that have this node as their type (those appear in TypedNodes section)
   const blockNodes: Node[] = useMemo(() => {
     if (!refs) return [];
-    return refs.map(ref => ({
-      id: ref.source_node.id,
-      uuid: ref.source_node.uuid || '',
-      name: ref.source_node.name || 'Untitled',
-      icon: ref.source_node.icon || null,
-      color: ref.source_node.color || null,
-      is_page: ref.source_node.is_page || false,
-      parent_id: ref.source_node.parent_id ?? null,
-      page_id: ref.source_page?.id ?? null,
-      sequence: ref.source_node.sequence || 0,
-      active: ref.source_node.active ?? true,
-      create_date: ref.source_node.create_date || '',
-      write_date: ref.source_node.write_date || '',
-      types: ref.source_node.types || [],
-      tags: ref.source_node.tags || [],
-      collapsed: ref.source_node.collapsed || false,
-      children: ref.source_node.children || [],
-    }));
-  }, [refs]);
+    return refs
+      .filter(ref => {
+        // Exclude nodes where this node is their type (typed nodes should appear in TypedNodes section)
+        const nodeTypes = ref.source_node.types || [];
+        return !nodeTypes.includes(nodeId);
+      })
+      .map(ref => ({
+        id: ref.source_node.id,
+        uuid: ref.source_node.uuid || '',
+        name: ref.source_node.name || 'Untitled',
+        icon: ref.source_node.icon || null,
+        color: ref.source_node.color || null,
+        is_page: ref.source_node.is_page || false,
+        parent_id: ref.source_node.parent_id ?? null,
+        page_id: ref.source_page?.id ?? null,
+        sequence: ref.source_node.sequence || 0,
+        active: ref.source_node.active ?? true,
+        create_date: ref.source_node.create_date || '',
+        write_date: ref.source_node.write_date || '',
+        types: ref.source_node.types || [],
+        tags: ref.source_node.tags || [],
+        collapsed: ref.source_node.collapsed || false,
+        children: ref.source_node.children || [],
+      }));
+  }, [refs, nodeId]);
 
   // Build pageMap from linked references for grouping
   const pageMap = useMemo(() => {

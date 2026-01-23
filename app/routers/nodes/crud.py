@@ -212,18 +212,6 @@ async def get_node(
         # Get all descendant IDs
         descendant_ids = [d.id for d in all_descendants if d.id is not None]
         
-        # Get comment counts for all descendants in one query
-        comment_counts: Dict[int, int] = {}
-        if descendant_ids:
-            rows = await pool.fetch("""
-                SELECT node_id, COUNT(*) as count 
-                FROM node_comment 
-                WHERE node_id = ANY($1)
-                GROUP BY node_id
-            """, descendant_ids)
-            for row in rows:
-                comment_counts[row['node_id']] = row['count']
-        
         # Get backlink counts for all descendants in one query
         backlink_counts: Dict[int, int] = {}
         if descendant_ids:
@@ -257,10 +245,9 @@ async def get_node(
         node_map: Dict[int, NodeResponse] = {}
         for d in all_descendants:
             if d.id is not None:
-                count = comment_counts.get(d.id, 0)
                 bcount = backlink_counts.get(d.id, 0)
                 d_type_ids = node_type_map.get(d.id, [])
-                node_map[d.id] = _node_to_response(d, types=d_type_ids, comment_count=count, backlink_count=bcount)
+                node_map[d.id] = _node_to_response(d, types=d_type_ids, backlink_count=bcount)
         
         root_children = []
         
@@ -405,19 +392,8 @@ async def get_page_content(
     # Get connection early to avoid unbound variable
     pool = service._node_repo.get_connection()
     
-    # Get comment counts for all blocks
+    # Get block IDs for batch queries
     block_ids = [b.id for b in blocks if b.id is not None]
-    comment_counts = {}
-    if block_ids:
-        # Query comment counts for all blocks in one go
-        rows = await pool.fetch("""
-            SELECT node_id, COUNT(*) as count 
-            FROM node_comment 
-            WHERE node_id = ANY($1)
-            GROUP BY node_id
-        """, block_ids)
-        for row in rows:
-            comment_counts[row['node_id']] = row['count']
     
     # Get backlink counts for all blocks
     backlink_counts: Dict[int, int] = {}
@@ -456,11 +432,10 @@ async def get_page_content(
     block_map = {}
     for b in blocks:
         if b.id != page_id and b.id is not None:
-            count = comment_counts.get(b.id, 0)
             bcount = backlink_counts.get(b.id, 0)
             type_ids = node_type_map.get(b.id, [])
             tag_ids = node_tag_map.get(b.id, [])
-            block_map[b.id] = _node_to_response(b, tags=tag_ids, types=type_ids, comment_count=count, backlink_count=bcount)
+            block_map[b.id] = _node_to_response(b, tags=tag_ids, types=type_ids, backlink_count=bcount)
     
     root_children = []
     
@@ -478,10 +453,9 @@ async def get_page_content(
                 parent.children = []
             parent.children.append(response)
     
-    page_comment_count = comment_counts.get(page_id, 0)
     page_type_ids = node_type_map.get(page_id, [])
     page_tag_ids = node_tag_map.get(page_id, [])
-    page_response = _node_to_response(page, tags=page_tag_ids, types=page_type_ids, comment_count=page_comment_count)
+    page_response = _node_to_response(page, tags=page_tag_ids, types=page_type_ids)
     page_response.children = root_children
     
     # Add properties - get the full property values

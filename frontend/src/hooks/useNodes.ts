@@ -732,20 +732,19 @@ export function useDeleteNode() {
     },
     onSuccess: (deletedNode, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
-      // Dynamic import to avoid circular dependency
-      import('@/stores').then(({ useNodesStore }) => {
-        const currentNodeId = useNodesStore.getState().currentNodeId;
-        
-        // If we deleted the page we're currently viewing, navigate to home
-        if (currentNodeId === deletedId && deletedNode?.is_page) {
-          // Navigate to home and clear the current node
-          useNodesStore.setState({ 
-            currentNodeId: null,
-            mainViewType: 'node'
-          });
-          window.history.replaceState(null, '', '/');
-        }
-      });
+      // Use synchronous import since this is critical for UX
+      const { useNodesStore } = require('@/stores');
+      const currentNodeId = useNodesStore.getState().currentNodeId;
+      
+      // If we deleted the page we're currently viewing, navigate to home
+      if (currentNodeId === deletedId && deletedNode?.is_page) {
+        // Navigate to home and clear the current node
+        useNodesStore.setState({ 
+          currentNodeId: null,
+          mainViewType: 'node'
+        });
+        window.history.replaceState(null, '', '/');
+      }
       
       // Remove the deleted node's queries (all variations)
       queryClient.removeQueries({ queryKey: nodeKeys.detailBase(deletedId) });

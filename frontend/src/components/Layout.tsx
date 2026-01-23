@@ -7,8 +7,12 @@
  * - Main Container: Primary content area with rounded corners
  * - Comments Sidebar: Comments panel for selected node (between main and right sidebar)
  * - Right Sidebar: Secondary content (local graph, node cards) with rounded corners
+ * 
+ * Sidebar resizing:
+ * - Drag the right edge of left sidebar to resize
+ * - Drag the left edge of right sidebar to resize
  */
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useNodesStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync } from '@/hooks';
 import { markPageOpened } from '@/api/nodes';
@@ -42,6 +46,12 @@ export function Layout() {
   
   const { defaultView } = useSettingsStore();
   const hasAppliedDefaultView = useRef(false);
+  
+  // Sidebar resize state
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState<number | null>(null); // null = use CSS default
+  const [rightSidebarWidth, setRightSidebarWidth] = useState<number | null>(null); // null = use CSS default
+  const isResizingLeftRef = useRef(false);
+  const isResizingRightRef = useRef(false);
   
   // Fetch today's note for default view
   const { data: todayNote } = useTodayNote();
@@ -117,9 +127,63 @@ export function Layout() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handleGlobalKeyDown]);
+  
+  // Sidebar resize handlers
+  const handleLeftSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingLeftRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+  
+  const handleRightSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRightRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingLeftRef.current) {
+        const newWidth = Math.max(200, Math.min(400, e.clientX - 8)); // 8px for canvas padding
+        setLeftSidebarWidth(newWidth);
+      }
+      if (isResizingRightRef.current) {
+        const newWidth = Math.max(260, Math.min(500, window.innerWidth - e.clientX - 8));
+        setRightSidebarWidth(newWidth);
+      }
+    };
+    
+    const handleMouseUp = () => {
+      if (isResizingLeftRef.current || isResizingRightRef.current) {
+        isResizingLeftRef.current = false;
+        isResizingRightRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   // Sidebar visibility is controlled by rightSidebarOpen state
   const showSidebar = rightSidebarOpen;
+  
+  // Build dynamic styles for sidebars
+  const leftSidebarStyle = leftSidebarWidth ? { 
+    '--sidebar-width': `${leftSidebarWidth}px` 
+  } as React.CSSProperties : undefined;
+  
+  const rightSidebarStyle = rightSidebarWidth ? { 
+    '--right-sidebar-width': `${rightSidebarWidth}px` 
+  } as React.CSSProperties : undefined;
 
   return (
     <RouterSync>
@@ -130,7 +194,16 @@ export function Layout() {
         {/* Main content area with floating containers */}
         <div className="app-workspace">
           {/* Left Sidebar - part of canvas, completely hidden when collapsed */}
-          <Sidebar collapsed={isSidebarCollapsed} />
+          <div className="sidebar-wrapper" style={leftSidebarStyle}>
+            <Sidebar collapsed={isSidebarCollapsed} />
+            {/* Left sidebar resize handle */}
+            {!isSidebarCollapsed && (
+              <div 
+                className="sidebar-resize-handle sidebar-resize-handle--left"
+                onMouseDown={handleLeftSidebarResizeStart}
+              />
+            )}
+          </div>
           
           {/* Floating Main Container */}
           <Card className="main-container" padding={false} elevation="medium">
@@ -141,15 +214,24 @@ export function Layout() {
           {commentsSidebarOpen && <CommentsSidebar />}
           
           {/* Floating Right Sidebar - uses Card component with panel of cards */}
-          <Card 
-            className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`} 
-            padding={false} 
-            elevation="medium"
-          >
-            <div className="right-sidebar-content">
-              <RightSidebarCards />
-            </div>
-          </Card>
+          <div className="sidebar-wrapper sidebar-wrapper--right" style={rightSidebarStyle}>
+            {/* Right sidebar resize handle */}
+            {showSidebar && (
+              <div 
+                className="sidebar-resize-handle sidebar-resize-handle--right"
+                onMouseDown={handleRightSidebarResizeStart}
+              />
+            )}
+            <Card 
+              className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`} 
+              padding={false} 
+              elevation="medium"
+            >
+              <div className="right-sidebar-content">
+                <RightSidebarCards />
+              </div>
+            </Card>
+          </div>
         </div>
         
         {/* Command Palette Modal (Ctrl+K) */}

@@ -17,11 +17,13 @@ import {
   mdiTable, 
   mdiChartGantt, 
   mdiGraphOutline,
+  mdiPlus,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
+import { Button } from '../core/Button';
 import './NodeCollectionToolbar.css';
 
 // View mode icon mappings
@@ -57,6 +59,10 @@ export interface NodeCollectionToolbarProps {
   groupBy?: NodeCollectionGroupBy;
   /** Callback when group by changes */
   onGroupByChange?: (value: NodeCollectionGroupBy) => void;
+  /** Whether to show add button */
+  showAddButton?: boolean;
+  /** Callback when add button is clicked */
+  onAdd?: () => void;
   /** Additional CSS class */
   className?: string;
 }
@@ -73,10 +79,13 @@ export function NodeCollectionToolbar({
   showGroupBy = false,
   groupBy = 'page',
   onGroupByChange,
+  showAddButton = false,
+  onAdd,
   className = '',
 }: NodeCollectionToolbarProps) {
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
   const showGroupByButton = showGroupBy && viewMode === 'list';
+  const showAdd = showAddButton && onAdd;
   
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
@@ -89,12 +98,24 @@ export function NodeCollectionToolbar({
   );
 
   // Don't render if nothing to show
-  if (!showViewSwitcher && !showGroupByButton) {
+  if (!showViewSwitcher && !showGroupByButton && !showAdd) {
     return null;
   }
 
   return (
     <div className={`node-collection-toolbar ${className}`}>
+      {/* Add Button */}
+      {showAdd && (
+        <Button
+          icon={mdiPlus}
+          variant="ghost"
+          size="sm"
+          onClick={onAdd}
+          title="Add"
+          className="node-collection-toolbar__add"
+        />
+      )}
+      
       {/* GroupBy selector - only shown in list view */}
       {showGroupByButton && onGroupByChange && (
         <ButtonWithPanel
