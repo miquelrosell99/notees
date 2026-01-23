@@ -16,6 +16,7 @@ from typing import Optional, Dict, List, Any
 from .config import settings
 from .logging_config import get_logger
 from .db.connection import get_connection, DATA_DIR
+from .db.schema.init import seed_graph
 
 logger = get_logger(__name__)
 
@@ -130,6 +131,12 @@ async def create_graph(user_id: str, name: str) -> Dict[str, Any]:
         )
         if row is None:
             raise RuntimeError("Failed to create graph")
+        
+        graph_id = row['id']
+        
+        # Seed graph with system types, properties, and default pages
+        logger.info(f"Seeding graph {graph_id} with system data")
+        await seed_graph(conn, graph_id, numeric_user_id)
         
         result = {
             "uuid": str(row['uuid']),
