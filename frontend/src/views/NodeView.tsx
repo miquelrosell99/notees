@@ -191,6 +191,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const { data: allNodes } = useNodes({ pages_only: true });  // For fallback type/tag lookup
   const { data: allProperties } = useProperties();
   const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
+  const updateNode = useUpdateNode();
   const removeType = useRemoveType();
   const addType = useAddType();
   const removeTag = useRemoveTag();
@@ -280,6 +281,11 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     if (!node) return;
     removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
   }, [node, removeTag]);
+  
+  // Handle color change for type/tag nodes via NodePillRow
+  const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
+    updateNode.mutate({ id: targetNode.id, data: { color } });
+  }, [updateNode]);
   
   // Check if node is used as a type
   const { data: typedNodes } = useNodesWithType(node?.id ?? 0);
@@ -493,6 +499,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 searchPlaceholder="Search types..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemoveType}
+                onColorChange={handleNodeColorChange}
                 onAdd={handleAddType}
                 onCreateNew={handleCreateType}
                 canRemove={(n) => !isSystemTypeUuid(n.uuid)}
@@ -508,6 +515,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 searchPlaceholder="Search tags..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
                 onRemove={handleRemoveTag}
+                onColorChange={handleNodeColorChange}
                 onAdd={handleAddTag}
                 onCreateNew={handleCreateTag}
               />

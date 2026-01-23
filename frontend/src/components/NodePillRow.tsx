@@ -5,6 +5,7 @@
  * - Show pills for each node
  * - Navigate to a node on click
  * - Remove a node (optional)
+ * - Change a node's color via right-click (optional)
  * - Add new nodes via a picker dropdown using useNodeSearch (same as SuggestionPopup)
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -29,6 +30,8 @@ interface NodePillRowProps {
   onNodeClick?: (node: Node) => void;
   /** Callback when removing a node (if provided, shows remove button on pills) */
   onRemove?: (node: Node) => void;
+  /** Callback when changing a node's color via right-click (if provided, enables color picker) */
+  onColorChange?: (node: Node, color: string | null) => void;
   /** Callback when adding a node from the picker */
   onAdd?: (node: Node) => void;
   /** Callback when creating a new node (if provided, shows create option) */
@@ -48,6 +51,7 @@ export function NodePillRow({
   searchPlaceholder = 'Search...',
   onNodeClick,
   onRemove,
+  onColorChange,
   onAdd,
   onCreateNew,
   canRemove,
@@ -160,6 +164,7 @@ export function NodePillRow({
             typeNode={node}
             onClick={() => onNodeClick?.(node)}
             onRemove={isRemovable ? () => onRemove(node) : undefined}
+            onColorChange={onColorChange ? (color) => onColorChange(node, color) : undefined}
             readOnly={readOnly}
           />
         );
