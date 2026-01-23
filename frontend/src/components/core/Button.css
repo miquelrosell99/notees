@@ -206,4 +206,7 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
