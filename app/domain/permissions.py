@@ -139,21 +139,41 @@ class PermissionChecker:
         2. Check node_share for explicit permissions
         3. Fall back to graph permissions
         """
-        # Check cache
-        if node_id in self._node_cache:
+        return await self._get_node_permissions_impl(node_id, active_only=True)
+    
+    async def get_node_permissions_for_delete(self, node_id: int) -> Permissions:
+        """Get permissions for deleting a node (works on archived nodes too)."""
+        return await self._get_node_permissions_impl(node_id, active_only=False)
+    
+    async def _get_node_permissions_impl(self, node_id: int, active_only: bool = True) -> Permissions:
+        """Internal implementation of get_node_permissions.
+        
+        Args:
+            node_id: The node to check permissions for
+            active_only: If True, only check active nodes. If False, include archived.
+        """
+        # Check cache (only for active_only=True to avoid stale cache issues)
+        if active_only and node_id in self._node_cache:
             return self._node_cache[node_id]
         
         async with self._pool.acquire() as conn:
             # Get node info including graph_id and create_uid
-            row = await conn.fetchrow("""
-                SELECT graph_id, create_uid, is_shared FROM node 
-                WHERE id = $1 AND active = TRUE
-            """, node_id)
+            if active_only:
+                row = await conn.fetchrow("""
+                    SELECT graph_id, create_uid, is_shared FROM node 
+                    WHERE id = $1 AND active = TRUE
+                """, node_id)
+            else:
+                row = await conn.fetchrow("""
+                    SELECT graph_id, create_uid, is_shared FROM node 
+                    WHERE id = $1
+                """, node_id)
             
             if not row:
                 # Node doesn't exist or is inactive
                 perms = Permissions.none()
-                self._node_cache[node_id] = perms
+                if active_only:
+                    self._node_cache[node_id] = perms
                 return perms
             
             graph_id = row['graph_id']
@@ -161,7 +181,8 @@ class PermissionChecker:
             # Check if user is node owner
             if row['create_uid'] == self._user_id:
                 perms = Permissions.owner()
-                self._node_cache[node_id] = perms
+                if active_only:
+                    self._node_cache[node_id] = perms
                 return perms
             
             # Check node_share for explicit permissions
@@ -184,7 +205,8 @@ class PermissionChecker:
             # Fall back to graph permissions
             perms = await self.get_graph_permissions(graph_id)
         
-        self._node_cache[node_id] = perms
+        if active_only:
+            self._node_cache[node_id] = perms
         return perms
     
     async def can_read_graph(self, graph_id: int) -> bool:
@@ -225,6 +247,11 @@ class PermissionChecker:
     async def can_delete_node(self, node_id: int) -> bool:
         """Check if user can delete a node."""
         perms = await self.get_node_permissions(node_id)
+        return perms.can_delete
+    
+    async def can_delete_node_including_archived(self, node_id: int) -> bool:
+        """Check if user can delete a node (including archived nodes)."""
+        perms = await self.get_node_permissions_for_delete(node_id)
         return perms.can_delete
     
     async def get_accessible_graph_ids(self) -> List[int]:
@@ -283,8 +310,8 @@ class PermissionChecker:
             raise PermissionError(f"User {self._user_id} cannot create in node {node_id}")
     
     async def require_node_delete(self, node_id: int) -> None:
-        """Require delete permission on a node, raise if not allowed."""
-        if not await self.can_delete_node(node_id):
+        """Require delete permission on a node (works on archived nodes too)."""
+        if not await self.can_delete_node_including_archived(node_id):
             raise PermissionError(f"User {self._user_id} cannot delete node {node_id}")
 
 
