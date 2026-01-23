@@ -389,12 +389,13 @@ async def get_property_backlinks(
             ))
     
     # Also check for node-type properties pointing to this node
+    # Exclude the 'types' property - those appear in the TypedNodes section, not as backlinks
     pool = service._node_repo.get_connection()
     rows = await pool.fetch("""
         SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
         FROM property_value_relation pvr
         JOIN property p ON pvr.property_id = p.id
-        WHERE pvr.target_id = $1 AND p.type = 'node'
+        WHERE pvr.target_id = $1 AND p.type = 'node' AND p.name != 'types'
     """, node_id)
     
     for row in rows:
