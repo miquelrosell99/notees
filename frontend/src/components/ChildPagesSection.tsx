@@ -141,6 +141,7 @@ export function ChildPagesSection({
       availableViewModes={['list', 'table', 'card']}
       sortable={false}
       pagesOnly={true}
+      showTypes={true}
       onNodeClick={handleNodeClick}
       onNodeShiftClick={handleNodeShiftClick}
       showAddButton={!hideToolbar}

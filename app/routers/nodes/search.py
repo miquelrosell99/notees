@@ -9,6 +9,7 @@ from .helpers import (
     _get_node_service,
     _node_to_response,
     _get_class_ids_batch,
+    _build_children_tree,
 )
 
 
@@ -192,6 +193,8 @@ async def list_nodes(
     parent_id: Optional[int] = None,
     type_id: Optional[int] = None,
     type_filters: Optional[str] = None,  # Comma-separated type IDs to filter by
+    include_children: bool = False,
+    root_only: bool = False,  # Only return nodes with no parent
     user: User = Depends(get_current_user),
 ):
     """List nodes with optional filters.
@@ -201,6 +204,8 @@ async def list_nodes(
         parent_id: Only return children of this node
         type_id: Only return nodes with this type
         type_filters: Additional comma-separated type IDs to filter by
+        include_children: Include nested children for each node
+        root_only: Only return root nodes (no parent_id)
     
     Returns nodes with type_ids populated for reliable filtering.
     """
@@ -227,6 +232,10 @@ async def list_nodes(
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
+    # Filter to root nodes if requested
+    if root_only:
+        nodes = [n for n in nodes if n.parent_id is None]
+    
     # Build response, optionally filtering by types
     result = []
     for n in nodes:
@@ -240,5 +249,9 @@ async def list_nodes(
                 continue
         
         result.append(_node_to_response(n, classes=node_class_ids))
+    
+    # Include children if requested (recursive tree building)
+    if include_children and result:
+        result = await _build_children_tree(service, result, class_ids_map)
     
     return {"nodes": result}
