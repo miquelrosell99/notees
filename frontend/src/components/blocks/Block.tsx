@@ -510,6 +510,16 @@ export function Block({
     setBlockState(block.id, 'edit');
   }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick]);
   
+  // Handle deleting a link from block content (replaces [[link]] with plain text)
+  const handleDeleteLink = useCallback((raw: string) => {
+    if (!block.name || !canEdit) return;
+    
+    // Remove the link syntax, keeping just the displayed text if needed
+    // The raw value is the full link syntax like "[[123]]"
+    const newContent = block.name.replace(raw, '');
+    onContentChange?.(block.id, newContent);
+  }, [block.id, block.name, canEdit, onContentChange]);
+  
   // Reset initial cursor position when entering edit mode (after a short delay to allow it to be applied)
   useEffect(() => {
     if (blockState === 'edit' && initialCursorPosition !== undefined) {
@@ -1077,6 +1087,7 @@ export function Block({
                   content={block.name}
                   blockId={block.id}
                   className="block-content-pills"
+                  onDeleteLink={canEdit ? handleDeleteLink : undefined}
                 />
               ) : (
                 /* Empty block - no placeholder, just maintain width */
