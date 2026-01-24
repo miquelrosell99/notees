@@ -12,7 +12,7 @@ import { useRef, useEffect } from 'react';
 import { mdiSend } from '@mdi/js';
 import { useTodayNote, usePages, useQuickAdd } from '@/hooks';
 import { useSettingsStore } from '@/stores';
-import { Button } from './core/Button';
+import { Button } from '../core/Button';
 import './QuickAddPanel.css';
 
 interface QuickAddPanelProps {
