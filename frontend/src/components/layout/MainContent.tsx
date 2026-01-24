@@ -9,14 +9,14 @@ import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
 import { getNodeColorStyles } from '@/utils/color';
 import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline } from '@mdi/js';
-import { NodeBreadcrumbs } from './nodes/NodeBreadcrumbs';
-import { SelectionButton } from './core/SelectionButton';
-import { Button } from './core/Button';
-import { NodeView } from '../views/NodeView';
-import { AllPagesView } from '../views/AllPagesView';
-import { JournalsView } from '../views/JournalsView';
-import { GraphViewAll } from './graph';
-import { PropertyView } from '../views/PropertyView';
+import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
+import { SelectionButton } from '../core/SelectionButton';
+import { Button } from '../core/Button';
+import { NodeView } from '../../views/NodeView';
+import { AllPagesView } from '../../views/AllPagesView';
+import { JournalsView } from '../../views/JournalsView';
+import { GraphViewAll } from '../graph';
+import { PropertyView } from '../../views/PropertyView';
 import type { Node } from '@/types';
 
 export function MainContent() {

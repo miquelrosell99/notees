@@ -13,7 +13,7 @@ import {
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
-import { QueryBlockBuilder } from '../QueryBlockBuilder';
+import { QueryBlockBuilder } from '../queries';
 import { DeleteIcon } from '../icons';
 import {
   useNodeViews,

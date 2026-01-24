@@ -10,9 +10,9 @@ import './CommentsSidebar.css';
 import { useNodesStore } from '@/stores';
 import { useComments, useCreateComment, useDeleteComment, useUpdateNode, useNode } from '@/hooks';
 import { mdiClose } from '@mdi/js';
-import { AddIcon, CommentIcon, TrashIcon } from './icons';
-import { Card } from './core/Card';
-import { Button } from './core/Button';
+import { AddIcon, CommentIcon, TrashIcon } from '../icons';
+import { Card } from '../core/Card';
+import { Button } from '../core/Button';
 import type { Comment } from '@/types/api';
 
 interface CommentItemProps {

@@ -337,24 +337,13 @@
   gap: var(--spacing-xs);
 }
 
+/* Add button uses Button component - just add border style */
 .node-selector__add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2xs);
-  padding: var(--spacing-2xs) var(--spacing-sm);
   border: 1px dashed var(--border-color);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-  cursor: pointer;
-  transition: all 0.1s ease;
 }
 
 .node-selector__add-btn:hover {
   border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: var(--color-primary-alpha);
 }
 
 .node-selector__dropdown {
@@ -422,6 +411,42 @@
   flex-shrink: 0;
 }
 
+.node-selector__item--highlighted {
+  background: var(--surface-hover);
+}
+
+.node-selector__checkbox {
+  flex-shrink: 0;
+}
+
+.node-selector__section {
+  padding-top: var(--spacing-xs);
+}
+
+.node-selector__section--selected {
+  border-bottom: 1px solid var(--border-color-light);
+  padding-bottom: var(--spacing-xs);
+}
+
+.node-selector__section-header {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.node-selector__footer {
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-top: 1px solid var(--border-color-light);
+}
+
+.node-selector__hint {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
 .node-selector__empty {
   padding: var(--spacing-md) var(--spacing-lg);
   text-align: center;
@@ -449,35 +474,15 @@
   width: 100%;
 }
 
+/* Trigger uses Button component - add width and border style */
 .single-node-selector__trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
   width: 100%;
-  padding: var(--spacing-xs) var(--spacing-sm);
+  justify-content: space-between;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  font-size: 0.8125rem;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.1s ease;
 }
 
 .single-node-selector__trigger:hover:not(:disabled) {
   border-color: var(--border-color-dark);
-}
-
-.single-node-selector__trigger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: var(--surface-secondary);
-}
-
-.single-node-selector__placeholder {
-  flex: 1;
-  color: var(--text-tertiary);
 }
 
 .single-node-selector__selected {
