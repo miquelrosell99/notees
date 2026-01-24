@@ -322,7 +322,7 @@ async def export_graph(user_id: str, name: str) -> Path:
             SELECT uuid, name, icon, color, parent_id, page_id, sequence,
                    collapsed, active, version, is_type, is_page, is_day,
                    is_month, is_year, is_asset, is_template, is_comment,
-                   types_path, open_date, create_date, write_date
+                   classes_path, open_date, create_date, write_date
             FROM node WHERE graph_id = $1
             """,
             graph_id

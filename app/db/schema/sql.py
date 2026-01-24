@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS node (
     is_comment BOOLEAN DEFAULT FALSE,
     -- Type-specific fields
     usable_in VARCHAR(10) DEFAULT 'both' CHECK (usable_in IN ('page', 'block', 'both')),
-    types_path JSONB DEFAULT '[]'::jsonb,
+    classes_path JSONB DEFAULT '[]'::jsonb,
     open_date TIMESTAMPTZ,
     -- Full-text search
     search_vector tsvector,
@@ -129,7 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = TRU
 CREATE INDEX IF NOT EXISTS idx_node_is_type ON node(is_type) WHERE is_type = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_node_types_path ON node USING GIN (types_path);
+CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
