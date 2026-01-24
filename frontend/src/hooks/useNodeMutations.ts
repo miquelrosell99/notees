@@ -394,10 +394,12 @@ export function useDeleteNode() {
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       // Invalidate all backlinks since they may reference the deleted node
       queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'] });
-      // Invalidate linked references
+      // Invalidate linked references (legacy)
       queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'] });
       // Invalidate page content as blocks may have been updated
       queryClient.invalidateQueries({ queryKey: ['nodes', 'page-content'] });
+      // Invalidate all node view query results (linked references, etc.)
+      queryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'] });
     },
   });
 }

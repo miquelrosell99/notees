@@ -272,25 +272,8 @@ export function DynamicNodeViewSection({
     }
   }, [nodeId, viewType, views.length, createViewMutation, handleEditView]);
 
-  // DEBUG: Log state for linked_references (BEFORE early returns)
-  if (viewType === 'linked_references') {
-    console.log('[DynamicNodeViewSection] linked_references debug:', {
-      nodeId,
-      nodeUuid,
-      viewType,
-      hasInitialized,
-      isInitializing: !hasInitialized,
-      viewsLoading,
-      viewsCount: views.length,
-      activeView: activeView ? { id: activeView.id, name: activeView.name } : null,
-      queryLoading,
-      resultCount: resultNodes.length,
-    });
-  }
-
   // Loading state - wait for views to load AND ensure defaults to complete
   if (viewsLoading || isInitializing) {
-    console.log('[DynamicNodeViewSection] Returning null - loading/initializing', { viewsLoading, isInitializing: !hasInitialized });
     return null; // Don't render section while loading
   }
 
