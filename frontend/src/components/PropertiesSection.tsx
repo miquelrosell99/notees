@@ -303,8 +303,8 @@ export function PropertiesSection({
       const prop = allProperties.find(p => p.id === classProp.property_id);
       if (!prop) continue;
       
-      // Skip the system 'types' property - it's displayed separately in the Types row
-      if (prop.uuid === SYSTEM_PROPERTY_UUIDS.types) continue;
+      // Skip the system 'classes' property - it's displayed separately below the title
+      if (prop.uuid === SYSTEM_PROPERTY_UUIDS.classes) continue;
       
       // Skip the system 'cover' property - it has its own UI element (CoverImage)
       if (prop.uuid === SYSTEM_PROPERTY_UUIDS.cover) continue;
@@ -332,8 +332,8 @@ export function PropertiesSection({
       for (const prop of allProperties) {
         if (addedPropertyIds.has(prop.id)) continue;
         
-        // Skip the system 'types' property - it's displayed separately in the Types row
-        if (prop.uuid === SYSTEM_PROPERTY_UUIDS.types) continue;
+        // Skip the system 'classes' property - it's displayed separately below the title
+        if (prop.uuid === SYSTEM_PROPERTY_UUIDS.classes) continue;
         
         // Skip the system 'cover' property - it has its own UI element (CoverImage)
         if (prop.uuid === SYSTEM_PROPERTY_UUIDS.cover) continue;
