@@ -221,7 +221,7 @@ export function useNodeSearch(
 
     return { pageResults: pages, blockResults: blocks };
   }, [
-    effectiveMode,
+    mode,
     query,
     searchResults,
     allPages,
