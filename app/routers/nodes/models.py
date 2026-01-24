@@ -16,21 +16,21 @@ class NodeResponse(BaseModel):
     collapsed: bool = False
     active: bool = True
     is_page: bool = False  # Whether this node is a page
-    is_type: bool = False  # Whether this node defines a type
+    is_class: bool = False  # Whether this node defines a class
     is_daily: bool = False  # Daily journal page
     is_monthly: bool = False  # Monthly journal page
     is_yearly: bool = False  # Yearly journal page
-    usable_in: str = "both"  # Where this type can be applied (only meaningful when is_type=True)
+    usable_in: str = "both"  # Where this class can be applied (only meaningful when is_class=True)
     create_date: str
     write_date: str
     open_date: Optional[str] = None  # When the page was last opened/viewed
     # Computed fields
     display_name: Optional[str] = None
     tags: List[int] = []  # Tag node IDs (descriptive linking with #)
-    types: List[int] = []  # Type node IDs (categorization with @)
+    classes: List[int] = []  # Class node IDs (categorization with @)
     properties: Dict[str, Any] = {}
-    # Linked references - types_path (inherited types from ancestors)
-    types_path: List[int] = []  # Inherited type node IDs from ancestors' types properties
+    # Linked references - classes_path (inherited classes from ancestors)
+    classes_path: List[int] = []  # Inherited class node IDs from ancestors' classes properties
     # For tree responses
     children: Optional[List["NodeResponse"]] = None
     # Backlinks
@@ -98,10 +98,10 @@ class NodeCreateRequest(BaseModel):
     color: Optional[str] = None
     parent_id: Optional[int] = None
     sequence: int = 0
-    types: List[int] = []  # Type node IDs
+    classes: List[int] = []  # Class node IDs
     properties: Dict[int, Any] = {}  # property_id -> value
     is_page: bool = False  # Whether to create as a page
-    is_type: bool = False  # Whether to create as a type definition
+    is_class: bool = False  # Whether to create as a class definition
     # For date nodes
     is_daily: bool = False
     daily_date: Optional[str] = None  # YYYY-MM-DD
@@ -121,9 +121,17 @@ class NodeUpdateRequest(BaseModel):
     collapsed: Optional[bool] = None
 
 
-class TypeRequest(BaseModel):
-    """Request to add/remove a type."""
-    type_node_id: int
+class ClassRequest(BaseModel):
+    """Request to add/remove a class."""
+    class_node_id: int
+
+
+# Backwards compatibility alias
+class TypeRequest(ClassRequest):
+    """Request to add/remove a class (alias for ClassRequest)."""
+    @property
+    def type_node_id(self) -> int:
+        return self.class_node_id
 
 
 class PropertyRequest(BaseModel):
@@ -152,12 +160,30 @@ class NodeLinkResponse(BaseModel):
     position: int
 
 
-class InlineTypeResponse(BaseModel):
-    """Inline type reference in content."""
-    type_node_id: int
-    type_node_name: str
-    type_node_icon: Optional[str] = None
+class InlineClassResponse(BaseModel):
+    """Inline class reference in content."""
+    class_node_id: int
+    class_node_name: str
+    class_node_icon: Optional[str] = None
     position: int
+    # Backwards compatibility fields
+    type_node_id: Optional[int] = None
+    type_node_name: Optional[str] = None
+    type_node_icon: Optional[str] = None
+    
+    def __init__(self, **data):
+        # Ensure backwards compat fields are set
+        if 'type_node_id' not in data or data['type_node_id'] is None:
+            data['type_node_id'] = data.get('class_node_id')
+        if 'type_node_name' not in data or data['type_node_name'] is None:
+            data['type_node_name'] = data.get('class_node_name')
+        if 'type_node_icon' not in data or data['type_node_icon'] is None:
+            data['type_node_icon'] = data.get('class_node_icon')
+        super().__init__(**data)
+
+
+# Backwards compatibility alias
+InlineTypeResponse = InlineClassResponse
 
 
 class PropertyBacklinkResponse(BaseModel):

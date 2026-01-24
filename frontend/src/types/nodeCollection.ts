@@ -133,9 +133,9 @@ export interface NodeCollectionProps {
    * Only used when provideBlockCallbacks is true.
    */
   blockCallbacks?: {
-    onAddType?: (blockId: number, typeNodeId: number, keepInline: boolean, typeName: string) => void;
+    onAddClass?: (blockId: number, classNodeId: number, keepInline: boolean, className: string) => void;
     onAddTag?: (blockId: number, tagNodeId: number, keepInline: boolean, tagName: string) => void;
-    onCreateType?: (blockId: number, name: string, keepInline: boolean) => void;
+    onCreateClass?: (blockId: number, name: string, keepInline: boolean) => void;
     onCreateTag?: (blockId: number, name: string, keepInline: boolean) => void;
     onCreatePageLink?: (name: string) => Promise<string | undefined>;
     onOpenComments?: (blockId: number) => void;

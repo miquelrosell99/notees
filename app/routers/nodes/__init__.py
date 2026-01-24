@@ -6,7 +6,7 @@ The monolithic nodes.py has been split into:
 - helpers.py: Helper functions and _get_node_service
 - crud.py: Basic CRUD operations (create, get, update, delete, move, archive)
 - daily.py: Daily/monthly/yearly date page endpoints
-- types.py: Type-related endpoints
+- classes.py: Class-related endpoints
 - search.py: Search, list, and graph endpoints
 - favorites.py: Favorites management
 - links.py: Backlinks, linked references, tag links, properties
@@ -17,7 +17,7 @@ from fastapi import APIRouter
 
 from .crud import router as crud_router
 from .daily import router as daily_router
-from .types import router as types_router
+from .classes import router as classes_router
 from .search import router as search_router
 from .favorites import router as favorites_router
 from .links import router as links_router
@@ -31,7 +31,8 @@ from .models import (
     NodeCreateRequest,
     NodeUpdateRequest,
     MoveNodeRequest,
-    TypeRequest,
+    ClassRequest,
+    TypeRequest,  # Backwards compatibility alias
     PropertyRequest,
     BacklinkResponse,
     LinkedReferenceResponse,
@@ -39,7 +40,8 @@ from .models import (
     PropertyValueResponse,
     TagLinkRequest,
     NodeLinkResponse,
-    InlineTypeResponse,
+    InlineClassResponse,
+    InlineTypeResponse,  # Backwards compatibility alias
     PropertyBacklinkResponse,
     CommentCreateRequest,
     CommentResponse,
@@ -51,8 +53,9 @@ from .models import (
 from .helpers import (
     _get_node_service,
     _node_to_response,
-    _get_type_ids,
-    _get_type_ids_batch,
+    _get_class_ids,
+    _get_class_ids_batch,
+    _get_type_ids_batch,  # Backwards compatibility alias
     _get_tag_ids,
     _get_tag_ids_batch,
 )
@@ -63,13 +66,13 @@ router = APIRouter(prefix="/api/nodes", tags=["Nodes"])
 
 # Include all sub-routers
 # Order matters! More specific routes must come before parameterized routes.
-# Routes with fixed paths like /graph, /search, /types must come before /{node_id}
+# Routes with fixed paths like /graph, /search, /classes must come before /{node_id}
 
 # Search and graph endpoints (GET /graph, GET /search, GET "")
 router.include_router(search_router)
 
-# Type endpoints (GET /types, GET /types/search, GET /types/{type_id}/nodes)
-router.include_router(types_router)
+# Class endpoints (GET /classes, GET /classes/search, GET /classes/{class_id}/nodes)
+router.include_router(classes_router)
 
 # Daily endpoints (GET /daily/list, POST /daily, POST /monthly, POST /yearly)
 router.include_router(daily_router)

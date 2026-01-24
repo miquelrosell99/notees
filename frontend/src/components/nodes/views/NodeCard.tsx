@@ -30,7 +30,7 @@ export interface NodeCardProps {
   isDragging?: boolean;
   isDropTarget?: boolean;
   editable?: boolean;
-  allTypes?: Node[];
+  allClasses?: Node[];
   isSelected?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
@@ -78,7 +78,7 @@ export function NodeCard({
   isDragging,
   isDropTarget,
   editable = true,
-  allTypes,
+  allClasses,
   isSelected = false,
   onNodeClick,
   onNodeShiftClick,
@@ -92,8 +92,8 @@ export function NodeCard({
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   
-  // Get effective icon (from node or inherited from type)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allTypes), [node, allTypes]);
+  // Get effective icon (from node or inherited from class)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
   // Determine if we should show the bullet in the header
   // Show bullet only if there's an effective icon (from node or type)

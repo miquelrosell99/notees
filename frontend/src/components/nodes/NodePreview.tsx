@@ -5,7 +5,7 @@
  * Supports full editing capabilities like a mini editor instance.
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useNode, useUpdateNode, useCreateNode, useTypes } from '@/hooks';
+import { useNode, useUpdateNode, useCreateNode, useClasses } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import { mdiPlus, mdiOpenInNew, mdiArrowExpand, mdiClose } from '@mdi/js';
@@ -27,7 +27,7 @@ interface NodePreviewProps {
 
 export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePreviewProps) {
   const { data: node, isLoading, error } = useNode(nodeId, { include_children: true });
-  const { data: allTypes } = useTypes();
+  const { data: allClasses } = useClasses();
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const { openNode, addSidebarCard } = useNodesStore();
@@ -37,8 +37,8 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
   const [isEditing, setIsEditing] = useState(false);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
 
-  // Get effective icon (node's icon or first type's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allTypes), [node, allTypes]);
+  // Get effective icon (node's icon or first class's icon)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
 
   // Adjust position to stay within viewport
   useEffect(() => {

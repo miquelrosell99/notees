@@ -7,7 +7,7 @@
 
 export const SYSTEM_PROPERTY_UUIDS = {
   tags: '00000000-0000-0000-0000-000000000001',
-  types: '00000000-0000-0000-0000-000000000002',
+  classes: '00000000-0000-0000-0000-000000000002',
   show_hierarchy: '00000000-0000-0000-0000-000000000003',
   used_in: '00000000-0000-0000-0000-000000000004',
   cover: '00000000-0000-0000-0000-000000000005',
@@ -15,12 +15,12 @@ export const SYSTEM_PROPERTY_UUIDS = {
 } as const;
 
 /**
- * System type UUIDs - these match the fixed UUIDs in the backend schema.
+ * System class UUIDs - these match the fixed UUIDs in the backend schema.
  * 
- * These UUIDs are used to identify system types reliably.
+ * These UUIDs are used to identify system classes reliably.
  */
-export const SYSTEM_TYPE_UUIDS = {
-  type: '00000000-0000-0000-0001-000000000001',
+export const SYSTEM_CLASS_UUIDS = {
+  class: '00000000-0000-0000-0001-000000000001',
   page: '00000000-0000-0000-0001-000000000002',
   year: '00000000-0000-0000-0001-000000000003',
   month: '00000000-0000-0000-0001-000000000004',
@@ -44,10 +44,10 @@ export function isSystemPropertyUuid(uuid: string): boolean {
 }
 
 /**
- * Check if a property is the 'types' system property
+ * Check if a property is the 'classes' system property
  */
-export function isTypesProperty(uuid: string): boolean {
-  return uuid === SYSTEM_PROPERTY_UUIDS.types;
+export function isClassesProperty(uuid: string): boolean {
+  return uuid === SYSTEM_PROPERTY_UUIDS.classes;
 }
 
 /**
@@ -72,10 +72,10 @@ export function isBannerProperty(uuid: string): boolean {
 }
 
 /**
- * Check if a node UUID is a system type UUID
- * These types are managed by the system and should not be user-removable
+ * Check if a node UUID is a system class UUID
+ * These classes are managed by the system and should not be user-removable
  */
-export function isSystemTypeUuid(uuid: string | null | undefined): boolean {
+export function isSystemClassUuid(uuid: string | null | undefined): boolean {
   if (!uuid) return false;
-  return Object.values(SYSTEM_TYPE_UUIDS).includes(uuid as typeof SYSTEM_TYPE_UUIDS[keyof typeof SYSTEM_TYPE_UUIDS]);
+  return Object.values(SYSTEM_CLASS_UUIDS).includes(uuid as typeof SYSTEM_CLASS_UUIDS[keyof typeof SYSTEM_CLASS_UUIDS]);
 }

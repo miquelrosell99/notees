@@ -9,7 +9,7 @@
  * - Add new nodes via a picker dropdown using useNodeSearch (same as SuggestionPopup)
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { NodeTypePill } from './NodeTypePill';
+import { NodeClassPill } from './NodeClassPill';
 import { NodeIcon, AddIcon } from './icons';
 import { Button } from './core/Button';
 import { mdiPlus } from '@mdi/js';
@@ -159,9 +159,9 @@ export function NodePillRow({
       {nodes.map((node) => {
         const isRemovable = onRemove && (!canRemove || canRemove(node));
         return (
-          <NodeTypePill
+          <NodeClassPill
             key={node.id}
-            typeNode={node}
+            classNode={node}
             onClick={() => onNodeClick?.(node)}
             onRemove={isRemovable ? () => onRemove(node) : undefined}
             onColorChange={onColorChange ? (color) => onColorChange(node, color) : undefined}

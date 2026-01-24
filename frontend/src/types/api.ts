@@ -31,8 +31,8 @@ export interface Node {
   collapsed: boolean;
   active: boolean;
   is_page: boolean; // Whether this node is a page
-  is_type?: boolean; // Whether this node defines a type
-  usable_in?: 'pages' | 'blocks' | 'both'; // Where this type can be applied (only meaningful when is_type=true)
+  is_class?: boolean; // Whether this node defines a class
+  usable_in?: 'pages' | 'blocks' | 'both'; // Where this class can be applied (only meaningful when is_class=true)
   create_date: string;
   write_date: string;
   open_date?: string | null; // When the page was last opened/viewed
@@ -44,7 +44,7 @@ export interface Node {
   // Computed fields
   display_name?: string | null;
   tags?: number[];  // Tag node IDs (descriptive linking with #)
-  types?: number[]; // Type node IDs (categorization with @)
+  classes?: number[]; // Class node IDs (categorization with @)
   properties?: Record<string, unknown>;
   is_daily?: boolean; // Whether this is a daily note
   is_monthly?: boolean; // Whether this is a monthly note
@@ -172,10 +172,10 @@ export interface NodeCreate {
   parent_id?: number | null;
   sequence?: number;
   tags?: number[];
-  types?: number[];
+  classes?: number[];
   properties?: Record<number, unknown>;
   is_page?: boolean;  // Create as a page (no parent needed)
-  is_type?: boolean;  // Create as a type (is_type=true)
+  is_class?: boolean;  // Create as a class (is_class=true)
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;
@@ -260,9 +260,11 @@ export interface TypeProperty {
 }
 
 /**
- * Type extends (inheritance relationship)
+ * Class extends (inheritance relationship)
+ * Note: Field names match backend API (type_node_id, extends_type_node_id) 
+ * even though we use "class" terminology in the frontend
  */
-export interface TypeExtends {
+export interface ClassExtends {
   id: number;
   type_node_id: number;
   type_node_name: string;
@@ -358,12 +360,12 @@ export interface PropertiesResponse {
   properties: Property[];
 }
 
-export interface TypePropertiesResponse {
-  type_properties: TypeProperty[];
+export interface ClassPropertiesResponse {
+  class_properties: TypeProperty[];
 }
 
-export interface TypeExtendsResponse {
-  extends: TypeExtends[];
+export interface ClassExtendsResponse {
+  extends: ClassExtends[];
 }
 
 export interface SearchResponse {

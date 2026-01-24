@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useCreateNode, useUpdateNode, useAddTag, useAddType, useBlockSelection, useTypes, useAddTagLink } from '@/hooks';
+import { useCreateNode, useUpdateNode, useAddTag, useAddClass, useBlockSelection, useClasses, useAddTagLink } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -59,9 +59,9 @@ export function NodeContent({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const addTag = useAddTag();
-  const addType = useAddType();
+  const addClass = useAddClass();
   const addTagLink = useAddTagLink();
-  const { data: allTypes } = useTypes();
+  const { data: allClasses } = useClasses();
   const { addSidebarCard, openNode, openCommentsForNode } = useNodesStore();
   
   // Block selection
@@ -127,8 +127,8 @@ export function NodeContent({
 
   // Build block callbacks for context provider
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
-    onAddType: (blockId, typeNodeId, _keepInline, _typeName) => {
-      addType.mutate({ nodeId: blockId, typeId: typeNodeId });
+    onAddClass: (blockId, classNodeId, _keepInline, _className) => {
+      addClass.mutate({ nodeId: blockId, classId: classNodeId });
     },
     onAddTag: (blockId, tagNodeId, keepInline, _tagName) => {
       addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
@@ -136,13 +136,13 @@ export function NodeContent({
         addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
       }
     },
-    onCreateType: (blockId, name, _keepInline) => {
-      const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
+    onCreateClass: (blockId, name, _keepInline) => {
+      const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
       createNode.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => {
-          addType.mutate({ nodeId: blockId, typeId: newPage.id });
-          if (typeType) {
-            addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+          addClass.mutate({ nodeId: blockId, classId: newPage.id });
+          if (classClass) {
+            addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
           }
         }
       });
@@ -182,7 +182,7 @@ export function NodeContent({
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addType, addTag, addTagLink, createNode, allTypes, openCommentsForNode, addSidebarCard]);
+  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard]);
 
   const viewMode = toViewMode(displayMode);
 

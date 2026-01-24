@@ -54,10 +54,10 @@ export type { NodeViewSectionProps } from './nodes/NodeViewSection';
 // Properties (from properties/ folder)
 export { PropertiesSection, InlineProperties } from './PropertiesSection';
 export { NodePicker } from './nodes/NodePicker';
-export { TypeExtendsEditor } from './TypeExtendsEditor';
-export { TypePropertiesEditor } from './TypePropertiesEditor';
-export { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } from './TypedNodesSection';
-export type { TypedNodesSectionToolbarState } from './TypedNodesSection';
+export { ClassExtendsEditor } from './ClassExtendsEditor';
+export { ClassPropertiesEditor } from './ClassPropertiesEditor';
+export { ClassedNodesView, useClassedNodesSectionState, ClassedNodesSectionToolbar } from './ClassedNodesSection';
+export type { ClassedNodesSectionToolbarState } from './ClassedNodesSection';
 export { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from './ChildPagesSection';
 export type { ChildPagesSectionToolbarState } from './ChildPagesSection';
 export { PropertyConfigPanel } from './properties/PropertyConfigPanel';
