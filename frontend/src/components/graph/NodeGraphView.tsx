@@ -199,7 +199,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       internalLinkCount: apiNode.internal_link_count ?? 0,
       createdAt: apiNode.created_at,
       visible: true,
-      isTypeNode: apiNode.is_class || classIds.has(apiNode.id),
+      isTypeNode: apiNode.is_type || classIds.has(apiNode.id),
     }));
     
     const links: GraphLink[] = graphData.links.map(link => ({
