@@ -15,8 +15,8 @@ from ...models import User
 from .helpers import (
     _get_node_service,
     _node_to_response,
-    _get_type_ids,
-    _get_type_ids_batch,
+    _get_class_ids,
+    _get_class_ids_batch,
     _format_date_with_pattern,
     _format_month_with_pattern,
 )
@@ -46,12 +46,12 @@ async def list_daily_pages(
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch types for all nodes
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     result = []
     for node in nodes:
-        type_ids = type_ids_map.get(node.id, []) if node.id else []
-        result.append(_node_to_response(node, types=type_ids))
+        class_ids = class_ids_map.get(node.id, []) if node.id else []
+        result.append(_node_to_response(node, types=class_ids))
     
     return {"nodes": result}
 
@@ -106,11 +106,11 @@ async def get_or_create_daily(
         existing = await service._node_repo.get_by_uuid(uuid)
         if existing:
             # Ensure day type is assigned (for legacy pages created before types were added)
-            type_ids = await _get_type_ids(service, existing.id) if existing.id else []
-            if day_type_id not in type_ids and existing.id is not None:
+            class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+            if day_type_id not in class_ids and existing.id is not None:
                 await service.add_type(existing.id, day_type_id, _system_call=True)
-                type_ids.append(day_type_id)
-            return _node_to_response(existing, types=type_ids)
+                class_ids.append(day_type_id)
+            return _node_to_response(existing, types=class_ids)
         
         month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
         if not month_type:
@@ -217,11 +217,11 @@ async def get_or_create_monthly(
     existing = await service._node_repo.get_by_uuid(uuid)
     if existing:
         # Ensure month type is assigned (for legacy pages created before types were added)
-        type_ids = await _get_type_ids(service, existing.id) if existing.id else []
-        if month_type_id not in type_ids and existing.id is not None:
+        class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+        if month_type_id not in class_ids and existing.id is not None:
             await service.add_type(existing.id, month_type_id, _system_call=True)
-            type_ids.append(month_type_id)
-        return _node_to_response(existing, types=type_ids)
+            class_ids.append(month_type_id)
+        return _node_to_response(existing, types=class_ids)
     
     year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
     if not year_type:
@@ -291,11 +291,11 @@ async def get_or_create_yearly(
     existing = await service._node_repo.get_by_uuid(uuid)
     if existing:
         # Ensure year type is assigned (for legacy pages created before types were added)
-        type_ids = await _get_type_ids(service, existing.id) if existing.id else []
-        if year_type_id not in type_ids and existing.id is not None:
+        class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+        if year_type_id not in class_ids and existing.id is not None:
             await service.add_type(existing.id, year_type_id, _system_call=True)
-            type_ids.append(year_type_id)
-        return _node_to_response(existing, types=type_ids)
+            class_ids.append(year_type_id)
+        return _node_to_response(existing, types=class_ids)
     
     name = str(year)
     
