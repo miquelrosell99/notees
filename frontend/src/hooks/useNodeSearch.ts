@@ -240,10 +240,8 @@ export function useNodeSearch(
   // Determine if "Create new" option should be shown
   const showCreateOption = useMemo(() => {
     if (!query.trim()) return false;
-    // No exact match in page results
-    return !pageResults.some(
-      r => r.displayName.toLowerCase() === query.toLowerCase()
-    );
+    // No exact match in page results (case-sensitive comparison)
+    return !pageResults.some(r => r.displayName === query);
   }, [pageResults, query]);
 
   return {
