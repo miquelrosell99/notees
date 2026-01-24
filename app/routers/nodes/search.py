@@ -181,7 +181,7 @@ async def search_nodes(
             if not filter_type_ids.intersection(node_class_ids):
                 continue
         
-        result.append(_node_to_response(n, types=node_class_ids))
+        result.append(_node_to_response(n, classes=node_class_ids))
     
     return {"nodes": result}
 
@@ -239,6 +239,6 @@ async def list_nodes(
             if not filter_type_ids.intersection(node_class_ids):
                 continue
         
-        result.append(_node_to_response(n, types=node_class_ids))
+        result.append(_node_to_response(n, classes=node_class_ids))
     
     return {"nodes": result}

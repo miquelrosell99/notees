@@ -41,7 +41,7 @@ async def list_types(
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
-        _node_to_response(n, types=class_ids_map.get(n.id, []) if n.id else []) 
+        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) 
         for n in nodes
     ]}
 
@@ -67,7 +67,7 @@ async def search_types(
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
-        _node_to_response(n, types=class_ids_map.get(n.id, []) if n.id else [])
+        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
         for n in pages
     ]}
 
@@ -111,7 +111,7 @@ async def get_nodes_with_type(
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
-        _node_to_response(n, types=class_ids_map.get(n.id, []) if n.id else [])
+        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
         for n in nodes
     ]}
 
@@ -138,7 +138,7 @@ async def add_node_type(
     if not node:
         raise HTTPException(404, "Node not found")
     types = await service.get_node_types(node_id)
-    return _node_to_response(node, types=[t.id for t in types if t.id])
+    return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
 @router.delete("/{node_id}/types/{type_id}")
@@ -161,4 +161,4 @@ async def remove_node_type_endpoint(
     if not node:
         raise HTTPException(404, "Node not found")
     types = await service.get_node_types(node_id)
-    return _node_to_response(node, types=[t.id for t in types if t.id])
+    return _node_to_response(node, classes=[t.id for t in types if t.id])

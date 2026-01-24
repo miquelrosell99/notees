@@ -51,7 +51,7 @@ async def list_daily_pages(
     result = []
     for node in nodes:
         class_ids = class_ids_map.get(node.id, []) if node.id else []
-        result.append(_node_to_response(node, types=class_ids))
+        result.append(_node_to_response(node, classes=class_ids))
     
     return {"nodes": result}
 
@@ -98,7 +98,7 @@ async def get_or_create_daily(
         if day_type_id is None:
             raise HTTPException(500, "Day type has no ID")
         
-        page_type_id = service._page_type_id
+        page_type_id = service._page_class_id
         if page_type_id is None:
             raise HTTPException(500, "Page type not configured")
         
@@ -110,7 +110,7 @@ async def get_or_create_daily(
             if day_type_id not in class_ids and existing.id is not None:
                 await service.add_type(existing.id, day_type_id, _system_call=True)
                 class_ids.append(day_type_id)
-            return _node_to_response(existing, types=class_ids)
+            return _node_to_response(existing, classes=class_ids)
         
         month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
         if not month_type:
@@ -140,7 +140,7 @@ async def get_or_create_daily(
         if not year_node:
             year_data = NodeCreateData(
                 name=str(d.year),
-                types=[page_type_id, year_type_id],
+                classes=[page_type_id, year_type_id],
                 is_page=True,
                 is_year=True,
             )
@@ -153,7 +153,7 @@ async def get_or_create_daily(
             month_name_str = _format_month_with_pattern(d.year, d.month, date_format)
             month_data = NodeCreateData(
                 name=month_name_str,
-                types=[page_type_id, month_type_id],
+                classes=[page_type_id, month_type_id],
                 parent_id=year_node.id,
                 is_page=True,
                 is_month=True,
@@ -168,14 +168,14 @@ async def get_or_create_daily(
         name = _format_date_with_pattern(d.year, d.month, d.day, date_format)
         day_data = NodeCreateData(
             name=name,
-            types=[page_type_id, day_type_id],
+            classes=[page_type_id, day_type_id],
             parent_id=month_node.id if month_node else None,
             is_page=True,
             is_day=True,
         )
         node = await service._node_repo.create_with_uuid(uuid, day_data)
         # Return with types (page and day)
-        return _node_to_response(node, types=[page_type_id, day_type_id])
+        return _node_to_response(node, classes=[page_type_id, day_type_id])
     except HTTPException:
         raise
     except Exception as e:
@@ -210,7 +210,7 @@ async def get_or_create_monthly(
     if month_type_id is None:
         raise HTTPException(500, "Month type has no ID")
     
-    page_type_id = service._page_type_id
+    page_type_id = service._page_class_id
     if page_type_id is None:
         raise HTTPException(500, "Page type not configured")
     
@@ -221,7 +221,7 @@ async def get_or_create_monthly(
         if month_type_id not in class_ids and existing.id is not None:
             await service.add_type(existing.id, month_type_id, _system_call=True)
             class_ids.append(month_type_id)
-        return _node_to_response(existing, types=class_ids)
+        return _node_to_response(existing, classes=class_ids)
     
     year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
     if not year_type:
@@ -236,7 +236,7 @@ async def get_or_create_monthly(
     if not year_node:
         year_data = NodeCreateData(
             name=str(year),
-            types=[page_type_id, year_type_id],
+            classes=[page_type_id, year_type_id],
             is_page=True,
             is_year=True,
         )
@@ -253,7 +253,7 @@ async def get_or_create_monthly(
     
     data = NodeCreateData(
         name=name,
-        types=[page_type_id, month_type_id],
+        classes=[page_type_id, month_type_id],
         parent_id=year_node.id if year_node else None,
         is_page=True,
         is_month=True,
@@ -284,7 +284,7 @@ async def get_or_create_yearly(
     if year_type_id is None:
         raise HTTPException(500, "Year type has no ID")
     
-    page_type_id = service._page_type_id
+    page_type_id = service._page_class_id
     if page_type_id is None:
         raise HTTPException(500, "Page type not configured")
     
@@ -295,13 +295,13 @@ async def get_or_create_yearly(
         if year_type_id not in class_ids and existing.id is not None:
             await service.add_type(existing.id, year_type_id, _system_call=True)
             class_ids.append(year_type_id)
-        return _node_to_response(existing, types=class_ids)
+        return _node_to_response(existing, classes=class_ids)
     
     name = str(year)
     
     data = NodeCreateData(
         name=name,
-        types=[page_type_id, year_type_id],
+        classes=[page_type_id, year_type_id],
         is_page=True,
         is_year=True,
     )

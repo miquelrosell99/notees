@@ -44,10 +44,10 @@ async def create_node(
     # Handle date nodes with special UUIDs
     # The repository will use generate_uuid() by default,
     # but for date nodes we override
-    types = list(request.types)
+    classes = list(request.classes)
     
     # TODO: Look up date type IDs and add them
-    # For now, dates are handled by types parameter from client
+    # For now, dates are handled by classes parameter from client
     
     data = NodeCreateData(
         name=request.name,
@@ -55,14 +55,14 @@ async def create_node(
         color=request.color,
         parent_id=request.parent_id,
         sequence=request.sequence,
-        types=types,
+        classes=classes,
         property_values=request.properties,
         is_page=request.is_page,
         is_type=request.is_type,
     )
     
     node = await service.create_node(data, user_id=None)  # TODO: user_id from JWT
-    return _node_to_response(node, types=types)
+    return _node_to_response(node, classes=classes)
 
 
 @router.post("/page")
@@ -138,7 +138,7 @@ async def get_archived_pages(
         if page.id is None:
             continue
         types = await service.get_node_types(page.id)
-        result.append(_node_to_response(page, types=[t.id for t in types if t.id]))
+        result.append(_node_to_response(page, classes=[t.id for t in types if t.id]))
     
     return {"pages": result}
 
@@ -166,7 +166,7 @@ async def get_node(
     
     # Auto-fix legacy date nodes that don't have their date type assigned
     if node.is_day or node.is_month or node.is_year:
-        page_type_id = service._page_type_id
+        page_type_id = service._page_class_id
         
         # Ensure page type is assigned
         if page_type_id and page_type_id not in class_ids:
@@ -190,7 +190,7 @@ async def get_node(
                 await service.add_type(node_id, year_type.id, _system_call=True)
                 class_ids.append(year_type.id)
     
-    response = _node_to_response(node, tags=tag_ids, types=class_ids)
+    response = _node_to_response(node, tags=tag_ids, classes=class_ids)
     
     if include_children:
         pool = service._node_repo.get_connection()
@@ -245,7 +245,7 @@ async def get_node(
             if d.id is not None:
                 bcount = backlink_counts.get(d.id, 0)
                 d_type_ids = node_type_map.get(d.id, [])
-                node_map[d.id] = _node_to_response(d, types=d_type_ids, backlink_count=bcount)
+                node_map[d.id] = _node_to_response(d, classes=d_type_ids, backlink_count=bcount)
         
         root_children = []
         
@@ -433,7 +433,7 @@ async def get_page_content(
             bcount = backlink_counts.get(b.id, 0)
             type_ids = node_type_map.get(b.id, [])
             tag_ids = node_tag_map.get(b.id, [])
-            block_map[b.id] = _node_to_response(b, tags=tag_ids, types=type_ids, backlink_count=bcount)
+            block_map[b.id] = _node_to_response(b, tags=tag_ids, classes=type_ids, backlink_count=bcount)
     
     root_children = []
     
@@ -453,7 +453,7 @@ async def get_page_content(
     
     page_type_ids = node_type_map.get(page_id, [])
     page_tag_ids = node_tag_map.get(page_id, [])
-    page_response = _node_to_response(page, tags=page_tag_ids, types=page_type_ids)
+    page_response = _node_to_response(page, tags=page_tag_ids, classes=page_type_ids)
     page_response.children = root_children
     
     # Add properties - get the full property values
@@ -634,7 +634,7 @@ async def archive_node(
         raise HTTPException(404, "Node not found")
     
     types = await service.get_node_types(node_id)
-    return _node_to_response(node, types=[t.id for t in types if t.id])
+    return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
 @router.post("/{node_id}/unarchive")
@@ -650,7 +650,7 @@ async def unarchive_node(
         raise HTTPException(404, "Node not found")
     
     types = await service.get_node_types(node_id)
-    return _node_to_response(node, types=[t.id for t in types if t.id])
+    return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
 @router.patch("/{node_id}/open")

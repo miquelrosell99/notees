@@ -204,11 +204,11 @@ async def upload_asset(
         # Create repository
         node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
         
-        # Create the asset node with 'asset' type
+        # Create the asset node with 'asset' class
         data = NodeCreateData(
             name=file.filename or f"asset{extension}",
             parent_id=parent_id,
-            types=[asset_type_id] if asset_type_id else [],
+            classes=[asset_type_id] if asset_type_id else [],
             is_asset=True,
         )
         
