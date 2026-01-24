@@ -1,4 +1,4 @@
-/* QueryBlockBuilder.css - Odoo-style filter UI */
+/* QueryBlockBuilder.css - Odoo-style row-based filter UI */
 
 /* ==================== Main Container ==================== */
 .query-block-builder {
@@ -27,7 +27,7 @@
 .query-block-builder__blocks {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: 0;
 }
 
 .query-block-builder__empty {
@@ -45,42 +45,74 @@
   padding-top: var(--spacing-xs);
 }
 
-/* ==================== Filter Block ==================== */
+/* ==================== Filter Block - Odoo-style row ==================== */
 .filter-block {
-  transition: box-shadow 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  min-height: 40px;
+  border-bottom: 1px solid var(--border-color-light);
+  background: transparent;
+  transition: background-color 0.1s ease;
 }
 
 .filter-block:hover {
-  box-shadow: var(--shadow-sm);
+  background: var(--surface-hover);
 }
 
-.filter-block__header {
+.filter-block:last-child {
+  border-bottom: none;
+}
+
+/* Remove Card styling - we use flat rows */
+.filter-block.card {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: transparent;
+}
+
+.filter-block.card:hover {
+  box-shadow: none;
+}
+
+/* Field label - fixed width column */
+.filter-block__field {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  margin-bottom: var(--spacing-xs);
+  min-width: 120px;
+  width: 120px;
+  flex-shrink: 0;
 }
 
 .filter-block__icon {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
 .filter-block__label {
-  font-weight: 500;
   font-size: 0.8125rem;
   color: var(--text-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Operator dropdown - fixed width column */
 .filter-block__operator {
-  padding: var(--spacing-2xs) var(--spacing-xs);
-  font-size: 0.75rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background: var(--surface-secondary);
+  background: var(--surface-primary);
   color: var(--text-primary);
   cursor: pointer;
+  min-width: 90px;
+  width: 90px;
+  flex-shrink: 0;
 }
 
 .filter-block__operator:focus {
@@ -88,17 +120,28 @@
   border-color: var(--color-primary);
 }
 
-.filter-block__spacer {
-  flex: 1;
+.filter-block__operator:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--surface-secondary);
 }
 
-/* Reorder arrows and delete button - visible on hover */
+/* Value section - grows to fill remaining space */
+.filter-block__value {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Actions column - fixed at end */
 .filter-block__actions {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.1s ease;
 }
 
 .filter-block:hover .filter-block__actions {
@@ -109,20 +152,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition: color 0.1s ease, background-color 0.1s ease;
 }
 
 .filter-block__reorder-btn:hover:not(:disabled) {
   color: var(--text-primary);
-  background: var(--surface-hover);
+  background: var(--surface-tertiary);
 }
 
 .filter-block__reorder-btn:disabled {
@@ -130,55 +173,55 @@
   cursor: not-allowed;
 }
 
+/* Legacy delete class - keep for compatibility */
 .filter-block__delete {
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  opacity: inherit;
 }
 
-.filter-block:hover .filter-block__delete {
-  opacity: 1;
+/* Mode toggle - position before actions */
+.filter-block__mode-toggle {
+  flex-shrink: 0;
+  margin-right: var(--spacing-xs);
 }
 
-.filter-block__value {
-  margin-top: var(--spacing-xs);
-}
-
-.filter-block__row {
-  display: flex;
-  gap: var(--spacing-xs);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
+/* ==================== Text/Number Input ==================== */
 .filter-block__input {
-  flex: 1;
-  min-width: 120px;
+  width: 100%;
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: 0.8125rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--surface-primary);
   color: var(--text-primary);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.1s ease;
 }
 
 .filter-block__input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-alpha);
 }
 
 .filter-block__input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  background: var(--surface-secondary);
 }
 
 .filter-block__input::placeholder {
   color: var(--text-tertiary);
 }
 
+/* Property row with multiple inputs */
+.filter-block__input-row {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+  flex: 1;
+}
+
 .filter-block__input--name {
-  flex: 0 0 140px;
+  width: 140px;
+  flex-shrink: 0;
 }
 
 .filter-block__select {
@@ -188,32 +231,103 @@
   border-radius: var(--radius-sm);
   background: var(--surface-primary);
   color: var(--text-primary);
+  min-width: 80px;
 }
 
+.filter-block__select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==================== Placeholder Badge ==================== */
 .filter-block__placeholder-badge {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-2xs) var(--spacing-sm);
-  background: var(--surface-tertiary);
+  background: var(--color-primary-alpha);
   border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  color: var(--color-primary);
+  font-weight: 500;
 }
 
-/* Nested blocks in containers */
+/* ==================== Container Blocks (AND/OR/NOT) ==================== */
+.filter-block--container {
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--spacing-xs) 0;
+  gap: 0;
+}
+
+.filter-block--container.card {
+  padding: var(--spacing-xs) 0;
+}
+
+.filter-block--container > .filter-block__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.filter-block--container > .filter-block__row:hover {
+  background: var(--surface-hover);
+}
+
+/* Container header row */
+.filter-block__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 0;
+  margin: 0;
+}
+
+.filter-block__spacer {
+  flex: 1;
+}
+
+/* Nested blocks inside container - indented with left border */
 .filter-block__nested {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  padding-top: var(--spacing-sm);
-  margin-top: var(--spacing-xs);
-  border-top: 1px solid var(--border-color-light);
+  gap: 0;
+  margin-left: var(--spacing-lg);
+  padding-left: var(--spacing-sm);
+  border-left: 2px solid var(--border-color-light);
 }
 
-/* ==================== Node Selector ==================== */
+.filter-block__nested .filter-block {
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+.filter-block__nested .filter-block:last-child {
+  border-bottom: none;
+}
+
+/* ==================== Dynamic Query Section ==================== */
+.filter-block__dynamic-query {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  margin-top: var(--spacing-xs);
+  padding-left: var(--spacing-sm);
+  border-left: 2px solid var(--color-primary-alpha);
+}
+
+.filter-block__dynamic-query-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  padding: var(--spacing-xs) 0;
+  font-style: italic;
+}
+
+/* ==================== Node Selector (multi-select pills) ==================== */
 .node-selector {
   position: relative;
+  width: 100%;
 }
 
 .node-selector__pills {
@@ -232,9 +346,9 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.1s ease;
 }
 
 .node-selector__add-btn:hover {
@@ -247,11 +361,15 @@
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 100;
-  min-width: 200px;
-  max-height: 300px;
+  z-index: 1100;
+  min-width: 240px;
+  max-height: 280px;
   margin-top: var(--spacing-xs);
   overflow: hidden;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .node-selector__search {
@@ -285,14 +403,14 @@
   align-items: center;
   gap: var(--spacing-sm);
   width: 100%;
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   border: none;
   background: transparent;
   color: var(--text-primary);
   font-size: 0.8125rem;
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.1s ease;
 }
 
 .node-selector__item:hover {
@@ -305,58 +423,100 @@
 }
 
 .node-selector__empty {
-  padding: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
   text-align: center;
   color: var(--text-tertiary);
   font-size: 0.8125rem;
 }
 
+.node-selector__more {
+  display: block;
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: center;
+  border-top: 1px solid var(--border-color-light);
+}
+
+.node-selector__more:hover {
+  text-decoration: underline;
+}
+
 /* ==================== Single Node Selector ==================== */
 .single-node-selector {
   position: relative;
+  width: 100%;
 }
 
 .single-node-selector__trigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+  width: 100%;
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--surface-primary);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 0.8125rem;
   cursor: pointer;
-  min-width: 140px;
-  transition: all 0.15s ease;
+  text-align: left;
+  transition: border-color 0.1s ease;
 }
 
 .single-node-selector__trigger:hover:not(:disabled) {
-  border-color: var(--color-primary);
+  border-color: var(--border-color-dark);
 }
 
 .single-node-selector__trigger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  background: var(--surface-secondary);
 }
 
 .single-node-selector__placeholder {
   flex: 1;
+  color: var(--text-tertiary);
 }
 
 .single-node-selector__selected {
   display: inline-flex;
+  flex: 1;
+}
+
+.single-node-selector__clear {
+  margin-left: auto;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.single-node-selector__clear:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 .single-node-selector__dropdown {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 100;
-  min-width: 200px;
-  max-height: 300px;
+  right: 0;
+  z-index: 1100;
+  min-width: 240px;
+  max-height: 280px;
   margin-top: var(--spacing-xs);
   overflow: hidden;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .single-node-selector__search {
@@ -390,14 +550,14 @@
   align-items: center;
   gap: var(--spacing-sm);
   width: 100%;
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   border: none;
   background: transparent;
   color: var(--text-primary);
   font-size: 0.8125rem;
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.1s ease;
 }
 
 .single-node-selector__item:hover {
@@ -426,10 +586,14 @@
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 100;
+  z-index: 1100;
   min-width: 220px;
   margin-top: var(--spacing-xs);
   padding: var(--spacing-xs) 0;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .add-filter__item {
@@ -437,13 +601,13 @@
   align-items: flex-start;
   gap: var(--spacing-sm);
   width: 100%;
-  padding: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   border: none;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.1s ease;
 }
 
 .add-filter__item:hover {
@@ -472,31 +636,22 @@
   color: var(--text-tertiary);
 }
 
-/* ==================== Dynamic Query Section ==================== */
-.filter-block__dynamic-query {
-  display: flex;
-  flex-direction: column;
+/* New filter link style */
+.add-filter__link {
+  display: inline-flex;
+  align-items: center;
   gap: var(--spacing-xs);
-  padding: var(--spacing-sm);
-  background: var(--surface-secondary);
-  border-radius: var(--radius-sm);
-  border: 1px dashed var(--border-color);
+  padding: var(--spacing-xs) 0;
+  margin-left: var(--spacing-sm);
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: color 0.1s ease;
 }
 
-.filter-block__dynamic-query-hint {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  font-style: italic;
-  margin-bottom: var(--spacing-2xs);
-}
-
-/* Nested filter blocks in dynamic query have smaller padding */
-.filter-block__dynamic-query .filter-block {
-  background: var(--surface-primary);
-}
-
-/* Mode toggle in filter header */
-.filter-block__header .selection-button {
-  margin-left: auto;
-  margin-right: var(--spacing-xs);
+.add-filter__link:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
 }

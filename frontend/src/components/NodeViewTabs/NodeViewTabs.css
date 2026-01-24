@@ -156,3 +156,18 @@
 .node-view-tabs__edit-spacer {
   flex: 1;
 }
+
+/* Edit modal - fixed size with overflow for dropdowns */
+.node-view-tabs__edit-modal .modal {
+  width: 600px;
+  min-height: 400px;
+  max-height: 80vh;
+}
+
+.node-view-tabs__edit-modal .modal__content {
+  overflow: visible;
+}
+
+.node-view-tabs__edit-form {
+  min-height: 280px;
+}

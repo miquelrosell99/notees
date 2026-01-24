@@ -270,6 +270,7 @@ export function NodeViewTabs({
         }}
         title={`Edit "${editingView?.name}" Query`}
         size="lg"
+        className="node-view-tabs__edit-modal"
       >
         {editingView && editedBlockTree && (
           <div className="node-view-tabs__edit-form">

@@ -1,0 +1,118 @@
+/**
+ * ToggleSwitch Component Styles
+ * 
+ * A toggle with labels on both sides for A/B selection.
+ */
+
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.toggle-switch:focus-visible {
+  outline: 2px solid var(--color-primary, #3b82f6);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 4px);
+}
+
+/* Labels */
+.toggle-switch__label {
+  font-size: var(--font-size-sm, 13px);
+  color: var(--text-tertiary, #999);
+  transition: color var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+  white-space: nowrap;
+}
+
+.toggle-switch__label--active {
+  color: var(--text-primary, #333);
+  font-weight: 500;
+}
+
+/* Track */
+.toggle-switch__track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--color-surface-variant, var(--bg-tertiary, #e5e7eb));
+  border: 1px solid var(--color-outline, var(--border-color, #d1d5db));
+  border-radius: 999px;
+  transition: background-color var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+}
+
+/* Track sizes */
+.toggle-switch--sm .toggle-switch__track {
+  width: 28px;
+  height: 16px;
+}
+
+.toggle-switch--md .toggle-switch__track {
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-switch--lg .toggle-switch__track {
+  width: 44px;
+  height: 24px;
+}
+
+/* Thumb */
+.toggle-switch__thumb {
+  position: absolute;
+  background: var(--color-primary, #3b82f6);
+  border-radius: 50%;
+  transition: transform var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+}
+
+.toggle-switch--sm .toggle-switch__thumb {
+  width: 12px;
+  height: 12px;
+  left: 2px;
+}
+
+.toggle-switch--md .toggle-switch__thumb {
+  width: 16px;
+  height: 16px;
+  left: 2px;
+}
+
+.toggle-switch--lg .toggle-switch__thumb {
+  width: 20px;
+  height: 20px;
+  left: 2px;
+}
+
+/* Checked state - move thumb to the right */
+.toggle-switch--checked.toggle-switch--sm .toggle-switch__thumb {
+  transform: translateX(12px);
+}
+
+.toggle-switch--checked.toggle-switch--md .toggle-switch__thumb {
+  transform: translateX(16px);
+}
+
+.toggle-switch--checked.toggle-switch--lg .toggle-switch__thumb {
+  transform: translateX(20px);
+}
+
+/* Hover state */
+.toggle-switch:not(.toggle-switch--disabled):hover .toggle-switch__track {
+  background: var(--bg-tertiary-hover, #dddfe3);
+}
+
+/* Size variants for labels */
+.toggle-switch--sm .toggle-switch__label {
+  font-size: var(--font-size-xs, 12px);
+}
+
+.toggle-switch--lg .toggle-switch__label {
+  font-size: var(--font-size-base, 14px);
+}
