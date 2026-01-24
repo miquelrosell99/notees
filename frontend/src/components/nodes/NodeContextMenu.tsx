@@ -146,12 +146,8 @@ function useCommonMenuItems(node: Node, onClose: () => void, onDeleteClick: () =
       id: 'delete',
       label: 'Delete',
       danger: true,
-      keepOpen: true, // Keep menu open so modal can show
-      onClick: () => {
-        // Don't call onClose here - let the modal show first
-        // The modal's onConfirm/onCancel will handle cleanup
-        onDeleteClick();
-      }
+      keepOpen: true,
+      onClick: onDeleteClick
     });
     
     return items;
@@ -168,7 +164,10 @@ interface NodeContextMenuProps extends BaseContextMenuProps {}
 export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const deleteNode = useDeleteNode();
-  const commonItems = useCommonMenuItems(node, onClose, () => setShowDeleteModal(true));
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteModal(true);
+  }, []);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const updateNode = useUpdateNode();
   
   const handleColorChange = useCallback((color: string | null) => {
@@ -184,18 +183,21 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   
   const handleCancelDelete = useCallback(() => {
     setShowDeleteModal(false);
-  }, []);
+    onClose();
+  }, [onClose]);
   
   return (
     <>
-      <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
-        <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
-        <ContextMenu
-          items={commonItems}
-          position={{ x: 0, y: 0 }}
-          onClose={onClose}
-        />
-      </div>
+      {!showDeleteModal && (
+        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+          <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
+          <ContextMenu
+            items={commonItems}
+            position={{ x: 0, y: 0 }}
+            onClose={onClose}
+          />
+        </div>
+      )}
       <ConfirmationModal
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
@@ -223,7 +225,10 @@ interface PageContextMenuProps extends BaseContextMenuProps {
 export function PageContextMenu({ node, position, onClose, onParentChange }: PageContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const deleteNode = useDeleteNode();
-  const commonItems = useCommonMenuItems(node, onClose, () => setShowDeleteModal(true));
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteModal(true);
+  }, []);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
@@ -326,18 +331,21 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   
   const handleCancelDelete = useCallback(() => {
     setShowDeleteModal(false);
-  }, []);
+    onClose();
+  }, [onClose]);
   
   return (
     <>
-      <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
-        <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
-        <ContextMenu
-          items={pageItems}
-          position={{ x: 0, y: 0 }}
-          onClose={onClose}
-        />
-      </div>
+      {!showDeleteModal && (
+        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+          <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
+          <ContextMenu
+            items={pageItems}
+            position={{ x: 0, y: 0 }}
+            onClose={onClose}
+          />
+        </div>
+      )}
       <ConfirmationModal
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
@@ -373,7 +381,10 @@ export function BlockContextMenu({
 }: BlockContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const deleteNode = useDeleteNode();
-  const commonItems = useCommonMenuItems(node, onClose, () => setShowDeleteModal(true));
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteModal(true);
+  }, []);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const { openNode } = useNodesStore();
   const updateNode = useUpdateNode();
   
@@ -430,18 +441,21 @@ export function BlockContextMenu({
   
   const handleCancelDelete = useCallback(() => {
     setShowDeleteModal(false);
-  }, []);
+    onClose();
+  }, [onClose]);
   
   return (
     <>
-      <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
-        <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
-        <ContextMenu
-          items={blockItems}
-          position={{ x: 0, y: 0 }}
-          onClose={onClose}
-        />
-      </div>
+      {!showDeleteModal && (
+        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+          <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
+          <ContextMenu
+            items={blockItems}
+            position={{ x: 0, y: 0 }}
+            onClose={onClose}
+          />
+        </div>
+      )}
       <ConfirmationModal
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
