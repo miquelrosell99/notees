@@ -51,6 +51,7 @@ interface BlockContentProps {
   blockId?: number;
   onClick?: () => void;
   className?: string;
+  onDeleteLink?: (raw: string) => void;
 }
 
 /**
@@ -135,6 +136,7 @@ interface LinkPillProps {
   raw: string;
   clickCount?: number;
   onNavigate: (linkId: string, node: Node | undefined, openInSidebar: boolean) => void;
+  onDeleteLink?: (raw: string) => void;
 }
 
 /**
@@ -145,7 +147,7 @@ interface LinkPillProps {
  * - Shows icon only if node has its own icon or inherits from assigned types
  * - No icon/bullet shown if getEffectiveIcon returns null/undefined
  */
-function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
+function LinkPill({ linkId, raw, clickCount = 0, onNavigate, onDeleteLink }: LinkPillProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const nodeId = parseInt(linkId, 10);
   const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
@@ -173,7 +175,7 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
   }, []);
   
   const contextMenuItems: ContextMenuItem[] = useMemo(() => {
-    return [
+    const items: ContextMenuItem[] = [
       {
         id: 'open',
         label: isPage ? 'Open page' : 'Open block',
@@ -201,7 +203,24 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
         },
       },
     ];
-  }, [linkId, node, raw, isPage, onNavigate]);
+    
+    if (onDeleteLink) {
+      items.push(
+        { id: 'sep2', label: '', separator: true },
+        {
+          id: 'delete',
+          label: 'Delete link',
+          danger: true,
+          onClick: () => {
+            onDeleteLink(raw);
+            setContextMenu(null);
+          },
+        }
+      );
+    }
+    
+    return items;
+  }, [linkId, node, raw, isPage, onNavigate, onDeleteLink]);
   
   return (
     <>
@@ -323,6 +342,7 @@ export function BlockContent({
   blockId,
   onClick,
   className = '',
+  onDeleteLink,
 }: BlockContentProps) {
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
   const { openNode, addSidebarCard } = useNodesStore();
@@ -389,6 +409,7 @@ export function BlockContent({
             raw={part.raw!}
             clickCount={clickCounts.get(part.id!) ?? 0}
             onNavigate={handleNavigate}
+            onDeleteLink={onDeleteLink}
           />
         );
       })}

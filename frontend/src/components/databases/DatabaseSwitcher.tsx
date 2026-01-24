@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
-import { mdiFolder, mdiFolderOpen, mdiSync, mdiAlertCircleOutline, mdiWifiOff, mdiChevronDown, mdiPlus, mdiCog } from '@mdi/js';
+import { mdiSync, mdiAlertCircleOutline, mdiWifiOff, mdiChevronDown, mdiPlus, mdiCog } from '@mdi/js';
 import { listDatabases, switchDatabase } from '@/api/databases';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { Dropdown, type DropdownOption } from '../core/Dropdown';
@@ -118,7 +118,6 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
   const dbOptions: DropdownOption<string>[] = data?.databases.map(db => ({
     value: db.name,
     label: db.name,
-    icon: db.name === data.active ? mdiFolderOpen : mdiFolder,
   })) || [];
 
   // Add separator options for actions
