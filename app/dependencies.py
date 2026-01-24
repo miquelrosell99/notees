@@ -38,7 +38,7 @@ async def _get_system_ids(conn: asyncpg.Connection, graph_id: int) -> tuple[int,
     Returns (page_class_id, classes_property_id).
     """
     row = await conn.fetchrow(
-        "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
+        "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND graph_id = $1 LIMIT 1",
         graph_id
     )
     page_class_id = row['id'] if row else 1

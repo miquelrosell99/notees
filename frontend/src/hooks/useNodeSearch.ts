@@ -99,8 +99,8 @@ export function useNodeSearch(
 
   // Filter and organize results
   const { pageResults, blockResults } = useMemo(() => {
-    // Helper to check if a node is a class definition (has is_class flag)
-    const isClassDef = (node: Node) => node.is_class === true;
+    // Helper to check if a node is a class definition (has is_type flag)
+    const isClassDef = (node: Node) => node.is_type === true;
     
     // Classes mode - special handling for @ trigger
     if (mode === 'classes') {
