@@ -13,7 +13,6 @@ export { LoginPage } from '../views/LoginPage';
 
 // Page components
 export { NodeView } from '../views/NodeView';
-export { DailyPage } from './DailyPage';
 
 // Node components (from nodes/ folder)
 export { NodeBreadcrumbs } from './nodes/NodeBreadcrumbs';
@@ -61,8 +60,6 @@ export { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } f
 export type { TypedNodesSectionToolbarState } from './TypedNodesSection';
 export { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from './ChildPagesSection';
 export type { ChildPagesSectionToolbarState } from './ChildPagesSection';
-export { PagesTree } from './PagesTree';
-export type { PagesTreeProps } from './PagesTree';
 export { PropertyConfigPanel } from './properties/PropertyConfigPanel';
 export { PropertyPickerModal } from './properties/PropertyPickerModal';
 export { PropertyCreateModal } from './properties/PropertyCreateModal';
