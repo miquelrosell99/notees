@@ -103,16 +103,23 @@ export function DynamicNodeViewSection({
   const [showSqlResetConfirm, setShowSqlResetConfirm] = useState(false);
   const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>('list');
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Ensure default views exist
   const ensureDefaultViews = useEnsureDefaultViews();
   
   useEffect(() => {
     if (nodeId > 0) {
-      ensureDefaultViews.mutate({ nodeId, viewTypes: [viewType] });
+      ensureDefaultViews.mutate(
+        { nodeId, viewTypes: [viewType] },
+        { onSettled: () => setHasInitialized(true) }
+      );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation is stable
   }, [nodeId, viewType]);
+
+  // Track if we're still initializing views (mutation pending or not yet started)
+  const isInitializing = !hasInitialized;
 
   // Fetch views for this node and view type
   const { 
@@ -265,8 +272,8 @@ export function DynamicNodeViewSection({
     }
   }, [nodeId, viewType, views.length, createViewMutation, handleEditView]);
 
-  // Loading state
-  if (viewsLoading) {
+  // Loading state - wait for views to load AND ensure defaults to complete
+  if (viewsLoading || isInitializing) {
     return null; // Don't render section while loading
   }
 
