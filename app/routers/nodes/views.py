@@ -128,7 +128,9 @@ async def _include_children_for_results(user: User, results: List[Dict[str, Any]
                 "parent_id": child.parent_id,
                 "page_id": child.page_id,
                 "is_page": child.is_page,
-                "is_journal": child.is_journal,
+                "is_day": child.is_day,
+                "is_month": child.is_month,
+                "is_year": child.is_year,
                 "sequence": child.sequence,
                 "collapsed": child.collapsed,
             }
