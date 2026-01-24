@@ -2,7 +2,7 @@
  * useSearchableList Hook
  * 
  * A reusable hook for searchable lists with keyboard navigation.
- * Used in CommandPalette, NodePicker, PropertyPickerModal, etc.
+ * Used in CommandPalette, NodePicker, PropertySuggestionPopup, etc.
  * 
  * Features:
  * - Search query state management
