@@ -270,9 +270,11 @@ export function DynamicNodeViewSection({
     return null; // Don't render section while loading
   }
 
-  // Hide if empty and hideWhenEmpty is true
+  // Hide if empty ONLY when using the system query (default view with no custom filters)
+  // Custom views or modified default views should always show, even with no results
   const resultCount = resultNodes.length;
-  if (hideWhenEmpty && resultCount === 0 && !queryLoading) {
+  const isSystemQuery = activeView?.is_default && filterBlockCount === 0;
+  if (hideWhenEmpty && resultCount === 0 && !queryLoading && isSystemQuery) {
     return null;
   }
 
