@@ -2,11 +2,12 @@
  * ConfirmationModal Component
  * 
  * A reusable confirmation dialog for important actions.
+ * Uses the base Modal component for consistent styling.
  */
-import { useEffect } from 'react';
-import './ConfirmationModal.css';
+import { Modal } from './Modal';
 import { AlertIcon } from '../icons';
 import { Button } from './Button';
+import './ConfirmationModal.css';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -29,55 +30,38 @@ export function ConfirmationModal({
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onCancel();
-    }
-  };
-
   return (
-    <div className="confirmation-modal-overlay" onClick={handleOverlayClick}>
-      <div className="confirmation-modal">
-        <div className="confirmation-modal-header">
-          <div className="confirmation-modal-icon">
-            <AlertIcon />
-          </div>
-          <h3 className="confirmation-modal-title">{title}</h3>
+    <Modal
+      isOpen={isOpen}
+      onClose={onCancel}
+      size="sm"
+      showCloseButton={false}
+      className="confirmation-modal"
+    >
+      <div className="confirmation-modal__header">
+        <div className="confirmation-modal__icon">
+          <AlertIcon />
         </div>
-        
-        <p className="confirmation-modal-message">{message}</p>
-        
-        <div className="confirmation-modal-actions">
-          <Button
-            variant="default"
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={variant === 'danger' ? 'danger' : 'primary'}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
+        <h3 className="confirmation-modal__title">{title}</h3>
       </div>
-    </div>
+      
+      <p className="confirmation-modal__message">{message}</p>
+      
+      <div className="confirmation-modal__actions">
+        <Button
+          variant="default"
+          onClick={onCancel}
+        >
+          {cancelLabel}
+        </Button>
+        <Button
+          variant={variant === 'danger' ? 'danger' : 'primary'}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
