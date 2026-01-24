@@ -62,14 +62,20 @@ def _node_to_response(
     )
 
 
-def _build_children_response(children: List[Node]) -> List[NodeResponse]:
+def _build_children_response(children: List[Node], class_ids_map: Optional[Dict[int, List[int]]] = None) -> List[NodeResponse]:
     """Build a nested NodeResponse list from a flat list of children.
     
     Assumes children are ordered by sequence and reconstructs the hierarchy
     based on parent_id relationships.
+    
+    Args:
+        children: Flat list of child nodes
+        class_ids_map: Optional mapping of node_id -> list of class_ids
     """
     if not children:
         return []
+    
+    class_ids_map = class_ids_map or {}
     
     # Build lookup maps
     node_map: dict[int, NodeResponse] = {}
@@ -77,7 +83,8 @@ def _build_children_response(children: List[Node]) -> List[NodeResponse]:
     
     # First pass: convert all nodes to responses
     for node in children:
-        response = _node_to_response(node)
+        classes = class_ids_map.get(node.id, []) if node.id else []
+        response = _node_to_response(node, classes=classes)
         response.children = []
         if node.id:
             node_map[node.id] = response
@@ -205,6 +212,59 @@ async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict
             class_ids = row['class_ids']
             if class_ids:
                 result[node_id] = [cid for cid in class_ids if cid is not None]
+    
+    return result
+
+
+async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[int, List[int]]) -> List[Any]:
+    """Build a tree with children for each node.
+    
+    Fetches all descendants for each node and builds a nested structure.
+    Used by list_nodes when include_children=True.
+    """
+    from .models import NodeResponse
+    
+    result = []
+    for node_response in nodes:
+        node_id = node_response.id if hasattr(node_response, 'id') else node_response.get('id')
+        if not node_id:
+            result.append(node_response)
+            continue
+        
+        # Get all children (direct children only, they'll be nested by _build_children_response)
+        children = await service._node_repo.get_children(node_id)
+        
+        # Filter to only pages if we're dealing with pages
+        if hasattr(node_response, 'is_page') and node_response.is_page:
+            children = [c for c in children if c.is_page]
+        
+        # Get all descendants for hierarchy building
+        all_descendants = await _get_descendants(service._node_repo, node_id)
+        
+        # Filter to pages if needed
+        if hasattr(node_response, 'is_page') and node_response.is_page:
+            all_descendants = [d for d in all_descendants if d.is_page]
+        
+        # Build class_ids for descendants
+        desc_ids = [d.id for d in all_descendants if d.id]
+        if desc_ids:
+            desc_class_ids = await _get_class_ids_batch(service._pool, service._graph_id or 0, desc_ids)
+            class_ids_map.update(desc_class_ids)
+        
+        # Build children response with hierarchy (pass class_ids_map for classes)
+        if all_descendants:
+            children_response = _build_children_response(all_descendants, class_ids_map)
+            if isinstance(node_response, dict):
+                node_response['children'] = [c.model_dump() if hasattr(c, 'model_dump') else c for c in children_response]
+            else:
+                node_response.children = children_response
+        else:
+            if isinstance(node_response, dict):
+                node_response['children'] = []
+            else:
+                node_response.children = []
+        
+        result.append(node_response)
     
     return result
 

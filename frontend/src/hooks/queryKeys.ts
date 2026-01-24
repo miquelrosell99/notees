@@ -26,7 +26,8 @@ export const nodeKeys = {
   monthly: (year: number, month: number) => [...nodeKeys.all, 'monthly', year, month] as const,
   yearly: (year: number) => [...nodeKeys.all, 'yearly', year] as const,
   search: (query: string) => [...nodeKeys.all, 'search', query] as const,
-  pages: () => [...nodeKeys.all, 'pages'] as const,
+  pages: (options?: { includeChildren?: boolean; rootOnly?: boolean }) => 
+    [...nodeKeys.all, 'pages', options ?? {}] as const,
   tags: () => [...nodeKeys.all, 'tags'] as const,
   classes: () => [...nodeKeys.all, 'classes'] as const,
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
