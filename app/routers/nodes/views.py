@@ -502,8 +502,8 @@ async def ensure_default_views(
     existing_view_types = {v.view_type for v in existing_views}
     
     # Determine which view types to create
-    from ...db.schema.constants import DEFAULT_VIEW_TYPES
-    types_to_create = view_types if view_types else DEFAULT_VIEW_TYPES
+    from ...db.schema.constants import DEFAULT_VIEW_CLASSES
+    types_to_create = view_types if view_types else DEFAULT_VIEW_CLASSES
     types_needed = [vt for vt in types_to_create if vt not in existing_view_types]
     
     # Create missing views
