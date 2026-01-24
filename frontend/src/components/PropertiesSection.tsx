@@ -18,7 +18,7 @@ import {
   useSetNodeProperty,
   useCreateNode,
   useCreateProperty,
-  useTypeProperties,
+  useClassProperties,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Property, Node, TypeProperty } from '@/types/api';
@@ -272,14 +272,14 @@ export function PropertiesSection({
   const createNodeMutation = useCreateNode();
   const createPropertyMutation = useCreateProperty();
   
-  // Get type properties for all types the node has (with inheritance)
-  // We need to fetch properties for each type
-  const firstTypeId = node?.types?.[0] ?? null;
-  const { data: typeProperties1 } = useTypeProperties(firstTypeId, true);
-  const secondTypeId = node?.types?.[1] ?? null;
-  const { data: typeProperties2 } = useTypeProperties(secondTypeId, true);
-  const thirdTypeId = node?.types?.[2] ?? null;
-  const { data: typeProperties3 } = useTypeProperties(thirdTypeId, true);
+  // Get class properties for all classes the node has (with inheritance)
+  // We need to fetch properties for each class
+  const firstClassId = node?.types?.[0] ?? null;
+  const { data: classProperties1 } = useClassProperties(firstClassId, true);
+  const secondClassId = node?.types?.[1] ?? null;
+  const { data: classProperties2 } = useClassProperties(secondClassId, true);
+  const thirdClassId = node?.types?.[2] ?? null;
+  const { data: classProperties3 } = useClassProperties(thirdClassId, true);
 
   // Combine properties from all types and existing node properties
   const nodeProperties = useMemo(() => {
@@ -289,18 +289,18 @@ export function PropertiesSection({
     const addedPropertyIds = new Set<number>();
     
     // First, add properties from types (with inheritance)
-    const allTypeProperties: TypeProperty[] = [
-      ...(typeProperties1 ?? []),
-      ...(typeProperties2 ?? []),
-      ...(typeProperties3 ?? []),
+    const allClassProperties: TypeProperty[] = [
+      ...(classProperties1 ?? []),
+      ...(classProperties2 ?? []),
+      ...(classProperties3 ?? []),
     ];
     
-    for (const typeProp of allTypeProperties) {
-      if (addedPropertyIds.has(typeProp.property_id)) continue;
-      addedPropertyIds.add(typeProp.property_id);
+    for (const classProp of allClassProperties) {
+      if (addedPropertyIds.has(classProp.property_id)) continue;
+      addedPropertyIds.add(classProp.property_id);
       
       // Find the full property definition
-      const prop = allProperties.find(p => p.id === typeProp.property_id);
+      const prop = allProperties.find(p => p.id === classProp.property_id);
       if (!prop) continue;
       
       // Skip the system 'types' property - it's displayed separately in the Types row
@@ -316,18 +316,18 @@ export function PropertiesSection({
       const key = prop.name.toLowerCase().replace(/\s+/g, '_');
       const value = node?.properties && key in (node.properties as Record<string, unknown>)
         ? (node.properties as Record<string, unknown>)[key]
-        : typeProp.default_value ?? null;
+        : classProp.default_value ?? null;
       
       entries.push({
         property: prop,
         value,
-        source: typeProp.type_node_name || `Type #${typeProp.type_node_id}`,
-        hidden: typeProp.hidden ?? false,
+        source: classProp.type_node_name || `Class #${classProp.type_node_id}`,
+        hidden: classProp.hidden ?? false,
       });
     }
     
     // Then add any additional properties that have values on this node
-    // but aren't from types
+    // but aren't from classes
     if (node?.properties) {
       for (const prop of allProperties) {
         if (addedPropertyIds.has(prop.id)) continue;
@@ -354,7 +354,7 @@ export function PropertiesSection({
     }
     
     return entries;
-  }, [node, allProperties, typeProperties1, typeProperties2, typeProperties3]);
+  }, [node, allProperties, classProperties1, classProperties2, classProperties3]);
 
   const handlePropertyChange = useCallback((propertyId: number, value: unknown) => {
     setPropertyMutation.mutate({ nodeId, propertyId, value });
