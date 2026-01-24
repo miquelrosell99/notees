@@ -2,7 +2,7 @@
  * Node Icon Utilities
  * 
  * Functions for determining the effective icon to display for a node.
- * Nodes can inherit icons from their assigned types.
+ * Nodes can inherit icons from their assigned classes.
  */
 import type { Node } from '@/types';
 
@@ -11,16 +11,16 @@ import type { Node } from '@/types';
  * 
  * Priority:
  * 1. Node's own icon (if set) - overrides everything
- * 2. First type's icon (if the node has types and the type has an icon)
+ * 2. First class's icon (if the node has classes and the class has an icon)
  * 3. undefined (fallback to default icon based on node type)
  * 
  * @param node - The node to get the icon for
- * @param allTypes - All available type nodes (to resolve type icons)
+ * @param allClasses - All available class nodes (to resolve class icons)
  * @returns The effective icon string or undefined
  */
 export function getEffectiveIcon(
   node: Node | null | undefined,
-  allTypes?: Node[] | null
+  allClasses?: Node[] | null
 ): string | null | undefined {
   if (!node) return undefined;
   
@@ -29,12 +29,13 @@ export function getEffectiveIcon(
     return node.icon;
   }
   
-  // If the node has types and we have type data, try to inherit icon from first type with an icon
-  if (node.types && node.types.length > 0 && allTypes && allTypes.length > 0) {
-    for (const typeId of node.types) {
-      const typeNode = allTypes.find(t => t.id === typeId);
-      if (typeNode?.icon) {
-        return typeNode.icon;
+  // If the node has classes and we have class data, try to inherit icon from first class with an icon
+  const classIds = node.classes ?? node.types;
+  if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
+    for (const classId of classIds) {
+      const classNode = allClasses.find(c => c.id === classId);
+      if (classNode?.icon) {
+        return classNode.icon;
       }
     }
   }
@@ -44,15 +45,15 @@ export function getEffectiveIcon(
 }
 
 /**
- * Get the effective icon for a node when you have the type nodes already resolved.
+ * Get the effective icon for a node when you have the class nodes already resolved.
  * 
  * @param node - The node to get the icon for
- * @param nodeTypes - The resolved type nodes for this node (in order)
+ * @param nodeClasses - The resolved class nodes for this node (in order)
  * @returns The effective icon string or undefined
  */
-export function getEffectiveIconFromTypes(
+export function getEffectiveIconFromClasses(
   node: Node | null | undefined,
-  nodeTypes?: Node[] | null
+  nodeClasses?: Node[] | null
 ): string | null | undefined {
   if (!node) return undefined;
   
@@ -61,11 +62,11 @@ export function getEffectiveIconFromTypes(
     return node.icon;
   }
   
-  // Find the first type with an icon
-  if (nodeTypes && nodeTypes.length > 0) {
-    for (const typeNode of nodeTypes) {
-      if (typeNode?.icon) {
-        return typeNode.icon;
+  // Find the first class with an icon
+  if (nodeClasses && nodeClasses.length > 0) {
+    for (const classNode of nodeClasses) {
+      if (classNode?.icon) {
+        return classNode.icon;
       }
     }
   }

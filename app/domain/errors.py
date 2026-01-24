@@ -89,16 +89,20 @@ class CircularReferenceError(NodeError):
         )
 
 
-class SystemTypeConstraintError(NodeError):
-    """Raised when an operation violates system type constraints.
+class SystemClassConstraintError(NodeError):
+    """Raised when an operation violates system class constraints.
     
     Examples:
-    - Trying to add/remove day, month, year types manually
-    - Trying to remove 'type' from system type nodes
+    - Trying to add/remove day, month, year classes manually
+    - Trying to remove 'class' from system class nodes
     """
     
     def __init__(self, message: str):
-        super().__init__(message=message, code="SYSTEM_TYPE_CONSTRAINT")
+        super().__init__(message=message, code="SYSTEM_CLASS_CONSTRAINT")
+
+
+# Alias for backwards compatibility
+SystemTypeConstraintError = SystemClassConstraintError
 
 
 class DatePageDeletionError(NodeError):
@@ -108,11 +112,11 @@ class DatePageDeletionError(NodeError):
     and cannot be deleted while they have active daily page descendants.
     """
     
-    def __init__(self, node_type: str, child_count: int):
-        self.node_type = node_type
+    def __init__(self, node_class: str, child_count: int):
+        self.node_class = node_class
         self.child_count = child_count
         super().__init__(
-            message=f"Cannot delete {node_type} page: it has {child_count} active day page(s). "
+            message=f"Cannot delete {node_class} page: it has {child_count} active day page(s). "
                     f"Delete all day pages first.",
             code="DATE_PAGE_HAS_CHILDREN"
         )

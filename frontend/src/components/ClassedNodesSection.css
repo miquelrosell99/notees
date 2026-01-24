@@ -1,18 +1,19 @@
 /**
- * Typed Nodes Section styles
+ * Classed Nodes Section styles
  */
 
-.typed-nodes-view {
-  /* No top margin when inside NodeViewSection */
+.classed-nodes-view {
+  /* Container for classed nodes section */
+  display: block;
 }
 
-.typed-nodes-header-actions {
+.classed-nodes-header-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
 }
 
-.typed-node-create-form {
+.classed-node-create-form {
   margin-bottom: var(--spacing-3);
   padding: var(--spacing-3);
   background: var(--color-surface);
@@ -20,7 +21,7 @@
   border: 1px solid var(--color-outline);
 }
 
-.typed-node-name-input {
+.classed-node-name-input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--color-outline-variant);
@@ -31,40 +32,40 @@
   margin-bottom: var(--spacing-2);
 }
 
-.typed-node-name-input:focus {
+.classed-node-name-input:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.typed-node-create-actions {
+.classed-node-create-actions {
   display: flex;
   gap: var(--spacing-2);
 }
 
-.typed-nodes-loading,
-.typed-nodes-error {
+.classed-nodes-loading,
+.classed-nodes-error {
   padding: var(--spacing-2);
   text-align: center;
   color: var(--color-on-surface-variant);
   font: var(--font-body-small);
 }
 
-.typed-nodes-error {
+.classed-nodes-error {
   color: var(--color-error);
 }
 
-.typed-nodes-empty {
+.classed-nodes-empty {
   text-align: center;
   padding: var(--spacing-3);
   color: var(--color-on-surface-variant);
 }
 
-.typed-nodes-empty p {
+.classed-nodes-empty p {
   margin: 0 0 var(--spacing-2) 0;
   font: var(--font-body-small);
 }
 
-.typed-nodes-list {
+.classed-nodes-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -73,11 +74,11 @@
   gap: var(--spacing-1);
 }
 
-.typed-node-item {
+.classed-node-item {
   margin: 0;
 }
 
-.typed-node-button {
+.classed-node-button {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -93,17 +94,17 @@
   transition: all 0.15s ease;
 }
 
-.typed-node-button:hover {
+.classed-node-button:hover {
   background: var(--color-primary-container);
   border-color: var(--color-primary);
 }
 
-.typed-node-icon {
+.classed-node-icon {
   display: flex;
   align-items: center;
   color: var(--color-on-surface-variant);
 }
 
-.typed-node-name {
+.classed-node-name {
   flex: 1;
 }

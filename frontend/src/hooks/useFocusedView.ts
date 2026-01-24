@@ -61,7 +61,7 @@ interface BreadcrumbNode {
  * Primary hook for focused view data isolation.
  * 
  * GUARANTEES:
- * - Does NOT trigger useNodes, usePages, or useTypes queries
+ * - Does NOT trigger useNodes, usePages, or useClasses queries
  * - Loads maximum 1 level of children
  * - Breadcrumbs are metadata-only (no children, no backlinks)
  * - Backlinks are deferred until explicitly requested

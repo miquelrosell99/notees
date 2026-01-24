@@ -7,37 +7,37 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import SystemTypeConstraintError, DatePageDeletionError
-from ...db.schema.constants import SYSTEM_TYPE_UUIDS
+from ..errors import SystemClassConstraintError, DatePageDeletionError
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
     from .link_service import LinkParsingService
 
 
-# Date-related types that are automatically assigned by the system (cannot be manually added/removed)
-PROTECTED_DATE_TYPE_UUIDS = {
-    SYSTEM_TYPE_UUIDS["year"],
-    SYSTEM_TYPE_UUIDS["month"],
-    SYSTEM_TYPE_UUIDS["day"],
+# Date-related classes that are automatically assigned by the system (cannot be manually added/removed)
+PROTECTED_DATE_CLASS_UUIDS = {
+    SYSTEM_CLASS_UUIDS["year"],
+    SYSTEM_CLASS_UUIDS["month"],
+    SYSTEM_CLASS_UUIDS["day"],
 }
 
-# Set of all system type UUIDs for quick lookup
-ALL_SYSTEM_TYPE_UUIDS = set(SYSTEM_TYPE_UUIDS.values())
+# Set of all system class UUIDs for quick lookup
+ALL_SYSTEM_CLASS_UUIDS = set(SYSTEM_CLASS_UUIDS.values())
 
-# The 'type' type UUID - nodes with this UUID cannot have 'type' removed from them
-TYPE_TYPE_UUID = SYSTEM_TYPE_UUIDS["type"]
+# The 'class' class UUID - nodes with this UUID cannot have 'class' removed from them
+CLASS_CLASS_UUID = SYSTEM_CLASS_UUIDS["class"]
 
-# Mapping from type UUID to the node flag field name
-TYPE_UUID_TO_FLAG = {
-    SYSTEM_TYPE_UUIDS["type"]: "is_type",
-    SYSTEM_TYPE_UUIDS["page"]: "is_page",
-    SYSTEM_TYPE_UUIDS["day"]: "is_day",
-    SYSTEM_TYPE_UUIDS["month"]: "is_month",
-    SYSTEM_TYPE_UUIDS["year"]: "is_year",
-    SYSTEM_TYPE_UUIDS["asset"]: "is_asset",
-    SYSTEM_TYPE_UUIDS["template"]: "is_template",
-    SYSTEM_TYPE_UUIDS["comment"]: "is_comment",
+# Mapping from class UUID to the node flag field name
+CLASS_UUID_TO_FLAG = {
+    SYSTEM_CLASS_UUIDS["class"]: "is_class",
+    SYSTEM_CLASS_UUIDS["page"]: "is_page",
+    SYSTEM_CLASS_UUIDS["day"]: "is_day",
+    SYSTEM_CLASS_UUIDS["month"]: "is_month",
+    SYSTEM_CLASS_UUIDS["year"]: "is_year",
+    SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
+    SYSTEM_CLASS_UUIDS["template"]: "is_template",
+    SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
 }
 
 
@@ -53,14 +53,14 @@ class NodeService:
         node_repository: NodeRepository,
         property_repository: PropertyRepository,
         link_service: LinkParsingService,
-        page_type_id: int,
-        types_property_id: int,
+        page_class_id: int,
+        classes_property_id: int,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
         self._link_service = link_service
-        self._page_type_id = page_type_id
-        self._types_property_id = types_property_id
+        self._page_class_id = page_class_id
+        self._classes_property_id = classes_property_id
     
     async def create_node(
         self,
@@ -70,25 +70,25 @@ class NodeService:
         """Create a new node.
         
         - Computes page_id for blocks
-        - Parses content for links and inline types
+        - Parses content for links and inline classes
         - Applies tag properties (SuperTags)
         """
         # Create the node
         node = await self._node_repo.create(data, user_id)
         
-        # Parse and store links and inline types from content
+        # Parse and store links and inline classes from content
         if node.name and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
-            await self._link_service.update_inline_types(node.id, node.name)
+            await self._link_service.update_inline_classes(node.id, node.name)
         
-        # Apply SuperType properties if any types have associated properties
-        # TODO: Implement property value setting based on TypeProperty defaults
-        # This requires determining the property type and using the appropriate
+        # Apply SuperClass properties if any classes have associated properties
+        # TODO: Implement property value setting based on ClassProperty defaults
+        # This requires determining the property class and using the appropriate
         # set_scalar_value, set_relation_value, or set_selection_value method
         # if node.id is not None:
-        #     for type_id in data.types:
-        #         type_properties = await self._property_repo.get_type_properties(type_id)
-        #         for tp in type_properties:
+        #     for class_id in data.classes:
+        #         class_properties = await self._property_repo.get_class_properties(class_id)
+        #         for tp in class_properties:
         #             default_value = (...)
         #             if default_value is not None:
         #                 await self._property_repo.set_*_value(...)
@@ -100,19 +100,19 @@ class NodeService:
         name: str,
         icon: Optional[str] = None,
         color: Optional[str] = None,
-        additional_types: Optional[List[int]] = None,
+        additional_classes: Optional[List[int]] = None,
         user_id: Optional[int] = None,
     ) -> Node:
-        """Create a new page (node typed as 'page')."""
-        types = [self._page_type_id]
-        if additional_types:
-            types.extend(additional_types)
+        """Create a new page (node classed as 'page')."""
+        classes = [self._page_class_id]
+        if additional_classes:
+            classes.extend(additional_classes)
         
         data = NodeCreateData(
             name=name,
             icon=icon,
             color=color,
-            types=types,
+            classes=classes,
             is_page=True,
         )
         return await self.create_node(data, user_id)
@@ -155,9 +155,9 @@ class NodeService:
         if not node:
             return None
         
-        # Update types path if parent changed (inherited types may have changed)
+        # Update classes path if parent changed (inherited classes may have changed)
         if new_parent_id != old_parent_id and node.id is not None:
-            await self._link_service.update_types_path(node.id)
+            await self._link_service.update_classes_path(node.id)
         
         return node
     
@@ -170,7 +170,7 @@ class NodeService:
         """Update an existing node.
         
         If name changes, re-parses links.
-        If parent_id changes, updates types path (inherited types may change).
+        If parent_id changes, updates classes path (inherited classes may change).
         """
         # Get the node before update to check if parent changed
         old_node = await self._node_repo.get_by_id(node_id)
@@ -180,15 +180,15 @@ class NodeService:
         if not node:
             return None
         
-        # Re-parse links and inline types if name changed
+        # Re-parse links and inline classes if name changed
         if data.name is not None and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
-            await self._link_service.update_inline_types(node.id, node.name)
+            await self._link_service.update_inline_classes(node.id, node.name)
         
-        # Update types path if parent changed (inherited types may have changed)
+        # Update classes path if parent changed (inherited classes may have changed)
         if data.parent_id is not None and data.parent_id != old_parent_id:
             if node.id is not None:
-                await self._link_service.update_types_path(node.id)
+                await self._link_service.update_classes_path(node.id)
         
         return node
     
@@ -198,7 +198,7 @@ class NodeService:
         Before deleting, updates all nodes that link to this node:
         - [[Page Name]] links are replaced with just "Page Name"
         - ((uuid)) links are replaced with the block's content text
-        - Type/tag references are removed from properties but leave inline text
+        - Class/tag references are removed from properties but leave inline text
         
         Works for both active and archived nodes.
         
@@ -220,8 +220,8 @@ class NodeService:
         if node.is_month or node.is_year:
             day_count = await self._count_active_day_descendants(node_id)
             if day_count > 0:
-                node_type = "month" if node.is_month else "year"
-                raise DatePageDeletionError(node_type, day_count)
+                node_class = "month" if node.is_month else "year"
+                raise DatePageDeletionError(node_class, day_count)
         
         # Get all backlinks to this node
         backlinks = await self._link_service.get_backlinks(node_id)
@@ -249,8 +249,8 @@ class NodeService:
                     NodeUpdateData(name=updated_content)
                 )
         
-        # Remove this node from any type/tag properties
-        await self._remove_node_from_type_tag_properties(node_id)
+        # Remove this node from any class/tag properties
+        await self._remove_node_from_class_tag_properties(node_id)
         
         # Now delete the node itself
         return await self._node_repo.delete(node_id)
@@ -259,7 +259,7 @@ class NodeService:
         self,
         content: str,
         target_node: Node,
-        link_type: str
+        link_class: str
     ) -> str:
         """Remove or replace a link in content with plain text.
         
@@ -268,7 +268,7 @@ class NodeService:
         """
         import re
         
-        if link_type == 'page':
+        if link_class == 'page':
             # Replace [[Page Name]] with just Page Name
             pattern = re.compile(r'\[\[' + re.escape(target_node.name or '') + r'\]\]')
             return pattern.sub(target_node.name or '', content)
@@ -277,16 +277,16 @@ class NodeService:
             pattern = re.compile(r'\(\(' + re.escape(target_node.uuid or '') + r'\)\)')
             return pattern.sub(target_node.name or '', content)
     
-    async def _remove_node_from_type_tag_properties(self, node_id: int) -> None:
-        """Remove a node from any type/tag property values where it's referenced.
+    async def _remove_node_from_class_tag_properties(self, node_id: int) -> None:
+        """Remove a node from any class/tag property values where it's referenced.
         
-        When a node used as a type or tag is deleted, remove it from all nodes
+        When a node used as a class or tag is deleted, remove it from all nodes
         that reference it. The inline text (if any) remains.
         """
         # Find all property values that reference this node
-        # This would require scanning all nodes with type/tag properties
+        # This would require scanning all nodes with class/tag properties
         # For now, we'll rely on the database to handle this via foreign key cascades
-        # TODO: Implement proper cleanup of type/tag references
+        # TODO: Implement proper cleanup of class/tag references
         pass
     
     async def _count_active_day_descendants(self, node_id: int) -> int:
@@ -369,114 +369,129 @@ class NodeService:
         """Search nodes by name."""
         return await self._node_repo.search(query, limit)
     
-    async def add_type(self, node_id: int, type_node_id: int, *, _system_call: bool = False) -> bool:
-        """Add a type to a node.
+    async def add_class(self, node_id: int, class_node_id: int, *, _system_call: bool = False) -> bool:
+        """Add a class to a node.
         
         Args:
-            node_id: The node to add the type to
-            type_node_id: The type node ID to add
-            _system_call: Internal flag - if True, bypasses date type protection (for system endpoints)
+            node_id: The node to add the class to
+            class_node_id: The class node ID to add
+            _system_call: Internal flag - if True, bypasses date class protection (for system endpoints)
         
         Raises:
-            SystemTypeConstraintError: If trying to add a protected date type (day, month, year)
+            SystemClassConstraintError: If trying to add a protected date class (day, month, year)
         """
-        # Check if the type being added is a protected date type
-        type_node = await self._node_repo.get_by_id(type_node_id)
-        if type_node and type_node.uuid in PROTECTED_DATE_TYPE_UUIDS and not _system_call:
-            raise SystemTypeConstraintError(
-                f"Cannot manually add '{type_node.name}' type. Date types (day, month, year) are managed by the system."
+        # Check if the class being added is a protected date class
+        class_node = await self._node_repo.get_by_id(class_node_id)
+        if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS and not _system_call:
+            raise SystemClassConstraintError(
+                f"Cannot manually add '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
             )
         
-        # Get current types by fetching relation values for the types property
-        existing_values = await self._property_repo.get_relation_values(node_id, self._types_property_id)
-        existing_type_ids = [v.target_node_id for v in existing_values]
+        # Get current classes by fetching relation values for the classes property
+        existing_values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
+        existing_class_ids = [v.target_node_id for v in existing_values]
         
-        if type_node_id in existing_type_ids:
-            return False  # Already has this type
+        if class_node_id in existing_class_ids:
+            return False  # Already has this class
         
-        # Add the type using set_relation_value
+        # Add the class using set_relation_value
         await self._property_repo.set_relation_value(
-            node_id, self._types_property_id, type_node_id
+            node_id, self._classes_property_id, class_node_id
         )
         
-        # Update the corresponding flag if this is a system type with a flag
-        if type_node and type_node.uuid in TYPE_UUID_TO_FLAG:
-            flag_name = TYPE_UUID_TO_FLAG[type_node.uuid]
+        # Update the corresponding flag if this is a system class with a flag
+        if class_node and class_node.uuid in CLASS_UUID_TO_FLAG:
+            flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
             update_data = NodeUpdateData()
             setattr(update_data, flag_name, True)
             await self._node_repo.update(node_id, update_data)
         
-        # Apply SuperType properties
-        type_properties = await self._property_repo.get_type_properties(type_node_id)
-        for tp in type_properties:
+        # Apply SuperClass properties
+        class_properties = await self._property_repo.get_class_properties(class_node_id)
+        for tp in class_properties:
             default_value = (
                 tp.default_integer or tp.default_float or tp.default_text or
                 tp.default_boolean or tp.default_node_id or tp.default_selection_id
             )
             if default_value is not None:
-                # TODO: Set property values based on type
+                # TODO: Set property values based on class
                 pass
         
         return True
     
-    async def remove_type(self, node_id: int, type_node_id: int) -> bool:
-        """Remove a type from a node.
+    # Alias for backwards compatibility
+    async def add_type(self, node_id: int, type_node_id: int, *, _system_call: bool = False) -> bool:
+        """Alias for add_class for backwards compatibility."""
+        return await self.add_class(node_id, type_node_id, _system_call=_system_call)
+    
+    async def remove_class(self, node_id: int, class_node_id: int) -> bool:
+        """Remove a class from a node.
         
         Raises:
-            SystemTypeConstraintError: If trying to remove a protected date type (day, month, year)
-                                       or 'type' from a system type node
+            SystemClassConstraintError: If trying to remove a protected date class (day, month, year)
+                                       or 'class' from a system class node
         """
-        # Check if the type being removed is a protected date type
-        type_node = await self._node_repo.get_by_id(type_node_id)
-        if type_node and type_node.uuid in PROTECTED_DATE_TYPE_UUIDS:
-            raise SystemTypeConstraintError(
-                f"Cannot remove '{type_node.name}' type. Date types (day, month, year) are managed by the system."
+        # Check if the class being removed is a protected date class
+        class_node = await self._node_repo.get_by_id(class_node_id)
+        if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS:
+            raise SystemClassConstraintError(
+                f"Cannot remove '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
             )
         
-        # Check if trying to remove 'type' from a system type node
-        if type_node and type_node.uuid == TYPE_TYPE_UUID:
-            # Get the node we're removing the type from
+        # Check if trying to remove 'class' from a system class node
+        if class_node and class_node.uuid == CLASS_CLASS_UUID:
+            # Get the node we're removing the class from
             node = await self._node_repo.get_by_id(node_id)
-            if node and node.uuid in ALL_SYSTEM_TYPE_UUIDS:
-                raise SystemTypeConstraintError(
-                    f"Cannot remove 'type' from system type '{node.name}'. System types must remain as types."
+            if node and node.uuid in ALL_SYSTEM_CLASS_UUIDS:
+                raise SystemClassConstraintError(
+                    f"Cannot remove 'class' from system class '{node.name}'. System classes must remain as classes."
                 )
         
-        # Get relation values for the types property
-        values = await self._property_repo.get_relation_values(node_id, self._types_property_id)
+        # Get relation values for the classes property
+        values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
         
         for val in values:
-            if val.target_node_id == type_node_id:
+            if val.target_node_id == class_node_id:
                 # Remove this specific relation value
                 if val.id is not None:
                     await self._property_repo.remove_relation_value(val.id)
                 
-                # Update the corresponding flag if this is a system type with a flag
-                if type_node and type_node.uuid in TYPE_UUID_TO_FLAG:
-                    flag_name = TYPE_UUID_TO_FLAG[type_node.uuid]
+                # Update the corresponding flag if this is a system class with a flag
+                if class_node and class_node.uuid in CLASS_UUID_TO_FLAG:
+                    flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
                     update_data = NodeUpdateData()
                     setattr(update_data, flag_name, False)
                     await self._node_repo.update(node_id, update_data)
                 
                 return True
         
-        return False  # Type was not assigned to this node
+        return False  # Class was not assigned to this node
     
-    async def get_node_types(self, node_id: int) -> List[Node]:
-        """Get all types applied to a node."""
-        # Get relation values directly from the types property
+    # Alias for backwards compatibility
+    async def remove_type(self, node_id: int, type_node_id: int) -> bool:
+        """Alias for remove_class for backwards compatibility."""
+        return await self.remove_class(node_id, type_node_id)
+    
+    async def get_node_classes(self, node_id: int) -> List[Node]:
+        """Get all classes applied to a node."""
+        # Get relation values directly from the classes property
         relation_values = await self._property_repo.get_relation_values(
-            node_id, self._types_property_id
+            node_id, self._classes_property_id
         )
         
-        types = []
+        classes = []
         for val in relation_values:
             if val.target_node_id:
-                type_node = await self._node_repo.get_by_id(val.target_node_id)
-                if type_node:
-                    types.append(type_node)
+                class_node = await self._node_repo.get_by_id(val.target_node_id)
+                if class_node:
+                    classes.append(class_node)
         
-        return types
+        return classes
+    
+    # Alias for backwards compatibility
+    async def get_node_types(self, node_id: int) -> List[Node]:
+        """Alias for get_node_classes for backwards compatibility."""
+        return await self.get_node_classes(node_id)
 
     async def archive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
         """Archive a node (set active to false)."""

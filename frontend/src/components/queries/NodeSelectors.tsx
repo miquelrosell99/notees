@@ -15,14 +15,14 @@ import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { Checkbox } from '../core/Checkbox';
-import { NodeTypePill } from '../NodeTypePill';
-import { useTypes, usePages, useNode } from '@/hooks';
+import { NodeClassPill } from '../NodeClassPill';
+import { useClasses, usePages, useNode } from '@/hooks';
 import type { Node as AppNode } from '@/types';
 
 // ==================== Multi-Node Selector ====================
 
 interface NodeSelectorProps {
-  mode: 'types' | 'pages';
+  mode: 'classes' | 'pages';
   selectedIds: number[];
   onAdd: (node: AppNode) => void;
   onRemove: (nodeId: number) => void;
@@ -37,13 +37,13 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const { data: types } = useTypes();
+  const { data: classes } = useClasses();
   const { data: pages } = usePages();
   
   const allNodes = useMemo(() => {
-    if (mode === 'types') return types ?? [];
+    if (mode === 'classes') return classes ?? [];
     return pages ?? [];
-  }, [mode, types, pages]);
+  }, [mode, classes, pages]);
   
   const selectedNodes = useMemo(() => {
     return allNodes.filter(n => selectedIds.includes(n.id));
@@ -129,9 +129,9 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
       {/* Selected pills */}
       <div className="node-selector__pills">
         {selectedNodes.map(node => (
-          <NodeTypePill
+          <NodeClassPill
             key={node.id}
-            typeNode={node}
+            classNode={node}
             onRemove={readOnly ? undefined : () => onRemove(node.id)}
             readOnly={readOnly}
           />
@@ -185,7 +185,7 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
                     onMouseEnter={() => setSelectedIndex(index)}
                   >
                     <Checkbox checked={true} size="sm" readOnly className="node-selector__checkbox" />
-                    <Icon path={mode === 'types' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
+                    <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
                     <span>{node.name || 'Untitled'}</span>
                   </button>
                 ))}
@@ -209,7 +209,7 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
                     >
                       <Checkbox checked={false} size="sm" readOnly className="node-selector__checkbox" />
-                      <Icon path={mode === 'types' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
+                      <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
                       <span>{node.name || 'Untitled'}</span>
                     </button>
                   );
@@ -239,7 +239,7 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
 // ==================== Single Node Selector ====================
 
 interface SingleNodeSelectorProps {
-  mode: 'types' | 'pages';
+  mode: 'classes' | 'pages';
   selectedId: number | null;
   onChange: (nodeId: number | null, node?: AppNode) => void;
   placeholder?: string;
@@ -252,14 +252,14 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const { data: types } = useTypes();
+  const { data: classes } = useClasses();
   const { data: pages } = usePages();
   const { data: selectedNode } = useNode(selectedId);
   
   const allNodes = useMemo(() => {
-    if (mode === 'types') return types ?? [];
+    if (mode === 'classes') return classes ?? [];
     return pages ?? [];
-  }, [mode, types, pages]);
+  }, [mode, classes, pages]);
   
   const filteredNodes = useMemo(() => {
     const term = search.toLowerCase();
@@ -300,8 +300,8 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
     <div className="single-node-selector" ref={menuRef}>
       {selectedNode ? (
         <div className="single-node-selector__selected">
-          <NodeTypePill
-            typeNode={selectedNode}
+          <NodeClassPill
+            classNode={selectedNode}
             onRemove={readOnly ? undefined : handleClear}
             readOnly={readOnly}
           />
@@ -349,7 +349,7 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
                   className="single-node-selector__item"
                   onClick={() => handleSelect(node)}
                 >
-                  <Icon path={mode === 'types' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
+                  <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
                   <span>{node.name || 'Untitled'}</span>
                 </button>
               ))

@@ -270,9 +270,9 @@ export function useUpdateNode() {
       );
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-      // Also invalidate types since the updated node might be used as a type
+      // Also invalidate classes since the updated node might be used as a class
       // and its icon/name could have changed
-      queryClient.invalidateQueries({ queryKey: nodeKeys.types() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       
       // If name/content was updated, invalidate link-related caches
       // This ensures backlink badges and linked references update in real-time
@@ -652,33 +652,33 @@ export function useRemoveTag() {
 }
 
 /**
- * Hook to add a type to a node
+ * Hook to add a class to a node
  */
-export function useAddType() {
+export function useAddClass() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, typeId }: { nodeId: number; typeId: number }) => 
-      nodesApi.addType(nodeId, typeId),
-    onSuccess: (updatedNode, { nodeId, typeId }) => {
-      // Update the node cache with the returned node (which includes the new type)
+    mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
+      nodesApi.addClass(nodeId, classId),
+    onSuccess: (updatedNode, { nodeId, classId }) => {
+      // Update the node cache with the returned node (which includes the new class)
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(nodeId) },
         () => updatedNode
       );
       
-      // Invalidate type properties queries to ensure they're refetched
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forType(typeId) });
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forTypeInherited(typeId) });
+      // Invalidate class properties queries to ensure they're refetched
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
       
-      // Invalidate the typed nodes list so the new node appears immediately
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-type', typeId] });
+      // Invalidate the classed nodes list so the new node appears immediately
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-class', classId] });
       
       // Also invalidate lists and page content
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
       
       // If this is a block (has parent_id), invalidate the parent's detail and page content
-      // so the block's types array is refreshed in the parent's children list
+      // so the block's classes array is refreshed in the parent's children list
       if (updatedNode.parent_id !== null) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(updatedNode.parent_id) });
         queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_id) });
@@ -694,20 +694,20 @@ export function useAddType() {
 }
 
 /**
- * Hook to remove a type from a node
+ * Hook to remove a class from a node
  */
-export function useRemoveType() {
+export function useRemoveClass() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, typeId }: { nodeId: number; typeId: number }) => 
-      nodesApi.removeType(nodeId, typeId),
-    onSuccess: (updatedNode, { nodeId, typeId }) => {
+    mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
+      nodesApi.removeClass(nodeId, classId),
+    onSuccess: (updatedNode, { nodeId, classId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
       
-      // Invalidate the typed nodes list so the removed node disappears immediately
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-type', typeId] });
+      // Invalidate the classed nodes list so the removed node disappears immediately
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-class', classId] });
       
       // Also invalidate the page content if the node is a block within a page
       if (updatedNode.page_id !== null && updatedNode.page_id !== nodeId) {

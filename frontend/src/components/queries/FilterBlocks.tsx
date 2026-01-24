@@ -31,7 +31,7 @@ import {
   VALUE_MODE_OPTIONS,
   createDefaultBlock,
 } from './constants';
-import { useTypes, usePages } from '@/hooks';
+import { useClasses, usePages } from '@/hooks';
 import type { Node as AppNode } from '@/types';
 import type {
   QueryBlock,
@@ -170,40 +170,40 @@ function DynamicQuerySection({ blocks, onUpdate, readOnly, depth }: DynamicQuery
   );
 }
 
-// ==================== Type Filter Block ====================
+// ==================== Class Filter Block ====================
 
-export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
-  const typeBlock = block as TypeBlock;
-  const { data: types } = useTypes();
+export function ClassFilterBlock({ block, onUpdate, onDelete, readOnly, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
+  const classBlock = block as TypeBlock;  // TypeBlock from query schema still used internally
+  const { data: classes } = useClasses();
   
-  // Support multiple types via comma-separated values
-  const selectedTypeIds = useMemo(() => {
-    if (!typeBlock.value || !types) return [];
-    const values = typeBlock.value.split(',').map(v => v.trim());
-    return types.filter(t => values.includes(t.uuid) || values.includes(t.name)).map(t => t.id);
-  }, [typeBlock.value, types]);
+  // Support multiple classes via comma-separated values
+  const selectedClassIds = useMemo(() => {
+    if (!classBlock.value || !classes) return [];
+    const values = classBlock.value.split(',').map(v => v.trim());
+    return classes.filter(c => values.includes(c.uuid) || values.includes(c.name)).map(c => c.id);
+  }, [classBlock.value, classes]);
   
-  const handleAddType = useCallback((node: AppNode) => {
-    const currentValues = typeBlock.value ? typeBlock.value.split(',').map(v => v.trim()).filter(Boolean) : [];
+  const handleAddClass = useCallback((node: AppNode) => {
+    const currentValues = classBlock.value ? classBlock.value.split(',').map(v => v.trim()).filter(Boolean) : [];
     if (!currentValues.includes(node.uuid)) {
       currentValues.push(node.uuid);
     }
-    onUpdate({ ...typeBlock, value: currentValues.join(','), type_id: node.id });
-  }, [typeBlock, onUpdate]);
+    onUpdate({ ...classBlock, value: currentValues.join(','), type_id: node.id });
+  }, [classBlock, onUpdate]);
   
-  const handleRemoveType = useCallback((nodeId: number) => {
-    const type = types?.find(t => t.id === nodeId);
-    if (!type) return;
-    const currentValues = typeBlock.value ? typeBlock.value.split(',').map(v => v.trim()).filter(Boolean) : [];
-    const newValues = currentValues.filter(v => v !== type.uuid && v !== type.name);
-    onUpdate({ ...typeBlock, value: newValues.join(',') });
-  }, [typeBlock, types, onUpdate]);
+  const handleRemoveClass = useCallback((nodeId: number) => {
+    const cls = classes?.find(c => c.id === nodeId);
+    if (!cls) return;
+    const currentValues = classBlock.value ? classBlock.value.split(',').map(v => v.trim()).filter(Boolean) : [];
+    const newValues = currentValues.filter(v => v !== cls.uuid && v !== cls.name);
+    onUpdate({ ...classBlock, value: newValues.join(',') });
+  }, [classBlock, classes, onUpdate]);
   
   return (
-    <div className="filter-block filter-block--type">
+    <div className="filter-block filter-block--class">
       <div className="filter-block__field">
         <Icon path={mdiTagOutline} size={0.65} className="filter-block__icon" />
-        <span className="filter-block__label">Type</span>
+        <span className="filter-block__label">Class</span>
       </div>
       <select className="filter-block__operator" disabled={readOnly}>
         {TYPE_OPERATORS.map(op => (
@@ -212,11 +212,11 @@ export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly, index, to
       </select>
       <div className="filter-block__value">
         <NodeSelector
-          mode="types"
-          selectedIds={selectedTypeIds}
-          onAdd={handleAddType}
-          onRemove={handleRemoveType}
-          placeholder="Select types..."
+          mode="classes"
+          selectedIds={selectedClassIds}
+          onAdd={handleAddClass}
+          onRemove={handleRemoveClass}
+          placeholder="Select classes..."
           readOnly={readOnly}
         />
       </div>
@@ -665,7 +665,7 @@ export function FilterBlock(props: FilterBlockProps) {
   
   switch (block.type) {
     case 'TYPE':
-      return <TypeFilterBlock {...props} />;
+      return <ClassFilterBlock {...props} />;
     case 'CONTENT':
       return <ContentFilterBlock {...props} />;
     case 'REFERENCE':

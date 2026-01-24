@@ -1,18 +1,18 @@
 /**
- * NodeTypePill styles
+ * NodeClassPill styles
  */
 
-.node-type-pill {
+.node-class-pill {
   cursor: pointer;
   display: inline-flex;
 }
 
-.node-type-pill:hover .pill {
+.node-class-pill:hover .pill {
   background-color: var(--color-surface-container-highest);
 }
 
 /* When pill has a custom color, darken on hover */
-.node-type-pill:hover .pill[style*="background-color"] {
+.node-class-pill:hover .pill[style*="background-color"] {
   filter: brightness(0.95);
 }
 

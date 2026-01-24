@@ -7,12 +7,12 @@ Link sources can be:
 1. Text links: Direct [[id]] syntax in a block's name field
    - source_id = the block T containing the link
    
-2. Node-type property links: References via node-type properties
+2. Node-class property links: References via node-class properties
    - Stored via property_value_relation table, not node_link
    
-The system property `types` is excluded from backlinks entirely.
+The system property `classes` is excluded from backlinks entirely.
 
-Inline types use {{typeId}} format for type references in block content.
+Inline classes use {{classId}} format for class references in block content.
 """
 from __future__ import annotations
 
@@ -65,22 +65,22 @@ class NodeLink:
 
 
 @dataclass
-class InlineType:
-    """Represents an inline type reference in block content.
+class InlineClass:
+    """Represents an inline class reference in block content.
     
-    Uses {{typeId}} format in content. Similar to NodeLink but
-    specifically for type references that appear inline in text.
+    Uses {{classId}} format in content. Similar to NodeLink but
+    specifically for class references that appear inline in text.
     
-    Schema fields (type_inline table):
-    - node_id: Block containing the {{typeId}} reference
-    - type_id: The type node being referenced
+    Schema fields (class_inline table):
+    - node_id: Block containing the {{classId}} reference
+    - class_id: The class node being referenced
     - position: Character position in content
     - create_date: When the reference was created
     - create_uid: User who created it
     """
     id: Optional[int] = None
-    node_id: int = 0  # Block containing the inline type reference
-    type_id: int = 0  # Referenced type node
+    node_id: int = 0  # Block containing the inline class reference
+    class_id: int = 0  # Referenced class node
     position: int = 0  # Character position in content
     create_date: datetime = field(default_factory=utc_now)
     create_uid: Optional[int] = None
@@ -91,12 +91,25 @@ class InlineType:
         return self.node_id
     
     @property
+    def class_node_id(self) -> int:
+        return self.class_id
+    
+    # Legacy alias
+    @property
+    def type_id(self) -> int:
+        return self.class_id
+    
+    @property
     def type_node_id(self) -> int:
-        return self.type_id
+        return self.class_id
     
     @property
     def created_at(self) -> datetime:
         return self.create_date
+
+
+# Backwards compatibility alias
+InlineType = InlineClass
 
 
 @dataclass

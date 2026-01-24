@@ -4,11 +4,11 @@
  * Query builder UI with:
  * - Top-level AND/OR toggle using SelectionButton
  * - Filter rows with field → operator → value layout
- * - NodePicker for relational fields (types, references, pages)
- * - NodeTypePill for multi-value selections
+ * - NodePicker for relational fields (classes, references, pages)
+ * - NodeClassPill for multi-value selections
  * - Card component for each query block
  * - X button to delete blocks
- * - Dynamic query mode for node-type filters
+ * - Dynamic query mode for node-class filters
  * - System blocks (with placeholders) are hidden from users
  */
 import { useCallback, useMemo } from 'react';

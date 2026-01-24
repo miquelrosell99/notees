@@ -17,7 +17,7 @@
  */
 import { useCallback, useState, useRef, useEffect } from 'react';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
-import { useTypes } from '@/hooks';
+import { useClasses } from '@/hooks';
 import { NodeCard } from './NodeCard';
 import './NodeCardView.css';
 
@@ -43,8 +43,8 @@ export function NodeCardView({
 }: NodeCardViewProps) {
   const gridStyle = columns ? { gridTemplateColumns: `repeat(${columns}, 1fr)` } : undefined;
   
-  // Fetch all types for icon inheritance
-  const { data: allTypes } = useTypes();
+  // Fetch all classes for icon inheritance
+  const { data: allClasses } = useClasses();
   
   // Internal selection state when selectable but not controlled
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
@@ -144,7 +144,7 @@ export function NodeCardView({
           isDragging={dragIndex === index}
           isDropTarget={dropTargetIndex === index && dragIndex !== index}
           editable={editable}
-          allTypes={allTypes}
+          allClasses={allClasses}
           isSelected={selectable && selectedIds?.has(node.id)}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}

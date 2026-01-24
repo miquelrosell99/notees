@@ -25,7 +25,8 @@ from .property import (
 )
 from .link import (
     NodeLink,
-    InlineType,
+    InlineClass,
+    InlineType,  # Backwards compatibility alias
     BacklinkInfo,
 )
 from .user import (

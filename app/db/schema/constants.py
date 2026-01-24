@@ -85,9 +85,9 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
     return None
 
 
-# System type names - these are created on database initialization
-SYSTEM_TYPES = [
-    "type",
+# System class names - these are created on database initialization
+SYSTEM_CLASSES = [
+    "class",
     "page",
     "year",
     "month",
@@ -109,9 +109,9 @@ DEFAULT_PAGES = [
     "Quick Add",
 ]
 
-# System types with fixed UUIDs (never change these)
-SYSTEM_TYPE_UUIDS = {
-    "type": "00000000-0000-0000-0001-000000000001",
+# System classes with fixed UUIDs (never change these)
+SYSTEM_CLASS_UUIDS = {
+    "class": "00000000-0000-0000-0001-000000000001",
     "page": "00000000-0000-0000-0001-000000000002",
     "year": "00000000-0000-0000-0001-000000000003",
     "month": "00000000-0000-0000-0001-000000000004",
@@ -127,9 +127,9 @@ SYSTEM_TYPE_UUIDS = {
     "comment": "00000000-0000-0000-0001-000000000014",
 }
 
-# Default icons for system types (MDI icon names)
-SYSTEM_TYPE_ICONS = {
-    "type": "shape",
+# Default icons for system classes (MDI icon names)
+SYSTEM_CLASS_ICONS = {
+    "class": "shape",
     "day": "calendar-today",
     "month": "calendar-month",
     "year": "calendar-text",
@@ -145,7 +145,7 @@ SYSTEM_TYPE_ICONS = {
 # System properties with fixed UUIDs
 SYSTEM_PROPERTY_UUIDS = {
     "tags": "00000000-0000-0000-0000-000000000001",
-    "types": "00000000-0000-0000-0000-000000000002",
+    "classes": "00000000-0000-0000-0000-000000000002",
     "show_hierarchy": "00000000-0000-0000-0000-000000000003",
     "used_in": "00000000-0000-0000-0000-000000000004",
     "cover": "00000000-0000-0000-0000-000000000005",
@@ -155,7 +155,7 @@ SYSTEM_PROPERTY_UUIDS = {
 
 SYSTEM_PROPERTIES = [
     {"name": "tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
-    {"name": "types", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["types"]},
+    {"name": "classes", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["classes"]},
     {"name": "show_hierarchy", "type": "boolean", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"]},
     {"name": "used_in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
     {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
@@ -163,10 +163,10 @@ SYSTEM_PROPERTIES = [
     {"name": "_query_block_tree", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_block_tree"]},
 ]
 
-# Default view types for NodeViews
-DEFAULT_VIEW_TYPES = [
+# Default view classes for NodeViews
+DEFAULT_VIEW_CLASSES = [
     "child_pages",
-    "typed_nodes", 
+    "classed_nodes", 
     "linked_references",
     "main_content",
 ]

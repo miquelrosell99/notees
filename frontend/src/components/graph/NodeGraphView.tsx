@@ -14,7 +14,7 @@
  * Uses NodeGraphRenderer for the actual visualization.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useGraphData, useTypes, usePages } from '@/hooks';
+import { useGraphData, useClasses, usePages } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
@@ -59,7 +59,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
   
   // Data hooks
   const { data: graphData, isLoading } = useGraphData();
-  const { data: types } = useTypes();
+  const { data: classes } = useClasses();
   const { data: pages } = usePages();
   const { openNode, addSidebarCard } = useNodesStore();
   
@@ -156,16 +156,16 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     return () => clearTimeout(timer);
   }, [graphSettings]);
   
-  // Build type ID set
-  const typeIds = useMemo(() => {
+  // Build class ID set
+  const classIds = useMemo(() => {
     const set = new Set<number>();
-    if (types) {
-      for (const t of types) {
-        set.add(t.id);
+    if (classes) {
+      for (const c of classes) {
+        set.add(c.id);
       }
     }
     return set;
-  }, [types]);
+  }, [classes]);
   
   // Convert API data to renderer format
   const { nodes, links } = useMemo(() => {
@@ -199,7 +199,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       internalLinkCount: apiNode.internal_link_count ?? 0,
       createdAt: apiNode.created_at,
       visible: true,
-      isTypeNode: apiNode.is_type || typeIds.has(apiNode.id),
+      isTypeNode: apiNode.is_class || classIds.has(apiNode.id),
     }));
     
     const links: GraphLink[] = graphData.links.map(link => ({
@@ -209,7 +209,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     }));
     
     return { nodes, links };
-  }, [graphData, pinnedNodes, typeIds]);
+  }, [graphData, pinnedNodes, classIds]);
   
   // Selected node IDs
   const selectedNodeIds = useMemo(() => selectedNodes.map(s => s.id), [selectedNodes]);
@@ -411,34 +411,34 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
           <div className="type-colors-search">
             <input
               type="text"
-              placeholder="Search types to add..."
+              placeholder="Search classes to add..."
               value={typeColorSearch}
               onChange={(e) => setTypeColorSearch(e.target.value)}
             />
             {typeColorSearch && (
               <div className="type-colors-search-results">
-                {types
-                  ?.filter((t: Node) => 
-                    t.name?.toLowerCase().includes(typeColorSearch.toLowerCase()) &&
-                    !typeColors.some(tc => tc.typeId === t.id)
+                {classes
+                  ?.filter((c: Node) => 
+                    c.name?.toLowerCase().includes(typeColorSearch.toLowerCase()) &&
+                    !typeColors.some(tc => tc.typeId === c.id)
                   )
                   .slice(0, 5)
-                  .map((t: Node) => (
+                  .map((c: Node) => (
                     <Button
-                      key={t.id}
+                      key={c.id}
                       variant="ghost"
                       className="type-search-result"
                       onClick={() => {
                         setTypeColors(prev => [...prev, {
-                          typeId: t.id,
-                          typeName: t.name || 'Untitled',
+                          typeId: c.id,
+                          typeName: c.name || 'Untitled',
                           color: DEFAULT_TYPE_COLORS[prev.length % DEFAULT_TYPE_COLORS.length],
                           order: prev.length,
                         }]);
                         setTypeColorSearch('');
                       }}
                     >
-                      {t.name || 'Untitled'}
+                      {c.name || 'Untitled'}
                     </Button>
                   ))}
               </div>
@@ -480,12 +480,12 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                       e.stopPropagation();
                       setTypeColors(prev => prev.filter(t => t.typeId !== item.id));
                     }}
-                    title="Remove type"
+                    title="Remove class"
                   />
                 ]}
               />
             ) : (
-              <p className="no-types-floating">Search to add types</p>
+              <p className="no-types-floating">Search to add classes</p>
             )}
           </div>
         </ButtonWithPanel>
@@ -508,10 +508,10 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                 checked={showTypeNodes}
                 onChange={(e) => setShowTypeNodes(e.target.checked)}
               />
-              <span>Show type nodes</span>
+              <span>Show class nodes</span>
             </label>
             <p className="settings-hint">
-              Toggle visibility of nodes that are used as types
+              Toggle visibility of nodes that are used as classes
             </p>
           </div>
         </ButtonWithPanel>

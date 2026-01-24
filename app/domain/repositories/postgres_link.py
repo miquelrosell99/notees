@@ -2,7 +2,7 @@
 
 Updated for graph-based schema:
 - node_link table: source_id, target_id (no position, property_id)
-- type_inline table: node_id, type_id, position
+- class_inline table: node_id, class_id, position
 - All timestamps use create_date
 - User tracking via create_uid
 """
@@ -13,7 +13,7 @@ from typing import List, Optional
 
 import asyncpg
 
-from ..entities import NodeLink, InlineType
+from ..entities import NodeLink, InlineClass, InlineType
 from .interfaces import LinkRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
@@ -178,13 +178,13 @@ class PostgresLinkRepository(LinkRepository):
             return [self._row_to_link(row) for row in rows]
 
 
-class PostgresInlineTypeRepository:
-    """PostgreSQL repository for inline type references.
+class PostgresInlineClassRepository:
+    """PostgreSQL repository for inline class references.
     
     Updated for new schema:
-    - Table renamed from inline_type to type_inline
+    - Table renamed from inline_type to type_inline (still used for backwards compat)
     - source_node_id -> node_id
-    - type_node_id -> type_id
+    - type_node_id -> class_id
     - workspace_id -> graph_id
     - created_at -> create_date
     """
@@ -201,38 +201,41 @@ class PostgresInlineTypeRepository:
         self._graph_id = graph_id
         self._user_id = user_id
     
-    def _row_to_inline_type(self, row: asyncpg.Record) -> InlineType:
-        """Convert database row to InlineType entity."""
+    def _row_to_inline_class(self, row: asyncpg.Record) -> InlineClass:
+        """Convert database row to InlineClass entity."""
         create_date = row['create_date']
         if isinstance(create_date, str):
             create_date = datetime.fromisoformat(create_date)
-        return InlineType(
+        return InlineClass(
             id=row['id'],
             node_id=row['node_id'],
-            type_id=row['type_id'],
+            class_id=row['type_id'],  # DB column still named type_id
             position=row.get('position', 0),
             create_date=create_date,
             create_uid=row.get('create_uid'),
         )
     
-    async def create(self, inline_type: InlineType) -> InlineType:
-        """Create a new inline type reference."""
+    # Backwards compatibility alias
+    _row_to_inline_type = _row_to_inline_class
+    
+    async def create(self, inline_class: InlineClass) -> InlineClass:
+        """Create a new inline class reference."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
                 INSERT INTO type_inline (node_id, type_id, position, create_date, create_uid)
                 VALUES ($1, $2, $3, $4, $5)
                 RETURNING id
-            """, inline_type.node_id, inline_type.type_id,
-                inline_type.position, inline_type.create_date,
-                inline_type.create_uid or self._user_id)
+            """, inline_class.node_id, inline_class.class_id,
+                inline_class.position, inline_class.create_date,
+                inline_class.create_uid or self._user_id)
             
             if row is None:
-                raise RuntimeError("Failed to create inline type - no row returned")
-            inline_type.id = row['id']
-            return inline_type
+                raise RuntimeError("Failed to create inline class - no row returned")
+            inline_class.id = row['id']
+            return inline_class
     
-    async def delete_source_inline_types(self, source_node_id: int) -> int:
-        """Delete all inline types from a source node (for re-parsing)."""
+    async def delete_source_inline_classes(self, source_node_id: int) -> int:
+        """Delete all inline classes from a source node (for re-parsing)."""
         async with self._pool.acquire() as conn:
             result = await conn.execute(
                 "DELETE FROM type_inline WHERE node_id = $1",
@@ -240,34 +243,46 @@ class PostgresInlineTypeRepository:
             )
             return int(result.split()[-1]) if result else 0
     
-    async def get_source_inline_types(self, source_node_id: int) -> List[InlineType]:
-        """Get all inline types from a source node."""
+    # Backwards compatibility alias
+    async def delete_source_inline_types(self, source_node_id: int) -> int:
+        return await self.delete_source_inline_classes(source_node_id)
+    
+    async def get_source_inline_classes(self, source_node_id: int) -> List[InlineClass]:
+        """Get all inline classes from a source node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT * FROM type_inline WHERE node_id = $1 ORDER BY position",
                 source_node_id
             )
-            return [self._row_to_inline_type(row) for row in rows]
+            return [self._row_to_inline_class(row) for row in rows]
     
-    async def get_type_references(self, type_node_id: int) -> List[InlineType]:
-        """Get all inline references to a type node."""
+    # Backwards compatibility alias
+    async def get_source_inline_types(self, source_node_id: int) -> List[InlineClass]:
+        return await self.get_source_inline_classes(source_node_id)
+    
+    async def get_class_references(self, class_node_id: int) -> List[InlineClass]:
+        """Get all inline references to a class node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT * FROM type_inline WHERE type_id = $1",
-                type_node_id
+                class_node_id
             )
-            return [self._row_to_inline_type(row) for row in rows]
+            return [self._row_to_inline_class(row) for row in rows]
     
-    async def bulk_create(self, inline_types: List[InlineType]) -> List[InlineType]:
-        """Create multiple inline types at once using COPY."""
-        if not inline_types:
+    # Backwards compatibility alias
+    async def get_type_references(self, type_node_id: int) -> List[InlineClass]:
+        return await self.get_class_references(type_node_id)
+    
+    async def bulk_create(self, inline_classes: List[InlineClass]) -> List[InlineClass]:
+        """Create multiple inline classes at once using COPY."""
+        if not inline_classes:
             return []
         
         async with self._pool.acquire() as conn:
             records = [
-                (it.node_id, it.type_id, it.position, it.create_date,
-                 it.create_uid or self._user_id)
-                for it in inline_types
+                (ic.node_id, ic.class_id, ic.position, ic.create_date,
+                 ic.create_uid or self._user_id)
+                for ic in inline_classes
             ]
             await conn.copy_records_to_table(
                 'type_inline',
@@ -275,15 +290,23 @@ class PostgresInlineTypeRepository:
                 columns=['node_id', 'type_id', 'position', 'create_date', 'create_uid']
             )
         
-        return inline_types
+        return inline_classes
     
-    async def get_inline_types_for_graph(self, type_node_id: int) -> List[InlineType]:
-        """Get inline type references from nodes within the current graph only."""
+    async def get_inline_classes_for_graph(self, class_node_id: int) -> List[InlineClass]:
+        """Get inline class references from nodes within the current graph only."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT ti.*
                 FROM type_inline ti
                 JOIN node n ON ti.node_id = n.id
                 WHERE ti.type_id = $1 AND n.graph_id = $2
-            """, type_node_id, self._graph_id)
-            return [self._row_to_inline_type(row) for row in rows]
+            """, class_node_id, self._graph_id)
+            return [self._row_to_inline_class(row) for row in rows]
+    
+    # Backwards compatibility alias
+    async def get_inline_types_for_graph(self, type_node_id: int) -> List[InlineClass]:
+        return await self.get_inline_classes_for_graph(type_node_id)
+
+
+# Backwards compatibility alias
+PostgresInlineTypeRepository = PostgresInlineClassRepository

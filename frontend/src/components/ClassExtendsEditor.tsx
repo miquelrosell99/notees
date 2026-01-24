@@ -1,66 +1,66 @@
 /**
- * TypeExtendsEditor - Component for editing which types a Type/Class extends
+ * ClassExtendsEditor - Component for editing which classes a class extends
  * 
- * This allows setting up inheritance relationships between types.
- * When a type extends another, nodes with that type will have
- * all properties from the extended type (plus its own properties).
+ * This allows setting up inheritance relationships between classes.
+ * When a class extends another, nodes with that class will have
+ * all properties from the extended class (plus its own properties).
  */
 import { useState, useCallback } from 'react';
-import './TypeExtendsEditor.css';
+import './ClassExtendsEditor.css';
 import { 
-  useTypeExtends, 
-  useAddTypeExtends, 
-  useRemoveTypeExtends,
+  useClassExtends, 
+  useAddClassExtends, 
+  useRemoveClassExtends,
   useNodes 
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
 import { LinkIcon, NodeIcon } from './icons';
 import { Button } from './core/Button';
 
-interface TypeExtendsEditorProps {
-  /** The type node ID being edited */
-  typeNodeId: number;
+interface ClassExtendsEditorProps {
+  /** The class node ID being edited */
+  classNodeId: number;
   /** Optional class name */
   className?: string;
   /** Whether the editor is read-only */
   readOnly?: boolean;
-  /** Callback when navigating to a type */
-  onNavigateToType?: (typeId: number) => void;
+  /** Callback when navigating to a class */
+  onNavigateToClass?: (classId: number) => void;
 }
 
 /**
- * Editor for managing type inheritance (extends) relationships
+ * Editor for managing class inheritance (extends) relationships
  */
-export function TypeExtendsEditor({
-  typeNodeId,
+export function ClassExtendsEditor({
+  classNodeId,
   className = '',
   readOnly = false,
-  onNavigateToType,
-}: TypeExtendsEditorProps) {
+  onNavigateToClass,
+}: ClassExtendsEditorProps) {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Fetch current extends relationships
-  const { data: extendsRelations, isLoading } = useTypeExtends(typeNodeId);
+  const { data: extendsRelations, isLoading } = useClassExtends(classNodeId);
   
-  // Fetch all pages (potential types to extend)
+  // Fetch all pages (potential classes to extend)
   const { data: allNodes } = useNodes({ pages_only: true });
   
   // Mutations
-  const addExtendsMutation = useAddTypeExtends();
-  const removeExtendsMutation = useRemoveTypeExtends();
+  const addExtendsMutation = useAddClassExtends();
+  const removeExtendsMutation = useRemoveClassExtends();
   
-  // Filter available types (exclude self and already extended types)
-  const availableTypes = allNodes?.filter(node => {
-    if (node.id === typeNodeId) return false;
+  // Filter available classes (exclude self and already extended classes)
+  const availableClasses = allNodes?.filter(node => {
+    if (node.id === classNodeId) return false;
     if (extendsRelations?.some(ext => ext.extends_type_node_id === node.id)) return false;
     if (searchQuery && !node.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   }) ?? [];
   
-  const handleAddExtends = useCallback((extendsTypeId: number) => {
+  const handleAddExtends = useCallback((extendsClassId: number) => {
     addExtendsMutation.mutate(
-      { typeId: typeNodeId, extendsTypeId },
+      { classId: classNodeId, extendsClassId },
       {
         onSuccess: () => {
           setIsAddingNew(false);
@@ -68,41 +68,41 @@ export function TypeExtendsEditor({
         },
       }
     );
-  }, [typeNodeId, addExtendsMutation]);
+  }, [classNodeId, addExtendsMutation]);
   
-  const handleRemoveExtends = useCallback((extendsTypeId: number) => {
-    removeExtendsMutation.mutate({ typeId: typeNodeId, extendsTypeId });
-  }, [typeNodeId, removeExtendsMutation]);
+  const handleRemoveExtends = useCallback((extendsClassId: number) => {
+    removeExtendsMutation.mutate({ classId: classNodeId, extendsClassId });
+  }, [classNodeId, removeExtendsMutation]);
   
   if (isLoading) {
-    return <div className={`type-extends-editor loading ${className}`}>Loading...</div>;
+    return <div className={`class-extends-editor loading ${className}`}>Loading...</div>;
   }
   
   return (
-    <div className={`type-extends-editor ${className}`}>
-      <h4 className="type-extends-title">
+    <div className={`class-extends-editor ${className}`}>
+      <h4 className="class-extends-title">
         <LinkIcon size="sm" />
         Extends (Inherits From)
       </h4>
       
       {/* Current extends list */}
-      <div className="type-extends-list">
+      <div className="class-extends-list">
         {extendsRelations && extendsRelations.length > 0 ? (
           extendsRelations.map((ext) => (
-            <div key={ext.id} className="type-extends-item">
+            <div key={ext.id} className="class-extends-item">
               <Button
-                className="type-extends-name"
+                className="class-extends-name"
                 variant="ghost"
                 size="sm"
-                onClick={() => onNavigateToType?.(ext.extends_type_node_id)}
-                title="Click to view type"
+                onClick={() => onNavigateToClass?.(ext.extends_type_node_id)}
+                title="Click to view class"
               >
                 <NodeIcon isPage={true} size="xs" />
-                {ext.extends_type_node_name || `Type #${ext.extends_type_node_id}`}
+                {ext.extends_type_node_name || `Class #${ext.extends_type_node_id}`}
               </Button>
               {!readOnly && (
                 <Button
-                  className="type-extends-remove"
+                  className="class-extends-remove"
                   variant="ghost"
                   size="xs"
                   onClick={() => handleRemoveExtends(ext.extends_type_node_id)}
@@ -115,30 +115,30 @@ export function TypeExtendsEditor({
             </div>
           ))
         ) : (
-          <p className="type-extends-empty">
-            No parent types. Add types to inherit their properties.
+          <p className="class-extends-empty">
+            No parent classes. Add classes to inherit their properties.
           </p>
         )}
       </div>
       
       {/* Add new extends */}
       {!readOnly && (
-        <div className="type-extends-add">
+        <div className="class-extends-add">
           {isAddingNew ? (
-            <div className="type-extends-picker">
+            <div className="class-extends-picker">
               <input
                 type="text"
-                className="type-extends-search"
-                placeholder="Search types..."
+                className="class-extends-search"
+                placeholder="Search classes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
               />
-              <div className="type-extends-options">
-                {availableTypes.slice(0, 10).map((node) => (
+              <div className="class-extends-options">
+                {availableClasses.slice(0, 10).map((node) => (
                   <Button
                     key={node.id}
-                    className="type-extends-option"
+                    className="class-extends-option"
                     variant="ghost"
                     size="sm"
                     onClick={() => handleAddExtends(node.id)}
@@ -148,12 +148,12 @@ export function TypeExtendsEditor({
                     {node.name}
                   </Button>
                 ))}
-                {availableTypes.length === 0 && (
-                  <p className="type-extends-no-results">No types found</p>
+                {availableClasses.length === 0 && (
+                  <p className="class-extends-no-results">No classes found</p>
                 )}
               </div>
               <Button
-                className="type-extends-cancel"
+                className="class-extends-cancel"
                 variant="ghost"
                 size="sm"
                 onClick={() => {
@@ -167,13 +167,13 @@ export function TypeExtendsEditor({
           ) : (
             <Button
               icon={mdiPlus}
-              className="type-extends-add-btn"
+              className="class-extends-add-btn"
               onClick={() => setIsAddingNew(true)}
-              title="Add parent type"
+              title="Add parent class"
               size="sm"
               variant="ghost"
             >
-              Add parent type
+              Add parent class
             </Button>
           )}
         </div>
@@ -182,4 +182,4 @@ export function TypeExtendsEditor({
   );
 }
 
-export default TypeExtendsEditor;
+export default ClassExtendsEditor;

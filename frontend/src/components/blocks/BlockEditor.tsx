@@ -21,7 +21,7 @@ import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
-import { useNodes, useTextLinks, useTypes } from '@/hooks';
+import { useNodes, useTextLinks, useClasses } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiTag } from '@mdi/js';
 import * as mdiIcons from '@mdi/js';
@@ -95,9 +95,9 @@ interface BlockEditorProps {
   onChange: (content: string) => void;
   /** Initial cursor position when entering edit mode. If provided, cursor will be set here instead of end */
   initialCursorPosition?: number;
-  onAddType?: (typeNodeId: number, keepInline: boolean, typeName: string) => void;
+  onAddClass?: (classNodeId: number, keepInline: boolean, className: string) => void;
   onAddTag?: (tagNodeId: number, keepInline: boolean, tagName: string) => void;
-  onCreateType?: (name: string, keepInline: boolean) => void;
+  onCreateClass?: (name: string, keepInline: boolean) => void;
   onCreateTag?: (name: string, keepInline: boolean) => void;
   onLinkPage?: (pageNode: Node) => void;
   onCreatePageLink?: (name: string) => Promise<string | undefined>;  // Returns the new page ID
@@ -573,9 +573,9 @@ export function BlockEditor({
   content, 
   onChange, 
   initialCursorPosition,
-  onAddType,
+  onAddClass,
   onAddTag,
-  onCreateType,
+  onCreateClass,
   onCreateTag,
   onLinkPage,
   onCreatePageLink,
@@ -634,11 +634,11 @@ export function BlockEditor({
     return ids;
   }, [content]);
   
-  // Fetch all nodes to get names for links and types
+  // Fetch all nodes to get names for links and classes
   const { data: allNodes } = useNodes((linkIds.length > 0 || typeIds.length > 0) ? {} : null);
   
-  // Fetch all type definitions to compute effective icons
-  const { data: allTypes } = useTypes();
+  // Fetch all class definitions to compute effective icons
+  const { data: allClasses } = useClasses();
   
   // Fetch text links to know which are tags
   const { data: textLinks } = useTextLinks(nodeId ?? null);
@@ -657,7 +657,7 @@ export function BlockEditor({
   }, [textLinks]);
   
   // Build link names map from fetched nodes
-  // Uses getEffectiveIcon to compute icon from node or its types
+  // Uses getEffectiveIcon to compute icon from node or its classes
   const linkNames = useMemo(() => {
     const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; effectiveIcon?: string | null }>();
     if (allNodes && linkIds.length > 0) {
@@ -668,8 +668,8 @@ export function BlockEditor({
           ? allNodes.find(n => n.id === nodeId)
           : allNodes.find(n => n.uuid === linkId || n.name === linkId);
         if (node) {
-          // Compute effective icon using getEffectiveIcon - considers node's own icon and type icons
-          const effectiveIcon = getEffectiveIcon(node, allTypes ?? []);
+          // Compute effective icon using getEffectiveIcon - considers node's own icon and class icons
+          const effectiveIcon = getEffectiveIcon(node, allClasses ?? []);
           map.set(linkId, {
             name: node.name || node.display_name || 'Untitled',
             isPage: node.is_page || node.parent_id === null,
@@ -680,7 +680,7 @@ export function BlockEditor({
       }
     }
     return map;
-  }, [allNodes, allTypes, linkIds, tagTargetIds]);
+  }, [allNodes, allClasses, linkIds, tagTargetIds]);
   
   // Build type names map from fetched nodes
   const typeNames = useMemo(() => {
@@ -1207,19 +1207,19 @@ export function BlockEditor({
         onAddTag(node.id, keepInline, node.name || '');
       }
     } else if (trigger.type === 'type' && keepInline) {
-      // Use {{typeId}} format for inline types
+      // Use {{classId}} format for inline classes
       const inlineText = `{{${node.id}}}`;
       newContent = textBeforeTrigger + inlineText + ' ' + textAfterCursor;
       
-      if (onAddType) {
-        onAddType(node.id, keepInline, node.name || '');
+      if (onAddClass) {
+        onAddClass(node.id, keepInline, node.name || '');
       }
     } else {
       // Non-inline: just remove trigger text and add to property
       newContent = textBeforeTrigger + textAfterCursor.trimStart();
       
-      if (trigger.type === 'type' && onAddType) {
-        onAddType(node.id, keepInline, node.name || '');
+      if (trigger.type === 'type' && onAddClass) {
+        onAddClass(node.id, keepInline, node.name || '');
       } else if (trigger.type === 'tag' && onAddTag) {
         onAddTag(node.id, keepInline, node.name || '');
       }
@@ -1279,7 +1279,7 @@ export function BlockEditor({
         setCursorPosition(editorRef.current, cursorTargetPos);
       }
     }, 0);
-  }, [trigger, onChange, onAddType, onAddTag, onLinkPage, linkNames, typeNames, allTypes]);
+  }, [trigger, onChange, onAddClass, onAddTag, onLinkPage, linkNames, typeNames, allClasses]);
 
   // Handle create new type/tag/link
   const handleCreate = useCallback(async (name: string, keepInline: boolean) => {
@@ -1311,8 +1311,8 @@ export function BlockEditor({
       newContent = textBeforeTrigger + inlineText + ' ' + textAfterCursor;
       cursorTargetPos = textBeforeTrigger.length + inlineText.length + 1;
       
-      if (trigger.type === 'type' && onCreateType) {
-        onCreateType(name, keepInline);
+      if (trigger.type === 'type' && onCreateClass) {
+        onCreateClass(name, keepInline);
       } else if (trigger.type === 'tag' && onCreateTag) {
         onCreateTag(name, keepInline);
       }
@@ -1320,8 +1320,8 @@ export function BlockEditor({
       newContent = textBeforeTrigger + textAfterCursor.trimStart();
       cursorTargetPos = textBeforeTrigger.length;
       
-      if (trigger.type === 'type' && onCreateType) {
-        onCreateType(name, keepInline);
+      if (trigger.type === 'type' && onCreateClass) {
+        onCreateClass(name, keepInline);
       } else if (trigger.type === 'tag' && onCreateTag) {
         onCreateTag(name, keepInline);
       }
@@ -1355,7 +1355,7 @@ export function BlockEditor({
         setCursorPosition(editorRef.current, cursorTargetPos);
       }
     }, 0);
-  }, [trigger, onChange, onCreateType, onCreateTag, onCreatePageLink, linkNames]);
+  }, [trigger, onChange, onCreateClass, onCreateTag, onCreatePageLink, linkNames]);
 
   const handleClose = useCallback(() => {
     setTrigger(prev => ({ ...prev, isOpen: false }));

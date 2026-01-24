@@ -9,7 +9,7 @@ from ...domain.repositories import (
     PostgresNodeRepository, 
     PostgresPropertyRepository, 
     PostgresLinkRepository,
-    PostgresInlineTypeRepository,
+    PostgresInlineClassRepository,
 )
 from ...db.connection import get_pool
 from ...db.schema import get_or_create_user_graph
@@ -24,14 +24,14 @@ logger = get_logger(__name__)
 def _node_to_response(
     node: Node, 
     tags: Optional[List[int]] = None,
-    types: Optional[List[int]] = None,
+    classes: Optional[List[int]] = None,
     comment_count: int = 0,
     backlink_count: int = 0,
 ) -> NodeResponse:
     """Convert domain Node to API response.
     
-    The is_type, is_page, is_daily, etc. flags are stored on the node and
-    automatically updated when types change (via add_type/remove_type).
+    The is_class, is_page, is_daily, etc. flags are stored on the node and
+    automatically updated when classes change (via add_class/remove_class).
     """
     return NodeResponse(
         id=node.id or 0,
@@ -45,7 +45,7 @@ def _node_to_response(
         collapsed=node.collapsed,
         active=node.active,
         is_page=node.is_page,
-        is_type=node.is_type,
+        is_class=node.is_class,
         is_daily=node.is_day,
         is_monthly=node.is_month,
         is_yearly=node.is_year,
@@ -55,10 +55,10 @@ def _node_to_response(
         open_date=node.open_date,
         display_name=node.display_name,
         tags=tags or [],
-        types=types or [],
+        classes=classes or [],
         comment_count=comment_count,
         backlink_count=backlink_count,
-        types_path=node.types_path or [],
+        classes_path=node.classes_path or [],
     )
 
 
@@ -129,10 +129,10 @@ async def _get_descendants(node_repo, parent_id: int) -> List[Node]:
     return all_descendants
 
 
-async def _get_type_ids(service: NodeService, node_id: int) -> List[int]:
-    """Helper to get type IDs for a node."""
-    types = await service.get_node_types(node_id)
-    return [t.id for t in types if t.id]
+async def _get_class_ids(service: NodeService, node_id: int) -> List[int]:
+    """Helper to get class IDs for a node."""
+    classes = await service.get_node_classes(node_id)
+    return [c.id for c in classes if c.id]
 
 
 async def _get_tag_ids(pool, graph_id: int, node_id: int) -> List[int]:
@@ -174,10 +174,10 @@ async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[i
     return result
 
 
-async def _get_type_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
-    """Efficiently fetch type_ids for multiple nodes in a single query.
+async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+    """Efficiently fetch class_ids for multiple nodes in a single query.
     
-    Returns a dict mapping node_id -> list of type_ids.
+    Returns a dict mapping node_id -> list of class_ids.
     """
     if not node_ids:
         return {}
@@ -189,11 +189,11 @@ async def _get_type_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[
         rows = await conn.fetch("""
             SELECT 
                 pvr.node_id,
-                array_agg(pvr.target_id) as type_ids
+                array_agg(pvr.target_id) as class_ids
             FROM property_value_relation pvr
             JOIN property p ON pvr.property_id = p.id
             JOIN node n ON pvr.node_id = n.id
-            WHERE p.name = 'types' 
+            WHERE p.name = 'classes' 
               AND n.graph_id = $2
               AND pvr.node_id = ANY($1)
               AND pvr.target_id IS NOT NULL
@@ -202,11 +202,15 @@ async def _get_type_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[
     
         for row in rows:
             node_id = row['node_id']
-            type_ids = row['type_ids']
-            if type_ids:
-                result[node_id] = [tid for tid in type_ids if tid is not None]
+            class_ids = row['class_ids']
+            if class_ids:
+                result[node_id] = [cid for cid in class_ids if cid is not None]
     
     return result
+
+
+# Backwards compatibility alias
+_get_type_ids_batch = _get_class_ids_batch
 
 
 async def _get_node_service(user: User) -> NodeService:
@@ -228,30 +232,30 @@ async def _get_node_service(user: User) -> NodeService:
         
         # Get system IDs (cached in real implementation)
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND graph_id = $1 LIMIT 1",
+            "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
             graph_id
         )
-        page_type_id = row['id'] if row else 1
-        logger.info(f"page_type_id: {page_type_id}, row: {row}")
+        page_class_id = row['id'] if row else 1
+        logger.info(f"page_class_id: {page_class_id}, row: {row}")
         
         row = await conn.fetchrow(
-            "SELECT id FROM property WHERE name = 'types' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
+            "SELECT id FROM property WHERE name = 'classes' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
             graph_id
         )
-        types_property_id = row['id'] if row else 1
-        logger.info(f"types_property_id: {types_property_id}, row: {row}")
+        classes_property_id = row['id'] if row else 1
+        logger.info(f"classes_property_id: {classes_property_id}, row: {row}")
     
     # Create repositories with graph context
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_class_id, classes_property_id, user_id)
     property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
     link_repo = PostgresLinkRepository(pool, graph_id, user_id)
-    inline_type_repo = PostgresInlineTypeRepository(pool, graph_id, user_id)
+    inline_class_repo = PostgresInlineClassRepository(pool, graph_id, user_id)
     
     # Create services
-    link_service = LinkParsingService(node_repo, link_repo, inline_type_repository=inline_type_repo)
+    link_service = LinkParsingService(node_repo, link_repo, inline_class_repository=inline_class_repo)
     node_service = NodeService(
         node_repo, property_repo, link_service,
-        page_type_id, types_property_id
+        page_class_id, classes_property_id
     )
     
     # Store graph context for use in helper functions

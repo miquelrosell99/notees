@@ -3,14 +3,14 @@
 The Node is the core entity of Notees. Everything is a node:
 - Pages (nodes with is_page=1)
 - Blocks (nodes with a parent_id, always have page_id set)
-- Types (nodes with is_type=1, define what kind of node something is)
+- Classes (nodes with is_class=1, define what kind of node something is)
 - System nodes (day, month, year, task, template, etc. - indicated by is_* flags)
 
 Nodes are identified by:
 - id: Auto-incremental database primary key
 - uuid: Public identifier for links, navigation, filtering
 
-Type flags are stored directly on nodes for fast queries. They are NOT mutually exclusive.
+Class flags are stored directly on nodes for fast queries. They are NOT mutually exclusive.
 """
 from __future__ import annotations
 
@@ -59,8 +59,8 @@ class Node:
     active: bool = True  # Whether node is active (soft-delete flag)
     is_shared: bool = False  # Whether this node is shared with other users
     
-    # Type flags (stored for fast queries, not mutually exclusive)
-    is_type: bool = False      # This node defines a type
+    # Class flags (stored for fast queries, not mutually exclusive)
+    is_class: bool = False     # This node defines a class
     is_page: bool = False      # Regular page
     is_day: bool = False       # Daily journal page
     is_month: bool = False     # Monthly journal page
@@ -69,8 +69,8 @@ class Node:
     is_template: bool = False  # Template page
     is_comment: bool = False   # Comment block
     
-    # Type-specific fields
-    usable_in: str = "both"  # Where this type can be applied: 'page', 'block', or 'both'
+    # Class-specific fields
+    usable_in: str = "both"  # Where this class can be applied: 'page', 'block', or 'both'
     
     # Open date - when the page was last opened/viewed (NULL by default)
     open_date: Optional[str] = None
@@ -81,17 +81,17 @@ class Node:
     create_uid: Optional[int] = None  # User who created
     write_uid: Optional[int] = None  # User who last modified
     
-    # Types Path - inherited types from ancestors (NOT for backlinks, used for queries)
-    # This is the ordered list of type node IDs from ancestor's `types` properties
-    # e.g., a block inside a node typed `task`, inside a node typed `meeting` -> [task_id, meeting_id]
-    types_path: List[int] = field(default_factory=list)
+    # Classes Path - inherited classes from ancestors (NOT for backlinks, used for queries)
+    # This is the ordered list of class node IDs from ancestor's `classes` properties
+    # e.g., a block inside a node classed `task`, inside a node classed `meeting` -> [task_id, meeting_id]
+    classes_path: List[int] = field(default_factory=list)
     
     # Optimistic locking
     version: int = 1
     
     # Computed (not stored)
     _display_name: Optional[str] = field(default=None, repr=False)
-    _types: List[int] = field(default_factory=list, repr=False)  # Cached type node IDs
+    _classes: List[int] = field(default_factory=list, repr=False)  # Cached class node IDs
     
     @property
     def display_name(self) -> str:
@@ -125,10 +125,10 @@ class NodeCreateData:
     parent_id: Optional[int] = None
     sequence: int = 0
     collapsed: bool = False
-    types: List[int] = field(default_factory=list)  # Type node IDs to apply
+    classes: List[int] = field(default_factory=list)  # Class node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
-    # Type flags (optional - can be set explicitly or derived from types)
-    is_type: bool = False
+    # Class flags (optional - can be set explicitly or derived from classes)
+    is_class: bool = False
     is_page: bool = False
     is_day: bool = False
     is_month: bool = False
@@ -150,10 +150,10 @@ class NodeUpdateData:
     parent_id: Optional[int] = None
     sequence: Optional[int] = None
     collapsed: Optional[bool] = None
-    types: Optional[List[int]] = None
+    classes: Optional[List[int]] = None
     property_values: Optional[dict] = None
-    # Type flags (optional)
-    is_type: Optional[bool] = None
+    # Class flags (optional)
+    is_class: Optional[bool] = None
     is_page: Optional[bool] = None
     is_day: Optional[bool] = None
     is_month: Optional[bool] = None

@@ -24,7 +24,7 @@
  * - Icon display based on getEffectiveIcon (shows only if node has icon or inherits from type)
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useLinkClicks, useNode, useTypes } from '@/hooks';
+import { useLinkClicks, useNode, useClasses } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
 import type { ContextMenuItem } from '../core/ContextMenu';
@@ -149,16 +149,16 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate }: LinkPillProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const nodeId = parseInt(linkId, 10);
   const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
-  const { data: allTypes } = useTypes();
+  const { data: allClasses } = useClasses();
   
   // Display the node name if available, otherwise show the ID
   const displayText = node?.name || linkId;
   const isPage = node?.is_page ?? true;
   
-  // Compute effective icon - considers node's own icon and inherited type icons
+  // Compute effective icon - considers node's own icon and inherited class icons
   const effectiveIcon = useMemo(() => {
-    return getEffectiveIcon(node, allTypes);
-  }, [node, allTypes]);
+    return getEffectiveIcon(node, allClasses);
+  }, [node, allClasses]);
   
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

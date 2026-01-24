@@ -11,7 +11,7 @@
  *   1. BannerImage / PageHeader / CoverImage
  *   2. PropertiesSection - Node properties
  *   3. NodeContent - Children blocks (supports list/document/card views)
- *   4. Type-specific sections (TypedNodesView, ChildPagesSection)
+ *   4. Class-specific sections (ClassedNodesView, ChildPagesSection)
  *   5. LinkedReferences
  *   6. NodeActivityLogSection
  * 
@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useTypes, useNodesWithType, useUpdateNode, useAddTag, useAddType, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveType, useRemoveTag, useNodes, useTags } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -37,12 +37,12 @@ import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext'
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { NodeViewSection, DynamicNodeViewSection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
-import { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } from '../components/TypedNodesSection';
-import { TypePropertiesEditor } from '../components/TypePropertiesEditor';
+import { ClassedNodesView, useClassedNodesSectionState, ClassedNodesSectionToolbar } from '../components/ClassedNodesSection';
+import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from '../components/ChildPagesSection';
 import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../components/LinkedReferences';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
-import { SYSTEM_PROPERTY_UUIDS, SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
 import type { Asset } from '../api/assets';
 
 import './NodeView.css';
@@ -72,9 +72,9 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const createNode = useCreateNode();
   const updateNode = useUpdateNode();
   const addTag = useAddTag();
-  const addType = useAddType();
+  const addClass = useAddClass();
   const addTagLink = useAddTagLink();
-  const { data: allTypes } = useTypes();
+  const { data: allClasses } = useClasses();
   const { openCommentsForNode, openNode } = useNodesStore();
   
   // Handle content changes
@@ -94,27 +94,27 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
 
   // Block callbacks for context provider
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
-    onAddType: (blockId, typeNodeId, _keepInline, _typeName) => {
-      addType.mutate({ nodeId: blockId, typeId: typeNodeId });
+    onAddClass: (blockId: number, classNodeId: number, _keepInline: boolean, _className: string) => {
+      addClass.mutate({ nodeId: blockId, classId: classNodeId });
     },
-    onAddTag: (blockId, tagNodeId, keepInline, _tagName) => {
+    onAddTag: (blockId: number, tagNodeId: number, keepInline: boolean, _tagName: string) => {
       addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
       if (keepInline) {
         addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
       }
     },
-    onCreateType: (blockId, name, _keepInline) => {
-      const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
+    onCreateClass: (blockId: number, name: string, _keepInline: boolean) => {
+      const classClass = allClasses?.find(c => c.name?.toLowerCase() === 'class');
       createNode.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => {
-          addType.mutate({ nodeId: blockId, typeId: newPage.id });
-          if (typeType) {
-            addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+          addClass.mutate({ nodeId: blockId, classId: newPage.id });
+          if (classClass) {
+            addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
           }
         }
       });
     },
-    onCreateTag: (blockId, name, _keepInline) => {
+    onCreateTag: (blockId: number, name: string, _keepInline: boolean) => {
       createNode.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => {
           addTag.mutate({ nodeId: blockId, tagId: newPage.id });
@@ -138,7 +138,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addType, addTag, addTagLink, createNode, allTypes, openCommentsForNode, onAddSidebarCard]);
+  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, onAddSidebarCard]);
 
   return (
     <div className="focused-block-content">
@@ -186,35 +186,36 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const useDynamicNodeViews = useSettingsStore(state => state.useDynamicNodeViews);
   
   // Hooks (needed for page header sections)
-  const { data: allTypes } = useTypes();
+  const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
-  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback type/tag lookup
+  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
   const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
   const updateNode = useUpdateNode();
-  const removeType = useRemoveType();
-  const addType = useAddType();
+  const removeClass = useRemoveClass();
+  const addClass = useAddClass();
   const removeTag = useRemoveTag();
   const addTag = useAddTag();
   const createNode = useCreateNode();
   
-  // Resolve page type details from IDs (excluding the implicit "page" type)
-  // For system types (like "day", "month", etc.), we show their "type" type but make it non-removable
-  // Use allNodes as fallback for system types that might not be in allTypes
-  const pageTypeDetails = useMemo(() => {
-    if (!node?.types || node.types.length === 0) return [];
-    return node.types
-      .map(typeId => {
-        // First try allTypes, then fallback to allNodes
-        const fromTypes = allTypes?.find(t => t.id === typeId);
-        if (fromTypes) return fromTypes;
-        return allNodes?.find(n => n.id === typeId);
+  // Resolve page class details from IDs (excluding the implicit "page" class)
+  // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
+  // Use allNodes as fallback for system classes that might not be in allClasses
+  const pageClassDetails = useMemo(() => {
+    if (!node?.classes) return [];
+    const classIds = node.classes;
+    return classIds
+      .map((classId: number) => {
+        // First try allClasses, then fallback to allNodes
+        const fromClasses = allClasses?.find(t => t.id === classId);
+        if (fromClasses) return fromClasses;
+        return allNodes?.find(n => n.id === classId);
       })
-      // Exclude the implicit "page" type (all pages have it)
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
-  }, [node?.types, allTypes, allNodes]);
+      // Exclude the implicit "page" class (all pages have it)
+      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
+  }, [node?.classes, allClasses, allNodes]);
   
-  // Resolve page tag details from IDs (excluding type definitions)
+  // Resolve page tag details from IDs (excluding class definitions)
   const pageTagDetails = useMemo(() => {
     if (!node?.tags || node.tags.length === 0) return [];
     return node.tags
@@ -226,38 +227,38 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       })
       .filter((t): t is Node => {
         if (t === undefined) return false;
-        // Hide type definitions (they shouldn't show as tags)
-        if (t.is_type) return false;
+        // Hide class definitions (they shouldn't show as tags)
+        if (t.is_class) return false;
         return true;
       });
   }, [node?.tags, allTags, allNodes]);
   
-  // Handle adding a type via NodePillRow
-  const handleAddType = useCallback((typeNode: Node) => {
+  // Handle adding a class via NodePillRow
+  const handleAddClass = useCallback((classNode: Node) => {
     if (!node) return;
-    addType.mutate({ nodeId: node.id, typeId: typeNode.id });
-  }, [node, addType]);
+    addClass.mutate({ nodeId: node.id, classId: classNode.id });
+  }, [node, addClass]);
   
-  // Handle creating a new type via NodePillRow
-  const handleCreateType = useCallback((name: string) => {
+  // Handle creating a new class via NodePillRow
+  const handleCreateClass = useCallback((name: string) => {
     if (!node) return;
-    const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
-    // Create as both a page AND a type so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_type: true }, {
+    const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
+    // Create as both a page AND a class so it shows up in @ menu
+    createNode.mutate({ name, is_page: true, is_class: true }, {
       onSuccess: (newPage) => {
-        addType.mutate({ nodeId: node.id, typeId: newPage.id });
-        if (typeType) {
-          addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+        addClass.mutate({ nodeId: node.id, classId: newPage.id });
+        if (classClass) {
+          addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
         }
       }
     });
-  }, [node, createNode, addType, allTypes]);
+  }, [node, createNode, addClass, allClasses]);
   
-  // Handle removing a type via NodePillRow
-  const handleRemoveType = useCallback((typeNode: Node) => {
+  // Handle removing a class via NodePillRow
+  const handleRemoveClass = useCallback((classNode: Node) => {
     if (!node) return;
-    removeType.mutate({ nodeId: node.id, typeId: typeNode.id });
-  }, [node, removeType]);
+    removeClass.mutate({ nodeId: node.id, classId: classNode.id });
+  }, [node, removeClass]);
   
   // Handle adding a tag via NodePillRow
   const handleAddTag = useCallback((tagNode: Node) => {
@@ -282,13 +283,13 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
   }, [node, removeTag]);
   
-  // Handle color change for type/tag nodes via NodePillRow
+  // Handle color change for class/tag nodes via NodePillRow
   const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
     updateNode.mutate({ id: targetNode.id, data: { color } });
   }, [updateNode]);
   
-  // Check if node is used as a type
-  const { data: typedNodes } = useNodesWithType(node?.id ?? 0);
+  // Check if node is used as a class
+  const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
   
   // Section metadata hooks
   const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
@@ -296,8 +297,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   // Linked references toolbar state (for external rendering in section header)
   const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
   
-  // Typed nodes section toolbar state (for external rendering in section header)
-  const typedNodesToolbarState = useTypedNodesSectionState(node?.id ?? 0);
+  // Classed nodes section toolbar state (for external rendering in section header)
+  const classedNodesToolbarState = useClassedNodesSectionState(node?.id ?? 0);
   
   // Child pages section toolbar state (for external rendering in section header)
   const childPagesToolbarState = useChildPagesSectionState(node?.id ?? 0, node?.children?.filter(c => c.is_page));
@@ -313,11 +314,11 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = nodeType ?? (node?.is_page ? 'page' : 'block');
   
-  // A node is a "type node" if it's in the types list OR has nodes using it as their type
-  const isTypeNode = useMemo(() => {
+  // A node is a "class node" if it's in the classes list OR has nodes using it as their class
+  const isClassNode = useMemo(() => {
     if (!node) return false;
-    return (allTypes?.some(t => t.id === node.id) || (typedNodes && typedNodes.length > 0)) ?? false;
-  }, [node, allTypes, typedNodes]);
+    return (allClasses?.some(t => t.id === node.id) || (classedNodes && classedNodes.length > 0)) ?? false;
+  }, [node, allClasses, classedNodes]);
   
   // Find the cover property by UUID
   const coverProperty = useMemo(() => {
@@ -369,8 +370,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     const pages: Node[] = [];
     
     for (const child of node.children) {
-      // Skip children with this node as their type (they appear in TypedNodesView)
-      if (child.types?.includes(node.id)) continue;
+      // Skip children with this node as their class (they appear in ClassedNodesView)
+      if (child.classes?.includes(node.id)) continue;
       
       // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
       if (textPropertyBlockIds.has(child.id)) continue;
@@ -489,19 +490,19 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 2: Types */}
+            {/* Row 2: Classes */}
             <div className="page-header-section__types">
               <NodePillRow
-                nodes={pageTypeDetails}
-                searchMode="types"
-                emptyText="Add type"
-                searchPlaceholder="Search types..."
+                nodes={pageClassDetails}
+                searchMode="classes"
+                emptyText="Add class"
+                searchPlaceholder="Search classes..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemoveType}
+                onRemove={handleRemoveClass}
                 onColorChange={handleNodeColorChange}
-                onAdd={handleAddType}
-                onCreateNew={handleCreateType}
-                canRemove={(n) => !isSystemTypeUuid(n.uuid)}
+                onAdd={handleAddClass}
+                onCreateNew={handleCreateClass}
+                canRemove={(n) => !isSystemClassUuid(n.uuid)}
               />
             </div>
             
@@ -562,9 +563,9 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       
 
       
-      {/* Type properties definition - only for type nodes (pages used as types) */}
-      {isTypeNode && resolvedType === 'page' && (
-        <TypePropertiesEditor typeNodeId={node.id} />
+      {/* Class properties definition - only for class nodes (pages used as classes) */}
+      {isClassNode && resolvedType === 'page' && (
+        <ClassPropertiesEditor classNodeId={node.id} />
       )}
       
       {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
@@ -596,21 +597,21 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         </>
       )}
       
-      {/* Show nodes that have this node as their type - only for type nodes */}
-      {isTypeNode && (
+      {/* Show nodes that have this node as their class - only for class nodes */}
+      {isClassNode && (
         <NodeViewSection
           title="Nodes"
           icon={<TableIcon size="sm" />}
-          count={typedNodes?.length ?? 0}
+          count={classedNodes?.length ?? 0}
           defaultExpanded={true}
           hideWhenEmpty={true}
-          headerActions={<TypedNodesSectionToolbar state={typedNodesToolbarState} />}
+          headerActions={<ClassedNodesSectionToolbar state={classedNodesToolbarState} />}
         >
-          <TypedNodesView 
-            typeId={node.id} 
-            typeName={node.name || 'Untitled'} 
+          <ClassedNodesView 
+            classId={node.id} 
+            className_={node.name || 'Untitled'} 
             hideToolbar={true}
-            toolbarState={typedNodesToolbarState}
+            toolbarState={classedNodesToolbarState}
           />
         </NodeViewSection>
       )}

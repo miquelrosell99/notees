@@ -1,15 +1,15 @@
 /**
- * Type Extends Editor styles
+ * Class Properties Editor styles
  */
 
-.type-extends-editor {
+.class-properties-editor {
   padding: var(--spacing-3);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface-variant);
 }
 
-.type-extends-title {
+.class-properties-title {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -18,14 +18,14 @@
   color: var(--color-on-surface);
 }
 
-.type-extends-list {
+.class-properties-list {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
   margin-bottom: var(--spacing-3);
 }
 
-.type-extends-item {
+.class-property-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -35,22 +35,21 @@
   border: 1px solid var(--color-outline-variant);
 }
 
-.type-extends-name {
+.class-property-name {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  background: none;
-  border: none;
   font: var(--font-body-medium);
-  color: var(--color-primary);
-  cursor: pointer;
+  color: var(--color-on-surface);
 }
 
-.type-extends-name:hover {
-  text-decoration: underline;
+.class-property-type {
+  margin-left: var(--spacing-2);
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
 }
 
-.type-extends-remove {
+.class-property-remove {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -64,24 +63,24 @@
   font-size: 1.25rem;
 }
 
-.type-extends-remove:hover {
+.class-property-remove:hover {
   background: var(--color-error-container);
 }
 
-.type-extends-empty {
+.class-properties-empty {
   margin: 0;
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
   font-style: italic;
 }
 
-.type-extends-picker {
+.class-properties-picker {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
 }
 
-.type-extends-search {
+.class-properties-search {
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--color-outline);
   border-radius: var(--shape-small);
@@ -89,12 +88,12 @@
   background: var(--color-surface);
 }
 
-.type-extends-search:focus {
+.class-properties-search:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.type-extends-options {
+.class-properties-options {
   max-height: 200px;
   overflow-y: auto;
   display: flex;
@@ -102,7 +101,7 @@
   gap: var(--spacing-1);
 }
 
-.type-extends-option {
+.class-property-option {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -116,12 +115,12 @@
   text-align: left;
 }
 
-.type-extends-option:hover {
+.class-property-option:hover {
   background: var(--color-primary-container);
   border-color: var(--color-primary);
 }
 
-.type-extends-no-results {
+.class-properties-no-results {
   margin: 0;
   padding: var(--spacing-2);
   font: var(--font-body-small);
@@ -129,8 +128,8 @@
   text-align: center;
 }
 
-.type-extends-cancel,
-.type-extends-add-btn {
+.class-properties-cancel,
+.class-properties-add-btn {
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
@@ -140,14 +139,14 @@
   cursor: pointer;
 }
 
-.type-extends-add-btn:hover {
+.class-properties-add-btn:hover {
   background: var(--color-primary-container);
 }
 
-.type-extends-cancel {
+.class-properties-cancel {
   color: var(--color-on-surface-variant);
 }
 
-.type-extends-cancel:hover {
+.class-properties-cancel:hover {
   background: var(--color-surface-variant);
 }

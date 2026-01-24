@@ -24,7 +24,7 @@ from .domain.repositories import (
     PostgresNodeRepository,
     PostgresPropertyRepository,
     PostgresLinkRepository,
-    PostgresInlineTypeRepository,
+    PostgresInlineClassRepository,
     PostgresUserRepository,
     NodeRepository,
     PropertyRepository,
@@ -33,23 +33,23 @@ from .domain.repositories import (
 
 
 async def _get_system_ids(conn: asyncpg.Connection, graph_id: int) -> tuple[int, int]:
-    """Get system IDs for page type and types property.
+    """Get system IDs for page class and classes property.
     
-    Returns (page_type_id, types_property_id).
+    Returns (page_class_id, classes_property_id).
     """
     row = await conn.fetchrow(
-        "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND graph_id = $1 LIMIT 1",
+        "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
         graph_id
     )
-    page_type_id = row['id'] if row else 1
+    page_class_id = row['id'] if row else 1
     
     row = await conn.fetchrow(
-        "SELECT id FROM property WHERE name = 'types' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
+        "SELECT id FROM property WHERE name = 'classes' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
         graph_id
     )
-    types_property_id = row['id'] if row else 1
+    classes_property_id = row['id'] if row else 1
     
-    return page_type_id, types_property_id
+    return page_class_id, classes_property_id
 
 
 @asynccontextmanager
@@ -81,8 +81,8 @@ async def get_node_repository(
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
-        page_type_id, types_property_id = await _get_system_ids(conn, graph_id)
-        yield PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+        page_class_id, classes_property_id = await _get_system_ids(conn, graph_id)
+        yield PostgresNodeRepository(pool, graph_id, page_class_id, classes_property_id, user_id)
 
 
 async def get_property_repository(
@@ -109,16 +109,20 @@ async def get_link_repository(
         yield PostgresLinkRepository(pool, graph_id, user_id)
 
 
-async def get_inline_type_repository(
+async def get_inline_class_repository(
     user: User = Depends(get_current_user)
-) -> AsyncGenerator[PostgresInlineTypeRepository, None]:
-    """Get an InlineTypeRepository for the current user's graph."""
+) -> AsyncGenerator[PostgresInlineClassRepository, None]:
+    """Get an InlineClassRepository for the current user's graph."""
     pool = await get_pool()
     user_id = int(user.id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
-        yield PostgresInlineTypeRepository(pool, graph_id, user_id)
+        yield PostgresInlineClassRepository(pool, graph_id, user_id)
+
+
+# Backwards compatibility alias
+get_inline_type_repository = get_inline_class_repository
 
 
 async def get_user_repository() -> AsyncGenerator[PostgresUserRepository, None]:
@@ -139,25 +143,25 @@ class RepositoryBundle:
         self,
         pool: asyncpg.Pool,
         graph_id: int,
-        page_type_id: int,
-        types_property_id: int,
+        page_class_id: int,
+        classes_property_id: int,
         user_id: int,
     ):
         self.pool = pool
         self.graph_id = graph_id
-        self.page_type_id = page_type_id
-        self.types_property_id = types_property_id
+        self.page_class_id = page_class_id
+        self.classes_property_id = classes_property_id
         self.user_id = user_id
         self._node_repo: Optional[PostgresNodeRepository] = None
         self._property_repo: Optional[PostgresPropertyRepository] = None
         self._link_repo: Optional[PostgresLinkRepository] = None
-        self._inline_type_repo: Optional[PostgresInlineTypeRepository] = None
+        self._inline_class_repo: Optional[PostgresInlineClassRepository] = None
     
     @property
     def node(self) -> PostgresNodeRepository:
         if self._node_repo is None:
             self._node_repo = PostgresNodeRepository(
-                self.pool, self.graph_id, self.page_type_id, self.types_property_id, self.user_id
+                self.pool, self.graph_id, self.page_class_id, self.classes_property_id, self.user_id
             )
         return self._node_repo
     
@@ -174,10 +178,15 @@ class RepositoryBundle:
         return self._link_repo
     
     @property
-    def inline_type(self) -> PostgresInlineTypeRepository:
-        if self._inline_type_repo is None:
-            self._inline_type_repo = PostgresInlineTypeRepository(self.pool, self.graph_id, self.user_id)
-        return self._inline_type_repo
+    def inline_class(self) -> PostgresInlineClassRepository:
+        if self._inline_class_repo is None:
+            self._inline_class_repo = PostgresInlineClassRepository(self.pool, self.graph_id, self.user_id)
+        return self._inline_class_repo
+    
+    # Backwards compatibility alias
+    @property
+    def inline_type(self) -> PostgresInlineClassRepository:
+        return self.inline_class
 
 
 async def get_repositories(
@@ -193,5 +202,5 @@ async def get_repositories(
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
-        page_type_id, types_property_id = await _get_system_ids(conn, graph_id)
-        yield RepositoryBundle(pool, graph_id, page_type_id, types_property_id, user_id)
+        page_class_id, classes_property_id = await _get_system_ids(conn, graph_id)
+        yield RepositoryBundle(pool, graph_id, page_class_id, classes_property_id, user_id)

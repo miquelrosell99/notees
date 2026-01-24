@@ -28,7 +28,7 @@ export const nodeKeys = {
   search: (query: string) => [...nodeKeys.all, 'search', query] as const,
   pages: () => [...nodeKeys.all, 'pages'] as const,
   tags: () => [...nodeKeys.all, 'tags'] as const,
-  types: () => [...nodeKeys.all, 'types'] as const,
+  classes: () => [...nodeKeys.all, 'classes'] as const,
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
   
@@ -47,9 +47,9 @@ export const propertyKeys = {
   list: (type?: string) => [...propertyKeys.lists(), { type }] as const,
   detail: (id: number) => [...propertyKeys.all, 'detail', id] as const,
   forTag: (tagId: number) => [...propertyKeys.all, 'tag', tagId] as const,
-  forType: (typeId: number) => [...propertyKeys.all, 'type', typeId] as const,
-  forTypeInherited: (typeId: number) => [...propertyKeys.all, 'type-inherited', typeId] as const,
-  typeExtends: (typeId: number) => [...propertyKeys.all, 'type-extends', typeId] as const,
+  forClass: (classId: number) => [...propertyKeys.all, 'class', classId] as const,
+  forClassInherited: (classId: number) => [...propertyKeys.all, 'class-inherited', classId] as const,
+  classExtends: (classId: number) => [...propertyKeys.all, 'class-extends', classId] as const,
 };
 
 // ==================== Comment Query Keys ====================

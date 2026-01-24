@@ -15,26 +15,28 @@
  * - "Create new" option detection
  */
 import { useMemo } from 'react';
-import { useSearch, usePages, useNodes, useTypes, useSearchTypes } from './useNodes';
+import { useSearch, usePages, useNodes, useClasses, useSearchClasses } from './useNodes';
 import type { Node } from '@/types';
 
-export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'types' | 'tags';
+export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags';
 
 export interface NodeSearchFilters {
   /** What types of nodes to include */
   mode?: NodeSearchMode;
-  /** Tag IDs to filter by (nodes must have at least one of these types) */
-  tagFilters?: number[];
+  /** Class IDs to filter by (nodes must have at least one of these classes) */
+  classFilters?: number[];
   /** Node ID to exclude from results (e.g., self-reference) */
   excludeNodeId?: number;
   /** Maximum number of results per section */
   maxResults?: number;
+  /** @deprecated Use classFilters instead */
+  tagFilters?: number[];
 }
 
 export interface NodeSearchItem {
   node: Node;
   displayName: string;
-  section: 'page' | 'block' | 'type';
+  section: 'page' | 'block' | 'class';
 }
 
 export interface UseNodeSearchReturn {
@@ -62,13 +64,13 @@ export interface UseNodeSearchReturn {
  * const { pageResults, blockResults } = useNodeSearch(query);
  * 
  * @example
- * // Type selection (for @ trigger)
- * const { pageResults } = useNodeSearch(query, { mode: 'types' });
+ * // Class selection (for @ trigger)
+ * const { pageResults } = useNodeSearch(query, { mode: 'classes' });
  * 
  * @example
- * // With tag filters (for property pickers)
+ * // With class filters (for property pickers)
  * const { allResults } = useNodeSearch(query, { 
- *   tagFilters: property.tag_filters 
+ *   classFilters: property.class_filters 
  * });
  */
 export function useNodeSearch(
@@ -77,7 +79,7 @@ export function useNodeSearch(
 ): UseNodeSearchReturn {
   const {
     mode = 'all',
-    tagFilters = [],
+    classFilters = filters.tagFilters ?? [], // Support both new and deprecated prop
     excludeNodeId,
     maxResults = 10,
   } = filters;
@@ -89,40 +91,40 @@ export function useNodeSearch(
     mode === 'all' || mode === 'blocks' ? {} : null
   );
   
-  // Type-specific queries (only enabled when mode is 'types')
-  const { data: allTypeNodes } = useTypes();
-  const { data: typeSearchResults, isLoading: isTypeSearchLoading } = useSearchTypes(
-    mode === 'types' ? query : ''
+  // Class-specific queries (only enabled when mode is 'classes')
+  const { data: allClassNodes } = useClasses();
+  const { data: classSearchResults, isLoading: isClassSearchLoading } = useSearchClasses(
+    mode === 'classes' ? query : ''
   );
 
   // Filter and organize results
   const { pageResults, blockResults } = useMemo(() => {
-    // Helper to check if a node is a type definition (has is_type flag)
-    const isTypeDef = (node: Node) => node.is_type === true;
+    // Helper to check if a node is a class definition (has is_class flag)
+    const isClassDef = (node: Node) => node.is_class === true;
     
-    // Types mode - special handling for @ trigger
-    if (mode === 'types') {
+    // Classes mode - special handling for @ trigger
+    if (mode === 'classes') {
       const results = query.length > 0
-        ? (typeSearchResults ?? [])
-        : (allTypeNodes ?? []).slice(0, maxResults);
+        ? (classSearchResults ?? [])
+        : (allClassNodes ?? []).slice(0, maxResults);
 
       return {
         pageResults: results.map(node => ({
           node,
           displayName: node.name || 'Untitled',
-          section: 'type' as const,
+          section: 'class' as const,
         })),
         blockResults: [],
       };
     }
 
     // Tags mode - show all pages (tags are pages in Notees)
-    // Exclude nodes that are type definitions (they shouldn't appear as tags)
+    // Exclude nodes that are class definitions (they shouldn't appear as tags)
     if (mode === 'tags') {
       const results = (query.length > 0
         ? (searchResults ?? []).filter(n => n.is_page)
         : (allPages ?? []).slice(0, maxResults * 2)  // Get extra to account for filtering
-      ).filter(n => !isTypeDef(n)).slice(0, maxResults);
+      ).filter(n => !isClassDef(n)).slice(0, maxResults);
 
       return {
         pageResults: results.map(node => ({
@@ -174,15 +176,15 @@ export function useNodeSearch(
           ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
         ];
 
-    // Apply tag filters if provided (filter by assigned types)
-    // Now that list/search endpoints reliably populate `types`, we can use it directly
-    if (tagFilters.length > 0) {
+    // Apply class filters if provided (filter by assigned classes)
+    // Now that list/search endpoints reliably populate `classes`, we can use it directly
+    if (classFilters.length > 0) {
       baseResults = baseResults.filter(node => {
         // Always include pages
         if (node.is_page || node.parent_id === null) return true;
-        // Include nodes with matching type - types is now reliably populated
-        if (node.types && node.types.length > 0) {
-          return tagFilters.some(filterId => node.types!.includes(filterId));
+        // Include nodes with matching class - classes is now reliably populated
+        if (node.classes && node.classes.length > 0) {
+          return classFilters.some(filterId => node.classes!.includes(filterId));
         }
         return false;
       });
@@ -219,14 +221,14 @@ export function useNodeSearch(
 
     return { pageResults: pages, blockResults: blocks };
   }, [
-    mode,
+    effectiveMode,
     query,
     searchResults,
     allPages,
     allNodes,
-    allTypeNodes,
-    typeSearchResults,
-    tagFilters,
+    allClassNodes,
+    classSearchResults,
+    classFilters,
     excludeNodeId,
     maxResults,
   ]);
@@ -248,7 +250,7 @@ export function useNodeSearch(
     pageResults,
     blockResults,
     allResults,
-    isLoading: isSearchLoading || isTypeSearchLoading,
+    isLoading: isSearchLoading || isClassSearchLoading,
     showCreateOption,
   };
 }

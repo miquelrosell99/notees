@@ -79,7 +79,7 @@ export function SuggestionPopup({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Map SuggestionType to NodeSearchMode
-  const searchMode: NodeSearchMode = type === 'type' ? 'types' : type === 'tag' ? 'tags' : 'all';
+  const searchMode: NodeSearchMode = type === 'type' ? 'classes' : type === 'tag' ? 'tags' : 'all';
   
   // Use shared search hook
   const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(query, {

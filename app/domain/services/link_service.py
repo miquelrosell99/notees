@@ -10,10 +10,10 @@ Key concepts:
 
 2. Property-based links:
    - Text properties: Links appear in root block R or descendants T
-   - Node-type properties: Direct references where property owner B is the linker
+   - Node-class properties: Direct references where property owner B is the linker
 
-3. System property `types` is EXCLUDED from backlinks and path references
-   - A separate Types Path mechanism tracks inherited types
+3. System property `classes` is EXCLUDED from backlinks and path references
+   - A separate Classes Path mechanism tracks inherited classes
 
 4. Breadcrumbs include property provenance: T → property_name → B → … → page
 """
@@ -24,7 +24,7 @@ import json
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any, TYPE_CHECKING
 
-from ..entities import NodeLink, InlineType, BacklinkInfo
+from ..entities import NodeLink, InlineClass, InlineType, BacklinkInfo
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, LinkRepository, PropertyRepository
@@ -34,11 +34,15 @@ if TYPE_CHECKING:
 # Regex pattern for parsing links - unified [[nodeId]] format
 LINK_PATTERN = re.compile(r'\[\[(\d+)\]\]')
 
-# Regex pattern for parsing inline types - {{typeId}} format
-INLINE_TYPE_PATTERN = re.compile(r'\{\{(\d+)\}\}')
+# Regex pattern for parsing inline classes - {{classId}} format
+INLINE_CLASS_PATTERN = re.compile(r'\{\{(\d+)\}\}')
+
+# Backwards compatibility alias
+INLINE_TYPE_PATTERN = INLINE_CLASS_PATTERN
 
 # System property name to exclude from backlinks
-TYPES_PROPERTY_NAME = "types"
+CLASSES_PROPERTY_NAME = "classes"
+TYPES_PROPERTY_NAME = CLASSES_PROPERTY_NAME  # Backwards compatibility
 
 
 class LinkParsingService:
@@ -46,9 +50,9 @@ class LinkParsingService:
     
     Handles:
     - Text links: [[id]] syntax in node name field
-    - Inline types: {{id}} syntax in node name field
-    - Property links: Node-type property values (excluding system `types` property)
-    - Types Path: Inherited types from ancestors for queries
+    - Inline classes: {{id}} syntax in node name field
+    - Property links: Node-class property values (excluding system `classes` property)
+    - Classes Path: Inherited classes from ancestors for queries
     """
     
     def __init__(
@@ -56,14 +60,21 @@ class LinkParsingService:
         node_repository: NodeRepository,
         link_repository: LinkRepository,
         property_repository: Optional[PropertyRepository] = None,
+        classes_property_id: Optional[int] = None,
+        inline_class_repository: Optional[Any] = None,
+        # Backwards compatibility aliases
         types_property_id: Optional[int] = None,
         inline_type_repository: Optional[Any] = None,
     ):
         self._node_repo = node_repository
         self._link_repo = link_repository
         self._property_repo = property_repository
-        self._types_property_id = types_property_id
-        self._inline_type_repo = inline_type_repository
+        # Use new names or fall back to old names for backwards compatibility
+        self._classes_property_id = classes_property_id or types_property_id
+        self._inline_class_repo = inline_class_repository or inline_type_repository
+        # Backwards compatibility aliases
+        self._types_property_id = self._classes_property_id
+        self._inline_type_repo = self._inline_class_repo
     
     def parse_links(self, content: str) -> List[Tuple[int, int]]:
         """Parse content and extract all links.
@@ -83,23 +94,27 @@ class LinkParsingService:
         
         return links
     
-    def parse_inline_types(self, content: str) -> List[Tuple[int, int]]:
-        """Parse content and extract all inline type references.
+    def parse_inline_classes(self, content: str) -> List[Tuple[int, int]]:
+        """Parse content and extract all inline class references.
         
-        Returns list of tuples: (type_node_id, position)
-        Inline types use {{typeId}} format.
+        Returns list of tuples: (class_node_id, position)
+        Inline classes use {{classId}} format.
         """
-        inline_types = []
+        inline_classes = []
         
-        for match in INLINE_TYPE_PATTERN.finditer(content):
+        for match in INLINE_CLASS_PATTERN.finditer(content):
             try:
-                type_id = int(match.group(1))
+                class_id = int(match.group(1))
                 position = match.start()
-                inline_types.append((type_id, position))
+                inline_classes.append((class_id, position))
             except ValueError:
                 continue
         
-        return inline_types
+        return inline_classes
+    
+    # Backwards compatibility alias
+    def parse_inline_types(self, content: str) -> List[Tuple[int, int]]:
+        return self.parse_inline_classes(content)
 
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
@@ -310,57 +325,65 @@ class LinkParsingService:
         # asyncpg execute returns a status string like 'UPDATE 1'
         return result and 'UPDATE 0' not in result
     
-    async def update_inline_types(self, node_id: int, content: str) -> List[InlineType]:
-        """Parse content and update inline_type table for a node.
+    async def update_inline_classes(self, node_id: int, content: str) -> List[InlineClass]:
+        """Parse content and update inline_class table for a node.
         
-        This handles inline type references ({{typeId}} in content).
+        This handles inline class references ({{classId}} in content).
         
         Args:
-            node_id: The block containing the inline type references
+            node_id: The block containing the inline class references
             content: The text content to parse
             
         Returns:
-            List of created InlineType objects
+            List of created InlineClass objects
         """
-        if not self._inline_type_repo:
+        if not self._inline_class_repo:
             return []
         
-        # Remove existing inline types from this source
-        await self._inline_type_repo.delete_source_inline_types(node_id)
+        # Remove existing inline classes from this source
+        await self._inline_class_repo.delete_source_inline_classes(node_id)
         
-        # Parse new inline types
-        parsed = self.parse_inline_types(content)
+        # Parse new inline classes
+        parsed = self.parse_inline_classes(content)
         
-        created_inline_types = []
+        created_inline_classes = []
         
-        for type_id, position in parsed:
-            # Verify the type node exists
-            type_node = await self._node_repo.get_by_id(type_id)
-            if not type_node:
+        for class_id, position in parsed:
+            # Verify the class node exists
+            class_node = await self._node_repo.get_by_id(class_id)
+            if not class_node:
                 continue
             
-            inline_type = InlineType(
+            inline_class = InlineClass(
                 node_id=node_id,
-                type_id=type_id,
+                class_id=class_id,
                 position=position,
             )
-            created_type = await self._inline_type_repo.create(inline_type)
-            created_inline_types.append(created_type)
+            created_class = await self._inline_class_repo.create(inline_class)
+            created_inline_classes.append(created_class)
         
-        return created_inline_types
+        return created_inline_classes
     
-    async def get_inline_types_for_node(self, node_id: int) -> List[InlineType]:
-        """Get all inline type references for a node.
+    # Backwards compatibility alias
+    async def update_inline_types(self, node_id: int, content: str) -> List[InlineClass]:
+        return await self.update_inline_classes(node_id, content)
+    
+    async def get_inline_classes_for_node(self, node_id: int) -> List[InlineClass]:
+        """Get all inline class references for a node.
         
         Args:
             node_id: The source node ID
             
         Returns:
-            List of InlineType objects for this node
+            List of InlineClass objects for this node
         """
-        if not self._inline_type_repo:
+        if not self._inline_class_repo:
             return []
-        return await self._inline_type_repo.get_source_inline_types(node_id)
+        return await self._inline_class_repo.get_source_inline_classes(node_id)
+    
+    # Backwards compatibility alias
+    async def get_inline_types_for_node(self, node_id: int) -> List[InlineClass]:
+        return await self.get_inline_classes_for_node(node_id)
     
     async def update_property_links(
         self, 
@@ -368,10 +391,10 @@ class LinkParsingService:
         property_id: int,
         target_node_ids: List[int]
     ) -> List[NodeLink]:
-        """Update links for a node-type property.
+        """Update links for a node-class property.
         
-        For node-type properties, the property owner B is the explicit linker.
-        System property `types` is excluded from backlinks entirely.
+        For node-class properties, the property owner B is the explicit linker.
+        System property `classes` is excluded from backlinks entirely.
         
         Args:
             node_id: The property owner B
@@ -381,17 +404,17 @@ class LinkParsingService:
         Returns:
             List of created NodeLink objects
         """
-        # Check if this is the system `types` property - if so, skip entirely
-        if property_id == self._types_property_id:
-            # Types property is excluded from backlinks
+        # Check if this is the system `classes` property - if so, skip entirely
+        if property_id == self._classes_property_id:
+            # Classes property is excluded from backlinks
             # Delete any existing links for this property (cleanup)
             await self._delete_property_links(node_id, property_id)
             return []
         
         # Also check by property name if ID not set
-        if self._property_repo and self._types_property_id is None:
+        if self._property_repo and self._classes_property_id is None:
             prop = await self._property_repo.get_by_id(property_id)
-            if prop and prop.name == TYPES_PROPERTY_NAME:
+            if prop and prop.name == CLASSES_PROPERTY_NAME:
                 await self._delete_property_links(node_id, property_id)
                 return []
         
@@ -432,7 +455,7 @@ class LinkParsingService:
         - Property provenance if applicable
         - Breadcrumb path to page ancestor
         
-        System property `types` links are never included.
+        System property `classes` links are never included.
         """
         if not hasattr(self._link_repo, 'get_connection'):
             return []
@@ -454,7 +477,7 @@ class LinkParsingService:
             LEFT JOIN node page ON n.page_id = page.id
             WHERE nl.target_id = $1
               AND (p.name IS NULL OR p.name != $2)
-        """, target_node_id, TYPES_PROPERTY_NAME)
+        """, target_node_id, CLASSES_PROPERTY_NAME)
         
         backlinks = []
         
@@ -546,7 +569,7 @@ class LinkParsingService:
         
         This includes:
         - All text links from ancestors
-        - All property links from ancestors (excluding types)
+        - All property links from ancestors (excluding classes)
         
         Used for query semantics where descendants inherit references.
         """
@@ -565,24 +588,24 @@ class LinkParsingService:
         if not ancestor_ids:
             return []
         
-        # Get all links from all ancestors in one query (excluding types property)
+        # Get all links from all ancestors in one query (excluding classes property)
         rows = await pool.fetch("""
             SELECT DISTINCT nl.target_id
             FROM node_link nl
             LEFT JOIN property p ON nl.property_id = p.id
             WHERE nl.source_id = ANY($1)
               AND (p.name IS NULL OR p.name != $2)
-        """, ancestor_ids, TYPES_PROPERTY_NAME)
+        """, ancestor_ids, CLASSES_PROPERTY_NAME)
         
         return [row['target_id'] for row in rows]
     
-    async def update_types_path(self, node_id: int) -> List[int]:
-        """Compute and store the Types Path for a node.
+    async def update_classes_path(self, node_id: int) -> List[int]:
+        """Compute and store the Classes Path for a node.
         
         Uses the node_path closure table for efficient ancestor lookup.
         
-        Types Path = ordered list of type node IDs inherited from ancestors'
-        `types` properties.
+        Classes Path = ordered list of class node IDs inherited from ancestors'
+        `classes` properties.
         
         This is separate from backlinks and is used for filtering/queries.
         """
@@ -590,17 +613,17 @@ class LinkParsingService:
             return []
         
         pool = self._link_repo.get_connection()
-        types_path = []
+        classes_path = []
         
-        # Get own types first
-        if self._types_property_id:
+        # Get own classes first
+        if self._classes_property_id:
             rows = await pool.fetch("""
                 SELECT pvr.target_id
                 FROM property_value_relation pvr
                 WHERE pvr.node_id = $1 AND pvr.property_id = $2
                 ORDER BY pvr."order"
-            """, node_id, self._types_property_id)
-            types_path.extend(row['target_id'] for row in rows)
+            """, node_id, self._classes_property_id)
+            classes_path.extend(row['target_id'] for row in rows)
         
         # Get ancestor IDs using closure table (ordered from root to parent)
         try:
@@ -608,43 +631,51 @@ class LinkParsingService:
         except Exception:
             ancestor_ids = []
         
-        # Collect types from all ancestors in one query
-        if ancestor_ids and self._types_property_id:
+        # Collect classes from all ancestors in one query
+        if ancestor_ids and self._classes_property_id:
             rows = await pool.fetch("""
                 SELECT DISTINCT pvr.target_id
                 FROM property_value_relation pvr
                 WHERE pvr.node_id = ANY($1) AND pvr.property_id = $2
-            """, ancestor_ids, self._types_property_id)
+            """, ancestor_ids, self._classes_property_id)
             
             for row in rows:
-                if row['target_id'] not in types_path:
-                    types_path.append(row['target_id'])
+                if row['target_id'] not in classes_path:
+                    classes_path.append(row['target_id'])
         
-        # Store types_path
+        # Store classes_path (using existing column name for now)
         await pool.execute(
             "UPDATE node SET types_path = $1 WHERE id = $2",
-            json.dumps(types_path), node_id
+            json.dumps(classes_path), node_id
         )
         
-        return types_path
+        return classes_path
     
-    async def update_types_path_for_descendants(self, node_id: int) -> None:
-        """Update types_path for a node and all its descendants.
+    # Backwards compatibility alias
+    async def update_types_path(self, node_id: int) -> List[int]:
+        return await self.update_classes_path(node_id)
+    
+    async def update_classes_path_for_descendants(self, node_id: int) -> None:
+        """Update classes_path for a node and all its descendants.
         
         Uses the node_path closure table to efficiently get all descendants.
-        Called when a node's types change or when a node is reparented.
+        Called when a node's classes change or when a node is reparented.
         """
         # Get all descendant IDs using closure table (includes self)
         try:
             descendant_ids = await self._node_repo.get_descendants(node_id, include_self=True)
         except Exception:
             # Fallback to just updating the current node
-            await self.update_types_path(node_id)
+            await self.update_classes_path(node_id)
             return
         
-        # Update types_path for each descendant
+        # Update classes_path for each descendant
         for desc_id in descendant_ids:
-            await self.update_types_path(desc_id)
+            await self.update_classes_path(desc_id)
+    
+    # Backwards compatibility alias
+    async def update_types_path_for_descendants(self, node_id: int) -> None:
+        return await self.update_classes_path_for_descendants(node_id)
     
     def strip_links(self, content: str) -> str:
         """Remove link markup from content, leaving just the node IDs as text.
