@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 from ..entities import NodeView, generate_uuid
 from ..repositories import PostgresNodeViewRepository
 from ...db.schema.constants import (
-    DEFAULT_VIEW_TYPES, 
+    DEFAULT_VIEW_CLASSES, 
     DEFAULT_QUERY_BLOCK_TREE,
 )
 from ...logging_config import get_logger
@@ -107,13 +107,13 @@ class NodeViewService:
         
         Args:
             node_id: The node to create views for
-            view_types: Optional list of view types to create (defaults to DEFAULT_VIEW_TYPES)
+            view_types: Optional list of view types to create (defaults to DEFAULT_VIEW_CLASSES)
             
         Returns:
             List of created NodeViews
         """
         if view_types is None:
-            view_types = DEFAULT_VIEW_TYPES
+            view_types = DEFAULT_VIEW_CLASSES
         
         created_views = []
         
@@ -169,7 +169,7 @@ class NodeViewService:
         existing_types = {v.view_type for v in existing_views}
         
         # Create missing default views
-        missing_types = [vt for vt in DEFAULT_VIEW_TYPES if vt not in existing_types]
+        missing_types = [vt for vt in DEFAULT_VIEW_CLASSES if vt not in existing_types]
         
         if missing_types:
             await self.create_default_views(node_id, view_types=missing_types)
