@@ -209,15 +209,7 @@ async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict
     return result
 
 
-# Backwards compatibility alias
-_get_type_ids_batch = _get_class_ids_batch
-
-
 async def _get_node_service(user: User) -> NodeService:
-    """Get NodeService instance for user's graph.
-    
-    Uses PostgreSQL connection pool with graph context.
-    """
     import logging
     logger = logging.getLogger(__name__)
     

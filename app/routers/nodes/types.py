@@ -7,7 +7,7 @@ from .models import TypeRequest
 from .helpers import (
     _get_node_service,
     _node_to_response,
-    _get_type_ids_batch,
+    _get_class_ids_batch,
 )
 
 
@@ -38,10 +38,10 @@ async def list_types(
     
     # Batch fetch type_ids for all type nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
-        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else []) 
+        _node_to_response(n, types=class_ids_map.get(n.id, []) if n.id else []) 
         for n in nodes
     ]}
 
@@ -64,10 +64,10 @@ async def search_types(
     
     # Batch fetch type_ids
     node_ids = [n.id for n in pages if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
-        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
+        _node_to_response(n, types=class_ids_map.get(n.id, []) if n.id else [])
         for n in pages
     ]}
 
@@ -108,10 +108,10 @@ async def get_nodes_with_type(
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     return {"nodes": [
-        _node_to_response(n, types=type_ids_map.get(n.id, []) if n.id else [])
+        _node_to_response(n, types=class_ids_map.get(n.id, []) if n.id else [])
         for n in nodes
     ]}
 

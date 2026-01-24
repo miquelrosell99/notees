@@ -55,7 +55,6 @@ from .helpers import (
     _node_to_response,
     _get_class_ids,
     _get_class_ids_batch,
-    _get_type_ids_batch,  # Backwards compatibility alias
     _get_tag_ids,
     _get_tag_ids_batch,
 )
