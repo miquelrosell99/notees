@@ -244,13 +244,13 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 1.25rem;
+  padding: 1rem 1.25rem;
   background: none;
   border: none;
   cursor: pointer;
   text-align: left;
   color: inherit;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .db-management__card-content:hover {
@@ -261,6 +261,21 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.db-management__card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.db-management__card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .db-management__card-icon {
@@ -289,7 +304,7 @@
 }
 
 .db-management__card-name {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--color-on-surface);
 }
@@ -307,25 +322,13 @@
   gap: 0.2rem;
   font-size: 0.75rem;
   color: var(--color-on-surface-variant);
-  margin-top: auto;
-  padding-top: 0.75rem;
 }
 
-.db-management__card-footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-surface-container);
-  border-top: 1px solid var(--color-outline-variant);
-}
-
-.db-management__card-footer .btn {
+.db-management__card-actions .btn {
   opacity: 0.7;
 }
 
-.db-management__card-footer .btn:hover {
+.db-management__card-actions .btn:hover {
   opacity: 1;
 }
 

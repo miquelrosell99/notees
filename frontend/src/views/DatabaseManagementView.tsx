@@ -325,79 +325,71 @@ export function DatabaseManagementView({
                   interactive
                   selected={db.name === data?.active}
                 >
-                  <button
-                    className="db-management__card-content"
-                    onClick={() => handleSelectDatabase(db)}
-                  >
-                    <div className="db-management__card-header">
+                  <div className="db-management__card-header">
+                    <div className="db-management__card-title">
+                      <span className="db-management__card-name">{db.name}</span>
                       {db.name === data?.active && (
                         <span className="db-management__card-badge">Active</span>
                       )}
                     </div>
-                    <div className="db-management__card-body">
-                      <span className="db-management__card-name">{db.name}</span>
-                      <div className="db-management__card-stats">
-                        {db.page_count !== undefined && (
-                          <span>{db.page_count} pages</span>
-                        )}
-                        {db.node_count !== undefined && (
-                          <span>{db.node_count} nodes</span>
-                        )}
-                      </div>
+                    <div className="db-management__card-actions">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleExport(db.name)}
+                        title="Export"
+                      >
+                        <Icon path={mdiExport} size={0.7} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenRename(db.name)}
+                        title="Rename"
+                      >
+                        <EditIcon size="sm" />
+                      </Button>
+                      {deleteConfirm === db.name ? (
+                        <>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => deleteMutation.mutate(db.name)}
+                            title="Confirm delete"
+                          >
+                            <CheckIcon size="sm" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteConfirm(null)}
+                            title="Cancel"
+                          >
+                            <CloseIcon size="sm" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => setDeleteConfirm(db.name)}
+                          title="Delete"
+                          className="db-management__delete-btn"
+                        >
+                          <DeleteIcon size="sm" />
+                        </Button>
+                      )}
                     </div>
+                  </div>
+                  <button
+                    className="db-management__card-content"
+                    onClick={() => handleSelectDatabase(db)}
+                  >
                     <div className="db-management__card-meta">
                       <span>Created {formatDate(db.created_at)}</span>
                       <span>Modified {formatRelativeTime(db.updated_at)}</span>
                     </div>
                   </button>
-                  <div className="db-management__card-footer">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleExport(db.name)}
-                      title="Export"
-                    >
-                      <Icon path={mdiExport} size={0.7} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenRename(db.name)}
-                      title="Rename"
-                    >
-                      <EditIcon size="sm" />
-                    </Button>
-                    {deleteConfirm === db.name ? (
-                      <>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => deleteMutation.mutate(db.name)}
-                          title="Confirm delete"
-                        >
-                          <CheckIcon size="sm" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteConfirm(null)}
-                          title="Cancel"
-                        >
-                          <CloseIcon size="sm" />
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => setDeleteConfirm(db.name)}
-                        title="Delete"
-                        className="db-management__delete-btn"
-                      >
-                        <DeleteIcon size="sm" />
-                      </Button>
-                    )}
-                  </div>
                 </Card>
               ))}
             </div>
