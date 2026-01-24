@@ -196,9 +196,9 @@ class NodeService:
         """Delete a node and all its children.
         
         Before deleting, updates all nodes that link to this node:
-        - [[Page Name]] links are replaced with just "Page Name"
-        - ((uuid)) links are replaced with the block's content text
-        - Class/tag references are removed from properties but leave inline text
+        - [[nodeId]] links are replaced with the node's name
+        - {{nodeId}} inline class references are replaced with the node's name
+        - Property class/tag references are removed
         
         Works for both active and archived nodes.
         
@@ -223,8 +223,11 @@ class NodeService:
                 node_class = "month" if node.is_month else "year"
                 raise DatePageDeletionError(node_class, day_count)
         
-        # Get all backlinks to this node
+        # Get all backlinks to this node (from [[nodeId]] links)
         backlinks = await self._link_service.get_backlinks(node_id)
+        
+        # Track nodes we've updated to avoid double-processing
+        updated_nodes = set()
         
         # Update each source node to remove/replace the link
         for link in backlinks:
@@ -232,14 +235,11 @@ class NodeService:
             if not source_node or not source_node.name:
                 continue
             
-            # Determine link type based on whether target is a page or block
-            link_type = "page" if node.is_page else "block"
-            
             # Replace the link in the source node's content
             updated_content = await self._remove_link_from_content(
                 source_node.name,
                 node,
-                link_type
+                "page"  # link_type is no longer used but kept for signature compatibility
             )
             
             if updated_content != source_node.name:
@@ -248,12 +248,51 @@ class NodeService:
                     link.source_node_id,
                     NodeUpdateData(name=updated_content)
                 )
+                updated_nodes.add(link.source_node_id)
+        
+        # Also handle inline class references ({{nodeId}})
+        await self._replace_inline_class_references(node, updated_nodes)
         
         # Remove this node from any class/tag properties
         await self._remove_node_from_class_tag_properties(node_id)
         
         # Now delete the node itself
         return await self._node_repo.delete(node_id)
+    
+    async def _replace_inline_class_references(self, node: Node, already_updated: set) -> None:
+        """Replace inline class references ({{nodeId}}) with the node's name.
+        
+        Args:
+            node: The node being deleted
+            already_updated: Set of node IDs already processed (to avoid double updates)
+        """
+        if not self._link_service._inline_class_repo:
+            return
+        
+        # Get all nodes that reference this node as an inline class
+        inline_refs = await self._link_service._inline_class_repo.get_class_references(node.id)
+        
+        for ref in inline_refs:
+            if ref.node_id in already_updated:
+                # Already updated from backlinks processing
+                continue
+            
+            source_node = await self._node_repo.get_by_id(ref.node_id)
+            if not source_node or not source_node.name:
+                continue
+            
+            # Replace {{nodeId}} with the node's name
+            updated_content = await self._remove_link_from_content(
+                source_node.name,
+                node,
+                "class"
+            )
+            
+            if updated_content != source_node.name:
+                await self._node_repo.update(
+                    ref.node_id,
+                    NodeUpdateData(name=updated_content)
+                )
     
     async def _remove_link_from_content(
         self,
@@ -263,19 +302,22 @@ class NodeService:
     ) -> str:
         """Remove or replace a link in content with plain text.
         
-        For page links: [[Page Name]] -> Page Name
-        For block links: ((uuid)) -> (content text or empty)
+        Links are stored as [[nodeId]] format, inline classes as {{classId}}.
+        Both are replaced with the node's name.
         """
         import re
         
-        if link_class == 'page':
-            # Replace [[Page Name]] with just Page Name
-            pattern = re.compile(r'\[\[' + re.escape(target_node.name or '') + r'\]\]')
-            return pattern.sub(target_node.name or '', content)
-        else:
-            # Replace ((uuid)) with the block's text content or empty
-            pattern = re.compile(r'\(\(' + re.escape(target_node.uuid or '') + r'\)\)')
-            return pattern.sub(target_node.name or '', content)
+        result = content
+        
+        # Replace [[nodeId]] links with the node's name
+        link_pattern = re.compile(r'\[\[' + str(target_node.id) + r'\]\]')
+        result = link_pattern.sub(target_node.name or '', result)
+        
+        # Also replace {{nodeId}} inline class references with the node's name
+        class_pattern = re.compile(r'\{\{' + str(target_node.id) + r'\}\}')
+        result = class_pattern.sub(target_node.name or '', result)
+        
+        return result
     
     async def _remove_node_from_class_tag_properties(self, node_id: int) -> None:
         """Remove a node from any class/tag property values where it's referenced.
