@@ -8,7 +8,7 @@ from ...models import User
 from .helpers import (
     _get_node_service,
     _node_to_response,
-    _get_type_ids_batch,
+    _get_class_ids_batch,
 )
 
 
@@ -39,12 +39,12 @@ async def get_graph_data_endpoint(
         
         # Get types for each page
         page_ids = [row['id'] for row in page_rows]
-        type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, page_ids) if page_ids else {}
+        class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, page_ids) if page_ids else {}
         
         # Build nodes
         nodes = []
         for row in page_rows:
-            node_type_ids = type_ids_map.get(row['id'], [])
+            node_class_ids = class_ids_map.get(row['id'], [])
             nodes.append({
                 "id": row['id'],
                 "uuid": str(row['uuid']),
@@ -54,7 +54,7 @@ async def get_graph_data_endpoint(
                 "is_daily": row['is_day'],
                 "is_monthly": row['is_month'],
                 "is_yearly": row['is_year'],
-                "types": node_type_ids,
+                "types": node_class_ids,
             })
         
         # Get reference links between pages (only page-to-page links)
@@ -167,21 +167,21 @@ async def search_nodes(
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch type_ids for all nodes using PostgreSQL
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     # Build response, optionally filtering by types
     result = []
     for n in nodes:
         if n.id is None:
             continue
-        node_type_ids = type_ids_map.get(n.id, [])
+        node_class_ids = class_ids_map.get(n.id, [])
         
         # Apply type filter if specified
         if filter_type_ids:
-            if not filter_type_ids.intersection(node_type_ids):
+            if not filter_type_ids.intersection(node_class_ids):
                 continue
         
-        result.append(_node_to_response(n, types=node_type_ids))
+        result.append(_node_to_response(n, types=node_class_ids))
     
     return {"nodes": result}
 
@@ -225,20 +225,20 @@ async def list_nodes(
     
     # Batch fetch type_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
     # Build response, optionally filtering by types
     result = []
     for n in nodes:
         if n.id is None:
             continue
-        node_type_ids = type_ids_map.get(n.id, [])
+        node_class_ids = class_ids_map.get(n.id, [])
         
         # Apply type filter if specified
         if filter_type_ids:
-            if not filter_type_ids.intersection(node_type_ids):
+            if not filter_type_ids.intersection(node_class_ids):
                 continue
         
-        result.append(_node_to_response(n, types=node_type_ids))
+        result.append(_node_to_response(n, types=node_class_ids))
     
     return {"nodes": result}

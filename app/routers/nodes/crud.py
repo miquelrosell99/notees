@@ -22,10 +22,10 @@ from .models import (
 from .helpers import (
     _get_node_service,
     _node_to_response,
-    _get_type_ids,
+    _get_class_ids,
     _get_tag_ids,
     _get_tag_ids_batch,
-    _get_type_ids_batch,
+    _get_class_ids_batch,
     logger,
 )
 
@@ -159,7 +159,7 @@ async def get_node(
         raise HTTPException(404, "Node not found")
     
     # Get types for the node
-    type_ids = await _get_type_ids(service, node_id)
+    class_ids = await _get_class_ids(service, node_id)
     
     # Get tags for the node (from node_link with is_tag=1)
     tag_ids = await _get_tag_ids(service._pool, service._graph_id or 0, node_id)
@@ -169,28 +169,28 @@ async def get_node(
         page_type_id = service._page_type_id
         
         # Ensure page type is assigned
-        if page_type_id and page_type_id not in type_ids:
+        if page_type_id and page_type_id not in class_ids:
             await service.add_type(node_id, page_type_id, _system_call=True)
-            type_ids.append(page_type_id)
+            class_ids.append(page_type_id)
         
         # Ensure date-specific type is assigned
         if node.is_day:
             day_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
-            if day_type and day_type.id and day_type.id not in type_ids:
+            if day_type and day_type.id and day_type.id not in class_ids:
                 await service.add_type(node_id, day_type.id, _system_call=True)
-                type_ids.append(day_type.id)
+                class_ids.append(day_type.id)
         elif node.is_month:
             month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
-            if month_type and month_type.id and month_type.id not in type_ids:
+            if month_type and month_type.id and month_type.id not in class_ids:
                 await service.add_type(node_id, month_type.id, _system_call=True)
-                type_ids.append(month_type.id)
+                class_ids.append(month_type.id)
         elif node.is_year:
             year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
-            if year_type and year_type.id and year_type.id not in type_ids:
+            if year_type and year_type.id and year_type.id not in class_ids:
                 await service.add_type(node_id, year_type.id, _system_call=True)
-                type_ids.append(year_type.id)
+                class_ids.append(year_type.id)
     
-    response = _node_to_response(node, tags=tag_ids, types=type_ids)
+    response = _node_to_response(node, tags=tag_ids, types=class_ids)
     
     if include_children:
         pool = service._node_repo.get_connection()
