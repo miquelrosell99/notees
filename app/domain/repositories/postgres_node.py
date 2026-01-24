@@ -53,7 +53,7 @@ class PostgresNodeRepository(NodeRepository):
         """
         self._pool = pool
         self._graph_id = graph_id
-        self._page_type_id = page_type_id
+        self._page_class_id = page_type_id
         self._types_property_id = types_property_id
         self._user_id = user_id
         self._permissions: Optional[PermissionChecker] = None
@@ -285,8 +285,8 @@ class PostgresNodeRepository(NodeRepository):
                     raise RuntimeError("Failed to create node")
                 node_id = row['id']
                 
-                # Add types as property values
-                if data.types:
+                # Add classes as property values
+                if data.classes:
                     np_uuid = generate_uuid()
                     await conn.execute("""
                         INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
@@ -302,13 +302,13 @@ class PostgresNodeRepository(NodeRepository):
                         raise RuntimeError(f"Failed to create node_property for node {node_id}")
                     node_property_id = np_row['id']
                     
-                    for type_id in data.types:
+                    for class_id in data.classes:
                         pvr_uuid = generate_uuid()
                         await conn.execute("""
                             INSERT INTO property_value_relation 
                             (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
                             VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, type_id, now, uid)
+                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, class_id, now, uid)
         
         return Node(
             id=node_id,
@@ -382,8 +382,8 @@ class PostgresNodeRepository(NodeRepository):
                     raise RuntimeError("Failed to create node with UUID")
                 node_id = row['id']
                 
-                # Add types
-                if data.types:
+                # Add classes
+                if data.classes:
                     np_uuid = generate_uuid()
                     await conn.execute("""
                         INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
@@ -399,13 +399,13 @@ class PostgresNodeRepository(NodeRepository):
                         raise RuntimeError(f"Failed to create node_property for node {node_id}")
                     node_property_id = np_row['id']
                     
-                    for type_id in data.types:
+                    for class_id in data.classes:
                         pvr_uuid = generate_uuid()
                         await conn.execute("""
                             INSERT INTO property_value_relation 
                             (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
                             VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, type_id, now, uid)
+                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, class_id, now, uid)
         
         return Node(
             id=node_id,

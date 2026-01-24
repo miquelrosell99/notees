@@ -28,7 +28,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     This creates all tables, indexes, and triggers.
     Call this during application startup.
     """
-    # Execute schema
+    # Execute schema (creates tables if they don't exist)
     await conn.execute(SCHEMA_SQL)
     
     # Rebuild the node_path closure table to ensure consistency
