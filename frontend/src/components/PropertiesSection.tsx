@@ -21,14 +21,14 @@ import {
   useTypeProperties,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import type { Property, Node, TypeProperty, PropertyType } from '@/types/api';
+import type { Property, Node, TypeProperty } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
 import { Button } from './core/Button';
 import { NodePicker } from './nodes/NodePicker';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
-import { PropertyPickerModal } from './properties/PropertyPickerModal';
+import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { PropertyConfigPanel } from './properties/PropertyConfigPanel';
 import { Bullet } from './blocks/Bullet';
 import { NodeViewSection } from './nodes/NodeViewSection';
@@ -260,7 +260,8 @@ export function PropertiesSection({
 }: PropertiesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
-  const [showPickerModal, setShowPickerModal] = useState(false);
+  const [showPropertyPopup, setShowPropertyPopup] = useState(false);
+  const [propertyPopupPosition, setPropertyPopupPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [configPanelPosition, setConfigPanelPosition] = useState<{ x: number; y: number } | undefined>();
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
@@ -395,18 +396,23 @@ export function PropertiesSection({
         break;
     }
     setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: defaultValue });
-    setShowPickerModal(false);
+    setShowPropertyPopup(false);
   }, [nodeId, setPropertyMutation]);
 
-  // Handler for creating a new property
-  const handleCreateProperty = useCallback((name: string, type: PropertyType, isLocal: boolean) => {
-    createPropertyMutation.mutate({ name, type, is_local: isLocal }, {
+  // Handler for creating a new property (always text type by default)
+  const handleCreateNewProperty = useCallback((name: string) => {
+    setShowPropertyPopup(false);
+    createPropertyMutation.mutate({ name, type: 'text', is_local: false }, {
       onSuccess: (newProperty) => {
-        // After creating the property, add it to this node with a default value
-        handleSelectProperty(newProperty);
+        // Add the property to this node with empty value
+        setPropertyMutation.mutate({ nodeId, propertyId: newProperty.id, value: '' });
+        // Open config panel to edit the newly created property
+        setConfigPanelPosition(propertyPopupPosition);
+        setEditingProperty(newProperty);
+        setShowConfigPanel(true);
       },
     });
-  }, [createPropertyMutation, handleSelectProperty]);
+  }, [createPropertyMutation, setPropertyMutation, nodeId, propertyPopupPosition]);
 
   // Handler for clicking on a property name to edit it
   const handlePropertyNameClick = useCallback((property: Property, event: React.MouseEvent) => {
@@ -492,18 +498,23 @@ export function PropertiesSection({
             <Button 
               icon={mdiPlus}
               className="properties-add-btn" 
-              onClick={() => setShowPickerModal(true)}
+              onClick={(e) => {
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                setPropertyPopupPosition({ top: rect.bottom + 4, left: rect.left });
+                setShowPropertyPopup(true);
+              }}
               title="Add property"
               size="sm"
               variant="ghost"
             >
               Add property
             </Button>
-            <PropertyPickerModal
-              isOpen={showPickerModal}
-              onClose={() => setShowPickerModal(false)}
+            <PropertySuggestionPopup
+              isOpen={showPropertyPopup}
+              position={propertyPopupPosition}
+              onClose={() => setShowPropertyPopup(false)}
               onSelect={handleSelectProperty}
-              onCreate={handleCreateProperty}
+              onCreate={handleCreateNewProperty}
               excludeIds={appliedPropertyIds}
             />
           </>
@@ -639,7 +650,11 @@ export function PropertiesSection({
             <Button 
               icon={mdiPlus}
               className="properties-add-btn" 
-              onClick={() => setShowPickerModal(true)}
+              onClick={(e) => {
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                setPropertyPopupPosition({ top: rect.bottom + 4, left: rect.left });
+                setShowPropertyPopup(true);
+              }}
               title="Add property"
               size="xs"
               variant="ghost"
@@ -649,12 +664,13 @@ export function PropertiesSection({
           </div>
         )}
 
-        {/* Property Picker Modal */}
-        <PropertyPickerModal
-          isOpen={showPickerModal}
-          onClose={() => setShowPickerModal(false)}
+        {/* Property Suggestion Popup */}
+        <PropertySuggestionPopup
+          isOpen={showPropertyPopup}
+          position={propertyPopupPosition}
+          onClose={() => setShowPropertyPopup(false)}
           onSelect={handleSelectProperty}
-          onCreate={handleCreateProperty}
+          onCreate={handleCreateNewProperty}
           excludeIds={appliedPropertyIds}
         />
 
