@@ -22,12 +22,16 @@ const BASE = '/nodes';
  * @param params.parent_id - Only return children of this node
  * @param params.tag_id - Only return nodes with this tag
  * @param params.type_filters - Comma-separated type IDs to filter by
+ * @param params.include_children - Include nested children for each node
+ * @param params.root_only - Only return root nodes (no parent)
  */
 export async function listNodes(params?: {
   pages_only?: boolean;
   parent_id?: number;
   tag_id?: number;
   type_filters?: string;
+  include_children?: boolean;
+  root_only?: boolean;
 }): Promise<Node[]> {
   // Use trailing slash to match FastAPI route
   const response = await api.get<NodesResponse>(`${BASE}/`, { params });

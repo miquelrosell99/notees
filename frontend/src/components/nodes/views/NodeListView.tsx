@@ -133,6 +133,7 @@ interface NodeListItemProps {
   showBullets: boolean;
   showIndentation: boolean;
   showBreadcrumbs: boolean;
+  showTypes: boolean;
   pagesOnly: boolean;
   siblings: Node[];
   parentBlock?: Node | null;
@@ -154,6 +155,7 @@ function NodeListItem({
   showBullets,
   showIndentation,
   showBreadcrumbs,
+  showTypes,
   pagesOnly,
   siblings,
   parentBlock,
@@ -310,6 +312,7 @@ function NodeListItem({
         variant="simple"
         node={node}
         showBullet={showBullets}
+        showTypes={showTypes}
         onClick={() => onNodeClick?.(node)}
         onShiftClick={() => onNodeShiftClick?.(node)}
         onBulletClick={() => onNodeClick?.(node)}
@@ -327,6 +330,7 @@ function NodeListItem({
               showBullets={showBullets}
               showIndentation={showIndentation}
               showBreadcrumbs={false}
+              showTypes={showTypes}
               pagesOnly={pagesOnly}
               siblings={children}
               parentBlock={node}
@@ -451,6 +455,7 @@ export function NodeListView({
   showBullets = true,
   showIndentation = true,
   showBreadcrumbs = true,
+  showTypes = false,
   pagesOnly = false,
   sortable = false,
   onReorder,
@@ -519,6 +524,7 @@ export function NodeListView({
                 showBullets={showBullets}
                 showIndentation={showIndentation}
                 showBreadcrumbs={false}
+                showTypes={showTypes}
                 pagesOnly={pagesOnly}
                 siblings={pages}
                 parentBlock={null}
@@ -573,6 +579,7 @@ export function NodeListView({
             showBullets={showBullets}
             showIndentation={showIndentation}
             showBreadcrumbs={showBreadcrumbs}
+            showTypes={showTypes}
             pagesOnly={pagesOnly}
             siblings={filteredNodes}
             parentBlock={null}
