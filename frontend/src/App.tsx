@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
-import { Layout } from './components/Layout';
+import { Layout } from './components/layout/Layout';
 import { LoginPage } from './views/LoginPage';
 import { DatabaseManagementView } from './views/DatabaseManagementView';
 import { listDatabases } from './api/databases';

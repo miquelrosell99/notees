@@ -10,9 +10,9 @@
 import { useCallback } from 'react';
 import { useNodesStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
-import { SidebarCardLocalGraph, SidebarCardNode } from './sidebarCards';
+import { SidebarCardLocalGraph, SidebarCardNode } from '.';
 import { SidebarContextSections } from './SidebarContextSections';
-import { Button } from './core/Button';
+import { Button } from '../core/Button';
 import './RightSidebarCards.css';
 
 /**

@@ -17,7 +17,7 @@ import {
 } from '@/api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore } from '@/stores';
 import { DatabaseModal } from '../components/databases/DatabaseModal';
-import { ImportOptionsModal } from '../components/ImportOptionsModal';
+import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
 import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
 import { 
   FolderIcon, 

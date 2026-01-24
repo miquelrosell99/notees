@@ -16,16 +16,16 @@ import { useEffect, useCallback, useRef, useState } from 'react';
 import { useNodesStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync } from '@/hooks';
 import { markPageOpened } from '@/api/nodes';
-import { Sidebar } from './Sidebar';
+import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
-import { RightSidebarCards } from './RightSidebarCards';
-import { GraphViewAllCard } from './graph';
-import { CommandPalette } from './CommandPalette';
-import { CommentsSidebar } from './CommentsSidebar';
+import { RightSidebarCards } from '../sidebar/RightSidebarCards';
+import { GraphViewAllCard } from '../graph';
+import { CommandPalette } from '../CommandPalette';
+import { CommentsSidebar } from '../sidebar/CommentsSidebar';
 import { mdiClose } from '@mdi/js';
-import { Card } from './core/Card';
-import { Button } from './core/Button';
+import { Card } from '../core/Card';
+import { Button } from '../core/Button';
 import './Layout.css';
 
 export function Layout() {

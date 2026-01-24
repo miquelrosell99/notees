@@ -119,6 +119,23 @@
   flex-shrink: 0;
 }
 
+/* Multi-select mode */
+.suggestion-popup--multi-select .suggestion-popup__item {
+  gap: var(--spacing-2);
+}
+
+.suggestion-popup__checkbox {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.suggestion-popup__section--selected {
+  background: var(--color-surface-container);
+  margin: 0 calc(-1 * var(--spacing-1));
+  padding: var(--spacing-1);
+  border-radius: 0;
+}
+
 .suggestion-popup__item-name {
   flex: 1;
   font: var(--font-body-small);

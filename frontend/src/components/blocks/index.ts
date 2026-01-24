@@ -21,9 +21,6 @@ export type { BlockCallbacks } from './BlockCallbacksContext';
 // Block drag preview
 export { BlockDrag } from './BlockDrag';
 export type { BlockDragProps } from './BlockDrag';
-// Legacy export (deprecated)
-export { BlockPreviewDrag } from './BlockPreviewDrag';
-export type { BlockPreviewDragProps, BlockPreviewDragVariant } from './BlockPreviewDrag';
 
 // Bullet component
 export { Bullet } from './Bullet';

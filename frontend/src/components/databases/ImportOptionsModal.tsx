@@ -9,7 +9,7 @@ import { useRef } from 'react';
 import './ImportOptionsModal.css';
 import Icon from '@mdi/react';
 import { mdiClose, mdiDatabaseImport, mdiFolderZipOutline } from '@mdi/js';
-import { Button } from './core/Button';
+import { Button } from '../core/Button';
 
 type ImportType = 'sqlite' | 'zip';
 

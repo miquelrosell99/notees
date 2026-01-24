@@ -20,7 +20,7 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
-import { SlashCommandPopup } from '../core/SlashCommandPopup';
+import { SlashCommandPopup } from '../SlashCommandPopup';
 import { useNodes, useTextLinks, useTypes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiTag } from '@mdi/js';

@@ -19,12 +19,12 @@ import {
 } from '@mdi/js';
 import { useNodesStore } from '@/stores';
 import { useDailyNote } from '@/hooks';
-import { Button } from './core/Button';
-import { ButtonWithPanel } from './core/ButtonWithPanel';
-import { CalendarPopup } from './core/CalendarPopup';
-import { QuickAddPanel } from './QuickAddPanel';
-import { Card } from './core/Card';
-import { Scratchpad } from './Scratchpad';
+import { Button } from '../core/Button';
+import { ButtonWithPanel } from '../core/ButtonWithPanel';
+import { CalendarPopup } from '../core/CalendarPopup';
+import { QuickAddPanel } from '../quickadd/QuickAddPanel';
+import { Card } from '../core/Card';
+import { Scratchpad } from '../Scratchpad';
 import './TopBar.css';
 
 export function TopBar() {

@@ -5,7 +5,7 @@
  * Shows the page name as the card title and renders GraphViewLocal in the content.
  */
 import { useNode } from '@/hooks';
-import { SidebarCard } from '../SidebarCard';
+import { SidebarCard } from './SidebarCard';
 import { GraphViewLocal } from '../graph';
 import './SidebarCardLocalGraph.css';
 

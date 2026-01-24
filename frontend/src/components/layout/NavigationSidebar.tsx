@@ -11,21 +11,21 @@ import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiGraphOutline, mdiCog } from '@mdi/js';
-import { DatabaseSwitcher } from './databases/DatabaseSwitcher';
-import { DatabaseModal } from './databases/DatabaseModal';
-import { SettingsModal } from './SettingsModal';
-import { Card } from './core/Card';
-import { Button } from './core/Button';
-import { ListSortable } from './core/ListSortable';
-import { Bullet } from './blocks/Bullet';
-import { BlockPreview } from './blocks/BlockPreview';
+import { DatabaseSwitcher } from '../databases/DatabaseSwitcher';
+import { DatabaseModal } from '../databases/DatabaseModal';
+import { SettingsModal } from '../SettingsModal';
+import { Card } from '../core/Card';
+import { Button } from '../core/Button';
+import { ListSortable } from '../core/ListSortable';
+import { Bullet } from '../blocks/Bullet';
+import { BlockPreview } from '../blocks/BlockPreview';
 import { 
   StarIcon,
   ClockIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-} from './icons';
-import './Sidebar.css';
+} from '../icons';
+import './NavigationSidebar.css';
 
 interface SidebarProps {
   collapsed: boolean;

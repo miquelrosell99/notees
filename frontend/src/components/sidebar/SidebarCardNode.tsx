@@ -6,8 +6,8 @@
  * - Blocks: No title in the header (empty)
  */
 import { useNode } from '@/hooks';
-import { SidebarCard } from '../SidebarCard';
-import { SidebarNodeView } from '../SidebarNodeView';
+import { SidebarCard } from './SidebarCard';
+import { SidebarNodeView } from './SidebarNodeView';
 import './SidebarCardNode.css';
 
 interface SidebarCardNodeProps {

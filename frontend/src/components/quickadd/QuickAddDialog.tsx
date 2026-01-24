@@ -12,8 +12,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePages, useSearch, useQuickAdd } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
-import { PageIcon, NodeIcon, AddIcon } from './icons';
-import { Button } from './core/Button';
+import { PageIcon, NodeIcon, AddIcon } from '../icons';
+import { Button } from '../core/Button';
 import './QuickAddDialog.css';
 
 interface QuickAddProps {

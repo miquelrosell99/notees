@@ -17,10 +17,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore } from '@/stores';
 import { useComments, useNodeActivity } from '@/hooks';
-import { NodeViewSection } from './nodes/NodeViewSection';
-import { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
-import { Button } from './core/Button';
-import { CommentIcon, ClockIcon, AddIcon } from './icons';
+import { NodeViewSection } from '../nodes/NodeViewSection';
+import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
+import { Button } from '../core/Button';
+import { CommentIcon, ClockIcon, AddIcon } from '../icons';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
 
