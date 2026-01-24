@@ -13,9 +13,9 @@ from datetime import datetime, timezone
 from ...domain.entities import generate_uuid
 from .constants import (
     SCHEMA_VERSION,
-    SYSTEM_TYPES,
-    SYSTEM_TYPE_UUIDS,
-    SYSTEM_TYPE_ICONS,
+    SYSTEM_CLASSES,
+    SYSTEM_CLASS_UUIDS,
+    SYSTEM_CLASS_ICONS,
     SYSTEM_PROPERTY_UUIDS,
     DEFAULT_PAGES,
 )
@@ -82,19 +82,19 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
         """, generate_uuid(), node_property_id, property_id, node_id, target_node_id, now, user_id)
     
-    # Create 'type' node
-    type_uuid = SYSTEM_TYPE_UUIDS["type"]
-    type_row = await conn.fetchrow("""
+    # Create 'class' node (renamed from 'type')
+    class_uuid = SYSTEM_CLASS_UUIDS["class"]
+    class_row = await conn.fetchrow("""
         INSERT INTO node (uuid, graph_id, name, is_type, is_page, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'type', TRUE, TRUE, $3, $3, $4, $4)
+        VALUES ($1, $2, 'class', TRUE, TRUE, $3, $3, $4, $4)
         RETURNING id
-    """, type_uuid, graph_id, now, user_id)
-    if type_row is None:
-        raise RuntimeError("Failed to create 'type' node")
-    type_node_id = type_row['id']
+    """, class_uuid, graph_id, now, user_id)
+    if class_row is None:
+        raise RuntimeError("Failed to create 'class' node")
+    class_node_id = class_row['id']
     
-    # Create 'page' type node
-    page_uuid = SYSTEM_TYPE_UUIDS["page"]
+    # Create 'page' class node
+    page_uuid = SYSTEM_CLASS_UUIDS["page"]
     page_row = await conn.fetchrow("""
         INSERT INTO node (uuid, graph_id, name, is_type, is_page, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, 'page', TRUE, TRUE, $3, $3, $4, $4)
@@ -116,12 +116,12 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         raise RuntimeError("Failed to create 'types' property")
     types_property_id = types_row['id']
     
-    # Set type filter for 'types' property
+    # Set type filter for 'types' property (class node filter)
     await conn.execute("""
         INSERT INTO property_type_filter (property_id, type_node_id)
         VALUES ($1, $2)
         ON CONFLICT DO NOTHING
-    """, types_property_id, type_node_id)
+    """, types_property_id, class_node_id)
     
     # Create other system properties
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
@@ -155,39 +155,39 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         raise RuntimeError("Failed to create 'banner' property")
     banner_property_id = banner_row['id']
     
-    # Assign types to 'type' node
-    await assign_relation_property(type_node_id, types_property_id, type_node_id)
-    await assign_relation_property(type_node_id, types_property_id, page_type_id)
+    # Assign classes to 'class' node
+    await assign_relation_property(class_node_id, types_property_id, class_node_id)
+    await assign_relation_property(class_node_id, types_property_id, page_type_id)
     
-    # Assign types to 'page' node
-    await assign_relation_property(page_type_id, types_property_id, type_node_id)
+    # Assign classes to 'page' node
+    await assign_relation_property(page_type_id, types_property_id, class_node_id)
     await assign_relation_property(page_type_id, types_property_id, page_type_id)
     
-    # Create remaining system types
+    # Create remaining system classes
     asset_type_id = None
     
-    for type_name in SYSTEM_TYPES:
-        if type_name in ("type", "page"):
+    for class_name in SYSTEM_CLASSES:
+        if class_name in ("class", "page"):
             continue
         
-        type_uuid = SYSTEM_TYPE_UUIDS.get(type_name, generate_uuid())
-        type_icon = SYSTEM_TYPE_ICONS.get(type_name)
+        class_uuid = SYSTEM_CLASS_UUIDS.get(class_name, generate_uuid())
+        class_icon = SYSTEM_CLASS_ICONS.get(class_name)
         
         row = await conn.fetchrow("""
             INSERT INTO node (uuid, graph_id, name, icon, is_type, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5, $6, $6)
             RETURNING id
-        """, type_uuid, graph_id, type_name, type_icon, now, user_id)
+        """, class_uuid, graph_id, class_name, class_icon, now, user_id)
         if row is None:
-            raise RuntimeError(f"Failed to create '{type_name}' type node")
-        new_type_id = row['id']
+            raise RuntimeError(f"Failed to create '{class_name}' class node")
+        new_class_id = row['id']
         
-        if type_name == "asset":
-            asset_type_id = new_type_id
+        if class_name == "asset":
+            asset_type_id = new_class_id
         
-        # Assign 'type' and 'page' types
-        await assign_relation_property(new_type_id, types_property_id, type_node_id)
-        await assign_relation_property(new_type_id, types_property_id, page_type_id)
+        # Assign 'class' and 'page' classes
+        await assign_relation_property(new_class_id, types_property_id, class_node_id)
+        await assign_relation_property(new_class_id, types_property_id, page_type_id)
     
     # Set type filter for 'cover' and 'banner' properties
     if asset_type_id:

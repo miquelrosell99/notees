@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError
-from ...db.schema import SYSTEM_TYPE_UUIDS
+from ...db.schema import SYSTEM_CLASS_UUIDS
 from ...db.connection import get_workspace_assets_dir
 from ..auth import get_current_user
 from ...models import User
@@ -175,17 +175,17 @@ async def get_node(
         
         # Ensure date-specific type is assigned
         if node.is_day:
-            day_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["day"])
+            day_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
             if day_type and day_type.id and day_type.id not in type_ids:
                 await service.add_type(node_id, day_type.id, _system_call=True)
                 type_ids.append(day_type.id)
         elif node.is_month:
-            month_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["month"])
+            month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
             if month_type and month_type.id and month_type.id not in type_ids:
                 await service.add_type(node_id, month_type.id, _system_call=True)
                 type_ids.append(month_type.id)
         elif node.is_year:
-            year_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["year"])
+            year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
             if year_type and year_type.id and year_type.id not in type_ids:
                 await service.add_type(node_id, year_type.id, _system_call=True)
                 type_ids.append(year_type.id)

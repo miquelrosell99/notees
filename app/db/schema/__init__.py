@@ -17,10 +17,10 @@ from .constants import (
     generate_month_uuid,
     generate_year_uuid,
     parse_date_uuid,
-    SYSTEM_TYPES,
+    SYSTEM_CLASSES,
     DEFAULT_PAGES,
-    SYSTEM_TYPE_UUIDS,
-    SYSTEM_TYPE_ICONS,
+    SYSTEM_CLASS_UUIDS,
+    SYSTEM_CLASS_ICONS,
     SYSTEM_PROPERTY_UUIDS,
     SYSTEM_PROPERTIES,
 )
@@ -41,10 +41,10 @@ from .init import (
 __all__ = [
     # Constants
     "SCHEMA_VERSION",
-    "SYSTEM_TYPES",
+    "SYSTEM_CLASSES",
     "DEFAULT_PAGES",
-    "SYSTEM_TYPE_UUIDS",
-    "SYSTEM_TYPE_ICONS",
+    "SYSTEM_CLASS_UUIDS",
+    "SYSTEM_CLASS_ICONS",
     "SYSTEM_PROPERTY_UUIDS",
     "SYSTEM_PROPERTIES",
     # Helper functions

@@ -34,8 +34,8 @@ from .schema import (
     generate_month_uuid,
     generate_year_uuid,
     parse_date_uuid,
-    SYSTEM_TYPES,
-    SYSTEM_TYPE_UUIDS,
+    SYSTEM_CLASSES,
+    SYSTEM_CLASS_UUIDS,
     SYSTEM_PROPERTY_UUIDS,
     SCHEMA_VERSION,
 )
@@ -66,8 +66,8 @@ __all__ = [
     "generate_month_uuid",
     "generate_year_uuid",
     "parse_date_uuid",
-    "SYSTEM_TYPES",
-    "SYSTEM_TYPE_UUIDS",
+    "SYSTEM_CLASSES",
+    "SYSTEM_CLASS_UUIDS",
     "SYSTEM_PROPERTY_UUIDS",
     "SCHEMA_VERSION",
 ]

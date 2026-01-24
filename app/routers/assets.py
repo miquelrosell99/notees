@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ..db.connection import get_pool, get_workspace_assets_dir
-from ..db.schema import get_or_create_user_graph, SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
+from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
 from ..domain.services import NodeService, LinkParsingService
@@ -103,7 +103,7 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
         # Get page type ID
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-            SYSTEM_TYPE_UUIDS['page'], graph_id
+            SYSTEM_CLASS_UUIDS['page'], graph_id
         )
         page_type_id = row['id'] if row else 1
         
@@ -135,7 +135,7 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
             # Give it the 'type' type itself
             type_row = await conn.fetchrow(
                 "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-                SYSTEM_TYPE_UUIDS['type'], graph_id
+                SYSTEM_CLASS_UUIDS['class'], graph_id
             )
             if type_row:
                 # Create node_property assignment first

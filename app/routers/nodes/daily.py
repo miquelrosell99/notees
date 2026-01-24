@@ -8,7 +8,7 @@ from ...db.schema import (
     generate_day_uuid, 
     generate_month_uuid, 
     generate_year_uuid,
-    SYSTEM_TYPE_UUIDS,
+    SYSTEM_CLASS_UUIDS,
 )
 from ..auth import get_current_user
 from ...models import User
@@ -91,7 +91,7 @@ async def get_or_create_daily(
         uuid = generate_day_uuid(d)
         
         # Get type IDs by UUID (needed for both existing and new pages)
-        day_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["day"])
+        day_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
         if not day_type:
             raise HTTPException(500, "Day type not found")
         day_type_id = day_type.id
@@ -112,14 +112,14 @@ async def get_or_create_daily(
                 type_ids.append(day_type_id)
             return _node_to_response(existing, types=type_ids)
         
-        month_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["month"])
+        month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
         if not month_type:
             raise HTTPException(500, "Month type not found")
         month_type_id = month_type.id
         if month_type_id is None:
             raise HTTPException(500, "Month type has no ID")
         
-        year_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["year"])
+        year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
         if not year_type:
             raise HTTPException(500, "Year type not found")
         year_type_id = year_type.id
@@ -203,7 +203,7 @@ async def get_or_create_monthly(
     uuid = generate_month_uuid(year, month)
     
     # Get type IDs by UUID (needed for both existing and new pages)
-    month_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["month"])
+    month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
     if not month_type:
         raise HTTPException(500, "Month type not found")
     month_type_id = month_type.id
@@ -223,7 +223,7 @@ async def get_or_create_monthly(
             type_ids.append(month_type_id)
         return _node_to_response(existing, types=type_ids)
     
-    year_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["year"])
+    year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
     if not year_type:
         raise HTTPException(500, "Year type not found")
     year_type_id = year_type.id
@@ -276,7 +276,7 @@ async def get_or_create_yearly(
     uuid = generate_year_uuid(year)
     
     # Get year type by UUID (needed for both existing and new pages)
-    year_type = await service._node_repo.get_by_uuid(SYSTEM_TYPE_UUIDS["year"])
+    year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
     if not year_type:
         raise HTTPException(500, "Year type not found")
     
