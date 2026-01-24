@@ -8,7 +8,7 @@
  * Supports right-click to show a color picker for changing the node's color.
  */
 import { useState, useCallback } from 'react';
-import { Pill } from './Pill';
+import { Pill } from './core/Pill';
 import { NodeIcon, CloseIcon } from './icons';
 import { ColorPickerRow } from './nodes/NodeContextMenu';
 import type { Node } from '@/types';

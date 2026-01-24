@@ -3,10 +3,10 @@
  */
 
 // Layout components
-export { Layout } from './Layout';
-export { TopBar } from './TopBar';
-export { Sidebar } from './Sidebar';
-export { MainContent } from './MainContent';
+export { Layout } from './layout/Layout';
+export { TopBar } from './layout/TopBar';
+export { Sidebar } from './layout/NavigationSidebar';
+export { MainContent } from './layout/MainContent';
 
 // Auth components
 export { LoginPage } from '../views/LoginPage';
@@ -31,9 +31,6 @@ export { BlockPreview } from './blocks/BlockPreview';
 export type { BlockPreviewProps } from './blocks/BlockPreview';
 export { BlockDrag } from './blocks/BlockDrag';
 export type { BlockDragProps } from './blocks/BlockDrag';
-// Legacy export (deprecated)
-export { BlockPreviewDrag } from './blocks/BlockPreviewDrag';
-export type { BlockPreviewDragProps, BlockPreviewDragVariant } from './blocks/BlockPreviewDrag';
 export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
 export { ImageBlock } from './blocks/ImageBlock';
@@ -43,8 +40,8 @@ export { TextPropertyBlock } from './blocks/TextPropertyBlock';
 export { BoxSelect } from './core/BoxSelect';
 export { SuggestionPopup } from './SuggestionPopup';
 export type { SuggestionPopupProps, SuggestionType } from './SuggestionPopup';
-export { SlashCommandPopup } from './core/SlashCommandPopup';
-export type { SlashCommandPopupProps, SlashCommand } from './core/SlashCommandPopup';
+export { SlashCommandPopup } from './SlashCommandPopup';
+export type { SlashCommandPopupProps, SlashCommand } from './SlashCommandPopup';
 
 // List components
 export { TagList, TaggedNodes } from './TagList';
@@ -82,9 +79,9 @@ export { Card, Panel } from './core/Card';
 export type { CardProps, CardElevation, CardVariant, PanelProps, PanelElevation } from './core/Card';
 export { SearchBox } from './SearchBox';
 export { CalendarPopup } from './core/CalendarPopup';
-export { QuickAddDialog } from './QuickAddDialog';
+export { QuickAddDialog } from './quickadd/QuickAddDialog';
 export { QuickAddPanel } from './QuickAddPanel';
-export { SidebarCard } from './SidebarCard';
+export { SidebarCard } from './sidebar/SidebarCard';
 export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
 
@@ -134,8 +131,8 @@ export type {
 // View components
 export { AllPagesView } from '../views/AllPagesView';
 export { JournalsView } from '../views/JournalsView';
-export { SidebarNodeView } from './SidebarNodeView';
-export { CommentsSidebar } from './CommentsSidebar';
+export { SidebarNodeView } from './sidebar/SidebarNodeView';
+export { CommentsSidebar } from './sidebar/CommentsSidebar';
 // CalendarView, ChartView, GanttView, QueryView - not yet implemented
 export { PropertyNodesView } from './PropertyNodesView';
 export type { PropertyNodesViewProps, PropertyViewMode } from './PropertyNodesView';
@@ -148,7 +145,7 @@ export { SettingsModal } from './SettingsModal';
 export { ConfirmationModal } from './core/ConfirmationModal';
 export { DatabaseModal } from './databases/DatabaseModal';
 export { DatabaseNameModal } from './databases/DatabaseNameModal';
-export { ImportOptionsModal } from './ImportOptionsModal';
+export { ImportOptionsModal } from './databases/ImportOptionsModal';
 export { DatabaseSwitcher } from './databases/DatabaseSwitcher';
 export { DatabaseManagementView } from '../views/DatabaseManagementView';
 export { AssetUploadModal } from './assets/AssetUploadModal';
@@ -201,7 +198,7 @@ export { NodeTableView } from './nodes/views/NodeTableView';
 export { NodeGanttView } from './nodes/views/NodeGanttView';
 
 // Query builder components
-export { QueryBlockBuilder } from './QueryBlockBuilder';
+export { QueryBlockBuilder } from './queries';
 export { NodeViewTabs } from './NodeViewTabs';
 export type { ViewType } from './NodeViewTabs';
 

@@ -9,9 +9,9 @@
 import type { ReactNode } from 'react';
 import { mdiClose } from '@mdi/js';
 import './SidebarCard.css';
-import { AlertIcon } from './icons';
-import { Button } from './core/Button';
-import { Card } from './core/Card';
+import { AlertIcon } from '../icons';
+import { Button } from '../core/Button';
+import { Card } from '../core/Card';
 
 interface SidebarCardProps {
   /** Card title */

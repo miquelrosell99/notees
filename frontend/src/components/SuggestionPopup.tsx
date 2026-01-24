@@ -9,6 +9,11 @@
  * Enter: Add to property only (for @ and #) or insert link (for [[)
  * Ctrl+Enter: Add to property AND keep inline
  * 
+ * Multi-select mode:
+ * - Shows checkboxes next to each item
+ * - Selected items are accumulated at the top
+ * - Used for query filters, types list, and tags list
+ * 
  * NOTE: Moved out of core/ - has domain knowledge (Node type, useNodeSearch hook)
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -16,6 +21,7 @@ import './SuggestionPopup.css';
 import { useNodeSearch, type NodeSearchMode } from '@/hooks';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon } from './icons';
+import { Checkbox } from './core/Checkbox';
 
 export type SuggestionType = 'type' | 'tag' | 'link';
 
@@ -36,6 +42,18 @@ export interface SuggestionPopupProps {
   onCreate?: (name: string, keepInline: boolean) => void;
   /** Node ID to exclude from link results (used for non-page blocks) */
   excludeNodeId?: number;
+  /** Enable multi-select mode with checkboxes */
+  multiSelect?: boolean;
+  /** Currently selected node IDs (for multi-select mode) */
+  selectedIds?: Set<number>;
+  /** Callback to toggle selection (for multi-select mode) */
+  onToggleSelect?: (node: Node) => void;
+  /** Custom header text (overrides default based on type) */
+  headerText?: string;
+  /** Custom header icon (overrides default based on type) */
+  headerIcon?: string;
+  /** All available nodes for multi-select mode (used to show selected items) */
+  allNodes?: Node[];
 }
 
 /**
@@ -50,6 +68,12 @@ export function SuggestionPopup({
   onClose,
   onCreate,
   excludeNodeId,
+  multiSelect = false,
+  selectedIds = new Set(),
+  onToggleSelect,
+  headerText,
+  headerIcon,
+  allNodes = [],
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,18 +88,29 @@ export function SuggestionPopup({
     maxResults: 10,
   });
   
-  // Combined list for navigation
-  const allItems = useMemo(() => {
-    return [...pageResults, ...blockResults];
-  }, [pageResults, blockResults]);
+  // Get selected nodes from allNodes for multi-select mode
+  const selectedNodes = useMemo(() => {
+    if (!multiSelect || selectedIds.size === 0) return [];
+    return allNodes.filter(n => selectedIds.has(n.id));
+  }, [multiSelect, selectedIds, allNodes]);
   
-  // Total selectable items (results + possibly create option)
-  const totalItems = allItems.length + (showCreateOption ? 1 : 0);
+  // Combined list for navigation (in multi-select mode, exclude already selected)
+  const allItems = useMemo(() => {
+    const items = [...pageResults, ...blockResults];
+    if (multiSelect) {
+      return items.filter(item => !selectedIds.has(item.node.id));
+    }
+    return items;
+  }, [pageResults, blockResults, multiSelect, selectedIds]);
+  
+  // Total selectable items (selected at top + results + possibly create option)
+  const selectedCount = multiSelect ? selectedNodes.length : 0;
+  const totalItems = selectedCount + allItems.length + (showCreateOption ? 1 : 0);
   
   // Reset selection when results change
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [allItems.length, query]);
+    setSelectedIndex(multiSelect ? selectedCount : 0);
+  }, [allItems.length, query, multiSelect, selectedCount]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -99,9 +134,22 @@ export function SuggestionPopup({
         e.stopPropagation();
         const keepInline = e.ctrlKey;
         
-        if (selectedIndex < allItems.length) {
+        // In multi-select mode, handle selected items at top
+        if (multiSelect && selectedIndex < selectedCount) {
+          // Toggle off a selected item
+          onToggleSelect?.(selectedNodes[selectedIndex]);
+          return;
+        }
+        
+        const adjustedIndex = multiSelect ? selectedIndex - selectedCount : selectedIndex;
+        
+        if (adjustedIndex < allItems.length) {
           // Select existing item
-          onSelect(allItems[selectedIndex].node, keepInline);
+          if (multiSelect && onToggleSelect) {
+            onToggleSelect(allItems[adjustedIndex].node);
+          } else {
+            onSelect(allItems[adjustedIndex].node, keepInline);
+          }
         } else if (showCreateOption && onCreate) {
           // Create new item
           onCreate(query.trim(), keepInline);
@@ -120,7 +168,7 @@ export function SuggestionPopup({
         onClose();
         break;
     }
-  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose]);
+  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect]);
   
   // Attach keyboard listener
   useEffect(() => {
@@ -172,15 +220,38 @@ export function SuggestionPopup({
   
   if (!isOpen) return null;
   
-  // Calculate indices for each section
-  const pageStartIndex = 0;
-  const blockStartIndex = pageResults.length;
-  const createIndex = allItems.length;
+  // Calculate indices for each section (accounting for selected items at top in multi-select)
+  const selectedStartIndex = 0;
+  const pageStartIndex = selectedCount;
+  const blockStartIndex = selectedCount + (multiSelect ? allItems.filter(i => pageResults.some(p => p.node.id === i.node.id)).length : pageResults.length);
+  const createIndex = selectedCount + allItems.length;
+  
+  // Helper to get icon for item
+  const renderItemIcon = (node: Node, isPage: boolean) => {
+    if (type === 'type') {
+      return <NodeIcon icon={node.icon} isPage={true} size="sm" />;
+    } else if (type === 'tag') {
+      return <TagIcon size="sm" />;
+    } else if (isPage) {
+      return <NodeIcon icon={node.icon} isPage={true} size="sm" />;
+    } else {
+      return <BulletIcon size="sm" />;
+    }
+  };
+  
+  // Handle item click (different behavior for multi-select)
+  const handleItemClick = (node: Node) => {
+    if (multiSelect && onToggleSelect) {
+      onToggleSelect(node);
+    } else {
+      onSelect(node, false);
+    }
+  };
   
   return (
     <div
       ref={containerRef}
-      className="suggestion-popup"
+      className={`suggestion-popup ${multiSelect ? 'suggestion-popup--multi-select' : ''}`}
       style={{
         position: 'fixed',
         top: adjustedPosition.top,
@@ -189,7 +260,12 @@ export function SuggestionPopup({
       }}
     >
       <div className="suggestion-popup__header">
-        {type === 'type' ? (
+        {headerText ? (
+          <>
+            {headerIcon && <span className="suggestion-popup__icon">{headerIcon}</span>}
+            <span>{headerText}</span>
+          </>
+        ) : type === 'type' ? (
           <>
             <span className="suggestion-popup__icon">@</span>
             <span>Set type</span>
@@ -210,14 +286,45 @@ export function SuggestionPopup({
       <div className="suggestion-popup__list">
         {isLoading && query.length > 0 ? (
           <div className="suggestion-popup__loading">Searching...</div>
-        ) : allItems.length === 0 && !showCreateOption ? (
+        ) : allItems.length === 0 && !showCreateOption && selectedNodes.length === 0 ? (
           <div className="suggestion-popup__empty">
             {query ? 'No matches found' : 'Start typing to search'}
           </div>
         ) : (
           <>
-            {/* Pages Section */}
-            {type === 'link' && (pageResults.length > 0 || showCreateOption) && (
+            {/* Selected items section (multi-select mode only) */}
+            {multiSelect && selectedNodes.length > 0 && (
+              <div className="suggestion-popup__section suggestion-popup__section--selected">
+                <div className="suggestion-popup__section-header">Selected</div>
+                {selectedNodes.map((node, index) => {
+                  const globalIndex = selectedStartIndex + index;
+                  return (
+                    <button
+                      key={node.id}
+                      className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                      onClick={() => handleItemClick(node)}
+                      onMouseEnter={() => setSelectedIndex(globalIndex)}
+                    >
+                      <Checkbox
+                        checked={true}
+                        size="sm"
+                        readOnly
+                        className="suggestion-popup__checkbox"
+                      />
+                      <span className="suggestion-popup__item-icon">
+                        {renderItemIcon(node, node.is_page)}
+                      </span>
+                      <span className="suggestion-popup__item-name">
+                        {node.name || 'Untitled'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Pages Section - link mode */}
+            {type === 'link' && !multiSelect && (pageResults.length > 0 || showCreateOption) && (
               <div className="suggestion-popup__section">
                 {pageResults.length > 0 && (
                   <div className="suggestion-popup__section-header">Pages</div>
@@ -261,8 +368,8 @@ export function SuggestionPopup({
               </div>
             )}
             
-            {/* Blocks Section - only show if there are results */}
-            {type === 'link' && blockResults.length > 0 && (
+            {/* Blocks Section - link mode, only show if there are results */}
+            {type === 'link' && !multiSelect && blockResults.length > 0 && (
               <div className="suggestion-popup__section">
                 <div className="suggestion-popup__section-header">Blocks</div>
                 {blockResults.map((item, index) => {
@@ -286,29 +393,46 @@ export function SuggestionPopup({
               </div>
             )}
             
-            {/* For type/tag mode - show flat list */}
-            {type !== 'link' && pageResults.map((item, index) => (
-              <button
-                key={item.node.id}
-                className={`suggestion-popup__item ${index === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
-                onClick={() => onSelect(item.node, false)}
-                onMouseEnter={() => setSelectedIndex(index)}
-              >
-                <span className="suggestion-popup__item-icon">
-                  {type === 'type' ? (
-                    <NodeIcon icon={item.node.icon} isPage={true} size="sm" />
-                  ) : (
-                    <TagIcon size="sm" />
-                  )}
-                </span>
-                <span className="suggestion-popup__item-name">
-                  {item.displayName}
-                </span>
-              </button>
-            ))}
+            {/* For type/tag mode OR multi-select mode - show flat list with checkboxes */}
+            {(type !== 'link' || multiSelect) && allItems.length > 0 && (
+              <div className="suggestion-popup__section">
+                {multiSelect && allItems.length > 0 && (
+                  <div className="suggestion-popup__section-header">
+                    {query ? 'Results' : 'Available'}
+                  </div>
+                )}
+                {allItems.map((item, index) => {
+                  const globalIndex = pageStartIndex + index;
+                  const isChecked = multiSelect && selectedIds.has(item.node.id);
+                  return (
+                    <button
+                      key={item.node.id}
+                      className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                      onClick={() => handleItemClick(item.node)}
+                      onMouseEnter={() => setSelectedIndex(globalIndex)}
+                    >
+                      {multiSelect && (
+                        <Checkbox
+                          checked={isChecked}
+                          size="sm"
+                          readOnly
+                          className="suggestion-popup__checkbox"
+                        />
+                      )}
+                      <span className="suggestion-popup__item-icon">
+                        {renderItemIcon(item.node, item.node.is_page)}
+                      </span>
+                      <span className="suggestion-popup__item-name">
+                        {item.displayName}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             
-            {/* Create option for type/tag mode */}
-            {type !== 'link' && showCreateOption && onCreate && (
+            {/* Create option for type/tag mode (non-multi-select) */}
+            {type !== 'link' && !multiSelect && showCreateOption && onCreate && (
               <button
                 className={`suggestion-popup__item suggestion-popup__item--create ${
                   selectedIndex === pageResults.length ? 'suggestion-popup__item--selected' : ''
@@ -324,12 +448,34 @@ export function SuggestionPopup({
                 </span>
               </button>
             )}
+            
+            {/* Create option for multi-select mode */}
+            {multiSelect && showCreateOption && onCreate && (
+              <button
+                className={`suggestion-popup__item suggestion-popup__item--create ${
+                  selectedIndex === createIndex ? 'suggestion-popup__item--selected' : ''
+                }`}
+                onClick={() => onCreate(query.trim(), false)}
+                onMouseEnter={() => setSelectedIndex(createIndex)}
+              >
+                <span className="suggestion-popup__item-icon">
+                  <AddIcon size="sm" />
+                </span>
+                <span className="suggestion-popup__item-name">
+                  Create "{query.trim()}"
+                </span>
+              </button>
+            )}
           </>
         )}
       </div>
       
       <div className="suggestion-popup__footer">
-        {type === 'link' ? (
+        {multiSelect ? (
+          <span className="suggestion-popup__hint">
+            Click to select/deselect
+          </span>
+        ) : type === 'link' ? (
           <span className="suggestion-popup__hint">
             <kbd>Enter</kbd> insert link
           </span>
