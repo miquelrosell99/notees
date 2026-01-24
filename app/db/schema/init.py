@@ -102,26 +102,26 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     """, page_uuid, graph_id, now, user_id)
     if page_row is None:
         raise RuntimeError("Failed to create 'page' node")
-    page_type_id = page_row['id']
+    page_class_id = page_row['id']
     
-    # Create 'types' property (global, not graph-specific)
-    types_prop_uuid = SYSTEM_PROPERTY_UUIDS["types"]
-    types_row = await conn.fetchrow("""
+    # Create 'classes' property (global, not graph-specific)
+    classes_prop_uuid = SYSTEM_PROPERTY_UUIDS["classes"]
+    classes_row = await conn.fetchrow("""
         INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, 'types', 'node', TRUE, TRUE, $2, $2, $3, $3)
+        VALUES ($1, 'classes', 'node', TRUE, TRUE, $2, $2, $3, $3)
         ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, types_prop_uuid, now, user_id)
-    if types_row is None:
-        raise RuntimeError("Failed to create 'types' property")
-    types_property_id = types_row['id']
+    """, classes_prop_uuid, now, user_id)
+    if classes_row is None:
+        raise RuntimeError("Failed to create 'classes' property")
+    classes_property_id = classes_row['id']
     
-    # Set type filter for 'types' property (class node filter)
+    # Set class filter for 'classes' property (class node filter)
     await conn.execute("""
         INSERT INTO property_type_filter (property_id, type_node_id)
         VALUES ($1, $2)
         ON CONFLICT DO NOTHING
-    """, types_property_id, class_node_id)
+    """, classes_property_id, class_node_id)
     
     # Create other system properties
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
@@ -156,12 +156,12 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     banner_property_id = banner_row['id']
     
     # Assign classes to 'class' node
-    await assign_relation_property(class_node_id, types_property_id, class_node_id)
-    await assign_relation_property(class_node_id, types_property_id, page_type_id)
+    await assign_relation_property(class_node_id, classes_property_id, class_node_id)
+    await assign_relation_property(class_node_id, classes_property_id, page_class_id)
     
     # Assign classes to 'page' node
-    await assign_relation_property(page_type_id, types_property_id, class_node_id)
-    await assign_relation_property(page_type_id, types_property_id, page_type_id)
+    await assign_relation_property(page_class_id, classes_property_id, class_node_id)
+    await assign_relation_property(page_class_id, classes_property_id, page_class_id)
     
     # Create remaining system classes
     asset_type_id = None
@@ -186,8 +186,8 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             asset_type_id = new_class_id
         
         # Assign 'class' and 'page' classes
-        await assign_relation_property(new_class_id, types_property_id, class_node_id)
-        await assign_relation_property(new_class_id, types_property_id, page_type_id)
+        await assign_relation_property(new_class_id, classes_property_id, class_node_id)
+        await assign_relation_property(new_class_id, classes_property_id, page_class_id)
     
     # Set type filter for 'cover' and 'banner' properties
     if asset_type_id:
@@ -213,8 +213,8 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             raise RuntimeError(f"Failed to create '{page_name}' page")
         new_page_id = row['id']
         
-        # Assign 'page' type
-        await assign_relation_property(new_page_id, types_property_id, page_type_id)
+        # Assign 'page' class
+        await assign_relation_property(new_page_id, classes_property_id, page_class_id)
 
 
 async def create_graph_for_user(
