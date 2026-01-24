@@ -77,15 +77,15 @@ class PostgresNodeRepository(NodeRepository):
     
     def _row_to_node(self, row: asyncpg.Record) -> Node:
         """Convert database row to Node entity."""
-        # Parse JSONB types_path
-        types_path = row.get('types_path', [])
-        if types_path is None:
-            types_path = []
-        elif isinstance(types_path, str):
+        # Parse JSONB classes_path
+        classes_path = row.get('classes_path', [])
+        if classes_path is None:
+            classes_path = []
+        elif isinstance(classes_path, str):
             try:
-                types_path = json.loads(types_path)
+                classes_path = json.loads(classes_path)
             except (json.JSONDecodeError, TypeError):
-                types_path = []
+                classes_path = []
         
         # Convert timestamps to ISO strings if they're datetime objects
         create_date = row['create_date']
@@ -126,7 +126,7 @@ class PostgresNodeRepository(NodeRepository):
             create_uid=row.get('create_uid'),
             write_uid=row.get('write_uid'),
             usable_in=row.get('usable_in', 'both'),
-            types_path=types_path,
+            classes_path=classes_path,
             version=row.get('version', 1),
         )
     

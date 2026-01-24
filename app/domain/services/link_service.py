@@ -643,17 +643,13 @@ class LinkParsingService:
                 if row['target_id'] not in classes_path:
                     classes_path.append(row['target_id'])
         
-        # Store classes_path (using existing column name for now)
+        # Store classes_path
         await pool.execute(
-            "UPDATE node SET types_path = $1 WHERE id = $2",
+            "UPDATE node SET classes_path = $1 WHERE id = $2",
             json.dumps(classes_path), node_id
         )
         
         return classes_path
-    
-    # Backwards compatibility alias
-    async def update_types_path(self, node_id: int) -> List[int]:
-        return await self.update_classes_path(node_id)
     
     async def update_classes_path_for_descendants(self, node_id: int) -> None:
         """Update classes_path for a node and all its descendants.
@@ -672,10 +668,6 @@ class LinkParsingService:
         # Update classes_path for each descendant
         for desc_id in descendant_ids:
             await self.update_classes_path(desc_id)
-    
-    # Backwards compatibility alias
-    async def update_types_path_for_descendants(self, node_id: int) -> None:
-        return await self.update_classes_path_for_descendants(node_id)
     
     def strip_links(self, content: str) -> str:
         """Remove link markup from content, leaving just the node IDs as text.
