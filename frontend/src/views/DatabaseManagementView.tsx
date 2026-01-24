@@ -20,8 +20,6 @@ import { DatabaseModal } from '../components/databases/DatabaseModal';
 import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
 import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
 import { 
-  FolderIcon, 
-  FolderOpenIcon, 
   CheckIcon, 
   CloseIcon, 
   DeleteIcon,
@@ -332,9 +330,6 @@ export function DatabaseManagementView({
                     onClick={() => handleSelectDatabase(db)}
                   >
                     <div className="db-management__card-header">
-                      <span className="db-management__card-icon">
-                        {db.name === data?.active ? <FolderOpenIcon size="lg" /> : <FolderIcon size="lg" />}
-                      </span>
                       {db.name === data?.active && (
                         <span className="db-management__card-badge">Active</span>
                       )}
