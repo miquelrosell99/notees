@@ -102,16 +102,6 @@ async def get_or_create_daily(
         if page_type_id is None:
             raise HTTPException(500, "Page type not configured")
         
-        # Check if exists
-        existing = await service._node_repo.get_by_uuid(uuid)
-        if existing:
-            # Ensure day type is assigned (for legacy pages created before types were added)
-            class_ids = await _get_class_ids(service, existing.id) if existing.id else []
-            if day_type_id not in class_ids and existing.id is not None:
-                await service.add_type(existing.id, day_type_id, _system_call=True)
-                class_ids.append(day_type_id)
-            return _node_to_response(existing, classes=class_ids)
-        
         month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
         if not month_type:
             raise HTTPException(500, "Month type not found")
@@ -134,7 +124,7 @@ async def get_or_create_daily(
             )
         date_format = row["value"] if row else "YYYY/MM/DD"
         
-        # 1. Ensure year page exists
+        # 1. Ensure year page exists (always, even for existing day pages)
         year_uuid = generate_year_uuid(d.year)
         year_node = await service._node_repo.get_by_uuid(year_uuid)
         if not year_node:
@@ -146,7 +136,7 @@ async def get_or_create_daily(
             )
             year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
         
-        # 2. Ensure month page exists (with year as parent)
+        # 2. Ensure month page exists (always, even for existing day pages)
         month_uuid = generate_month_uuid(d.year, d.month)
         month_node = await service._node_repo.get_by_uuid(month_uuid)
         if not month_node:
@@ -163,6 +153,20 @@ async def get_or_create_daily(
             # Update parent_id if not set correctly
             await service.update_node(month_node.id, NodeUpdateData(parent_id=year_node.id))
             month_node = await service._node_repo.get_by_uuid(month_uuid)
+        
+        # Check if day page exists
+        existing = await service._node_repo.get_by_uuid(uuid)
+        if existing:
+            # Ensure day type is assigned (for legacy pages created before types were added)
+            class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+            if day_type_id not in class_ids and existing.id is not None:
+                await service.add_type(existing.id, day_type_id, _system_call=True)
+                class_ids.append(day_type_id)
+            # Ensure parent_id is set to month (for legacy pages)
+            if existing.parent_id != month_node.id and existing.id is not None and month_node:
+                await service.update_node(existing.id, NodeUpdateData(parent_id=month_node.id))
+                existing = await service._node_repo.get_by_uuid(uuid)
+            return _node_to_response(existing, classes=class_ids)
         
         # 3. Create day page with month as parent
         name = _format_date_with_pattern(d.year, d.month, d.day, date_format)
@@ -214,15 +218,6 @@ async def get_or_create_monthly(
     if page_type_id is None:
         raise HTTPException(500, "Page type not configured")
     
-    existing = await service._node_repo.get_by_uuid(uuid)
-    if existing:
-        # Ensure month type is assigned (for legacy pages created before types were added)
-        class_ids = await _get_class_ids(service, existing.id) if existing.id else []
-        if month_type_id not in class_ids and existing.id is not None:
-            await service.add_type(existing.id, month_type_id, _system_call=True)
-            class_ids.append(month_type_id)
-        return _node_to_response(existing, classes=class_ids)
-    
     year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
     if not year_type:
         raise HTTPException(500, "Year type not found")
@@ -230,7 +225,7 @@ async def get_or_create_monthly(
     if year_type_id is None:
         raise HTTPException(500, "Year type has no ID")
     
-    # Ensure year page exists first
+    # 1. Ensure year page exists (always, even for existing month pages)
     year_uuid = generate_year_uuid(year)
     year_node = await service._node_repo.get_by_uuid(year_uuid)
     if not year_node:
@@ -242,7 +237,21 @@ async def get_or_create_monthly(
         )
         year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
     
-    # Get user's date format preference and create month with year as parent
+    # Check if month page exists
+    existing = await service._node_repo.get_by_uuid(uuid)
+    if existing:
+        # Ensure month type is assigned (for legacy pages created before types were added)
+        class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+        if month_type_id not in class_ids and existing.id is not None:
+            await service.add_type(existing.id, month_type_id, _system_call=True)
+            class_ids.append(month_type_id)
+        # Ensure parent_id is set to year (for legacy pages)
+        if existing.parent_id != year_node.id and existing.id is not None and year_node:
+            await service.update_node(existing.id, NodeUpdateData(parent_id=year_node.id))
+            existing = await service._node_repo.get_by_uuid(uuid)
+        return _node_to_response(existing, classes=class_ids)
+    
+    # 2. Create month page with year as parent
     async with service._pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
