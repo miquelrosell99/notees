@@ -14,66 +14,22 @@
   gap: 0.5rem;
 }
 
-/* Tab bar */
-.dynamic-section__tabs {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-  overflow: hidden;
+/* Filter button wrapper for badge positioning */
+.dynamic-section__filter-btn-wrapper {
+  position: relative;
+  display: inline-flex;
 }
 
-.dynamic-section__tab {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--bg-primary);
-  border: none;
-  border-right: 1px solid var(--border-color);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.dynamic-section__tab:last-child {
-  border-right: none;
-}
-
-.dynamic-section__tab:hover {
-  background-color: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.dynamic-section__tab--active {
-  background-color: var(--bg-accent);
-  color: var(--text-primary);
-}
-
-.dynamic-section__tab-name {
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dynamic-section__tab-edit {
-  opacity: 0;
-  padding: 2px;
-  border-radius: 2px;
-  transition: opacity 0.15s ease;
-}
-
-.dynamic-section__tab:hover .dynamic-section__tab-edit {
-  opacity: 0.7;
-}
-
-.dynamic-section__tab-edit:hover {
-  opacity: 1 !important;
-  background-color: var(--bg-hover);
+.dynamic-section__filter-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
 }
 
 /* Loading/empty states */
@@ -90,14 +46,94 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 280px;
+}
+
+/* Edit header with toggle switches */
+.dynamic-section__edit-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.dynamic-section__edit-header-spacer {
+  flex: 1;
+}
+
+/* SQL editor area */
+.dynamic-section__sql-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.dynamic-section__sql-textarea {
+  flex: 1;
+  min-height: 200px;
+  padding: 0.75rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.dynamic-section__sql-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.dynamic-section__sql-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Edit footer with name field */
+.dynamic-section__edit-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.dynamic-section__edit-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dynamic-section__edit-name-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.dynamic-section__edit-name-input {
+  flex: 1;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.dynamic-section__edit-name-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
 .dynamic-section__edit-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-subtle);
 }
 
 .dynamic-section__edit-spacer {
@@ -115,3 +151,15 @@
 .dynamic-section__delete-btn:hover .btn--danger {
   background-color: var(--color-danger-bg);
 }
+
+/* Edit modal - fixed size with overflow for dropdowns */
+.dynamic-section__edit-modal .modal {
+  width: 600px;
+  min-height: 400px;
+  max-height: 80vh;
+}
+
+.dynamic-section__edit-modal .modal__content {
+  overflow: visible;
+}
+

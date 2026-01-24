@@ -19,7 +19,6 @@ import {
   mdiChevronDown,
 } from '@mdi/js';
 import Icon from '@mdi/react';
-import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
 import { NodeSelector, SingleNodeSelector } from './NodeSelectors';
@@ -29,7 +28,6 @@ import {
   CONTENT_OPERATORS,
   PROPERTY_TEXT_OPERATORS,
   PROPERTY_NUMBER_OPERATORS,
-  PROPERTY_TYPES,
   VALUE_MODE_OPTIONS,
   createDefaultBlock,
 } from './constants';
@@ -47,7 +45,6 @@ import type {
   NotBlock,
   PropertyOperator,
   ContentOperator,
-  PropertyType,
 } from '@/types/query';
 
 // ==================== Common Types ====================
@@ -203,25 +200,16 @@ export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly, index, to
   }, [typeBlock, types, onUpdate]);
   
   return (
-    <Card variant="outlined" padding={true} paddingSize="sm" radius="sm" className="filter-block filter-block--type">
-      <div className="filter-block__header">
-        <Icon path={mdiTagOutline} size={0.7} className="filter-block__icon" />
+    <div className="filter-block filter-block--type">
+      <div className="filter-block__field">
+        <Icon path={mdiTagOutline} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">Type</span>
-        <select className="filter-block__operator" disabled={readOnly}>
-          {TYPE_OPERATORS.map(op => (
-            <option key={op.value} value={op.value}>{op.label}</option>
-          ))}
-        </select>
-        <div className="filter-block__spacer" />
-        <FilterBlockActions
-          readOnly={readOnly}
-          index={index}
-          totalSiblings={totalSiblings}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onDelete={onDelete}
-        />
       </div>
+      <select className="filter-block__operator" disabled={readOnly}>
+        {TYPE_OPERATORS.map(op => (
+          <option key={op.value} value={op.value}>{op.label}</option>
+        ))}
+      </select>
       <div className="filter-block__value">
         <NodeSelector
           mode="types"
@@ -232,7 +220,15 @@ export function TypeFilterBlock({ block, onUpdate, onDelete, readOnly, index, to
           readOnly={readOnly}
         />
       </div>
-    </Card>
+      <FilterBlockActions
+        readOnly={readOnly}
+        index={index}
+        totalSiblings={totalSiblings}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDelete={onDelete}
+      />
+    </div>
   );
 }
 
@@ -242,30 +238,21 @@ export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly, index,
   const contentBlock = block as ContentBlock;
   
   return (
-    <Card variant="outlined" padding={true} paddingSize="sm" radius="sm" className="filter-block filter-block--content">
-      <div className="filter-block__header">
-        <Icon path={mdiTextBox} size={0.7} className="filter-block__icon" />
+    <div className="filter-block filter-block--content">
+      <div className="filter-block__field">
+        <Icon path={mdiTextBox} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">Content</span>
-        <select
-          className="filter-block__operator"
-          value={contentBlock.operator}
-          onChange={(e) => onUpdate({ ...contentBlock, operator: e.target.value as ContentOperator })}
-          disabled={readOnly}
-        >
-          {CONTENT_OPERATORS.map(op => (
-            <option key={op.value} value={op.value}>{op.label}</option>
-          ))}
-        </select>
-        <div className="filter-block__spacer" />
-        <FilterBlockActions
-          readOnly={readOnly}
-          index={index}
-          totalSiblings={totalSiblings}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onDelete={onDelete}
-        />
       </div>
+      <select
+        className="filter-block__operator"
+        value={contentBlock.operator}
+        onChange={(e) => onUpdate({ ...contentBlock, operator: e.target.value as ContentOperator })}
+        disabled={readOnly}
+      >
+        {CONTENT_OPERATORS.map(op => (
+          <option key={op.value} value={op.value}>{op.label}</option>
+        ))}
+      </select>
       <div className="filter-block__value">
         <input
           type="text"
@@ -276,7 +263,15 @@ export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly, index,
           disabled={readOnly}
         />
       </div>
-    </Card>
+      <FilterBlockActions
+        readOnly={readOnly}
+        index={index}
+        totalSiblings={totalSiblings}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDelete={onDelete}
+      />
+    </div>
   );
 }
 
@@ -336,28 +331,14 @@ export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, dept
   const isPlaceholder = refBlock.target_uuid?.startsWith('{');
   
   return (
-    <Card variant="outlined" padding={true} paddingSize="sm" radius="sm" className="filter-block filter-block--reference">
-      <div className="filter-block__header">
-        <Icon path={mdiLink} size={0.7} className="filter-block__icon" />
+    <div className="filter-block filter-block--reference">
+      <div className="filter-block__field">
+        <Icon path={mdiLink} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">References</span>
-        <div className="filter-block__spacer" />
-        {!readOnly && !isPlaceholder && (
-          <SelectionButton
-            options={VALUE_MODE_OPTIONS}
-            value={isDynamic ? 'dynamic' : 'static'}
-            onChange={handleModeChange}
-            size="sm"
-          />
-        )}
-        <FilterBlockActions
-          readOnly={readOnly}
-          index={index}
-          totalSiblings={totalSiblings}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onDelete={onDelete}
-        />
       </div>
+      <select className="filter-block__operator" disabled>
+        <option value="references">to</option>
+      </select>
       <div className="filter-block__value">
         {isPlaceholder ? (
           <div className="filter-block__placeholder-badge">
@@ -389,7 +370,25 @@ export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, dept
           />
         )}
       </div>
-    </Card>
+      {!readOnly && !isPlaceholder && (
+        <div className="filter-block__mode-toggle">
+          <SelectionButton
+            options={VALUE_MODE_OPTIONS}
+            value={isDynamic ? 'dynamic' : 'static'}
+            onChange={handleModeChange}
+            size="sm"
+          />
+        </div>
+      )}
+      <FilterBlockActions
+        readOnly={readOnly}
+        index={index}
+        totalSiblings={totalSiblings}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDelete={onDelete}
+      />
+    </div>
   );
 }
 
@@ -454,28 +453,14 @@ export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, d
   }, [ancestorBlock, onUpdate]);
   
   return (
-    <Card variant="outlined" padding={true} paddingSize="sm" radius="sm" className="filter-block filter-block--ancestor">
-      <div className="filter-block__header">
-        <Icon path={mdiArrowUp} size={0.7} className="filter-block__icon" />
+    <div className="filter-block filter-block--ancestor">
+      <div className="filter-block__field">
+        <Icon path={mdiArrowUp} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">Inside page</span>
-        <div className="filter-block__spacer" />
-        {!readOnly && (
-          <SelectionButton
-            options={VALUE_MODE_OPTIONS}
-            value={isDynamic ? 'dynamic' : 'static'}
-            onChange={handleModeChange}
-            size="sm"
-          />
-        )}
-        <FilterBlockActions
-          readOnly={readOnly}
-          index={index}
-          totalSiblings={totalSiblings}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onDelete={onDelete}
-        />
       </div>
+      <select className="filter-block__operator" disabled>
+        <option value="in">in</option>
+      </select>
       <div className="filter-block__value">
         {isDynamic ? (
           <DynamicQuerySection
@@ -494,7 +479,25 @@ export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, d
           />
         )}
       </div>
-    </Card>
+      {!readOnly && (
+        <div className="filter-block__mode-toggle">
+          <SelectionButton
+            options={VALUE_MODE_OPTIONS}
+            value={isDynamic ? 'dynamic' : 'static'}
+            onChange={handleModeChange}
+            size="sm"
+          />
+        </div>
+      )}
+      <FilterBlockActions
+        readOnly={readOnly}
+        index={index}
+        totalSiblings={totalSiblings}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDelete={onDelete}
+      />
+    </div>
   );
 }
 
@@ -513,52 +516,30 @@ export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly, index
   const showValue = !['is_empty', 'is_not_empty'].includes(propBlock.operator);
   
   return (
-    <Card variant="outlined" padding={true} paddingSize="sm" radius="sm" className="filter-block filter-block--property">
-      <div className="filter-block__header">
-        <Icon path={mdiCodeBraces} size={0.7} className="filter-block__icon" />
-        <span className="filter-block__label">Property</span>
-        <div className="filter-block__spacer" />
-        <FilterBlockActions
-          readOnly={readOnly}
-          index={index}
-          totalSiblings={totalSiblings}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onDelete={onDelete}
-        />
-      </div>
-      <div className="filter-block__row">
+    <div className="filter-block filter-block--property">
+      <div className="filter-block__field">
+        <Icon path={mdiCodeBraces} size={0.65} className="filter-block__icon" />
         <input
           type="text"
           className="filter-block__input filter-block__input--name"
           value={propBlock.property_name}
           onChange={(e) => onUpdate({ ...propBlock, property_name: e.target.value })}
-          placeholder="Property name"
+          placeholder="Property"
           disabled={readOnly}
         />
-        <select
-          className="filter-block__select"
-          value={propBlock.property_type}
-          onChange={(e) => onUpdate({ ...propBlock, property_type: e.target.value as PropertyType })}
-          disabled={readOnly}
-        >
-          {PROPERTY_TYPES.map(pt => (
-            <option key={pt.value} value={pt.value}>{pt.label}</option>
-          ))}
-        </select>
-        <select
-          className="filter-block__operator"
-          value={propBlock.operator}
-          onChange={(e) => onUpdate({ ...propBlock, operator: e.target.value as PropertyOperator })}
-          disabled={readOnly}
-        >
-          {operators.map(op => (
-            <option key={op.value} value={op.value}>{op.label}</option>
-          ))}
-        </select>
       </div>
-      {showValue && (
-        <div className="filter-block__value">
+      <select
+        className="filter-block__operator"
+        value={propBlock.operator}
+        onChange={(e) => onUpdate({ ...propBlock, operator: e.target.value as PropertyOperator })}
+        disabled={readOnly}
+      >
+        {operators.map(op => (
+          <option key={op.value} value={op.value}>{op.label}</option>
+        ))}
+      </select>
+      <div className="filter-block__value">
+        {showValue && (
           <input
             type={propBlock.property_type === 'integer' || propBlock.property_type === 'float' ? 'number' : 'text'}
             className="filter-block__input"
@@ -567,9 +548,17 @@ export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly, index
             placeholder="Value"
             disabled={readOnly}
           />
-        </div>
-      )}
-    </Card>
+        )}
+      </div>
+      <FilterBlockActions
+        readOnly={readOnly}
+        index={index}
+        totalSiblings={totalSiblings}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDelete={onDelete}
+      />
+    </div>
   );
 }
 
@@ -584,7 +573,7 @@ export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, dept
   
   const containerType = block.type as 'AND_CONTAINER' | 'OR_CONTAINER' | 'NOT_CONTAINER';
   const icon = containerType === 'AND_CONTAINER' ? mdiSetAll : containerType === 'OR_CONTAINER' ? mdiSetCenter : mdiCancel;
-  const label = containerType === 'AND_CONTAINER' ? 'All of' : containerType === 'OR_CONTAINER' ? 'Any of' : 'Exclude';
+  const label = containerType === 'AND_CONTAINER' ? 'all' : containerType === 'OR_CONTAINER' ? 'any' : 'none';
   
   const handleAddNestedBlock = useCallback((type: QueryBlockType) => {
     const newBlock = createDefaultBlock(type);
@@ -595,36 +584,33 @@ export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, dept
     }
   }, [containerBlock, nestedBlocks, onUpdate, isNotBlock]);
   
-  const handleUpdateNestedBlock = useCallback((index: number, updated: QueryBlock) => {
+  const handleUpdateNestedBlock = useCallback((idx: number, updated: QueryBlock) => {
     if (isNotBlock) {
       onUpdate({ ...containerBlock, block: updated } as NotBlock);
     } else {
       const newBlocks = [...nestedBlocks];
-      newBlocks[index] = updated;
+      newBlocks[idx] = updated;
       onUpdate({ ...containerBlock, blocks: newBlocks } as ContainerBlock);
     }
   }, [containerBlock, nestedBlocks, onUpdate, isNotBlock]);
   
-  const handleDeleteNestedBlock = useCallback((index: number) => {
+  const handleDeleteNestedBlock = useCallback((idx: number) => {
     if (isNotBlock) {
       onUpdate({ ...containerBlock, block: undefined } as NotBlock);
     } else {
-      const newBlocks = nestedBlocks.filter((_, i) => i !== index);
+      const newBlocks = nestedBlocks.filter((_, i) => i !== idx);
       onUpdate({ ...containerBlock, blocks: newBlocks } as ContainerBlock);
     }
   }, [containerBlock, nestedBlocks, onUpdate, isNotBlock]);
   
   return (
-    <Card
-      variant="outlined"
-      padding={true}
-      paddingSize="sm"
-      radius="sm"
-      className={`filter-block filter-block--container filter-block--${containerType.toLowerCase()}`}
-    >
-      <div className="filter-block__header">
-        <Icon path={icon} size={0.7} className="filter-block__icon" />
-        <span className="filter-block__label">{label}</span>
+    <div className={`filter-block filter-block--container filter-block--${containerType.toLowerCase()}`}>
+      <div className="filter-block__row">
+        <div className="filter-block__field">
+          <Icon path={icon} size={0.65} className="filter-block__icon" />
+          <span className="filter-block__label">{label}</span>
+        </div>
+        <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>of:</span>
         <div className="filter-block__spacer" />
         <FilterBlockActions
           readOnly={readOnly}
@@ -668,7 +654,7 @@ export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, dept
           <AddFilterButton onSelect={handleAddNestedBlock} />
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -695,14 +681,15 @@ export function FilterBlock(props: FilterBlockProps) {
     default:
       // Fallback for unknown block types
       return (
-        <Card variant="outlined" padding={true} paddingSize="sm" radius="sm" className="filter-block">
-          <div className="filter-block__header">
+        <div className="filter-block">
+          <div className="filter-block__field">
             <span className="filter-block__label">Unknown: {block.type}</span>
-            {!props.readOnly && (
-              <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={props.onDelete} />
-            )}
           </div>
-        </Card>
+          <div className="filter-block__value" />
+          {!props.readOnly && (
+            <Button icon={mdiClose} iconOnly variant="ghost" size="xs" onClick={props.onDelete} />
+          )}
+        </div>
       );
   }
 }

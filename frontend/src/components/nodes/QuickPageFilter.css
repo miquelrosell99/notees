@@ -1,0 +1,168 @@
+/**
+ * QuickPageFilter Component Styles
+ */
+
+.quick-page-filter {
+  position: relative;
+  display: inline-flex;
+}
+
+.quick-page-filter__trigger-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.quick-page-filter__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
+}
+
+/* Dropdown panel */
+.quick-page-filter__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1100;
+  min-width: 280px;
+  max-height: 350px;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search input */
+.quick-page-filter__search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.quick-page-filter__input {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.quick-page-filter__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Sections */
+.quick-page-filter__section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.quick-page-filter__section:last-child {
+  border-bottom: none;
+}
+
+.quick-page-filter__section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+/* List */
+.quick-page-filter__list {
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.quick-page-filter__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.quick-page-filter__item:hover {
+  background: var(--bg-hover);
+}
+
+.quick-page-filter__item--active {
+  background: var(--bg-accent-subtle);
+}
+
+.quick-page-filter__item--selected {
+  background: var(--bg-accent-subtle);
+}
+
+.quick-page-filter__item-name {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-page-filter__item-toggle {
+  padding: 2px 6px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.quick-page-filter__item-toggle:hover {
+  background: var(--bg-tertiary-hover);
+  color: var(--text-secondary);
+}
+
+/* States */
+.quick-page-filter__loading,
+.quick-page-filter__empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Hint box */
+.quick-page-filter__hint-box {
+  padding: 16px;
+  text-align: center;
+}
+
+.quick-page-filter__hint-box p {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.quick-page-filter__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.quick-page-filter__hint strong {
+  color: var(--text-secondary);
+}

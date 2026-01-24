@@ -7,10 +7,13 @@ import { forwardRef, type InputHTMLAttributes } from 'react';
 import './Checkbox.css';
 
 export type CheckboxSize = 'sm' | 'md' | 'lg';
+export type CheckboxVariant = 'check' | 'dot';
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
   /** Checkbox size */
   size?: CheckboxSize;
+  /** Checkbox icon variant: 'check' for checkmark, 'dot' for filled circle */
+  variant?: CheckboxVariant;
   /** Label text */
   label?: string;
   /** Description text below label */
@@ -29,6 +32,7 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
   {
     size = 'md',
+    variant = 'check',
     label,
     description,
     indeterminate = false,
@@ -52,6 +56,38 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
     .filter(Boolean)
     .join(' ');
 
+  // Render the appropriate icon based on state
+  const renderIcon = () => {
+    if (indeterminate) {
+      // Indeterminate state: horizontal bar
+      return (
+        <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
+          <rect x="3" y="7" width="10" height="2" rx="1" fill="currentColor" />
+        </svg>
+      );
+    }
+    if (variant === 'dot') {
+      // Dot variant: filled circle (for negated/excluded states)
+      return (
+        <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
+          <circle cx="8" cy="8" r="4" fill="currentColor" />
+        </svg>
+      );
+    }
+    // Default check variant: checkmark
+    return (
+      <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
+        <path
+          d="M3.5 8.5L6.5 11.5L12.5 4.5"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  };
+
   return (
     <div className={containerClasses}>
       <div className="checkbox-input-wrapper">
@@ -65,21 +101,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
           {...rest}
         />
         <span className={`checkbox-checkmark checkbox-checkmark--${size}`}>
-          {indeterminate ? (
-            <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
-              <rect x="3" y="7" width="10" height="2" rx="1" fill="currentColor" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
-              <path
-                d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          {renderIcon()}
         </span>
       </div>
       {(label || description) && (

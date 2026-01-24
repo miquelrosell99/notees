@@ -7,7 +7,7 @@
  * This component:
  * 1. Ensures default views exist for the node (lazy init)
  * 2. Loads views for the specified view_type
- * 3. Displays tabs if multiple views exist
+ * 3. Uses SelectionButton for view selection when multiple views exist
  * 4. Executes the active view's query with runtime parameters
  * 5. Renders results using NodeCollection
  */
@@ -18,20 +18,26 @@ import {
   useNodeViewQuery,
   useCreateNodeView,
   useUpdateQueryBlockTree,
+  useUpdateNodeView,
   useDeleteNodeView,
 } from '@/hooks/useNodeViews';
 import type { NodeView, QueryBlockTree, NodeViewType } from '@/types/query';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
 import { NodeViewSection } from './NodeViewSection';
+import { QuickPageFilter } from './QuickPageFilter';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
+import { Badge } from '../core/Badge';
+import { SelectionButton } from '../core/SelectionButton';
+import { ToggleSwitch } from '../core/ToggleSwitch';
+import { ConfirmationModal } from '../core/ConfirmationModal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { QueryBlockBuilder } from '../QueryBlockBuilder';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
+import { isSystemBlock } from '../QueryBlockBuilder/constants';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiPencil } from '@mdi/js';
-import Icon from '@mdi/react';
+import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline } from '@mdi/js';
 import './DynamicNodeViewSection.css';
 
 // ==================== Types ====================
@@ -57,33 +63,21 @@ export interface DynamicNodeViewSectionProps {
   className?: string;
 }
 
-interface ViewTabProps {
-  view: NodeView;
-  isActive: boolean;
-  onClick: () => void;
-  onEdit?: () => void;
-}
+// ==================== Helper Functions ====================
 
-// ==================== Sub-Components ====================
-
-function ViewTab({ view, isActive, onClick, onEdit }: ViewTabProps) {
-  return (
-    <button
-      type="button"
-      className={`dynamic-section__tab ${isActive ? 'dynamic-section__tab--active' : ''}`}
-      onClick={onClick}
-    >
-      <span className="dynamic-section__tab-name">{view.name}</span>
-      {onEdit && (
-        <span 
-          className="dynamic-section__tab-edit"
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-        >
-          <Icon path={mdiPencil} size={0.5} />
-        </span>
-      )}
-    </button>
-  );
+/**
+ * Count the number of user-defined filter blocks (excluding system blocks)
+ */
+function countMainFilterBlocks(tree: QueryBlockTree | null): number {
+  if (!tree || !tree.blocks) return 0;
+  
+  let count = 0;
+  for (const block of tree.blocks) {
+    if (!isSystemBlock(block)) {
+      count++;
+    }
+  }
+  return count;
 }
 
 // ==================== Main Component ====================
@@ -102,7 +96,11 @@ export function DynamicNodeViewSection({
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
+  const [editViewName, setEditViewName] = useState('');
   const [editBlockTree, setEditBlockTree] = useState<QueryBlockTree | null>(null);
+  const [editMode, setEditMode] = useState<'blocks' | 'sql'>('blocks');
+  const [editSqlQuery, setEditSqlQuery] = useState('');
+  const [showSqlResetConfirm, setShowSqlResetConfirm] = useState(false);
   const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>('list');
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
 
@@ -129,6 +127,7 @@ export function DynamicNodeViewSection({
   // Mutations
   const createViewMutation = useCreateNodeView();
   const updateBlockTreeMutation = useUpdateQueryBlockTree();
+  const updateViewMutation = useUpdateNodeView();
   const deleteViewMutation = useDeleteNodeView();
 
   // Determine active view
@@ -139,6 +138,20 @@ export function DynamicNodeViewSection({
     // Find default or first view
     return views.find(v => v.is_default) ?? views[0] ?? null;
   }, [views, activeViewId]);
+
+  // Count filter blocks for badge display
+  const filterBlockCount = useMemo(() => {
+    return countMainFilterBlocks(activeView?.query_block_tree ?? null);
+  }, [activeView?.query_block_tree]);
+
+  // Create SelectionButton options from views
+  const viewOptions = useMemo(() => {
+    return views.map(v => ({
+      value: String(v.id),
+      icon: mdiEyeOutline,
+      label: v.name,
+    }));
+  }, [views]);
 
   // Execute query for active view
   const {
@@ -161,24 +174,63 @@ export function DynamicNodeViewSection({
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
     setEditingView(view);
+    setEditViewName(view.name);
     setEditBlockTree(view.query_block_tree ?? createEmptyBlockTree());
+    setEditMode('blocks');
+    setEditSqlQuery('');
   }, []);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editingView || !editBlockTree) return;
     
     try {
+      // Save name if changed
+      if (editViewName !== editingView.name) {
+        await updateViewMutation.mutateAsync({
+          viewId: editingView.id,
+          data: { name: editViewName },
+        });
+      }
+      // Save block tree
       await updateBlockTreeMutation.mutateAsync({
         viewId: editingView.id,
         blockTree: editBlockTree,
       });
       setEditingView(null);
       setEditBlockTree(null);
+      setEditViewName('');
       refetchQuery();
     } catch (error) {
-      console.error('Failed to save query:', error);
+      console.error('Failed to save view:', error);
     }
-  }, [editingView, editBlockTree, updateBlockTreeMutation, refetchQuery]);
+  }, [editingView, editBlockTree, editViewName, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
+
+  // Handle switching from SQL to blocks mode (requires confirmation)
+  const handleModeSwitch = useCallback((toSql: boolean) => {
+    if (toSql) {
+      // Switching to SQL mode is safe
+      setEditMode('sql');
+    } else {
+      // Switching back to blocks will reset the query - confirm first
+      setShowSqlResetConfirm(true);
+    }
+  }, []);
+
+  const confirmSqlReset = useCallback(() => {
+    setEditBlockTree(createEmptyBlockTree());
+    setEditSqlQuery('');
+    setEditMode('blocks');
+    setShowSqlResetConfirm(false);
+  }, []);
+
+  // Handle root logic toggle (AND/OR)
+  const handleRootLogicToggle = useCallback((isOr: boolean) => {
+    if (!editBlockTree) return;
+    setEditBlockTree({
+      ...editBlockTree,
+      type: isOr ? 'OR_CONTAINER' : 'AND_CONTAINER',
+    });
+  }, [editBlockTree]);
 
   const handleDeleteView = useCallback(async () => {
     if (!editingView) return;
@@ -187,6 +239,7 @@ export function DynamicNodeViewSection({
       await deleteViewMutation.mutateAsync(editingView.id);
       setEditingView(null);
       setEditBlockTree(null);
+      setEditViewName('');
       if (activeViewId === editingView.id) {
         setActiveViewId(null);
       }
@@ -223,34 +276,36 @@ export function DynamicNodeViewSection({
     return null;
   }
 
-  // Header actions - tabs and toolbar
+  // Header actions - view selector and toolbar
   const headerActions = (
     <div className="dynamic-section__header-actions">
-      {/* View tabs (only when multiple views) */}
+      {/* View selection (only when multiple views) */}
       {views.length > 1 && (
-        <div className="dynamic-section__tabs">
-          {views.map(view => (
-            <ViewTab
-              key={view.id}
-              view={view}
-              isActive={activeView?.id === view.id}
-              onClick={() => setActiveViewId(view.id)}
-              onEdit={() => handleEditView(view)}
-            />
-          ))}
-        </div>
+        <SelectionButton
+          options={viewOptions}
+          value={String(activeView?.id ?? '')}
+          onChange={(value) => setActiveViewId(Number(value))}
+          size="sm"
+        />
       )}
       
-      {/* Edit query button (always visible when there's an active view) */}
-      {activeView && views.length <= 1 && (
-        <Button
-          icon={mdiFilterOutline}
-          iconOnly
-          variant="ghost"
-          size="xs"
-          onClick={() => handleEditView(activeView)}
-          title="Edit query"
-        />
+      {/* Edit query button with badge showing filter count */}
+      {activeView && (
+        <div className="dynamic-section__filter-btn-wrapper">
+          <Button
+            icon={mdiFilterOutline}
+            iconOnly
+            variant="ghost"
+            size="xs"
+            onClick={() => handleEditView(activeView)}
+            title="Edit view"
+          />
+          {filterBlockCount > 0 && (
+            <Badge variant="primary" size="xs" className="dynamic-section__filter-badge">
+              {filterBlockCount}
+            </Badge>
+          )}
+        </div>
       )}
       
       {/* Add view button */}
@@ -299,8 +354,6 @@ export function DynamicNodeViewSection({
       >
         {queryLoading ? (
           <div className="dynamic-section__loading">Loading...</div>
-        ) : resultNodes.length === 0 ? (
-          <div className="dynamic-section__empty">No results</div>
         ) : (
           <NodeCollection
             nodes={resultNodes}
@@ -313,58 +366,138 @@ export function DynamicNodeViewSection({
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+            emptyMessage="No results match the query"
           />
         )}
       </NodeViewSection>
 
-      {/* Edit view modal */}
+      {/* Unified Edit view modal */}
       <Modal
         isOpen={!!editingView}
         onClose={() => {
           setEditingView(null);
           setEditBlockTree(null);
+          setEditViewName('');
         }}
-        title={`Edit "${editingView?.name}" Query`}
+        title="Edit View"
         size="lg"
+        className="dynamic-section__edit-modal"
       >
         {editingView && editBlockTree && (
           <div className="dynamic-section__edit-form">
-            <QueryBlockBuilder
-              blockTree={editBlockTree}
-              onChange={setEditBlockTree}
-            />
-            <div className="dynamic-section__edit-actions">
-              <InlineConfirmButton
-                onConfirm={handleDeleteView}
-                variant="danger"
+            {/* Header with toggles */}
+            <div className="dynamic-section__edit-header">
+              {/* Quick page filter */}
+              <QuickPageFilter
+                blockTree={editBlockTree}
+                onChange={setEditBlockTree}
                 size="sm"
-                title="Delete view"
-                confirmTitle="Confirm delete"
-                className="dynamic-section__delete-btn"
-              >
-                <DeleteIcon size="sm" />
-              </InlineConfirmButton>
-              <div className="dynamic-section__edit-spacer" />
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setEditingView(null);
-                  setEditBlockTree(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleSaveEdit}
-                disabled={updateBlockTreeMutation.isPending}
-              >
-                {updateBlockTreeMutation.isPending ? 'Saving...' : 'Save'}
-              </Button>
+              />
+              
+              {/* AND/OR toggle */}
+              <ToggleSwitch
+                leftLabel="AND"
+                rightLabel="OR"
+                checked={editBlockTree.type === 'OR_CONTAINER'}
+                onChange={handleRootLogicToggle}
+                size="sm"
+              />
+              
+              <div className="dynamic-section__edit-header-spacer" />
+              
+              {/* Blocks/SQL toggle */}
+              <ToggleSwitch
+                leftLabel="Blocks"
+                rightLabel="SQL"
+                checked={editMode === 'sql'}
+                onChange={handleModeSwitch}
+                size="sm"
+              />
+            </div>
+
+            {/* Query editor - blocks or SQL */}
+            {editMode === 'blocks' ? (
+              <QueryBlockBuilder
+                blockTree={editBlockTree}
+                onChange={setEditBlockTree}
+              />
+            ) : (
+              <div className="dynamic-section__sql-editor">
+                <textarea
+                  className="dynamic-section__sql-textarea"
+                  value={editSqlQuery}
+                  onChange={(e) => setEditSqlQuery(e.target.value)}
+                  placeholder="Enter raw SQL query..."
+                  spellCheck={false}
+                />
+                <p className="dynamic-section__sql-hint">
+                  SQL mode is not yet connected to the backend. This is a placeholder for future functionality.
+                </p>
+              </div>
+            )}
+
+            {/* Footer with name and actions */}
+            <div className="dynamic-section__edit-footer">
+              <div className="dynamic-section__edit-name">
+                <label htmlFor="view-name" className="dynamic-section__edit-name-label">
+                  View Name
+                </label>
+                <input
+                  id="view-name"
+                  type="text"
+                  className="dynamic-section__edit-name-input"
+                  value={editViewName}
+                  onChange={(e) => setEditViewName(e.target.value)}
+                  placeholder="Enter view name..."
+                />
+              </div>
+              
+              <div className="dynamic-section__edit-actions">
+                <InlineConfirmButton
+                  onConfirm={handleDeleteView}
+                  variant="danger"
+                  size="sm"
+                  title="Delete view"
+                  confirmTitle="Confirm delete"
+                  className="dynamic-section__delete-btn"
+                >
+                  <DeleteIcon size="sm" />
+                </InlineConfirmButton>
+                <div className="dynamic-section__edit-spacer" />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingView(null);
+                    setEditBlockTree(null);
+                    setEditViewName('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleSaveEdit}
+                  disabled={updateBlockTreeMutation.isPending || updateViewMutation.isPending}
+                >
+                  {(updateBlockTreeMutation.isPending || updateViewMutation.isPending) ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Confirmation modal for SQL to blocks switch */}
+      <ConfirmationModal
+        isOpen={showSqlResetConfirm}
+        title="Switch to Block Editor?"
+        message="Switching from SQL to block mode will reset the query. Any custom SQL will be lost. Are you sure?"
+        confirmLabel="Reset Query"
+        cancelLabel="Keep SQL"
+        variant="danger"
+        onConfirm={confirmSqlReset}
+        onCancel={() => setShowSqlResetConfirm(false)}
+      />
     </>
   );
 }

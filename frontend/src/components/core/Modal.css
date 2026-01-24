@@ -87,6 +87,12 @@
   flex: 1;
   padding: var(--spacing-4);
   overflow-y: auto;
+  overflow-x: visible;
+}
+
+/* Allow dropdowns inside modal to overflow */
+.modal__content--allow-overflow {
+  overflow: visible;
 }
 
 /* Footer */
