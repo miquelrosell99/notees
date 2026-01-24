@@ -14,7 +14,8 @@ from .models import (
     BacklinkResponse,
     LinkedReferenceResponse,
     BreadcrumbSegment,
-    InlineTypeResponse,
+    InlineClassResponse,
+    InlineTypeResponse,  # Backwards compatibility alias
     PropertyBacklinkResponse,
 )
 from .helpers import (
@@ -22,7 +23,7 @@ from .helpers import (
     _node_to_response,
     _get_descendants,
     _build_children_response,
-    _get_type_ids_batch,
+    _get_class_ids_batch,
 )
 
 
@@ -263,8 +264,8 @@ async def get_linked_references(
             source_node_ids.append(source.id)
         sources_data.append((source, children, source_page, link))
     
-    # Batch fetch type_ids for all source nodes
-    type_ids_map = await _get_type_ids_batch(service._pool, service._graph_id or 0, source_node_ids)
+    # Batch fetch class_ids for all source nodes
+    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, source_node_ids)
     
     result = []
     for source, children, source_page, link in sources_data:
@@ -287,9 +288,9 @@ async def get_linked_references(
             for seg in link.breadcrumb_path
         ] if hasattr(link, 'breadcrumb_path') and link.breadcrumb_path else []
         
-        # Convert source node to response with children and types
-        source_types = type_ids_map.get(source.id, []) if source.id else []
-        source_response = _node_to_response(source, types=source_types)
+        # Convert source node to response with children and classes
+        source_classes = class_ids_map.get(source.id, []) if source.id else []
+        source_response = _node_to_response(source, classes=source_classes)
         source_response.children = _build_children_response(children) if children else []
         
         result.append(LinkedReferenceResponse(
@@ -303,33 +304,52 @@ async def get_linked_references(
     return {"linked_references": result}
 
 
+@router.get("/{node_id}/inline-classes")
+async def get_inline_classes(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get inline class references for a node.
+    
+    Returns all {{classId}} references in the node's content.
+    """
+    service = await _get_node_service(user)
+    
+    inline_classes = await service._link_service.get_inline_classes_for_node(node_id)
+    
+    result = []
+    for inline_class in inline_classes:
+        class_node = await service._node_repo.get_by_id(inline_class.class_node_id)
+        if not class_node:
+            continue
+        
+        result.append(InlineClassResponse(
+            class_node_id=inline_class.class_node_id,
+            class_node_name=class_node.name or "",
+            class_node_icon=class_node.icon,
+            position=inline_class.position,
+            # Backwards compatibility fields
+            type_node_id=inline_class.class_node_id,
+            type_node_name=class_node.name or "",
+            type_node_icon=class_node.icon,
+        ))
+    
+    return {"inline_classes": result}
+
+
+# Backwards compatibility alias
 @router.get("/{node_id}/inline-types")
 async def get_inline_types(
     node_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Get inline type references for a node.
+    """Get inline type references for a node (backwards compatibility).
     
-    Returns all {{typeId}} references in the node's content.
+    Returns all {{classId}} references in the node's content.
     """
-    service = await _get_node_service(user)
-    
-    inline_types = await service._link_service.get_inline_types_for_node(node_id)
-    
-    result = []
-    for inline_type in inline_types:
-        type_node = await service._node_repo.get_by_id(inline_type.type_node_id)
-        if not type_node:
-            continue
-        
-        result.append(InlineTypeResponse(
-            type_node_id=inline_type.type_node_id,
-            type_node_name=type_node.name or "",
-            type_node_icon=type_node.icon,
-            position=inline_type.position,
-        ))
-    
-    return {"inline_types": result}
+    response = await get_inline_classes(node_id, user)
+    # Return in old format
+    return {"inline_types": response["inline_classes"]}
 
 
 @router.get("/{node_id}/property-backlinks")
@@ -388,14 +408,14 @@ async def get_property_backlinks(
                 property_name=row['property_name'],
             ))
     
-    # Also check for node-type properties pointing to this node
-    # Exclude the 'types' property - those appear in the TypedNodes section, not as backlinks
+    # Also check for node-class properties pointing to this node
+    # Exclude the 'classes' property - those appear in the ClassedNodes section, not as backlinks
     pool = service._node_repo.get_connection()
     rows = await pool.fetch("""
         SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
         FROM property_value_relation pvr
         JOIN property p ON pvr.property_id = p.id
-        WHERE pvr.target_id = $1 AND p.type = 'node' AND p.name != 'types'
+        WHERE pvr.target_id = $1 AND p.type = 'node' AND p.name != 'classes'
     """, node_id)
     
     for row in rows:

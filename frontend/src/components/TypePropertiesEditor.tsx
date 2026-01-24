@@ -1,20 +1,20 @@
 /**
- * TypePropertiesEditor - Component for editing which properties a Type/Class has
+ * ClassPropertiesEditor - Component for editing which properties a Class has
  * 
- * This allows defining which properties nodes with this type will have.
+ * This allows defining which properties nodes with this class will have.
  * Properties defined here are separate from inherited properties.
  * 
- * UI matches the Type properties definition style with:
+ * UI matches the Class properties definition style with:
  * - Property name on left
  * - "Add description" placeholder on right
  * - Bullet before value area
  */
 import { useState, useCallback } from 'react';
-import './TypePropertiesEditor.css';
+import './ClassPropertiesEditor.css';
 import { 
-  useTypeProperties, 
-  useAddPropertyToType, 
-  useRemovePropertyFromType,
+  useClassProperties, 
+  useAddPropertyToClass, 
+  useRemovePropertyFromClass,
   useProperties 
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
@@ -22,48 +22,48 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import './PropertiesSection.css';
 
-interface TypePropertiesEditorProps {
-  /** The type node ID being edited */
-  typeNodeId: number;
-  /** Optional class name */
+interface ClassPropertiesEditorProps {
+  /** The class node ID being edited */
+  classNodeId: number;
+  /** Optional className for styling */
   className?: string;
   /** Whether the editor is read-only */
   readOnly?: boolean;
 }
 
 /**
- * Editor for managing properties on a type/class
+ * Editor for managing properties on a class
  */
-export function TypePropertiesEditor({
-  typeNodeId,
+export function ClassPropertiesEditor({
+  classNodeId,
   className = '',
   readOnly = false,
-}: TypePropertiesEditorProps) {
+}: ClassPropertiesEditorProps) {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Fetch current type properties (direct only, not inherited)
-  const { data: typeProperties, isLoading } = useTypeProperties(typeNodeId, false);
+  // Fetch current class properties (direct only, not inherited)
+  const { data: classProperties, isLoading } = useClassProperties(classNodeId, false);
   
   // Fetch all available properties
   const { data: allProperties } = useProperties();
   
   // Mutations
-  const addPropertyMutation = useAddPropertyToType();
-  const removePropertyMutation = useRemovePropertyFromType();
+  const addPropertyMutation = useAddPropertyToClass();
+  const removePropertyMutation = useRemovePropertyFromClass();
   
   // Filter available properties (exclude already added)
   const availableProperties = allProperties?.filter(prop => {
-    // Don't show system 'types' property (identified by UUID, not name)
-    if (prop.uuid === SYSTEM_PROPERTY_UUIDS.types) return false;
-    if (typeProperties?.some(tp => tp.property_id === prop.id)) return false;
+    // Don't show system 'classes' property (identified by UUID, not name)
+    if (prop.uuid === SYSTEM_PROPERTY_UUIDS.classes) return false;
+    if (classProperties?.some(cp => cp.property_id === prop.id)) return false;
     if (searchQuery && !prop.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   }) ?? [];
   
   const handleAddProperty = useCallback((propertyId: number) => {
     addPropertyMutation.mutate(
-      { typeId: typeNodeId, propertyId },
+      { classId: classNodeId, propertyId },
       {
         onSuccess: () => {
           setIsAddingNew(false);
@@ -71,43 +71,43 @@ export function TypePropertiesEditor({
         },
       }
     );
-  }, [typeNodeId, addPropertyMutation]);
+  }, [classNodeId, addPropertyMutation]);
   
   const handleRemoveProperty = useCallback((propertyId: number) => {
-    removePropertyMutation.mutate({ typeId: typeNodeId, propertyId });
-  }, [typeNodeId, removePropertyMutation]);
+    removePropertyMutation.mutate({ classId: classNodeId, propertyId });
+  }, [classNodeId, removePropertyMutation]);
   
   if (isLoading) {
-    return <div className={`properties-view type-definition-variant loading ${className}`}>Loading...</div>;
+    return <div className={`properties-view class-definition-variant loading ${className}`}>Loading...</div>;
   }
   
   return (
-    <div className={`properties-view type-definition-variant ${className}`}>
-      <h4 className="type-properties-section-title">
-        Type Properties
+    <div className={`properties-view class-definition-variant ${className}`}>
+      <h4 className="class-properties-section-title">
+        Class Properties
       </h4>
-      <p className="type-properties-description">
-        Type properties are inherited by all nodes with this type. For example, each @Task node inherits 'Status' and 'Priority'.
+      <p className="class-properties-description">
+        Class properties are inherited by all nodes with this class. For example, each @Task node inherits 'Status' and 'Priority'.
       </p>
       
       {/* Current properties list */}
-      <div className="type-properties-list">
-        {typeProperties && typeProperties.length > 0 ? (
-          typeProperties.map((tp) => (
-            <div key={tp.id} className="type-property-definition-row">
-              <label className="type-property-definition-label">
-                {tp.property_name}
+      <div className="class-properties-list">
+        {classProperties && classProperties.length > 0 ? (
+          classProperties.map((cp) => (
+            <div key={cp.id} className="class-property-definition-row">
+              <label className="class-property-definition-label">
+                {cp.property_name}
               </label>
-              <div className="type-property-definition-value">
-                <span className="type-property-placeholder">Add description</span>
+              <div className="class-property-definition-value">
+                <span className="class-property-placeholder">Add description</span>
                 {!readOnly && (
                   <Button
-                    className="type-property-remove-btn"
+                    className="class-property-remove-btn"
                     variant="ghost"
                     size="xs"
-                    onClick={() => handleRemoveProperty(tp.property_id)}
+                    onClick={() => handleRemoveProperty(cp.property_id)}
                     disabled={removePropertyMutation.isPending}
-                    title="Remove property from type"
+                    title="Remove property from class"
                   >
                     ×
                   </Button>
@@ -122,20 +122,20 @@ export function TypePropertiesEditor({
       {!readOnly && (
         <div className="properties-add">
           {isAddingNew ? (
-            <div className="type-properties-picker">
+            <div className="class-properties-picker">
               <input
                 type="text"
-                className="type-properties-search"
+                className="class-properties-search"
                 placeholder="Search properties..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
               />
-              <div className="type-properties-options">
+              <div className="class-properties-options">
                 {availableProperties.slice(0, 10).map((prop) => (
                   <Button
                     key={prop.id}
-                    className="type-property-option"
+                    className="class-property-option"
                     variant="ghost"
                     size="sm"
                     onClick={() => handleAddProperty(prop.id)}
@@ -143,11 +143,11 @@ export function TypePropertiesEditor({
                   >
                     {prop.icon && <span>{prop.icon}</span>}
                     {prop.name}
-                    <span className="type-property-type">({prop.type})</span>
+                    <span className="class-property-type">({prop.type})</span>
                   </Button>
                 ))}
                 {availableProperties.length === 0 && (
-                  <p className="type-properties-no-results">
+                  <p className="class-properties-no-results">
                     {allProperties?.length === 0 
                       ? 'No properties exist. Create a property first.'
                       : 'No matching properties found'}
@@ -155,7 +155,7 @@ export function TypePropertiesEditor({
                 )}
               </div>
               <Button
-                className="type-properties-cancel"
+                className="class-properties-cancel"
                 variant="ghost"
                 size="sm"
                 onClick={() => {
@@ -184,4 +184,4 @@ export function TypePropertiesEditor({
   );
 }
 
-export default TypePropertiesEditor;
+export default ClassPropertiesEditor;

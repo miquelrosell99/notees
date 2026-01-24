@@ -12,7 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { useUpdateNode, useTypes } from '@/hooks';
+import { useUpdateNode, useClasses } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -46,11 +46,11 @@ export function PageHeader({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconPickerPos, setIconPickerPos] = useState({ x: 0, y: 0 });
   
-  // Get all types (for effective icon calculation)
-  const { data: allTypes } = useTypes();
+  // Get all classes (for effective icon calculation)
+  const { data: allClasses } = useClasses();
   
-  // Get effective icon (page's icon or first type's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allTypes), [page, allTypes]);
+  // Get effective icon (page's icon or first class's icon)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses), [page, allClasses]);
   
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);

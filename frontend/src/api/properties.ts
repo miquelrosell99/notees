@@ -9,9 +9,9 @@ import type {
   PropertiesResponse,
   SelectionOption,
   TypeProperty,
-  TypePropertiesResponse,
-  TypeExtends,
-  TypeExtendsResponse,
+  ClassPropertiesResponse,
+  ClassExtends,
+  ClassExtendsResponse,
 } from '@/types/api';
 
 const BASE = '/properties';
@@ -119,30 +119,30 @@ export async function removeTagFilter(
 // ============== Type Properties ==============
 
 /**
- * Get properties linked to a type/class
+ * Get properties linked to a class
  */
-export async function getTypeProperties(
-  typeNodeId: number,
+export async function getClassProperties(
+  classNodeId: number,
   includeInherited: boolean = false
 ): Promise<TypeProperty[]> {
-  const response = await api.get<TypePropertiesResponse>(
-    `${BASE}/types/${typeNodeId}/properties`,
+  const response = await api.get<ClassPropertiesResponse>(
+    `${BASE}/classes/${classNodeId}/properties`,
     { params: { include_inherited: includeInherited } }
   );
-  return response.data.type_properties;
+  return response.data.class_properties;
 }
 
 /**
- * Link a property to a type/class
+ * Link a property to a class
  */
-export async function addTypeProperty(
-  typeNodeId: number,
+export async function addClassProperty(
+  classNodeId: number,
   propertyId: number,
   sequence?: number,
   defaultValue?: unknown
 ): Promise<TypeProperty> {
   const response = await api.post<TypeProperty>(
-    `${BASE}/types/${typeNodeId}/properties`,
+    `${BASE}/classes/${classNodeId}/properties`,
     {
       property_id: propertyId,
       sequence: sequence ?? 0,
@@ -153,39 +153,39 @@ export async function addTypeProperty(
 }
 
 /**
- * Remove a property from a type/class
+ * Remove a property from a class
  */
-export async function removeTypeProperty(
-  typeNodeId: number,
+export async function removeClassProperty(
+  classNodeId: number,
   propertyId: number
 ): Promise<void> {
-  await api.delete(`${BASE}/types/${typeNodeId}/properties/${propertyId}`);
+  await api.delete(`${BASE}/classes/${classNodeId}/properties/${propertyId}`);
 }
 
-// ============== Type Extends (Inheritance) ==============
+// ============== Class Extends (Inheritance) ==============
 
 /**
- * Get types that a type/class extends (inherits from)
+ * Get classes that a class extends (inherits from)
  */
-export async function getTypeExtends(typeNodeId: number): Promise<TypeExtends[]> {
-  const response = await api.get<TypeExtendsResponse>(
-    `${BASE}/types/${typeNodeId}/extends`
+export async function getClassExtends(classNodeId: number): Promise<ClassExtends[]> {
+  const response = await api.get<ClassExtendsResponse>(
+    `${BASE}/classes/${classNodeId}/extends`
   );
   return response.data.extends;
 }
 
 /**
- * Add a type that this type extends (inherits from)
+ * Add a class that this class extends (inherits from)
  */
-export async function addTypeExtends(
-  typeNodeId: number,
-  extendsTypeNodeId: number,
+export async function addClassExtends(
+  classNodeId: number,
+  extendsClassNodeId: number,
   sequence?: number
-): Promise<TypeExtends> {
-  const response = await api.post<TypeExtends>(
-    `${BASE}/types/${typeNodeId}/extends`,
+): Promise<ClassExtends> {
+  const response = await api.post<ClassExtends>(
+    `${BASE}/classes/${classNodeId}/extends`,
     {
-      extends_type_node_id: extendsTypeNodeId,
+      extends_class_node_id: extendsClassNodeId,
       sequence: sequence ?? 0,
     }
   );
@@ -193,13 +193,13 @@ export async function addTypeExtends(
 }
 
 /**
- * Remove a type extension (inheritance link)
+ * Remove a class extension (inheritance link)
  */
-export async function removeTypeExtends(
-  typeNodeId: number,
-  extendsTypeNodeId: number
+export async function removeClassExtends(
+  classNodeId: number,
+  extendsClassNodeId: number
 ): Promise<void> {
-  await api.delete(`${BASE}/types/${typeNodeId}/extends/${extendsTypeNodeId}`);
+  await api.delete(`${BASE}/classes/${classNodeId}/extends/${extendsClassNodeId}`);
 }
 
 // ============== Node Properties ==============

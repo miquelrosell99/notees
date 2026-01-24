@@ -2,8 +2,8 @@
  * SidebarNodeView Component
  * 
  * A minified version of NodeView for displaying nodes in the sidebar.
- * - Pages: Shows types, tags, properties (collapsed), children blocks (list view),
- *   and additional sections (typed nodes, children pages, linked refs) collapsed
+ * - Pages: Shows classes, tags, properties (collapsed), children blocks (list view),
+ *   and additional sections (classed nodes, children pages, linked refs) collapsed
  * - Blocks: Shows the block itself as an editable block (like focused block mode),
  *   followed by its children and linked references
  */
@@ -12,15 +12,15 @@ import {
   useNode, 
   useUpdateNode, 
   useAddTag, 
-  useAddType, 
+  useAddClass, 
   useAddTagLink, 
   useCreateNode, 
-  useTypes,
+  useClasses,
   useTags,
   useNodes,
-  useRemoveType,
+  useRemoveClass,
   useRemoveTag,
-  useNodesWithType,
+  useNodesWithClass,
 } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore, useSettingsStore } from '@/stores';
@@ -31,14 +31,14 @@ import { BlockEditor } from '../blocks/BlockEditor';
 import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../LinkedReferences';
-import { TypedNodesView, useTypedNodesSectionState, TypedNodesSectionToolbar } from '../TypedNodesSection';
+import { ClassedNodesView, useClassedNodesSectionState, ClassedNodesSectionToolbar } from '../ClassedNodesSection';
 import { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from '../ChildPagesSection';
 import { PropertiesSection } from '../PropertiesSection';
 import { NodePillRow } from '../NodePillRow';
 import { NodeViewSection, DynamicNodeViewSection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
-import { SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
+import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
 import './SidebarNodeView.css';
 
 interface SidebarNodeViewProps {
@@ -61,22 +61,22 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const addTag = useAddTag();
-  const addType = useAddType();
+  const addClass = useAddClass();
   const addTagLink = useAddTagLink();
-  const removeType = useRemoveType();
+  const removeClass = useRemoveClass();
   const removeTag = useRemoveTag();
-  const { data: allTypes } = useTypes();
+  const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
   const { data: allNodes } = useNodes({ pages_only: true });
   const { openNode, closeSidebarNode, addSidebarCard, openCommentsForNode } = useNodesStore();
   
-  // Check if node is used as a type
-  const { data: typedNodes } = useNodesWithType(node?.id ?? 0);
+  // Check if node is used as a class
+  const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
   
   // Section toolbar states - for pages
   const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
   const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
-  const typedNodesToolbarState = useTypedNodesSectionState(node?.id ?? 0);
+  const classedNodesToolbarState = useClassedNodesSectionState(node?.id ?? 0);
   const childPagesToolbarState = useChildPagesSectionState(node?.id ?? 0, node?.children?.filter(c => c.is_page));
 
   // Handlers
@@ -115,15 +115,15 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     closeSidebarNode();
   }, [openNode, closeSidebarNode]);
   
-  // Navigate to type/tag
+  // Navigate to class/tag
   const handleNavigateToNode = useCallback((targetId: number) => {
     openNode(targetId, 'page');
   }, [openNode]);
 
-  // Handle adding a type to a block
-  const handleAddTypeToBlock = useCallback((blockId: number) => (typeNodeId: number, _keepInline: boolean, _typeName: string) => {
-    addType.mutate({ nodeId: blockId, typeId: typeNodeId });
-  }, [addType]);
+  // Handle adding a class to a block
+  const handleAddClassToBlock = useCallback((blockId: number) => (classNodeId: number, _keepInline: boolean, _className: string) => {
+    addClass.mutate({ nodeId: blockId, classId: classNodeId });
+  }, [addClass]);
 
   // Handle adding a tag to a block
   const handleAddTagToBlock = useCallback((blockId: number) => (tagNodeId: number, keepInline: boolean, _tagName: string) => {
@@ -133,19 +133,19 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     }
   }, [addTag, addTagLink]);
 
-  // Handle creating a new type
-  const handleCreateTypeForBlock = useCallback((blockId: number) => (name: string) => {
-    const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
-    // Create as both a page AND a type so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_type: true }, {
+  // Handle creating a new class
+  const handleCreateClassForBlock = useCallback((blockId: number) => (name: string) => {
+    const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
+    // Create as both a page AND a class so it shows up in @ menu
+    createNode.mutate({ name, is_page: true, is_class: true }, {
       onSuccess: (newPage) => {
-        addType.mutate({ nodeId: blockId, typeId: newPage.id });
-        if (typeType) {
-          addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+        addClass.mutate({ nodeId: blockId, classId: newPage.id });
+        if (classClass) {
+          addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
         }
       }
     });
-  }, [createNode, addType, allTypes]);
+  }, [createNode, addClass, allClasses]);
 
   // Handle creating a new tag
   const handleCreateTagForBlock = useCallback((blockId: number) => (name: string) => {
@@ -172,31 +172,31 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     openCommentsForNode(blockId);
   }, [openCommentsForNode]);
   
-  // Page-level type/tag handlers
-  const handleAddPageType = useCallback((typeNode: Node) => {
+  // Page-level class/tag handlers
+  const handleAddPageClass = useCallback((classNode: Node) => {
     if (!node) return;
-    addType.mutate({ nodeId: node.id, typeId: typeNode.id });
-  }, [node, addType]);
+    addClass.mutate({ nodeId: node.id, classId: classNode.id });
+  }, [node, addClass]);
   
-  const handleCreatePageType = useCallback((name: string) => {
+  const handleCreatePageClass = useCallback((name: string) => {
     if (!node) return;
-    const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
-    createNode.mutate({ name, is_page: true, is_type: true }, {
+    const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
+    createNode.mutate({ name, is_page: true, is_class: true }, {
       onSuccess: (newPage) => {
-        addType.mutate({ nodeId: node.id, typeId: newPage.id });
-        if (typeType) {
-          addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+        addClass.mutate({ nodeId: node.id, classId: newPage.id });
+        if (classClass) {
+          addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
         }
       }
     });
-  }, [node, createNode, addType, allTypes]);
+  }, [node, createNode, addClass, allClasses]);
   
-  const handleRemovePageType = useCallback((typeNode: Node) => {
+  const handleRemovePageClass = useCallback((classNode: Node) => {
     if (!node) return;
-    removeType.mutate({ nodeId: node.id, typeId: typeNode.id });
-  }, [node, removeType]);
+    removeClass.mutate({ nodeId: node.id, classId: classNode.id });
+  }, [node, removeClass]);
   
-  // Handle color change for type/tag nodes
+  // Handle color change for class/tag nodes
   const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
     updateNode.mutate({ id: targetNode.id, data: { color } });
   }, [updateNode]);
@@ -228,8 +228,8 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     const pages: Node[] = [];
     
     for (const child of node.children) {
-      // Skip children with this node as their type (they appear in TypedNodesView)
-      if (child.types?.includes(node.id)) continue;
+      // Skip children with this node as their class (they appear in ClassedNodesView)
+      if (child.classes?.includes(node.id)) continue;
       
       if (child.is_page) {
         pages.push(child);
@@ -241,17 +241,17 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     return { blockChildren: blocks, pageChildren: pages };
   }, [node?.children, node?.id]);
   
-  // Resolve page type details from IDs
-  const pageTypeDetails = useMemo(() => {
-    if (!node?.types || node.types.length === 0) return [];
-    return node.types
-      .map(typeId => {
-        const fromTypes = allTypes?.find(t => t.id === typeId);
-        if (fromTypes) return fromTypes;
-        return allNodes?.find(n => n.id === typeId);
+  // Resolve page class details from IDs
+  const pageClassDetails = useMemo(() => {
+    if (!node?.classes || node.classes.length === 0) return [];
+    return node.classes
+      .map(classId => {
+        const fromClasses = allClasses?.find(t => t.id === classId);
+        if (fromClasses) return fromClasses;
+        return allNodes?.find(n => n.id === classId);
       })
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
-  }, [node?.types, allTypes, allNodes]);
+      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
+  }, [node?.classes, allClasses, allNodes]);
   
   // Resolve page tag details from IDs
   const pageTagDetails = useMemo(() => {
@@ -264,21 +264,21 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       })
       .filter((t): t is Node => {
         if (t === undefined) return false;
-        if (t.is_type) return false;
+        if (t.is_class) return false;
         return true;
       });
   }, [node?.tags, allTags, allNodes]);
   
-  // A node is a "type node" if it's in the types list OR has nodes using it as their type
-  const isTypeNode = useMemo(() => {
+  // A node is a "class node" if it's in the classes list OR has nodes using it as their class
+  const isClassNode = useMemo(() => {
     if (!node) return false;
-    return (allTypes?.some(t => t.id === node.id) || (typedNodes && typedNodes.length > 0)) ?? false;
-  }, [node, allTypes, typedNodes]);
+    return (allClasses?.some(t => t.id === node.id) || (classedNodes && classedNodes.length > 0)) ?? false;
+  }, [node, allClasses, classedNodes]);
   
   // Block callbacks for NodeCollection context
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
-    onAddType: (blockId, typeNodeId, _keepInline, _typeName) => {
-      addType.mutate({ nodeId: blockId, typeId: typeNodeId });
+    onAddClass: (blockId, classNodeId, _keepInline, _className) => {
+      addClass.mutate({ nodeId: blockId, classId: classNodeId });
     },
     onAddTag: (blockId, tagNodeId, keepInline, _tagName) => {
       addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
@@ -286,13 +286,13 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
         addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
       }
     },
-    onCreateType: (blockId, name, _keepInline) => {
-      const typeType = allTypes?.find(t => t.name?.toLowerCase() === 'type');
+    onCreateClass: (blockId, name, _keepInline) => {
+      const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
       createNode.mutate({ name, is_page: true }, {
         onSuccess: (newPage) => {
-          addType.mutate({ nodeId: blockId, typeId: newPage.id });
-          if (typeType) {
-            addType.mutate({ nodeId: newPage.id, typeId: typeType.id });
+          addClass.mutate({ nodeId: blockId, classId: newPage.id });
+          if (classClass) {
+            addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
           }
         }
       });
@@ -321,10 +321,10 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addType, addTag, addTagLink, createNode, allTypes, openCommentsForNode, addSidebarCard]);
+  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard]);
 
-  // Get effective icon (node's icon or first type's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allTypes), [node, allTypes]);
+  // Get effective icon (node's icon or first class's icon)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
 
   // Loading state
   if (isLoading) {
@@ -397,21 +397,21 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       {/* Content */}
       <div className="sidebar-node-view__content">
         {nodeType === 'page' && (
-          /* Page content: Types, Tags, Properties, Children via NodeCollection, and sections */
+          /* Page content: Classes, Tags, Properties, Children via NodeCollection, and sections */
           <>
-            {/* Types Section */}
-            <div className="sidebar-node-view__section sidebar-node-view__types">
+            {/* Classes Section */}
+            <div className="sidebar-node-view__section sidebar-node-view__classes">
               <NodePillRow
-                nodes={pageTypeDetails}
-                searchMode="types"
-                emptyText="Add type"
-                searchPlaceholder="Search types..."
+                nodes={pageClassDetails}
+                searchMode="classes"
+                emptyText="Add class"
+                searchPlaceholder="Search classes..."
                 onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemovePageType}
+                onRemove={handleRemovePageClass}
                 onColorChange={handleNodeColorChange}
-                onAdd={handleAddPageType}
-                onCreateNew={handleCreatePageType}
-                canRemove={(n) => !isSystemTypeUuid(n.uuid)}
+                onAdd={handleAddPageClass}
+                onCreateNew={handleCreatePageClass}
+                canRemove={(n) => !isSystemClassUuid(n.uuid)}
               />
             </div>
             
@@ -461,21 +461,21 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
               </div>
             )}
             
-            {/* Typed nodes section - collapsed by default */}
-            {isTypeNode && (
+            {/* Classed nodes section - collapsed by default */}
+            {isClassNode && (
               <NodeViewSection
                 title="Nodes"
                 icon={<TableIcon size="sm" />}
-                count={typedNodes?.length ?? 0}
+                count={classedNodes?.length ?? 0}
                 defaultExpanded={false}
                 hideWhenEmpty={true}
-                headerActions={<TypedNodesSectionToolbar state={typedNodesToolbarState} />}
+                headerActions={<ClassedNodesSectionToolbar state={classedNodesToolbarState} />}
               >
-                <TypedNodesView 
-                  typeId={node.id} 
-                  typeName={node.name || 'Untitled'} 
+                <ClassedNodesView 
+                  classId={node.id} 
+                  className={node.name || 'Untitled'} 
                   hideToolbar={true}
-                  toolbarState={typedNodesToolbarState}
+                  toolbarState={classedNodesToolbarState}
                 />
               </NodeViewSection>
             )}
@@ -539,9 +539,9 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
               nodeId={node.id}
               content={node.name || ''}
               onChange={handleNameChange}
-              onAddType={handleAddTypeToBlock(node.id)}
+              onAddClass={handleAddClassToBlock(node.id)}
               onAddTag={handleAddTagToBlock(node.id)}
-              onCreateType={handleCreateTypeForBlock(node.id)}
+              onCreateClass={handleCreateClassForBlock(node.id)}
               onCreateTag={handleCreateTagForBlock(node.id)}
               onCreatePageLink={handleCreatePageLink}
               onOpenComments={handleOpenComments(node.id)}
@@ -563,9 +563,9 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                   onContentChange={handleBlockChange}
                   onBulletClick={handleBlockBulletClick}
                   onShiftClick={handleBlockShiftClick} 
-                  onAddType={handleAddTypeToBlock(child.id)}
+                  onAddClass={handleAddClassToBlock(child.id)}
                   onAddTag={handleAddTagToBlock(child.id)}
-                  onCreateType={handleCreateTypeForBlock(child.id)}
+                  onCreateClass={handleCreateClassForBlock(child.id)}
                   onCreateTag={handleCreateTagForBlock(child.id)}
                   onCreatePageLink={handleCreatePageLink}
                   onOpenComments={handleOpenComments(child.id)}

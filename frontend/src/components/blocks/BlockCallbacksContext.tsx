@@ -16,12 +16,12 @@ import type { AssetCategory } from '@/api/assets';
  * Callbacks for block-specific operations
  */
 export interface BlockCallbacks {
-  /** Handle adding a type to a block */
-  onAddType?: (blockId: number, typeNodeId: number, keepInline: boolean, typeName: string) => void;
+  /** Handle adding a class to a block */
+  onAddClass?: (blockId: number, classNodeId: number, keepInline: boolean, className: string) => void;
   /** Handle adding a tag to a block */
   onAddTag?: (blockId: number, tagNodeId: number, keepInline: boolean, tagName: string) => void;
-  /** Handle creating a new type */
-  onCreateType?: (blockId: number, name: string, keepInline: boolean) => void;
+  /** Handle creating a new class */
+  onCreateClass?: (blockId: number, name: string, keepInline: boolean) => void;
   /** Handle creating a new tag */
   onCreateTag?: (blockId: number, name: string, keepInline: boolean) => void;
   /** Handle creating a new page link */

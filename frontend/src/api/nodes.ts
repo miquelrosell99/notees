@@ -173,10 +173,10 @@ export async function getArchivedPages(): Promise<Node[]> {
 }
 
 /**
- * Get all nodes with a specific type
+ * Get all nodes with a specific class
  */
-export async function getNodesWithType(typeId: number): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/types/${typeId}/nodes`);
+export async function getNodesWithClass(classId: number): Promise<Node[]> {
+  const response = await api.get<NodesResponse>(`${BASE}/classes/${classId}/nodes`);
   return response.data.nodes;
 }
 
@@ -260,38 +260,38 @@ export async function searchNodes(query: string, type_filters?: string): Promise
 }
 
 /**
- * List all types (nodes that can categorize other nodes)
+ * List all classes (nodes that can categorize other nodes)
  */
-export async function listTypes(): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/types`);
+export async function listClasses(): Promise<Node[]> {
+  const response = await api.get<NodesResponse>(`${BASE}/classes`);
   return response.data.nodes;
 }
 
 /**
- * Search for types by name
+ * Search for classes by name
  */
-export async function searchTypes(query: string): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/types/search`, {
+export async function searchClasses(query: string): Promise<Node[]> {
+  const response = await api.get<NodesResponse>(`${BASE}/classes/search`, {
     params: { q: query },
   });
   return response.data.nodes;
 }
 
 /**
- * Add a type to a node (sets the "types" property)
+ * Add a class to a node (sets the "classes" property)
  */
-export async function addType(nodeId: number, typeNodeId: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${nodeId}/types`, {
-    type_node_id: typeNodeId,
+export async function addClass(nodeId: number, classNodeId: number): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeId}/classes`, {
+    class_node_id: classNodeId,
   });
   return response.data;
 }
 
 /**
- * Remove a type from a node
+ * Remove a class from a node
  */
-export async function removeType(nodeId: number, typeNodeId: number): Promise<Node> {
-  const response = await api.delete<Node>(`${BASE}/${nodeId}/types/${typeNodeId}`);
+export async function removeClass(nodeId: number, classNodeId: number): Promise<Node> {
+  const response = await api.delete<Node>(`${BASE}/${nodeId}/classes/${classNodeId}`);
   return response.data;
 }
 

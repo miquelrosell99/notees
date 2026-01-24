@@ -214,17 +214,17 @@ function NodeListItem({
   if (editable) {
     // Build block-specific callbacks from context
     const blockProps = blockCallbacks ? {
-      onAddType: blockCallbacks.onAddType 
-        ? (typeNodeId: number, keepInline: boolean, typeName: string) => 
-            blockCallbacks.onAddType!(node.id, typeNodeId, keepInline, typeName)
+      onAddClass: blockCallbacks.onAddClass 
+        ? (classNodeId: number, keepInline: boolean, className: string) => 
+            blockCallbacks.onAddClass!(node.id, classNodeId, keepInline, className)
         : undefined,
       onAddTag: blockCallbacks.onAddTag
         ? (tagNodeId: number, keepInline: boolean, tagName: string) =>
             blockCallbacks.onAddTag!(node.id, tagNodeId, keepInline, tagName)
         : undefined,
-      onCreateType: blockCallbacks.onCreateType
+      onCreateClass: blockCallbacks.onCreateClass
         ? (name: string, keepInline: boolean) =>
-            blockCallbacks.onCreateType!(node.id, name, keepInline)
+            blockCallbacks.onCreateClass!(node.id, name, keepInline)
         : undefined,
       onCreateTag: blockCallbacks.onCreateTag
         ? (name: string, keepInline: boolean) =>

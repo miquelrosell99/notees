@@ -7,10 +7,10 @@
  * Block
  *  ├─ BlockContainer   (layout, indent, selection state)
  *  ├─ BlockBullet      (Bullet component - drag handle, expand/collapse)
- *  ├─ BlockContent     (view mode - text with LinkPill/TypePill tokens)
+ *  ├─ BlockContent     (view mode - text with LinkPill/ClassPill tokens)
  *  │    ├─ TextToken
  *  │    ├─ LinkPill
- *  │    └─ TypePill
+ *  │    └─ ClassPill
  *  ├─ BlockEditor      (edit mode - rich text editing)
  *  └─ BlockChildren    (recursive child blocks)
  * 
@@ -28,7 +28,7 @@
  */
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useTypes, useRemoveType } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
@@ -38,8 +38,8 @@ import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ColorPickerRow } from '../nodes/NodeContextMenu';
-import { NodeTypePill } from '../NodeTypePill';
-import { SYSTEM_TYPE_UUIDS, isSystemTypeUuid } from '@/constants';
+import { NodeClassPill } from '../NodeClassPill';
+import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
@@ -57,9 +57,9 @@ interface BlockProps {
   onContentChange?: (blockId: number, content: string) => void;
   onBulletClick?: (blockId: number) => void;
   onShiftClick?: (blockId: number) => void;
-  onAddType?: (typeNodeId: number, keepInline: boolean, typeName: string) => void;
+  onAddClass?: (classNodeId: number, keepInline: boolean, className: string) => void;
   onAddTag?: (tagNodeId: number, keepInline: boolean, tagName: string) => void;
-  onCreateType?: (name: string, keepInline: boolean) => void;
+  onCreateClass?: (name: string, keepInline: boolean) => void;
   onCreateTag?: (name: string, keepInline: boolean) => void;
   onLinkPage?: (pageNode: Node) => void;
   onCreatePageLink?: (name: string) => Promise<string | undefined>;  // Returns the new page ID
@@ -103,9 +103,9 @@ export function Block({
   onContentChange,
   onBulletClick,
   onShiftClick,
-  onAddType,
+  onAddClass,
   onAddTag,
-  onCreateType,
+  onCreateClass,
   onCreateTag,
   onLinkPage,
   onCreatePageLink,
@@ -142,8 +142,8 @@ export function Block({
   const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
   const createNode = useCreateNode();
-  const removeType = useRemoveType();
-  const { data: allTypes } = useTypes();
+  const removeClass = useRemoveClass();
+  const { data: allClasses } = useClasses();
   
   // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
   const openNode = useOpenNodeAction();
@@ -156,30 +156,31 @@ export function Block({
   const globalIsBeingDragged = useIsBlockDragging(block.id);
   const selectionMode = useSelectionMode();
   
-  // Resolve type details from IDs (excluding the implicit "page" type)
-  const blockTypeDetails = useMemo(() => {
-    if (!block.types || block.types.length === 0 || !allTypes) return [];
-    return block.types
-      .map(typeId => allTypes.find(t => t.id === typeId))
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_TYPE_UUIDS.page);
-  }, [block.types, allTypes]);
+  // Resolve class details from IDs (excluding the implicit "page" class)
+  const blockClassDetails = useMemo(() => {
+    const classIds = block.classes ?? block.types;
+    if (!classIds || classIds.length === 0 || !allClasses) return [];
+    return classIds
+      .map(classId => allClasses.find(c => c.id === classId))
+      .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
+  }, [block.classes, block.types, allClasses]);
   
   // Determine the icon to show on the bullet
-  // Priority: block's own icon > first type's icon
+  // Priority: block's own icon > first class's icon
   const bulletIcon = useMemo(() => {
     // Prefer block's own icon first
     if (block.icon) {
       return block.icon;
     }
-    // Fall back to first type's icon if block has no icon
-    if (blockTypeDetails.length > 0) {
-      const firstTypeWithIcon = blockTypeDetails.find(t => t.icon);
-      if (firstTypeWithIcon?.icon) {
-        return firstTypeWithIcon.icon;
+    // Fall back to first class's icon if block has no icon
+    if (blockClassDetails.length > 0) {
+      const firstClassWithIcon = blockClassDetails.find(c => c.icon);
+      if (firstClassWithIcon?.icon) {
+        return firstClassWithIcon.icon;
       }
     }
     return null;
-  }, [block.icon, blockTypeDetails]);
+  }, [block.icon, blockClassDetails]);
   
   // Determine if block has children
   const hasChildren = children && children.length > 0;
@@ -1044,9 +1045,9 @@ export function Block({
               onChange={(content) => onContentChange?.(block.id, content)}
               initialCursorPosition={initialCursorPosition}
               editorRef={editorRef}
-              onAddType={onAddType}
+              onAddClass={onAddClass}
               onAddTag={onAddTag}
-              onCreateType={onCreateType}
+              onCreateClass={onCreateClass}
               onCreateTag={onCreateTag}
               onLinkPage={onLinkPage}
               onCreatePageLink={onCreatePageLink}
@@ -1100,16 +1101,16 @@ export function Block({
           )}
         </Card>
         
-        {/* Block types - right-aligned */}
-        {showTypes && blockTypeDetails.length > 0 && (
+        {/* Block classes - right-aligned */}
+        {showTypes && blockClassDetails.length > 0 && (
           <div className="block-types">
-            {blockTypeDetails.map((typeNode) => {
+            {blockClassDetails.map((classNode) => {
               return (
-                <NodeTypePill
-                  key={typeNode.id}
-                  typeNode={typeNode}
-                  onClick={() => openNode(typeNode.id, 'page')}
-                  onRemove={isSystemTypeUuid(typeNode.uuid) ? undefined : () => removeType.mutate({ nodeId: block.id, typeId: typeNode.id })}
+                <NodeClassPill
+                  key={classNode.id}
+                  classNode={classNode}
+                  onClick={() => openNode(classNode.id, 'page')}
+                  onRemove={isSystemClassUuid(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
                   readOnly={!canEdit}
                 />
               );
@@ -1163,9 +1164,9 @@ export function Block({
                 onContentChange={onContentChange}
                 onBulletClick={onBulletClick}
                 onShiftClick={onShiftClick}
-                onAddType={onAddType}
+                onAddClass={onAddClass}
                 onAddTag={onAddTag}
-                onCreateType={onCreateType}
+                onCreateClass={onCreateClass}
                 onCreateTag={onCreateTag}
                 onLinkPage={onLinkPage}
                 onCreatePageLink={onCreatePageLink}
@@ -1271,12 +1272,12 @@ function blockPropsAreEqual(
   if (prevProps.commentCount !== nextProps.commentCount) return false;
   if (prevProps.backlinkCount !== nextProps.backlinkCount) return false;
   
-  // Types array (shallow ID comparison)
-  const prevTypes = prevProps.block.types ?? [];
-  const nextTypes = nextProps.block.types ?? [];
-  if (prevTypes.length !== nextTypes.length) return false;
-  for (let i = 0; i < prevTypes.length; i++) {
-    if (prevTypes[i] !== nextTypes[i]) return false;
+  // Classes array (shallow ID comparison)
+  const prevClasses = prevProps.block.classes ?? prevProps.block.types ?? [];
+  const nextClasses = nextProps.block.classes ?? nextProps.block.types ?? [];
+  if (prevClasses.length !== nextClasses.length) return false;
+  for (let i = 0; i < prevClasses.length; i++) {
+    if (prevClasses[i] !== nextClasses[i]) return false;
   }
   
   return true;

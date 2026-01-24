@@ -290,23 +290,23 @@ export function useTags() {
 }
 
 /**
- * Hook to fetch all types (nodes that can be used as types)
- * Types are essentially pages that can categorize other nodes
+ * Hook to fetch all classes (nodes that can be used as classes)
+ * Classes are essentially pages that can categorize other nodes
  */
-export function useTypes() {
+export function useClasses() {
   return useQuery({
-    queryKey: nodeKeys.types(),
-    queryFn: () => nodesApi.listTypes(),
+    queryKey: nodeKeys.classes(),
+    queryFn: () => nodesApi.listClasses(),
   });
 }
 
 /**
- * Hook to search for types
+ * Hook to search for classes
  */
-export function useSearchTypes(query: string) {
+export function useSearchClasses(query: string) {
   return useQuery({
-    queryKey: [...nodeKeys.types(), 'search', query] as const,
-    queryFn: () => nodesApi.searchTypes(query),
+    queryKey: [...nodeKeys.classes(), 'search', query] as const,
+    queryFn: () => nodesApi.searchClasses(query),
     enabled: query.length > 0,
   });
 }
@@ -343,13 +343,13 @@ export function useArchivedPages() {
 }
 
 /**
- * Hook to fetch nodes with a specific type
+ * Hook to fetch nodes with a specific class
  */
-export function useNodesWithType(typeId: number | null) {
+export function useNodesWithClass(classId: number | null) {
   return useQuery({
-    queryKey: ['nodes', 'by-type', typeId],
-    queryFn: () => nodesApi.getNodesWithType(typeId!),
-    enabled: !!typeId,
+    queryKey: ['nodes', 'by-class', classId],
+    queryFn: () => nodesApi.getNodesWithClass(classId!),
+    enabled: !!classId,
     select: (nodes) => nodes,  // Returns Node[]
   });
 }

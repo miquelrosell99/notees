@@ -68,89 +68,89 @@ export function useUpdateProperty() {
 // ==================== Type Properties (for Types/Classes) ====================
 
 /**
- * Hook to fetch properties for a type/class
+ * Hook to fetch properties for a class
  */
-export function useTypeProperties(typeId: number | null, includeInherited: boolean = false) {
+export function useClassProperties(classId: number | null, includeInherited: boolean = false) {
   return useQuery({
     queryKey: includeInherited 
-      ? propertyKeys.forTypeInherited(typeId ?? 0)
-      : propertyKeys.forType(typeId ?? 0),
-    queryFn: () => propertiesApi.getTypeProperties(typeId!, includeInherited),
-    enabled: !!typeId,
+      ? propertyKeys.forClassInherited(classId ?? 0)
+      : propertyKeys.forClass(classId ?? 0),
+    queryFn: () => propertiesApi.getClassProperties(classId!, includeInherited),
+    enabled: !!classId,
   });
 }
 
 /**
- * Hook to fetch types that a type extends (parents)
+ * Hook to fetch classes that a class extends (parents)
  */
-export function useTypeExtends(typeId: number | null) {
+export function useClassExtends(classId: number | null) {
   return useQuery({
-    queryKey: propertyKeys.typeExtends(typeId ?? 0),
-    queryFn: () => propertiesApi.getTypeExtends(typeId!),
-    enabled: !!typeId,
+    queryKey: propertyKeys.classExtends(classId ?? 0),
+    queryFn: () => propertiesApi.getClassExtends(classId!),
+    enabled: !!classId,
   });
 }
 
 /**
- * Hook to add property to type/class
+ * Hook to add property to class
  */
-export function useAddPropertyToType() {
+export function useAddPropertyToClass() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ typeId, propertyId }: { typeId: number; propertyId: number }) => 
-      propertiesApi.addTypeProperty(typeId, propertyId),
-    onSuccess: (_, { typeId }) => {
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forType(typeId) });
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forTypeInherited(typeId) });
+    mutationFn: ({ classId, propertyId }: { classId: number; propertyId: number }) => 
+      propertiesApi.addClassProperty(classId, propertyId),
+    onSuccess: (_, { classId }) => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
     },
   });
 }
 
 /**
- * Hook to remove property from type/class
+ * Hook to remove property from class
  */
-export function useRemovePropertyFromType() {
+export function useRemovePropertyFromClass() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ typeId, propertyId }: { typeId: number; propertyId: number }) => 
-      propertiesApi.removeTypeProperty(typeId, propertyId),
-    onSuccess: (_, { typeId }) => {
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forType(typeId) });
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forTypeInherited(typeId) });
+    mutationFn: ({ classId, propertyId }: { classId: number; propertyId: number }) => 
+      propertiesApi.removeClassProperty(classId, propertyId),
+    onSuccess: (_, { classId }) => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
     },
   });
 }
 
 /**
- * Hook to add type extension (inheritance)
+ * Hook to add class extension (inheritance)
  */
-export function useAddTypeExtends() {
+export function useAddClassExtends() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ typeId, extendsTypeId }: { typeId: number; extendsTypeId: number }) => 
-      propertiesApi.addTypeExtends(typeId, extendsTypeId),
-    onSuccess: (_, { typeId }) => {
-      queryClient.invalidateQueries({ queryKey: propertyKeys.typeExtends(typeId) });
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forTypeInherited(typeId) });
+    mutationFn: ({ classId, extendsClassId }: { classId: number; extendsClassId: number }) => 
+      propertiesApi.addClassExtends(classId, extendsClassId),
+    onSuccess: (_, { classId }) => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
     },
   });
 }
 
 /**
- * Hook to remove type extension (inheritance)
+ * Hook to remove class extension (inheritance)
  */
-export function useRemoveTypeExtends() {
+export function useRemoveClassExtends() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ typeId, extendsTypeId }: { typeId: number; extendsTypeId: number }) => 
-      propertiesApi.removeTypeExtends(typeId, extendsTypeId),
-    onSuccess: (_, { typeId }) => {
-      queryClient.invalidateQueries({ queryKey: propertyKeys.typeExtends(typeId) });
-      queryClient.invalidateQueries({ queryKey: propertyKeys.forTypeInherited(typeId) });
+    mutationFn: ({ classId, extendsClassId }: { classId: number; extendsClassId: number }) => 
+      propertiesApi.removeClassExtends(classId, extendsClassId),
+    onSuccess: (_, { classId }) => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
     },
   });
 }

@@ -1,5 +1,5 @@
 /**
- * NodeTypePill - A pill that displays a node type with icon and optional remove button
+ * NodeClassPill - A pill that displays a node class with icon and optional remove button
  * 
  * Used in:
  * - Block component (to the right of blocks)
@@ -12,12 +12,12 @@ import { Pill } from './core/Pill';
 import { NodeIcon, CloseIcon } from './icons';
 import { ColorPickerRow } from './nodes/NodeContextMenu';
 import type { Node } from '@/types';
-import './NodeTypePill.css';
+import './NodeClassPill.css';
 
-interface NodeTypePillProps {
-  /** The type node */
-  typeNode: Node;
-  /** Callback when clicking the pill (usually to navigate to the type) */
+interface NodeClassPillProps {
+  /** The class node */
+  classNode: Node;
+  /** Callback when clicking the pill (usually to navigate to the class) */
   onClick?: () => void;
   /** Callback when clicking the remove button */
   onRemove?: () => void;
@@ -29,14 +29,14 @@ interface NodeTypePillProps {
   className?: string;
 }
 
-export function NodeTypePill({
-  typeNode,
+export function NodeClassPill({
+  classNode,
   onClick,
   onRemove,
   onColorChange,
   readOnly = false,
   className = '',
-}: NodeTypePillProps) {
+}: NodeClassPillProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
 
@@ -68,17 +68,17 @@ export function NodeTypePill({
   return (
     <>
       <div 
-        className={`node-type-pill ${className}`}
+        className={`node-class-pill ${className}`}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        title={`Click to view ${typeNode.name}${onColorChange && !readOnly ? ' • Right-click to change color' : ''}`}
+        title={`Click to view ${classNode.name}${onColorChange && !readOnly ? ' • Right-click to change color' : ''}`}
       >
         <Pill
-          text={typeNode.name}
-          leftIcon={typeNode.icon ? <NodeIcon icon={typeNode.icon} isPage={true} size="xs" /> : undefined}
+          text={classNode.name}
+          leftIcon={classNode.icon ? <NodeIcon icon={classNode.icon} isPage={true} size="xs" /> : undefined}
           rightIcon={!readOnly && onRemove ? <CloseIcon size="xs" /> : undefined}
           onRightIconClick={!readOnly ? handleRemove : undefined}
-          color={typeNode.color || undefined}
+          color={classNode.color || undefined}
         />
       </div>
       
@@ -86,7 +86,7 @@ export function NodeTypePill({
       {showColorPicker && (
         <PillColorPicker
           position={colorPickerPos}
-          currentColor={typeNode.color ?? null}
+          currentColor={classNode.color ?? null}
           onColorChange={handleColorChange}
           onClose={handleColorPickerClose}
         />
