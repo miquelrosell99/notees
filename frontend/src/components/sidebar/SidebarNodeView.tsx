@@ -137,7 +137,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   const handleCreateClassForBlock = useCallback((blockId: number) => (name: string) => {
     const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
     // Create as both a page AND a class so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_class: true }, {
+    createNode.mutate({ name, is_page: true, is_type: true }, {
       onSuccess: (newPage) => {
         addClass.mutate({ nodeId: blockId, classId: newPage.id });
         if (classClass) {
@@ -181,7 +181,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   const handleCreatePageClass = useCallback((name: string) => {
     if (!node) return;
     const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
-    createNode.mutate({ name, is_page: true, is_class: true }, {
+    createNode.mutate({ name, is_page: true, is_type: true }, {
       onSuccess: (newPage) => {
         addClass.mutate({ nodeId: node.id, classId: newPage.id });
         if (classClass) {
@@ -264,7 +264,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       })
       .filter((t): t is Node => {
         if (t === undefined) return false;
-        if (t.is_class) return false;
+        if (t.is_type) return false;
         return true;
       });
   }, [node?.tags, allTags, allNodes]);

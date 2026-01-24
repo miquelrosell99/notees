@@ -16,11 +16,11 @@ class NodeResponse(BaseModel):
     collapsed: bool = False
     active: bool = True
     is_page: bool = False  # Whether this node is a page
-    is_class: bool = False  # Whether this node defines a class
+    is_type: bool = False  # Whether this node defines a class/type
     is_daily: bool = False  # Daily journal page
     is_monthly: bool = False  # Monthly journal page
     is_yearly: bool = False  # Yearly journal page
-    usable_in: str = "both"  # Where this class can be applied (only meaningful when is_class=True)
+    usable_in: str = "both"  # Where this class can be applied (only meaningful when is_type=True)
     create_date: str
     write_date: str
     open_date: Optional[str] = None  # When the page was last opened/viewed
@@ -101,7 +101,7 @@ class NodeCreateRequest(BaseModel):
     classes: List[int] = []  # Class node IDs
     properties: Dict[int, Any] = {}  # property_id -> value
     is_page: bool = False  # Whether to create as a page
-    is_class: bool = False  # Whether to create as a class definition
+    is_type: bool = False  # Whether to create as a class/type definition
     # For date nodes
     is_daily: bool = False
     daily_date: Optional[str] = None  # YYYY-MM-DD

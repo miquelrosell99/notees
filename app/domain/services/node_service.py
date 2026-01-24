@@ -30,7 +30,7 @@ CLASS_CLASS_UUID = SYSTEM_CLASS_UUIDS["class"]
 
 # Mapping from class UUID to the node flag field name
 CLASS_UUID_TO_FLAG = {
-    SYSTEM_CLASS_UUIDS["class"]: "is_class",
+    SYSTEM_CLASS_UUIDS["class"]: "is_type",
     SYSTEM_CLASS_UUIDS["page"]: "is_page",
     SYSTEM_CLASS_UUIDS["day"]: "is_day",
     SYSTEM_CLASS_UUIDS["month"]: "is_month",

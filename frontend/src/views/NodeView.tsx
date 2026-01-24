@@ -228,7 +228,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       .filter((t): t is Node => {
         if (t === undefined) return false;
         // Hide class definitions (they shouldn't show as tags)
-        if (t.is_class) return false;
+        if (t.is_type) return false;
         return true;
       });
   }, [node?.tags, allTags, allNodes]);
@@ -244,7 +244,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     if (!node) return;
     const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
     // Create as both a page AND a class so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_class: true }, {
+    createNode.mutate({ name, is_page: true, is_type: true }, {
       onSuccess: (newPage) => {
         addClass.mutate({ nodeId: node.id, classId: newPage.id });
         if (classClass) {
