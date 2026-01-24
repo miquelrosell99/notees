@@ -225,15 +225,20 @@ class NodeService:
         
         # Get all backlinks to this node (from [[nodeId]] links)
         backlinks = await self._link_service.get_backlinks(node_id)
+        logger.info(f"[DELETE] Node {node_id} ({node.name}) has {len(backlinks)} backlinks")
         
         # Track nodes we've updated to avoid double-processing
         updated_nodes = set()
         
         # Update each source node to remove/replace the link
         for link in backlinks:
+            logger.info(f"[DELETE] Processing backlink from source_node_id={link.source_node_id}")
             source_node = await self._node_repo.get_by_id(link.source_node_id)
             if not source_node or not source_node.name:
+                logger.warning(f"[DELETE] Source node {link.source_node_id} not found or has no name")
                 continue
+            
+            logger.info(f"[DELETE] Source node content: {source_node.name[:100]!r}")
             
             # Replace the link in the source node's content
             updated_content = await self._remove_link_from_content(
@@ -242,6 +247,8 @@ class NodeService:
                 "page"  # link_type is no longer used but kept for signature compatibility
             )
             
+            logger.info(f"[DELETE] Updated content: {updated_content[:100]!r} (changed={updated_content != source_node.name})")
+            
             if updated_content != source_node.name:
                 # Update without re-parsing links (to avoid infinite recursion)
                 await self._node_repo.update(
@@ -249,6 +256,7 @@ class NodeService:
                     NodeUpdateData(name=updated_content)
                 )
                 updated_nodes.add(link.source_node_id)
+                logger.info(f"[DELETE] Updated source node {link.source_node_id}")
         
         # Also handle inline class references ({{nodeId}})
         await self._replace_inline_class_references(node, updated_nodes)
