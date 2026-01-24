@@ -9,8 +9,4 @@ export type { PropertyListProps, PropertyEntry } from './PropertyList';
 
 export { PropertyConfigPanel } from './PropertyConfigPanel';
 
-export { PropertyCreateModal } from './PropertyCreateModal';
-
-export { PropertyEditModal } from './PropertyEditModal';
-
-export { PropertyPickerModal } from './PropertyPickerModal';
+export { PropertySuggestionPopup } from './PropertySuggestionPopup';
