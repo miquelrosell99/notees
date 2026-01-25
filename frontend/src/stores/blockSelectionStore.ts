@@ -6,6 +6,7 @@
  * - Selection mode
  * - Drag and drop state
  * - Box selection
+ * - Editor selection (caret position) - MODEL-FIRST approach
  * 
  * Block State Model:
  * - display: Default state, block shows content as read-only
@@ -18,6 +19,12 @@
  * - edit -> display: Click outside block content
  * - selected -> edit: Press Enter or click on content
  * - selected -> display: Press Escape or click elsewhere
+ * 
+ * Editor Selection Model:
+ * - Selection is stored centrally as the source of truth (not DOM)
+ * - DOM selection is a PROJECTION of the model selection
+ * - Before mutations: capture selection to pendingSelection
+ * - After re-render: restore selection from pendingSelection
  */
 import { create } from 'zustand';
 
@@ -26,6 +33,25 @@ export type SelectionMode = 'editing' | 'selected' | 'none';
 
 /** Direction of selection expansion for keyboard navigation */
 export type SelectionDirection = 'up' | 'down' | null;
+
+/**
+ * Editor Selection - Model-first caret/selection representation
+ * 
+ * Uses character offsets (not DOM offsets) for stable positioning.
+ * Character offset counts text characters, treating pills as their raw content length.
+ */
+export interface EditorSelection {
+  /** The block containing the anchor point */
+  anchorBlockId: number;
+  /** Character offset in the anchor block */
+  anchorOffset: number;
+  /** The block containing the focus point (same as anchor for collapsed selection) */
+  focusBlockId: number;
+  /** Character offset in the focus block */
+  focusOffset: number;
+  /** Horizontal X position for preserving caret position during vertical navigation */
+  caretX?: number;
+}
 
 export interface DragState {
   isDragging: boolean;
@@ -49,6 +75,26 @@ export interface SelectionAnchor {
   direction: SelectionDirection;
 }
 
+/**
+ * Operation Queue Entry
+ * 
+ * Tracks in-flight structural operations to prevent race conditions.
+ * Operations like split, merge, indent, outdent should wait for pending
+ * operations to complete before executing.
+ */
+export interface OperationQueueEntry {
+  /** Unique ID for this operation */
+  id: string;
+  /** Type of operation for debugging */
+  type: 'split' | 'merge' | 'indent' | 'outdent' | 'move' | 'delete' | 'create';
+  /** Block IDs affected by this operation */
+  blockIds: number[];
+  /** Promise that resolves when operation completes */
+  promise: Promise<void>;
+  /** Timestamp for tracking operation duration */
+  startTime: number;
+}
+
 interface BlockSelectionState {
   // Individual block states (for all blocks in view)
   blockStates: Map<number, BlockState>;
@@ -64,6 +110,17 @@ interface BlockSelectionState {
   
   // Currently editing block ID
   editingBlockId: number | null;
+  
+  // === Editor Selection (Model-First) ===
+  // Current editor selection (caret position in the editing block)
+  editorSelection: EditorSelection | null;
+  
+  // Pending selection to restore after mutations/re-renders
+  pendingSelection: EditorSelection | null;
+  
+  // === Operation Queue ===
+  // In-flight operations to prevent race conditions
+  operationQueue: Map<string, OperationQueueEntry>;
   
   // Drag state
   dragState: DragState;
@@ -104,6 +161,19 @@ interface BlockSelectionState {
   exitEditMode: () => void;
   setSelectionMode: (mode: SelectionMode) => void;
   
+  // === Editor Selection Actions ===
+  // Set the current editor selection (e.g., when caret moves)
+  setEditorSelection: (selection: EditorSelection | null) => void;
+  
+  // Set pending selection to restore after mutations
+  setPendingSelection: (selection: EditorSelection | null) => void;
+  
+  // Clear pending selection after it has been restored
+  clearPendingSelection: () => void;
+  
+  // Convenience: set pending selection for a specific block and offset
+  setPendingCaret: (blockId: number, offset: number, caretX?: number) => void;
+  
   // Drag and drop
   startDrag: (blockId: number) => void;
   updateDragTarget: (targetId: number | null, position: 'before' | 'after' | 'inside' | null) => void;
@@ -131,6 +201,26 @@ interface BlockSelectionState {
   
   // Keyboard selection extension (Shift+Up/Down)
   extendSelectionKeyboard: (direction: 'up' | 'down') => void;
+  
+  // === Operation Queue Actions ===
+  // Start tracking an operation (returns operation ID)
+  startOperation: (
+    type: OperationQueueEntry['type'],
+    blockIds: number[],
+    promise: Promise<void>
+  ) => string;
+  
+  // End/complete an operation
+  endOperation: (operationId: string) => void;
+  
+  // Check if any operation is pending for given block(s)
+  hasBlockingOperation: (blockIds: number[]) => boolean;
+  
+  // Wait for all operations affecting given blocks to complete
+  waitForOperations: (blockIds: number[]) => Promise<void>;
+  
+  // Get all pending operations (for debugging)
+  getPendingOperations: () => OperationQueueEntry[];
 }
 
 export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) => ({
@@ -139,6 +229,14 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
   primarySelectedBlockId: null,
   selectionMode: 'none',
   editingBlockId: null,
+  
+  // Editor selection state
+  editorSelection: null,
+  pendingSelection: null,
+  
+  // Operation queue for race condition protection
+  operationQueue: new Map(),
+  
   dragState: {
     isDragging: false,
     draggedBlockId: null,
@@ -365,7 +463,37 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
     if (state.editingBlockId) {
       state.selectBlock(state.editingBlockId);
     }
-    set({ editingBlockId: null });
+    set({ editingBlockId: null, editorSelection: null, pendingSelection: null });
+  },
+  
+  // === Editor Selection Actions ===
+  
+  // Set the current editor selection
+  setEditorSelection: (selection) => {
+    set({ editorSelection: selection });
+  },
+  
+  // Set pending selection to restore after mutations/re-renders
+  setPendingSelection: (selection) => {
+    set({ pendingSelection: selection });
+  },
+  
+  // Clear pending selection after restoration
+  clearPendingSelection: () => {
+    set({ pendingSelection: null });
+  },
+  
+  // Convenience: set pending caret at a specific block and offset
+  setPendingCaret: (blockId, offset, caretX) => {
+    set({
+      pendingSelection: {
+        anchorBlockId: blockId,
+        anchorOffset: offset,
+        focusBlockId: blockId,
+        focusOffset: offset,
+        caretX,
+      },
+    });
   },
   
   // Set selection mode directly
@@ -601,5 +729,96 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
         }
       }
     }
+  },
+  
+  // === Operation Queue Implementation ===
+  
+  /**
+   * Start tracking a structural operation.
+   * Returns a unique operation ID for later completion.
+   */
+  startOperation: (type, blockIds, promise) => {
+    const operationId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    
+    const entry: OperationQueueEntry = {
+      id: operationId,
+      type,
+      blockIds,
+      promise,
+      startTime: Date.now(),
+    };
+    
+    set((state) => {
+      const newQueue = new Map(state.operationQueue);
+      newQueue.set(operationId, entry);
+      return { operationQueue: newQueue };
+    });
+    
+    // Auto-cleanup when promise resolves or rejects
+    promise.finally(() => {
+      get().endOperation(operationId);
+    });
+    
+    return operationId;
+  },
+  
+  /**
+   * End/complete an operation, removing it from the queue.
+   */
+  endOperation: (operationId) => {
+    set((state) => {
+      const newQueue = new Map(state.operationQueue);
+      newQueue.delete(operationId);
+      return { operationQueue: newQueue };
+    });
+  },
+  
+  /**
+   * Check if there's any pending operation affecting the given blocks.
+   */
+  hasBlockingOperation: (blockIds) => {
+    const state = get();
+    const blockIdSet = new Set(blockIds);
+    
+    for (const entry of state.operationQueue.values()) {
+      // Check if any of the entry's block IDs overlap with our block IDs
+      for (const id of entry.blockIds) {
+        if (blockIdSet.has(id)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  },
+  
+  /**
+   * Wait for all operations affecting the given blocks to complete.
+   */
+  waitForOperations: async (blockIds) => {
+    const state = get();
+    const blockIdSet = new Set(blockIds);
+    const relevantPromises: Promise<void>[] = [];
+    
+    for (const entry of state.operationQueue.values()) {
+      // Check if any of the entry's block IDs overlap with our block IDs
+      for (const id of entry.blockIds) {
+        if (blockIdSet.has(id)) {
+          relevantPromises.push(entry.promise);
+          break; // Only need to add the promise once per entry
+        }
+      }
+    }
+    
+    if (relevantPromises.length > 0) {
+      await Promise.all(relevantPromises);
+    }
+  },
+  
+  /**
+   * Get all pending operations (for debugging/monitoring).
+   */
+  getPendingOperations: () => {
+    return Array.from(get().operationQueue.values());
   },
 }));

@@ -14,14 +14,21 @@
  * - Enter: add to property only (for @ and #) or insert link (for [[)
  * - Ctrl+Enter: add to property AND keep inline
  * 
+ * Selection Model (Model-First):
+ * - Selection state is stored centrally in blockSelectionStore (not DOM)
+ * - DOM selection is a PROJECTION of the model selection
+ * - Uses useLayoutEffect for selection restoration (runs before paint)
+ * - Supports pendingSelection for stable cursor after mutations
+ * 
  * Note: This component is the pure editor. The bullet point and comment 
  * indicator are rendered by the parent Block component.
  */
-import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
+import { useRef, useCallback, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import './BlockEditor.css';
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
+import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiTag } from '@mdi/js';
 import * as mdiIcons from '@mdi/js';
@@ -93,8 +100,6 @@ interface BlockEditorProps {
   nodeUuid?: string;
   content: string;
   onChange: (content: string) => void;
-  /** Initial cursor position when entering edit mode. If provided, cursor will be set here instead of end */
-  initialCursorPosition?: number;
   onAddClass?: (classNodeId: number, keepInline: boolean, className: string) => void;
   onAddTag?: (tagNodeId: number, keepInline: boolean, tagName: string) => void;
   onCreateClass?: (name: string, keepInline: boolean) => void;
@@ -107,10 +112,10 @@ interface BlockEditorProps {
   readOnly?: boolean;
   /** Called when user presses Escape to exit edit mode */
   onEscape?: () => void;
-  /** Called when user presses arrow up at beginning of text */
-  onNavigateUp?: () => void;
-  /** Called when user presses arrow down at end of text */
-  onNavigateDown?: () => void;
+  /** Called when user presses arrow up at beginning/first line. Receives caretX for position preservation. */
+  onNavigateUp?: (caretX?: number) => void;
+  /** Called when user presses arrow down at end/last line. Receives caretX for position preservation. */
+  onNavigateDown?: (caretX?: number) => void;
   /** Called with shift+arrow for extending selection */
   onExtendSelection?: (direction: 'up' | 'down') => void;
   /** Whether this block is a task (enables Shift+Enter state cycling) */
@@ -566,13 +571,204 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
   selection?.addRange(range);
 }
 
+/**
+ * Find the character offset that best matches a target X position in the last line of an element.
+ * Used for preserving horizontal caret position during ArrowUp navigation.
+ * 
+ * @param element - The contenteditable element
+ * @param targetX - The target X coordinate (in viewport pixels)
+ * @returns The character offset that is closest to targetX on the last line
+ */
+function findOffsetAtXInLastLine(element: HTMLElement, targetX: number): number {
+  const text = element.textContent || '';
+  if (!text) return 0;
+  
+  const range = document.createRange();
+  let bestOffset = text.length;
+  let bestDistance = Infinity;
+  let lastLineY = -Infinity;
+  
+  // First pass: find the Y coordinate of the last line
+  const contentLength = text.replace(/\u200B/g, '').length;
+  for (let i = 0; i <= contentLength; i++) {
+    try {
+      setCursorPositionSilent(element, i, range);
+      const rect = range.getBoundingClientRect();
+      if (rect.top > lastLineY) {
+        lastLineY = rect.top;
+      }
+    } catch {
+      // Ignore errors from invalid positions
+    }
+  }
+  
+  // Second pass: find the offset with X closest to targetX on the last line
+  const lineHeight = parseFloat(getComputedStyle(element).lineHeight) || 24;
+  for (let i = 0; i <= contentLength; i++) {
+    try {
+      setCursorPositionSilent(element, i, range);
+      const rect = range.getBoundingClientRect();
+      
+      // Only consider positions on the last line (within 0.5 line height)
+      if (Math.abs(rect.top - lastLineY) < lineHeight * 0.5) {
+        const distance = Math.abs(rect.left - targetX);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestOffset = i;
+        }
+      }
+    } catch {
+      // Ignore errors from invalid positions
+    }
+  }
+  
+  return bestOffset;
+}
+
+/**
+ * Find the character offset that best matches a target X position in the first line of an element.
+ * Used for preserving horizontal caret position during ArrowDown navigation.
+ * 
+ * @param element - The contenteditable element
+ * @param targetX - The target X coordinate (in viewport pixels)
+ * @returns The character offset that is closest to targetX on the first line
+ */
+function findOffsetAtXInFirstLine(element: HTMLElement, targetX: number): number {
+  const text = element.textContent || '';
+  if (!text) return 0;
+  
+  const range = document.createRange();
+  let bestOffset = 0;
+  let bestDistance = Infinity;
+  let firstLineY = Infinity;
+  
+  // First pass: find the Y coordinate of the first line
+  const contentLength = text.replace(/\u200B/g, '').length;
+  for (let i = 0; i <= contentLength; i++) {
+    try {
+      setCursorPositionSilent(element, i, range);
+      const rect = range.getBoundingClientRect();
+      if (rect.top < firstLineY) {
+        firstLineY = rect.top;
+      }
+    } catch {
+      // Ignore errors from invalid positions
+    }
+  }
+  
+  // Second pass: find the offset with X closest to targetX on the first line
+  const lineHeight = parseFloat(getComputedStyle(element).lineHeight) || 24;
+  for (let i = 0; i <= contentLength; i++) {
+    try {
+      setCursorPositionSilent(element, i, range);
+      const rect = range.getBoundingClientRect();
+      
+      // Only consider positions on the first line (within 0.5 line height)
+      if (Math.abs(rect.top - firstLineY) < lineHeight * 0.5) {
+        const distance = Math.abs(rect.left - targetX);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestOffset = i;
+        }
+      }
+    } catch {
+      // Ignore errors from invalid positions
+    }
+  }
+  
+  return bestOffset;
+}
+
+/**
+ * Set cursor position without triggering selection changes.
+ * Used internally for measuring positions.
+ */
+function setCursorPositionSilent(element: HTMLElement, targetPosition: number, range: Range): void {
+  let currentPosition = 0;
+  
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+    null
+  );
+  
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const textContent = node.textContent || '';
+      const contentLength = textContent.replace(/\u200B/g, '').length;
+      
+      if (currentPosition + contentLength >= targetPosition) {
+        const targetOffsetInContent = targetPosition - currentPosition;
+        let actualOffset = 0;
+        let contentCharsCount = 0;
+        
+        for (let i = 0; i < textContent.length && contentCharsCount < targetOffsetInContent; i++) {
+          if (textContent[i] !== '\u200B') {
+            contentCharsCount++;
+          }
+          actualOffset = i + 1;
+        }
+        
+        if (actualOffset === 0 && textContent[0] === '\u200B') {
+          actualOffset = 1;
+        }
+        
+        range.setStart(node, Math.min(actualOffset, textContent.length));
+        range.collapse(true);
+        return;
+      }
+      currentPosition += contentLength;
+    } else if (isPillElement(node as HTMLElement)) {
+      const length = getPillRawLength(node as HTMLElement);
+      if (currentPosition + length >= targetPosition) {
+        const nextSibling = node.nextSibling;
+        if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE) {
+          const text = nextSibling.textContent || '';
+          const offset = text[0] === '\u200B' ? 1 : 0;
+          range.setStart(nextSibling, offset);
+        } else {
+          const parent = node.parentNode;
+          if (parent) {
+            const index = Array.from(parent.childNodes).indexOf(node as ChildNode);
+            range.setStart(parent, index + 1);
+          }
+        }
+        range.collapse(true);
+        return;
+      }
+      currentPosition += length;
+    }
+  }
+  
+  // Position at end
+  range.selectNodeContents(element);
+  range.collapse(false);
+}
+
+/**
+ * Get the current caret's X position in viewport coordinates.
+ * Returns undefined if no selection or selection is not collapsed.
+ */
+function getCaretX(): number | undefined {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+    return undefined;
+  }
+  
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  
+  // Use left position, or fallback to the range's collapsed position
+  return rect.left || rect.right;
+}
+
 export function BlockEditor({ 
   nodeId,
   isPage,
   nodeUuid,
   content, 
-  onChange, 
-  initialCursorPosition,
+  onChange,
   onAddClass,
   onAddTag,
   onCreateClass,
@@ -611,6 +807,54 @@ export function BlockEditor({
   
   // Composing state (for IME)
   const [isComposing, setIsComposing] = useState(false);
+  
+  // === Model-First Selection Support ===
+  // Get pending selection for this block from the store
+  const pendingSelection = usePendingSelectionForBlock(nodeId ?? -1);
+  const { clearPendingSelection } = useEditorSelectionActions();
+  
+  // useLayoutEffect for selection restoration - runs synchronously after DOM mutations
+  // but BEFORE browser paints, preventing visual cursor jumps
+  useLayoutEffect(() => {
+    if (!pendingSelection || !editorRef.current) return;
+    
+    // Only restore if this block should have focus
+    if (pendingSelection.anchorBlockId !== nodeId) return;
+    
+    // Focus the editor if not already focused
+    if (document.activeElement !== editorRef.current) {
+      editorRef.current.focus();
+    }
+    
+    // If caretX is provided, use it to find the best offset position
+    // This preserves horizontal position during ArrowUp/Down navigation
+    if (pendingSelection.caretX !== undefined) {
+      // For ArrowUp navigation (coming from below), find position in last line
+      // For ArrowDown navigation (coming from above), find position in first line
+      // We determine direction based on offset: 0 = coming from above, length = coming from below
+      const contentLength = (editorRef.current.textContent || '').replace(/\u200B/g, '').length;
+      
+      let targetOffset: number;
+      if (pendingSelection.anchorOffset === 0) {
+        // Coming from ArrowDown (from block above), find position in first line
+        targetOffset = findOffsetAtXInFirstLine(editorRef.current, pendingSelection.caretX);
+      } else if (pendingSelection.anchorOffset >= contentLength) {
+        // Coming from ArrowUp (from block below), find position in last line
+        targetOffset = findOffsetAtXInLastLine(editorRef.current, pendingSelection.caretX);
+      } else {
+        // Use the exact offset if it's in the middle
+        targetOffset = pendingSelection.anchorOffset;
+      }
+      
+      setCursorPosition(editorRef.current, targetOffset);
+    } else {
+      // No caretX, use the exact offset
+      setCursorPosition(editorRef.current, pendingSelection.anchorOffset);
+    }
+    
+    // Clear the pending selection
+    clearPendingSelection();
+  }, [pendingSelection, nodeId, clearPendingSelection]);
   
   // Extract link IDs from content
   const linkIds = useMemo(() => {
@@ -746,12 +990,10 @@ export function BlockEditor({
       editorRef.current.focus();
     }
     
-    // Apply initial cursor position if not yet applied
-    if (initialCursorPosition !== undefined && !initialCursorApplied.current) {
-      setCursorPosition(editorRef.current, initialCursorPosition);
-      initialCursorApplied.current = true;
-    } else if (!initialCursorApplied.current) {
-      // Position cursor at end if no initial position specified
+    // Apply initial cursor position from pendingSelection (handled by useLayoutEffect)
+    // or position at end if no pending selection and not yet initialized
+    if (!initialCursorApplied.current && !pendingSelection) {
+      // Position cursor at end if no pending selection specified
       const range = document.createRange();
       range.selectNodeContents(editorRef.current);
       range.collapse(false);
@@ -759,12 +1001,15 @@ export function BlockEditor({
       selection?.removeAllRanges();
       selection?.addRange(range);
       initialCursorApplied.current = true;
+    } else if (pendingSelection && !initialCursorApplied.current) {
+      // pendingSelection will be handled by useLayoutEffect, mark as applied
+      initialCursorApplied.current = true;
     }
     // If cursor was already applied, editor is focused, and HTML updated, restore saved position
     else if (needsUpdate && savedPos !== undefined && editorIsFocused) {
       setCursorPosition(editorRef.current, savedPos);
     }
-  }, [content, linkNamesSize, typeNamesSize, linkNames, typeNames, initialCursorPosition]);
+  }, [content, linkNamesSize, typeNamesSize, linkNames, typeNames, pendingSelection]);
   
   const [trigger, setTrigger] = useState<TriggerState>({
     isOpen: false,
@@ -1028,11 +1273,14 @@ export function BlockEditor({
       
       const range = selection.getRangeAt(0);
       
+      // Capture caret X position for horizontal preservation
+      const caretX = getCaretX();
+      
       if (e.key === 'ArrowUp') {
         // Check if cursor is at the start or on the first line
         if (cursorPos === 0) {
           e.preventDefault();
-          onNavigateUp?.();
+          onNavigateUp?.(caretX);
           return;
         }
         
@@ -1051,14 +1299,14 @@ export function BlockEditor({
         // If cursor is within 1.5 line heights from top, consider it on first line
         if (relativeTop < lineHeight * 1.5) {
           e.preventDefault();
-          onNavigateUp?.();
+          onNavigateUp?.(caretX);
           return;
         }
       } else if (e.key === 'ArrowDown') {
         // Check if we're at the end of content
         if (cursorPos === currentContent.length) {
           e.preventDefault();
-          onNavigateDown?.();
+          onNavigateDown?.(caretX);
           return;
         }
         
@@ -1077,7 +1325,7 @@ export function BlockEditor({
         // If cursor is within 1.5 line heights from bottom, consider it on last line
         if (relativeBottom < lineHeight * 1.5) {
           e.preventDefault();
-          onNavigateDown?.();
+          onNavigateDown?.(caretX);
           return;
         }
       }
