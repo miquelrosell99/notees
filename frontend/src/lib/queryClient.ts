@@ -1,8 +1,43 @@
 /**
  * React Query client configuration
  */
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, type Mutation, type Query } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
+import { useNotificationStore } from '@/stores/notificationStore';
+
+/**
+ * Extract user-friendly error message from various error types
+ */
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    // Check for Axios error with response
+    const axiosError = error as AxiosError<{ detail?: string; message?: string }>;
+    if (axiosError.response?.data) {
+      return axiosError.response.data.detail || 
+             axiosError.response.data.message || 
+             axiosError.message;
+    }
+    return error.message;
+  }
+  return 'An unexpected error occurred';
+}
+
+/**
+ * Global mutation error handler
+ */
+function onMutationError(error: unknown, _variables: unknown, _context: unknown, mutation: Mutation<unknown, unknown, unknown, unknown>) {
+  const message = getErrorMessage(error);
+  
+  // Get mutation key for context
+  const mutationKey = mutation.options.mutationKey;
+  const context = mutationKey ? ` (${String(mutationKey)})` : '';
+  
+  // Show error notification
+  useNotificationStore.getState().error(
+    'Operation failed',
+    message + context
+  );
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +56,7 @@ export const queryClient = new QueryClient({
     },
     mutations: {
       retry: 0,
+      onError: onMutationError,
     },
   },
 });
