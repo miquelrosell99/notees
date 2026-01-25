@@ -28,8 +28,8 @@
  */
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
-import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction } from '@/stores';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useBlockOperation } from '@/hooks';
+import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
 import { Bullet } from './Bullet';
@@ -93,7 +93,8 @@ interface BlockProps {
   suppressColor?: boolean;
 }
 
-export function Block({
+// Internal component function - use Block or MemoizedBlock exports
+function BlockInternal({
   block,
   children = [],
   siblings = [],
@@ -133,7 +134,6 @@ export function Block({
   const [isLineHovered, setIsLineHovered] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [initialCursorPosition, setInitialCursorPosition] = useState<number | undefined>(undefined);
   
   // Local state for isolated mode (blocks that appear in multiple places like linked references)
   const [localBlockState, setLocalBlockState] = useState<BlockState>('display');
@@ -147,6 +147,12 @@ export function Block({
   
   // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
   const openNode = useOpenNodeAction();
+  
+  // Editor selection actions for model-first cursor management
+  const { setPendingCaret } = useEditorSelectionActions();
+  
+  // Operation queue for race condition protection on structural operations
+  const { wrapOperation } = useBlockOperation();
   
   // PERFORMANCE: Use fine-grained selectors for selection state
   // These only trigger re-renders when THIS block's state changes
@@ -501,14 +507,18 @@ export function Block({
     
     e.stopPropagation();
     
-    // Calculate cursor position from click
+    // Calculate cursor position from click and set via model-first approach
     const cursorPos = getCursorPositionFromClick(e);
-    console.log('[Block] handleContentClick - cursorPos:', cursorPos, 'content:', block.name?.substring(0, 50));
-    setInitialCursorPosition(cursorPos);
+    if (cursorPos !== undefined) {
+      setPendingCaret(block.id, cursorPos);
+    } else {
+      // Position at end if click position couldn't be determined
+      setPendingCaret(block.id, (block.name || '').length);
+    }
     
     // Enter edit mode
     setBlockState(block.id, 'edit');
-  }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick]);
+  }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick, setPendingCaret]);
   
   // Handle deleting a link from block content (replaces [[link]] with plain text)
   const handleDeleteLink = useCallback((raw: string) => {
@@ -519,17 +529,6 @@ export function Block({
     const newContent = block.name.replace(raw, '');
     onContentChange?.(block.id, newContent);
   }, [block.id, block.name, canEdit, onContentChange]);
-  
-  // Reset initial cursor position when entering edit mode (after a short delay to allow it to be applied)
-  useEffect(() => {
-    if (blockState === 'edit' && initialCursorPosition !== undefined) {
-      // Clear after a short delay to allow the editor to apply it
-      const timer = setTimeout(() => {
-        setInitialCursorPosition(undefined);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [blockState, initialCursorPosition]);
   
   // Handle bullet click for navigation
   const handleBulletClickInternal = useCallback((e: React.MouseEvent) => {
@@ -819,12 +818,14 @@ export function Block({
       },
       {
         onSuccess: (newNode) => {
+          // Set pending caret at start of new block (cursor at position 0)
+          setPendingCaret(newNode.id, 0);
           // Set the new block to edit mode
           setBlockState(newNode.id, 'edit');
         },
       }
     );
-  }, [block.id, block.name, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState]);
+  }, [block.id, block.name, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState, setPendingCaret]);
   
   // Handle Backspace at start of block - merge text with block above
   const handleBackspaceAtStart = useCallback((remainingText: string) => {
@@ -840,9 +841,13 @@ export function Block({
       return;
     }
     
-    // Append remaining text to target block's content
+    // Calculate the cursor position at the merge point (end of target's original content)
     const targetContent = targetBlock.name || '';
+    const cursorPosition = targetContent.length;
     const mergedContent = targetContent + remainingText;
+    
+    // Set pending caret BEFORE mutations - this will be restored after re-render
+    setPendingCaret(targetBlock.id, cursorPosition);
     
     // Update target block with merged content
     updateNode.mutate({
@@ -853,9 +858,9 @@ export function Block({
     // Delete current block
     deleteNode.mutate(block.id);
     
-    // Set target block to edit mode (cursor will be at end due to content change)
+    // Set target block to edit mode
     setBlockState(targetBlock.id, 'edit');
-  }, [block.id, siblings, parentBlock, updateNode, deleteNode, setBlockState]);
+  }, [block.id, siblings, parentBlock, updateNode, deleteNode, setBlockState, setPendingCaret]);
   
   // Handle Delete at end of block - merge next sibling's text into current
   const handleDeleteAtEnd = useCallback(() => {
@@ -943,7 +948,7 @@ export function Block({
   }, [block.id, parentId, parentBlock, moveNode]);
   
   // Handle arrow up navigation - move to previous sibling block
-  const handleNavigateUp = useCallback(() => {
+  const handleNavigateUp = useCallback((caretX?: number) => {
     if (!editorRef.current) return;
     
     const currentIndex = siblings.findIndex(s => s.id === block.id);
@@ -957,21 +962,16 @@ export function Block({
       return;
     }
     
-    // Get the current cursor's horizontal position
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      // Position cursor at end of target block for now (simpler and common behavior)
-      const cursorPosition = (targetBlock.name || '').length;
-      setInitialCursorPosition(cursorPosition);
-    } else {
-      setInitialCursorPosition((targetBlock.name || '').length);
-    }
+    // Position cursor at end of target block - the BlockEditor will use caretX
+    // to find the best horizontal position if provided
+    const cursorPosition = (targetBlock.name || '').length;
+    setPendingCaret(targetBlock.id, cursorPosition, caretX);
     
     setBlockState(targetBlock.id, 'edit');
-  }, [siblings, parentBlock, setBlockState, block.id, editorRef]);
+  }, [siblings, parentBlock, setBlockState, block.id, editorRef, setPendingCaret]);
   
   // Handle arrow down navigation - move to next sibling block
-  const handleNavigateDown = useCallback(() => {
+  const handleNavigateDown = useCallback((caretX?: number) => {
     const currentIndex = siblings.findIndex(s => s.id === block.id);
     const nextSibling = currentIndex >= 0 && currentIndex < siblings.length - 1 
       ? siblings[currentIndex + 1] 
@@ -981,7 +981,7 @@ export function Block({
       // Try to navigate to first child if current block has children
       if (children.length > 0) {
         const firstChild = children[0];
-        setInitialCursorPosition(0);
+        setPendingCaret(firstChild.id, 0, caretX);
         setBlockState(firstChild.id, 'edit');
         return;
       }
@@ -990,9 +990,10 @@ export function Block({
     }
     
     // Set next sibling to edit mode with cursor at beginning
-    setInitialCursorPosition(0);
+    // The BlockEditor will use caretX to find the best horizontal position
+    setPendingCaret(nextSibling.id, 0, caretX);
     setBlockState(nextSibling.id, 'edit');
-  }, [siblings, children, setBlockState]);
+  }, [siblings, children, setBlockState, setPendingCaret]);
 
   
   return (
@@ -1053,7 +1054,6 @@ export function Block({
               nodeUuid={block.uuid}
               content={block.name || ''}
               onChange={(content) => onContentChange?.(block.id, content)}
-              initialCursorPosition={initialCursorPosition}
               editorRef={editorRef}
               onAddClass={onAddClass}
               onAddTag={onAddTag}
@@ -1253,6 +1253,7 @@ function blockPropsAreEqual(
   if (prevProps.block.collapsed !== nextProps.block.collapsed) return false;
   if (prevProps.block.color !== nextProps.block.color) return false;
   if (prevProps.block.icon !== nextProps.block.icon) return false;
+  if (prevProps.block.sequence !== nextProps.block.sequence) return false;
   
   // Children - shallow compare by length and IDs
   const prevChildren = prevProps.children ?? [];
@@ -1263,11 +1264,25 @@ function blockPropsAreEqual(
     // Also check children's names for content updates
     if (prevChildren[i].name !== nextChildren[i].name) return false;
     if (prevChildren[i].collapsed !== nextChildren[i].collapsed) return false;
+    if (prevChildren[i].sequence !== nextChildren[i].sequence) return false;
+  }
+  
+  // Siblings - shallow compare by length and IDs (for merge operations)
+  const prevSiblings = prevProps.siblings ?? [];
+  const nextSiblings = nextProps.siblings ?? [];
+  if (prevSiblings.length !== nextSiblings.length) return false;
+  for (let i = 0; i < prevSiblings.length; i++) {
+    if (prevSiblings[i].id !== nextSiblings[i].id) return false;
+    if (prevSiblings[i].name !== nextSiblings[i].name) return false;
   }
   
   // Structural props
   if (prevProps.depth !== nextProps.depth) return false;
   if (prevProps.parentId !== nextProps.parentId) return false;
+  
+  // Parent block comparison (for merge operations)
+  if (prevProps.parentBlock?.id !== nextProps.parentBlock?.id) return false;
+  if (prevProps.parentBlock?.name !== nextProps.parentBlock?.name) return false;
   
   // Capability flags
   if (prevProps.canEdit !== nextProps.canEdit) return false;
@@ -1294,6 +1309,14 @@ function blockPropsAreEqual(
   return true;
 }
 
-// Export memoized component
-export const MemoizedBlock = memo(Block, blockPropsAreEqual);
+// Export memoized component as the default Block export for better performance
+// The memoization prevents re-renders when only unrelated props change
+export const Block = memo(BlockInternal, blockPropsAreEqual);
+
+// Legacy alias for backward compatibility
+export const MemoizedBlock = Block;
+
+// Export the non-memoized version for cases where memoization is not desired
+export { BlockInternal };
+
 export default Block;

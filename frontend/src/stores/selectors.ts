@@ -125,6 +125,55 @@ export function useEditingBlockId() {
 }
 
 /**
+ * Get pending selection for restoration
+ */
+export function usePendingSelection() {
+  return useBlockSelectionStore(state => state.pendingSelection);
+}
+
+/**
+ * Get pending selection for a specific block (only returns if it's for this block)
+ */
+export function usePendingSelectionForBlock(blockId: number) {
+  return useBlockSelectionStore(
+    useCallback(
+      state => state.pendingSelection?.anchorBlockId === blockId ? state.pendingSelection : null,
+      [blockId]
+    )
+  );
+}
+
+/**
+ * Get editor selection actions
+ */
+export function useEditorSelectionActions() {
+  return useBlockSelectionStore(
+    useCallback(state => ({
+      setEditorSelection: state.setEditorSelection,
+      setPendingSelection: state.setPendingSelection,
+      clearPendingSelection: state.clearPendingSelection,
+      setPendingCaret: state.setPendingCaret,
+    }), [])
+  );
+}
+
+/**
+ * Get operation queue actions for structural operations
+ * Use these to coordinate async mutations and prevent race conditions
+ */
+export function useOperationQueueActions() {
+  return useBlockSelectionStore(
+    useCallback(state => ({
+      startOperation: state.startOperation,
+      endOperation: state.endOperation,
+      hasBlockingOperation: state.hasBlockingOperation,
+      waitForOperations: state.waitForOperations,
+      getPendingOperations: state.getPendingOperations,
+    }), [])
+  );
+}
+
+/**
  * Check if ANY block is currently being edited
  */
 export function useIsAnyBlockEditing(): boolean {

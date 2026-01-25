@@ -15,3 +15,6 @@ export * from './useDragPreview';
 export * from './useVirtualizedNodes';
 export * from './usePrefetch';
 export * from './useFocusedView';
+export * from './useBlockOperation';
+export * from './useStructuralHistory';
+export * from './useDebouncedSave';

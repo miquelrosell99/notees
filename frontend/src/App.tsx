@@ -7,6 +7,7 @@ import { queryClient } from './lib/queryClient';
 import { Layout } from './components/layout/Layout';
 import { LoginPage } from './views/LoginPage';
 import { DatabaseManagementView } from './views/DatabaseManagementView';
+import { NotificationToast } from './components/core/NotificationToast';
 import { listDatabases } from './api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore } from './stores';
 import { getLogger } from './utils/logger';
@@ -171,6 +172,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppContent />
+      <NotificationToast />
     </QueryClientProvider>
   );
 }
