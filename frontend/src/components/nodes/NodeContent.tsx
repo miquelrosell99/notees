@@ -13,9 +13,9 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useCreateNode, useUpdateNode, useAddTag, useAddClass, useBlockSelection, useClasses, useAddTagLink } from '@/hooks';
+import { useCreateNode, useAddTag, useAddClass, useBlockSelection, useClasses, useAddTagLink, useContentSave } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
-import type { Node, NodeUpdate } from '@/types';
+import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { mdiPlus } from '@mdi/js';
 import { NodeCollection } from './NodeCollection';
@@ -56,7 +56,6 @@ export function NodeContent({
   totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const addTag = useAddTag();
   const addClass = useAddClass();
@@ -68,16 +67,14 @@ export function NodeContent({
   const { enterEditMode } = useBlockSelectionStore();
   useBlockSelection(children, { containerRef: contentRef, enabled: true });
 
+  // Debounced content save - batches rapid edits to reduce API calls
+  const { handleContentChange: handleBlockChange } = useContentSave();
+
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
   const [targetBlockId, setTargetBlockId] = useState<number | null>(null);
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-
-  const handleBlockChange = useCallback((blockId: number, name: string) => {
-    const data: NodeUpdate = { name };
-    updateNode.mutate({ id: blockId, data });
-  }, [updateNode]);
 
   const handleAddBlock = useCallback(async () => {
     // Compute next sequence from all node children (not just filtered ones)

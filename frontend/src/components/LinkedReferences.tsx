@@ -12,7 +12,7 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import './LinkedReferences.css';
-import { useLinkedReferences, usePropertyBacklinks, useUpdateNode } from '@/hooks';
+import { useLinkedReferences, usePropertyBacklinks, useContentSave } from '@/hooks';
 import type { Node } from '@/types/api';
 import { NodeCollection, NodeCollectionToolbar } from './nodes/NodeCollection';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
@@ -123,7 +123,9 @@ export function LinkedReferences({
 }) {
   const { data: refs, isLoading: refsLoading } = useLinkedReferences(nodeId);
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(nodeId);
-  const updateNode = useUpdateNode();
+  
+  // Debounced content save - batches rapid edits to reduce API calls
+  const { handleContentChange } = useContentSave();
 
   // View mode state for each section (internal state when not using external toolbar)
   const [pagesViewMode, setPagesViewMode] = useState<NodeCollectionViewMode>('list');
@@ -138,10 +140,7 @@ export function LinkedReferences({
 
   const isLoading = refsLoading || propLoading;
 
-  // Handle content change for blocks
-  const handleContentChange = useCallback((blockId: number, content: string) => {
-    updateNode.mutate({ id: blockId, data: { name: content } });
-  }, [updateNode]);
+  // Content change handled via debounced hook
 
   // Convert property backlinks to page nodes for NodeCollection
   const pageNodes: Node[] = useMemo(() => {
