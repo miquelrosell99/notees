@@ -1,5 +1,13 @@
 /**
  * Hooks module - exports all custom hooks
+ * 
+ * Categories:
+ * - Data fetching: useNodes, useNodeViews, usePrefetch
+ * - Selection/interaction: useBlockSelection, useSearchableList, useFocusedView
+ * - Block operations: useBlockOperation, useStructuralHistory, useDebouncedSave
+ * - UI utilities: useNodeIcon, useNodeCollection, useDragPreview, useVirtualizedNodes
+ * - Keyboard/focus: useKeyboardShortcuts, useFocusTrap
+ * - Routing: useRouter, RouterSync
  */
 export * from './useNodes';
 export * from './useNodeViews';
@@ -18,3 +26,6 @@ export * from './useFocusedView';
 export * from './useBlockOperation';
 export * from './useStructuralHistory';
 export * from './useDebouncedSave';
+export * from './useContentSave';
+export * from './useKeyboardShortcuts';
+export * from './useFocusTrap';
