@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -70,17 +70,14 @@ interface FocusedBlockContentProps {
 
 function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProps) {
   const createNode = useCreateNode();
-  const updateNode = useUpdateNode();
   const addTag = useAddTag();
   const addClass = useAddClass();
   const addTagLink = useAddTagLink();
   const { data: allClasses } = useClasses();
   const { openCommentsForNode, openNode } = useNodesStore();
   
-  // Handle content changes
-  const handleContentChange = useCallback((blockId: number, content: string) => {
-    updateNode.mutate({ id: blockId, data: { name: content } });
-  }, [updateNode]);
+  // Debounced content save - batches rapid edits to reduce API calls
+  const { handleContentChange } = useContentSave();
 
   // Handle node click (navigate)
   const handleNodeClick = useCallback((clickedNode: Node) => {

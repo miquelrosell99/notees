@@ -1,5 +1,11 @@
 /**
  * Main application component
+ * 
+ * Architecture:
+ * - QueryClientProvider: TanStack Query for server state
+ * - KeyboardShortcutsProvider: Centralized keyboard shortcut handling
+ * - ErrorBoundary: Graceful error recovery
+ * - NotificationToast: Global notification display
  */
 import { useEffect } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
@@ -8,12 +14,23 @@ import { Layout } from './components/layout/Layout';
 import { LoginPage } from './views/LoginPage';
 import { DatabaseManagementView } from './views/DatabaseManagementView';
 import { NotificationToast } from './components/core/NotificationToast';
+import { ErrorBoundary } from './components/core/ErrorBoundary';
+import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
 import { listDatabases } from './api/databases';
-import { useAuthStore, useNodesStore, useFavoritesStore } from './stores';
+import { useAuthStore, useNodesStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
 import './App.css';
 
 const log = getLogger('App');
+
+/**
+ * Global keyboard listener component
+ * Sets up the centralized keyboard event handler
+ */
+function GlobalKeyboardHandler() {
+  useGlobalKeyboardListener();
+  return null;
+}
 
 function AppContent() {
   const { isAuthenticated, isLoading, logout } = useAuthStore();
@@ -64,25 +81,29 @@ function AppContent() {
     }
   }, []);
   
-  // Global keyboard shortcuts
+  // Register keyboard shortcut handlers when authenticated
+  // This bridges the centralized keyboard system with app-level actions
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    function handleKeyDown(e: KeyboardEvent) {
-      // Ctrl+N or Cmd+N: Quick add
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        toggleQuickAdd();
-      }
-      // Ctrl+Shift+D or Cmd+Shift+D: Open calendar
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
-        e.preventDefault();
-        toggleCalendar();
-      }
-    }
+    const { registerHandler, unregisterHandler } = useKeyboardStore.getState();
     
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    // Quick add shortcut (Ctrl/Cmd + N)
+    registerHandler('quickAdd', (e) => {
+      e.preventDefault();
+      toggleQuickAdd();
+    });
+    
+    // Calendar shortcut (Ctrl/Cmd + Shift + D)
+    registerHandler('goToDaily', (e) => {
+      e.preventDefault();
+      toggleCalendar();
+    });
+    
+    return () => {
+      unregisterHandler('quickAdd');
+      unregisterHandler('goToDaily');
+    };
   }, [isAuthenticated, toggleQuickAdd, toggleCalendar]);
   
   // Refresh favorites and recents when database changes
@@ -158,7 +179,11 @@ function AppContent() {
   }
   
   log.debug('User authenticated, showing main layout');
-  return <Layout />;
+  return (
+    <ErrorBoundary>
+      <Layout />
+    </ErrorBoundary>
+  );
 }
 
 function App() {
@@ -171,8 +196,11 @@ function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
-      <NotificationToast />
+      <KeyboardShortcutsProvider>
+        <GlobalKeyboardHandler />
+        <AppContent />
+        <NotificationToast />
+      </KeyboardShortcutsProvider>
     </QueryClientProvider>
   );
 }
