@@ -174,7 +174,7 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     user = await auth.create_user(username, "testpassword123")
     
     # Initialize workspace for user (this creates the user's workspace and seeds system types)
-    workspace_id = await schema.get_or_create_user_workspace(db_pool, user["id"])
+    workspace_id = await schema.get_or_create_user_graph(db_pool, int(user["id"]))
     
     # Generate auth token
     token = auth.create_token(user["id"], user["username"])
@@ -182,7 +182,7 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     return {
         "id": user["id"],
         "username": user["username"],
-        "workspace_id": workspace_id,
+        "graph_id": workspace_id,
         "token": token,
         "auth_header": {"Authorization": f"Bearer {token}"}
     }

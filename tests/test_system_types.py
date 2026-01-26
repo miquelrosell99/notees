@@ -20,13 +20,13 @@ async def node_service(db_pool, test_user):
     )
     from app.domain.services import NodeService, LinkParsingService
     
-    workspace_id = test_user["workspace_id"]
+    graph_id = test_user["graph_id"]
     
     # Get system type IDs from workspace
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-            SYSTEM_CLASS_UUIDS['page'], workspace_id
+            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+            SYSTEM_CLASS_UUIDS['page'], graph_id
         )
         page_type_id = row['id']
         
@@ -37,9 +37,9 @@ async def node_service(db_pool, test_user):
         classes_property_id = row['id']
     
     # Create repositories
-    node_repo = PostgresNodeRepository(db_pool, workspace_id)
-    property_repo = PostgresPropertyRepository(db_pool, workspace_id)
-    link_repo = PostgresLinkRepository(db_pool, workspace_id)
+    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id, classes_property_id)
+    property_repo = PostgresPropertyRepository(db_pool, graph_id)
+    link_repo = PostgresLinkRepository(db_pool, graph_id)
     
     # Create services
     link_service = LinkParsingService(
@@ -57,14 +57,14 @@ async def node_service(db_pool, test_user):
 @pytest.fixture
 async def system_type_ids(db_pool, test_user):
     """Get system type IDs for the test workspace."""
-    workspace_id = test_user["workspace_id"]
+    graph_id = test_user["graph_id"]
     
     async with db_pool.acquire() as conn:
         ids = {}
         for name in ['day', 'month', 'year', 'type', 'task', 'page']:
             row = await conn.fetchrow(
-                "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-                SYSTEM_CLASS_UUIDS[name], workspace_id
+                "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+                SYSTEM_CLASS_UUIDS[name], graph_id
             )
             ids[name] = row['id'] if row else None
         
