@@ -9,6 +9,9 @@ from pydantic import BaseModel
 
 from ...domain.repositories import PostgresNodeViewRepository
 from ...domain.services.query_service import QueryExecutor
+from ...domain.entities.query_ast import QueryAST, create_default_query_ast
+from ...domain.services.query_ast_validation import validate_query_ast, can_save_query
+from ...domain.services.query_ast_sql import generate_sql_from_ast
 from ...db.schema.constants import DEFAULT_QUERY_BLOCK_TREE
 from ..auth import get_current_user
 from ...models import User
@@ -34,8 +37,10 @@ class NodeViewResponse(BaseModel):
     active: bool
     create_date: str
     write_date: str
-    # The query block tree JSON is always available
+    # The query block tree JSON (legacy format)
     query_block_tree: Optional[Dict[str, Any]] = None
+    # The query AST (new format)
+    query_ast: Optional[Dict[str, Any]] = None
 
 
 class NodeViewCreateRequest(BaseModel):
@@ -45,7 +50,10 @@ class NodeViewCreateRequest(BaseModel):
     view_type: str
     order_index: int = 0
     is_default: bool = False
+    # Legacy format (will be converted to AST internally)
     query_block_tree: Optional[Dict[str, Any]] = None
+    # New format (preferred)
+    query_ast: Optional[Dict[str, Any]] = None
 
 
 class NodeViewUpdateRequest(BaseModel):
@@ -58,11 +66,18 @@ class NodeViewUpdateRequest(BaseModel):
 class QueryExecuteRequest(BaseModel):
     """Request to execute a query."""
     block_tree: Optional[Dict[str, Any]] = None
+    # New: support query_ast directly
+    query_ast: Optional[Dict[str, Any]] = None
     runtime_params: Optional[Dict[str, Any]] = None
     limit: Optional[int] = 100
     offset: Optional[int] = None
     order_by: Optional[str] = None
     include_children: Optional[bool] = False  # Whether to include children for each result
+
+
+class QueryASTUpdateRequest(BaseModel):
+    """Request to update query AST."""
+    query_ast: Dict[str, Any]
 
 
 class NodeViewReorderRequest(BaseModel):
@@ -260,16 +275,39 @@ async def create_node_view(
 ) -> NodeViewResponse:
     """Create a new NodeView.
     
-    Creates a NodeView with the provided query block tree stored directly.
+    Accepts either query_ast (preferred) or query_block_tree (legacy).
+    Stores as QueryAST format internally.
     """
     repo = await _get_node_view_repo(user)
+    
+    # Determine which format to use
+    query_json = None
+    if request.query_ast:
+        # Validate AST
+        try:
+            ast = QueryAST.from_dict(request.query_ast)
+            validation = validate_query_ast(ast)
+            if not validation.valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid query AST: {validation.issues[0].message if validation.issues else 'Unknown error'}"
+                )
+            query_json = request.query_ast
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid query AST: {str(e)}")
+    elif request.query_block_tree:
+        # Legacy format - store as-is for now (could convert to AST)
+        query_json = request.query_block_tree
+    else:
+        # Default empty query
+        query_json = create_default_query_ast().to_dict()
     
     # Create the NodeView with query_json
     view = await repo.create(
         node_id=request.node_id,
         name=request.name,
         view_type=request.view_type,
-        query_json=request.query_block_tree,
+        query_json=query_json,
         order_index=request.order_index,
         is_default=request.is_default,
     )
@@ -305,7 +343,7 @@ async def update_query_block_tree(
     block_tree: Dict[str, Any],
     user: User = Depends(get_current_user),
 ) -> NodeViewResponse:
-    """Update the query block tree for a NodeView."""
+    """Update the query block tree for a NodeView (legacy endpoint)."""
     repo = await _get_node_view_repo(user)
     
     view = await repo.get_by_id(view_id)
@@ -319,6 +357,86 @@ async def update_query_block_tree(
         raise HTTPException(status_code=500, detail="Failed to update query")
     
     return await _node_view_to_response(updated_view, include_query_block_tree=True, user=user)
+
+
+@router.put("/{view_id}/query-ast")
+async def update_query_ast(
+    view_id: int,
+    request: QueryASTUpdateRequest,
+    user: User = Depends(get_current_user),
+) -> NodeViewResponse:
+    """Update the query AST for a NodeView (preferred endpoint).
+    
+    Validates the AST before saving.
+    """
+    repo = await _get_node_view_repo(user)
+    
+    view = await repo.get_by_id(view_id)
+    if not view:
+        raise HTTPException(status_code=404, detail="NodeView not found")
+    
+    # Validate AST
+    try:
+        ast = QueryAST.from_dict(request.query_ast)
+        validation = validate_query_ast(ast)
+        
+        can_save, reason = can_save_query(ast)
+        if not can_save:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot save query: {reason}"
+            )
+        
+        # Update with validated AST
+        updated_view = await repo.update_query_json(view_id, ast.to_dict())
+        
+        if not updated_view:
+            raise HTTPException(status_code=500, detail="Failed to update query")
+        
+        return await _node_view_to_response(updated_view, include_query_block_tree=True, user=user)
+    
+    except Exception as e:
+        logger.error(f"Failed to update query AST: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid query AST: {str(e)}")
+
+
+@router.post("/validate-query-ast")
+async def validate_query_ast_endpoint(
+    request: QueryASTUpdateRequest,
+    user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Validate a query AST without saving it.
+    
+    Returns validation results with any issues found.
+    """
+    try:
+        ast = QueryAST.from_dict(request.query_ast)
+        validation = validate_query_ast(ast)
+        
+        return {
+            "valid": validation.valid,
+            "can_save": not validation.has_errors(),
+            "issues": [
+                {
+                    "severity": issue.severity,
+                    "message": issue.message,
+                    "path": issue.path,
+                    "suggestion": issue.suggestion,
+                }
+                for issue in validation.issues
+            ]
+        }
+    except Exception as e:
+        return {
+            "valid": False,
+            "can_save": False,
+            "issues": [{
+                "severity": "error",
+                "message": f"Failed to parse AST: {str(e)}",
+                "path": "root",
+                "suggestion": None,
+            }]
+        }
 
 
 @router.delete("/{view_id}")

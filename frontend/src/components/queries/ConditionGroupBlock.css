@@ -1,0 +1,124 @@
+/**
+ * ConditionGroupBlock Styles
+ */
+
+.condition-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--spacing-sm);
+  transition: all 0.2s ease;
+  
+  /* Indentation based on depth */
+  margin-left: calc(var(--group-depth, 0) * var(--spacing-xl));
+}
+
+.condition-group--root {
+  margin-left: 0;
+}
+
+.condition-group--nested {
+  border-left: 3px solid var(--color-primary);
+}
+
+/* Group header */
+.condition-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.condition-group__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.condition-group__spacer {
+  flex: 1;
+}
+
+/* Group children */
+.condition-group__children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  min-height: 60px;
+}
+
+.condition-group__empty {
+  padding: var(--spacing-lg);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.condition-group__empty p {
+  margin: 0;
+}
+
+/* NOT wrapper */
+.condition-group__not-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--color-error-container);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+}
+
+.condition-group__not-label {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-error);
+  color: var(--color-on-error);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.condition-group__not-condition {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+}
+
+/* Regular condition */
+.condition-group__condition {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
+/* Group footer */
+.condition-group__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface-variant);
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+/* Hover effects */
+.condition-group:hover {
+  border-color: var(--color-outline);
+}
+
+.condition-group--nested:hover {
+  border-left-color: var(--color-primary-hover);
+}

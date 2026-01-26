@@ -1,0 +1,48 @@
+/**
+ * ConditionBlock Styles
+ */
+
+.condition-block {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.condition-block__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.condition-block input,
+.condition-block select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Type-specific styling */
+.condition-block--type {
+  background: var(--color-bg-secondary);
+}
+
+.condition-block--content {
+  background: var(--color-bg);
+}
+
+.condition-block--property {
+  background: var(--color-bg);
+}
+
+.condition-block--reference {
+  background: var(--color-bg-secondary);
+}
+
+.condition-block--unknown {
+  background: var(--color-bg-tertiary);
+  opacity: 0.7;
+}

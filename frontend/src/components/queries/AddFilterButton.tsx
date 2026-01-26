@@ -42,7 +42,7 @@ export function AddFilterButton({ onSelect }: AddFilterButtonProps) {
         variant="ghost"
         onClick={() => setIsOpen(!isOpen)}
       >
-        Add filter
+        Add condition
       </Button>
       
       {isOpen && (
