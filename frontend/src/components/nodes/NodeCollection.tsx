@@ -31,6 +31,7 @@
  *     └─ GraphRenderer → nodes only with is_page = true
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useNodesStore } from '@/stores';
 import { 
   mdiFormatListBulleted, 
   mdiFileDocumentOutline, 
@@ -128,6 +129,10 @@ export function NodeCollection({
   cardLayout = 'no-cover',
   onCardLayoutChange,
 }: NodeCollectionProps) {
+  // Use store for card layout if not controlled
+  const storeCardLayout = useNodesStore(state => state.cardLayout);
+  const effectiveCardLayout = cardLayout !== 'no-cover' || onCardLayoutChange ? cardLayout : storeCardLayout;
+  
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
   const groupBy = onGroupByChange ? groupByProp : internalGroupBy;
@@ -211,7 +216,7 @@ export function NodeCollection({
         return (
           <NodeCardView 
             {...viewProps} 
-            layout={cardLayout}
+            layout={effectiveCardLayout}
             sortable={sortable}
             onReorder={onReorder}
           />
@@ -280,7 +285,7 @@ export function NodeCollection({
                 onGroupByChange={handleGroupByChange}
                 showAddButton={showAddButton}
                 onAdd={onAdd}
-                cardLayout={cardLayout}
+                cardLayout={effectiveCardLayout}
                 onCardLayoutChange={onCardLayoutChange}
               />
             </div>
