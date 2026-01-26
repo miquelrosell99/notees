@@ -1632,13 +1632,33 @@ function BlockInternal({
  * 
  * Props that affect render:
  * - block.id, block.name, block.collapsed, block.color, block.icon
- * - children length (not deep comparison)
+ * - children (recursive comparison needed for nested blocks!)
  * - depth, canEdit, canMove, canSelect, showBullet, showTypes, showChildren
  * - commentCount, backlinkCount (badges)
  * 
- * Props that DON'T require re-render (callbacks are stable if useCallback'd):
- * - onContentChange, onBulletClick, etc. (should be stable)
+ * IMPORTANT: Children comparison must be recursive to detect changes at any depth.
+ * Otherwise, adding/deleting a grandchild block won't trigger re-render of the parent.
  */
+
+/**
+ * Recursively compare two node arrays for equality.
+ * Returns true if they're equal, false if different.
+ */
+function areNodeArraysEqual(prev: Node[], next: Node[]): boolean {
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i++) {
+    if (prev[i].id !== next[i].id) return false;
+    if (prev[i].name !== next[i].name) return false;
+    if (prev[i].collapsed !== next[i].collapsed) return false;
+    if (prev[i].sequence !== next[i].sequence) return false;
+    // Recursively check children - this is critical for deep nesting!
+    const prevChildChildren = prev[i].children ?? [];
+    const nextChildChildren = next[i].children ?? [];
+    if (!areNodeArraysEqual(prevChildChildren, nextChildChildren)) return false;
+  }
+  return true;
+}
+
 function blockPropsAreEqual(
   prevProps: Readonly<BlockProps>,
   nextProps: Readonly<BlockProps>
@@ -1651,17 +1671,10 @@ function blockPropsAreEqual(
   if (prevProps.block.icon !== nextProps.block.icon) return false;
   if (prevProps.block.sequence !== nextProps.block.sequence) return false;
   
-  // Children - shallow compare by length and IDs
+  // Children - RECURSIVE comparison to detect changes at any depth
   const prevChildren = prevProps.children ?? [];
   const nextChildren = nextProps.children ?? [];
-  if (prevChildren.length !== nextChildren.length) return false;
-  for (let i = 0; i < prevChildren.length; i++) {
-    if (prevChildren[i].id !== nextChildren[i].id) return false;
-    // Also check children's names for content updates
-    if (prevChildren[i].name !== nextChildren[i].name) return false;
-    if (prevChildren[i].collapsed !== nextChildren[i].collapsed) return false;
-    if (prevChildren[i].sequence !== nextChildren[i].sequence) return false;
-  }
+  if (!areNodeArraysEqual(prevChildren, nextChildren)) return false;
   
   // Siblings - shallow compare by length and IDs (for merge operations)
   const prevSiblings = prevProps.siblings ?? [];
