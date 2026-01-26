@@ -119,10 +119,13 @@ async def get_inherited_properties_endpoint(
     also defined as dedicated class properties.
     """
     from ...domain.services.class_extension_service import ClassExtensionService
-    from ...dependencies import get_pool, get_graph_id
+    from ...dependencies import get_pool
+    from ...db.schema import get_or_create_user_graph
     
     pool = await get_pool()
-    graph_id = await get_graph_id(user)
+    user_id = int(user.id)
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
     extension_service = ClassExtensionService(pool, graph_id, repo)
