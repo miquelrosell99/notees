@@ -22,6 +22,11 @@ import { AddCoverButton } from '../../core/AddCoverButton';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import type { Asset } from '@/api/assets';
+import { useProperties, useSetNodeProperty, useNode } from '@/hooks/useNodes';
+import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
+import { getAssetUrl } from '@/api/assets';
 
 export interface NodeCardProps {
   node: Node;
@@ -40,35 +45,6 @@ export interface NodeCardProps {
   onContentChange?: (nodeId: number, content: string) => void;
   onDragStart?: (index: number) => void;
   onSelectionChange?: (nodeId: number, selected: boolean) => void;
-}
-
-/**
- * Extract cover image from node content
- */
-function extractCoverImage(node: Node): string | null {
-  if (!node.name) return null;
-  
-  // Match markdown image: ![alt](uuid or url)
-  const imageMatch = node.name.match(/!\[.*?\]\(([^)]+)\)/);
-  if (imageMatch) {
-    return imageMatch[1];
-  }
-  
-  return null;
-}
-
-/**
- * Resolve cover URL
- */
-function resolveCoverUrl(coverImage: string | null): string | null {
-  if (!coverImage) return null;
-  
-  // If it's a UUID (no protocol), convert to asset URL
-  if (!coverImage.includes('://') && !coverImage.startsWith('/')) {
-    return `/api/assets/${coverImage}`;
-  }
-  
-  return coverImage;
 }
 
 export function NodeCard({
@@ -98,16 +74,39 @@ export function NodeCard({
   // Asset upload state for cover
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
   
+  // Get all properties to find cover property ID
+  const { data: allProperties } = useProperties();
+  const setNodeProperty = useSetNodeProperty();
+  const queryClient = useQueryClient();
+  
+  // Find cover property
+  const coverProperty = useMemo(() => {
+    return allProperties?.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.cover);
+  }, [allProperties]);
+  
+  // Get cover image ID from properties
+  const coverImageId = useMemo(() => {
+    const coverValue = node?.properties?.cover;
+    return typeof coverValue === 'number' ? coverValue : null;
+  }, [node?.properties]);
+  
+  // Fetch the asset node to get its UUID for the image URL
+  const { data: assetNode } = useNode(coverImageId, { include_children: false });
+  
+  // Get the image URL from the asset node's uuid
+  const coverUrl = useMemo(() => {
+    if (coverImageId && assetNode?.uuid) {
+      return getAssetUrl(assetNode.uuid);
+    }
+    return null;
+  }, [coverImageId, assetNode]);
+  
   // Get effective icon (from node or inherited from class)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
   // Determine if we should show the bullet in the header
   // Show bullet only if there's an effective icon (from node or type)
   const showBullet = !!effectiveIcon;
-  
-  // Extract cover from content
-  const coverImage = useMemo(() => extractCoverImage(node), [node]);
-  const coverUrl = useMemo(() => resolveCoverUrl(coverImage), [coverImage]);
   
   // Use the layout as-is - the layout determines if cover should be shown
   // If no cover exists, the AddCoverButton will be shown in layouts that expect a cover
@@ -145,11 +144,25 @@ export function NodeCard({
     e.stopPropagation();
   }, []);
 
-  const handleCoverUploaded = useCallback((_asset: Asset) => {
+  const handleCoverUploaded = useCallback(async (asset: Asset) => {
     setIsAssetUploadOpen(false);
-    // The asset is uploaded and associated with the node
-    // The image will appear in node.name as markdown ![](uuid)
-  }, []);
+    
+    // Set the asset as the cover property
+    if (coverProperty) {
+      try {
+        await setNodeProperty.mutateAsync({
+          nodeId: node.id,
+          propertyId: coverProperty.id,
+          value: asset.node_id,
+        });
+        
+        // Invalidate node queries to refetch and show the cover
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+      } catch (error) {
+        console.error('Failed to set cover property:', error);
+      }
+    }
+  }, [coverProperty, node.id, setNodeProperty, queryClient]);
 
   // Handle drag start from header
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -269,7 +282,6 @@ export function NodeCard({
         isOpen={isAssetUploadOpen}
         onClose={() => setIsAssetUploadOpen(false)}
         onUpload={handleCoverUploaded}
-        parentId={node.id}
         acceptedTypes={['image']}
       />
     </>
