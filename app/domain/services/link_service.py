@@ -50,6 +50,52 @@ def generate_link_uuid() -> str:
     return str(uuid_module.uuid4())
 
 
+def sanitize_content(raw_content: str) -> str:
+    """Strip editor artifacts and normalize to canonical format.
+    
+    Removes:
+    - vscodecontentref artifacts: [[[nodeId]]](http://vscodecontentref/N)
+    - Malformed internal URLs: [text](internal://nodeId) 
+    - Other editor-generated link corruptions
+    
+    Returns canonical [[nodeId]] or [[nodeId:linkUuid]] format.
+    """
+    if not raw_content:
+        return raw_content
+    
+    content = raw_content
+    
+    # Remove vscodecontentref artifacts: [[[nodeId]]](http://vscodecontentref/N) -> [[nodeId]]
+    content = re.sub(
+        r'\[\[\[([^\]]+)\]\]\(http://vscodecontentref/\d+\)',
+        r'[[\1]]',
+        content
+    )
+    
+    # Normalize internal URLs: [text](internal://nodeId) -> [[nodeId]]
+    content = re.sub(
+        r'\[([^\]]*)\]\(internal://(\d+)\)',
+        r'[[\2]]', 
+        content
+    )
+    
+    # Handle broken markdown links with node IDs: [[[nodeId]]] -> [[nodeId]]
+    content = re.sub(
+        r'\[\[\[([^\]]+)\]\]\]',
+        r'[[\1]]',
+        content
+    )
+    
+    # Normalize any remaining malformed bracket patterns
+    content = re.sub(
+        r'\[\[\[([^\]]+)\]\]',
+        r'[[\1]]',
+        content
+    )
+    
+    return content
+
+
 class LinkParsingService:
     """Service for parsing and managing links in node content.
     
