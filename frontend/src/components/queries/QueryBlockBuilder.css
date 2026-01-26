@@ -1,23 +1,26 @@
-/* QueryBlockBuilder.css - Odoo-style row-based filter UI */
+/* QueryBlockBuilder.css - Refined row-based filter UI */
 
 /* ==================== Main Container ==================== */
 .query-block-builder {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  width: 100%;
 }
 
 .query-block-builder__header {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding-bottom: var(--spacing-xs);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-outline-variant);
+  margin-bottom: var(--spacing-xs);
 }
 
 .query-block-builder__title {
   font-weight: 600;
   font-size: 0.875rem;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .query-block-builder__spacer {
@@ -27,14 +30,17 @@
 .query-block-builder__blocks {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
 }
 
 .query-block-builder__empty {
-  padding: var(--spacing-md);
+  padding: var(--spacing-xl) var(--spacing-md);
   text-align: center;
-  color: var(--text-tertiary);
-  font-size: 0.8125rem;
+  color: var(--color-on-surface-variant);
+  font-size: 0.875rem;
+  background: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-outline-variant);
 }
 
 .query-block-builder__empty p {
@@ -42,92 +48,76 @@
 }
 
 .query-block-builder__footer {
-  padding-top: var(--spacing-xs);
+  padding-top: var(--spacing-md);
 }
 
-/* ==================== Filter Block - Odoo-style row ==================== */
+/* ==================== Filter Block - Clean Row Style ==================== */
 .filter-block {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  min-height: 44px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-sm, 6px);
-  margin-bottom: var(--spacing-xs);
-  transition: background-color 0.1s ease, border-color 0.1s ease;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-xs);
+  min-height: 48px;
+  background: transparent;
+  border-bottom: 1px solid var(--color-outline-variant);
+  transition: background-color 0.1s ease;
 }
 
 .filter-block:hover {
-  background: var(--surface-hover);
-  border-color: var(--color-outline);
+  background: var(--color-surface-variant);
 }
 
 .filter-block:last-child {
-  margin-bottom: 0;
+  border-bottom: none;
 }
 
-/* Remove Card styling - we use flat rows */
-.filter-block.card {
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-sm, 6px);
-  box-shadow: none;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-surface);
-}
-
-.filter-block.card:hover {
-  box-shadow: none;
-}
-
-/* Field label - fixed width column */
+/* Field label - flexible but with min width */
 .filter-block__field {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  min-width: 80px;
-  max-width: 120px;
+  width: 180px; /* Fixed width for alignment */
   flex-shrink: 0;
 }
 
 .filter-block__icon {
-  color: var(--text-tertiary);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
 .filter-block__label {
-  font-size: 0.8125rem;
-  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Operator dropdown - fixed width column */
+/* Operator dropdown */
 .filter-block__operator {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: 0.8125rem;
-  border: 1px solid var(--border-color);
+  padding: 0 var(--spacing-sm);
+  height: 32px; /* Fixed height for consistency */
+  font-size: 0.875rem;
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-sm);
-  background: var(--surface-primary);
-  color: var(--text-primary);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
   cursor: pointer;
-  min-width: 60px;
-  max-width: 90px;
+  min-width: 100px;
+  max-width: 150px;
   flex-shrink: 0;
 }
 
 .filter-block__operator:focus {
-  outline: none;
+  outline: 2px solid var(--color-primary);
   border-color: var(--color-primary);
 }
 
 .filter-block__operator:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background: var(--surface-secondary);
+  background: var(--color-surface-variant);
 }
 
 /* Value section - grows to fill remaining space */
@@ -135,21 +125,25 @@
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  /* Ensure children (inputs) take full height/width available to them */
 }
 
 /* Actions column - fixed at end */
 .filter-block__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
+  margin-left: var(--spacing-sm);
   opacity: 0;
-  transition: opacity 0.1s ease;
+  transition: opacity 0.15s ease;
 }
 
-.filter-block:hover .filter-block__actions {
+/* Show actions on hover */
+.filter-block:hover .filter-block__actions,
+.filter-block__actions:focus-within {
   opacity: 1;
 }
 
@@ -157,47 +151,49 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: color 0.1s ease, background-color 0.1s ease;
+  transition: all 0.1s ease;
 }
 
 .filter-block__reorder-btn:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--surface-tertiary);
+  color: var(--color-on-surface);
+  background: var(--color-surface-variant);
 }
 
 .filter-block__reorder-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.2;
   cursor: not-allowed;
 }
 
 /* Legacy delete class - keep for compatibility */
 .filter-block__delete {
-  opacity: inherit;
+  /* Inherits button styles */
 }
 
 /* Mode toggle - position before actions */
 .filter-block__mode-toggle {
   flex-shrink: 0;
-  margin-right: var(--spacing-xs);
+  margin-right: var(--spacing-sm);
 }
 
 /* ==================== Text/Number Input ==================== */
 .filter-block__input {
   width: 100%;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  font-size: 0.8125rem;
-  border: 1px solid var(--border-color);
+  max-width: 400px; /* Prevent overly wide inputs on huge screens */
+  height: 32px;
+  padding: 0 var(--spacing-sm);
+  font-size: 0.875rem;
+  border: 1px solid var(--color-outline);
   border-radius: var(--radius-sm);
-  background: var(--surface-primary);
-  color: var(--text-primary);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
   transition: border-color 0.1s ease;
 }
 
