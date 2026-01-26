@@ -1,10 +1,10 @@
 /**
  * Block editor component for editing content
  * 
- * Uses contenteditable with pill elements for links:
- * - [[page links]] and ((block links)) rendered as non-editable pills
- * - Cursor navigation selects pills when reached
- * - Backspace/Delete removes selected pills
+ * Uses contenteditable with atomic inline elements for links:
+ * - [[page links]] rendered as non-editable atomic inline text links
+ * - Cursor navigation selects links when reached
+ * - Backspace/Delete removes selected links
  * 
  * Supports:
  * - @ trigger for types (sets the node's "types" property)
@@ -327,7 +327,7 @@ function contentToHtml(
         const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
         html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true"${uuidAttr}>${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
       } else {
-        // Render as regular link pill - true inline atomic node
+        // Render as atomic inline text link
         const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
         
         // Only show icon if getEffectiveIcon returns a value
@@ -336,7 +336,7 @@ function contentToHtml(
         if (effectiveIcon) {
           icon = renderIconHtml(effectiveIcon);
         }
-        // No icon (or failed to render) = no icon shown (true inline text-style pill)
+        // No icon (or failed to render) = no icon shown (pure inline text link)
         const hasIcon = icon.length > 0;
         
         const badge = clickCount > 0 
@@ -346,7 +346,7 @@ function contentToHtml(
         // Include link-uuid for click tracking (if present)
         const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
         // Add data-node-id and data-label for proper serialization
-        html += `<span class="link-pill ${pillClass}${!hasIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}"${uuidAttr}>${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+        html += `<span class="link-pill ${pillClass}${!hasIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}"${uuidAttr}>${hasIcon ? `<span class="link-pill__icon">${icon}</span>` : ''}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
       }
     } else {
       // Inline type pill
