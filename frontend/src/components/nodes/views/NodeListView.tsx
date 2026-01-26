@@ -356,6 +356,8 @@ interface GroupHeaderProps {
   maxDepth: number;
   showBullets: boolean;
   showIndentation: boolean;
+  showBreadcrumbs: boolean;
+  showTypes: boolean;
   pagesOnly: boolean;
   pageMap?: Map<number, Node>;
   onNodeClick?: (node: Node) => void;
@@ -371,6 +373,8 @@ function GroupHeader({
   maxDepth,
   showBullets,
   showIndentation,
+  showBreadcrumbs,
+  showTypes,
   pagesOnly,
   onNodeClick,
   onNodeShiftClick,
@@ -427,7 +431,8 @@ function GroupHeader({
               maxDepth={maxDepth}
               showBullets={showBullets}
               showIndentation={showIndentation}
-              showBreadcrumbs={false}
+              showBreadcrumbs={showBreadcrumbs}
+              showTypes={showTypes}
               pagesOnly={pagesOnly}
               siblings={blocks}
               parentBlock={page}
@@ -523,7 +528,7 @@ export function NodeListView({
                 maxDepth={maxDepth}
                 showBullets={showBullets}
                 showIndentation={showIndentation}
-                showBreadcrumbs={false}
+                showBreadcrumbs={showBreadcrumbs}
                 showTypes={showTypes}
                 pagesOnly={pagesOnly}
                 siblings={pages}
@@ -547,6 +552,8 @@ export function NodeListView({
             maxDepth={maxDepth}
             showBullets={showBullets}
             showIndentation={showIndentation}
+            showBreadcrumbs={showBreadcrumbs}
+            showTypes={showTypes}
             pagesOnly={pagesOnly}
             pageMap={pageMap}
             onNodeClick={onNodeClick}
