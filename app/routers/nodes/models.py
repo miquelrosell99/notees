@@ -154,6 +154,7 @@ class TagLinkRequest(BaseModel):
 class NodeLinkResponse(BaseModel):
     """Response for a node link."""
     id: int
+    uuid: str  # Unique identifier for this link instance
     source_node_id: int
     target_node_id: int
     is_tag: bool

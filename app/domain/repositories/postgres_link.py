@@ -51,6 +51,7 @@ class PostgresLinkRepository(LinkRepository):
             id=row['id'],
             source_id=row['source_id'],
             target_id=row['target_id'],
+            uuid=str(row['uuid']) if row.get('uuid') else None,
             is_tag=row.get('is_tag', False),
             create_date=create_date,
             create_uid=row.get('create_uid'),
@@ -62,13 +63,14 @@ class PostgresLinkRepository(LinkRepository):
             row = await conn.fetchrow("""
                 INSERT INTO node_link (source_id, target_id, is_tag, create_date, create_uid, graph_id)
                 VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id
+                RETURNING id, uuid
             """, link.source_id, link.target_id, link.is_tag, 
                 link.create_date, link.create_uid or self._user_id, self._graph_id)
             
             if row is None:
                 raise RuntimeError("Failed to create link - no row returned")
             link.id = row['id']
+            link.uuid = str(row['uuid'])
             return link
     
     async def delete_source_links(self, source_node_id: int) -> int:

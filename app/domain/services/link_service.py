@@ -4,9 +4,10 @@ Implements linked references and path references following Logseq-style semantic
 
 Key concepts:
 1. Link Occurrence (syntax-level): 
-   - Links are parsed from text nodes only using [[nodeId]] format
+   - Links are parsed from text using [[nodeId]] or [[nodeId:linkUuid]] format
    - source_block_id = the block T directly containing the link
    - target_node_id = the node X being linked to
+   - link_uuid = unique identifier for this specific link instance (optional, for tracking)
 
 2. Property-based links:
    - Text properties: Links appear in root block R or descendants T
@@ -21,6 +22,7 @@ from __future__ import annotations
 
 import re
 import json
+import uuid as uuid_module
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any, TYPE_CHECKING
 
@@ -31,8 +33,10 @@ if TYPE_CHECKING:
     from ..entities import Node
 
 
-# Regex pattern for parsing links - unified [[nodeId]] format
-LINK_PATTERN = re.compile(r'\[\[(\d+)\]\]')
+# Regex pattern for parsing links - [[nodeId]] or [[nodeId:linkUuid]] format
+# Group 1: target node ID (required)
+# Group 2: link UUID (optional, preceded by :)
+LINK_PATTERN = re.compile(r'\[\[(\d+)(?::([a-f0-9-]+))?\]\]')
 
 # Regex pattern for parsing inline classes - {{classId}} format
 INLINE_CLASS_PATTERN = re.compile(r'\{\{(\d+)\}\}')
@@ -43,6 +47,11 @@ INLINE_TYPE_PATTERN = INLINE_CLASS_PATTERN
 # System property name to exclude from backlinks
 CLASSES_PROPERTY_NAME = "classes"
 TYPES_PROPERTY_NAME = CLASSES_PROPERTY_NAME  # Backwards compatibility
+
+
+def generate_link_uuid() -> str:
+    """Generate a new UUID v4 for a link instance."""
+    return str(uuid_module.uuid4())
 
 
 class LinkParsingService:
@@ -76,11 +85,12 @@ class LinkParsingService:
         self._types_property_id = self._classes_property_id
         self._inline_type_repo = self._inline_class_repo
     
-    def parse_links(self, content: str) -> List[Tuple[int, int]]:
+    def parse_links(self, content: str) -> List[Tuple[int, int, Optional[str]]]:
         """Parse content and extract all links.
         
-        Returns list of tuples: (target_node_id, position)
-        Links are in unified [[nodeId]] format.
+        Returns list of tuples: (target_node_id, position, link_uuid)
+        Links can be [[nodeId]] or [[nodeId:linkUuid]] format.
+        link_uuid is None if not present in the link syntax.
         """
         links = []
         
@@ -88,7 +98,8 @@ class LinkParsingService:
             try:
                 target_id = int(match.group(1))
                 position = match.start()
-                links.append((target_id, position))
+                link_uuid = match.group(2)  # May be None if no UUID in link
+                links.append((target_id, position, link_uuid))
             except ValueError:
                 continue
         
@@ -209,12 +220,12 @@ class LinkParsingService:
         # Remove existing non-tag text links from this source (property_id IS NULL, is_tag=0)
         await self._delete_non_tag_text_links(node_id)
         
-        # Parse new links from [[id]] patterns
+        # Parse new links from [[id]] or [[id:uuid]] patterns
         parsed = self.parse_links(content)
         
         created_links = []
         
-        for target_id, position in parsed:
+        for target_id, position, link_uuid in parsed:
             # Verify the target node exists
             target_node = await self._node_repo.get_by_id(target_id)
             if not target_node:
@@ -227,6 +238,7 @@ class LinkParsingService:
                 source_id=node_id,
                 target_id=target_id,
                 is_tag=is_tag,
+                position=position,
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)

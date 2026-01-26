@@ -84,8 +84,8 @@ export function useTrackLinkClick() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ sourceNodeId, targetNodeId }: { sourceNodeId: number; targetNodeId: number }) => 
-      activityApi.trackLinkClick(sourceNodeId, targetNodeId),
+    mutationFn: ({ sourceNodeId, targetNodeId, nodeLinkUuid }: { sourceNodeId: number; targetNodeId: number; nodeLinkUuid?: string }) => 
+      activityApi.trackLinkClick(sourceNodeId, targetNodeId, nodeLinkUuid),
     onSuccess: (_, { sourceNodeId, targetNodeId }) => {
       queryClient.invalidateQueries({ queryKey: activityKeys.linkClicks(sourceNodeId) });
       queryClient.invalidateQueries({ queryKey: activityKeys.linkClick(sourceNodeId, targetNodeId) });

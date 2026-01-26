@@ -33,8 +33,8 @@ import { NodeIcon, TagIcon } from '../icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import './LinkPill.css';
 
-// Regex for finding links - unified [[linkId]] format
-const LINK_REGEX = /\[\[([^\]]+)\]\]/g;
+// Regex for finding links - [[nodeId]] or [[nodeId:linkUuid]] format
+const LINK_REGEX = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
 
 // Regex for finding inline types - {{typeId}} format
 const TYPE_REGEX = /\{\{([^\}]+)\}\}/g;
@@ -44,6 +44,7 @@ interface ContentPart {
   content: string;
   id?: string;  // The node ID for links/types
   raw?: string;
+  linkUuid?: string;  // The unique link instance UUID (for links only)
 }
 
 interface BlockContentProps {
@@ -67,20 +68,22 @@ function parseContent(content: string): ContentPart[] {
     raw: string;
     start: number;
     end: number;
+    linkUuid?: string;  // Only for links
   }
   
   const matches: Match[] = [];
   
-  // Find links
+  // Find links - supports [[nodeId]] and [[nodeId:linkUuid]] formats
   let match;
   const linkRegex = new RegExp(LINK_REGEX.source, 'g');
   while ((match = linkRegex.exec(content)) !== null) {
     matches.push({
       type: 'link',
-      id: match[1],
+      id: match[1],  // nodeId
       raw: match[0],
       start: match.index,
       end: match.index + match[0].length,
+      linkUuid: match[2] || undefined,  // linkUuid (optional)
     });
   }
   
@@ -115,6 +118,7 @@ function parseContent(content: string): ContentPart[] {
       content: m.id,
       id: m.id,
       raw: m.raw,
+      linkUuid: m.linkUuid,
     });
     
     lastIndex = m.end;
@@ -134,8 +138,9 @@ function parseContent(content: string): ContentPart[] {
 interface LinkPillProps {
   linkId: string;
   raw: string;
+  linkUuid?: string;  // Unique link instance UUID for per-link click tracking
   clickCount?: number;
-  onNavigate: (linkId: string, node: Node | undefined, openInSidebar: boolean) => void;
+  onNavigate: (linkId: string, node: Node | undefined, openInSidebar: boolean, linkUuid?: string) => void;
   onDeleteLink?: (raw: string) => void;
 }
 
@@ -147,7 +152,7 @@ interface LinkPillProps {
  * - Shows icon only if node has its own icon or inherits from assigned types
  * - No icon/bullet shown if getEffectiveIcon returns null/undefined
  */
-function LinkPill({ linkId, raw, clickCount = 0, onNavigate, onDeleteLink }: LinkPillProps) {
+function LinkPill({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDeleteLink }: LinkPillProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const nodeId = parseInt(linkId, 10);
   const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
@@ -165,8 +170,8 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate, onDeleteLink }: Lin
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onNavigate(linkId, node, e.shiftKey);
-  }, [linkId, node, onNavigate]);
+    onNavigate(linkId, node, e.shiftKey, linkUuid);
+  }, [linkId, node, onNavigate, linkUuid]);
   
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -180,7 +185,7 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate, onDeleteLink }: Lin
         id: 'open',
         label: isPage ? 'Open page' : 'Open block',
         onClick: () => {
-          onNavigate(linkId, node, false);
+          onNavigate(linkId, node, false, linkUuid);
           setContextMenu(null);
         },
       },
@@ -189,7 +194,7 @@ function LinkPill({ linkId, raw, clickCount = 0, onNavigate, onDeleteLink }: Lin
         label: 'Open in sidebar',
         shortcut: '⇧Click',
         onClick: () => {
-          onNavigate(linkId, node, true);
+          onNavigate(linkId, node, true, linkUuid);
           setContextMenu(null);
         },
       },
@@ -362,7 +367,8 @@ export function BlockContent({
   }, [linkClicksData]);
   
   // Handle navigation for links (by node ID)
-  const handleNavigate = useCallback((linkId: string, node: Node | undefined, openInSidebar: boolean) => {
+  // linkUuid is passed but not currently used here - click tracking happens in Block component
+  const handleNavigate = useCallback((linkId: string, node: Node | undefined, openInSidebar: boolean, _linkUuid?: string) => {
     if (node) {
       const viewType = node.is_page ? 'page' : 'block';
       if (openInSidebar) {
@@ -407,6 +413,7 @@ export function BlockContent({
             key={index}
             linkId={part.id!}
             raw={part.raw!}
+            linkUuid={part.linkUuid}
             clickCount={clickCounts.get(part.id!) ?? 0}
             onNavigate={handleNavigate}
             onDeleteLink={onDeleteLink}
