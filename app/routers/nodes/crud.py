@@ -303,9 +303,9 @@ async def get_node(
             if values:
                 # Extract the actual value based on property type
                 val = values[0]  # Get first value
-                if hasattr(val, 'target_node_id'):
+                if hasattr(val, 'target_id'):
                     # Relation type
-                    response.properties[prop.name] = val.target_node_id
+                    response.properties[prop.name] = val.target_id
                 elif hasattr(val, 'value_integer'):
                     # Scalar type
                     response.properties[prop.name] = (
@@ -467,10 +467,10 @@ async def get_page_content(
         if values:
             # Extract the actual value based on property type
             val = values[0]  # Get first value
-            if hasattr(val, 'target_node_id'):
+            if hasattr(val, 'target_id'):
                 # Relation type
-                logger.info(f"    -> target_node_id={val.target_node_id}")
-                page_response.properties[prop.name] = val.target_node_id
+                logger.info(f"    -> target_id={val.target_id}")
+                page_response.properties[prop.name] = val.target_id
             elif hasattr(val, 'value_integer'):
                 # Scalar type
                 page_response.properties[prop.name] = (

@@ -442,7 +442,7 @@ class NodeService:
         
         # Get current classes by fetching relation values for the classes property
         existing_values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
-        existing_class_ids = [v.target_node_id for v in existing_values]
+        existing_class_ids = [v.target_id for v in existing_values]
         
         if class_node_id in existing_class_ids:
             return False  # Already has this class
@@ -504,7 +504,7 @@ class NodeService:
         values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
         
         for val in values:
-            if val.target_node_id == class_node_id:
+            if val.target_id == class_node_id:
                 # Remove this specific relation value
                 if val.id is not None:
                     await self._property_repo.remove_relation_value(val.id)
@@ -534,8 +534,8 @@ class NodeService:
         
         classes = []
         for val in relation_values:
-            if val.target_node_id:
-                class_node = await self._node_repo.get_by_id(val.target_node_id)
+            if val.target_id:
+                class_node = await self._node_repo.get_by_id(val.target_id)
                 if class_node:
                     classes.append(class_node)
         

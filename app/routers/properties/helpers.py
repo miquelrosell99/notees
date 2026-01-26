@@ -86,7 +86,7 @@ def _relation_value_to_response(val: PropertyValueRelation) -> RelationValueResp
         node_property_id=val.node_property_id,
         property_id=val.property_id,
         node_id=val.node_id,
-        target_node_id=val.target_node_id,
+        target_node_id=val.target_id,
         order=val.order,
     )
 
