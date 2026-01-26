@@ -24,6 +24,7 @@
   background: var(--bg-hover);
   border-color: var(--accent-color);
   color: var(--accent-color);
+  transform: scale(1.02);
 }
 
 .add-cover-button__text {
