@@ -85,7 +85,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create 'class' node (renamed from 'type')
     class_uuid = SYSTEM_CLASS_UUIDS["class"]
     class_row = await conn.fetchrow("""
-        INSERT INTO node (uuid, graph_id, name, is_type, is_page, create_date, write_date, create_uid, write_uid)
+        INSERT INTO node (uuid, graph_id, name, is_class, is_page, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, 'class', TRUE, TRUE, $3, $3, $4, $4)
         RETURNING id
     """, class_uuid, graph_id, now, user_id)
@@ -96,7 +96,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create 'page' class node
     page_uuid = SYSTEM_CLASS_UUIDS["page"]
     page_row = await conn.fetchrow("""
-        INSERT INTO node (uuid, graph_id, name, is_type, is_page, create_date, write_date, create_uid, write_uid)
+        INSERT INTO node (uuid, graph_id, name, is_class, is_page, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, 'page', TRUE, TRUE, $3, $3, $4, $4)
         RETURNING id
     """, page_uuid, graph_id, now, user_id)
@@ -118,7 +118,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     
     # Set class filter for 'classes' property (class node filter)
     await conn.execute("""
-        INSERT INTO property_type_filter (property_id, type_node_id)
+        INSERT INTO property_class_filter (property_id, class_node_id)
         VALUES ($1, $2)
         ON CONFLICT DO NOTHING
     """, classes_property_id, class_node_id)
@@ -174,7 +174,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         class_icon = SYSTEM_CLASS_ICONS.get(class_name)
         
         row = await conn.fetchrow("""
-            INSERT INTO node (uuid, graph_id, name, icon, is_type, is_page, create_date, write_date, create_uid, write_uid)
+            INSERT INTO node (uuid, graph_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5, $6, $6)
             RETURNING id
         """, class_uuid, graph_id, class_name, class_icon, now, user_id)
@@ -189,15 +189,15 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         await assign_relation_property(new_class_id, classes_property_id, class_node_id)
         await assign_relation_property(new_class_id, classes_property_id, page_class_id)
     
-    # Set type filter for 'cover' and 'banner' properties
+    # Set class filter for 'cover' and 'banner' properties
     if asset_type_id:
         await conn.execute("""
-            INSERT INTO property_type_filter (property_id, type_node_id)
+            INSERT INTO property_class_filter (property_id, class_node_id)
             VALUES ($1, $2)
             ON CONFLICT DO NOTHING
         """, cover_property_id, asset_type_id)
         await conn.execute("""
-            INSERT INTO property_type_filter (property_id, type_node_id)
+            INSERT INTO property_class_filter (property_id, class_node_id)
             VALUES ($1, $2)
             ON CONFLICT DO NOTHING
         """, banner_property_id, asset_type_id)
@@ -297,38 +297,3 @@ async def get_or_create_user_graph(
 
 
 # ============== Legacy Aliases ==============
-# These are kept for backward compatibility during migration
-
-async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int | None = None) -> None:
-    """Legacy alias for seed_graph.
-    
-    Deprecated: Use seed_graph instead.
-    """
-    # If user_id is not provided, try to get owner from graph
-    if user_id is None:
-        row = await conn.fetchrow("SELECT create_uid FROM graph WHERE id = $1", workspace_id)
-        user_id = row['create_uid'] if row else 1
-    await seed_graph(conn, workspace_id, user_id)
-
-
-async def create_workspace_for_user(
-    conn: asyncpg.Connection,
-    user_id: int,
-    name: str = "Default"
-) -> int:
-    """Legacy alias for create_graph_for_user.
-    
-    Deprecated: Use create_graph_for_user instead.
-    """
-    return await create_graph_for_user(conn, user_id, name)
-
-
-async def get_or_create_user_workspace(
-    conn: asyncpg.Connection,
-    user_id: int
-) -> int:
-    """Legacy alias for get_or_create_user_graph.
-    
-    Deprecated: Use get_or_create_user_graph instead.
-    """
-    return await get_or_create_user_graph(conn, user_id)

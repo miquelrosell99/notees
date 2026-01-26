@@ -116,23 +116,23 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
         
         now = datetime.now(timezone.utc)
         
-        # Get or create asset type ID
+        # Get or create asset class ID
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'asset' AND is_type = TRUE AND graph_id = $1",
+            "SELECT id FROM node WHERE name = 'asset' AND is_class = TRUE AND graph_id = $1",
             graph_id
         )
         if row:
             asset_type_id = row['id']
         else:
-            # Create the asset type
+            # Create the asset class
             uuid = generate_uuid()
             asset_type_id = await conn.fetchval("""
-                INSERT INTO node (graph_id, uuid, name, icon, is_type, is_asset, create_date, write_date, create_uid, write_uid)
+                INSERT INTO node (graph_id, uuid, name, icon, is_class, is_asset, create_date, write_date, create_uid, write_uid)
                 VALUES ($1, $2, 'asset', NULL, TRUE, TRUE, $3, $3, $4, $4)
                 RETURNING id
             """, graph_id, uuid, now, user_id)
             
-            # Give it the 'type' type itself
+            # Give it the 'class' class itself
             type_row = await conn.fetchrow(
                 "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
                 SYSTEM_CLASS_UUIDS['class'], graph_id

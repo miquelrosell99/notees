@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from ..entities import Node, NodeCreateData, NodeUpdateData
     from ..entities import (
         Property, PropertyType, PropertySelectionLine,
-        PropertyTypeFilter, TypeProperty, TypeExtends,
+        PropertyClassFilter, ClassProperty, ClassExtend,
         NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     )
     from ..entities import NodeLink
@@ -384,21 +384,21 @@ class PropertyRepository(ABC):
         """Remove all selection values for a property on a node."""
         pass
     
-    # ============== Type Filters ==============
+    # ============== Class Filters ==============
     
     @abstractmethod
-    async def add_type_filter(self, property_id: int, type_node_id: int) -> PropertyTypeFilter:
-        """Add a type filter to a relation-type property."""
+    async def add_class_filter(self, property_id: int, class_node_id: int) -> PropertyClassFilter:
+        """Add a class filter to a relation-type property."""
         pass
     
     @abstractmethod
-    async def get_type_filters(self, property_id: int) -> List[int]:
-        """Get all type filter node IDs for a property."""
+    async def get_class_filters(self, property_id: int) -> List[int]:
+        """Get all class filter node IDs for a property."""
         pass
     
     @abstractmethod
-    async def remove_type_filter(self, property_id: int, type_node_id: int) -> bool:
-        """Remove a type filter from a property."""
+    async def remove_class_filter(self, property_id: int, class_node_id: int) -> bool:
+        """Remove a class filter from a property."""
         pass
     
     # ============== Unified Value Access ==============
@@ -413,27 +413,27 @@ class PropertyRepository(ABC):
         """Clear all values for a property on a node (but keep the assignment)."""
         pass
     
-    # ============== Type Properties ==============
+    # ============== Class Properties ==============
     
     @abstractmethod
-    async def get_type_properties(self, type_node_id: int) -> List[TypeProperty]:
-        """Get properties that a type applies to typed nodes."""
+    async def get_class_properties(self, class_node_id: int) -> List[ClassProperty]:
+        """Get properties that a class applies to classed nodes."""
         pass
     
     @abstractmethod
-    async def add_type_property(self, type_node_id: int, property_id: int,
-                                 sequence: int = 0, default_value: Any = None) -> TypeProperty:
-        """Link a property to a type/class."""
+    async def add_class_property(self, class_node_id: int, property_id: int,
+                                 sequence: int = 0, default_value: Any = None) -> ClassProperty:
+        """Link a property to a class."""
         pass
     
     @abstractmethod
-    async def remove_type_property(self, type_node_id: int, property_id: int) -> bool:
-        """Remove a property from a type/class."""
+    async def remove_class_property(self, class_node_id: int, property_id: int) -> bool:
+        """Remove a property from a class."""
         pass
     
     @abstractmethod
-    async def get_all_inherited_properties(self, type_node_id: int) -> List[TypeProperty]:
-        """Get all properties for a type including inherited ones."""
+    async def get_all_inherited_properties(self, class_node_id: int) -> List[ClassProperty]:
+        """Get all properties for a class including inherited ones."""
         pass
 
 

@@ -3,17 +3,13 @@
 This module contains the raw SQL schema definition for creating
 all database tables, indexes, and triggers.
 
-SCHEMA VERSION: 2 - Graph-based architecture with granular permissions.
+SCHEMA VERSION: 3 - Class-based architecture (renamed type -> class).
 
-Key changes from v1:
-- "workspace" -> "graph" terminology
-- Added graph_share and node_share tables for granular permissions
-- Added uuid and audit fields (create_uid, write_uid) to most tables
-- Renamed: source_node_id -> source_id, target_node_id -> target_id
-- Renamed: inline_type -> type_inline, type_extends -> type_extend
-- Renamed: settings -> setting_graph + setting_user
-- Removed: order fields from property values (ordering handled differently)
-- Added: is_active -> active standardization
+Key changes from v2:
+- "type" -> "class" terminology throughout
+- Tables renamed: type_property -> class_property, type_extend -> class_extend, type_inline -> class_inline
+- Columns renamed: is_type -> is_class, type_node_id -> class_node_id, type_id -> class_id
+- property_type_filter -> property_class_filter
 """
 
 SCHEMA_SQL = """
@@ -96,8 +92,8 @@ CREATE TABLE IF NOT EXISTS node (
     active BOOLEAN DEFAULT TRUE,
     is_shared BOOLEAN DEFAULT FALSE,
     version INTEGER DEFAULT 1,
-    -- Type flags (denormalized for fast queries)
-    is_type BOOLEAN DEFAULT FALSE,
+    -- Class flags (denormalized for fast queries)
+    is_class BOOLEAN DEFAULT FALSE,
     is_page BOOLEAN DEFAULT FALSE,
     is_day BOOLEAN DEFAULT FALSE,
     is_month BOOLEAN DEFAULT FALSE,
@@ -105,7 +101,7 @@ CREATE TABLE IF NOT EXISTS node (
     is_asset BOOLEAN DEFAULT FALSE,
     is_template BOOLEAN DEFAULT FALSE,
     is_comment BOOLEAN DEFAULT FALSE,
-    -- Type-specific fields
+    -- Class-specific fields
     usable_in VARCHAR(10) DEFAULT 'both' CHECK (usable_in IN ('page', 'block', 'both')),
     classes_path JSONB DEFAULT '[]'::jsonb,
     open_date TIMESTAMPTZ,
@@ -126,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 CREATE INDEX IF NOT EXISTS idx_node_name ON node(name);
 CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = TRUE;
-CREATE INDEX IF NOT EXISTS idx_node_is_type ON node(is_type) WHERE is_type = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_is_class ON node(is_class) WHERE is_class = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
@@ -200,16 +196,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_graph ON property(name, grap
 CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_local ON property(name, node_id) 
     WHERE is_local = TRUE AND active = TRUE;
 
--- Property type filters
-CREATE TABLE IF NOT EXISTS property_type_filter (
+-- Property class filters
+CREATE TABLE IF NOT EXISTS property_class_filter (
     id SERIAL PRIMARY KEY,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
-    type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    UNIQUE(property_id, type_node_id)
+    class_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    UNIQUE(property_id, class_node_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_property_type_filter_property_id ON property_type_filter(property_id);
-CREATE INDEX IF NOT EXISTS idx_property_type_filter_type_node_id ON property_type_filter(type_node_id);
+CREATE INDEX IF NOT EXISTS idx_property_class_filter_property_id ON property_class_filter(property_id);
+CREATE INDEX IF NOT EXISTS idx_property_class_filter_class_node_id ON property_class_filter(class_node_id);
 
 -- Node property assignment (links a node to a property)
 CREATE TABLE IF NOT EXISTS node_property (
@@ -307,13 +303,13 @@ CREATE INDEX IF NOT EXISTS idx_pvsel_node_id ON property_value_selection(node_id
 CREATE INDEX IF NOT EXISTS idx_pvsel_selection_line_id ON property_value_selection(selection_line_id);
 
 -- ============================================================
--- TYPE SYSTEM
+-- CLASS SYSTEM
 -- ============================================================
 
--- Type properties (properties associated with a type)
-CREATE TABLE IF NOT EXISTS type_property (
+-- Class properties (properties associated with a class)
+CREATE TABLE IF NOT EXISTS class_property (
     id SERIAL PRIMARY KEY,
-    type_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    class_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
     sequence INTEGER DEFAULT 0,
     hidden BOOLEAN DEFAULT FALSE,
@@ -323,14 +319,14 @@ CREATE TABLE IF NOT EXISTS type_property (
     default_boolean BOOLEAN,
     default_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     default_selection_id INTEGER REFERENCES property_selection_line(id) ON DELETE SET NULL,
-    UNIQUE(type_node_id, property_id)
+    UNIQUE(class_node_id, property_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_type_property_type_node_id ON type_property(type_node_id);
-CREATE INDEX IF NOT EXISTS idx_type_property_property_id ON type_property(property_id);
+CREATE INDEX IF NOT EXISTS idx_class_property_class_node_id ON class_property(class_node_id);
+CREATE INDEX IF NOT EXISTS idx_class_property_property_id ON class_property(property_id);
 
--- Type extends (inheritance)
-CREATE TABLE IF NOT EXISTS type_extend (
+-- Class extends (inheritance)
+CREATE TABLE IF NOT EXISTS class_extend (
     id SERIAL PRIMARY KEY,
     target_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     source_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
@@ -338,11 +334,11 @@ CREATE TABLE IF NOT EXISTS type_extend (
     UNIQUE(target_id, source_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_type_extend_target_id ON type_extend(target_id);
-CREATE INDEX IF NOT EXISTS idx_type_extend_source_id ON type_extend(source_id);
+CREATE INDEX IF NOT EXISTS idx_class_extend_target_id ON class_extend(target_id);
+CREATE INDEX IF NOT EXISTS idx_class_extend_source_id ON class_extend(source_id);
 
 -- ============================================================
--- LINKS & INLINE TYPES
+-- LINKS & INLINE CLASSES
 -- ============================================================
 
 -- Node links (backlinks between nodes)
@@ -365,21 +361,21 @@ CREATE INDEX IF NOT EXISTS idx_node_link_graph_id ON node_link(graph_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_property_id ON node_link(property_id) WHERE property_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link(source_id, target_id);
 
--- Inline type references ({{typeId}} in content)
-CREATE TABLE IF NOT EXISTS type_inline (
+-- Inline class references ({{classId}} in content)
+CREATE TABLE IF NOT EXISTS class_inline (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    type_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    class_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_type_inline_node_id ON type_inline(node_id);
-CREATE INDEX IF NOT EXISTS idx_type_inline_type_id ON type_inline(type_id);
-CREATE INDEX IF NOT EXISTS idx_type_inline_graph_id ON type_inline(graph_id);
+CREATE INDEX IF NOT EXISTS idx_class_inline_node_id ON class_inline(node_id);
+CREATE INDEX IF NOT EXISTS idx_class_inline_class_id ON class_inline(class_id);
+CREATE INDEX IF NOT EXISTS idx_class_inline_graph_id ON class_inline(graph_id);
 
 -- ============================================================
 -- NODE VIEWS (DYNAMIC QUERY TABS)
@@ -487,6 +483,58 @@ CREATE INDEX IF NOT EXISTS idx_link_click_source_node_id ON link_click(source_no
 CREATE INDEX IF NOT EXISTS idx_link_click_target_node_id ON link_click(target_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_user_id ON link_click(user_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_node_link_uuid ON link_click(node_link_uuid) WHERE node_link_uuid IS NOT NULL;
+
+-- ============================================================
+-- MIGRATIONS: TYPE -> CLASS RENAMING
+-- ============================================================
+
+-- Migration: Rename is_type to is_class in node table
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_type')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_class') THEN
+        ALTER TABLE node RENAME COLUMN is_type TO is_class;
+    END IF;
+END $$;
+
+-- Migration: Rename type_property table to class_property
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'type_property')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_property') THEN
+        ALTER TABLE type_property RENAME TO class_property;
+        ALTER TABLE class_property RENAME COLUMN type_node_id TO class_node_id;
+    END IF;
+END $$;
+
+-- Migration: Rename type_extend table to class_extend
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'type_extend')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_extend') THEN
+        ALTER TABLE type_extend RENAME TO class_extend;
+    END IF;
+END $$;
+
+-- Migration: Rename type_inline table to class_inline
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'type_inline')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_inline') THEN
+        ALTER TABLE type_inline RENAME TO class_inline;
+        ALTER TABLE class_inline RENAME COLUMN type_id TO class_id;
+    END IF;
+END $$;
+
+-- Migration: Rename property_type_filter table to property_class_filter
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'property_type_filter')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'property_class_filter') THEN
+        ALTER TABLE property_type_filter RENAME TO property_class_filter;
+        ALTER TABLE property_class_filter RENAME COLUMN type_node_id TO class_node_id;
+    END IF;
+END $$;
 
 -- ============================================================
 -- SCHEMA METADATA
@@ -674,7 +722,7 @@ RETURNS TABLE (
     uuid UUID,
     name TEXT,
     is_page BOOLEAN,
-    is_type BOOLEAN,
+    is_class BOOLEAN,
     is_day BOOLEAN,
     is_month BOOLEAN,
     is_year BOOLEAN,
@@ -688,7 +736,7 @@ BEGIN
         n.uuid,
         n.name,
         n.is_page,
-        n.is_type,
+        n.is_class,
         n.is_day,
         n.is_month,
         n.is_year,

@@ -320,7 +320,7 @@ async def export_graph(user_id: str, name: str) -> Path:
         nodes = await conn.fetch(
             """
             SELECT uuid, name, icon, color, parent_id, page_id, sequence,
-                   collapsed, active, version, is_type, is_page, is_day,
+                   collapsed, active, version, is_class, is_page, is_day,
                    is_month, is_year, is_asset, is_template, is_comment,
                    classes_path, open_date, create_date, write_date
             FROM node WHERE graph_id = $1

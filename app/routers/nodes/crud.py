@@ -46,7 +46,7 @@ async def create_node(
     # but for date nodes we override
     classes = list(request.classes)
     
-    # TODO: Look up date type IDs and add them
+    # TODO: Look up date class IDs and add them
     # For now, dates are handled by classes parameter from client
     
     data = NodeCreateData(
@@ -58,7 +58,7 @@ async def create_node(
         classes=classes,
         property_values=request.properties,
         is_page=request.is_page,
-        is_type=request.is_type,
+        is_class=request.is_class,
     )
     
     node = await service.create_node(data, user_id=None)  # TODO: user_id from JWT
@@ -93,7 +93,7 @@ async def get_recent_pages(
     async with service._pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
-                   is_page, is_type, is_day, is_month, is_year,
+                   is_page, is_class, is_day, is_month, is_year,
                    create_date, write_date, open_date
             FROM node 
             WHERE is_page = TRUE AND active = TRUE AND open_date IS NOT NULL AND graph_id = $1
@@ -112,7 +112,7 @@ async def get_recent_pages(
             "parent_id": row['parent_id'],
             "page_id": row['page_id'],
             "is_page": row['is_page'],
-            "is_type": row['is_type'],
+            "is_class": row['is_class'],
             "is_daily": row['is_day'],
             "is_monthly": row['is_month'],
             "is_yearly": row['is_year'],
@@ -691,8 +691,9 @@ async def mark_page_opened(
     
     # Ensure default NodeViews exist for this page (lazy initialization)
     try:
-        view_service = NodeViewService(service._pool, service._graph_id, user.id)
-        await view_service.ensure_default_views(node_id)
+        if user.id is not None and service._graph_id is not None:
+            view_service = NodeViewService(service._pool, service._graph_id, user.id)
+            await view_service.ensure_default_views(node_id)
     except Exception as e:
         # Log but don't fail the open operation if view creation fails
         logger.warning(f"Failed to ensure default views for node {node_id}: {e}")

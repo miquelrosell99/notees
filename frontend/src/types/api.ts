@@ -245,12 +245,12 @@ export interface SelectionOption {
 }
 
 /**
- * Type property (property linked to a type/class)
+ * Class property (property linked to a class)
  */
-export interface TypeProperty {
+export interface ClassProperty {
   id: number;
-  type_node_id: number;
-  type_node_name: string;
+  class_node_id: number;
+  class_node_name: string;
   property_id: number;
   property_name: string;
   property_type: PropertyType;
@@ -261,15 +261,13 @@ export interface TypeProperty {
 
 /**
  * Class extends (inheritance relationship)
- * Note: Field names match backend API (type_node_id, extends_type_node_id) 
- * even though we use "class" terminology in the frontend
  */
 export interface ClassExtends {
   id: number;
-  type_node_id: number;
-  type_node_name: string;
-  extends_type_node_id: number;
-  extends_type_node_name: string;
+  class_node_id: number;
+  class_node_name: string;
+  extends_class_node_id: number;
+  extends_class_node_name: string;
   sequence: number;
 }
 
@@ -361,7 +359,7 @@ export interface PropertiesResponse {
 }
 
 export interface ClassPropertiesResponse {
-  class_properties: TypeProperty[];
+  class_properties: ClassProperty[];
 }
 
 export interface ClassExtendsResponse {

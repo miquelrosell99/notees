@@ -112,7 +112,7 @@ class PostgresNodeRepository(NodeRepository):
             collapsed=row.get('collapsed', False),
             active=row.get('active', True),
             is_shared=row.get('is_shared', False),
-            is_type=row.get('is_type', False),
+            is_class=row.get('is_class', False),
             is_page=row.get('is_page', False),
             is_day=row.get('is_day', False),
             is_month=row.get('is_month', False),
@@ -268,7 +268,7 @@ class PostgresNodeRepository(NodeRepository):
                     INSERT INTO node (
                         uuid, graph_id, name, icon, color, parent_id, page_id,
                         sequence, collapsed,
-                        is_type, is_page, is_day, is_month, is_year,
+                        is_class, is_page, is_day, is_month, is_year,
                         is_asset, is_template, is_comment,
                         create_date, write_date, create_uid, write_uid
                     )
@@ -276,7 +276,7 @@ class PostgresNodeRepository(NodeRepository):
                     RETURNING id
                 """, uuid, self._graph_id, data.name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
-                    data.is_type, data.is_page, data.is_day,
+                    data.is_class, data.is_page, data.is_day,
                     data.is_month, data.is_year, data.is_asset,
                     data.is_template, data.is_comment,
                     now, uid)
@@ -322,7 +322,7 @@ class PostgresNodeRepository(NodeRepository):
             sequence=data.sequence,
             collapsed=data.collapsed,
             active=True,
-            is_type=data.is_type,
+            is_class=data.is_class,
             is_page=data.is_page,
             is_day=data.is_day,
             is_month=data.is_month,
@@ -365,7 +365,7 @@ class PostgresNodeRepository(NodeRepository):
                     INSERT INTO node (
                         uuid, graph_id, name, icon, color, parent_id, page_id,
                         sequence, collapsed,
-                        is_type, is_page, is_day, is_month, is_year,
+                        is_class, is_page, is_day, is_month, is_year,
                         is_asset, is_template, is_comment,
                         create_date, write_date, create_uid, write_uid
                     )
@@ -373,7 +373,7 @@ class PostgresNodeRepository(NodeRepository):
                     RETURNING id
                 """, uuid, self._graph_id, data.name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
-                    data.is_type, data.is_page, data.is_day,
+                    data.is_class, data.is_page, data.is_day,
                     data.is_month, data.is_year, data.is_asset,
                     data.is_template, data.is_comment,
                     now, uid)
@@ -419,7 +419,7 @@ class PostgresNodeRepository(NodeRepository):
             sequence=data.sequence,
             collapsed=data.collapsed,
             active=True,
-            is_type=data.is_type,
+            is_class=data.is_class,
             is_page=data.is_page,
             is_day=data.is_day,
             is_month=data.is_month,
@@ -540,8 +540,8 @@ class PostgresNodeRepository(NodeRepository):
             params.append(data.collapsed)
             param_idx += 1
         
-        # Type flags
-        for flag in ['is_type', 'is_page', 'is_day', 'is_month', 'is_year', 
+        # Class flags
+        for flag in ['is_class', 'is_page', 'is_day', 'is_month', 'is_year', 
                      'is_asset', 'is_template', 'is_comment']:
             value = getattr(data, flag, None)
             if value is not None:
@@ -764,7 +764,7 @@ class PostgresNodeRepository(NodeRepository):
         """
         async with self._pool.acquire() as conn:
             # Call the Postgres get_breadcrumbs function
-            # It returns: id, uuid, name, is_page, is_type, is_day, is_month, is_year, parent_id, depth
+            # It returns: id, uuid, name, is_page, is_class, is_day, is_month, is_year, parent_id, depth
             if enter_node_id is not None:
                 rows = await conn.fetch(
                     "SELECT * FROM get_breadcrumbs($1, $2)",
