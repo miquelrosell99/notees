@@ -25,7 +25,7 @@ export interface NodeCardProps {
   index: number;
   maxDepth: number;
   depth: number;
-  layout: 'no-cover' | 'cover-top' | 'cover-side';
+  layout: 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
   sortable?: boolean;
   isDragging?: boolean;
   isDropTarget?: boolean;

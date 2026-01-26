@@ -18,6 +18,12 @@ import {
   mdiChartGantt, 
   mdiGraphOutline,
   mdiPlus,
+  mdiCardOutline,
+  mdiCardTextOutline,
+  mdiDockLeft,
+  mdiDockRight,
+  mdiDockTop,
+  mdiDockBottom,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
@@ -46,6 +52,24 @@ const VIEW_MODE_LABELS: Record<NodeCollectionViewMode, string> = {
   graph: 'Graph',
 };
 
+// Card layout mode icon mappings
+const CARD_LAYOUT_ICONS: Record<string, string> = {
+  'no-cover': mdiCardOutline,
+  'cover-left': mdiDockLeft,
+  'cover-right': mdiDockRight,
+  'cover-top': mdiDockTop,
+  'cover-bottom': mdiDockBottom,
+};
+
+// Card layout mode labels
+const CARD_LAYOUT_LABELS: Record<string, string> = {
+  'no-cover': 'No cover',
+  'cover-left': 'Cover left',
+  'cover-right': 'Cover right',
+  'cover-top': 'Cover top',
+  'cover-bottom': 'Cover bottom',
+};
+
 export interface NodeCollectionToolbarProps {
   /** Current view mode */
   viewMode: NodeCollectionViewMode;
@@ -63,6 +87,10 @@ export interface NodeCollectionToolbarProps {
   showAddButton?: boolean;
   /** Callback when add button is clicked */
   onAdd?: () => void;
+  /** Current card layout mode */
+  cardLayout?: string;
+  /** Callback when card layout changes */
+  onCardLayoutChange?: (layout: string) => void;
   /** Additional CSS class */
   className?: string;
 }
@@ -74,18 +102,21 @@ export interface NodeCollectionToolbarProps {
  */
 export function NodeCollectionToolbar({
   viewMode,
-  availableViewModes = ['list', 'document', 'card', 'table', 'gantt', 'graph'],
+  availableViewModes = ['card', 'document', 'list', 'table', 'gantt', 'graph'],
   onViewModeChange,
   showGroupBy = false,
   groupBy = 'page',
   onGroupByChange,
   showAddButton = false,
   onAdd,
+  cardLayout = 'cover-top',
+  onCardLayoutChange,
   className = '',
 }: NodeCollectionToolbarProps) {
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
   const showGroupByButton = showGroupBy && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
+  const showCardLayoutSelector = viewMode === 'card' && onCardLayoutChange;
   
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
@@ -95,6 +126,16 @@ export function NodeCollectionToolbar({
       label: VIEW_MODE_LABELS[mode],
     })),
     [availableViewModes]
+  );
+
+  // Build SelectionButton options for card layouts
+  const cardLayoutOptions = useMemo<SelectionButtonOption[]>(() => 
+    ['no-cover', 'cover-left', 'cover-right', 'cover-top', 'cover-bottom'].map(layout => ({
+      value: layout,
+      icon: CARD_LAYOUT_ICONS[layout],
+      label: CARD_LAYOUT_LABELS[layout],
+    })),
+    []
   );
 
   // Don't render if nothing to show
@@ -147,6 +188,17 @@ export function NodeCollectionToolbar({
             </div>
           )}
         </ButtonWithPanel>
+      )}
+      
+      {/* Card Layout Selector - only shown in card view */}
+      {showCardLayoutSelector && (
+        <SelectionButton
+          options={cardLayoutOptions}
+          value={cardLayout}
+          onChange={(val) => onCardLayoutChange?.(val)}
+          size="sm"
+          className="node-collection-toolbar__card-layout-selector"
+        />
       )}
       
       {/* View Mode Switcher */}
