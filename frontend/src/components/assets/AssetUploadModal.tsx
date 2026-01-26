@@ -141,6 +141,31 @@ export function AssetUploadModal({
     }
   }, [isOpen, initialFile, handleFile]);
 
+  // Handle paste events
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            handleFile(file);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [isOpen, handleFile]);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -246,7 +271,7 @@ export function AssetUploadModal({
             >
               {getDropzoneIcon()}
               <p>Drag and drop a file here</p>
-              <p className="asset-upload-modal__hint">or click to browse</p>
+              <p className="asset-upload-modal__hint">or click to browse, or paste from clipboard</p>
               <p className="asset-upload-modal__formats">
                 Supported formats: {getFormatText(acceptedTypes)} (max 50MB)
               </p>

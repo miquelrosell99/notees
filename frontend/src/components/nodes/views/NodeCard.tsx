@@ -208,7 +208,7 @@ export function NodeCard({
 
         {/* Cover image or Add Cover button */}
         {effectiveLayout !== 'no-cover' && (
-          <div className="node-card__cover">
+          <div className="node-card__cover" onClick={(e) => e.stopPropagation()}>
             {coverUrl ? (
               <img src={coverUrl} alt="" className="node-card__cover-image" />
             ) : (
