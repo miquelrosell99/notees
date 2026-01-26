@@ -37,13 +37,13 @@ async def get_text_links(
 ):
     """Get all text links from a node with is_tag info.
     
-    Returns list of links parsed from [[id]] patterns in the node's content,
+    Returns list of links parsed from [[id]] or [[id:uuid]] patterns in the node's content,
     including whether each link is a tag (displayed with #) or a regular link.
     """
     service = await _get_node_service(user)
     async with service._pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT id, source_id, target_id, is_tag, position
+            SELECT id, uuid, source_id, target_id, is_tag, position
             FROM node_link
             WHERE source_id = $1 AND property_id IS NULL
             ORDER BY position
@@ -53,6 +53,7 @@ async def get_text_links(
         "links": [
             NodeLinkResponse(
                 id=row['id'],
+                uuid=str(row['uuid']),
                 source_node_id=row['source_id'],
                 target_node_id=row['target_id'],
                 is_tag=row['is_tag'],
@@ -96,7 +97,7 @@ async def add_tag_link(
         
         # Check if link already exists
         row = await conn.fetchrow("""
-            SELECT id FROM node_link 
+            SELECT id, uuid FROM node_link 
             WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND graph_id = $3
         """, node_id, request.target_node_id, service._graph_id)
         
@@ -110,6 +111,7 @@ async def add_tag_link(
             )
             return NodeLinkResponse(
                 id=row['id'],
+                uuid=str(row['uuid']),
                 source_node_id=node_id,
                 target_node_id=request.target_node_id,
                 is_tag=True,
@@ -120,10 +122,11 @@ async def add_tag_link(
             new_row = await conn.fetchrow("""
                 INSERT INTO node_link (source_id, target_id, position, property_id, is_tag, create_date, graph_id)
                 VALUES ($1, $2, 0, NULL, TRUE, $3, $4)
-                RETURNING id
+                RETURNING id, uuid
             """, node_id, request.target_node_id, now, service._graph_id)
             return NodeLinkResponse(
                 id=new_row['id'],
+                uuid=str(new_row['uuid']),
                 source_node_id=node_id,
                 target_node_id=request.target_node_id,
                 is_tag=True,
