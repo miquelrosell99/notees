@@ -118,9 +118,9 @@
 }
 
 /* Edit modal - wider for nested queries */
-.dynamic-section__edit-modal .modal {
-  width: 1200px;
-  max-width: 95vw;
+.dynamic-section__edit-modal {
+  width: 1200px !important;
+  max-width: 95vw !important;
   min-height: 400px;
   max-height: 85vh;
 }
