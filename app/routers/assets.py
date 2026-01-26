@@ -22,7 +22,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Respons
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..db.connection import get_pool, get_workspace_assets_dir
+from ..db.connection import get_pool, get_graph_assets_dir
 from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
@@ -88,7 +88,7 @@ class AssetListResponse(BaseModel):
 
 def get_asset_path(graph_id: int, asset_uuid: str, extension: str) -> Path:
     """Get the file path for an asset."""
-    assets_dir = get_workspace_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_id)
     return assets_dir / f"{asset_uuid}{extension}"
 
 
@@ -280,7 +280,7 @@ async def get_asset(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    assets_dir = get_workspace_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_id)
     
     # Find the asset file (we don't know the extension)
     for ext in ALLOWED_CONTENT_TYPES.values():
@@ -322,7 +322,7 @@ async def get_asset_info(
         raise HTTPException(status_code=404, detail="Asset node not found")
     
     # Find the asset file
-    assets_dir = get_workspace_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_id)
     for ext in ALLOWED_CONTENT_TYPES.values():
         asset_path = assets_dir / f"{asset_uuid}{ext}"
         if asset_path.exists():
@@ -368,7 +368,7 @@ async def delete_asset(
         raise HTTPException(status_code=404, detail="Asset node not found")
     
     # Delete the file first
-    assets_dir = get_workspace_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_id)
     deleted_file = False
     for ext in ALLOWED_CONTENT_TYPES.values():
         asset_path = assets_dir / f"{asset_uuid}{ext}"
@@ -414,7 +414,7 @@ async def list_assets(
     paged_nodes = nodes[start:end]
     
     assets = []
-    assets_dir = get_workspace_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_id)
     
     for node in paged_nodes:
         # Find the file for this asset

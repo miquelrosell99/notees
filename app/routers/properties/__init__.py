@@ -44,11 +44,6 @@ from .models import (
     ClassPropertyRequest,
     ClassExtendsResponse,
     ClassExtendsRequest,
-    # Legacy aliases
-    TypePropertyResponse,
-    TypePropertyRequest,
-    TypeExtendsResponse,
-    TypeExtendsRequest,
 )
 
 __all__ = [
@@ -73,9 +68,4 @@ __all__ = [
     "SelectionValueRequest",
     "ClassPropertyRequest",
     "ClassExtendsRequest",
-    # Legacy aliases
-    "TypePropertyResponse",
-    "TypePropertyRequest",
-    "TypeExtendsResponse",
-    "TypeExtendsRequest",
 ]

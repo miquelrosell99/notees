@@ -32,7 +32,6 @@ from .models import (
     NodeUpdateRequest,
     MoveNodeRequest,
     ClassRequest,
-    TypeRequest,  # Backwards compatibility alias
     PropertyRequest,
     BacklinkResponse,
     LinkedReferenceResponse,
@@ -41,7 +40,6 @@ from .models import (
     TagLinkRequest,
     NodeLinkResponse,
     InlineClassResponse,
-    InlineTypeResponse,  # Backwards compatibility alias
     PropertyBacklinkResponse,
     CommentCreateRequest,
     CommentResponse,

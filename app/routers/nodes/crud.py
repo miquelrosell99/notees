@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError
 from ...db.schema import SYSTEM_CLASS_UUIDS
-from ...db.connection import get_workspace_assets_dir
+from ...db.connection import get_graph_assets_dir
 from ..auth import get_current_user
 from ...models import User
 from ...logging_config import get_logger
@@ -601,7 +601,7 @@ async def delete_node(
     
     # Try to delete any associated asset file
     if node_uuid and service._graph_id is not None:
-        assets_dir = get_workspace_assets_dir(service._graph_id)
+        assets_dir = get_graph_assets_dir(service._graph_id)
         # Check for asset files with any extension
         for asset_file in assets_dir.glob(f"{node_uuid}.*"):
             try:

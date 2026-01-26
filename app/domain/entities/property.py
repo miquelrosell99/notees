@@ -302,11 +302,6 @@ class PropertyValueRelation:
     write_uid: Optional[int] = None
     # Optional field for validation (not stored in DB)
     property_type: Optional[PropertyType] = field(default=None, repr=False)
-    
-    # Legacy alias for backward compatibility
-    @property
-    def target_node_id(self) -> int:
-        return self.target_id
 
 
 @dataclass
@@ -371,12 +366,3 @@ class ClassExtend:
     target_id: int = 0  # The child class node
     source_id: int = 0  # The parent class node being extended
     sequence: int = 0  # Order of extended classes
-    
-    # Legacy aliases for backward compatibility
-    @property
-    def class_node_id(self) -> int:
-        return self.target_id
-    
-    @property
-    def extends_class_node_id(self) -> int:
-        return self.source_id

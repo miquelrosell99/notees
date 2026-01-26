@@ -294,6 +294,3 @@ async def get_or_create_user_graph(
     
     # Create new graph
     return await create_graph_for_user(conn, user_id)
-
-
-# ============== Legacy Aliases ==============

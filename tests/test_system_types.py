@@ -81,7 +81,7 @@ async def system_type_ids(db_pool, test_user):
 @pytest.mark.asyncio
 async def test_cannot_add_day_type(node_service, system_type_ids):
     """Test that adding 'day' type manually is rejected."""
-    from app.domain.errors import SystemTypeConstraintError
+    from app.domain.errors import SystemClassConstraintError
     
     service = node_service
     day_type_id = system_type_ids['day']
@@ -90,7 +90,7 @@ async def test_cannot_add_day_type(node_service, system_type_ids):
     page = await service.create_page("Test Page")
     
     # Try to add day type manually - should fail
-    with pytest.raises(SystemTypeConstraintError) as exc_info:
+    with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.add_type(page.id, day_type_id)
     
     assert "day" in exc_info.value.message.lower()
@@ -100,7 +100,7 @@ async def test_cannot_add_day_type(node_service, system_type_ids):
 @pytest.mark.asyncio
 async def test_cannot_add_month_type(node_service, system_type_ids):
     """Test that adding 'month' type manually is rejected."""
-    from app.domain.errors import SystemTypeConstraintError
+    from app.domain.errors import SystemClassConstraintError
     
     service = node_service
     month_type_id = system_type_ids['month']
@@ -109,7 +109,7 @@ async def test_cannot_add_month_type(node_service, system_type_ids):
     page = await service.create_page("Test Page")
     
     # Try to add month type manually - should fail
-    with pytest.raises(SystemTypeConstraintError) as exc_info:
+    with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.add_type(page.id, month_type_id)
     
     assert "month" in exc_info.value.message.lower()
@@ -118,7 +118,7 @@ async def test_cannot_add_month_type(node_service, system_type_ids):
 @pytest.mark.asyncio
 async def test_cannot_add_year_type(node_service, system_type_ids):
     """Test that adding 'year' type manually is rejected."""
-    from app.domain.errors import SystemTypeConstraintError
+    from app.domain.errors import SystemClassConstraintError
     
     service = node_service
     year_type_id = system_type_ids['year']
@@ -127,7 +127,7 @@ async def test_cannot_add_year_type(node_service, system_type_ids):
     page = await service.create_page("Test Page")
     
     # Try to add year type manually - should fail
-    with pytest.raises(SystemTypeConstraintError) as exc_info:
+    with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.add_type(page.id, year_type_id)
     
     assert "year" in exc_info.value.message.lower()
@@ -136,7 +136,7 @@ async def test_cannot_add_year_type(node_service, system_type_ids):
 @pytest.mark.asyncio
 async def test_cannot_remove_day_type(node_service, system_type_ids):
     """Test that removing 'day' type is rejected even if a node has it."""
-    from app.domain.errors import SystemTypeConstraintError
+    from app.domain.errors import SystemClassConstraintError
     
     service = node_service
     day_type_id = system_type_ids['day']
@@ -145,7 +145,7 @@ async def test_cannot_remove_day_type(node_service, system_type_ids):
     page = await service.create_page("Test Page")
     
     # Try to remove day type - should fail
-    with pytest.raises(SystemTypeConstraintError) as exc_info:
+    with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.remove_type(page.id, day_type_id)
     
     assert "day" in exc_info.value.message.lower()
@@ -155,14 +155,14 @@ async def test_cannot_remove_day_type(node_service, system_type_ids):
 @pytest.mark.asyncio
 async def test_cannot_remove_type_from_system_type(node_service, system_type_ids):
     """Test that removing 'type' from a system type node is rejected."""
-    from app.domain.errors import SystemTypeConstraintError
+    from app.domain.errors import SystemClassConstraintError
     
     service = node_service
     type_type_id = system_type_ids['type']
     task_type_id = system_type_ids['task']
     
     # Try to remove 'type' from task type - should fail
-    with pytest.raises(SystemTypeConstraintError) as exc_info:
+    with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.remove_type(task_type_id, type_type_id)
     
     assert "type" in exc_info.value.message.lower()
@@ -215,7 +215,7 @@ async def test_can_remove_type_from_user_type(node_service, system_type_ids):
     # Remove 'type' from user type - should succeed (no exception, user types are not protected)
     success = await service.remove_type(user_type.id, type_type_id)
     # May return True or False depending on whether the type was actually set,
-    # but importantly it should NOT raise SystemTypeConstraintError
+    # but importantly it should NOT raise SystemClassConstraintError
     assert isinstance(success, bool)
 
 

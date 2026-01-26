@@ -101,10 +101,6 @@ class SystemClassConstraintError(NodeError):
         super().__init__(message=message, code="SYSTEM_CLASS_CONSTRAINT")
 
 
-# Alias for backwards compatibility
-SystemTypeConstraintError = SystemClassConstraintError
-
-
 class DatePageDeletionError(NodeError):
     """Raised when trying to delete a month or year page that has active day children.
     

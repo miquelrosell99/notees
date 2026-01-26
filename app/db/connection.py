@@ -147,9 +147,3 @@ def get_export_dir(graph_id: int) -> Path:
     export_dir = DATA_DIR / "graphs" / str(graph_id) / "export"
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir
-
-
-# Legacy aliases for backward compatibility
-def get_workspace_assets_dir(workspace_id: int) -> Path:
-    """Alias for get_graph_assets_dir. Deprecated, use get_graph_assets_dir."""
-    return get_graph_assets_dir(workspace_id)
