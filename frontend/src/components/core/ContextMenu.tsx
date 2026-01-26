@@ -4,7 +4,7 @@
  * A reusable context menu component that displays a list of actions
  * at the specified position. Uses the Card component for consistent styling.
  */
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
 import Icon from '@mdi/react';
 import { Card } from './Card';
 import { Separator } from './Separator';
@@ -20,6 +20,8 @@ export interface ContextMenuItem {
   separator?: boolean;
   /** If true, don't close the menu when this item is clicked */
   keepOpen?: boolean;
+  /** If provided, shows a submenu with custom content when item is clicked */
+  submenu?: ReactNode;
   onClick?: () => void;
 }
 
@@ -43,6 +45,8 @@ interface ContextMenuProps {
 export function ContextMenu({ items, position, onClose, title, activeItem }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
+  const [submenuPosition, setSubmenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Get non-separator items for keyboard navigation
   const navigableItems = items.filter(item => !item.separator && !item.disabled);
@@ -50,6 +54,11 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // Don't close if clicking inside submenu
+      const submenuEl = document.querySelector('.context-menu-submenu');
+      if (submenuEl && submenuEl.contains(e.target as Node)) {
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -116,8 +125,28 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
 
   const pos = adjustedPosition();
 
-  const handleItemClick = (item: ContextMenuItem) => {
+  const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (item.disabled || item.separator) return;
+    
+    // If item has submenu, toggle it
+    if (item.submenu) {
+      if (activeSubmenu === item.id) {
+        setActiveSubmenu(null);
+      } else {
+        // Calculate submenu position next to this item
+        const buttonEl = event?.currentTarget;
+        if (buttonEl) {
+          const rect = buttonEl.getBoundingClientRect();
+          setSubmenuPosition({ 
+            x: rect.right + 4, 
+            y: rect.top 
+          });
+        }
+        setActiveSubmenu(item.id);
+      }
+      return;
+    }
+    
     item.onClick?.();
     if (!item.keepOpen) {
       onClose();
@@ -149,8 +178,8 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
         return (
           <button
             key={item.id}
-            className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive ? 'active' : ''}`}
-            onClick={() => handleItemClick(item)}
+            className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu ? 'has-submenu' : ''}`}
+            onClick={(e) => handleItemClick(item, e)}
             disabled={item.disabled}
             role="menuitem"
             tabIndex={isFocused ? 0 : -1}
@@ -164,9 +193,20 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
             {item.shortcut && (
               <span className="context-menu-shortcut">{item.shortcut}</span>
             )}
+            {item.submenu && (
+              <span className="context-menu-arrow">›</span>
+            )}
           </button>
         );
       })}
+      {activeSubmenu && (
+        <div 
+          className="context-menu-submenu"
+          style={{ left: submenuPosition.x, top: submenuPosition.y }}
+        >
+          {items.find(item => item.id === activeSubmenu)?.submenu}
+        </div>
+      )}
     </Card>
   );
 }
