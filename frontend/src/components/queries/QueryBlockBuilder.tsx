@@ -2,6 +2,7 @@
  * QueryBlockBuilder Component
  * 
  * Query builder UI with:
+ * - Top-level AND/OR toggle using SelectionButton
  * - Filter rows with field → operator → value layout
  * - NodePicker for relational fields (classes, references, pages)
  * - NodeClassPill for multi-value selections
@@ -12,9 +13,10 @@
  */
 import { useCallback, useMemo } from 'react';
 import { Button } from '../core/Button';
+import { SelectionButton } from '../core/SelectionButton';
 import { FilterBlock } from './FilterBlocks';
 import { AddFilterButton } from './AddFilterButton';
-import { createDefaultBlock, isSystemBlock } from './constants';
+import { ROOT_LOGIC_OPTIONS, createDefaultBlock, isSystemBlock } from './constants';
 import type {
   QueryBlock,
   QueryBlockTree,
@@ -60,6 +62,13 @@ export function QueryBlockBuilder({
     
     return { visibleBlocks: visible, hiddenIndices: hidden };
   }, [blockTree.blocks]);
+  
+  const handleRootTypeChange = useCallback((newType: string) => {
+    onChange({
+      ...blockTree,
+      type: newType as 'AND_CONTAINER' | 'OR_CONTAINER',
+    });
+  }, [blockTree, onChange]);
   
   const handleAddBlock = useCallback((type: QueryBlockType) => {
     onChange({
