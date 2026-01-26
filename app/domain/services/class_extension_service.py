@@ -267,3 +267,40 @@ class ClassExtensionService:
                 }
                 for row in rows
             ]
+    
+    async def get_all_subclasses(self, class_node_id: int) -> List[int]:
+        """Get all classes that extend this class (recursively).
+        
+        Returns all subclasses that directly or indirectly extend this class.
+        Example: A <- B <- C means if we query A, we get [B, C]
+        """
+        extends_prop_id = await self._get_extends_property_id()
+        result = []
+        
+        async with self._pool.acquire() as conn:
+            # Get direct subclasses
+            rows = await conn.fetch("""
+                SELECT DISTINCT n.id
+                FROM node n
+                JOIN node_property np ON np.node_id = n.id
+                JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                WHERE pvr.target_id = $1 
+                  AND np.property_id = $2
+                  AND n.graph_id = $3
+                  AND n.active = TRUE
+                  AND n.is_class = TRUE
+            """, class_node_id, extends_prop_id, self._graph_id)
+            
+            direct_subclasses = [row['id'] for row in rows]
+        
+        # Add direct subclasses
+        result.extend(direct_subclasses)
+        
+        # Recursively get subclasses of each direct subclass
+        for subclass_id in direct_subclasses:
+            indirect_subclasses = await self.get_all_subclasses(subclass_id)
+            for indirect_id in indirect_subclasses:
+                if indirect_id not in result:
+                    result.append(indirect_id)
+        
+        return result

@@ -216,6 +216,67 @@ async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict
     return result
 
 
+async def _get_effective_class_ids_batch(pool, graph_id: int, node_ids: List[int], user_id: int) -> Dict[int, List[int]]:
+    """Fetch class_ids for multiple nodes including inherited classes from extends.
+    
+    For each node:
+    - Gets explicit classes from the 'classes' property
+    - For each explicit class, gets all classes it extends (inheritance chain)
+    - Returns combined list (explicit + inherited), with explicit classes first
+    
+    Returns a dict mapping node_id -> list of class_ids (explicit + inherited).
+    """
+    from ...domain.services.class_extension_service import ClassExtensionService
+    from ...domain.repositories import PostgresPropertyRepository
+    
+    # First get explicit classes
+    explicit_classes = await _get_class_ids_batch(pool, graph_id, node_ids)
+    
+    if not explicit_classes:
+        return {nid: [] for nid in node_ids}
+    
+    # For each unique class, get its inheritance chain
+    all_explicit_class_ids = set()
+    for class_list in explicit_classes.values():
+        all_explicit_class_ids.update(class_list)
+    
+    if not all_explicit_class_ids:
+        return explicit_classes
+    
+    property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
+    extension_service = ClassExtensionService(pool, graph_id, property_repo)
+    
+    # Cache for class -> extended classes
+    extends_cache: Dict[int, List[int]] = {}
+    
+    for class_id in all_explicit_class_ids:
+        try:
+            # get_all_extended_classes returns [class_id, parent1, parent2, ...]
+            extended = await extension_service.get_all_extended_classes(class_id)
+            # Store only the parents (skip the first element which is class_id itself)
+            extends_cache[class_id] = extended[1:] if len(extended) > 1 else []
+        except Exception:
+            # If there's an error (e.g., circular reference), just skip inheritance for this class
+            extends_cache[class_id] = []
+    
+    # Build effective class lists
+    result: Dict[int, List[int]] = {}
+    for node_id in node_ids:
+        explicit = explicit_classes.get(node_id, [])
+        effective = list(explicit)  # Start with explicit classes
+        
+        # Add inherited classes
+        for class_id in explicit:
+            inherited = extends_cache.get(class_id, [])
+            for inherited_class in inherited:
+                if inherited_class not in effective:
+                    effective.append(inherited_class)
+        
+        result[node_id] = effective
+    
+    return result
+
+
 async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[int, List[int]]) -> List[Any]:
     """Build a tree with children for each node.
     
