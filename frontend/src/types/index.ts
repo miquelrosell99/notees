@@ -27,3 +27,6 @@ export {
   type NodeViewUpdate,
   type QueryExecuteRequest,
 } from './query';
+
+// Export QueryAST types
+export * from './queryAST';

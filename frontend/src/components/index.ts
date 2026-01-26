@@ -192,7 +192,7 @@ export { NodeTableView } from './nodes/views/NodeTableView';
 export { NodeGanttView } from './nodes/views/NodeGanttView';
 
 // Query builder components
-export { QueryBlockBuilder } from './queries';
+export { QueryBuilder } from './queries';
 export { NodeViewTabs } from './NodeViewTabs';
 export type { ViewType } from './NodeViewTabs';
 

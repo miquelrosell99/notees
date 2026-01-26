@@ -22,9 +22,9 @@ import {
   useDeleteNodeView,
 } from '@/hooks/useNodeViews';
 import type { NodeView, QueryBlockTree, NodeViewType } from '@/types/query';
+import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
 import { NodeViewSection } from './NodeViewSection';
-import { QuickPageFilter } from './QuickPageFilter';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { Badge } from '../core/Badge';
@@ -33,9 +33,13 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { TextField } from '../core/TextField';
-import { QueryBlockBuilder } from '../queries';
+import { QueryBuilder } from '../queries';
+import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
+import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
+import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
+import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { isSystemBlock } from '../queries/constants';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline } from '@mdi/js';
@@ -98,7 +102,9 @@ export function DynamicNodeViewSection({
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
   const [editViewName, setEditViewName] = useState('');
-  const [editBlockTree, setEditBlockTree] = useState<QueryBlockTree | null>(null);
+  // AST is the source of truth for editing
+  const [editAST, setEditAST] = useState<QueryAST | null>(null);
+  const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [editMode, setEditMode] = useState<'blocks' | 'sql'>('blocks');
   const [editSqlQuery, setEditSqlQuery] = useState('');
   const [showSqlResetConfirm, setShowSqlResetConfirm] = useState(false);
@@ -147,9 +153,15 @@ export function DynamicNodeViewSection({
     return views.find(v => v.is_default) ?? views[0] ?? null;
   }, [views, activeViewId]);
 
-  // Count filter blocks for badge display
+  // Count conditions for badge display
   const filterBlockCount = useMemo(() => {
-    return countMainFilterBlocks(activeView?.query_block_tree ?? null);
+    if (!activeView?.query_block_tree) return 0;
+    try {
+      const ast = blockTreeToAST(activeView.query_block_tree);
+      return countConditions(ast);
+    } catch {
+      return countMainFilterBlocks(activeView.query_block_tree);
+    }
   }, [activeView?.query_block_tree]);
 
   // Create SelectionButton options from views
@@ -183,13 +195,35 @@ export function DynamicNodeViewSection({
   const handleEditView = useCallback((view: NodeView) => {
     setEditingView(view);
     setEditViewName(view.name);
-    setEditBlockTree(view.query_block_tree ?? createEmptyBlockTree());
+    
+    // Convert QueryBlockTree to AST with query identity
+    const blockTree = view.query_block_tree ?? createEmptyBlockTree();
+    const queryId = `view-${view.id}-${view.uuid}`;
+    const ast = blockTreeToAST(blockTree, queryId);
+    
+    // Set created_at if not already set
+    if (!ast.created_at) {
+      ast.created_at = view.create_date;
+    }
+    
+    setEditAST(ast);
+    
+    // Validate immediately
+    const validationResult = validateQueryAST(ast);
+    setValidation(validationResult);
+    
     setEditMode('blocks');
     setEditSqlQuery('');
   }, []);
 
   const handleSaveEdit = useCallback(async () => {
-    if (!editingView || !editBlockTree) return;
+    if (!editingView || !editAST) return;
+    
+    // Check validation before saving
+    if (validation && !canSaveQuery(validation)) {
+      console.warn('Cannot save invalid query');
+      return;
+    }
     
     try {
       // Save name if changed
@@ -199,19 +233,25 @@ export function DynamicNodeViewSection({
           data: { name: editViewName },
         });
       }
+      
+      // Convert AST back to BlockTree for backend
+      const blockTree = astToBlockTree(editAST);
+      
       // Save block tree
       await updateBlockTreeMutation.mutateAsync({
         viewId: editingView.id,
-        blockTree: editBlockTree,
+        blockTree,
       });
+      
       setEditingView(null);
-      setEditBlockTree(null);
+      setEditAST(null);
+      setValidation(null);
       setEditViewName('');
       refetchQuery();
     } catch (error) {
       console.error('Failed to save view:', error);
     }
-  }, [editingView, editBlockTree, editViewName, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
+  }, [editingView, editAST, validation, editViewName, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
 
   // Handle switching from SQL to blocks mode (requires confirmation)
   const handleModeSwitch = useCallback((toSql: boolean) => {
@@ -225,28 +265,23 @@ export function DynamicNodeViewSection({
   }, []);
 
   const confirmSqlReset = useCallback(() => {
-    setEditBlockTree(createEmptyBlockTree());
+    const emptyAST = createEmptyQueryAST();
+    setEditAST(emptyAST);
+    setValidation(validateQueryAST(emptyAST));
     setEditSqlQuery('');
     setEditMode('blocks');
     setShowSqlResetConfirm(false);
   }, []);
 
-  // Handle root logic toggle (AND/OR)
-  const handleRootLogicToggle = useCallback((isOr: boolean) => {
-    if (!editBlockTree) return;
-    setEditBlockTree({
-      ...editBlockTree,
-      type: isOr ? 'OR_CONTAINER' : 'AND_CONTAINER',
-    });
-  }, [editBlockTree]);
-
+  // Handle deleting view
   const handleDeleteView = useCallback(async () => {
     if (!editingView) return;
     
     try {
       await deleteViewMutation.mutateAsync(editingView.id);
       setEditingView(null);
-      setEditBlockTree(null);
+      setEditAST(null);
+      setValidation(null);
       setEditViewName('');
       if (activeViewId === editingView.id) {
         setActiveViewId(null);
@@ -382,7 +417,7 @@ export function DynamicNodeViewSection({
         isOpen={!!editingView}
         onClose={() => {
           setEditingView(null);
-          setEditBlockTree(null);
+          setEditAST(null);
           setEditViewName('');
         }}
         title="Edit View"
@@ -416,7 +451,8 @@ export function DynamicNodeViewSection({
               variant="ghost"
               onClick={() => {
                 setEditingView(null);
-                setEditBlockTree(null);
+                setEditAST(null);
+                setValidation(null);
                 setEditViewName('');
               }}
             >
@@ -425,51 +461,85 @@ export function DynamicNodeViewSection({
             <Button
               variant="primary"
               onClick={handleSaveEdit}
-              disabled={updateBlockTreeMutation.isPending || updateViewMutation.isPending}
+              disabled={
+                updateBlockTreeMutation.isPending || 
+                updateViewMutation.isPending || 
+                (validation && !canSaveQuery(validation))
+              }
+              title={validation && !canSaveQuery(validation) ? getValidationSummary(validation) : undefined}
             >
               {(updateBlockTreeMutation.isPending || updateViewMutation.isPending) ? 'Saving...' : 'Save'}
             </Button>
           </div>
         )}
       >
-        {editingView && editBlockTree && (
+        {editingView && editAST && (
           <div className="dynamic-section__edit-form">
-            {/* Header with toggles */}
-            <div className="dynamic-section__edit-header">
-              {/* Quick page filter */}
-              <QuickPageFilter
-                blockTree={editBlockTree}
-                onChange={setEditBlockTree}
-                size="sm"
-              />
-              
-              {/* AND/OR toggle */}
+            {/* Subtitle explaining purpose */}
+            <p className="dynamic-section__subtitle">
+              This query dynamically defines which nodes appear in this view.
+            </p>
+
+            {/* Validation messages */}
+            {validation && validation.issues.length > 0 && (
+              <div className="dynamic-section__validation">
+                {validation.issues.map((issue, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`dynamic-section__validation-issue dynamic-section__validation-issue--${issue.severity}`}
+                  >
+                    <span className="dynamic-section__validation-message">{issue.message}</span>
+                    {issue.suggestion && (
+                      <span className="dynamic-section__validation-suggestion">{issue.suggestion}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Mode toggle: Builder vs Advanced SQL */}
+            <div className="dynamic-section__mode-toggle-section">
               <ToggleSwitch
-                leftLabel="AND"
-                rightLabel="OR"
-                checked={editBlockTree.type === 'OR_CONTAINER'}
-                onChange={handleRootLogicToggle}
-                size="sm"
-              />
-              
-              <div className="dynamic-section__edit-header-spacer" />
-              
-              {/* Blocks/SQL toggle */}
-              <ToggleSwitch
-                leftLabel="Blocks"
-                rightLabel="SQL"
+                leftLabel="Builder"
+                rightLabel="Advanced (SQL)"
                 checked={editMode === 'sql'}
                 onChange={handleModeSwitch}
                 size="sm"
               />
+              {editMode === 'sql' && (
+                <span className="dynamic-section__mode-warning">
+                  Switching to SQL disables the visual builder.
+                </span>
+              )}
             </div>
 
             {/* Query editor - blocks or SQL */}
             {editMode === 'blocks' ? (
-              <QueryBlockBuilder
-                blockTree={editBlockTree}
-                onChange={setEditBlockTree}
-              />
+              <div className="dynamic-section__builder-mode">
+                {/* QueryBuilder - native AST editing */}
+                <QueryBuilder
+                  ast={editAST}
+                  onChange={(updatedAST) => {
+                    setEditAST(updatedAST);
+                    setValidation(validateQueryAST(updatedAST));
+                  }}
+                />
+
+                {/* Live result count */}
+                {resultNodes.length > 0 && (
+                  <div className="dynamic-section__result-preview">
+                    <span className="dynamic-section__result-count">
+                      {resultNodes.length} node{resultNodes.length !== 1 ? 's' : ''} match this query
+                    </span>
+                  </div>
+                )}
+
+                {/* SQL Preview */}
+                <QuerySQLPreview 
+                  ast={editAST} 
+                  disabled={validation ? !canSaveQuery(validation) : false}
+                />
+              </div>
             ) : (
               <div className="dynamic-section__sql-editor">
                 <textarea

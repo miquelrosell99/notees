@@ -1,0 +1,323 @@
+"""Query AST to SQL Generator
+
+Converts QueryAST structures to PostgreSQL queries.
+Generates optimized SQL with proper indexing and filtering.
+"""
+from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime
+
+from app.domain.entities.query_ast import (
+    QueryAST,
+    ScopeNode,
+    GroupNode,
+    ConditionNode,
+    NotNode,
+    TypeCondition,
+    PropertyCondition,
+    ContentCondition,
+    ReferenceCondition,
+    ReferencePathCondition,
+    AncestorPathCondition,
+    LogicType,
+    ScopeType,
+)
+
+
+class QueryASTToSQL:
+    """Converts QueryAST to PostgreSQL queries."""
+    
+    def __init__(self, graph_id: int, current_node_uuid: Optional[str] = None):
+        """
+        Initialize the SQL generator.
+        
+        Args:
+            graph_id: The graph ID to query within
+            current_node_uuid: UUID of the current node (for placeholder substitution)
+        """
+        self.graph_id = graph_id
+        self.current_node_uuid = current_node_uuid
+        self.params: Dict[str, Any] = {'graph_id': graph_id}
+        self.param_counter = 0
+    
+    def generate(self, ast: QueryAST) -> Tuple[str, Dict[str, Any]]:
+        """
+        Generate SQL query from AST.
+        
+        Returns:
+            (sql, params) tuple
+        """
+        # Base SELECT with all node fields
+        sql_parts = [
+            "SELECT DISTINCT n.*",
+            "FROM node n",
+        ]
+        
+        # Generate WHERE clause from scope and conditions
+        where_clauses = []
+        
+        # Always filter by graph_id and active
+        where_clauses.append("n.graph_id = %(graph_id)s")
+        where_clauses.append("n.active = TRUE")
+        
+        # Add scope filtering
+        scope_clause = self._generate_scope_sql(ast.scope)
+        if scope_clause:
+            where_clauses.append(scope_clause)
+        
+        # Add root group conditions
+        if ast.root_group.children:
+            group_clause = self._generate_group_sql(ast.root_group)
+            if group_clause:
+                where_clauses.append(f"({group_clause})")
+        
+        # Combine WHERE clauses
+        if where_clauses:
+            sql_parts.append("WHERE " + " AND ".join(where_clauses))
+        
+        # Default ordering
+        sql_parts.append("ORDER BY n.id DESC")
+        
+        # Combine into final SQL
+        sql = "\n".join(sql_parts)
+        
+        return sql, self.params
+    
+    def _generate_scope_sql(self, scope: ScopeNode) -> Optional[str]:
+        """Generate SQL for scope filtering."""
+        if scope.scope_type == ScopeType.ENTIRE_GRAPH:
+            # No additional filtering needed
+            return None
+        
+        elif scope.scope_type == ScopeType.CURRENT_PAGE:
+            if not self.current_node_uuid:
+                return None
+            
+            # Filter to current page or its descendants
+            if scope.include_descendants:
+                # Get all nodes under current page
+                return f"(n.page_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s AND graph_id = %(graph_id)s))"
+            else:
+                # Only the current page itself
+                return f"(n.uuid = %(current_uuid)s)"
+        
+        elif scope.scope_type == ScopeType.SPECIFIC_PAGES:
+            if not scope.page_uuids:
+                return None
+            
+            # Filter to specific pages
+            param_name = self._add_param(scope.page_uuids)
+            
+            if scope.include_descendants:
+                # Pages and their descendants
+                return f"(n.page_id IN (SELECT id FROM node WHERE uuid = ANY(%({param_name})s) AND graph_id = %(graph_id)s))"
+            else:
+                # Only the pages themselves
+                return f"(n.uuid = ANY(%({param_name})s))"
+        
+        elif scope.scope_type == ScopeType.LINKED_REFS:
+            if not self.current_node_uuid:
+                return None
+            
+            # Nodes that link to current node
+            return """(n.id IN (
+                SELECT source_id FROM node_link
+                WHERE target_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s AND graph_id = %(graph_id)s)
+                AND graph_id = %(graph_id)s
+            ))"""
+        
+        return None
+    
+    def _generate_group_sql(self, group: GroupNode) -> Optional[str]:
+        """Generate SQL for a group of conditions."""
+        if not group.children:
+            return None
+        
+        child_clauses = []
+        
+        for child in group.children:
+            if isinstance(child, GroupNode):
+                # Nested group
+                nested_sql = self._generate_group_sql(child)
+                if nested_sql:
+                    child_clauses.append(f"({nested_sql})")
+            
+            elif isinstance(child, NotNode):
+                # NOT condition
+                if isinstance(child.child, GroupNode):
+                    nested_sql = self._generate_group_sql(child.child)
+                    if nested_sql:
+                        child_clauses.append(f"NOT ({nested_sql})")
+                else:
+                    cond_sql = self._generate_condition_sql(child.child)
+                    if cond_sql:
+                        child_clauses.append(f"NOT ({cond_sql})")
+            
+            else:
+                # Regular condition
+                cond_sql = self._generate_condition_sql(child)
+                if cond_sql:
+                    child_clauses.append(cond_sql)
+        
+        if not child_clauses:
+            return None
+        
+        # Combine with AND or OR
+        logic_op = " AND " if group.logic == LogicType.AND else " OR "
+        return logic_op.join(child_clauses)
+    
+    def _generate_condition_sql(self, condition: ConditionNode) -> Optional[str]:
+        """Generate SQL for a single condition."""
+        if isinstance(condition, TypeCondition):
+            return self._generate_type_condition(condition)
+        elif isinstance(condition, PropertyCondition):
+            return self._generate_property_condition(condition)
+        elif isinstance(condition, ContentCondition):
+            return self._generate_content_condition(condition)
+        elif isinstance(condition, ReferenceCondition):
+            return self._generate_reference_condition(condition)
+        elif isinstance(condition, ReferencePathCondition):
+            return self._generate_reference_path_condition(condition)
+        elif isinstance(condition, AncestorPathCondition):
+            return self._generate_ancestor_path_condition(condition)
+        
+        return None
+    
+    def _generate_type_condition(self, condition: TypeCondition) -> Optional[str]:
+        """Generate SQL for type/class condition."""
+        if not condition.type_uuid:
+            return None
+        
+        param_name = self._add_param(condition.type_uuid)
+        
+        # Check if node has this type via node_class_inline
+        return f"""(n.id IN (
+            SELECT node_id FROM node_class_inline
+            WHERE class_node_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+            AND graph_id = %(graph_id)s
+        ))"""
+    
+    def _generate_property_condition(self, condition: PropertyCondition) -> Optional[str]:
+        """Generate SQL for property condition."""
+        if not condition.property_name:
+            return None
+        
+        prop_param = self._add_param(condition.property_name)
+        
+        if condition.operator == 'is_empty':
+            return f"NOT EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+        
+        elif condition.operator == 'is_not_empty':
+            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+        
+        # For value-based operators
+        if condition.value is None:
+            return None
+        
+        value_param = self._add_param(condition.value)
+        
+        if condition.operator == 'equals':
+            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND value::text = %({value_param})s::text)"
+        
+        elif condition.operator == 'not_equals':
+            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND value::text != %({value_param})s::text)"
+        
+        elif condition.operator == 'contains':
+            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND value::text ILIKE '%%' || %({value_param})s || '%%')"
+        
+        elif condition.operator == 'greater_than':
+            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND (value::text)::numeric > %({value_param})s::numeric)"
+        
+        elif condition.operator == 'less_than':
+            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND (value::text)::numeric < %({value_param})s::numeric)"
+        
+        return None
+    
+    def _generate_content_condition(self, condition: ContentCondition) -> Optional[str]:
+        """Generate SQL for content/name search condition."""
+        if not condition.value:
+            return None
+        
+        value_param = self._add_param(condition.value)
+        
+        if condition.operator == 'contains':
+            if condition.case_sensitive:
+                return f"n.name LIKE '%%' || %({value_param})s || '%%'"
+            else:
+                return f"n.name ILIKE '%%' || %({value_param})s || '%%'"
+        
+        elif condition.operator == 'starts_with':
+            if condition.case_sensitive:
+                return f"n.name LIKE %({value_param})s || '%%'"
+            else:
+                return f"n.name ILIKE %({value_param})s || '%%'"
+        
+        elif condition.operator == 'ends_with':
+            if condition.case_sensitive:
+                return f"n.name LIKE '%%' || %({value_param})s"
+            else:
+                return f"n.name ILIKE '%%' || %({value_param})s"
+        
+        elif condition.operator == 'equals':
+            if condition.case_sensitive:
+                return f"n.name = %({value_param})s"
+            else:
+                return f"LOWER(n.name) = LOWER(%({value_param})s)"
+        
+        elif condition.operator == 'regex':
+            return f"n.name ~ %({value_param})s"
+        
+        return None
+    
+    def _generate_reference_condition(self, condition: ReferenceCondition) -> Optional[str]:
+        """Generate SQL for reference condition."""
+        if not condition.target_uuid:
+            return None
+        
+        param_name = self._add_param(condition.target_uuid)
+        
+        # Check if node has a link to target
+        return f"""(EXISTS (
+            SELECT 1 FROM node_link
+            WHERE source_id = n.id
+            AND target_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+            AND graph_id = %(graph_id)s
+        ))"""
+    
+    def _generate_reference_path_condition(self, condition: ReferencePathCondition) -> Optional[str]:
+        """Generate SQL for reference path condition (nodes that reference nodes matching criteria)."""
+        # This would need a subquery with the nested group
+        # Simplified for now
+        return None
+    
+    def _generate_ancestor_path_condition(self, condition: AncestorPathCondition) -> Optional[str]:
+        """Generate SQL for ancestor path condition."""
+        # This would need recursive CTE for ancestor checking
+        # Simplified for now
+        return None
+    
+    def _add_param(self, value: Any) -> str:
+        """Add a parameter and return its name."""
+        param_name = f'p{self.param_counter}'
+        self.params[param_name] = value
+        self.param_counter += 1
+        return param_name
+
+
+def generate_sql_from_ast(
+    ast: QueryAST,
+    graph_id: int,
+    current_node_uuid: Optional[str] = None
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Generate SQL query from QueryAST.
+    
+    Args:
+        ast: The QueryAST to convert
+        graph_id: The graph ID to query within
+        current_node_uuid: UUID of current node for placeholder substitution
+    
+    Returns:
+        (sql, params) tuple
+    """
+    generator = QueryASTToSQL(graph_id, current_node_uuid)
+    return generator.generate(ast)
