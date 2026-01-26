@@ -1,0 +1,69 @@
+/**
+ * TextField Component Styles
+ */
+
+.text-field-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.text-field__label {
+  font-size: var(--text-sm, 14px);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.text-field {
+  width: 100%;
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  font-size: var(--text-sm, 14px);
+  color: var(--text-primary);
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant, var(--border-color));
+  border-radius: var(--radius-sm, 6px);
+  transition: 
+    border-color var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease),
+    box-shadow var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+}
+
+.text-field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 17, 17, 17), 0.1);
+}
+
+.text-field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.text-field--error {
+  border-color: var(--color-error);
+}
+
+.text-field--error:focus {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 2px rgba(var(--color-error-rgb, 192, 57, 43), 0.1);
+}
+
+.text-field--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color-surface-variant, var(--bg-secondary));
+}
+
+/* Size variants */
+.text-field--sm {
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  font-size: var(--text-xs, 12px);
+}
+
+.text-field--lg {
+  padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
+  font-size: var(--text-base, 16px);
+}
+
+.text-field__error {
+  font-size: var(--text-xs, 12px);
+  color: var(--color-error);
+}
