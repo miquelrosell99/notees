@@ -13,8 +13,9 @@ import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
+import { Card } from '../core/Card';
 import { Button } from '../core/Button';
-import { NodePicker } from './NodePicker';
+import { SearchBox } from '../SearchBox';
 import type { Node, NodeUpdate } from '@/types';
 import './NodeContextMenu.css';
 
@@ -231,16 +232,10 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
-  const createNode = useCreateNode();
-  const { openNode } = useNodesStore();
   
   // Favorites - use selector for data, getState() for actions
   const favorites = useFavoritesStore((state) => state.favorites);
   const isPageFavorited = favorites.some(f => f.nodeId === node.id);
-  
-  // Parent picker state
-  const [showParentPicker, setShowParentPicker] = useState(false);
-  const [parentPickerPos, setParentPickerPos] = useState({ x: 0, y: 0 });
   
   const handleToggleFavorite = useCallback(() => {
     const store = useFavoritesStore.getState();
@@ -252,13 +247,45 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     onClose();
   }, [isPageFavorited, node.id, onClose]);
   
-  const handleParentChange = useCallback((newParentId: number | number[] | null) => {
-    const parentId = Array.isArray(newParentId) ? newParentId[0] : newParentId;
-    updateNode.mutate({ id: node.id, data: { parent_id: parentId } });
-    setShowParentPicker(false);
-    onParentChange?.(parentId);
+  const handleParentSelect = useCallback((selectedNode: Node) => {
+    updateNode.mutate({ id: node.id, data: { parent_id: selectedNode.id } });
+    onParentChange?.(selectedNode.id);
     onClose();
   }, [node.id, updateNode, onParentChange, onClose]);
+  
+  const handleRemoveParent = useCallback(() => {
+    updateNode.mutate({ id: node.id, data: { parent_id: null } });
+    onParentChange?.(null);
+    onClose();
+  }, [node.id, updateNode, onParentChange, onClose]);
+  
+  // Parent selection submenu content
+  const parentSubmenu = useMemo(() => (
+    <Card elevation="high" padding={true} className="parent-selector-submenu">
+      {node.parent_id && parentPage && (
+        <div className="parent-selector-current">
+          <span className="parent-selector-label">Current:</span>
+          <span className="parent-selector-name">{parentPage.name || 'Untitled'}</span>
+        </div>
+      )}
+      <div className="parent-selector-search">
+        <SearchBox
+          placeholder="Search pages..."
+          onSelect={handleParentSelect}
+        />
+      </div>
+      {node.parent_id && (
+        <Button 
+          variant="ghost"
+          size="sm"
+          className="parent-selector-remove"
+          onClick={handleRemoveParent}
+        >
+          Remove parent
+        </Button>
+      )}
+    </Card>
+  ), [node.parent_id, parentPage, handleParentSelect, handleRemoveParent]);
   
   const pageItems = useMemo((): ContextMenuItem[] => {
     return [
@@ -272,51 +299,12 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
       {
         id: 'change-parent',
         label: `Parent: ${parentPage?.name || 'None'}`,
-        onClick: () => {
-          setParentPickerPos(position);
-          setShowParentPicker(true);
-        }
+        submenu: parentSubmenu
       },
       { id: 'sep-page-2', label: '', separator: true },
       ...commonItems,
     ];
-  }, [isPageFavorited, parentPage, commonItems, handleToggleFavorite, position]);
-  
-  if (showParentPicker) {
-    return (
-      <div className="parent-picker-overlay" onClick={() => { setShowParentPicker(false); onClose(); }}>
-        <div 
-          className="parent-picker-modal"
-          style={{ top: parentPickerPos.y, left: parentPickerPos.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="parent-picker-header">
-            <span>Select Parent Page</span>
-            <Button variant="ghost" size="xs" onClick={() => { setShowParentPicker(false); onClose(); }}>✕</Button>
-          </div>
-          <NodePicker
-            property={{ id: 0, name: 'parent', property_type: 'node', tag_filters: [] } as any}
-            value={node.parent_id ?? null}
-            onChange={handleParentChange}
-            onNavigate={(id) => openNode(id, 'page')}
-            onCreate={async (name) => {
-              const newPage = await createNode.mutateAsync({ name, is_page: true });
-              return newPage;
-            }}
-          />
-          {node.parent_id && (
-            <Button 
-              variant="ghost"
-              className="parent-picker-clear"
-              onClick={() => handleParentChange(null)}
-            >
-              Remove parent
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  }
+  }, [isPageFavorited, parentPage, parentSubmenu, commonItems, handleToggleFavorite]);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };
