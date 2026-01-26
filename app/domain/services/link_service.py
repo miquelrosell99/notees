@@ -26,7 +26,7 @@ import uuid as uuid_module
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any, TYPE_CHECKING
 
-from ..entities import NodeLink, InlineClass, InlineType, BacklinkInfo
+from ..entities import NodeLink, InlineClass, BacklinkInfo
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, LinkRepository, PropertyRepository

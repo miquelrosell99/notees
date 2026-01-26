@@ -32,10 +32,6 @@ from .init import (
     seed_graph,
     create_graph_for_user,
     get_or_create_user_graph,
-    # Legacy aliases
-    seed_workspace,
-    create_workspace_for_user,
-    get_or_create_user_workspace,
 )
 
 __all__ = [

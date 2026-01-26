@@ -13,7 +13,7 @@ from typing import List, Optional
 
 import asyncpg
 
-from ..entities import NodeLink, InlineClass, InlineType
+from ..entities import NodeLink, InlineClass
 from .interfaces import LinkRepository
 from .base import normalize_timestamp
 from ...utils import utc_now

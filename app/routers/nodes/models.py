@@ -126,14 +126,6 @@ class ClassRequest(BaseModel):
     class_node_id: int
 
 
-# Backwards compatibility alias
-class TypeRequest(ClassRequest):
-    """Request to add/remove a class (alias for ClassRequest)."""
-    @property
-    def type_node_id(self) -> int:
-        return self.class_node_id
-
-
 class PropertyRequest(BaseModel):
     """Request to set a property value."""
     property_id: int
@@ -181,10 +173,6 @@ class InlineClassResponse(BaseModel):
         if 'type_node_icon' not in data or data['type_node_icon'] is None:
             data['type_node_icon'] = data.get('class_node_icon')
         super().__init__(**data)
-
-
-# Backwards compatibility alias
-InlineTypeResponse = InlineClassResponse
 
 
 class PropertyBacklinkResponse(BaseModel):

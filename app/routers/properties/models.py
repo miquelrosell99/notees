@@ -165,15 +165,7 @@ class ClassPropertyRequest(BaseModel):
     default_value: Optional[Any] = None
 
 
-# Legacy alias
-TypePropertyRequest = ClassPropertyRequest
-
-
 class ClassExtendsRequest(BaseModel):
     """Request to add a class extension (inheritance)."""
     extends_class_node_id: int
     sequence: int = 0
-
-
-# Legacy alias
-TypeExtendsRequest = ClassExtendsRequest
