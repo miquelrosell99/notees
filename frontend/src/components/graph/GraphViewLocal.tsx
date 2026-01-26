@@ -32,6 +32,29 @@ export function GraphViewLocal({
   const { nodes, links } = useMemo(() => {
     if (!graphData) return { nodes: [], links: [] };
     
+    // Build parent map from links
+    const parentMap = new Map<number, number>();
+    for (const link of graphData.links) {
+      if (link.type === 'parent') {
+        parentMap.set(link.target, link.source);
+      }
+    }
+    
+    // Helper to get all ancestors of a node
+    const getAncestors = (nodeId: number): Set<number> => {
+      const ancestors = new Set<number>();
+      let currentId: number | null = nodeId;
+      const visited = new Set<number>();
+      
+      while (currentId !== null && !visited.has(currentId)) {
+        visited.add(currentId);
+        ancestors.add(currentId);
+        currentId = parentMap.get(currentId) ?? null;
+      }
+      
+      return ancestors;
+    };
+    
     // Find all directly connected node IDs
     const connectedIds = new Set<number>();
     connectedIds.add(nodeId);
@@ -44,12 +67,19 @@ export function GraphViewLocal({
       }
     }
     
-    // Filter nodes to only include connected ones
-    const localNodes = graphData.nodes.filter(n => connectedIds.has(n.id));
+    // For each connected node, include all its ancestors (for full path display)
+    const allIds = new Set<number>(connectedIds);
+    for (const id of connectedIds) {
+      const ancestors = getAncestors(id);
+      ancestors.forEach(ancestorId => allIds.add(ancestorId));
+    }
+    
+    // Filter nodes to include connected ones AND their ancestors
+    const localNodes = graphData.nodes.filter(n => allIds.has(n.id));
     
     // Filter links to only include those between local nodes
     const localLinks = graphData.links.filter(
-      l => connectedIds.has(l.source) && connectedIds.has(l.target)
+      l => allIds.has(l.source) && allIds.has(l.target)
     );
     
     return { nodes: localNodes, links: localLinks };
