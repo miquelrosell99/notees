@@ -77,6 +77,13 @@
   z-index: var(--z-dropdown);
 }
 
+/* Fixed positioning variant for breaking out of containers */
+.search-dropdown--fixed {
+  position: fixed;
+  z-index: 10001; /* Above context menus */
+  margin-top: 0;
+}
+
 .search-loading,
 .search-empty {
   padding: var(--spacing-4);
