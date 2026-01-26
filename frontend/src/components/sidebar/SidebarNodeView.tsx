@@ -473,7 +473,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
               >
                 <ClassedNodesView 
                   classId={node.id} 
-                  className={node.name || 'Untitled'} 
+                  className_={node.name || 'Untitled'} 
                   hideToolbar={true}
                   toolbarState={classedNodesToolbarState}
                 />

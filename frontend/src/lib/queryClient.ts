@@ -1,7 +1,7 @@
 /**
  * React Query client configuration
  */
-import { QueryClient, type Mutation, type Query } from '@tanstack/react-query';
+import { QueryClient, type Mutation } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -25,17 +25,13 @@ function getErrorMessage(error: unknown): string {
 /**
  * Global mutation error handler
  */
-function onMutationError(error: unknown, _variables: unknown, _context: unknown, mutation: Mutation<unknown, unknown, unknown, unknown>) {
+function onMutationError(error: Error) {
   const message = getErrorMessage(error);
-  
-  // Get mutation key for context
-  const mutationKey = mutation.options.mutationKey;
-  const context = mutationKey ? ` (${String(mutationKey)})` : '';
   
   // Show error notification
   useNotificationStore.getState().error(
     'Operation failed',
-    message + context
+    message
   );
 }
 

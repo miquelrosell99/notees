@@ -61,8 +61,6 @@ export type { ClassedNodesSectionToolbarState } from './ClassedNodesSection';
 export { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from './ChildPagesSection';
 export type { ChildPagesSectionToolbarState } from './ChildPagesSection';
 export { PropertyConfigPanel } from './properties/PropertyConfigPanel';
-export { PropertyPickerModal } from './properties/PropertyPickerModal';
-export { PropertyCreateModal } from './properties/PropertyCreateModal';
 export { PropertyList } from './properties/PropertyList';
 export type { PropertyListProps, PropertyEntry } from './properties/PropertyList';
 export { PropertyView } from '../views/PropertyView';
@@ -77,7 +75,7 @@ export type { CardProps, CardElevation, CardVariant, PanelProps, PanelElevation 
 export { SearchBox } from './SearchBox';
 export { CalendarPopup } from './core/CalendarPopup';
 export { QuickAddDialog } from './quickadd/QuickAddDialog';
-export { QuickAddPanel } from './QuickAddPanel';
+export { QuickAddPanel } from './quickadd/QuickAddPanel';
 export { SidebarCard } from './sidebar/SidebarCard';
 export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
@@ -133,7 +131,6 @@ export { CommentsSidebar } from './sidebar/CommentsSidebar';
 // CalendarView, ChartView, GanttView, QueryView - not yet implemented
 export { PropertyNodesView } from './PropertyNodesView';
 export type { PropertyNodesViewProps, PropertyViewMode } from './PropertyNodesView';
-export { TemplateUsedInView } from './TemplateUsedInView';
 
 // Modal components
 export { Modal } from './core/Modal';

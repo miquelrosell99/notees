@@ -157,8 +157,7 @@ function BlockInternal({
   // Block navigation actions for visual order navigation
   const { getNextBlockId } = useBlockNavigationActions();
   
-  // Visible blocks list and parent map for hierarchy lookups
-  const visibleBlockIds = useVisibleBlockIds();
+  // Parent map for hierarchy lookups
   const blockParentMapFromStore = useBlockParentMap();
   
   // Operation queue for race condition protection on structural operations
@@ -174,12 +173,12 @@ function BlockInternal({
   
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useMemo(() => {
-    const classIds = block.classes ?? block.types;
+    const classIds = block.classes;
     if (!classIds || classIds.length === 0 || !allClasses) return [];
     return classIds
-      .map(classId => allClasses.find(c => c.id === classId))
+      .map((classId: number) => allClasses.find((c: Node) => c.id === classId))
       .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
-  }, [block.classes, block.types, allClasses]);
+  }, [block.classes, allClasses]);
   
   // Determine the icon to show on the bullet
   // Priority: block's own icon > first class's icon
@@ -190,7 +189,7 @@ function BlockInternal({
     }
     // Fall back to first class's icon if block has no icon
     if (blockClassDetails.length > 0) {
-      const firstClassWithIcon = blockClassDetails.find(c => c.icon);
+      const firstClassWithIcon = blockClassDetails.find((c: Node) => c.icon);
       if (firstClassWithIcon?.icon) {
         return firstClassWithIcon.icon;
       }
@@ -1619,7 +1618,7 @@ function BlockInternal({
         {/* Block classes - right-aligned */}
         {showTypes && blockClassDetails.length > 0 && (
           <div className="block-types">
-            {blockClassDetails.map((classNode) => {
+            {blockClassDetails.map((classNode: Node) => {
               return (
                 <NodeClassPill
                   key={classNode.id}
@@ -1816,8 +1815,8 @@ function blockPropsAreEqual(
   if (prevProps.backlinkCount !== nextProps.backlinkCount) return false;
   
   // Classes array (shallow ID comparison)
-  const prevClasses = prevProps.block.classes ?? prevProps.block.types ?? [];
-  const nextClasses = nextProps.block.classes ?? nextProps.block.types ?? [];
+  const prevClasses = prevProps.block.classes ?? [];
+  const nextClasses = nextProps.block.classes ?? [];
   if (prevClasses.length !== nextClasses.length) return false;
   for (let i = 0; i < prevClasses.length; i++) {
     if (prevClasses[i] !== nextClasses[i]) return false;
