@@ -102,7 +102,7 @@ export interface NodeCollectionToolbarProps {
  */
 export function NodeCollectionToolbar({
   viewMode,
-  availableViewModes = ['card', 'document', 'list', 'table', 'gantt', 'graph'],
+  availableViewModes = ['list', 'table', 'card', 'document', 'gantt', 'graph'],
   onViewModeChange,
   showGroupBy = false,
   groupBy = 'page',
