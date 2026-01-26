@@ -9,6 +9,7 @@
  * - In NodeViewSection: Pass as headerActions to move buttons to section header
  */
 import { useMemo } from 'react';
+import { useNodesStore } from '@/stores';
 import { 
   mdiGroup,
   mdiFormatListBulleted, 
@@ -113,10 +114,17 @@ export function NodeCollectionToolbar({
   onCardLayoutChange,
   className = '',
 }: NodeCollectionToolbarProps) {
+  // Use store for card layout if not controlled
+  const storeCardLayout = useNodesStore(state => state.cardLayout);
+  const storeSetCardLayout = useNodesStore(state => state.setCardLayout);
+  
+  const effectiveCardLayout = cardLayout ?? storeCardLayout;
+  const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => storeSetCardLayout(layout as any));
+  
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
   const showGroupByButton = showGroupBy && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
-  const showCardLayoutSelector = viewMode === 'card' && onCardLayoutChange;
+  const showCardLayoutSelector = viewMode === 'card';
   
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
@@ -194,8 +202,8 @@ export function NodeCollectionToolbar({
       {showCardLayoutSelector && (
         <SelectionButton
           options={cardLayoutOptions}
-          value={cardLayout}
-          onChange={(val) => onCardLayoutChange?.(val)}
+          value={effectiveCardLayout}
+          onChange={(val) => effectiveOnCardLayoutChange(val)}
           size="sm"
           className="node-collection-toolbar__card-layout-selector"
         />
