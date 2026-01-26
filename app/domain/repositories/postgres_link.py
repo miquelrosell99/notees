@@ -184,9 +184,9 @@ class PostgresInlineClassRepository:
     """PostgreSQL repository for inline class references.
     
     Updated for new schema:
-    - Table renamed from inline_type to type_inline (still used for backwards compat)
+    - Table renamed from type_inline to class_inline
     - source_node_id -> node_id
-    - type_node_id -> class_id
+    - type_id -> class_id
     - workspace_id -> graph_id
     - created_at -> create_date
     """
@@ -211,25 +211,22 @@ class PostgresInlineClassRepository:
         return InlineClass(
             id=row['id'],
             node_id=row['node_id'],
-            class_id=row['type_id'],  # DB column still named type_id
+            class_id=row['class_id'],
             position=row.get('position', 0),
             create_date=create_date,
             create_uid=row.get('create_uid'),
         )
     
-    # Backwards compatibility alias
-    _row_to_inline_type = _row_to_inline_class
-    
     async def create(self, inline_class: InlineClass) -> InlineClass:
         """Create a new inline class reference."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO type_inline (node_id, type_id, position, create_date, create_uid)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO class_inline (node_id, class_id, position, create_date, create_uid, graph_id)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING id
             """, inline_class.node_id, inline_class.class_id,
                 inline_class.position, inline_class.create_date,
-                inline_class.create_uid or self._user_id)
+                inline_class.create_uid or self._user_id, self._graph_id)
             
             if row is None:
                 raise RuntimeError("Failed to create inline class - no row returned")
@@ -240,40 +237,28 @@ class PostgresInlineClassRepository:
         """Delete all inline classes from a source node (for re-parsing)."""
         async with self._pool.acquire() as conn:
             result = await conn.execute(
-                "DELETE FROM type_inline WHERE node_id = $1",
+                "DELETE FROM class_inline WHERE node_id = $1",
                 source_node_id
             )
             return int(result.split()[-1]) if result else 0
-    
-    # Backwards compatibility alias
-    async def delete_source_inline_types(self, source_node_id: int) -> int:
-        return await self.delete_source_inline_classes(source_node_id)
     
     async def get_source_inline_classes(self, source_node_id: int) -> List[InlineClass]:
         """Get all inline classes from a source node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM type_inline WHERE node_id = $1 ORDER BY position",
+                "SELECT * FROM class_inline WHERE node_id = $1 ORDER BY position",
                 source_node_id
             )
             return [self._row_to_inline_class(row) for row in rows]
-    
-    # Backwards compatibility alias
-    async def get_source_inline_types(self, source_node_id: int) -> List[InlineClass]:
-        return await self.get_source_inline_classes(source_node_id)
     
     async def get_class_references(self, class_node_id: int) -> List[InlineClass]:
         """Get all inline references to a class node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM type_inline WHERE type_id = $1",
+                "SELECT * FROM class_inline WHERE class_id = $1",
                 class_node_id
             )
             return [self._row_to_inline_class(row) for row in rows]
-    
-    # Backwards compatibility alias
-    async def get_type_references(self, type_node_id: int) -> List[InlineClass]:
-        return await self.get_class_references(type_node_id)
     
     async def bulk_create(self, inline_classes: List[InlineClass]) -> List[InlineClass]:
         """Create multiple inline classes at once using COPY."""
@@ -283,13 +268,13 @@ class PostgresInlineClassRepository:
         async with self._pool.acquire() as conn:
             records = [
                 (ic.node_id, ic.class_id, ic.position, ic.create_date,
-                 ic.create_uid or self._user_id)
+                 ic.create_uid or self._user_id, self._graph_id)
                 for ic in inline_classes
             ]
             await conn.copy_records_to_table(
-                'type_inline',
+                'class_inline',
                 records=records,
-                columns=['node_id', 'type_id', 'position', 'create_date', 'create_uid']
+                columns=['node_id', 'class_id', 'position', 'create_date', 'create_uid', 'graph_id']
             )
         
         return inline_classes
@@ -298,17 +283,9 @@ class PostgresInlineClassRepository:
         """Get inline class references from nodes within the current graph only."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT ti.*
-                FROM type_inline ti
-                JOIN node n ON ti.node_id = n.id
-                WHERE ti.type_id = $1 AND n.graph_id = $2
+                SELECT ci.*
+                FROM class_inline ci
+                JOIN node n ON ci.node_id = n.id
+                WHERE ci.class_id = $1 AND n.graph_id = $2
             """, class_node_id, self._graph_id)
             return [self._row_to_inline_class(row) for row in rows]
-    
-    # Backwards compatibility alias
-    async def get_inline_types_for_graph(self, type_node_id: int) -> List[InlineClass]:
-        return await self.get_inline_classes_for_graph(type_node_id)
-
-
-# Backwards compatibility alias
-PostgresInlineTypeRepository = PostgresInlineClassRepository

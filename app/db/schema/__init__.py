@@ -55,13 +55,9 @@ __all__ = [
     "parse_date_uuid",
     # SQL
     "SCHEMA_SQL",
-    # Init functions (new)
+    # Init functions
     "init_database",
     "seed_graph",
     "create_graph_for_user",
     "get_or_create_user_graph",
-    # Init functions (legacy aliases)
-    "seed_workspace",
-    "create_workspace_for_user",
-    "get_or_create_user_workspace",
 ]

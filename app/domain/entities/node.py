@@ -3,7 +3,7 @@
 The Node is the core entity of Notees. Everything is a node:
 - Pages (nodes with is_page=1)
 - Blocks (nodes with a parent_id, always have page_id set)
-- Classes (nodes with is_type=1, define what kind of node something is)
+- Classes (nodes with is_class=1, define what kind of node something is)
 - System nodes (day, month, year, task, template, etc. - indicated by is_* flags)
 
 Nodes are identified by:
@@ -60,7 +60,7 @@ class Node:
     is_shared: bool = False  # Whether this node is shared with other users
     
     # Class flags (stored for fast queries, not mutually exclusive)
-    is_type: bool = False      # This node defines a class/type
+    is_class: bool = False     # This node defines a class
     is_page: bool = False      # Regular page
     is_day: bool = False       # Daily journal page
     is_month: bool = False     # Monthly journal page
@@ -128,7 +128,7 @@ class NodeCreateData:
     classes: List[int] = field(default_factory=list)  # Class node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
     # Class flags (optional - can be set explicitly or derived from classes)
-    is_type: bool = False
+    is_class: bool = False
     is_page: bool = False
     is_day: bool = False
     is_month: bool = False
@@ -153,7 +153,7 @@ class NodeUpdateData:
     classes: Optional[List[int]] = None
     property_values: Optional[dict] = None
     # Class flags (optional)
-    is_type: Optional[bool] = None
+    is_class: Optional[bool] = None
     is_page: Optional[bool] = None
     is_day: Optional[bool] = None
     is_month: Optional[bool] = None

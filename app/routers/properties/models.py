@@ -19,7 +19,7 @@ class PropertyResponse(BaseModel):
     create_date: str
     write_date: str
     # For relation-type properties
-    type_filters: List[int] = []
+    class_filters: List[int] = []
     # For selection-type properties
     selection_lines: List["SelectionLineResponse"] = []
 
@@ -75,11 +75,11 @@ class SelectionValueResponse(BaseModel):
     order: int = 0
 
 
-class TypePropertyResponse(BaseModel):
-    """Type/class property response."""
+class ClassPropertyResponse(BaseModel):
+    """Class property response."""
     id: int
-    type_node_id: int
-    type_node_name: str
+    class_node_id: int
+    class_node_name: str
     property_id: int
     property_name: str
     property_type: str
@@ -88,13 +88,13 @@ class TypePropertyResponse(BaseModel):
     hidden: bool = False
 
 
-class TypeExtendsResponse(BaseModel):
-    """Type inheritance (extends) response."""
+class ClassExtendsResponse(BaseModel):
+    """Class inheritance (extends) response."""
     id: int
-    type_node_id: int
-    type_node_name: str
-    extends_type_node_id: int
-    extends_type_node_name: str
+    class_node_id: int
+    class_node_name: str
+    extends_class_node_id: int
+    extends_class_node_name: str
     sequence: int = 0
 
 
@@ -108,8 +108,8 @@ class PropertyCreateRequest(BaseModel):
     is_multi: bool = False
     is_local: bool = False
     node_id: Optional[int] = None  # For local properties (must be a page node)
-    # For relation-type: which types filter selectable nodes
-    type_filters: List[int] = []
+    # For relation-type: which classes filter selectable nodes
+    class_filters: List[int] = []
     # For selection-type: initial options
     selection_lines: List[str] = []
 
@@ -158,14 +158,22 @@ class SelectionValueRequest(BaseModel):
     order: int = 0
 
 
-class TypePropertyRequest(BaseModel):
-    """Request to link a property to a type/class."""
+class ClassPropertyRequest(BaseModel):
+    """Request to link a property to a class."""
     property_id: int
     sequence: int = 0
     default_value: Optional[Any] = None
 
 
-class TypeExtendsRequest(BaseModel):
-    """Request to add a type extension (inheritance)."""
-    extends_type_node_id: int
+# Legacy alias
+TypePropertyRequest = ClassPropertyRequest
+
+
+class ClassExtendsRequest(BaseModel):
+    """Request to add a class extension (inheritance)."""
+    extends_class_node_id: int
     sequence: int = 0
+
+
+# Legacy alias
+TypeExtendsRequest = ClassExtendsRequest

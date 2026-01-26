@@ -20,17 +20,17 @@ async def list_classes(
 ):
     """List all classes (nodes that can categorize other nodes).
     
-    Classes are nodes that have is_type=1. This includes system classes like
+    Classes are nodes that have is_class=1. This includes system classes like
     day, month, year, as well as user-defined classes.
     
     Returns nodes with class_ids populated (classes can themselves be classed).
     """
     service = await _get_node_service(user)
     
-    # Get all nodes where is_type=1 using PostgreSQL
+    # Get all nodes where is_class=1 using PostgreSQL
     async with service._pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT * FROM node WHERE is_type = TRUE AND active = TRUE AND graph_id = $1 ORDER BY name""",
+            """SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND graph_id = $1 ORDER BY name""",
             service._graph_id
         )
     

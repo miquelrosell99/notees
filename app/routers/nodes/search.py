@@ -30,7 +30,7 @@ async def get_graph_data_endpoint(
         # Get all active pages as nodes
         page_rows = await conn.fetch(
             """
-            SELECT id, uuid, name, icon, is_type, is_day, is_month, is_year
+            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year
             FROM node 
             WHERE graph_id = $1 AND is_page = TRUE AND active = TRUE
             ORDER BY name
@@ -51,11 +51,11 @@ async def get_graph_data_endpoint(
                 "uuid": str(row['uuid']),
                 "name": row['name'],
                 "icon": row['icon'],
-                "is_type": row['is_type'],
+                "is_class": row['is_class'],
                 "is_daily": row['is_day'],
                 "is_monthly": row['is_month'],
                 "is_yearly": row['is_year'],
-                "types": node_class_ids,
+                "classes": node_class_ids,
             })
         
         # Get reference links between pages (only page-to-page links)

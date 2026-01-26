@@ -53,7 +53,7 @@ export function ClassExtendsEditor({
   // Filter available classes (exclude self and already extended classes)
   const availableClasses = allNodes?.filter(node => {
     if (node.id === classNodeId) return false;
-    if (extendsRelations?.some(ext => ext.extends_type_node_id === node.id)) return false;
+    if (extendsRelations?.some(ext => ext.extends_class_node_id === node.id)) return false;
     if (searchQuery && !node.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   }) ?? [];
@@ -94,18 +94,18 @@ export function ClassExtendsEditor({
                 className="class-extends-name"
                 variant="ghost"
                 size="sm"
-                onClick={() => onNavigateToClass?.(ext.extends_type_node_id)}
+                onClick={() => onNavigateToClass?.(ext.extends_class_node_id)}
                 title="Click to view class"
               >
                 <NodeIcon isPage={true} size="xs" />
-                {ext.extends_type_node_name || `Class #${ext.extends_type_node_id}`}
+                {ext.extends_class_node_name || `Class #${ext.extends_class_node_id}`}
               </Button>
               {!readOnly && (
                 <Button
                   className="class-extends-remove"
                   variant="ghost"
                   size="xs"
-                  onClick={() => handleRemoveExtends(ext.extends_type_node_id)}
+                  onClick={() => handleRemoveExtends(ext.extends_class_node_id)}
                   disabled={removeExtendsMutation.isPending}
                   title="Remove inheritance"
                 >

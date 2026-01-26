@@ -7,7 +7,7 @@ This tests the following constraints:
 """
 import pytest
 
-from app.db.schema import SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
+from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
 
 @pytest.fixture
@@ -26,15 +26,15 @@ async def node_service(db_pool, test_user):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-            SYSTEM_TYPE_UUIDS['page'], workspace_id
+            SYSTEM_CLASS_UUIDS['page'], workspace_id
         )
         page_type_id = row['id']
         
         row = await conn.fetchrow(
             "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['types']
+            SYSTEM_PROPERTY_UUIDS['classes']
         )
-        types_property_id = row['id']
+        classes_property_id = row['id']
     
     # Create repositories
     node_repo = PostgresNodeRepository(db_pool, workspace_id)
@@ -44,11 +44,11 @@ async def node_service(db_pool, test_user):
     # Create services
     link_service = LinkParsingService(
         node_repo, link_repo,
-        types_property_id=types_property_id
+        classes_property_id=classes_property_id
     )
     service = NodeService(
         node_repo, property_repo, link_service,
-        page_type_id, types_property_id
+        page_type_id, classes_property_id
     )
     
     return service
@@ -64,7 +64,7 @@ async def system_type_ids(db_pool, test_user):
         for name in ['day', 'month', 'year', 'type', 'task', 'page']:
             row = await conn.fetchrow(
                 "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-                SYSTEM_TYPE_UUIDS[name], workspace_id
+                SYSTEM_CLASS_UUIDS[name], workspace_id
             )
             ids[name] = row['id'] if row else None
         
@@ -220,52 +220,52 @@ async def test_can_remove_type_from_user_type(node_service, system_type_ids):
 
 
 @pytest.mark.asyncio
-async def test_adding_type_type_sets_is_type_flag(node_service, system_type_ids):
-    """Test that adding 'type' type to a page sets is_type=True on the node."""
+async def test_adding_type_type_sets_is_class_flag(node_service, system_type_ids):
+    """Test that adding 'class' type to a page sets is_class=True on the node."""
     service = node_service
     type_type_id = system_type_ids['type']
     
-    # Create a page (not a type initially)
+    # Create a page (not a class initially)
     page = await service.create_page("Test Page For Type")
     
-    # Verify is_type is False initially
+    # Verify is_class is False initially
     node = await service.get_node(page.id)
     assert node is not None
-    assert node.is_type is False
+    assert node.is_class is False
     
-    # Add 'type' type to the page
+    # Add 'class' type to the page
     success = await service.add_type(page.id, type_type_id)
     assert success is True
     
-    # Verify is_type is now True
+    # Verify is_class is now True
     node = await service.get_node(page.id)
     assert node is not None
-    assert node.is_type is True
+    assert node.is_class is True
 
 
 @pytest.mark.asyncio
-async def test_removing_type_type_clears_is_type_flag(node_service, system_type_ids):
-    """Test that removing 'type' type from a user-created type sets is_type=False."""
+async def test_removing_type_type_clears_is_class_flag(node_service, system_type_ids):
+    """Test that removing 'class' type from a user-created type sets is_class=False."""
     service = node_service
     type_type_id = system_type_ids['type']
     
-    # Create a page and add 'type' type to make it a type
+    # Create a page and add 'class' type to make it a class
     page = await service.create_page("User Created Type")
     await service.add_type(page.id, type_type_id)
     
-    # Verify is_type is True
+    # Verify is_class is True
     node = await service.get_node(page.id)
     assert node is not None
-    assert node.is_type is True
+    assert node.is_class is True
     
-    # Remove 'type' type
+    # Remove 'class' type
     success = await service.remove_type(page.id, type_type_id)
     assert success is True
     
-    # Verify is_type is now False
+    # Verify is_class is now False
     node = await service.get_node(page.id)
     assert node is not None
-    assert node.is_type is False
+    assert node.is_class is False
 
 
 @pytest.mark.asyncio

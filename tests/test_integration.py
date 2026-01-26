@@ -213,20 +213,20 @@ class TestTagFlow:
     
     @pytest.mark.asyncio
     async def test_create_type(self, auth_client: AsyncClient):
-        """Test creating a type node."""
+        """Test creating a class node."""
         import secrets
         type_name = f"test-type-{secrets.token_hex(4)}"
         
         response = await auth_client.post("/api/nodes", json={
             "name": type_name,
-            "is_type": True,
+            "is_class": True,
             "is_page": True,
         })
         assert response.status_code == 200
         type_node = response.json()
         
-        # Types are pages with is_type flag
-        assert type_node["is_type"] is True
+        # Classes are pages with is_class flag
+        assert type_node["is_class"] is True
         assert type_node["is_page"] is True
 
 

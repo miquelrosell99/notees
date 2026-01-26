@@ -10,7 +10,7 @@ Key semantics:
 import pytest
 from datetime import datetime, timezone
 
-from app.db.schema import SYSTEM_TYPE_UUIDS, SYSTEM_PROPERTY_UUIDS
+from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
 
 @pytest.fixture
@@ -29,15 +29,15 @@ async def link_service_fixtures(db_pool, test_user):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-            SYSTEM_TYPE_UUIDS['page'], workspace_id
+            SYSTEM_CLASS_UUIDS['page'], workspace_id
         )
         page_type_id = row['id']
         
         row = await conn.fetchrow(
             "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['types']
+            SYSTEM_PROPERTY_UUIDS['classes']
         )
-        types_property_id = row['id']
+        classes_property_id = row['id']
     
     # Create repositories
     node_repo = PostgresNodeRepository(db_pool, workspace_id)
@@ -47,7 +47,7 @@ async def link_service_fixtures(db_pool, test_user):
     # Create link service
     link_service = LinkParsingService(
         node_repo, link_repo, property_repo,
-        types_property_id=types_property_id
+        classes_property_id=classes_property_id
     )
     
     return {
@@ -56,7 +56,7 @@ async def link_service_fixtures(db_pool, test_user):
         'link_repo': link_repo,
         'link_service': link_service,
         'page_type_id': page_type_id,
-        'types_property_id': types_property_id,
+        'classes_property_id': classes_property_id,
         'workspace_id': workspace_id,
     }
 
@@ -117,61 +117,61 @@ async def test_text_link_creates_backlink(link_service_fixtures):
 
 
 @pytest.mark.asyncio
-async def test_types_property_excluded_from_backlinks(link_service_fixtures):
-    """Test that the system `types` property is excluded from backlinks."""
+async def test_classes_property_excluded_from_backlinks(link_service_fixtures):
+    """Test that the system `classes` property is excluded from backlinks."""
     from app.domain.entities import NodeCreateData
     
     node_repo = link_service_fixtures['node_repo']
     link_service = link_service_fixtures['link_service']
-    types_property_id = link_service_fixtures['types_property_id']
+    classes_property_id = link_service_fixtures['classes_property_id']
     
-    # Create a type node
-    type_node = await node_repo.create(NodeCreateData(name='Task', is_type=True))
-    assert type_node.id is not None
+    # Create a class node
+    class_node = await node_repo.create(NodeCreateData(name='Task', is_class=True))
+    assert class_node.id is not None
     
-    # Create a page that has this type
+    # Create a page that has this class
     page = await node_repo.create(NodeCreateData(name='My Task', is_page=True))
     assert page.id is not None
     
-    # Add type via property link - this simulates setting types property
-    await link_service.update_property_links(page.id, types_property_id, [type_node.id])
+    # Add class via property link - this simulates setting classes property
+    await link_service.update_property_links(page.id, classes_property_id, [class_node.id])
     
-    # Get backlinks to the type node
-    backlinks = await link_service.get_backlinks(type_node.id)
+    # Get backlinks to the class node
+    backlinks = await link_service.get_backlinks(class_node.id)
     
-    # Should have NO backlinks because types property is excluded
-    assert len(backlinks) == 0, f'Expected 0 backlinks (types excluded), got {len(backlinks)}'
+    # Should have NO backlinks because classes property is excluded
+    assert len(backlinks) == 0, f'Expected 0 backlinks (classes excluded), got {len(backlinks)}'
 
 
 @pytest.mark.asyncio
-async def test_types_path_inheritance(db_pool, link_service_fixtures):
-    """Test that types_path accumulates types from ancestors."""
+async def test_classes_path_inheritance(db_pool, link_service_fixtures):
+    """Test that classes_path accumulates classes from ancestors."""
     from app.domain.entities import NodeCreateData
     
     node_repo = link_service_fixtures['node_repo']
     link_service = link_service_fixtures['link_service']
-    types_property_id = link_service_fixtures['types_property_id']
+    classes_property_id = link_service_fixtures['classes_property_id']
     workspace_id = link_service_fixtures['workspace_id']
     
-    # Create two type nodes
-    type_task = await node_repo.create(NodeCreateData(name='Task', is_type=True))
-    type_meeting = await node_repo.create(NodeCreateData(name='Meeting', is_type=True))
-    assert type_task.id is not None
-    assert type_meeting.id is not None
+    # Create two class nodes
+    class_task = await node_repo.create(NodeCreateData(name='Task', is_class=True))
+    class_meeting = await node_repo.create(NodeCreateData(name='Meeting', is_class=True))
+    assert class_task.id is not None
+    assert class_meeting.id is not None
     
-    # Create a page with type Task
+    # Create a page with class Task
     page = await node_repo.create(NodeCreateData(name='Parent Page', is_page=True))
     assert page.id is not None
     
     now = datetime.now(timezone.utc)
     
-    # Set page type via property_value_relation (simulating types property)
+    # Set page class via property_value_relation (simulating classes property)
     async with db_pool.acquire() as conn:
         # Create node_property entry
         node_property_id = await conn.fetchval(
             '''INSERT INTO node_property (node_id, property_id, create_date, write_date)
                VALUES ($1, $2, $3, $4) RETURNING id''',
-            page.id, types_property_id, now, now
+            page.id, classes_property_id, now, now
         )
         
         # Create property_value_relation entry
@@ -179,18 +179,18 @@ async def test_types_path_inheritance(db_pool, link_service_fixtures):
             '''INSERT INTO property_value_relation 
                (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date) 
                VALUES ($1, $2, $3, $4, $5, $6, $7)''',
-            node_property_id, types_property_id, page.id, type_task.id, 0, now, now
+            node_property_id, classes_property_id, page.id, class_task.id, 0, now, now
         )
     
     # Create a child block
     block = await node_repo.create(NodeCreateData(name='Child Block', parent_id=page.id))
     assert block.id is not None
     
-    # Update types_path for the block
-    types_path = await link_service.update_types_path(block.id)
+    # Update classes_path for the block
+    classes_path = await link_service.update_classes_path(block.id)
     
-    # Block should inherit Task type from parent
-    assert type_task.id in types_path, f'Expected type_task.id in types_path: {types_path}'
+    # Block should inherit Task class from parent
+    assert class_task.id in classes_path, f'Expected class_task.id in classes_path: {classes_path}'
 
 
 @pytest.mark.asyncio

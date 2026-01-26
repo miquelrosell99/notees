@@ -7,7 +7,7 @@ from .interfaces import (
 )
 from .postgres_node import PostgresNodeRepository
 from .postgres_property import PostgresPropertyRepository
-from .postgres_link import PostgresLinkRepository, PostgresInlineClassRepository, PostgresInlineTypeRepository
+from .postgres_link import PostgresLinkRepository, PostgresInlineClassRepository
 from .postgres_user import PostgresUserRepository
 from .postgres_node_view import PostgresNodeViewRepository
 
@@ -23,7 +23,6 @@ __all__ = [
     "PostgresPropertyRepository",
     "PostgresLinkRepository",
     "PostgresInlineClassRepository",
-    "PostgresInlineTypeRepository",  # Backwards compatibility alias
     "PostgresUserRepository",
     "PostgresNodeViewRepository",
 ]
