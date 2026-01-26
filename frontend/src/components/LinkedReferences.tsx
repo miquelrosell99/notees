@@ -158,7 +158,7 @@ export function LinkedReferences({
       active: true,
       create_date: pb.source_page.create_date || '',
       write_date: pb.source_page.write_date || '',
-      types: pb.source_page.types || [],
+      classes: pb.source_page.classes || [],
       tags: pb.source_page.tags || [],
       collapsed: false,
       children: [],
@@ -173,7 +173,7 @@ export function LinkedReferences({
       .filter(ref => {
         // If the source node has this node as a type, don't show it as a linked reference
         // since it's already shown in the "typed with" section
-        const nodeTypes = ref.source_node.types || [];
+        const nodeTypes = ref.source_node.classes || [];
         const isTypedWithThisNode = nodeTypes.includes(nodeId);
         // Filter out nodes that only have this as a type (not an explicit [[link]])
         // Since we can't distinguish link types, we hide type-only references
@@ -194,7 +194,7 @@ export function LinkedReferences({
         active: ref.source_node.active ?? true,
         create_date: ref.source_node.create_date || '',
         write_date: ref.source_node.write_date || '',
-        types: ref.source_node.types || [],
+        classes: ref.source_node.classes || [],
         tags: ref.source_node.tags || [],
         collapsed: ref.source_node.collapsed || false,
         children: ref.source_node.children || [],
