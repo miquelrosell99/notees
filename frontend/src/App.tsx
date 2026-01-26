@@ -7,7 +7,7 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { Layout } from './components/layout/Layout';
@@ -82,29 +82,38 @@ function AppContent() {
   }, []);
   
   // Register keyboard shortcut handlers when authenticated
-  // This bridges the centralized keyboard system with app-level actions
+  // Use refs to avoid re-registering when callbacks change identity
+  const toggleQuickAddRef = useRef(toggleQuickAdd);
+  const toggleCalendarRef = useRef(toggleCalendar);
+  
+  // Keep refs updated
+  useEffect(() => {
+    toggleQuickAddRef.current = toggleQuickAdd;
+    toggleCalendarRef.current = toggleCalendar;
+  });
+  
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    const { registerHandler, unregisterHandler } = useKeyboardStore.getState();
+    const { registerHandler } = useKeyboardStore.getState();
     
     // Quick add shortcut (Ctrl/Cmd + N)
-    registerHandler('quickAdd', (e) => {
+    const unregisterQuickAdd = registerHandler('quickAdd', (e) => {
       e.preventDefault();
-      toggleQuickAdd();
+      toggleQuickAddRef.current();
     });
     
     // Calendar shortcut (Ctrl/Cmd + Shift + D)
-    registerHandler('goToDaily', (e) => {
+    const unregisterCalendar = registerHandler('goToDaily', (e) => {
       e.preventDefault();
-      toggleCalendar();
+      toggleCalendarRef.current();
     });
     
     return () => {
-      unregisterHandler('quickAdd');
-      unregisterHandler('goToDaily');
+      unregisterQuickAdd();
+      unregisterCalendar();
     };
-  }, [isAuthenticated, toggleQuickAdd, toggleCalendar]);
+  }, [isAuthenticated]);
   
   // Refresh favorites and recents when database changes
   useEffect(() => {
