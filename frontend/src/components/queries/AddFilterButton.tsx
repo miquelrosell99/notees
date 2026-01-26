@@ -5,7 +5,6 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { mdiPlus } from '@mdi/js';
-import Icon from '@mdi/react';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { FILTER_TYPE_OPTIONS } from './constants';
@@ -55,7 +54,6 @@ export function AddFilterButton({ onSelect }: AddFilterButtonProps) {
               className="add-filter__item"
               onClick={() => handleSelect(opt.value)}
             >
-              <Icon path={opt.icon} size={0.7} />
               <div className="add-filter__item-text">
                 <span className="add-filter__item-label">{opt.label}</span>
                 <span className="add-filter__item-desc">{opt.description}</span>

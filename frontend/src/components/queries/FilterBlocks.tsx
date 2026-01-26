@@ -7,14 +7,6 @@
 import { useCallback, useMemo } from 'react';
 import {
   mdiClose,
-  mdiTagOutline,
-  mdiTextBox,
-  mdiLink,
-  mdiArrowUp,
-  mdiCodeBraces,
-  mdiSetAll,
-  mdiSetCenter,
-  mdiCancel,
   mdiChevronUp,
   mdiChevronDown,
 } from '@mdi/js';
@@ -41,6 +33,7 @@ import type {
   PropertyBlock,
   ContentBlock,
   ReferenceBlock,
+  ReferencePathBlock,
   AncestorPathBlock,
   NotBlock,
   PropertyOperator,
@@ -202,8 +195,7 @@ export function ClassFilterBlock({ block, onUpdate, onDelete, readOnly, index, t
   return (
     <div className="filter-block filter-block--class">
       <div className="filter-block__field">
-        <Icon path={mdiTagOutline} size={0.65} className="filter-block__icon" />
-        <span className="filter-block__label">Class</span>
+        <span className="filter-block__label">Classes</span>
       </div>
       <select className="filter-block__operator" disabled={readOnly}>
         {TYPE_OPERATORS.map(op => (
@@ -240,7 +232,6 @@ export function ContentFilterBlock({ block, onUpdate, onDelete, readOnly, index,
   return (
     <div className="filter-block filter-block--content">
       <div className="filter-block__field">
-        <Icon path={mdiTextBox} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">Content</span>
       </div>
       <select
@@ -333,7 +324,6 @@ export function ReferenceFilterBlock({ block, onUpdate, onDelete, readOnly, dept
   return (
     <div className="filter-block filter-block--reference">
       <div className="filter-block__field">
-        <Icon path={mdiLink} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">References</span>
       </div>
       <select className="filter-block__operator" disabled>
@@ -455,7 +445,6 @@ export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, d
   return (
     <div className="filter-block filter-block--ancestor">
       <div className="filter-block__field">
-        <Icon path={mdiArrowUp} size={0.65} className="filter-block__icon" />
         <span className="filter-block__label">Inside page</span>
       </div>
       <select className="filter-block__operator" disabled>
@@ -501,6 +490,114 @@ export function AncestorPathFilterBlock({ block, onUpdate, onDelete, readOnly, d
   );
 }
 
+// ==================== Reference Path Filter Block ====================
+
+/**
+ * ReferencePathFilterBlock - Filter nodes that are referenced by nodes matching criteria
+ * Supports both static page selection and dynamic query mode.
+ */
+export function ReferencePathFilterBlock({ block, onUpdate, onDelete, readOnly, depth = 0, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
+  const refPathBlock = block as ReferencePathBlock;
+  const { data: pages } = usePages();
+  
+  // Determine if we're in dynamic mode (has non-UUID blocks or multiple blocks)
+  const isDynamic = refPathBlock.blocks.length === 0 || 
+    refPathBlock.blocks.length > 1 || 
+    (refPathBlock.blocks.length === 1 && refPathBlock.blocks[0].type !== 'UUID');
+  
+  // Find selected page by UUID (for static mode - single UUID block)
+  const selectedPageId = useMemo(() => {
+    if (isDynamic || refPathBlock.blocks.length === 0) return null;
+    const firstBlock = refPathBlock.blocks[0];
+    if (firstBlock.type === 'UUID') {
+      const page = pages?.find(p => p.uuid === firstBlock.value);
+      return page?.id ?? null;
+    }
+    return null;
+  }, [isDynamic, refPathBlock.blocks, pages]);
+  
+  const handleSelectPage = useCallback((_nodeId: number | null, node?: AppNode) => {
+    if (node) {
+      onUpdate({
+        ...refPathBlock,
+        blocks: [{ type: 'UUID', value: node.uuid }],
+      });
+    } else {
+      onUpdate({ ...refPathBlock, blocks: [] });
+    }
+  }, [refPathBlock, onUpdate]);
+  
+  const handleModeChange = useCallback((mode: string) => {
+    if (mode === 'dynamic') {
+      // Switch to dynamic mode - clear UUID blocks
+      onUpdate({
+        ...refPathBlock,
+        blocks: [],
+      });
+    } else {
+      // Switch to static mode - clear all blocks
+      onUpdate({
+        ...refPathBlock,
+        blocks: [],
+      });
+    }
+  }, [refPathBlock, onUpdate]);
+  
+  const handleDynamicBlocksUpdate = useCallback((blocks: QueryBlock[]) => {
+    onUpdate({
+      ...refPathBlock,
+      blocks,
+    });
+  }, [refPathBlock, onUpdate]);
+  
+  return (
+    <div className="filter-block filter-block--reference-path">
+      <div className="filter-block__field">
+        <span className="filter-block__label">Path Refs</span>
+      </div>
+      <select className="filter-block__operator" disabled>
+        <option value="from">from</option>
+      </select>
+      <div className="filter-block__value">
+        {isDynamic ? (
+          <DynamicQuerySection
+            blocks={refPathBlock.blocks}
+            onUpdate={handleDynamicBlocksUpdate}
+            readOnly={readOnly}
+            depth={depth}
+          />
+        ) : (
+          <SingleNodeSelector
+            mode="pages"
+            selectedId={selectedPageId}
+            onChange={handleSelectPage}
+            placeholder="Select page..."
+            readOnly={readOnly}
+          />
+        )}
+      </div>
+      {!readOnly && (
+        <div className="filter-block__mode-toggle">
+          <SelectionButton
+            options={VALUE_MODE_OPTIONS}
+            value={isDynamic ? 'dynamic' : 'static'}
+            onChange={handleModeChange}
+            size="sm"
+          />
+        </div>
+      )}
+      <FilterBlockActions
+        readOnly={readOnly}
+        index={index}
+        totalSiblings={totalSiblings}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDelete={onDelete}
+      />
+    </div>
+  );
+}
+
 // ==================== Property Filter Block ====================
 
 export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly, index, totalSiblings, onMoveUp, onMoveDown }: FilterBlockProps) {
@@ -518,7 +615,6 @@ export function PropertyFilterBlock({ block, onUpdate, onDelete, readOnly, index
   return (
     <div className="filter-block filter-block--property">
       <div className="filter-block__field">
-        <Icon path={mdiCodeBraces} size={0.65} className="filter-block__icon" />
         <input
           type="text"
           className="filter-block__input filter-block__input--name"
@@ -607,7 +703,6 @@ export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, dept
     <div className={`filter-block filter-block--container filter-block--${containerType.toLowerCase()}`}>
       <div className="filter-block__row">
         <div className="filter-block__field">
-          <Icon path={icon} size={0.65} className="filter-block__icon" />
           <span className="filter-block__label">{label}</span>
         </div>
         <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>of:</span>
@@ -670,6 +765,8 @@ export function FilterBlock(props: FilterBlockProps) {
       return <ContentFilterBlock {...props} />;
     case 'REFERENCE':
       return <ReferenceFilterBlock {...props} />;
+    case 'REFERENCE_PATH':
+      return <ReferencePathFilterBlock {...props} />;
     case 'ANCESTOR_PATH':
       return <AncestorPathFilterBlock {...props} />;
     case 'PROPERTY':

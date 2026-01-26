@@ -38,9 +38,10 @@ export interface FilterTypeOption {
 }
 
 export const FILTER_TYPE_OPTIONS: FilterTypeOption[] = [
-  { value: 'TYPE', label: 'Type', icon: mdiTagOutline, description: 'Filter by node type' },
+  { value: 'TYPE', label: 'Classes', icon: mdiTagOutline, description: 'Filter by node class' },
   { value: 'CONTENT', label: 'Content', icon: mdiTextBox, description: 'Filter by text content' },
   { value: 'REFERENCE', label: 'References', icon: mdiLink, description: 'Nodes that reference...' },
+  { value: 'REFERENCE_PATH', label: 'Path References', icon: mdiLink, description: 'Nodes referenced by path' },
   { value: 'ANCESTOR_PATH', label: 'Inside page', icon: mdiArrowUp, description: 'Descendant of page' },
   { value: 'PROPERTY', label: 'Property', icon: mdiCodeBraces, description: 'Filter by property value' },
   { value: 'AND_CONTAINER', label: 'All of (AND)', icon: mdiSetAll, description: 'Match all nested conditions' },
