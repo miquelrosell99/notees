@@ -67,7 +67,7 @@ def sanitize_content(raw_content: str) -> str:
     
     # Remove vscodecontentref artifacts: [[[nodeId]]](http://vscodecontentref/N) -> [[nodeId]]
     content = re.sub(
-        r'\[\[\[([^\]]+)\]\]\(http://vscodecontentref/\d+\)',
+        r'\[\[\[([^\]]+)\]\]\]\(http://vscodecontentref/\d+\)',
         r'[[\1]]',
         content
     )
@@ -126,10 +126,15 @@ class LinkParsingService:
         Returns list of tuples: (target_node_id, position, link_uuid)
         Links can be [[nodeId]] or [[nodeId:linkUuid]] format.
         link_uuid is None if not present in the link syntax.
+        
+        Content is automatically sanitized to remove editor artifacts.
         """
+        # Sanitize content first to remove editor artifacts
+        sanitized_content = sanitize_content(content)
+        
         links = []
         
-        for match in LINK_PATTERN.finditer(content):
+        for match in LINK_PATTERN.finditer(sanitized_content):
             try:
                 target_id = int(match.group(1))
                 position = match.start()
@@ -145,10 +150,15 @@ class LinkParsingService:
         
         Returns list of tuples: (class_node_id, position)
         Inline classes use {{classId}} format.
+        
+        Content is automatically sanitized to remove editor artifacts.
         """
+        # Sanitize content first to remove editor artifacts
+        sanitized_content = sanitize_content(content)
+        
         inline_classes = []
         
-        for match in INLINE_CLASS_PATTERN.finditer(content):
+        for match in INLINE_CLASS_PATTERN.finditer(sanitized_content):
             try:
                 class_id = int(match.group(1))
                 position = match.start()

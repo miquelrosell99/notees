@@ -157,20 +157,26 @@ interface LinkInfo {
 /**
  * Generate a UUID v4 for link instances
  */
+import { sanitizeContent } from '@/utils/linkSanitization';
+
 function generateLinkUuid(): string {
   return crypto.randomUUID();
 }
 
 /**
  * Parse content to find all links - [[targetId]] or [[targetId:linkUuid]] format
+ * Content is automatically sanitized to remove editor artifacts.
  */
 function parseLinks(content: string): LinkInfo[] {
+  // Sanitize content first to remove editor artifacts
+  const sanitizedContent = sanitizeContent(content);
+  
   const links: LinkInfo[] = [];
   
   // Find all links [[id]] or [[id:uuid]]
   let match;
   const linkRegex = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
-  while ((match = linkRegex.exec(content)) !== null) {
+  while ((match = linkRegex.exec(sanitizedContent)) !== null) {
     links.push({
       targetId: match[1],
       linkUuid: match[2] || null,  // May be undefined for legacy [[id]] format
@@ -195,14 +201,18 @@ interface InlineTypeInfo {
 
 /**
  * Parse content to find all inline types - {{typeId}} format
+ * Content is automatically sanitized to remove editor artifacts.
  */
 function parseInlineTypes(content: string): InlineTypeInfo[] {
+  // Sanitize content first to remove editor artifacts
+  const sanitizedContent = sanitizeContent(content);
+  
   const types: InlineTypeInfo[] = [];
   
   // Find all inline types {{id}}
   let match;
   const typeRegex = /\{\{([^\}]+)\}\}/g;
-  while ((match = typeRegex.exec(content)) !== null) {
+  while ((match = typeRegex.exec(sanitizedContent)) !== null) {
     types.push({
       typeId: match[1],
       start: match.index,
