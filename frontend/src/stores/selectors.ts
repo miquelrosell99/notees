@@ -10,8 +10,13 @@
  * - Broad subscriptions cause ALL node components to re-render on ANY change
  * - Selectors with stable identity only trigger re-renders when relevant data changes
  * - Derived values computed in selectors prevent inline recomputation
+ * 
+ * NOTE ON ACTIONS:
+ * - For selectors returning only actions (no state), use getState() instead
+ * - Actions are stable references and don't need reactive subscriptions
  */
 import { useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useNodesStore } from './nodesStore';
 import { useBlockSelectionStore } from './blockSelectionStore';
 import type { Node } from '@/types';
@@ -47,15 +52,15 @@ export function useIsFocusedMode() {
 }
 
 /**
- * Select sidebar state only
+ * Select sidebar state only - uses shallow comparison for object
  */
 export function useSidebarState() {
   return useNodesStore(
-    useCallback(state => ({
+    useShallow(state => ({
       sidebarOpen: state.sidebarOpen,
       rightSidebarOpen: state.rightSidebarOpen,
       isSidebarCollapsed: state.isSidebarCollapsed,
-    }), [])
+    }))
   );
 }
 
@@ -145,16 +150,20 @@ export function usePendingSelectionForBlock(blockId: number) {
 
 /**
  * Get editor selection actions
+ * 
+ * NOTE: Actions are stable - we use getState() to avoid subscription overhead.
+ * These functions don't change, so no need for reactive updates.
  */
 export function useEditorSelectionActions() {
-  return useBlockSelectionStore(
-    useCallback(state => ({
-      setEditorSelection: state.setEditorSelection,
-      setPendingSelection: state.setPendingSelection,
-      clearPendingSelection: state.clearPendingSelection,
-      setPendingCaret: state.setPendingCaret,
-    }), [])
-  );
+  // Return stable action references directly from getState()
+  // This avoids the infinite loop from returning new objects in selectors
+  const state = useBlockSelectionStore.getState();
+  return {
+    setEditorSelection: state.setEditorSelection,
+    setPendingSelection: state.setPendingSelection,
+    clearPendingSelection: state.clearPendingSelection,
+    setPendingCaret: state.setPendingCaret,
+  };
 }
 
 /**
@@ -162,15 +171,14 @@ export function useEditorSelectionActions() {
  * Use these to coordinate async mutations and prevent race conditions
  */
 export function useOperationQueueActions() {
-  return useBlockSelectionStore(
-    useCallback(state => ({
-      startOperation: state.startOperation,
-      endOperation: state.endOperation,
-      hasBlockingOperation: state.hasBlockingOperation,
-      waitForOperations: state.waitForOperations,
-      getPendingOperations: state.getPendingOperations,
-    }), [])
-  );
+  const state = useBlockSelectionStore.getState();
+  return {
+    startOperation: state.startOperation,
+    endOperation: state.endOperation,
+    hasBlockingOperation: state.hasBlockingOperation,
+    waitForOperations: state.waitForOperations,
+    getPendingOperations: state.getPendingOperations,
+  };
 }
 
 /**
@@ -215,16 +223,16 @@ export function useAddSidebarCardAction() {
 
 /**
  * Get block selection actions only
+ * Uses getState() since actions are stable references
  */
 export function useBlockSelectionActions() {
-  return useBlockSelectionStore(
-    useCallback(state => ({
-      selectBlock: state.selectBlock,
-      addToSelection: state.addToSelection,
-      clearSelection: state.clearSelection,
-      setBlockState: state.setBlockState,
-    }), [])
-  );
+  const state = useBlockSelectionStore.getState();
+  return {
+    selectBlock: state.selectBlock,
+    addToSelection: state.addToSelection,
+    clearSelection: state.clearSelection,
+    setBlockState: state.setBlockState,
+  };
 }
 
 // ==================== Equality Functions ====================
