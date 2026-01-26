@@ -1,48 +1,54 @@
 /**
  * LinkPill Component Styles
  * 
- * Inline atomic node for links in the editor.
- * Capsule-shaped pill with fully rounded ends.
+ * Atomic inline text link for page/block references in the editor.
+ * Renders as plain colored text links without backgrounds or pills.
  * Supports:
  * - With icon: shows effectiveIcon from node or inherited from types
- * - Without icon: renders as pure text-style inline element (no bullet)
+ * - Without icon: renders as pure text-style inline element
+ * - Atomic behavior: cursor cannot enter, deleted/selected as single unit
  */
 
 .link-pill {
-  display: inline-flex;
-  align-items: center;
+  display: inline;
   position: relative;
-  padding: 2px 10px;
-  margin: 0 2px;
-  background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 9999px;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
   font: inherit;
-  font-size: 0.95em;
-  line-height: 1.2;
+  font-size: inherit;
+  line-height: inherit;
   cursor: pointer;
   user-select: none;
-  vertical-align: middle;
-  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  vertical-align: baseline;
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.15s, text-decoration 0.15s;
   
   /* Allow wrapping for multi-line content */
   white-space: normal;
   word-break: break-word;
   
-  /* Make it behave as inline block for proper wrapping */
+  /* Atomic inline behavior - no pill background */
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
 
 .link-pill:hover {
-  background: var(--color-surface-container-high);
-  border-color: var(--color-outline);
+  color: var(--color-primary-variant, var(--color-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
 }
 
 .link-pill--selected {
   background: var(--color-primary-container);
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: 2px;
+  padding: 1px 2px;
+  margin: -1px -2px;
 }
 
 .link-pill--readonly {
@@ -51,39 +57,37 @@
 
 /* Page link styling */
 .link-pill--page {
-  background: var(--color-primary-container);
-  border-color: transparent;
-  color: var(--color-on-primary-container);
+  color: var(--color-primary);
 }
 
 .link-pill--page:hover {
-  background: color-mix(in srgb, var(--color-primary-container) 80%, var(--color-primary) 20%);
+  color: var(--color-primary-variant, var(--color-primary));
+  text-decoration: underline;
 }
 
 /* Block link styling */
 .link-pill--block {
-  background: var(--color-secondary-container);
-  border-color: transparent;
-  color: var(--color-on-secondary-container);
+  color: var(--color-secondary);
 }
 
 .link-pill--block:hover {
-  background: color-mix(in srgb, var(--color-secondary-container) 80%, var(--color-secondary) 20%);
+  color: var(--color-secondary-variant, var(--color-secondary));
+  text-decoration: underline;
 }
 
-/* No-icon variant: true inline text-style pill without any bullet or icon */
+/* No-icon variant: pure inline text link */
 .link-pill--no-icon {
-  padding: 2px 8px;
-  margin: 0 1px;
+  padding: 0;
+  margin: 0;
 }
 
 /* Icon */
 .link-pill__icon {
-  display: inline-flex;
-  align-items: center;
-  margin-right: 4px;
-  opacity: 0.7;
-  vertical-align: middle;
+  display: inline;
+  margin-right: 2px;
+  opacity: 0.8;
+  vertical-align: baseline;
+  font-size: 0.9em;
 }
 
 .link-pill__block-icon {
@@ -98,19 +102,16 @@
 
 /* Click count badge */
 .link-pill__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  margin-left: 4px;
-  padding: 0 4px;
+  display: inline;
+  margin-left: 2px;
+  padding: 1px 4px;
   background: var(--color-primary);
   color: var(--color-on-primary);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  border-radius: 8px;
-  vertical-align: middle;
+  border-radius: 6px;
+  vertical-align: super;
+  line-height: 1;
 }
 
 .link-pill--block .link-pill__badge {
