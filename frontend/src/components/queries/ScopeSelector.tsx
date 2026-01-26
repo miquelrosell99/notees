@@ -6,13 +6,10 @@
  * 
  * Scope Types:
  * - entire_graph: All nodes in the graph
- * - current_page: Nodes on the current page
- * - specific_pages: Explicitly selected pages
- * - linked_refs: Nodes that reference the current page
+ * - current_page: Nodes on the current page (with optional child blocks)
  */
 import { useCallback, useMemo } from 'react';
-import { mdiFileDocumentMultiple, mdiFile, mdiFileTree, mdiLink } from '@mdi/js';
-import { Button } from '../core/Button';
+import { mdiFileDocumentMultiple, mdiFile } from '@mdi/js';
 import { SelectionButton } from '../core/SelectionButton';
 import type { ScopeNode, ScopeType } from '@/types/queryAST';
 import './ScopeSelector.css';
@@ -35,8 +32,6 @@ interface ScopeSelectorProps {
 const SCOPE_OPTIONS = [
   { label: 'All Nodes', value: 'entire_graph' as ScopeType, icon: mdiFileDocumentMultiple },
   { label: 'Current Page', value: 'current_page' as ScopeType, icon: mdiFile },
-  { label: 'Specific Pages', value: 'specific_pages' as ScopeType, icon: mdiFileTree },
-  { label: 'Linked References', value: 'linked_refs' as ScopeType, icon: mdiLink },
 ];
 
 // ==================== Main Component ====================
@@ -58,28 +53,12 @@ export function ScopeSelector({
       scope_type: scopeType,
     };
 
-    // Preserve page_uuids if switching to/from specific_pages
-    if (scopeType === 'specific_pages' && scope.page_uuids) {
-      newScope.page_uuids = scope.page_uuids;
-    }
-
-    // Preserve include_descendants if relevant
-    if ((scopeType === 'specific_pages' || scopeType === 'current_page') && scope.include_descendants !== undefined) {
+    // Preserve include_descendants for current_page
+    if (scopeType === 'current_page' && scope.include_descendants !== undefined) {
       newScope.include_descendants = scope.include_descendants;
     }
 
     onChange(newScope);
-  }, [scope, onChange]);
-
-  // Handle page removal
-  const handlePageRemove = useCallback((uuid: string) => {
-    if (!scope.page_uuids) return;
-    
-    const newUuids = scope.page_uuids.filter(id => id !== uuid);
-    onChange({
-      ...scope,
-      page_uuids: newUuids.length > 0 ? newUuids : undefined,
-    });
   }, [scope, onChange]);
 
   // Handle descendants toggle
@@ -92,12 +71,7 @@ export function ScopeSelector({
 
   // Whether descendants option is relevant
   const showDescendantsOption = useMemo(() => {
-    return scope.scope_type === 'specific_pages' || scope.scope_type === 'current_page';
-  }, [scope.scope_type]);
-
-  // Whether to show page picker UI
-  const showPageSelection = useMemo(() => {
-    return scope.scope_type === 'specific_pages';
+    return scope.scope_type === 'current_page';
   }, [scope.scope_type]);
 
   return (
@@ -113,40 +87,6 @@ export function ScopeSelector({
         />
       </div>
 
-      {/* Page Selection (for specific_pages scope) */}
-      {showPageSelection && (
-        <div className="scope-selector__pages">
-          <label className="scope-selector__label">Selected Pages</label>
-          
-          {/* Selected pages list */}
-          {scope.page_uuids && scope.page_uuids.length > 0 && (
-            <div className="scope-selector__pages-list">
-              {scope.page_uuids.map(uuid => (
-                <div key={uuid} className="scope-selector__page-item">
-                  <span>{uuid}</span>
-                  {!readOnly && (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => handlePageRemove(uuid)}
-                    >
-                      ×
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Simplified: No page picker for now */}
-          {(!scope.page_uuids || scope.page_uuids.length === 0) && (
-            <div className="scope-selector__empty">
-              No pages selected.
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Include Descendants Option */}
       {showDescendantsOption && (
         <div className="scope-selector__descendants">
@@ -160,7 +100,7 @@ export function ScopeSelector({
             <span>Include child blocks</span>
           </label>
           <div className="scope-selector__help-text">
-            Search within block content, not just page titles
+            Search within the page's block content, not just the page itself
           </div>
         </div>
       )}
@@ -186,18 +126,7 @@ function getScopeDescription(scope: ScopeNode): string {
       }
       return 'Current page only';
     
-    case 'specific_pages':
-      const pageCount = scope.page_uuids?.length || 0;
-      if (pageCount === 0) {
-        return 'No pages selected';
-      }
-      const suffix = scope.include_descendants ? ' + child blocks' : ' only';
-      return `${pageCount} page${pageCount > 1 ? 's' : ''}${suffix}`;
-    
-    case 'linked_refs':
-      return 'Nodes that link to current page';
-    
     default:
-      return 'Unknown scope type.';
+      return 'Unknown scope type';
   }
 }
