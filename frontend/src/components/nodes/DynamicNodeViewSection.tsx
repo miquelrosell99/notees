@@ -278,13 +278,9 @@ export function DynamicNodeViewSection({
     return null; // Don't render section while loading
   }
 
-  // Hide if empty ONLY when using the system query (default view with no custom filters)
-  // Custom views or modified default views should always show, even with no results
+  // Calculate values for UI logic
   const resultCount = resultNodes.length;
   const isSystemQuery = activeView?.is_default && filterBlockCount === 0;
-  if (hideWhenEmpty && resultCount === 0 && !queryLoading && isSystemQuery) {
-    return null;
-  }
 
   // Header actions - view selector and toolbar
   const headerActions = (
@@ -358,7 +354,7 @@ export function DynamicNodeViewSection({
         icon={icon}
         count={resultCount}
         defaultExpanded={defaultExpanded}
-        hideWhenEmpty={hideWhenEmpty}
+        hideWhenEmpty={hideWhenEmpty && isSystemQuery}
         headerActions={headerActions}
         className={`dynamic-node-view-section ${className}`}
       >
@@ -376,7 +372,7 @@ export function DynamicNodeViewSection({
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
-            emptyMessage="No results match the query"
+            emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
           />
         )}
       </NodeViewSection>
