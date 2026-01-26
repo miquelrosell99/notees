@@ -2,6 +2,13 @@
  * Node Mutation Hooks
  * 
  * React Query mutation hooks for creating, updating, deleting, and moving nodes.
+ * 
+ * CACHE ARCHITECTURE NOTE:
+ * Daily/monthly/yearly pages are just normal nodes. They have separate cache keys
+ * (nodeKeys.daily, nodeKeys.monthly, nodeKeys.yearly) for the "get or create by date"
+ * functionality, but these caches do NOT include children. Views use useNode() with
+ * include_children: true, which caches under nodeKeys.detail. Therefore, mutations
+ * only update the detail cache - we don't need to update the date-based caches.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
@@ -11,24 +18,10 @@ import { nodeKeys, propertyKeys } from './queryKeys';
 // ==================== Helper Functions ====================
 
 /**
- * Helper to update daily cache entries.
- * Daily pages are just nodes, but they have a separate cache for the useDailyNote hook.
- * This helper ensures both caches stay in sync during optimistic updates.
- */
-function updateDailyCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  updater: (node: Node) => Node
-) {
-  const dailyQueryKey = [...nodeKeys.all, 'daily'];
-  queryClient.setQueriesData<Node>(
-    { queryKey: dailyQueryKey, exact: false },
-    (oldNode) => oldNode ? updater(oldNode) : oldNode
-  );
-}
-
-/**
  * Helper to recursively update a specific node within a tree by ID.
  * Returns a new tree with the target node updated.
+ * IMPORTANT: Only returns a new object reference if the node was actually found and updated.
+ * This is critical for React's reconciliation - if nothing changed, same reference must be returned.
  * Overloaded to handle optional node input for cache updaters.
  */
 function updateNodeById(node: Node, targetId: number, updater: (n: Node) => Node): Node;
@@ -39,47 +32,73 @@ function updateNodeById(node: Node | undefined, targetId: number, updater: (n: N
     return updater(node);
   }
   if (node.children && node.children.length > 0) {
-    return {
-      ...node,
-      children: node.children.map(child => updateNodeById(child, targetId, updater)),
-    };
+    const newChildren = node.children.map(child => updateNodeById(child, targetId, updater));
+    // Only create new object if children actually changed (reference comparison)
+    const childrenChanged = newChildren.some((child, i) => child !== node.children![i]);
+    if (childrenChanged) {
+      return { ...node, children: newChildren };
+    }
   }
   return node;
 }
 
 /**
- * Helper to recursively update a node in a tree structure
+ * Helper to recursively update a node in a tree structure.
+ * IMPORTANT: Only returns new array/object references if the node was actually found and updated.
  */
 function updateNodeInTree(nodes: Node[], nodeId: number, updates: Partial<Node>): Node[] {
-  return nodes.map(node => {
+  let changed = false;
+  const result = nodes.map(node => {
     if (node.id === nodeId) {
+      changed = true;
       return { ...node, ...updates };
     }
     if (node.children && node.children.length > 0) {
-      return {
-        ...node,
-        children: updateNodeInTree(node.children, nodeId, updates),
-      };
+      const newChildren = updateNodeInTree(node.children, nodeId, updates);
+      // Check if children array reference changed
+      if (newChildren !== node.children) {
+        changed = true;
+        return { ...node, children: newChildren };
+      }
     }
     return node;
   });
+  // Return same array reference if nothing changed
+  return changed ? result : nodes;
 }
 
 /**
- * Helper to recursively remove a node from a tree structure
+ * Helper to recursively remove a node from a tree structure.
+ * IMPORTANT: Only returns new array/object references if the node was actually found and removed.
+ * This is critical for optimistic updates at deep nesting levels.
  */
 function removeNodeFromTree(nodes: Node[], nodeId: number): Node[] {
-  return nodes
-    .filter(node => node.id !== nodeId)
-    .map(node => {
-      if (node.children && node.children.length > 0) {
-        return {
-          ...node,
-          children: removeNodeFromTree(node.children, nodeId),
-        };
+  // Check if the node to remove is directly in this array
+  const directRemoval = nodes.some(node => node.id === nodeId);
+  
+  let childrenChanged = false;
+  const mappedNodes = nodes.map(node => {
+    if (node.id === nodeId) {
+      return node; // Will be filtered out below
+    }
+    if (node.children && node.children.length > 0) {
+      const newChildren = removeNodeFromTree(node.children, nodeId);
+      // Check if children array reference changed (meaning something was removed deeper)
+      if (newChildren !== node.children) {
+        childrenChanged = true;
+        return { ...node, children: newChildren };
       }
-      return node;
-    });
+    }
+    return node;
+  });
+  
+  if (directRemoval) {
+    // Filter out the removed node
+    return mappedNodes.filter(node => node.id !== nodeId);
+  }
+  
+  // Return same array reference if nothing changed
+  return childrenChanged ? mappedNodes : nodes;
 }
 
 // ==================== Node Mutations ====================
@@ -148,6 +167,7 @@ export function useCreateNode() {
       };
       
       // Helper to update parent's children recursively
+      // IMPORTANT: Only returns new object reference if the parent was actually found and updated
       const addChildToParent = (node: Node): Node => {
         if (node.id === parentId) {
           const currentChildren = node.children || [];
@@ -158,10 +178,15 @@ export function useCreateNode() {
           };
         }
         if (node.children && node.children.length > 0) {
-          return {
-            ...node,
-            children: node.children.map(addChildToParent),
-          };
+          const newChildren = node.children.map(c => addChildToParent(c));
+          // Check if any child was actually updated
+          const changed = newChildren.some((c, i) => c !== node.children![i]);
+          if (changed) {
+            return {
+              ...node,
+              children: newChildren,
+            };
+          }
         }
         return node;
       };
@@ -182,12 +207,17 @@ export function useCreateNode() {
       // DO NOT REFACTOR this back to setQueriesData - it will break optimistic updates at deep nesting levels.
       const queryCache = queryClient.getQueryCache();
       const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+      console.log('[useCreateNode] parentId:', parentId, 'found', detailQueries.length, 'detail queries');
       for (const query of detailQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
           const newData = addChildToParent(oldData);
-          if (newData !== oldData) {
+          const changed = newData !== oldData;
+          const opts = query.queryKey[3];
+          console.log('[useCreateNode] key:', JSON.stringify(query.queryKey), 'root:', oldData.id, 'childCount:', oldData.children?.length, 'changed:', changed, 'opts:', JSON.stringify(opts));
+          if (changed) {
             queryClient.setQueryData(query.queryKey, newData);
+            console.log('[useCreateNode] UPDATED query, newData children:', newData?.children?.length);
           }
         }
       }
@@ -203,9 +233,6 @@ export function useCreateNode() {
           }
         }
       }
-      
-      // Update daily cache
-      updateDailyCache(queryClient, addChildToParent);
       
       return { optimisticNode, optimisticId };
     },
@@ -249,8 +276,6 @@ export function useCreateNode() {
           { queryKey: ['nodes', 'page-content'] },
           (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
         );
-        
-        updateDailyCache(queryClient, replaceOptimistic);
       } else if (variables.parent_id) {
         // No optimistic update was made, add node to parent now
         const parentId = variables.parent_id;
@@ -287,8 +312,6 @@ export function useCreateNode() {
             return updateChildrenOptional(oldNode);
           }
         );
-        
-        updateDailyCache(queryClient, (page) => updateNodeById(page, parentId, updateChildrenNode));
       }
       
       // Invalidate list queries for sidebar updates (soft invalidate, no refetch)
@@ -341,8 +364,6 @@ export function useCreateNode() {
           { queryKey: ['nodes', 'page-content'] },
           (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
         );
-        
-        updateDailyCache(queryClient, removeOptimistic);
       }
     },
   });
@@ -375,16 +396,21 @@ export function useUpdateNode() {
       };
       
       // Helper to update node in tree
+      // IMPORTANT: Only returns new object reference if something was actually updated
       const applyUpdate = (oldNode: Node | undefined): Node | undefined => {
         if (!oldNode) return oldNode;
         if (oldNode.id === id) {
           return { ...oldNode, ...buildUpdate() };
         }
         if (oldNode.children && oldNode.children.length > 0) {
-          return {
-            ...oldNode,
-            children: updateNodeInTree(oldNode.children, id, data as Partial<Node>),
-          };
+          const newChildren = updateNodeInTree(oldNode.children, id, data as Partial<Node>);
+          // Only create new object if children actually changed
+          if (newChildren !== oldNode.children) {
+            return {
+              ...oldNode,
+              children: newChildren,
+            };
+          }
         }
         return oldNode;
       };
@@ -415,9 +441,6 @@ export function useUpdateNode() {
           }
         }
       }
-      
-      // Update daily cache (daily pages have a separate cache key)
-      updateDailyCache(queryClient, (page) => applyUpdate(page) ?? page);
     },
     onSuccess: (updatedNode, variables) => {
       // Merge the updated node with existing cached data to preserve children and other fields
@@ -533,16 +556,21 @@ export function useDeleteNode() {
       await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
       
       // Helper to remove node from tree
+      // IMPORTANT: Only returns new object reference if something was actually removed
       const removeNode = (oldNode: Node | undefined): Node | undefined => {
         if (!oldNode) return oldNode;
         // If this is the deleted node itself, leave it (will be removed on success)
         if (oldNode.id === deletedId) return oldNode;
         // If this node has children, recursively remove the deleted node
         if (oldNode.children && oldNode.children.length > 0) {
-          return {
-            ...oldNode,
-            children: removeNodeFromTree(oldNode.children, deletedId),
-          };
+          const newChildren = removeNodeFromTree(oldNode.children, deletedId);
+          // Only create new object if children actually changed
+          if (newChildren !== oldNode.children) {
+            return {
+              ...oldNode,
+              children: newChildren,
+            };
+          }
         }
         return oldNode;
       };
@@ -573,9 +601,6 @@ export function useDeleteNode() {
           }
         }
       }
-      
-      // Update daily cache (daily pages have a separate cache key)
-      updateDailyCache(queryClient, (page) => removeNode(page) ?? page);
     },
     onSuccess: async (deletedNode, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
@@ -827,25 +852,6 @@ export function useMoveNode() {
           return updated;
         }
       );
-      
-      // Update daily cache (daily pages have a separate cache key)
-      updateDailyCache(queryClient, (page) => {
-        // First remove the node from wherever it currently is (recursively)
-        let updated: Node = {
-          ...page,
-          children: page.children ? removeFromChildren(page.children) : [],
-        };
-        
-        // Insert at the correct parent using the helper
-        if (movedNode && parentId) {
-          updated = updateNodeById(updated, parentId, (parent) => ({
-            ...parent,
-            children: insertAtPosition(parent.children || [], movedNode, position ?? (parent.children?.length ?? 0)),
-          }));
-        }
-        
-        return updated;
-      });
     },
     onSuccess: (_movedNode, _variables) => {
       // The optimistic update in onMutate already handled the tree restructuring.
