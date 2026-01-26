@@ -100,6 +100,16 @@
   color: inherit;
 }
 
+.page-title-child-preview {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-style: italic;
+  margin-left: var(--spacing-2);
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
 .page-title-input:focus {
   outline: none;
 }
