@@ -8,7 +8,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
 import { getNodeColorStyles } from '@/utils/color';
-import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline } from '@mdi/js';
+import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiDockBottom } from '@mdi/js';
 import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
@@ -138,39 +138,44 @@ export function MainContent() {
                 <div className="card-layout-selector">
                   <Button 
                     variant="ghost"
-                    size="xs"
+                    size="sm"
+                    icon={mdiCardOutline}
                     className={`card-layout-option ${cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
                     onClick={() => setCardLayout('no-cover' as CardLayoutMode)}
                     title="No cover"
-                  >
-                    <span className="layout-icon layout-icon--no-cover">
-                      <span className="layout-icon__content"></span>
-                    </span>
-                  </Button>
+                  />
                   <Button 
                     variant="ghost"
-                    size="xs"
+                    size="sm"
+                    icon={mdiDockLeft}
+                    className={`card-layout-option ${cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
+                    onClick={() => setCardLayout('cover-left' as CardLayoutMode)}
+                    title="Cover left"
+                  />
+                  <Button 
+                    variant="ghost"
+                    size="sm"
+                    icon={mdiDockRight}
+                    className={`card-layout-option ${cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
+                    onClick={() => setCardLayout('cover-right' as CardLayoutMode)}
+                    title="Cover right"
+                  />
+                  <Button 
+                    variant="ghost"
+                    size="sm"
+                    icon={mdiDockTop}
                     className={`card-layout-option ${cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
                     onClick={() => setCardLayout('cover-top' as CardLayoutMode)}
-                    title="Cover on top"
-                  >
-                    <span className="layout-icon layout-icon--cover-top">
-                      <span className="layout-icon__cover"></span>
-                      <span className="layout-icon__content"></span>
-                    </span>
-                  </Button>
+                    title="Cover top"
+                  />
                   <Button 
                     variant="ghost"
-                    size="xs"
-                    className={`card-layout-option ${cardLayout === 'cover-side' ? 'card-layout-option--active' : ''}`}
-                    onClick={() => setCardLayout('cover-side' as CardLayoutMode)}
-                    title="Cover on side"
-                  >
-                    <span className="layout-icon layout-icon--cover-side">
-                      <span className="layout-icon__cover"></span>
-                      <span className="layout-icon__content"></span>
-                    </span>
-                  </Button>
+                    size="sm"
+                    icon={mdiDockBottom}
+                    className={`card-layout-option ${cardLayout === 'cover-bottom' ? 'card-layout-option--active' : ''}`}
+                    onClick={() => setCardLayout('cover-bottom' as CardLayoutMode)}
+                    title="Cover bottom"
+                  />
                 </div>
               )}
               

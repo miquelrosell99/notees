@@ -187,7 +187,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const { data: allTags } = useTags();
   const { data: allNodes } = useNodes({ pages_only: true });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
-  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
+  const { addSidebarCard, openNode, contentDisplayMode, cardLayout, lateNightThoughtsFilter } = useNodesStore();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
@@ -571,6 +571,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           node={node}
           children={blockChildren}
           displayMode={contentDisplayMode}
+          cardLayout={cardLayout}
           lateNightFilterActive={lateNightThoughtsFilter}
           totalChildrenCount={node.children?.length || 0}
         />

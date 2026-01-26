@@ -17,7 +17,7 @@ export type RightSidebarContent = 'node' | 'localGraph' | 'activity' | null;
 export type ContentDisplayMode = 'document' | 'bullet' | 'card';
 
 /** Card layout when in card display mode */
-export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-side';
+export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
 
 interface SidebarNode {
   id: number;
