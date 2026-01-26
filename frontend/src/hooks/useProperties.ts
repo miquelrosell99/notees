@@ -156,6 +156,38 @@ export function useRemoveClassExtends() {
 }
 
 /**
+ * Hook to get inherited properties for a class
+ */
+export function useInheritedProperties(classId: number | null) {
+  return useQuery({
+    queryKey: propertyKeys.inheritedProperties(classId ?? 0),
+    queryFn: () => propertiesApi.getInheritedProperties(classId!),
+    enabled: !!classId,
+  });
+}
+
+/**
+ * Hook to get classes that extend this class (reverse lookup)
+ */
+export function useExtendedByClasses(classId: number | null) {
+  return useQuery({
+    queryKey: propertyKeys.extendedByClasses(classId ?? 0),
+    queryFn: () => propertiesApi.getExtendedByClasses(classId!),
+    enabled: !!classId,
+  });
+}
+
+/**
+ * Hook to validate class extends (check for circular inheritance)
+ */
+export function useValidateClassExtends() {
+  return useMutation({
+    mutationFn: ({ classId, extendsIds }: { classId: number; extendsIds: number[] }) => 
+      propertiesApi.validateClassExtends(classId, extendsIds),
+  });
+}
+
+/**
  * Hook to set node property value
  * When value is null, removes the property instead of setting it to null
  */

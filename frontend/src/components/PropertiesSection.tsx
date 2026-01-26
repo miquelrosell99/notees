@@ -19,6 +19,7 @@ import {
   useCreateNode,
   useCreateProperty,
   useClassProperties,
+  useInheritedProperties,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Property, Node, ClassProperty } from '@/types/api';
@@ -644,6 +645,15 @@ export function PropertiesSection({
           </div>
         )}
 
+        {/* Inherited Properties Section - only for class nodes */}
+        {node.is_class && firstClassId && (
+          <InheritedPropertiesSection
+            classNodeId={firstClassId}
+            readOnly={readOnly}
+            onNavigateToNode={onNavigateToNode}
+          />
+        )}
+
         {/* Add property button */}
         {showAddProperty && !readOnly && (
           <div className="properties-add">
@@ -689,6 +699,68 @@ export function PropertiesSection({
         />
       </section>
     </NodeViewSection>
+  );
+}
+
+/**
+ * Inherited Properties Section - shows properties inherited from extended classes
+ */
+function InheritedPropertiesSection({
+  classNodeId,
+  readOnly,
+  onNavigateToNode,
+}: {
+  classNodeId: number;
+  readOnly?: boolean;
+  onNavigateToNode?: (nodeId: number) => void;
+}) {
+  const [showInherited, setShowInherited] = useState(false);
+  const { data: inheritedProps, isLoading } = useInheritedProperties(classNodeId);
+
+  if (isLoading) return null;
+  if (!inheritedProps || inheritedProps.length === 0) return null;
+
+  return (
+    <div className="properties-inherited-section">
+      <Button 
+        variant="ghost"
+        className={`properties-inherited-toggle ${showInherited ? 'expanded' : ''}`}
+        onClick={() => setShowInherited(!showInherited)}
+      >
+        <ChevronRightIcon size="xs" />
+        <span>Inherited Properties ({inheritedProps.length})</span>
+      </Button>
+      
+      {showInherited && (
+        <div className="properties-inherited-list">
+          {inheritedProps.map((prop) => (
+            <div 
+              key={prop.property_id} 
+              className={`property-row property-inherited ${prop.is_overridden ? 'property-overridden' : ''}`}
+              title={prop.is_overridden ? `Overridden by dedicated class property` : undefined}
+            >
+              <div className="property-label">
+                <span className="property-name">
+                  {prop.is_overridden && <span className="property-overridden-indicator">⊘ </span>}
+                  {prop.property_name}
+                </span>
+                <span className="property-inherited-source" title={`Inherited from ${prop.from_class_name}`}>
+                  from {prop.from_class_name}
+                </span>
+              </div>
+              <div className="property-value-container">
+                <div className="property-value-wrapper">
+                  <Bullet interactive={false} size="xs" />
+                  <span className="property-inherited-value">
+                    {prop.default_value != null ? String(prop.default_value) : <span className="property-placeholder">—</span>}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

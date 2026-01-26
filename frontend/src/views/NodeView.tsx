@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -631,6 +631,15 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         </NodeViewSection>
       )}
       
+      {/* Extended By section - shows classes that extend this class (class nodes only) */}
+      {isClassNode && (
+        <ExtendedBySection 
+          classNodeId={node.id}
+          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+          onAddSidebarCard={(id) => addSidebarCard(id, 'page')}
+        />
+      )}
+      
       {/* Linked References - shows all references to this node (universal for all nodes) */}
       {useDynamicNodeViews ? (
         <DynamicNodeViewSection
@@ -689,6 +698,60 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         )
       )}
     </article>
+  );
+}
+
+/**
+ * Extended By Section - Shows classes that extend this class
+ */
+function ExtendedBySection({
+  classNodeId,
+  onNodeClick,
+  onAddSidebarCard,
+}: {
+  classNodeId: number;
+  onNodeClick: (nodeId: number) => void;
+  onAddSidebarCard: (nodeId: number) => void;
+}) {
+  const { data: extendedByClasses, isLoading } = useExtendedByClasses(classNodeId);
+
+  if (isLoading) return null;
+  if (!extendedByClasses || extendedByClasses.length === 0) return null;
+
+  // Convert to Node format for NodeCollection
+  const nodes: Node[] = extendedByClasses.map(cls => ({
+    id: cls.id,
+    uuid: cls.uuid,
+    name: cls.name,
+    icon: cls.icon,
+    color: null,
+    parent_id: null,
+    page_id: null,
+    sequence: 0,
+    collapsed: false,
+    active: true,
+    is_page: true,
+    is_class: true,
+    create_date: '',
+    write_date: '',
+  }));
+
+  return (
+    <NodeViewSection
+      title="Extended By"
+      icon={<TableIcon size="sm" />}
+      count={nodes.length}
+      defaultExpanded={true}
+      hideWhenEmpty={true}
+    >
+      <NodeCollection
+        nodes={nodes}
+        viewMode="list"
+        editable={false}
+        onNodeClick={(node) => onNodeClick(node.id)}
+        onNodeShiftClick={(node) => onAddSidebarCard(node.id)}
+      />
+    </NodeViewSection>
   );
 }
 

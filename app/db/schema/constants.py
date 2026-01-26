@@ -151,6 +151,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "cover": "00000000-0000-0000-0000-000000000005",
     "banner": "00000000-0000-0000-0000-000000000006",
     "_query_block_tree": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes
+    "extends": "00000000-0000-0000-0000-000000000008",  # Class inheritance/extension
 }
 
 SYSTEM_PROPERTIES = [
@@ -161,6 +162,7 @@ SYSTEM_PROPERTIES = [
     {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
     {"name": "banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
     {"name": "_query_block_tree", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_block_tree"]},
+    {"name": "extends", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["extends"]},
 ]
 
 # Default view classes for NodeViews

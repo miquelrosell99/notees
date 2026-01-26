@@ -318,15 +318,24 @@ function BlockInternal({
     
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
+    const x = e.clientX - rect.left;
     const height = rect.height;
     
-    // Determine drop position based on mouse position
+    // Calculate indent level based on X position (24px per indent level)
+    const indentLevel = Math.max(0, Math.floor(x / 24));
+    
+    // Determine drop position based on mouse position and indent
     let position: 'before' | 'after' | 'inside';
-    if (y < height * 0.25) {
+    
+    // If indented, prefer 'inside' (child) placement
+    if (indentLevel > 0) {
+      position = 'inside';
+    } else if (y < height * 0.3) {
       position = 'before';
-    } else if (y > height * 0.75) {
+    } else if (y > height * 0.7) {
       position = 'after';
     } else {
+      // Middle zone - prefer inside if block can have children
       position = 'inside';
     }
     

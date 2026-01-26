@@ -286,13 +286,23 @@ async def create_node_view(
         # Validate AST
         try:
             ast = QueryAST.from_dict(request.query_ast)
-            validation = validate_query_ast(ast)
+            
+            # Prevent creation of system queries through API
+            if ast.is_system:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot create system queries through this endpoint"
+                )
+            
+            validation = validate_query_ast(ast, allow_system_modification=False)
             if not validation.valid:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid query AST: {validation.issues[0].message if validation.issues else 'Unknown error'}"
                 )
             query_json = request.query_ast
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid query AST: {str(e)}")
     elif request.query_block_tree:
@@ -367,7 +377,7 @@ async def update_query_ast(
 ) -> NodeViewResponse:
     """Update the query AST for a NodeView (preferred endpoint).
     
-    Validates the AST before saving.
+    Validates the AST before saving. System queries cannot be modified.
     """
     repo = await _get_node_view_repo(user)
     
@@ -375,12 +385,31 @@ async def update_query_ast(
     if not view:
         raise HTTPException(status_code=404, detail="NodeView not found")
     
+    # Check if existing query is a system query
+    try:
+        existing_query = view.get('query_json', {})
+        if existing_query and existing_query.get('is_system'):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot modify system query. System queries (linked references, child pages, etc.) are read-only."
+            )
+    except Exception:
+        pass  # If we can't parse existing, continue with validation
+    
     # Validate AST
     try:
         ast = QueryAST.from_dict(request.query_ast)
-        validation = validate_query_ast(ast)
         
-        can_save, reason = can_save_query(ast)
+        # Prevent creation of system queries through API
+        if ast.is_system:
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot create or modify system queries through this endpoint"
+            )
+        
+        validation = validate_query_ast(ast, allow_system_modification=False)
+        
+        can_save, reason = can_save_query(ast, allow_system_modification=False)
         if not can_save:
             raise HTTPException(
                 status_code=400,
@@ -395,6 +424,8 @@ async def update_query_ast(
         
         return await _node_view_to_response(updated_view, include_query_block_tree=True, user=user)
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to update query AST: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid query AST: {str(e)}")

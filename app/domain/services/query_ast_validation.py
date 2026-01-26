@@ -42,14 +42,28 @@ class ValidationResult:
         return any(issue.severity == 'warning' for issue in self.issues)
 
 
-def validate_query_ast(ast: QueryAST) -> ValidationResult:
+def validate_query_ast(ast: QueryAST, allow_system_modification: bool = False) -> ValidationResult:
     """
     Validate a complete QueryAST structure.
+    
+    Args:
+        ast: The QueryAST to validate
+        allow_system_modification: If False, blocks modification of system queries
     
     Returns:
         ValidationResult with any issues found
     """
     issues: List[ValidationIssue] = []
+    
+    # Check if trying to modify a system query
+    if ast.is_system and not allow_system_modification:
+        issues.append(ValidationIssue(
+            severity='error',
+            message='Cannot modify system query',
+            path='root',
+            suggestion='System queries (linked references, child pages, etc.) are read-only'
+        ))
+        return ValidationResult(valid=False, issues=issues)
     
     # Validate scope
     scope_issues = validate_scope(ast.scope, "scope")
@@ -192,14 +206,18 @@ def validate_condition(condition: ConditionNode, path: str) -> List[ValidationIs
     return issues
 
 
-def can_save_query(ast: QueryAST) -> tuple[bool, str]:
+def can_save_query(ast: QueryAST, allow_system_modification: bool = False) -> tuple[bool, str]:
     """
     Check if a query can be saved (no blocking errors).
+    
+    Args:
+        ast: The QueryAST to check
+        allow_system_modification: If False, blocks modification of system queries
     
     Returns:
         (can_save, reason) tuple
     """
-    validation = validate_query_ast(ast)
+    validation = validate_query_ast(ast, allow_system_modification)
     
     if validation.has_errors():
         error_messages = [

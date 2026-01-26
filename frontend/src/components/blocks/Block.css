@@ -280,29 +280,38 @@
 .drop-indicator {
   position: absolute;
   right: 0;
-  height: 2px;
+  height: 3px;
   background-color: var(--color-primary);
   pointer-events: none;
   z-index: 10;
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(66, 133, 244, 0.5);
+  animation: pulse-drop 1s ease-in-out infinite;
+}
+
+@keyframes pulse-drop {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .drop-indicator-before {
-  top: 0;
+  top: -2px;
   left: 24px;
   transform: translateY(-1px);
 }
 
 .drop-indicator-after {
-  bottom: 0;
+  bottom: -2px;
   left: 24px;
   transform: translateY(1px);
 }
 
 /* Inside = nested, so indent the line to indicate child level */
 .drop-indicator-inside {
-  bottom: 0;
+  bottom: -2px;
   left: 48px;
   transform: translateY(1px);
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary) 90%, transparent 100%);
 }
 
 /* Remove the old pseudo-element based drop indicators - use real elements instead */
@@ -312,8 +321,12 @@
 }
 
 .block.drop-inside {
-  /* Subtle background highlight */
-  background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  /* Subtle background highlight with left border */
+  background-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-left: 3px solid var(--color-primary);
+  padding-left: 6px;
+  border-radius: var(--radius-sm);
+  margin-left: 24px;
 }
 
 /* Nested blocks */

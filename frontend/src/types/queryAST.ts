@@ -185,6 +185,9 @@ export interface QueryAST {
   created_at?: string;
   updated_at?: string;
   description?: string; // Human-readable description
+  
+  // System queries are read-only (e.g., linked references, child pages)
+  is_system?: boolean;
 }
 
 // ==================== Validation Types ====================
