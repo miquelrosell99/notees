@@ -156,15 +156,24 @@ export function DynamicNodeViewSection({
   // Count conditions for badge display
   const filterBlockCount = useMemo(() => {
     if (!activeView?.query_block_tree) return 0;
+    
+    // System views (default views for linked_references, child_pages) don't show badge
+    const isSystemView = activeView.is_default && (
+      activeView.view_type === 'linked_references' ||
+      activeView.view_type === 'child_pages' ||
+      activeView.view_type === 'main_content'
+    );
+    if (isSystemView) return 0;
+    
     try {
-      const ast = blockTreeToAST(activeView.query_block_tree);
+      const ast = blockTreeToAST(activeView.query_block_tree, undefined, isSystemView);
       // Hide badge for system queries
       if (ast.is_system) return 0;
       return countConditions(ast);
     } catch {
       return countMainFilterBlocks(activeView.query_block_tree);
     }
-  }, [activeView?.query_block_tree]);
+  }, [activeView?.query_block_tree, activeView?.is_default, activeView?.view_type]);
 
   // Create SelectionButton options from views
   const viewOptions = useMemo(() => {
@@ -195,19 +204,25 @@ export function DynamicNodeViewSection({
 
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
-    // Convert QueryBlockTree to AST to check if it's a system query
-    const blockTree = view.query_block_tree ?? createEmptyBlockTree();
-    const queryId = `view-${view.id}-${view.uuid}`;
-    const ast = blockTreeToAST(blockTree, queryId);
+    // System views (default views for certain types) cannot be edited
+    const isSystemView = view.is_default && (
+      view.view_type === 'linked_references' ||
+      view.view_type === 'child_pages' ||
+      view.view_type === 'main_content'
+    );
     
-    // Don't open edit modal for system queries
-    if (ast.is_system) {
+    if (isSystemView) {
       console.info('Cannot edit system-generated queries');
       return;
     }
     
     setEditingView(view);
     setEditViewName(view.name);
+    
+    // Convert QueryBlockTree to AST with query identity
+    const blockTree = view.query_block_tree ?? createEmptyBlockTree();
+    const queryId = `view-${view.id}-${view.uuid}`;
+    const ast = blockTreeToAST(blockTree, queryId, false); // false = not system
     
     // Set created_at if not already set
     if (!ast.created_at) {

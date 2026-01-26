@@ -65,7 +65,7 @@ function createGroupNode(): GroupNode {
  * 
  * This is the primary conversion used when loading existing queries.
  */
-export function blockTreeToAST(blockTree: QueryBlockTree, queryId?: string): QueryAST {
+export function blockTreeToAST(blockTree: QueryBlockTree, queryId?: string, isSystem?: boolean): QueryAST {
   const ast = createEmptyQueryAST();
   
   // Set query identity
@@ -74,8 +74,13 @@ export function blockTreeToAST(blockTree: QueryBlockTree, queryId?: string): Que
   }
   ast.updated_at = new Date().toISOString();
   
+  // Mark as system query if specified
+  if (isSystem) {
+    ast.is_system = true;
+  }
+  
   // Extract scope from blocks (look for ANCESTOR_PATH, UUID blocks)
-  const { scope, filteredBlocks } = extractScope(blockTree.blocks);
+  const { scope, filteredBlocks } = extractScope(blockTree.blocks, isSystem);
   ast.scope = scope;
   
   // Convert remaining blocks to conditions
@@ -92,12 +97,18 @@ export function blockTreeToAST(blockTree: QueryBlockTree, queryId?: string): Que
  * Extract scope information from blocks
  * Returns the scope node and blocks that are NOT part of scope
  */
-function extractScope(blocks: QueryBlock[]): { scope: ScopeNode; filteredBlocks: QueryBlock[] } {
+function extractScope(blocks: QueryBlock[], isSystem?: boolean): { scope: ScopeNode; filteredBlocks: QueryBlock[] } {
   const pageUuids: string[] = [];
   const excludedPageUuids: string[] = [];
   const nonScopeBlocks: QueryBlock[] = [];
+  let hasReferenceBlock = false;
   
   for (const block of blocks) {
+    // Check if this is a REFERENCE block (linked_references use entire_graph scope)
+    if (block.type === 'REFERENCE') {
+      hasReferenceBlock = true;
+    }
+    
     // Look for ANCESTOR_PATH blocks with UUID children (page scope)
     if (block.type === 'ANCESTOR_PATH') {
       const ancestorBlock = block as AncestorPathBlock;
@@ -131,6 +142,9 @@ function extractScope(blocks: QueryBlock[]): { scope: ScopeNode; filteredBlocks:
   
   if (pageUuids.length > 0) {
     scopeType = 'specific_pages';
+  } else if (hasReferenceBlock || isSystem) {
+    // REFERENCE blocks (linked_references) search the entire graph
+    scopeType = 'entire_graph';
   }
   
   const scope: ScopeNode = {
