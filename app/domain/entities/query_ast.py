@@ -286,6 +286,9 @@ class QueryAST:
     updated_at: Optional[str] = None
     description: Optional[str] = None
     
+    # System queries are read-only (e.g., linked references, child pages)
+    is_system: Optional[bool] = None
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {
@@ -302,6 +305,8 @@ class QueryAST:
             result["updated_at"] = self.updated_at
         if self.description:
             result["description"] = self.description
+        if self.is_system:
+            result["is_system"] = self.is_system
         return result
     
     @staticmethod
@@ -315,6 +320,7 @@ class QueryAST:
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
             description=data.get("description"),
+            is_system=data.get("is_system"),
         )
 
 

@@ -41,8 +41,8 @@ LINK_PATTERN = re.compile(r'\[\[(\d+)(?::([a-f0-9-]+))?\]\]')
 # Regex pattern for parsing inline classes - {{classId}} format
 INLINE_CLASS_PATTERN = re.compile(r'\{\{(\d+)\}\}')
 
-# System property name to exclude from backlinks
-CLASSES_PROPERTY_NAME = "classes"
+# System property names to exclude from backlinks
+EXCLUDED_PROPERTY_NAMES = ["classes", "extends"]
 
 
 def generate_link_uuid() -> str:
@@ -521,8 +521,8 @@ class LinkParsingService:
             LEFT JOIN property p ON nl.property_id = p.id
             LEFT JOIN node page ON n.page_id = page.id
             WHERE nl.target_id = $1
-              AND (p.name IS NULL OR p.name != $2)
-        """, target_node_id, CLASSES_PROPERTY_NAME)
+              AND (p.name IS NULL OR p.name NOT IN ('classes', 'extends'))
+        """, target_node_id)
         
         backlinks = []
         

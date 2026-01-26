@@ -56,6 +56,13 @@ export function createDefaultQueryAST(): QueryAST {
 }
 
 /**
+ * Check if a query is a system query (read-only)
+ */
+export function isSystemQuery(query: QueryAST | null | undefined): boolean {
+  return query?.is_system === true;
+}
+
+/**
  * Create a condition node from a QueryBlockType
  */
 export function createConditionFromType(blockType: string): ConditionNode {
