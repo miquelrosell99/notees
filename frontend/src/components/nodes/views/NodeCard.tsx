@@ -109,8 +109,9 @@ export function NodeCard({
   const coverImage = useMemo(() => extractCoverImage(node), [node]);
   const coverUrl = useMemo(() => resolveCoverUrl(coverImage), [coverImage]);
   
-  // Determine effective layout based on cover availability
-  const effectiveLayout = coverUrl ? layout : 'no-cover';
+  // Use the layout as-is - the layout determines if cover should be shown
+  // If no cover exists, the AddCoverButton will be shown in layouts that expect a cover
+  const effectiveLayout = layout;
   
   // Handle click
   const handleClick = useCallback((e: React.MouseEvent) => {
