@@ -193,13 +193,19 @@ export function DynamicNodeViewSection({
 
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
-    setEditingView(view);
-    setEditViewName(view.name);
-    
-    // Convert QueryBlockTree to AST with query identity
+    // Convert QueryBlockTree to AST to check if it's a system query
     const blockTree = view.query_block_tree ?? createEmptyBlockTree();
     const queryId = `view-${view.id}-${view.uuid}`;
     const ast = blockTreeToAST(blockTree, queryId);
+    
+    // Don't open edit modal for system queries
+    if (ast.is_system) {
+      console.info('Cannot edit system-generated queries');
+      return;
+    }
+    
+    setEditingView(view);
+    setEditViewName(view.name);
     
     // Set created_at if not already set
     if (!ast.created_at) {

@@ -106,7 +106,7 @@ function formatActivityMessage(activity: NodeActivity): string {
  * Convert an activity entry to a pseudo-node for BlockPreview
  */
 function activityToNode(activity: NodeActivity): Node {
-  const icon = ACTION_ICONS[activity.action] || '📝';
+  const icon = ACTION_ICONS[activity.action] || '';
   const message = formatActivityMessage(activity);
   const time = formatDate(activity.create_date);
   

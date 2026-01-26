@@ -14,6 +14,7 @@
 import { useCallback } from 'react';
 import { ScopeSelector } from './ScopeSelector';
 import { ConditionGroupBlock } from './ConditionGroupBlock';
+import { Badge } from '../core/Badge';
 import { isSystemQuery } from '@/lib/queryASTHelpers';
 import type { QueryAST, GroupNode, ScopeNode } from '@/types/queryAST';
 import './QueryBuilder.css';
@@ -61,21 +62,16 @@ export function QueryBuilder({
   
   return (
     <div className={`query-builder ${className}`}>
-      {/* System Query Banner */}
-      {isSystemQuery(ast) && (
-        <div className="query-builder__banner query-builder__banner--system">
-          <span className="query-builder__banner-icon">🔒</span>
-          <div className="query-builder__banner-content">
-            <strong>System Query</strong>
-            <p>This query is generated automatically (e.g., linked references, child pages) and cannot be modified.</p>
-          </div>
-        </div>
-      )}
-      
       {/* Scope Section */}
       <div className="query-builder__section">
-        <h3 className="query-builder__section-title">Scope</h3>
-        <p className="query-builder__section-subtitle">Which nodes to search</p>
+        <div className="query-builder__section-header">
+          <h3 className="query-builder__section-title">Scope</h3>
+          {isSystemQuery(ast) && (
+            <Badge variant="neutral" size="sm">
+              System Query (Read-only)
+            </Badge>
+          )}
+        </div>
         <ScopeSelector
           scope={ast.scope}
           onChange={handleScopeChange}
@@ -86,7 +82,6 @@ export function QueryBuilder({
       {/* Conditions Section */}
       <div className="query-builder__section">
         <h3 className="query-builder__section-title">Conditions</h3>
-        <p className="query-builder__section-subtitle">What qualifies</p>
         <ConditionGroupBlock
           group={ast.root_group}
           onUpdate={handleRootGroupChange}

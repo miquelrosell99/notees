@@ -179,7 +179,7 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
       style={{ left: position.x, top: position.y }}
     >
       <div className="scratchpad-header" onMouseDown={handleMouseDown}>
-        <span className="scratchpad-title">📝 Scratchpad</span>
+        <span className="scratchpad-title">Scratchpad</span>
         <span className="scratchpad-date">{getTodayDateString()}</span>
         <div className="scratchpad-actions">
           <Button

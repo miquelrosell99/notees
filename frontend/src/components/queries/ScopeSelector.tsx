@@ -157,10 +157,10 @@ export function ScopeSelector({
               onChange={handleDescendantsToggle}
               disabled={readOnly}
             />
-            <span>Include all descendants (blocks within pages)</span>
+            <span>Include child blocks</span>
           </label>
           <div className="scope-selector__help-text">
-            When enabled, searches within the content of the {scope.scope_type === 'current_page' ? 'page' : 'selected pages'}
+            Search within block content, not just page titles
           </div>
         </div>
       )}
@@ -178,26 +178,24 @@ export function ScopeSelector({
 function getScopeDescription(scope: ScopeNode): string {
   switch (scope.scope_type) {
     case 'entire_graph':
-      return 'Searches all nodes in the entire graph.';
+      return 'All nodes in the graph';
     
     case 'current_page':
       if (scope.include_descendants) {
-        return 'Searches the current page and all its blocks.';
+        return 'Current page + all child blocks';
       }
-      return 'Searches only the current page (not its blocks).';
+      return 'Current page only';
     
     case 'specific_pages':
       const pageCount = scope.page_uuids?.length || 0;
       if (pageCount === 0) {
-        return 'No pages selected. Add pages to search within them.';
+        return 'No pages selected';
       }
-      if (scope.include_descendants) {
-        return `Searches ${pageCount} selected page${pageCount > 1 ? 's' : ''} and all their blocks.`;
-      }
-      return `Searches ${pageCount} selected page${pageCount > 1 ? 's' : ''} only (not their blocks).`;
+      const suffix = scope.include_descendants ? ' + child blocks' : ' only';
+      return `${pageCount} page${pageCount > 1 ? 's' : ''}${suffix}`;
     
     case 'linked_refs':
-      return 'Searches nodes that reference the current page.';
+      return 'Nodes that link to current page';
     
     default:
       return 'Unknown scope type.';
