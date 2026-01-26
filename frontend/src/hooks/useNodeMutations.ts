@@ -501,7 +501,7 @@ export function useMoveNode() {
         }));
       };
       
-      // Helper to insert node at the correct position
+      // Helper to insert node at the correct position in a children array
       const insertAtPosition = (children: Node[], nodeToInsert: Node, pos: number): Node[] => {
         const newChildren = [...children];
         // Update the moved node with new parent and sequence
@@ -519,33 +519,43 @@ export function useMoveNode() {
         }));
       };
       
+      // Helper to recursively insert the moved node at the new parent location
+      const insertAtParent = (node: Node, nodeToInsert: Node, targetParentId: number | null, pos: number): Node => {
+        // If this node is the target parent, insert the moved node into its children
+        if (node.id === targetParentId) {
+          const currentChildren = node.children || [];
+          return {
+            ...node,
+            children: insertAtPosition(currentChildren, nodeToInsert, pos),
+          };
+        }
+        
+        // Otherwise, recursively check children
+        if (node.children && node.children.length > 0) {
+          return {
+            ...node,
+            children: node.children.map(child => insertAtParent(child, nodeToInsert, targetParentId, pos)),
+          };
+        }
+        
+        return node;
+      };
+      
       // Update all detail queries
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.details() },
         (oldNode) => {
           if (!oldNode) return oldNode;
           
-          let updated = { ...oldNode };
+          // First remove the moved node from anywhere in the tree
+          let updated: Node = {
+            ...oldNode,
+            children: oldNode.children ? removeFromChildren(oldNode.children) : [],
+          };
           
-          // Remove the moved node if it's in this node's children
-          if (updated.children && updated.children.length > 0) {
-            const hadNode = updated.children.some(c => c.id === id);
-            if (hadNode) {
-              updated = {
-                ...updated,
-                children: removeFromChildren(updated.children),
-              };
-            }
-          }
-          
-          // Add the moved node to this node's children if this is the new parent
-          if (updated.id === parentId && movedNode) {
-            const currentChildren = updated.children || [];
-            const pos = position ?? currentChildren.length;
-            updated = {
-              ...updated,
-              children: insertAtPosition(currentChildren, movedNode, pos),
-            };
+          // Then insert at the new parent location (recursively finds the parent)
+          if (movedNode && parentId !== null) {
+            updated = insertAtParent(updated, movedNode, parentId, position ?? 0);
           }
           
           return updated;
@@ -558,24 +568,15 @@ export function useMoveNode() {
         (oldNode) => {
           if (!oldNode) return oldNode;
           
-          let updated = { ...oldNode };
+          // First remove the moved node from anywhere in the tree
+          let updated: Node = {
+            ...oldNode,
+            children: oldNode.children ? removeFromChildren(oldNode.children) : [],
+          };
           
-          // Remove the moved node from children
-          if (updated.children && updated.children.length > 0) {
-            updated = {
-              ...updated,
-              children: removeFromChildren(updated.children),
-            };
-          }
-          
-          // Add to this node if it's the new parent
-          if (updated.id === parentId && movedNode) {
-            const currentChildren = updated.children || [];
-            const pos = position ?? currentChildren.length;
-            updated = {
-              ...updated,
-              children: insertAtPosition(currentChildren, movedNode, pos),
-            };
+          // Then insert at the new parent location (recursively finds the parent)
+          if (movedNode && parentId !== null) {
+            updated = insertAtParent(updated, movedNode, parentId, position ?? 0);
           }
           
           return updated;
@@ -602,21 +603,21 @@ export function useMoveNode() {
       });
     },
     onSuccess: (_movedNode, _variables) => {
-      // Invalidate ALL detail queries (this covers nodes with include_children: true)
-      // The detail queries are used by NodeView to display page content with children
+      // The optimistic update in onMutate already handled the tree restructuring.
+      // We don't refetch immediately to avoid UI flash.
+      // Just mark queries as stale so they'll refetch on next navigation/focus.
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.details(),
-        refetchType: 'active',
+        refetchType: 'none', // Mark stale but don't refetch
       });
-      
-      // Also invalidate page-content queries for any components using that
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'page-content'],
-        refetchType: 'active',
+        refetchType: 'none',
       });
-      
-      // Invalidate list queries for sidebar updates
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.lists(),
+        refetchType: 'none',
+      });
     },
   });
 }
