@@ -29,7 +29,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useBlockOperation } from '@/hooks';
-import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions } from '@/stores';
+import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useVisibleBlockIds, useBlockParentMap } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
 import { Bullet } from './Bullet';
@@ -151,6 +151,13 @@ function BlockInternal({
   // Editor selection actions for model-first cursor management
   const { setPendingCaret } = useEditorSelectionActions();
   
+  // Block navigation actions for visual order navigation
+  const { getNextBlockId } = useBlockNavigationActions();
+  
+  // Visible blocks list and parent map for hierarchy lookups
+  const visibleBlockIds = useVisibleBlockIds();
+  const blockParentMapFromStore = useBlockParentMap();
+  
   // Operation queue for race condition protection on structural operations
   const { wrapOperation } = useBlockOperation();
   
@@ -202,7 +209,6 @@ function BlockInternal({
     endDrag,
     registerBlock,
     unregisterBlock,
-    getNextBlockId,
     setBlockState: setGlobalBlockState,
     extendSelectionKeyboard,
     blockParentMap,
@@ -827,65 +833,251 @@ function BlockInternal({
     );
   }, [block.id, block.name, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState, setPendingCaret]);
   
-  // Handle Backspace at start of block - merge text with block above
+  // Handle Backspace at start of block - delete block and merge text with visual block above
+  // Rules:
+  // - Don't merge if current block has children
+  // - Don't merge if block above is at a lower hierarchy level (deeper/child)
+  // 
+  // Level-agnostic: works at any nesting depth
   const handleBackspaceAtStart = useCallback((remainingText: string) => {
-    // Find the block above us: first try previous sibling, then parent
-    const currentIndex = siblings.findIndex(s => s.id === block.id);
-    const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
-    
-    // Target is either previous sibling or parent block
-    const targetBlock = prevSibling || parentBlock;
-    
-    if (!targetBlock) {
-      // No block above to merge into
+    // Don't merge if current block has children
+    if (children && children.length > 0) {
       return;
     }
     
-    // Calculate the cursor position at the merge point (end of target's original content)
-    const targetContent = targetBlock.name || '';
+    // Try to find the previous block using store (works for blocks already in hierarchy)
+    let prevBlockId = getNextBlockId(block.id, 'up');
+    
+    // Fallback: If store doesn't have this block yet (e.g., optimistic updates),
+    // use prop-based navigation (previous sibling, or parent if first child)
+    if (!prevBlockId) {
+      const currentIndex = siblings.findIndex(s => s.id === block.id);
+      if (currentIndex > 0) {
+        // Previous sibling exists
+        const prevSibling = siblings[currentIndex - 1];
+        // If prev sibling has children, the visual previous is the last descendant
+        // But for merge purposes, we merge with the sibling itself (same level)
+        prevBlockId = prevSibling.id;
+      } else if (parentBlock && !parentBlock.is_page) {
+        // First child - merge with parent (which is at a higher level, OK)
+        prevBlockId = parentBlock.id;
+      }
+    }
+    
+    if (!prevBlockId) {
+      // No block above to merge into (we're at the top)
+      return;
+    }
+    
+    // Determine the previous block's parent for hierarchy checks
+    // First try the store, then fall back to props
+    let prevBlockParentId: number | null | undefined = blockParentMapFromStore.get(prevBlockId);
+    let currentBlockParentId: number | null | undefined = blockParentMapFromStore.get(block.id);
+    
+    // Fallback for current block parent if not in store
+    if (currentBlockParentId === undefined) {
+      currentBlockParentId = parentId;
+    }
+    
+    // Fallback for prev block parent - check if it's a sibling or the parent itself
+    if (prevBlockParentId === undefined) {
+      if (parentBlock && prevBlockId === parentBlock.id) {
+        // Prev block IS the parent - its parent is grandparent
+        prevBlockParentId = parentBlock.parent_id;
+      } else if (siblings.some(s => s.id === prevBlockId)) {
+        // Prev block is a sibling - same parent
+        prevBlockParentId = parentId;
+      }
+    }
+    
+    // Check if the previous block is at a lower hierarchy level (deeper nested)
+    // We can only merge with blocks at the same level or higher (less nested)
+    
+    // If the previous block's parent is the current block, it's a child - can't merge
+    if (prevBlockParentId === block.id) {
+      return;
+    }
+    
+    // If prev block is our sibling (same parent), allow merge
+    // If prev block is our parent (prevBlockId === parentBlock?.id), allow merge
+    // If prev block is deeper than us, disallow merge
+    
+    // Check if prev block is at same level (same parent) - always OK
+    const isSameLevel = prevBlockParentId === currentBlockParentId;
+    
+    // Check if prev block is our parent - OK (merging up to parent)
+    const isPrevOurParent = parentBlock && prevBlockId === parentBlock.id;
+    
+    if (!isSameLevel && !isPrevOurParent) {
+      // Different levels - need to check if prev is deeper (not allowed)
+      // Walk up from prevBlock's parent to see if we hit current block
+      let checkId: number | null | undefined = prevBlockParentId;
+      while (checkId !== null && checkId !== undefined) {
+        if (checkId === block.id) {
+          // Previous block is a descendant of current block - can't merge
+          return;
+        }
+        if (checkId === currentBlockParentId) {
+          // Found common ancestor, prev is at same or higher level
+          break;
+        }
+        checkId = blockParentMapFromStore.get(checkId);
+      }
+    }
+    
+    // Find the previous block data
+    const findBlockData = (id: number): Node | null => {
+      // Check if it's the parent
+      if (parentBlock && parentBlock.id === id) return parentBlock;
+      
+      // Check siblings
+      const sibling = siblings.find(s => s.id === id);
+      if (sibling) return sibling;
+      
+      // Check children of siblings (for nested blocks)
+      for (const sib of siblings) {
+        if (sib.children) {
+          const found = findInTree(sib.children, id);
+          if (found) return found;
+        }
+      }
+      
+      return null;
+    };
+    
+    // Helper to find node in tree
+    const findInTree = (nodes: Node[], id: number): Node | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        if (node.children) {
+          const found = findInTree(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const targetBlock = findBlockData(prevBlockId);
+    
+    // Get target content - even if we can't find the block data from props,
+    // we can still attempt the merge
+    const targetContent = targetBlock?.name || '';
     const cursorPosition = targetContent.length;
     const mergedContent = targetContent + remainingText;
     
     // Set pending caret BEFORE mutations - this will be restored after re-render
-    setPendingCaret(targetBlock.id, cursorPosition);
+    setPendingCaret(prevBlockId, cursorPosition);
     
-    // Update target block with merged content
-    updateNode.mutate({
-      id: targetBlock.id,
-      data: { name: mergedContent }
-    });
+    // If we found target block data and there's remaining text, merge it
+    if (remainingText && targetBlock) {
+      updateNode.mutate({
+        id: prevBlockId,
+        data: { name: mergedContent }
+      });
+    }
     
     // Delete current block
     deleteNode.mutate(block.id);
     
     // Set target block to edit mode
-    setBlockState(targetBlock.id, 'edit');
-  }, [block.id, siblings, parentBlock, updateNode, deleteNode, setBlockState, setPendingCaret]);
+    setBlockState(prevBlockId, 'edit');
+  }, [block.id, children, getNextBlockId, blockParentMapFromStore, parentId, parentBlock, siblings, updateNode, deleteNode, setBlockState, setPendingCaret]);
   
-  // Handle Delete at end of block - merge next sibling's text into current
+  // Handle Delete at end of block - merge next block's text into current
+  // Rules:
+  // - Don't merge if next block has children
+  // - Don't merge if next block is at a higher hierarchy level (parent/ancestor)
   const handleDeleteAtEnd = useCallback(() => {
-    // Find the next sibling
-    const currentIndex = siblings.findIndex(s => s.id === block.id);
-    const nextSibling = currentIndex >= 0 && currentIndex < siblings.length - 1 
-      ? siblings[currentIndex + 1] 
-      : null;
+    // Use visual order to find the block visually below
+    const nextBlockId = getNextBlockId(block.id, 'down');
     
-    if (!nextSibling) {
-      // No sibling to merge
+    if (!nextBlockId) {
+      // No block below to merge
       return;
     }
     
-    // Check if the next sibling has children
-    const nextSiblingHasChildren = nextSibling.children && nextSibling.children.length > 0;
-    if (nextSiblingHasChildren) {
-      // Next sibling has children, don't merge
+    // Check if the next block is at a higher hierarchy level (we can't merge with parents)
+    // A block is "higher" if it's an ancestor of the current block
+    const nextBlockParentId = blockParentMapFromStore.get(nextBlockId);
+    const currentBlockParentId = blockParentMapFromStore.get(block.id);
+    
+    // If the next block's parent is different and the next block isn't our child,
+    // check if we're trying to merge "up" the hierarchy
+    const isNextBlockOurChild = nextBlockParentId === block.id;
+    const isNextBlockOurSibling = nextBlockParentId === currentBlockParentId;
+    
+    // Only allow merge with siblings or our own children (going "down" into nested)
+    // Don't allow merge with blocks at a higher level (e.g., parent's next sibling)
+    if (!isNextBlockOurChild && !isNextBlockOurSibling) {
+      // Check if the next block is at a higher level
+      // This happens when we're at the last block of a nested level and arrow down
+      // goes to the parent's next sibling
+      let checkParentId: number | null | undefined = currentBlockParentId;
+      let foundAsAncestor = false;
+      while (checkParentId !== null && checkParentId !== undefined) {
+        if (checkParentId === nextBlockId) {
+          foundAsAncestor = true;
+          break;
+        }
+        checkParentId = blockParentMapFromStore.get(checkParentId);
+      }
+      
+      // If the next block is an ancestor or at a higher level, don't merge
+      if (foundAsAncestor || (nextBlockParentId !== currentBlockParentId && !isNextBlockOurChild)) {
+        return;
+      }
+    }
+    
+    // Find the next block data
+    const findBlockData = (id: number): Node | null => {
+      // Check children first (for merging with our own children)
+      if (children.length > 0) {
+        const child = children.find(c => c.id === id);
+        if (child) return child;
+        // Check nested children
+        for (const c of children) {
+          if (c.children) {
+            const found = findInTree(c.children, id);
+            if (found) return found;
+          }
+        }
+      }
+      
+      // Check siblings
+      const sibling = siblings.find(s => s.id === id);
+      if (sibling) return sibling;
+      
+      return null;
+    };
+    
+    const findInTree = (nodes: Node[], id: number): Node | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        if (node.children) {
+          const found = findInTree(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const nextBlock = findBlockData(nextBlockId);
+    
+    if (!nextBlock) {
+      // Can't find block data - might be outside our tree context
       return;
     }
     
-    // Append next sibling's content to current block
+    // Check if the next block has children - don't merge if so
+    const nextBlockHasChildren = nextBlock.children && nextBlock.children.length > 0;
+    if (nextBlockHasChildren) {
+      return;
+    }
+    
+    // Append next block's content to current block
     const currentContent = block.name || '';
-    const siblingContent = nextSibling.name || '';
-    const mergedContent = currentContent + siblingContent;
+    const nextContent = nextBlock.name || '';
+    const mergedContent = currentContent + nextContent;
     
     // Update current block with merged content
     updateNode.mutate({
@@ -893,9 +1085,9 @@ function BlockInternal({
       data: { name: mergedContent }
     });
     
-    // Delete the next sibling
-    deleteNode.mutate(nextSibling.id);
-  }, [block.id, block.name, siblings, updateNode, deleteNode]);
+    // Delete the next block
+    deleteNode.mutate(nextBlockId);
+  }, [block.id, block.name, children, siblings, getNextBlockId, blockParentMapFromStore, updateNode, deleteNode]);
   
   // Handle Tab - indent block (move as child of previous sibling)
   const handleIndent = useCallback(() => {
@@ -947,53 +1139,117 @@ function BlockInternal({
     });
   }, [block.id, parentId, parentBlock, moveNode]);
   
-  // Handle arrow up navigation - move to previous sibling block
+  // Handle arrow up navigation - navigate to visually previous block
+  // Level-agnostic: works at any nesting depth
   const handleNavigateUp = useCallback((caretX?: number) => {
-    if (!editorRef.current) return;
+    // Use visual order (getNextBlockId) to find the block visually above
+    let prevBlockId = getNextBlockId(block.id, 'up');
     
-    const currentIndex = siblings.findIndex(s => s.id === block.id);
-    const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+    // Fallback: If store doesn't have this block yet (e.g., optimistic updates),
+    // use prop-based navigation (previous sibling, or parent if first child)
+    if (!prevBlockId) {
+      const currentIndex = siblings.findIndex(s => s.id === block.id);
+      if (currentIndex > 0) {
+        // Previous sibling - but we want the last visible descendant
+        const prevSibling = siblings[currentIndex - 1];
+        // Find deepest last child (or sibling itself if no visible children)
+        prevBlockId = getLastVisibleDescendant(prevSibling);
+      } else if (parentBlock && !parentBlock.is_page) {
+        // First child - navigate to parent
+        prevBlockId = parentBlock.id;
+      }
+    }
     
-    // Target is either previous sibling or parent block
-    const targetBlock = prevSibling || parentBlock;
-    
-    if (!targetBlock) {
+    if (!prevBlockId) {
       // No block above to navigate to
       return;
     }
     
+    // Find the block data to get its content length for cursor positioning
+    const findBlockData = (id: number): Node | null => {
+      if (parentBlock && parentBlock.id === id) return parentBlock;
+      const sibling = siblings.find(s => s.id === id);
+      if (sibling) return sibling;
+      // Check nested within siblings
+      for (const sib of siblings) {
+        if (sib.children) {
+          const found = findInTree(sib.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const findInTree = (nodes: Node[], id: number): Node | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        if (node.children) {
+          const found = findInTree(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    // Helper to get last visible descendant of a node
+    function getLastVisibleDescendant(node: Node): number {
+      // Check if collapsed from node's own property
+      const collapsed = node.collapsed ?? false;
+      if (collapsed || !node.children || node.children.length === 0) {
+        return node.id;
+      }
+      // Recurse to last child
+      const lastChild = node.children[node.children.length - 1];
+      return getLastVisibleDescendant(lastChild);
+    }
+    
+    const targetBlock = findBlockData(prevBlockId);
+    
     // Position cursor at end of target block - the BlockEditor will use caretX
     // to find the best horizontal position if provided
-    const cursorPosition = (targetBlock.name || '').length;
-    setPendingCaret(targetBlock.id, cursorPosition, caretX);
+    const cursorPosition = (targetBlock?.name || '').length;
+    setPendingCaret(prevBlockId, cursorPosition, caretX);
     
-    setBlockState(targetBlock.id, 'edit');
-  }, [siblings, parentBlock, setBlockState, block.id, editorRef, setPendingCaret]);
+    setBlockState(prevBlockId, 'edit');
+  }, [block.id, getNextBlockId, parentBlock, siblings, setBlockState, setPendingCaret]);
   
-  // Handle arrow down navigation - move to next sibling block
+  // Handle arrow down navigation - navigate to visually next block
+  // Level-agnostic: works at any nesting depth
   const handleNavigateDown = useCallback((caretX?: number) => {
-    const currentIndex = siblings.findIndex(s => s.id === block.id);
-    const nextSibling = currentIndex >= 0 && currentIndex < siblings.length - 1 
-      ? siblings[currentIndex + 1] 
-      : null;
+    // Use visual order (getNextBlockId) to find the block visually below
+    let nextBlockId = getNextBlockId(block.id, 'down');
     
-    if (!nextSibling) {
-      // Try to navigate to first child if current block has children
-      if (children.length > 0) {
-        const firstChild = children[0];
-        setPendingCaret(firstChild.id, 0, caretX);
-        setBlockState(firstChild.id, 'edit');
-        return;
+    // Fallback: If store doesn't have this block yet (e.g., optimistic updates),
+    // use prop-based navigation (first child if expanded, or next sibling, or parent's next sibling)
+    if (!nextBlockId) {
+      // Check if current block is collapsed from its property
+      const collapsed = block.collapsed ?? false;
+      
+      // First: if has visible children, go to first child
+      if (!collapsed && children && children.length > 0) {
+        nextBlockId = children[0].id;
+      } else {
+        // Otherwise: try next sibling
+        const currentIndex = siblings.findIndex(s => s.id === block.id);
+        if (currentIndex >= 0 && currentIndex < siblings.length - 1) {
+          nextBlockId = siblings[currentIndex + 1].id;
+        }
+        // If no next sibling, we'd need parent's next sibling (ancestor walk)
+        // This is complex and the store-based navigation handles it better
+        // For optimistic blocks, the immediate sibling case is most important
       }
+    }
+    
+    if (!nextBlockId) {
       // No block below to navigate to
       return;
     }
     
-    // Set next sibling to edit mode with cursor at beginning
+    // Set next block to edit mode with cursor at beginning
     // The BlockEditor will use caretX to find the best horizontal position
-    setPendingCaret(nextSibling.id, 0, caretX);
-    setBlockState(nextSibling.id, 'edit');
-  }, [siblings, children, setBlockState, setPendingCaret]);
+    setPendingCaret(nextBlockId, 0, caretX);
+    setBlockState(nextBlockId, 'edit');
+  }, [block.id, block.collapsed, getNextBlockId, children, siblings, setBlockState, setPendingCaret]);
 
   
   return (

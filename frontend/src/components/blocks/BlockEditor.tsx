@@ -1201,11 +1201,13 @@ export function BlockEditor({
       return;
     }
 
-    // Backspace at start of block - merge with block above
+    // Backspace at start of block - merge with block above OR delete empty block
     if (e.key === 'Backspace' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      if (cursorPos === 0 && currentContent.length > 0 && onBackspaceAtStart) {
+      // If at position 0 (start of block), trigger merge/delete behavior
+      // This works for both empty blocks and blocks with content
+      if (cursorPos === 0 && onBackspaceAtStart) {
         e.preventDefault();
-        onBackspaceAtStart(currentContent);
+        onBackspaceAtStart(currentContent); // Pass current content (may be empty string)
         return;
       }
     }
