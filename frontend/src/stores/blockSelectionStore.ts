@@ -38,7 +38,7 @@ export type SelectionDirection = 'up' | 'down' | null;
  * Editor Selection - Model-first caret/selection representation
  * 
  * Uses character offsets (not DOM offsets) for stable positioning.
- * Character offset counts text characters, treating pills as their raw content length.
+ * Character offset counts text characters, treating atomic inline links as their raw content length.
  */
 export interface EditorSelection {
   /** The block containing the anchor point */

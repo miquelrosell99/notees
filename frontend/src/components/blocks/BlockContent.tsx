@@ -3,7 +3,7 @@
  * 
  * Renders block text content with parsed tokens:
  * - TextToken: Plain text segments
- * - LinkPill: [[nodeId]] references rendered as clickable pills
+ * - LinkPill: [[nodeId]] references rendered as atomic inline text links
  * - TypePill: {{typeId}} inline type references
  * 
  * Part of the Block hierarchy:
@@ -12,7 +12,7 @@
  *  ├─ BlockBullet
  *  ├─ BlockContent     ← this component
  *  │    ├─ TextToken
- *  │    ├─ LinkPill
+ *  │    ├─ LinkPill (atomic inline text links)
  *  │    └─ TypePill
  *  └─ BlockChildren
  * 
@@ -22,6 +22,7 @@
  * - Right-click context menu
  * - Click count badge display
  * - Icon display based on getEffectiveIcon (shows only if node has icon or inherits from type)
+ * - Atomic inline behavior - cursor cannot enter links
  */
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useClasses } from '@/hooks';

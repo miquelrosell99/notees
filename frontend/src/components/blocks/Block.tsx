@@ -7,9 +7,9 @@
  * Block
  *  ├─ BlockContainer   (layout, indent, selection state)
  *  ├─ BlockBullet      (Bullet component - drag handle, expand/collapse)
- *  ├─ BlockContent     (view mode - text with LinkPill/ClassPill tokens)
+ *  ├─ BlockContent     (view mode - text with atomic inline links)
  *  │    ├─ TextToken
- *  │    ├─ LinkPill
+ *  │    ├─ LinkPill (atomic inline text links)
  *  │    └─ ClassPill
  *  ├─ BlockEditor      (edit mode - rich text editing)
  *  └─ BlockChildren    (recursive child blocks)
