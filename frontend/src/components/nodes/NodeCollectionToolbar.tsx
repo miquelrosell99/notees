@@ -93,7 +93,9 @@ export function NodeCollectionToolbar({
   const storeSetCardLayout = useNodesStore(state => state.setCardLayout);
   
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
-  const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => storeSetCardLayout(layout as any));
+  const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => {
+    storeSetCardLayout(layout as 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right');
+  });
   
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
   const showGroupByButton = showGroupBy && viewMode === 'list';
