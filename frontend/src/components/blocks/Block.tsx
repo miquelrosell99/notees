@@ -27,8 +27,10 @@
  * - Shift+click on bullet opens in sidebar
  */
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useBlockOperation } from '@/hooks';
+import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useVisibleBlockIds, useBlockParentMap } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
@@ -138,6 +140,7 @@ function BlockInternal({
   // Local state for isolated mode (blocks that appear in multiple places like linked references)
   const [localBlockState, setLocalBlockState] = useState<BlockState>('display');
   
+  const queryClient = useQueryClient();
   const moveNode = useMoveNode();
   const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
@@ -1239,6 +1242,8 @@ function BlockInternal({
   }, [block.id, siblings, moveNode]);
   
   // Handle Shift+Tab - outdent block (move to parent's level after parent)
+  // Standard outliner behavior: siblings below the outdented block become its children
+  // IMPORTANT: All changes are applied atomically to prevent visual flickering
   const handleOutdent = useCallback(() => {
     // Don't operate on optimistic blocks (negative IDs)
     if (block.id < 0) {
@@ -1272,13 +1277,112 @@ function BlockInternal({
     
     const parentSequence = parentBlock.sequence || 0;
     
+    // Find siblings below this block that should become children
+    const blockIndex = siblings.findIndex(s => s.id === block.id);
+    const siblingsBelow = blockIndex >= 0 ? siblings.slice(blockIndex + 1) : [];
+    
+    // ============ ATOMIC OPTIMISTIC UPDATE ============
+    // Apply all changes to the cache at once, then fire API calls
+    // This prevents visual flickering from intermediate states
+    
+    const applyOutdentOptimistically = (rootNode: Node): Node => {
+      // Helper to recursively find and transform nodes
+      const transform = (node: Node): Node => {
+        // If this is the original parent (parentBlock), remove this block and siblings below
+        if (node.id === parentId) {
+          const remainingChildren = (node.children || []).slice(0, blockIndex);
+          return {
+            ...node,
+            children: remainingChildren.map((c, i) => ({ ...c, sequence: i })),
+          };
+        }
+        
+        // If this is the grandparent, insert the outdented block (with adopted siblings) after parent
+        if (node.id === grandparentId) {
+          const existingChildren = block.children || [];
+          // Create the updated block with siblings below becoming its children
+          const updatedBlock: Node = {
+            ...block,
+            parent_id: grandparentId,
+            sequence: parentSequence + 1,
+            children: [
+              ...existingChildren,
+              ...siblingsBelow.map((s, i) => ({
+                ...s,
+                parent_id: block.id,
+                sequence: existingChildren.length + i,
+              })),
+            ],
+          };
+          
+          // Insert the block after parent in grandparent's children
+          const newChildren: Node[] = [];
+          for (const child of (node.children || [])) {
+            newChildren.push(transform(child)); // Transform children (including parent)
+            if (child.id === parentId) {
+              newChildren.push(updatedBlock); // Insert outdented block after parent
+            }
+          }
+          // Re-sequence
+          return {
+            ...node,
+            children: newChildren.map((c, i) => ({ ...c, sequence: i })),
+          };
+        }
+        
+        // Recurse into children
+        if (node.children && node.children.length > 0) {
+          const newChildren = node.children.map(c => transform(c));
+          const changed = newChildren.some((c, i) => c !== node.children![i]);
+          if (changed) {
+            return { ...node, children: newChildren };
+          }
+        }
+        
+        return node;
+      };
+      
+      return transform(rootNode);
+    };
+    
+    // Apply optimistic update to all detail queries
+    const queryCache = queryClient.getQueryCache();
+    const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+    for (const query of detailQueries) {
+      const oldData = query.state.data as Node | undefined;
+      if (oldData) {
+        const newData = applyOutdentOptimistically(oldData);
+        if (newData !== oldData) {
+          queryClient.setQueryData(query.queryKey, newData);
+        }
+      }
+    }
+    
+    // ============ FIRE API CALLS ============
+    // Fire all mutations without waiting - optimistic update already shows final state
+    // The mutations' own optimistic updates will be no-ops since state is already correct
+    
+    // Move siblings to become children of this block
+    const existingChildrenCount = block.children?.length ?? 0;
+    for (let i = 0; i < siblingsBelow.length; i++) {
+      const siblingBelow = siblingsBelow[i];
+      if (siblingBelow.id > 0) {
+        moveNode.mutate({
+          id: siblingBelow.id,
+          parentId: block.id,
+          position: existingChildrenCount + i,
+        });
+      }
+    }
+    
+    // Move this block to grandparent level
     moveNode.mutate({
       id: block.id,
       parentId: grandparentId,
-      position: parentSequence + 1, // After parent
+      position: parentSequence + 1,
     });
-  }, [block.id, parentId, parentBlock, moveNode]);
-  
+  }, [block, parentId, parentBlock, siblings, moveNode, queryClient]);
+
   // Handle arrow up navigation - navigate to visually previous block
   // Level-agnostic: works at any nesting depth
   const handleNavigateUp = useCallback((caretX?: number) => {
