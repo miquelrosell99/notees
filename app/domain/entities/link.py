@@ -52,19 +52,6 @@ class NodeLink:
     is_tag: bool = False  # True if this is a tag reference (displayed with #)
     create_date: datetime = field(default_factory=utc_now)
     create_uid: Optional[int] = None
-    
-    # Legacy aliases for backward compatibility
-    @property
-    def source_node_id(self) -> int:
-        return self.source_id
-    
-    @property
-    def target_node_id(self) -> int:
-        return self.target_id
-    
-    @property
-    def created_at(self) -> datetime:
-        return self.create_date
 
 
 @dataclass
@@ -87,28 +74,6 @@ class InlineClass:
     position: int = 0  # Character position in content
     create_date: datetime = field(default_factory=utc_now)
     create_uid: Optional[int] = None
-    
-    # Legacy aliases for backward compatibility
-    @property
-    def source_node_id(self) -> int:
-        return self.node_id
-    
-    @property
-    def class_node_id(self) -> int:
-        return self.class_id
-    
-    # Legacy alias
-    @property
-    def type_id(self) -> int:
-        return self.class_id
-    
-    @property
-    def type_node_id(self) -> int:
-        return self.class_id
-    
-    @property
-    def created_at(self) -> datetime:
-        return self.create_date
 
 
 @dataclass

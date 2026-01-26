@@ -15,7 +15,6 @@ from .models import (
     LinkedReferenceResponse,
     BreadcrumbSegment,
     InlineClassResponse,
-    InlineTypeResponse,  # Backwards compatibility alias
     PropertyBacklinkResponse,
 )
 from .helpers import (

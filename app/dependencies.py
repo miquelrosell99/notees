@@ -182,11 +182,6 @@ class RepositoryBundle:
         if self._inline_class_repo is None:
             self._inline_class_repo = PostgresInlineClassRepository(self.pool, self.graph_id, self.user_id)
         return self._inline_class_repo
-    
-    # Backwards compatibility alias
-    @property
-    def inline_type(self) -> PostgresInlineClassRepository:
-        return self.inline_class
 
 
 async def get_repositories(
