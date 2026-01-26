@@ -155,6 +155,25 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         raise RuntimeError("Failed to create 'banner' property")
     banner_property_id = banner_row['id']
     
+    # Create 'extends' property (for class inheritance)
+    extends_uuid = SYSTEM_PROPERTY_UUIDS["extends"]
+    extends_row = await conn.fetchrow("""
+        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, 'extends', 'node', TRUE, TRUE, $2, $2, $3, $3)
+        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        RETURNING id
+    """, extends_uuid, now, user_id)
+    if extends_row is None:
+        raise RuntimeError("Failed to create 'extends' property")
+    extends_property_id = extends_row['id']
+    
+    # Set class filter for 'extends' property (only classes can be extended)
+    await conn.execute("""
+        INSERT INTO property_class_filter (property_id, class_node_id)
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+    """, extends_property_id, class_node_id)
+    
     # Assign classes to 'class' node
     await assign_relation_property(class_node_id, classes_property_id, class_node_id)
     await assign_relation_property(class_node_id, classes_property_id, page_class_id)
