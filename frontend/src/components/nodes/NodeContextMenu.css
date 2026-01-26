@@ -2,77 +2,54 @@
  * Node Context Menu styles
  */
 
-/* Parent picker overlay */
-.parent-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.3);
-}
-
-.parent-picker-modal {
-  position: fixed;
-  z-index: 1001;
-  min-width: 300px;
-  max-width: 400px;
-  max-height: 400px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-large);
-  box-shadow: var(--elevation-3);
-  overflow: hidden;
+/* Parent selector submenu */
+.parent-selector-submenu {
+  min-width: 280px;
+  max-width: 360px;
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-2);
 }
 
-.parent-picker-header {
+.parent-selector-current {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
-  font: var(--font-title-small);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+  font-size: 13px;
 }
 
-.parent-picker-header button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-  transition: all 0.15s ease;
+.parent-selector-label {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
-.parent-picker-header button:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
-
-.parent-picker-modal .node-picker {
+.parent-selector-name {
+  color: var(--text-primary);
+  font-weight: 600;
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.parent-picker-clear {
+.parent-selector-search {
+  margin-bottom: var(--spacing-2);
+}
+
+.parent-selector-remove {
   width: 100%;
-  padding: var(--spacing-3);
-  border: none;
-  border-top: 1px solid var(--color-outline-variant);
-  background: transparent;
-  color: var(--color-error);
-  cursor: pointer;
-  font: var(--font-label-medium);
-  transition: background 0.15s ease;
+  justify-content: center;
+  color: var(--color-danger);
 }
 
-.parent-picker-clear:hover {
-  background: var(--color-error-container);
+.parent-selector-remove:hover {
+  background: var(--color-danger-container);
 }
+
 
 /* ==================== Color Picker Row ==================== */
 

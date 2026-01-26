@@ -234,6 +234,33 @@ function getNodeRadius(
   return NODE_RADIUS_MIN + ratio * (NODE_RADIUS_MAX - NODE_RADIUS_MIN);
 }
 
+function buildFullPath(
+  node: GraphNode,
+  nodes: GraphNode[],
+  links: GraphLink[]
+): string {
+  if (node.parentId === null) {
+    // Root page, just return name
+    return node.name;
+  }
+  
+  // Build path from root to current node
+  const path: string[] = [];
+  let currentId: number | null = node.id;
+  const visited = new Set<number>(); // Prevent infinite loops
+  
+  while (currentId !== null && !visited.has(currentId)) {
+    visited.add(currentId);
+    const currentNode = nodes.find(n => n.id === currentId);
+    if (!currentNode) break;
+    
+    path.unshift(currentNode.name);
+    currentId = currentNode.parentId;
+  }
+  
+  return path.join(' / ');
+}
+
 // ==================== Component ====================
 
 export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRendererProps>(function NodeGraphRenderer({
@@ -959,9 +986,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       
-      const displayName = node.name.length > 18 
-        ? node.name.slice(0, 18) + '...' 
-        : node.name;
+      // For nodes with parents (blocks/child pages), show full path
+      const fullPath = buildFullPath(node, nodesRef.current, linksRef.current);
+      const displayName = fullPath.length > 35 
+        ? fullPath.slice(0, 35) + '...' 
+        : fullPath;
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
