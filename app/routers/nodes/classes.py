@@ -8,6 +8,7 @@ from .helpers import (
     _get_node_service,
     _node_to_response,
     _get_class_ids_batch,
+    _get_effective_class_ids_batch,
 )
 
 
@@ -100,8 +101,12 @@ async def get_nodes_with_class(
     """Get all nodes that have a specific class.
     
     Returns nodes that have been categorized with the given class node.
+    Includes nodes that are classed with subclasses of this class (inheritance).
     Uses batch fetching for class_ids to avoid N+1 queries.
     """
+    from ...domain.services.class_extension_service import ClassExtensionService
+    from ...domain.repositories import PostgresPropertyRepository
+    
     service = await _get_node_service(user)
     
     # Get the 'classes' property ID
@@ -116,13 +121,22 @@ async def get_nodes_with_class(
         
         classes_property_id = row['id']
         
-        # Find all nodes that have this class (only active nodes)
-        rows = await conn.fetch("""
+        # Get all subclasses (classes that extend this class)
+        property_repo = PostgresPropertyRepository(service._pool, service._graph_id or 0, service._user_id)
+        extension_service = ClassExtensionService(service._pool, service._graph_id or 0, property_repo)
+        
+        subclass_ids = await extension_service.get_all_subclasses(class_id)
+        all_class_ids = [class_id] + subclass_ids
+        
+        # Find all nodes that have this class or any of its subclasses (only active nodes)
+        placeholders = ', '.join(f'${i+3}' for i in range(len(all_class_ids)))
+        query = f"""
             SELECT DISTINCT n.* FROM node n
             JOIN property_value_relation pvr ON n.id = pvr.node_id
-            WHERE pvr.property_id = $1 AND pvr.target_id = $2 AND n.graph_id = $3 AND n.active = TRUE
+            WHERE pvr.property_id = $1 AND pvr.target_id IN ({placeholders}) AND n.graph_id = $2 AND n.active = TRUE
             ORDER BY n.write_date DESC
-        """, classes_property_id, class_id, service._graph_id)
+        """
+        rows = await conn.fetch(query, classes_property_id, service._graph_id, *all_class_ids)
     
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     
