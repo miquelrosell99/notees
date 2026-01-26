@@ -57,6 +57,20 @@
   padding: 0;
 }
 
+/* Ensure proper vertical alignment of block content in breadcrumbs */
+.node-breadcrumb-link .block-row {
+  align-items: center;
+}
+
+.node-breadcrumb-link .block-content {
+  display: flex;
+  align-items: center;
+}
+
+.node-breadcrumb-link .block-text {
+  line-height: 1.2;
+}
+
 .node-breadcrumb-link:hover {
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
