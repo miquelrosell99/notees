@@ -18,7 +18,10 @@ import { BlockPreview } from '../../blocks/BlockPreview';
 import { NodeCollection } from '../NodeCollection';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
+import { AddCoverButton } from '../../core/AddCoverButton';
+import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
+import type { Asset } from '@/api/assets';
 
 export interface NodeCardProps {
   node: Node;
@@ -92,6 +95,9 @@ export function NodeCard({
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   
+  // Asset upload state for cover
+  const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
+  
   // Get effective icon (from node or inherited from class)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
@@ -136,6 +142,12 @@ export function NodeCard({
   // Stop checkbox click from triggering card click
   const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+  }, []);
+
+  const handleCoverUploaded = useCallback((_asset: Asset) => {
+    setIsAssetUploadOpen(false);
+    // The asset is uploaded and associated with the node
+    // The image will appear in node.name as markdown ![](uuid)
   }, []);
 
   // Handle drag start from header
@@ -193,10 +205,14 @@ export function NodeCard({
         )}
         
 
-        {/* Cover image */}
-        {coverUrl && (
+        {/* Cover image or Add Cover button */}
+        {effectiveLayout !== 'no-cover' && (
           <div className="node-card__cover">
-            <img src={coverUrl} alt="" className="node-card__cover-image" />
+            {coverUrl ? (
+              <img src={coverUrl} alt="" className="node-card__cover-image" />
+            ) : (
+              <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+            )}
           </div>
         )}
         
@@ -246,6 +262,15 @@ export function NodeCard({
           onClose={handleCloseContextMenu}
         />
       )}
+      
+      {/* Asset Upload Modal for cover */}
+      <AssetUploadModal
+        isOpen={isAssetUploadOpen}
+        onClose={() => setIsAssetUploadOpen(false)}
+        onUpload={handleCoverUploaded}
+        parentId={node.id}
+        acceptedTypes={['image']}
+      />
     </>
   );
 }
