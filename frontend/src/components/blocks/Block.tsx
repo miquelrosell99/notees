@@ -878,17 +878,21 @@ function BlockInternal({
     
     // Update current block with text before cursor FIRST, then create new block
     // Using sequential execution to prevent race conditions in cache updates
+    // Trim: remove trailing spaces from original block, leading spaces from new block
+    const trimmedTextBefore = textBefore.trimEnd();
+    const trimmedTextAfter = textAfter.trimStart();
+    
     try {
-      if (textBefore !== block.name) {
+      if (trimmedTextBefore !== block.name) {
         await updateNode.mutateAsync({
           id: block.id,
-          data: { name: textBefore }
+          data: { name: trimmedTextBefore }
         });
       }
       
       // Now create the new block after update has completed
       const newNode = await createNode.mutateAsync({
-        name: textAfter,
+        name: trimmedTextAfter,
         parent_id: newBlockParentId,
         sequence: newBlockSequence,
       });
