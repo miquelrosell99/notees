@@ -140,7 +140,7 @@ export function NodeCollection({
   };
   
   // Determine which view modes are available
-  const effectiveViewModes = availableViewModes ?? ['list', 'document', 'card', 'table', 'gantt', 'graph'];
+  const effectiveViewModes = availableViewModes ?? ['card', 'document', 'list', 'table', 'gantt', 'graph'];
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
   const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
