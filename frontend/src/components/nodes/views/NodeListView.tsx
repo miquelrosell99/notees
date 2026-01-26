@@ -250,7 +250,7 @@ function NodeListItem({
     return (
       <div className="node-list-item-wrapper">
         {/* Breadcrumbs for top-level items */}
-        {showBreadcrumbs && depth === 0 && (page || context) && (
+        {showBreadcrumbs && depth === 0 && !node.is_page && (page || context || (node.page_id && node.page_name)) && (
           <InlineNodeBreadcrumbs
             node={node}
             page={page}
@@ -291,7 +291,7 @@ function NodeListItem({
   return (
     <div className="node-list-item" style={{ '--depth': showIndentation ? depth : 0 } as React.CSSProperties}>
       {/* Breadcrumbs for top-level items */}
-      {showBreadcrumbs && depth === 0 && (page || context) && (
+      {showBreadcrumbs && depth === 0 && !node.is_page && (page || context || (node.page_id && node.page_name)) && (
         <InlineNodeBreadcrumbs
           node={node}
           page={page}
