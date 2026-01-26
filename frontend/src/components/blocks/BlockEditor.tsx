@@ -147,24 +147,33 @@ interface TriggerState {
 }
 
 interface LinkInfo {
-  linkId: string;  // The link record ID
+  targetId: string;  // The target node ID
+  linkUuid: string | null;  // The link instance UUID (may be null for legacy links)
   start: number;
   end: number;
   raw: string;
 }
 
 /**
- * Parse content to find all links - unified [[linkId]] format
+ * Generate a UUID v4 for link instances
+ */
+function generateLinkUuid(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Parse content to find all links - [[targetId]] or [[targetId:linkUuid]] format
  */
 function parseLinks(content: string): LinkInfo[] {
   const links: LinkInfo[] = [];
   
-  // Find all links [[id]]
+  // Find all links [[id]] or [[id:uuid]]
   let match;
-  const linkRegex = /\[\[([^\]]+)\]\]/g;
+  const linkRegex = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
   while ((match = linkRegex.exec(content)) !== null) {
     links.push({
-      linkId: match[1],
+      targetId: match[1],
+      linkUuid: match[2] || null,  // May be undefined for legacy [[id]] format
       start: match.index,
       end: match.index + match[0].length,
       raw: match[0],
@@ -210,7 +219,8 @@ function parseInlineTypes(content: string): InlineTypeInfo[] {
 
 interface PillInfo {
   type: 'link' | 'inline-type';
-  id: string;
+  id: string;  // targetId for links, typeId for inline-types
+  linkUuid: string | null;  // Only for links - the link instance UUID
   start: number;
   end: number;
   raw: string;
@@ -226,7 +236,8 @@ function parseAllPills(content: string): PillInfo[] {
   for (const link of parseLinks(content)) {
     pills.push({
       type: 'link',
-      id: link.linkId,
+      id: link.targetId,
+      linkUuid: link.linkUuid,
       start: link.start,
       end: link.end,
       raw: link.raw,
@@ -238,6 +249,7 @@ function parseAllPills(content: string): PillInfo[] {
     pills.push({
       type: 'inline-type',
       id: inlineType.typeId,
+      linkUuid: null,
       start: inlineType.start,
       end: inlineType.end,
       raw: inlineType.raw,
@@ -311,7 +323,9 @@ function contentToHtml(
         const iconSvg = `<svg viewBox="0 0 24 24" style="width: 14.4px; height: 14.4px;"><path fill="currentColor" d="${iconPath}"></path></svg>`;
         const icon = `<span class="tag-pill__icon">${iconSvg}</span>`;
         
-        html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true">${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
+        // Include link-uuid for click tracking (if present)
+        const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
+        html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true"${uuidAttr}>${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
       } else {
         // Render as regular link pill - true inline atomic node
         const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
@@ -329,8 +343,10 @@ function contentToHtml(
           ? `<span class="link-pill__badge">${clickCount}</span>` 
           : '';
         
+        // Include link-uuid for click tracking (if present)
+        const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
         // Add data-node-id and data-label for proper serialization
-        html += `<span class="link-pill ${pillClass}${!hasIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}">${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+        html += `<span class="link-pill ${pillClass}${!hasIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}"${uuidAttr}>${icon}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
       }
     } else {
       // Inline type pill
@@ -378,8 +394,8 @@ function htmlToContent(element: HTMLElement): string {
       content += (node.textContent || '').replace(/\u200B/g, '');
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
-      if (el.classList.contains('link-pill')) {
-        // Get the raw link text from data attribute
+      if (el.classList.contains('link-pill') || el.classList.contains('tag-pill')) {
+        // Get the raw link text from data attribute (includes [[nodeId:linkUuid]] format)
         content += el.dataset.linkRaw || '';
       } else if (el.classList.contains('type-pill')) {
         // Get the raw type text from data attribute
@@ -1441,15 +1457,22 @@ export function BlockEditor({
     const textAfterCursor = currentContent.substring(cursorPos);
     
     let newContent: string;
+    let insertedTextLength = 0; // Track length for cursor positioning
     
     if (trigger.type === 'link') {
-      // Use node ID for the link
-      const linkText = `[[${node.id}]]`;
+      // Generate unique linkUuid for this link instance
+      const linkUuid = generateLinkUuid();
+      // Use node ID with linkUuid for the link: [[nodeId:linkUuid]]
+      const linkText = `[[${node.id}:${linkUuid}]]`;
+      insertedTextLength = linkText.length + 1; // +1 for space
       newContent = textBeforeTrigger + linkText + ' ' + textAfterCursor;
       onLinkPage?.(node);  // Callback for any link (page or block)
     } else if (trigger.type === 'tag' && keepInline) {
-      // Inline tags use [[id]] format (same as links), but are marked as is_tag in the database
-      const linkText = `[[${node.id}]]`;
+      // Generate unique linkUuid for this tag link instance
+      const linkUuid = generateLinkUuid();
+      // Inline tags use [[id:uuid]] format (same as links), but are marked as is_tag in the database
+      const linkText = `[[${node.id}:${linkUuid}]]`;
+      insertedTextLength = linkText.length + 1; // +1 for space
       newContent = textBeforeTrigger + linkText + ' ' + textAfterCursor;
       
       // Callback will mark this link as a tag via API
@@ -1459,6 +1482,7 @@ export function BlockEditor({
     } else if (trigger.type === 'type' && keepInline) {
       // Use {{classId}} format for inline classes
       const inlineText = `{{${node.id}}}`;
+      insertedTextLength = inlineText.length + 1; // +1 for space
       newContent = textBeforeTrigger + inlineText + ' ' + textAfterCursor;
       
       if (onAddClass) {
@@ -1467,6 +1491,7 @@ export function BlockEditor({
     } else {
       // Non-inline: just remove trigger text and add to property
       newContent = textBeforeTrigger + textAfterCursor.trimStart();
+      insertedTextLength = 0;
       
       if (trigger.type === 'type' && onAddClass) {
         onAddClass(node.id, keepInline, node.name || '');
@@ -1476,19 +1501,7 @@ export function BlockEditor({
     }
     
     // Calculate cursor position after the inserted content
-    let cursorTargetPos: number;
-    if (trigger.type === 'link') {
-      const linkText = `[[${node.id}]]`;
-      cursorTargetPos = textBeforeTrigger.length + linkText.length + 1; // +1 for space
-    } else if (trigger.type === 'tag' && keepInline) {
-      const linkText = `[[${node.id}]]`;
-      cursorTargetPos = textBeforeTrigger.length + linkText.length + 1;
-    } else if (trigger.type === 'type' && keepInline) {
-      const inlineText = `{{${node.id}}}`;
-      cursorTargetPos = textBeforeTrigger.length + inlineText.length + 1;
-    } else {
-      cursorTargetPos = textBeforeTrigger.length;
-    }
+    const cursorTargetPos = textBeforeTrigger.length + insertedTextLength;
     
     isInternalChange.current = true;
     lastContentRef.current = newContent;
@@ -1734,7 +1747,7 @@ export function BlockEditor({
     e.preventDefault();
     
     // Get plain text
-    const text = e.clipboardData?.getData('text/plain') || '';
+    let text = e.clipboardData?.getData('text/plain') || '';
     
     // Check for files
     const items = e.clipboardData?.items;
@@ -1754,6 +1767,14 @@ export function BlockEditor({
         }
       }
     }
+    
+    // Regenerate UUIDs for any pasted links to create new link instances
+    // This ensures copy-paste creates independent link tracking
+    // Matches both [[nodeId]] and [[nodeId:oldUuid]] formats
+    text = text.replace(/\[\[([^\]:\s]+)(?::[a-f0-9-]+)?\]\]/g, (_match, nodeId) => {
+      const newUuid = generateLinkUuid();
+      return `[[${nodeId}:${newUuid}]]`;
+    });
     
     // Insert plain text at cursor
     const selection = window.getSelection();

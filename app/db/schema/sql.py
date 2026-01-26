@@ -462,18 +462,31 @@ CREATE INDEX IF NOT EXISTS idx_node_activity_node_id ON node_activity(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_activity_user_id ON node_activity(user_id);
 CREATE INDEX IF NOT EXISTS idx_node_activity_create_date ON node_activity(create_date);
 
--- Link click tracking (source-target based)
+-- Link click tracking (per link instance via node_link.uuid)
 CREATE TABLE IF NOT EXISTS link_click (
     id SERIAL PRIMARY KEY,
     source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    node_link_uuid UUID,
     click_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL
 );
 
+-- Migration: Add node_link_uuid column if table exists without it
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'link_click' AND column_name = 'node_link_uuid'
+    ) THEN
+        ALTER TABLE link_click ADD COLUMN node_link_uuid UUID;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_link_click_source_node_id ON link_click(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_target_node_id ON link_click(target_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_user_id ON link_click(user_id);
+CREATE INDEX IF NOT EXISTS idx_link_click_node_link_uuid ON link_click(node_link_uuid) WHERE node_link_uuid IS NOT NULL;
 
 -- ============================================================
 -- SCHEMA METADATA

@@ -45,6 +45,7 @@ class LinkClickResponse(BaseModel):
     """Link click tracking response."""
     source_node_id: int
     target_node_id: int
+    node_link_uuid: Optional[str] = None  # UUID of the specific link instance
     click_count: int
     last_click_date: Optional[str] = None
 
@@ -54,6 +55,7 @@ class LinkClickHistoryResponse(BaseModel):
     id: int
     source_node_id: int
     target_node_id: int
+    node_link_uuid: Optional[str] = None
     click_date: str
 
 
@@ -61,6 +63,7 @@ class LinkClickRequest(BaseModel):
     """Request to track a link click."""
     source_node_id: int
     target_node_id: int
+    node_link_uuid: Optional[str] = None  # UUID of the specific link instance clicked
 
 
 # ============== Activity Endpoints ==============
@@ -207,33 +210,46 @@ async def track_link_click(
     data: LinkClickRequest,
     user: User = Depends(get_current_user),
 ):
-    """Track a link click by inserting a new record."""
+    """Track a link click by inserting a new record.
+    
+    Optionally accepts node_link_uuid to track clicks on specific link instances.
+    """
     pool = await get_pool()
     now = utc_now()
     
     async with pool.acquire() as conn:
-        # Insert new click record
+        # Insert new click record with optional node_link_uuid
         await conn.execute(
             """
-            INSERT INTO link_click (source_node_id, target_node_id, click_date, user_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO link_click (source_node_id, target_node_id, node_link_uuid, click_date, user_id)
+            VALUES ($1, $2, $3, $4, $5)
             """,
-            data.source_node_id, data.target_node_id, now, int(user.id)
+            data.source_node_id, data.target_node_id, data.node_link_uuid, now, int(user.id)
         )
         
-        # Get total count
-        row = await conn.fetchrow(
-            """
-            SELECT COUNT(*) as count FROM link_click
-            WHERE source_node_id = $1 AND target_node_id = $2
-            """,
-            data.source_node_id, data.target_node_id
-        )
+        # Get total count (per link instance if uuid provided, else per source-target pair)
+        if data.node_link_uuid:
+            row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as count FROM link_click
+                WHERE node_link_uuid = $1
+                """,
+                data.node_link_uuid
+            )
+        else:
+            row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as count FROM link_click
+                WHERE source_node_id = $1 AND target_node_id = $2
+                """,
+                data.source_node_id, data.target_node_id
+            )
         click_count = row['count'] if row else 1
     
     return LinkClickResponse(
         source_node_id=data.source_node_id,
         target_node_id=data.target_node_id,
+        node_link_uuid=data.node_link_uuid,
         click_count=click_count,
         last_click_date=now.isoformat(),
     )

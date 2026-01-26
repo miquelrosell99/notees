@@ -29,6 +29,7 @@ export interface NodeActivityCreate {
 export interface LinkClick {
   source_node_id: number;
   target_node_id: number;
+  node_link_uuid?: string | null;  // UUID of the specific link instance
   click_count: number;
   last_click_date?: string | null;
 }
@@ -37,6 +38,7 @@ export interface LinkClickHistory {
   id: number;
   source_node_id: number;
   target_node_id: number;
+  node_link_uuid?: string | null;
   click_date: string;
 }
 
@@ -71,11 +73,19 @@ export async function deleteNodeActivity(nodeId: number, activityId: number): Pr
 
 /**
  * Track a link click
+ * @param sourceNodeId - The node containing the link
+ * @param targetNodeId - The target node being linked to
+ * @param nodeLinkUuid - Optional UUID of the specific link instance
  */
-export async function trackLinkClick(sourceNodeId: number, targetNodeId: number): Promise<LinkClick> {
+export async function trackLinkClick(
+  sourceNodeId: number, 
+  targetNodeId: number,
+  nodeLinkUuid?: string
+): Promise<LinkClick> {
   const response = await api.post<LinkClick>(`${BASE}/link/click`, {
     source_node_id: sourceNodeId,
     target_node_id: targetNodeId,
+    node_link_uuid: nodeLinkUuid,
   });
   return response.data;
 }
