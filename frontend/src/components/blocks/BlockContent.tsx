@@ -25,13 +25,14 @@
  * - Atomic inline behavior - cursor cannot enter links
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useLinkClicks, useNode, useClasses } from '@/hooks';
+import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { sanitizeContent } from '@/utils/linkSanitization';
 import './LinkPill.css';
 
 // Regex for finding links - [[nodeId]] or [[nodeId:linkUuid]] format
@@ -58,8 +59,12 @@ interface BlockContentProps {
 
 /**
  * Parse content into parts (text, links, and inline types)
+ * Content is automatically sanitized to remove editor artifacts.
  */
 function parseContent(content: string): ContentPart[] {
+  // Sanitize content first to remove editor artifacts
+  const sanitizedContent = sanitizeContent(content);
+  
   const parts: ContentPart[] = [];
   
   // Find all matches with their positions
@@ -77,7 +82,7 @@ function parseContent(content: string): ContentPart[] {
   // Find links - supports [[nodeId]] and [[nodeId:linkUuid]] formats
   let match;
   const linkRegex = new RegExp(LINK_REGEX.source, 'g');
-  while ((match = linkRegex.exec(content)) !== null) {
+  while ((match = linkRegex.exec(sanitizedContent)) !== null) {
     matches.push({
       type: 'link',
       id: match[1],  // nodeId
@@ -90,7 +95,7 @@ function parseContent(content: string): ContentPart[] {
   
   // Find inline types
   const typeRegex = new RegExp(TYPE_REGEX.source, 'g');
-  while ((match = typeRegex.exec(content)) !== null) {
+  while ((match = typeRegex.exec(sanitizedContent)) !== null) {
     matches.push({
       type: 'inline-type',
       id: match[1],
@@ -110,7 +115,7 @@ function parseContent(content: string): ContentPart[] {
     if (m.start > lastIndex) {
       parts.push({
         type: 'text',
-        content: content.substring(lastIndex, m.start),
+        content: sanitizedContent.substring(lastIndex, m.start),
       });
     }
     
@@ -126,10 +131,10 @@ function parseContent(content: string): ContentPart[] {
   }
   
   // Add remaining text
-  if (lastIndex < content.length) {
+  if (lastIndex < sanitizedContent.length) {
     parts.push({
       type: 'text',
-      content: content.substring(lastIndex),
+      content: sanitizedContent.substring(lastIndex),
     });
   }
   
@@ -159,8 +164,28 @@ function LinkPill({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDeleteL
   const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
   const { data: allClasses } = useClasses();
   
-  // Display the node name if available, otherwise show the ID
-  const displayText = node?.name || linkId;
+  // Enhanced display resolution with better context for missing/empty nodes
+  const displayText = useMemo(() => {
+    if (!node) {
+      return `[Missing Node ${linkId}]`;
+    }
+    
+    if (!node.name || node.name.trim() === '') {
+      if (node.is_page) {
+        return '[Untitled Page]';
+      } else {
+        return '[Empty Block]';
+      }
+    }
+    
+    // For blocks, truncate long content with ellipsis
+    if (!node.is_page && node.name.length > 50) {
+      return `${node.name.slice(0, 50)}...`;
+    }
+    
+    return node.name;
+  }, [node, linkId]);
+  
   const isPage = node?.is_page ?? true;
   
   // Compute effective icon - considers node's own icon and inherited class icons
@@ -171,7 +196,13 @@ function LinkPill({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDeleteL
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onNavigate(linkId, node, e.shiftKey, linkUuid);
+    
+    // Direct graph navigation - no URL routing
+    if (e.shiftKey) {
+      onNavigate(linkId, node, true, linkUuid);
+    } else {
+      onNavigate(linkId, node, false, linkUuid);
+    }
   }, [linkId, node, onNavigate, linkUuid]);
   
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -352,6 +383,7 @@ export function BlockContent({
 }: BlockContentProps) {
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
   const { openNode, addSidebarCard } = useNodesStore();
+  const trackLinkClick = useTrackLinkClick();
   
   // Parse content into parts
   const parts = useMemo(() => parseContent(content), [content]);
@@ -367,11 +399,26 @@ export function BlockContent({
     return map;
   }, [linkClicksData]);
   
-  // Handle navigation for links (by node ID)
-  // linkUuid is passed but not currently used here - click tracking happens in Block component
-  const handleNavigate = useCallback((linkId: string, node: Node | undefined, openInSidebar: boolean, _linkUuid?: string) => {
+  // Enhanced navigation with explicit click tracking
+  const handleNavigate = useCallback((
+    linkId: string, 
+    node: Node | undefined, 
+    openInSidebar: boolean, 
+    linkUuid?: string
+  ) => {
     if (node) {
       const viewType = node.is_page ? 'page' : 'block';
+      
+      // Track the link click with explicit API call
+      if (blockId) {
+        trackLinkClick.mutate({
+          sourceNodeId: blockId,
+          targetNodeId: node.id,
+          nodeLinkUuid: linkUuid,
+        });
+      }
+      
+      // Perform direct graph navigation
       if (openInSidebar) {
         addSidebarCard(node.id, viewType);
       } else {
@@ -380,7 +427,7 @@ export function BlockContent({
     } else {
       console.warn(`Node not found: ${linkId}`);
     }
-  }, [openNode, addSidebarCard]);
+  }, [openNode, addSidebarCard, blockId, trackLinkClick]);
   
   // If no links, just return plain text
   if (parts.length === 1 && parts[0].type === 'text') {
