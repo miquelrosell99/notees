@@ -22,7 +22,7 @@
   line-height: inherit;
   cursor: pointer;
   user-select: none;
-  vertical-align: baseline;
+  vertical-align: inherit;
   color: var(--color-primary);
   text-decoration: none;
   transition: color 0.15s, text-decoration 0.15s;
@@ -86,8 +86,8 @@
   display: inline;
   margin-right: 2px;
   opacity: 0.8;
-  vertical-align: baseline;
-  font-size: 0.9em;
+  vertical-align: inherit;
+  font-size: inherit;
 }
 
 .link-pill__block-icon {
@@ -97,7 +97,7 @@
 
 /* Text */
 .link-pill__text {
-  vertical-align: middle;
+  vertical-align: inherit;
 }
 
 /* Click count badge */
