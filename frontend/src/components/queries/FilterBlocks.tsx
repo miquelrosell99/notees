@@ -500,10 +500,10 @@ export function ReferencePathFilterBlock({ block, onUpdate, onDelete, readOnly, 
   const refPathBlock = block as ReferencePathBlock;
   const { data: pages } = usePages();
   
-  // Determine if we're in dynamic mode (has non-UUID blocks or multiple blocks)
-  const isDynamic = refPathBlock.blocks.length === 0 || 
-    refPathBlock.blocks.length > 1 || 
-    (refPathBlock.blocks.length === 1 && refPathBlock.blocks[0].type !== 'UUID');
+  // Determine mode: dynamic if has blocks that aren't just UUID blocks
+  const hasDynamicBlocks = refPathBlock.blocks.length > 0 && 
+    refPathBlock.blocks.some(b => b.type !== 'UUID');
+  const isDynamic = hasDynamicBlocks;
   
   // Find selected page by UUID (for static mode - single UUID block)
   const selectedPageId = useMemo(() => {
