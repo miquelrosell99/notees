@@ -84,11 +84,17 @@ function removeNodeFromTree(nodes: Node[], nodeId: number): Node[] {
 
 // ==================== Node Mutations ====================
 
+// Counter for optimistic IDs - negative to avoid collision with real IDs
+// Module-level to ensure uniqueness across all hook instances
+let optimisticIdCounter = -1;
+
 /**
  * Hook to create a node (pages or blocks)
  * 
  * For pages: pass is_page: true
  * For blocks: pass parent_id
+ * 
+ * Uses optimistic updates for blocks to show them immediately.
  */
 export function useCreateNode() {
   const queryClient = useQueryClient();
@@ -100,60 +106,154 @@ export function useCreateNode() {
       if (variables.parent_id) {
         await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(variables.parent_id) });
         await queryClient.cancelQueries({ queryKey: nodeKeys.pageContent(variables.parent_id) });
+        await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
       }
-      // For pages, cancel pages query to prepare for optimistic update
       if (variables.is_page) {
         await queryClient.cancelQueries({ queryKey: nodeKeys.pages() });
       }
+      
+      // Only do optimistic update for blocks (not pages, since pages have more complex state)
+      if (!variables.parent_id) {
+        return { optimisticNode: null };
+      }
+      
+      const parentId = variables.parent_id;
+      
+      // Create an optimistic node
+      // Use a negative ID that will be replaced on success
+      const optimisticId = optimisticIdCounter--;
+      const optimisticNode: Node = {
+        id: optimisticId,
+        uuid: `optimistic-${optimisticId}`,
+        name: variables.name || '',
+        icon: null,
+        color: null,
+        parent_id: parentId,
+        page_id: null, // Will be set by server
+        sequence: variables.sequence ?? 0,
+        collapsed: false,
+        active: true,
+        is_page: false,
+        create_date: new Date().toISOString(),
+        write_date: new Date().toISOString(),
+        children: [],
+      };
+      
+      // Helper to insert node at the correct position in children
+      const insertAtPosition = (children: Node[], pos: number): Node[] => {
+        const newChildren = [...children];
+        newChildren.splice(pos, 0, optimisticNode);
+        // Re-sequence
+        return newChildren.map((child, idx) => ({ ...child, sequence: idx }));
+      };
+      
+      // Helper to update parent's children recursively
+      const addChildToParent = (node: Node): Node => {
+        if (node.id === parentId) {
+          const currentChildren = node.children || [];
+          const pos = variables.sequence ?? currentChildren.length;
+          return {
+            ...node,
+            children: insertAtPosition(currentChildren, pos),
+          };
+        }
+        if (node.children && node.children.length > 0) {
+          return {
+            ...node,
+            children: node.children.map(addChildToParent),
+          };
+        }
+        return node;
+      };
+      
+      // Update all detail queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.details() },
+        (oldNode) => oldNode ? addChildToParent(oldNode) : oldNode
+      );
+      
+      // Update page-content queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: ['nodes', 'page-content'] },
+        (oldNode) => oldNode ? addChildToParent(oldNode) : oldNode
+      );
+      
+      // Update daily cache
+      updateDailyCache(queryClient, addChildToParent);
+      
+      return { optimisticNode, optimisticId };
     },
-    onSuccess: (newNode, variables) => {
-      // Add the new node to the cache (matches any options)
+    onSuccess: (newNode, variables, context) => {
+      const { optimisticId } = context || {};
+      
+      // Add the new node to its own detail cache
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(newNode.id) },
         () => newNode
       );
       
-      // If the node has a parent, update the parent's cached data to include the new child
-      if (variables.parent_id) {
+      // If we had an optimistic node, replace it with the real one
+      if (variables.parent_id && optimisticId) {
         const parentId = variables.parent_id;
         
-        // Helper to update a node's children array, inserting at the correct position by sequence
+        // Helper to replace optimistic node with real node
+        const replaceOptimistic = (node: Node): Node => {
+          if (node.children && node.children.length > 0) {
+            return {
+              ...node,
+              children: node.children.map(child => {
+                if (child.id === optimisticId) {
+                  // Replace optimistic with real node, preserving children if any
+                  return { ...newNode, children: child.children || newNode.children };
+                }
+                return replaceOptimistic(child);
+              }),
+            };
+          }
+          return node;
+        };
+        
+        // Update all caches to replace optimistic node
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.details() },
+          (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
+        );
+        
+        queryClient.setQueriesData<Node>(
+          { queryKey: ['nodes', 'page-content'] },
+          (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
+        );
+        
+        updateDailyCache(queryClient, replaceOptimistic);
+      } else if (variables.parent_id) {
+        // No optimistic update was made, add node to parent now
+        const parentId = variables.parent_id;
+        
         const updateChildrenOptional = (oldNode: Node | undefined): Node | undefined => {
           if (!oldNode) return oldNode;
-          // Check if the new node is already in the children (avoid duplicates)
           const alreadyExists = oldNode.children?.some(c => c.id === newNode.id);
           if (alreadyExists) return oldNode;
           
           const existingChildren = oldNode.children || [];
-          // Insert the new node at the correct position based on sequence
           const insertIndex = existingChildren.findIndex(c => c.sequence >= newNode.sequence);
           const newChildren = insertIndex === -1
-            ? [...existingChildren, newNode] // Add at end if no child has higher sequence
+            ? [...existingChildren, newNode]
             : [
                 ...existingChildren.slice(0, insertIndex),
                 newNode,
                 ...existingChildren.slice(insertIndex),
               ];
           
-          return {
-            ...oldNode,
-            children: newChildren,
-          };
+          return { ...oldNode, children: newChildren };
         };
         
-        // Type-safe updater for updateNodeById (guaranteed non-undefined)
-        const updateChildrenNode = (node: Node): Node => {
-          const result = updateChildrenOptional(node);
-          return result ?? node;
-        };
+        const updateChildrenNode = (node: Node): Node => updateChildrenOptional(node) ?? node;
         
-        // Update the parent node's detail cache (matches any options)
         queryClient.setQueriesData<Node>(
           { queryKey: nodeKeys.detailBase(parentId) },
           updateChildrenOptional
         );
         
-        // Update the parent's page content cache if it exists
         queryClient.setQueriesData<Node>(
           { queryKey: ['nodes', 'page-content'] },
           (oldNode) => {
@@ -162,28 +262,55 @@ export function useCreateNode() {
           }
         );
         
-        // Update daily cache (daily pages have a separate cache key)
-        updateDailyCache(queryClient, (page) => 
-          updateNodeById(page, parentId, updateChildrenNode)
-        );
+        updateDailyCache(queryClient, (page) => updateNodeById(page, parentId, updateChildrenNode));
       }
       
-      // Invalidate list queries for sidebar updates, etc.
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      // Invalidate list queries for sidebar updates (soft invalidate, no refetch)
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.lists(),
+        refetchType: 'none',
+      });
       
-      // If this is a page, optimistically add to pages cache and invalidate
+      // If this is a page, add to pages cache
       if (newNode.is_page) {
-        // Optimistically add new page to the pages cache
         queryClient.setQueryData<Node[]>(nodeKeys.pages(), (oldPages) => {
           if (!oldPages) return [newNode];
-          // Check if already exists (avoid duplicates)
           if (oldPages.some(p => p.id === newNode.id)) return oldPages;
           return [...oldPages, newNode];
         });
-        // Also invalidate to ensure consistency
         queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-        // Invalidate search results so the new page shows up in searches
         queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'search'] });
+      }
+    },
+    onError: (_error, variables, context) => {
+      // Rollback optimistic update on error
+      const { optimisticId } = context || {};
+      
+      if (variables.parent_id && optimisticId) {
+        // Remove the optimistic node from caches
+        const removeOptimistic = (node: Node): Node => {
+          if (node.children && node.children.length > 0) {
+            return {
+              ...node,
+              children: node.children
+                .filter(child => child.id !== optimisticId)
+                .map(removeOptimistic),
+            };
+          }
+          return node;
+        };
+        
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.details() },
+          (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
+        );
+        
+        queryClient.setQueriesData<Node>(
+          { queryKey: ['nodes', 'page-content'] },
+          (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
+        );
+        
+        updateDailyCache(queryClient, removeOptimistic);
       }
     },
   });

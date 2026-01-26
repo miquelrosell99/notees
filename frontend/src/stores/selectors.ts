@@ -235,6 +235,35 @@ export function useBlockSelectionActions() {
   };
 }
 
+/**
+ * Get block navigation actions
+ * Uses getState() since these are action functions that don't need reactive subscriptions
+ */
+export function useBlockNavigationActions() {
+  const state = useBlockSelectionStore.getState();
+  return {
+    getNextBlockId: state.getNextBlockId,
+    getNextSiblingId: state.getNextSiblingId,
+    getAllChildrenIds: state.getAllChildrenIds,
+  };
+}
+
+/**
+ * Get visible block IDs for navigation computations
+ * Note: This IS reactive since the list can change
+ */
+export function useVisibleBlockIds() {
+  return useBlockSelectionStore(state => state.visibleBlockIds);
+}
+
+/**
+ * Get block parent map for hierarchy lookups
+ * Note: This IS reactive since it tracks current tree structure
+ */
+export function useBlockParentMap() {
+  return useBlockSelectionStore(state => state.blockParentMap);
+}
+
 // ==================== Equality Functions ====================
 
 /**

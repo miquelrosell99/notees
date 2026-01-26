@@ -9,10 +9,13 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+from ...logging_config import get_logger
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
     from .link_service import LinkParsingService
+
+logger = get_logger(__name__)
 
 
 # Date-related classes that are automatically assigned by the system (cannot be manually added/removed)
