@@ -54,7 +54,7 @@ export function NodeContent({
   node, 
   children,
   displayMode = 'bullet',
-  cardLayout = 'cover-top',
+  cardLayout = 'no-cover',
   lateNightFilterActive = false,
   totalChildrenCount = 0,
 }: NodeContentProps) {
