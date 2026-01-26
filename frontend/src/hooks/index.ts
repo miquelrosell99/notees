@@ -29,3 +29,4 @@ export * from './useDebouncedSave';
 export * from './useContentSave';
 export * from './useKeyboardShortcuts';
 export * from './useFocusTrap';
+export * from './useProperties';
