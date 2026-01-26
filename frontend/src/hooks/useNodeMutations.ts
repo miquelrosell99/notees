@@ -207,17 +207,12 @@ export function useCreateNode() {
       // DO NOT REFACTOR this back to setQueriesData - it will break optimistic updates at deep nesting levels.
       const queryCache = queryClient.getQueryCache();
       const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
-      console.log('[useCreateNode] parentId:', parentId, 'found', detailQueries.length, 'detail queries');
       for (const query of detailQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
           const newData = addChildToParent(oldData);
-          const changed = newData !== oldData;
-          const opts = query.queryKey[3];
-          console.log('[useCreateNode] key:', JSON.stringify(query.queryKey), 'root:', oldData.id, 'childCount:', oldData.children?.length, 'changed:', changed, 'opts:', JSON.stringify(opts));
-          if (changed) {
+          if (newData !== oldData) {
             queryClient.setQueryData(query.queryKey, newData);
-            console.log('[useCreateNode] UPDATED query, newData children:', newData?.children?.length);
           }
         }
       }
