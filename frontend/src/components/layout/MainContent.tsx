@@ -8,7 +8,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
 import { getNodeColorStyles } from '@/utils/color';
-import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiCardOutline, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiDockBottom } from '@mdi/js';
+import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiDockBottom } from '@mdi/js';
 import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
@@ -125,7 +125,7 @@ export function MainContent() {
                   options={[
                     { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
                     { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
-                    { value: 'card', icon: mdiCardOutline, label: 'Card mode' },
+                    { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
                   ]}
                   value={contentDisplayMode}
                   onChange={(val) => setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
