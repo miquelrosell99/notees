@@ -107,10 +107,10 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
         )
         page_type_id = row['id'] if row else 1
         
-        # Get types property ID
+        # Get classes property ID
         row = await conn.fetchrow(
             "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['types']
+            SYSTEM_PROPERTY_UUIDS['classes']
         )
         types_property_id = row['id'] if row else 1
         
