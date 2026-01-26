@@ -1,5 +1,7 @@
 """Class properties and class extends (inheritance) endpoints."""
+from typing import cast
 from fastapi import APIRouter, HTTPException, Depends
+import asyncpg
 
 from ..auth import get_current_user
 from ...models import User
@@ -157,10 +159,13 @@ async def get_extended_by_classes_endpoint(
     Returns a flat list of classes for display in the 'Extended By' section.
     """
     from ...domain.services.class_extension_service import ClassExtensionService
-    from ...dependencies import get_pool, get_graph_id
+    from ...dependencies import get_pool
+    from ...db.schema import get_or_create_user_graph
     
     pool = await get_pool()
-    graph_id = await get_graph_id(user)
+    user_id = int(user.id)
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
     extension_service = ClassExtensionService(pool, graph_id, repo)
@@ -184,10 +189,13 @@ async def validate_class_extends_endpoint(
     Returns {"valid": true} if OK, or {"valid": false, "error": "..."} if cycle detected.
     """
     from ...domain.services.class_extension_service import ClassExtensionService, CircularInheritanceError
-    from ...dependencies import get_pool, get_graph_id
+    from ...dependencies import get_pool
+    from ...db.schema import get_or_create_user_graph
     
     pool = await get_pool()
-    graph_id = await get_graph_id(user)
+    user_id = int(user.id)
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
     extension_service = ClassExtensionService(pool, graph_id, repo)
