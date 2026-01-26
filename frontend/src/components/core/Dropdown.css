@@ -115,13 +115,22 @@
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 1100;
   margin-top: var(--spacing-1, 4px);
   max-height: 300px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   animation: dropdownFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+  background: var(--color-surface, #ffffff) !important;
+  border: 1px solid var(--color-outline-variant, var(--border-color));
+  border-radius: var(--shape-medium, 6px);
+  box-shadow: var(--elevation-3, 0 4px 12px rgba(0, 0, 0, 0.15));
+}
+
+/* Override Card styles when used in dropdown */
+.dropdown-menu.card {
+  background: var(--color-surface, #ffffff) !important;
 }
 
 @keyframes dropdownFadeIn {

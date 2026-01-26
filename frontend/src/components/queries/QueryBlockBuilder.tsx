@@ -2,7 +2,6 @@
  * QueryBlockBuilder Component
  * 
  * Query builder UI with:
- * - Top-level AND/OR toggle using SelectionButton
  * - Filter rows with field → operator → value layout
  * - NodePicker for relational fields (classes, references, pages)
  * - NodeClassPill for multi-value selections
@@ -13,10 +12,9 @@
  */
 import { useCallback, useMemo } from 'react';
 import { Button } from '../core/Button';
-import { SelectionButton } from '../core/SelectionButton';
 import { FilterBlock } from './FilterBlocks';
 import { AddFilterButton } from './AddFilterButton';
-import { ROOT_LOGIC_OPTIONS, createDefaultBlock, isSystemBlock } from './constants';
+import { createDefaultBlock, isSystemBlock } from './constants';
 import type {
   QueryBlock,
   QueryBlockTree,
@@ -62,13 +60,6 @@ export function QueryBlockBuilder({
     
     return { visibleBlocks: visible, hiddenIndices: hidden };
   }, [blockTree.blocks]);
-  
-  const handleRootTypeChange = useCallback((newType: string) => {
-    onChange({
-      ...blockTree,
-      type: newType as 'AND_CONTAINER' | 'OR_CONTAINER',
-    });
-  }, [blockTree, onChange]);
   
   const handleAddBlock = useCallback((type: QueryBlockType) => {
     onChange({
@@ -116,23 +107,15 @@ export function QueryBlockBuilder({
   
   return (
     <div className={`query-block-builder ${className}`}>
-      {/* Header with logic toggle */}
+      {/* Header with clear button */}
       <div className="query-block-builder__header">
         <span className="query-block-builder__title">Filters</span>
         <div className="query-block-builder__spacer" />
         
         {!readOnly && visibleBlocks.length > 0 && (
-          <>
-            <SelectionButton
-              options={ROOT_LOGIC_OPTIONS}
-              value={blockTree.type}
-              onChange={handleRootTypeChange}
-              size="sm"
-            />
-            <Button size="xs" variant="ghost" onClick={handleClear}>
-              Clear
-            </Button>
-          </>
+          <Button size="xs" variant="ghost" onClick={handleClear}>
+            Clear
+          </Button>
         )}
       </div>
       
