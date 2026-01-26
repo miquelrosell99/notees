@@ -109,7 +109,7 @@ export function NodeCollectionToolbar({
   onGroupByChange,
   showAddButton = false,
   onAdd,
-  cardLayout = 'cover-top',
+  cardLayout = 'no-cover',
   onCardLayoutChange,
   className = '',
 }: NodeCollectionToolbarProps) {

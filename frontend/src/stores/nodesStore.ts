@@ -157,7 +157,7 @@ export const useNodesStore = create<NodesState>()((set) => ({
   isMinimapOpen: false,
   // New features state
   contentDisplayMode: 'bullet' as ContentDisplayMode,
-  cardLayout: 'cover-top' as CardLayoutMode,
+  cardLayout: 'no-cover' as CardLayoutMode,
   isScratchpadOpen: false,
   lateNightThoughtsFilter: false,
   

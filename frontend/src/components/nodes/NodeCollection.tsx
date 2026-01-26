@@ -125,7 +125,7 @@ export function NodeCollection({
   hideToolbar = false,
   showAddButton = false,
   onAdd,
-  cardLayout = 'cover-top',
+  cardLayout = 'no-cover',
   onCardLayoutChange,
 }: NodeCollectionProps) {
   // Internal groupBy state (controlled or uncontrolled)

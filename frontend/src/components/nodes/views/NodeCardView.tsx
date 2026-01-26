@@ -28,7 +28,7 @@ export function NodeCardView({
   nodes,
   depth = 0,
   maxDepth = 2,
-  layout = 'cover-top',
+  layout = 'no-cover',
   columns,
   sortable,
   editable = true,
