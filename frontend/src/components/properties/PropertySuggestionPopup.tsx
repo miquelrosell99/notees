@@ -18,7 +18,6 @@ import './PropertySuggestionPopup.css';
 /** System property UUIDs that should be hidden from the "Add property" menu */
 const HIDDEN_PROPERTY_UUIDS = new Set<string>([
   SYSTEM_PROPERTY_UUIDS.cover,
-  SYSTEM_PROPERTY_UUIDS.types,
   SYSTEM_PROPERTY_UUIDS.show_hierarchy,
   SYSTEM_PROPERTY_UUIDS.banner,
 ]);

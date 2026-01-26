@@ -30,7 +30,7 @@ export function getEffectiveIcon(
   }
   
   // If the node has classes and we have class data, try to inherit icon from first class with an icon
-  const classIds = node.classes ?? node.types;
+  const classIds = node.classes;
   if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
     for (const classId of classIds) {
       const classNode = allClasses.find(c => c.id === classId);

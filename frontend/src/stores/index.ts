@@ -83,7 +83,6 @@ export {
   formatShortcutKey,
   matchesShortcut,
   SHORTCUT_IDS,
-  type ShortcutId,
   type ShortcutContext,
   type ShortcutDefinition,
   type ModifierKeys,

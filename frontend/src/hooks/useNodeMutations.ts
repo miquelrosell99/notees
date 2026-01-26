@@ -22,10 +22,7 @@ import { nodeKeys, propertyKeys } from './queryKeys';
  * Returns a new tree with the target node updated.
  * IMPORTANT: Only returns a new object reference if the node was actually found and updated.
  * This is critical for React's reconciliation - if nothing changed, same reference must be returned.
- * Overloaded to handle optional node input for cache updaters.
  */
-function updateNodeById(node: Node, targetId: number, updater: (n: Node) => Node): Node;
-function updateNodeById(node: Node | undefined, targetId: number, updater: (n: Node) => Node): Node | undefined;
 function updateNodeById(node: Node | undefined, targetId: number, updater: (n: Node) => Node): Node | undefined {
   if (!node) return undefined;
   if (node.id === targetId) {
@@ -242,8 +239,6 @@ export function useCreateNode() {
       
       // If we had an optimistic node, replace it with the real one
       if (variables.parent_id && optimisticId) {
-        const parentId = variables.parent_id;
-        
         // Helper to replace optimistic node with real node
         const replaceOptimistic = (node: Node): Node => {
           if (node.children && node.children.length > 0) {
@@ -273,8 +268,6 @@ export function useCreateNode() {
         );
       } else if (variables.parent_id) {
         // No optimistic update was made, add node to parent now
-        const parentId = variables.parent_id;
-        
         const updateChildrenOptional = (oldNode: Node | undefined): Node | undefined => {
           if (!oldNode) return oldNode;
           const alreadyExists = oldNode.children?.some(c => c.id === newNode.id);
@@ -293,10 +286,8 @@ export function useCreateNode() {
           return { ...oldNode, children: newChildren };
         };
         
-        const updateChildrenNode = (node: Node): Node => updateChildrenOptional(node) ?? node;
-        
         queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(parentId) },
+          { queryKey: nodeKeys.detailBase(variables.parent_id) },
           updateChildrenOptional
         );
         

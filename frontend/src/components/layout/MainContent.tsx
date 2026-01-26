@@ -47,16 +47,11 @@ export function MainContent() {
     return getNodeColorStyles(currentNode.color, isDarkMode);
   }, [currentNode, isDarkMode]);
   
-  // Handle shift-click on page bullets in All Pages view
-  const handlePageShiftClick = (page: Node) => {
-    addSidebarCard(page.id, 'page');
-  };
-  
   // Render different views based on mainViewType
   if (mainViewType === 'all-pages') {
     return (
       <main className="main-content">
-        <AllPagesView onPageShiftClick={handlePageShiftClick} />
+        <AllPagesView />
       </main>
     );
   }

@@ -309,7 +309,6 @@ export function PropertyNodesView({
               title: n.name || 'Untitled',
               type: 'page' as const,
               tags: n.tags?.map(t => String(t)) || [],
-              types: n.types || [],
               properties: {},
               is_daily: n.is_daily || false,
             }))}
