@@ -86,3 +86,21 @@
   color: var(--text-tertiary);
   margin-left: auto;
 }
+
+.context-menu-arrow {
+  font-size: 16px;
+  color: var(--text-tertiary);
+  margin-left: auto;
+}
+
+.context-menu-item.has-submenu {
+  position: relative;
+}
+
+.context-menu-submenu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 220px;
+  max-width: 320px;
+  animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+}
