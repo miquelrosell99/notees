@@ -32,6 +32,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { ToggleSwitch } from '../core/ToggleSwitch';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
+import { TextField } from '../core/TextField';
 import { QueryBlockBuilder } from '../queries';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
@@ -389,8 +390,51 @@ export function DynamicNodeViewSection({
           setEditViewName('');
         }}
         title="Edit View"
-        size="lg"
+        size="xl"
         className="dynamic-section__edit-modal"
+        footer={editingView && (
+          <div className="dynamic-section__modal-footer">
+            {/* Only show delete button if there are multiple views of this type */}
+            {views.filter(v => v.view_type === editingView.view_type).length > 1 && (
+              <InlineConfirmButton
+                onConfirm={handleDeleteView}
+                variant="danger"
+                size="sm"
+                title="Delete view"
+                confirmTitle="Confirm delete"
+                className="dynamic-section__delete-btn"
+              >
+                <DeleteIcon size="sm" />
+              </InlineConfirmButton>
+            )}
+            <div className="dynamic-section__footer-spacer" />
+            <TextField
+              id="view-name"
+              value={editViewName}
+              onChange={(e) => setEditViewName(e.target.value)}
+              placeholder="View name..."
+              size="sm"
+              className="dynamic-section__view-name-field"
+            />
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setEditingView(null);
+                setEditBlockTree(null);
+                setEditViewName('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveEdit}
+              disabled={updateBlockTreeMutation.isPending || updateViewMutation.isPending}
+            >
+              {(updateBlockTreeMutation.isPending || updateViewMutation.isPending) ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        )}
       >
         {editingView && editBlockTree && (
           <div className="dynamic-section__edit-form">
@@ -444,54 +488,6 @@ export function DynamicNodeViewSection({
                 </p>
               </div>
             )}
-
-            {/* Footer with name and actions */}
-            <div className="dynamic-section__edit-footer">
-              <div className="dynamic-section__edit-name">
-                <label htmlFor="view-name" className="dynamic-section__edit-name-label">
-                  View Name
-                </label>
-                <input
-                  id="view-name"
-                  type="text"
-                  className="dynamic-section__edit-name-input"
-                  value={editViewName}
-                  onChange={(e) => setEditViewName(e.target.value)}
-                  placeholder="Enter view name..."
-                />
-              </div>
-              
-              <div className="dynamic-section__edit-actions">
-                <InlineConfirmButton
-                  onConfirm={handleDeleteView}
-                  variant="danger"
-                  size="sm"
-                  title="Delete view"
-                  confirmTitle="Confirm delete"
-                  className="dynamic-section__delete-btn"
-                >
-                  <DeleteIcon size="sm" />
-                </InlineConfirmButton>
-                <div className="dynamic-section__edit-spacer" />
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingView(null);
-                    setEditBlockTree(null);
-                    setEditViewName('');
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleSaveEdit}
-                  disabled={updateBlockTreeMutation.isPending || updateViewMutation.isPending}
-                >
-                  {(updateBlockTreeMutation.isPending || updateViewMutation.isPending) ? 'Saving...' : 'Save'}
-                </Button>
-              </div>
-            </div>
           </div>
         )}
       </Modal>
