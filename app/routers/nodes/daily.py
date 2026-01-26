@@ -134,7 +134,16 @@ async def get_or_create_daily(
                 is_page=True,
                 is_year=True,
             )
-            year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
+            try:
+                year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
+            except Exception as e:
+                # Handle race condition - another request may have created it
+                if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+                    year_node = await service._node_repo.get_by_uuid(year_uuid)
+                    if not year_node:
+                        raise
+                else:
+                    raise
         
         # 2. Ensure month page exists (always, even for existing day pages)
         month_uuid = generate_month_uuid(d.year, d.month)
@@ -148,7 +157,16 @@ async def get_or_create_daily(
                 is_page=True,
                 is_month=True,
             )
-            month_node = await service._node_repo.create_with_uuid(month_uuid, month_data)
+            try:
+                month_node = await service._node_repo.create_with_uuid(month_uuid, month_data)
+            except Exception as e:
+                # Handle race condition - another request may have created it
+                if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+                    month_node = await service._node_repo.get_by_uuid(month_uuid)
+                    if not month_node:
+                        raise
+                else:
+                    raise
         elif month_node.parent_id != year_node.id and month_node.id is not None:
             # Update parent_id if not set correctly
             await service.update_node(month_node.id, NodeUpdateData(parent_id=year_node.id))
