@@ -12,46 +12,20 @@ import { useMemo } from 'react';
 import { useNodesStore } from '@/stores';
 import { 
   mdiGroup,
-  mdiFormatListBulleted, 
-  mdiFileDocumentOutline, 
-  mdiViewGrid, 
-  mdiTable, 
-  mdiChartGantt, 
-  mdiGraphOutline,
   mdiPlus,
   mdiCardOutline,
-  mdiCardTextOutline,
   mdiDockLeft,
   mdiDockRight,
   mdiDockTop,
   mdiDockBottom,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
+import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
 import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { Button } from '../core/Button';
 import './NodeCollectionToolbar.css';
-
-// View mode icon mappings
-const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
-  list: mdiFormatListBulleted,
-  document: mdiFileDocumentOutline,
-  card: mdiViewGrid,
-  table: mdiTable,
-  gantt: mdiChartGantt,
-  graph: mdiGraphOutline,
-};
-
-// View mode labels
-const VIEW_MODE_LABELS: Record<NodeCollectionViewMode, string> = {
-  list: 'List',
-  document: 'Document',
-  card: 'Cards',
-  table: 'Table',
-  gantt: 'Gantt',
-  graph: 'Graph',
-};
 
 // Card layout mode icon mappings
 const CARD_LAYOUT_ICONS: Record<string, string> = {
@@ -103,14 +77,14 @@ export interface NodeCollectionToolbarProps {
  */
 export function NodeCollectionToolbar({
   viewMode,
-  availableViewModes = ['list', 'table', 'card', 'document', 'gantt', 'graph'],
+  availableViewModes = DEFAULT_VIEW_MODES_ORDER,
   onViewModeChange,
   showGroupBy = false,
   groupBy = 'page',
   onGroupByChange,
   showAddButton = false,
   onAdd,
-  cardLayout = 'no-cover',
+  cardLayout,
   onCardLayoutChange,
   className = '',
 }: NodeCollectionToolbarProps) {

@@ -46,6 +46,7 @@ import type {
   NodeCollectionContextValue,
   NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
+import { DEFAULT_VIEW_MODES_ORDER } from '@/types/viewModes';
 import { 
   NodeListView, 
   NodeDocumentView, 
@@ -126,12 +127,13 @@ export function NodeCollection({
   hideToolbar = false,
   showAddButton = false,
   onAdd,
-  cardLayout = 'no-cover',
+  cardLayout,
   onCardLayoutChange,
 }: NodeCollectionProps) {
-  // Use store for card layout if not controlled
+  // Always use store for card layout to ensure reactivity
+  // Components can still pass cardLayout to override if needed for specific cases
   const storeCardLayout = useNodesStore(state => state.cardLayout);
-  const effectiveCardLayout = cardLayout !== 'no-cover' || onCardLayoutChange ? cardLayout : storeCardLayout;
+  const effectiveCardLayout = cardLayout ?? storeCardLayout;
   
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
@@ -145,7 +147,7 @@ export function NodeCollection({
   };
   
   // Determine which view modes are available
-  const effectiveViewModes = availableViewModes ?? ['list', 'table', 'card', 'document', 'gantt', 'graph'];
+  const effectiveViewModes = availableViewModes ?? DEFAULT_VIEW_MODES_ORDER;
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
   const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
