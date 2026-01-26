@@ -601,7 +601,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           icon={<TableIcon size="sm" />}
           count={classedNodes?.length ?? 0}
           defaultExpanded={true}
-          hideWhenEmpty={true}
+          hideWhenEmpty={false}
           headerActions={<ClassedNodesSectionToolbar state={classedNodesToolbarState} />}
         >
           <ClassedNodesView 
