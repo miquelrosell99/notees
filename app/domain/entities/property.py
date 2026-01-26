@@ -78,9 +78,9 @@ class Property:
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
     
-    # For node-type properties: type IDs that filter selectable nodes
-    # Stored in property_type_filter table
-    _type_filters: List[int] = field(default_factory=list, repr=False)
+    # For node-type properties: class IDs that filter selectable nodes
+    # Stored in property_class_filter table
+    _class_filters: List[int] = field(default_factory=list, repr=False)
     
     # For selection-type properties: available options
     # Stored in property_selection_line table
@@ -125,14 +125,14 @@ class PropertySelectionLine:
 
 
 @dataclass
-class PropertyTypeFilter:
-    """Links a property to type nodes that filter selectable nodes.
+class PropertyClassFilter:
+    """Links a property to class nodes that filter selectable nodes.
     
-    Used for node-type properties to restrict which nodes can be selected.
+    Used for node-class properties to restrict which nodes can be selected.
     """
     id: Optional[int] = None
     property_id: int = 0
-    type_node_id: int = 0  # The type node that filters
+    class_node_id: int = 0  # The class node that filters
 
 
 # Type alias for property values (used in NodeProperty)
@@ -334,16 +334,16 @@ class PropertyValueSelection:
 
 
 @dataclass
-class TypeProperty:
-    """Links a type/class to properties it applies to nodes with that type.
+class ClassProperty:
+    """Links a class to properties it applies to nodes with that class.
     
-    When a node gets a type, it automatically gets these properties
+    When a node gets a class, it automatically gets these properties
     with either the default value or empty.
     """
     id: Optional[int] = None
-    type_node_id: int = 0  # The type node
+    class_node_id: int = 0  # The class node
     property_id: int = 0  # The property to apply
-    sequence: int = 0  # Order of properties on the type
+    sequence: int = 0  # Order of properties on the class
     hidden: bool = False  # Whether this property is hidden by default in the UI
     
     # Default values (polymorphic - only one is used based on property type)
@@ -356,31 +356,27 @@ class TypeProperty:
 
 
 @dataclass
-class TypeExtend:
-    """Links a type/class to other types it extends (inherits from).
+class ClassExtend:
+    """Links a class to other classes it extends (inherits from).
     
-    When a type extends another type, nodes with that type will
-    also have the properties defined on the extended types.
+    When a class extends another class, nodes with that class will
+    also have the properties defined on the extended classes.
     
-    Schema fields (type_extend table):
-    - target_id: The child type node that extends another
-    - source_id: The parent type node being extended
-    - sequence: Order of extended types
+    Schema fields (class_extend table):
+    - target_id: The child class node that extends another
+    - source_id: The parent class node being extended
+    - sequence: Order of extended classes
     """
     id: Optional[int] = None
-    target_id: int = 0  # The child type node
-    source_id: int = 0  # The parent type node being extended
-    sequence: int = 0  # Order of extended types
+    target_id: int = 0  # The child class node
+    source_id: int = 0  # The parent class node being extended
+    sequence: int = 0  # Order of extended classes
     
     # Legacy aliases for backward compatibility
     @property
-    def type_node_id(self) -> int:
+    def class_node_id(self) -> int:
         return self.target_id
     
     @property
-    def extends_type_node_id(self) -> int:
+    def extends_class_node_id(self) -> int:
         return self.source_id
-
-
-# Legacy alias for backward compatibility
-TypeExtends = TypeExtend

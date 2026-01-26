@@ -21,7 +21,7 @@ import {
   useClassProperties,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import type { Property, Node, TypeProperty } from '@/types/api';
+import type { Property, Node, ClassProperty } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
@@ -274,11 +274,11 @@ export function PropertiesSection({
   
   // Get class properties for all classes the node has (with inheritance)
   // We need to fetch properties for each class
-  const firstClassId = node?.types?.[0] ?? null;
+  const firstClassId = node?.classes?.[0] ?? null;
   const { data: classProperties1 } = useClassProperties(firstClassId, true);
-  const secondClassId = node?.types?.[1] ?? null;
+  const secondClassId = node?.classes?.[1] ?? null;
   const { data: classProperties2 } = useClassProperties(secondClassId, true);
-  const thirdClassId = node?.types?.[2] ?? null;
+  const thirdClassId = node?.classes?.[2] ?? null;
   const { data: classProperties3 } = useClassProperties(thirdClassId, true);
 
   // Combine properties from all types and existing node properties
@@ -289,7 +289,7 @@ export function PropertiesSection({
     const addedPropertyIds = new Set<number>();
     
     // First, add properties from types (with inheritance)
-    const allClassProperties: TypeProperty[] = [
+    const allClassProperties: ClassProperty[] = [
       ...(classProperties1 ?? []),
       ...(classProperties2 ?? []),
       ...(classProperties3 ?? []),
@@ -321,7 +321,7 @@ export function PropertiesSection({
       entries.push({
         property: prop,
         value,
-        source: classProp.type_node_name || `Class #${classProp.type_node_id}`,
+        source: classProp.class_node_name || `Class #${classProp.class_node_id}`,
         hidden: classProp.hidden ?? false,
       });
     }
@@ -407,7 +407,7 @@ export function PropertiesSection({
         // Add the property to this node with empty value
         setPropertyMutation.mutate({ nodeId, propertyId: newProperty.id, value: '' });
         // Open config panel to edit the newly created property
-        setConfigPanelPosition(propertyPopupPosition);
+        setConfigPanelPosition({ x: propertyPopupPosition.left, y: propertyPopupPosition.top });
         setEditingProperty(newProperty);
         setShowConfigPanel(true);
       },

@@ -1511,7 +1511,7 @@ export function BlockEditor({
     const updatedLinkNames = new Map(linkNames);
     if (trigger.type === 'link' || (trigger.type === 'tag' && keepInline)) {
       // Compute effective icon for the inserted node
-      const nodeEffectiveIcon = getEffectiveIcon(node, allTypes ?? []);
+      const nodeEffectiveIcon = getEffectiveIcon(node, allClasses ?? []);
       updatedLinkNames.set(String(node.id), {
         name: node.name || node.display_name || 'Untitled',
         isPage: node.is_page || node.parent_id === null,

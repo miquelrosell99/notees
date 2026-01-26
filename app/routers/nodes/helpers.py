@@ -30,7 +30,7 @@ def _node_to_response(
 ) -> NodeResponse:
     """Convert domain Node to API response.
     
-    The is_type, is_page, is_daily, etc. flags are stored on the node and
+    The is_class, is_page, is_daily, etc. flags are stored on the node and
     automatically updated when classes change (via add_class/remove_class).
     """
     return NodeResponse(
@@ -45,7 +45,7 @@ def _node_to_response(
         collapsed=node.collapsed,
         active=node.active,
         is_page=node.is_page,
-        is_type=node.is_type,
+        is_class=node.is_class,
         is_daily=node.is_day,
         is_monthly=node.is_month,
         is_yearly=node.is_year,
@@ -284,7 +284,7 @@ async def _get_node_service(user: User) -> NodeService:
         
         # Get system IDs (cached in real implementation)
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'page' AND is_type = TRUE AND graph_id = $1 LIMIT 1",
+            "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
             graph_id
         )
         page_class_id = row['id'] if row else 1

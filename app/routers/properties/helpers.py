@@ -48,7 +48,7 @@ def _property_to_response(prop: Property) -> PropertyResponse:
         node_id=prop.node_id,
         create_date=prop.create_date,
         write_date=prop.write_date,
-        type_filters=prop._type_filters,
+        class_filters=prop._class_filters,
         selection_lines=[
             SelectionLineResponse(
                 id=l.id,  # type: ignore[arg-type]  # id is always set for persisted lines

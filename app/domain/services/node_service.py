@@ -33,7 +33,7 @@ CLASS_CLASS_UUID = SYSTEM_CLASS_UUIDS["class"]
 
 # Mapping from class UUID to the node flag field name
 CLASS_UUID_TO_FLAG = {
-    SYSTEM_CLASS_UUIDS["class"]: "is_type",
+    SYSTEM_CLASS_UUIDS["class"]: "is_class",
     SYSTEM_CLASS_UUIDS["page"]: "is_page",
     SYSTEM_CLASS_UUIDS["day"]: "is_day",
     SYSTEM_CLASS_UUIDS["month"]: "is_month",
@@ -84,7 +84,7 @@ class NodeService:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
         
-        # Apply SuperClass properties if any classes have associated properties
+        # Apply Class properties if any classes have associated properties
         # TODO: Implement property value setting based on ClassProperty defaults
         # This requires determining the property class and using the appropriate
         # set_scalar_value, set_relation_value, or set_selection_value method
@@ -217,7 +217,7 @@ class NodeService:
         if not row:
             return False
         
-        node = self._node_repo._row_to_node(row)
+        node = self._node_repo.row_to_node(row)
         
         # Prevent deletion of month/year pages that have active day children
         if node.is_month or node.is_year:
@@ -459,12 +459,12 @@ class NodeService:
             setattr(update_data, flag_name, True)
             await self._node_repo.update(node_id, update_data)
         
-        # Apply SuperClass properties
+        # Apply Class properties
         class_properties = await self._property_repo.get_class_properties(class_node_id)
-        for tp in class_properties:
+        for cp in class_properties:
             default_value = (
-                tp.default_integer or tp.default_float or tp.default_text or
-                tp.default_boolean or tp.default_node_id or tp.default_selection_id
+                cp.default_integer or cp.default_float or cp.default_text or
+                cp.default_boolean or cp.default_node_id or cp.default_selection_id
             )
             if default_value is not None:
                 # TODO: Set property values based on class

@@ -11,10 +11,9 @@ from .property import (
     Property,
     PropertyType,
     PropertySelectionLine,
-    PropertyTypeFilter,
-    TypeProperty,
-    TypeExtend,
-    TypeExtends,  # Legacy alias
+    PropertyClassFilter,
+    ClassProperty,
+    ClassExtend,
     NodeProperty,
     PropertyValueScalar,
     PropertyValueRelation,
@@ -26,7 +25,6 @@ from .property import (
 from .link import (
     NodeLink,
     InlineClass,
-    InlineType,  # Backwards compatibility alias
     BacklinkInfo,
 )
 from .user import (
@@ -65,10 +63,9 @@ __all__ = [
     "Property",
     "PropertyType",
     "PropertySelectionLine",
-    "PropertyTypeFilter",
-    "TypeProperty",
-    "TypeExtend",
-    "TypeExtends",  # Legacy alias
+    "PropertyClassFilter",
+    "ClassProperty",
+    "ClassExtend",
     "NodeProperty",
     "PropertyValueScalar",
     "PropertyValueRelation",
@@ -78,7 +75,7 @@ __all__ = [
     "ALWAYS_SINGLE_TYPES",
     # Link
     "NodeLink",
-    "InlineType",
+    "InlineClass",
     # User
     "User",
     "UserCreateData",

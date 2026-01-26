@@ -41,12 +41,8 @@ LINK_PATTERN = re.compile(r'\[\[(\d+)(?::([a-f0-9-]+))?\]\]')
 # Regex pattern for parsing inline classes - {{classId}} format
 INLINE_CLASS_PATTERN = re.compile(r'\{\{(\d+)\}\}')
 
-# Backwards compatibility alias
-INLINE_TYPE_PATTERN = INLINE_CLASS_PATTERN
-
 # System property name to exclude from backlinks
 CLASSES_PROPERTY_NAME = "classes"
-TYPES_PROPERTY_NAME = CLASSES_PROPERTY_NAME  # Backwards compatibility
 
 
 def generate_link_uuid() -> str:
@@ -71,19 +67,12 @@ class LinkParsingService:
         property_repository: Optional[PropertyRepository] = None,
         classes_property_id: Optional[int] = None,
         inline_class_repository: Optional[Any] = None,
-        # Backwards compatibility aliases
-        types_property_id: Optional[int] = None,
-        inline_type_repository: Optional[Any] = None,
     ):
         self._node_repo = node_repository
         self._link_repo = link_repository
         self._property_repo = property_repository
-        # Use new names or fall back to old names for backwards compatibility
-        self._classes_property_id = classes_property_id or types_property_id
-        self._inline_class_repo = inline_class_repository or inline_type_repository
-        # Backwards compatibility aliases
-        self._types_property_id = self._classes_property_id
-        self._inline_type_repo = self._inline_class_repo
+        self._classes_property_id = classes_property_id
+        self._inline_class_repo = inline_class_repository
     
     def parse_links(self, content: str) -> List[Tuple[int, int, Optional[str]]]:
         """Parse content and extract all links.
@@ -122,10 +111,6 @@ class LinkParsingService:
                 continue
         
         return inline_classes
-    
-    # Backwards compatibility alias
-    def parse_inline_types(self, content: str) -> List[Tuple[int, int]]:
-        return self.parse_inline_classes(content)
 
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
@@ -376,10 +361,6 @@ class LinkParsingService:
         
         return created_inline_classes
     
-    # Backwards compatibility alias
-    async def update_inline_types(self, node_id: int, content: str) -> List[InlineClass]:
-        return await self.update_inline_classes(node_id, content)
-    
     async def get_inline_classes_for_node(self, node_id: int) -> List[InlineClass]:
         """Get all inline class references for a node.
         
@@ -392,10 +373,6 @@ class LinkParsingService:
         if not self._inline_class_repo:
             return []
         return await self._inline_class_repo.get_source_inline_classes(node_id)
-    
-    # Backwards compatibility alias
-    async def get_inline_types_for_node(self, node_id: int) -> List[InlineClass]:
-        return await self.get_inline_classes_for_node(node_id)
     
     async def update_property_links(
         self, 

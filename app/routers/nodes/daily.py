@@ -33,11 +33,11 @@ async def list_daily_pages(
     service = await _get_node_service(user)
     
     # Query nodes with is_day=1, ordered by uuid (which is YYYYMMDD format)
-    # Exclude type pages (is_type=1) to filter out the "day" type page itself
+    # Exclude class pages (is_class=1) to filter out the "day" class page itself
     async with service._pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT * FROM node 
-            WHERE is_day = TRUE AND active = TRUE AND is_type = FALSE AND graph_id = $1
+            WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND graph_id = $1
             ORDER BY uuid DESC
         """, service._graph_id)
     

@@ -111,10 +111,6 @@ class InlineClass:
         return self.create_date
 
 
-# Backwards compatibility alias
-InlineType = InlineClass
-
-
 @dataclass
 class BacklinkInfo:
     """Extended backlink information with provenance for display.

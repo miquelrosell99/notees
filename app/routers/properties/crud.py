@@ -77,10 +77,10 @@ async def create_property(
     
     assert created.id is not None, "Created property must have ID"
     
-    # Add type filters for relation-type properties
+    # Add class filters for relation-type properties
     if prop_type in RELATION_TYPES:
-        for type_id in request.type_filters:
-            await repo.add_type_filter(created.id, type_id)
+        for class_id in request.class_filters:
+            await repo.add_class_filter(created.id, class_id)
     
     # Add selection lines for selection-type properties
     if prop_type == PropertyType.SELECTION:
@@ -271,7 +271,7 @@ async def get_nodes_with_property(
         for node_id in node_ids:
             # Get node details
             node_row = await conn.fetchrow(
-                """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_type,
+                """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_class,
                    create_date, write_date FROM node 
                    WHERE id = $1 AND graph_id = $2 AND active = TRUE""",
                 node_id, graph_id
@@ -288,7 +288,7 @@ async def get_nodes_with_property(
                 "parent_id": node_row['parent_id'],
                 "page_id": node_row['page_id'],
                 "is_page": bool(node_row['is_page']),
-                "is_type": bool(node_row['is_type']),
+                "is_class": bool(node_row['is_class']),
                 "create_date": node_row['create_date'].isoformat() if node_row['create_date'] else None,
                 "write_date": node_row['write_date'].isoformat() if node_row['write_date'] else None,
             })

@@ -8,7 +8,7 @@ import type {
   PropertyUpdate,
   PropertiesResponse,
   SelectionOption,
-  TypeProperty,
+  ClassProperty,
   ClassPropertiesResponse,
   ClassExtends,
   ClassExtendsResponse,
@@ -124,7 +124,7 @@ export async function removeTagFilter(
 export async function getClassProperties(
   classNodeId: number,
   includeInherited: boolean = false
-): Promise<TypeProperty[]> {
+): Promise<ClassProperty[]> {
   const response = await api.get<ClassPropertiesResponse>(
     `${BASE}/classes/${classNodeId}/properties`,
     { params: { include_inherited: includeInherited } }
@@ -140,8 +140,8 @@ export async function addClassProperty(
   propertyId: number,
   sequence?: number,
   defaultValue?: unknown
-): Promise<TypeProperty> {
-  const response = await api.post<TypeProperty>(
+): Promise<ClassProperty> {
+  const response = await api.post<ClassProperty>(
     `${BASE}/classes/${classNodeId}/properties`,
     {
       property_id: propertyId,

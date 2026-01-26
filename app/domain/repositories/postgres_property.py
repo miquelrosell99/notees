@@ -24,7 +24,7 @@ import asyncpg
 
 from ..entities import (
     Property, PropertyType, PropertySelectionLine,
-    PropertyTypeFilter, TypeProperty, TypeExtend,
+    PropertyClassFilter, ClassProperty, ClassExtend,
     NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     SCALAR_TYPES, RELATION_TYPES, ALWAYS_SINGLE_TYPES,
     generate_uuid,
@@ -186,11 +186,11 @@ class PostgresPropertyRepository(PropertyRepository):
             write_date=write_date,
         )
     
-    def _row_to_type_property(self, row: asyncpg.Record) -> TypeProperty:
-        """Convert database row to TypeProperty entity."""
-        return TypeProperty(
+    def _row_to_class_property(self, row: asyncpg.Record) -> ClassProperty:
+        """Convert database row to ClassProperty entity."""
+        return ClassProperty(
             id=row['id'],
-            type_node_id=row['type_node_id'],
+            class_node_id=row['class_node_id'],
             property_id=row['property_id'],
             sequence=row.get('sequence', 0),
             hidden=row.get('hidden', False),
@@ -259,13 +259,13 @@ class PostgresPropertyRepository(PropertyRepository):
             
             prop = self._row_to_property(row)
             
-            # Load type filters
+            # Load class filters
             if prop.type in RELATION_TYPES:
                 filter_rows = await conn.fetch(
-                    "SELECT type_node_id FROM property_type_filter WHERE property_id = $1",
+                    "SELECT class_node_id FROM property_class_filter WHERE property_id = $1",
                     property_id
                 )
-                prop._type_filters = [f['type_node_id'] for f in filter_rows]
+                prop._class_filters = [f['class_node_id'] for f in filter_rows]
             
             # Load selection lines
             if prop.type == PropertyType.SELECTION:
@@ -840,39 +840,39 @@ class PostgresPropertyRepository(PropertyRepository):
             )
             return int(result.split()[-1]) if result else 0
     
-    # ============== Type Filters ==============
+    # ============== Class Filters ==============
     
-    async def add_type_filter(self, property_id: int, type_node_id: int) -> PropertyTypeFilter:
-        """Add a type filter to a relation-type property."""
+    async def add_class_filter(self, property_id: int, class_node_id: int) -> PropertyClassFilter:
+        """Add a class filter to a relation-type property."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property_type_filter (property_id, type_node_id)
+                INSERT INTO property_class_filter (property_id, class_node_id)
                 VALUES ($1, $2)
                 ON CONFLICT DO NOTHING
                 RETURNING id
-            """, property_id, type_node_id)
+            """, property_id, class_node_id)
             
-            return PropertyTypeFilter(
+            return PropertyClassFilter(
                 id=row['id'] if row else 0,
                 property_id=property_id,
-                type_node_id=type_node_id,
+                class_node_id=class_node_id,
             )
     
-    async def get_type_filters(self, property_id: int) -> List[int]:
-        """Get all type filter node IDs for a property."""
+    async def get_class_filters(self, property_id: int) -> List[int]:
+        """Get all class filter node IDs for a property."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT type_node_id FROM property_type_filter WHERE property_id = $1",
+                "SELECT class_node_id FROM property_class_filter WHERE property_id = $1",
                 property_id
             )
-            return [row['type_node_id'] for row in rows]
+            return [row['class_node_id'] for row in rows]
     
-    async def remove_type_filter(self, property_id: int, type_node_id: int) -> bool:
-        """Remove a type filter from a property."""
+    async def remove_class_filter(self, property_id: int, class_node_id: int) -> bool:
+        """Remove a class filter from a property."""
         async with self._pool.acquire() as conn:
             result = await conn.execute(
-                "DELETE FROM property_type_filter WHERE property_id = $1 AND type_node_id = $2",
-                property_id, type_node_id
+                "DELETE FROM property_class_filter WHERE property_id = $1 AND class_node_id = $2",
+                property_id, class_node_id
             )
             return result == "DELETE 1"
     
@@ -990,59 +990,59 @@ class PostgresPropertyRepository(PropertyRepository):
                 node_id, property_id
             )
     
-    # ============== Type Properties ==============
+    # ============== Class Properties ==============
     
-    async def get_type_properties(self, type_node_id: int) -> List[TypeProperty]:
-        """Get properties that a type applies to typed nodes."""
+    async def get_class_properties(self, class_node_id: int) -> List[ClassProperty]:
+        """Get properties that a class applies to classed nodes."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM type_property WHERE type_node_id = $1 ORDER BY sequence",
-                type_node_id
+                "SELECT * FROM class_property WHERE class_node_id = $1 ORDER BY sequence",
+                class_node_id
             )
-            return [self._row_to_type_property(row) for row in rows]
+            return [self._row_to_class_property(row) for row in rows]
     
-    async def add_type_property(self, type_node_id: int, property_id: int,
-                                 sequence: int = 0, default_value: Any = None) -> TypeProperty:
-        """Link a property to a type/class."""
+    async def add_class_property(self, class_node_id: int, property_id: int,
+                                 sequence: int = 0, default_value: Any = None) -> ClassProperty:
+        """Link a property to a class."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                INSERT INTO type_property (type_node_id, property_id, sequence)
+                INSERT INTO class_property (class_node_id, property_id, sequence)
                 VALUES ($1, $2, $3)
-                ON CONFLICT (type_node_id, property_id) DO UPDATE SET sequence = $3
+                ON CONFLICT (class_node_id, property_id) DO UPDATE SET sequence = $3
                 RETURNING *
-            """, type_node_id, property_id, sequence)
+            """, class_node_id, property_id, sequence)
             
             if row is None:
-                raise RuntimeError("Failed to add type property - no row returned")
-            return self._row_to_type_property(row)
+                raise RuntimeError("Failed to add class property - no row returned")
+            return self._row_to_class_property(row)
     
-    async def remove_type_property(self, type_node_id: int, property_id: int) -> bool:
-        """Remove a property from a type/class."""
+    async def remove_class_property(self, class_node_id: int, property_id: int) -> bool:
+        """Remove a property from a class."""
         async with self._pool.acquire() as conn:
             result = await conn.execute(
-                "DELETE FROM type_property WHERE type_node_id = $1 AND property_id = $2",
-                type_node_id, property_id
+                "DELETE FROM class_property WHERE class_node_id = $1 AND property_id = $2",
+                class_node_id, property_id
             )
             return result == "DELETE 1"
     
-    async def get_all_inherited_properties(self, type_node_id: int) -> List[TypeProperty]:
-        """Get all properties for a type including inherited ones."""
+    async def get_all_inherited_properties(self, class_node_id: int) -> List[ClassProperty]:
+        """Get all properties for a class including inherited ones."""
         async with self._pool.acquire() as conn:
             # Use recursive CTE to get inherited properties
-            # Note: type_extend uses target_id (child) and source_id (parent)
+            # Note: class_extend uses target_id (child) and source_id (parent)
             rows = await conn.fetch("""
-                WITH RECURSIVE type_hierarchy AS (
+                WITH RECURSIVE class_hierarchy AS (
                     SELECT target_id, source_id, 0 as depth
-                    FROM type_extend WHERE target_id = $1
+                    FROM class_extend WHERE target_id = $1
                     UNION ALL
-                    SELECT te.target_id, te.source_id, th.depth + 1
-                    FROM type_extend te
-                    JOIN type_hierarchy th ON te.target_id = th.source_id
-                    WHERE th.depth < 10
+                    SELECT ce.target_id, ce.source_id, ch.depth + 1
+                    FROM class_extend ce
+                    JOIN class_hierarchy ch ON ce.target_id = ch.source_id
+                    WHERE ch.depth < 10
                 )
-                SELECT DISTINCT tp.* FROM type_property tp
-                WHERE tp.type_node_id = $1
-                   OR tp.type_node_id IN (SELECT source_id FROM type_hierarchy)
-                ORDER BY tp.sequence
-            """, type_node_id)
-            return [self._row_to_type_property(row) for row in rows]
+                SELECT DISTINCT cp.* FROM class_property cp
+                WHERE cp.class_node_id = $1
+                   OR cp.class_node_id IN (SELECT source_id FROM class_hierarchy)
+                ORDER BY cp.sequence
+            """, class_node_id)
+            return [self._row_to_class_property(row) for row in rows]

@@ -300,7 +300,7 @@ export function SuggestionPopup({
                   const globalIndex = selectedStartIndex + index;
                   return (
                     <button
-                      key={node.id}
+                      key={`selected-${node.id}`}
                       className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
                       onClick={() => handleItemClick(node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
@@ -333,7 +333,7 @@ export function SuggestionPopup({
                   const globalIndex = pageStartIndex + index;
                   return (
                     <button
-                      key={item.node.id}
+                      key={`page-${item.node.id}`}
                       className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
@@ -376,7 +376,7 @@ export function SuggestionPopup({
                   const globalIndex = blockStartIndex + index;
                   return (
                     <button
-                      key={item.node.id}
+                      key={`block-${item.node.id}`}
                       className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
@@ -406,7 +406,7 @@ export function SuggestionPopup({
                   const isChecked = multiSelect && selectedIds.has(item.node.id);
                   return (
                     <button
-                      key={item.node.id}
+                      key={`result-${item.node.id}`}
                       className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
                       onClick={() => handleItemClick(item.node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}

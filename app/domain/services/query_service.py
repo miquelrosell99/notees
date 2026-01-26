@@ -152,7 +152,7 @@ class QuerySQLGenerator:
             # Sanitize order_by to prevent SQL injection
             allowed_columns = {
                 "id", "name", "create_date", "write_date", "open_date",
-                "sequence", "is_page", "is_type"
+                "sequence", "is_page", "is_class"
             }
             parts = order_by.split()
             if len(parts) >= 1:
