@@ -13,6 +13,7 @@ import { Button } from '../core/Button';
 import { useNodeSearch, useCreateNode, usePages } from '@/hooks';
 import type { Node } from '@/types';
 import { AddIcon, NodeIcon, BulletIcon } from '../icons';
+import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import './NodeLinkSearch.css';
 
 export type LinkSearchType = 'page-link' | 'block-link';
@@ -107,7 +108,32 @@ export function NodeLinkSearch({
     
     if (item.type === 'create-page') {
       try {
-        const newPage = await createNodeMutation.mutateAsync({ name: query.trim(), is_page: true });
+        const trimmedQuery = query.trim();
+        const parsed = parseHierarchicalPath(trimmedQuery);
+        
+        let parentId: number | null = null;
+        
+        // If hierarchical path, resolve parent
+        if (parsed.isHierarchical) {
+          parentId = await resolveHierarchicalParent(
+            parsed.parentSegments,
+            allPages,
+            async (name, parentIdForCreation) => {
+              return await createNodeMutation.mutateAsync({
+                name,
+                is_page: true,
+                parent_id: parentIdForCreation,
+              });
+            }
+          );
+        }
+        
+        // Create the final page with the resolved parent
+        const newPage = await createNodeMutation.mutateAsync({
+          name: parsed.leaf || trimmedQuery,
+          is_page: true,
+          parent_id: parentId,
+        });
         onSelect(newPage);
       } catch (error) {
         console.error('Failed to create page:', error);
@@ -115,7 +141,7 @@ export function NodeLinkSearch({
     } else if (item.node) {
       onSelect(item.node);
     }
-  }, [allItems, query, createNodeMutation, onSelect]);
+  }, [allItems, query, allPages, createNodeMutation, onSelect]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

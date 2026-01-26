@@ -12,11 +12,13 @@
  * - Fallback to pages/nodes when query is empty
  * - Separation of results into pages and blocks
  * - Optional filtering by tag/type
+ * - Hierarchical path support (e.g., "Page1/Page2" searches for Page2 child of Page1)
  * - "Create new" option detection
  */
 import { useMemo } from 'react';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses } from './useNodes';
 import type { Node } from '@/types';
+import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
 
 export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags';
 
@@ -102,11 +104,20 @@ export function useNodeSearch(
     // Helper to check if a node is a class definition (has is_type flag)
     const isClassDef = (node: Node) => node.is_type === true;
     
+    // Parse query for hierarchical path
+    const parsed = parseHierarchicalPath(query);
+    const searchQuery = parsed.isHierarchical ? parsed.leaf : query;
+    
     // Classes mode - special handling for @ trigger
     if (mode === 'classes') {
-      const results = query.length > 0
+      let results = searchQuery.length > 0
         ? (classSearchResults ?? [])
         : (allClassNodes ?? []).slice(0, maxResults);
+      
+      // Apply hierarchical filtering if needed
+      if (parsed.isHierarchical && allPages) {
+        results = filterNodesByHierarchy(query, results, allPages);
+      }
 
       return {
         pageResults: results.map(node => ({
@@ -121,10 +132,17 @@ export function useNodeSearch(
     // Tags mode - show all pages (tags are pages in Notees)
     // Exclude nodes that are class definitions (they shouldn't appear as tags)
     if (mode === 'tags') {
-      const results = (query.length > 0
+      let results = (searchQuery.length > 0
         ? (searchResults ?? []).filter(n => n.is_page)
         : (allPages ?? []).slice(0, maxResults * 2)  // Get extra to account for filtering
-      ).filter(n => !isClassDef(n)).slice(0, maxResults);
+      ).filter(n => !isClassDef(n));
+      
+      // Apply hierarchical filtering if needed
+      if (parsed.isHierarchical && allPages) {
+        results = filterNodesByHierarchy(query, results, allPages);
+      }
+      
+      results = results.slice(0, maxResults);
 
       return {
         pageResults: results.map(node => ({
@@ -138,9 +156,14 @@ export function useNodeSearch(
 
     // Pages-only mode
     if (mode === 'pages') {
-      const results = query.length > 0
+      let results = searchQuery.length > 0
         ? (searchResults ?? []).filter(n => n.is_page || n.parent_id === null)
         : (allPages ?? []).slice(0, maxResults);
+      
+      // Apply hierarchical filtering if needed
+      if (parsed.isHierarchical && allPages) {
+        results = filterNodesByHierarchy(query, results, allPages);
+      }
 
       return {
         pageResults: results.slice(0, maxResults).map(node => ({
@@ -154,7 +177,7 @@ export function useNodeSearch(
 
     // Blocks-only mode
     if (mode === 'blocks') {
-      const results = query.length > 0
+      const results = searchQuery.length > 0
         ? (searchResults ?? []).filter(n => !n.is_page && n.parent_id !== null)
         : (allNodes ?? []).filter(n => !n.is_page).slice(0, maxResults);
 
@@ -169,12 +192,20 @@ export function useNodeSearch(
     }
 
     // 'all' mode - pages first, then blocks
-    let baseResults = query.length > 0
+    let baseResults = searchQuery.length > 0
       ? (searchResults ?? [])
       : [
           ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
           ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
         ];
+    
+    // Apply hierarchical filtering if needed (only for pages)
+    if (parsed.isHierarchical && allPages) {
+      const pagesOnly = baseResults.filter(n => n.is_page || n.parent_id === null);
+      const blocksOnly = baseResults.filter(n => !n.is_page && n.parent_id !== null);
+      const filteredPages = filterNodesByHierarchy(query, pagesOnly, allPages);
+      baseResults = [...filteredPages, ...blocksOnly];
+    }
 
     // Apply class filters if provided (filter by assigned classes)
     // Now that list/search endpoints reliably populate `classes`, we can use it directly
@@ -242,9 +273,35 @@ export function useNodeSearch(
   // Determine if "Create new" option should be shown
   const showCreateOption = useMemo(() => {
     if (!query.trim()) return false;
+    
+    const parsed = parseHierarchicalPath(query);
+    const searchTerm = parsed.isHierarchical ? parsed.leaf : query;
+    
+    // For hierarchical paths, only show create if the parent path exists
+    if (parsed.isHierarchical && allPages) {
+      // Check if we can resolve all parent segments
+      let currentParentId: number | null = null;
+      for (const segment of parsed.parentSegments) {
+        const matchingPage = allPages.find(
+          p => p.name === segment && p.parent_id === currentParentId
+        );
+        if (!matchingPage) {
+          // Parent path doesn't exist, can't create - but we could show "Create Page1/Page2..."
+          return true; // Allow creation to create intermediate pages
+        }
+        currentParentId = matchingPage.id;
+      }
+      
+      // Parent path exists, check if leaf exists
+      const leafExists = pageResults.some(
+        r => r.displayName === parsed.leaf && r.node.parent_id === currentParentId
+      );
+      return !leafExists;
+    }
+    
     // No exact match in page results (case-sensitive comparison)
-    return !pageResults.some(r => r.displayName === query);
-  }, [pageResults, query]);
+    return !pageResults.some(r => r.displayName === searchTerm);
+  }, [pageResults, query, allPages]);
 
   return {
     pageResults,
