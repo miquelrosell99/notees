@@ -215,6 +215,69 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         
         # Assign 'page' class
         await assign_relation_property(new_page_id, classes_property_id, page_class_id)
+    
+    # Create today's daily page to avoid 404 on first graph launch
+    from .constants import generate_day_uuid, generate_month_uuid, generate_year_uuid
+    from datetime import date
+    
+    today = date.today()
+    day_uuid = generate_day_uuid(today)
+    month_uuid = generate_month_uuid(today.year, today.month)
+    year_uuid = generate_year_uuid(today.year)
+    
+    # Get type IDs
+    day_type_row = await conn.fetchrow(
+        "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+        SYSTEM_CLASS_UUIDS["day"], graph_id
+    )
+    month_type_row = await conn.fetchrow(
+        "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+        SYSTEM_CLASS_UUIDS["month"], graph_id
+    )
+    year_type_row = await conn.fetchrow(
+        "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+        SYSTEM_CLASS_UUIDS["year"], graph_id
+    )
+    
+    if day_type_row and month_type_row and year_type_row:
+        day_type_id = day_type_row['id']
+        month_type_id = month_type_row['id']
+        year_type_id = year_type_row['id']
+        
+        # Create year node
+        year_row = await conn.fetchrow("""
+            INSERT INTO node (uuid, graph_id, name, is_page, is_year, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, $3, TRUE, TRUE, $4, $4, $5, $5)
+            RETURNING id
+        """, year_uuid, graph_id, str(today.year), now, user_id)
+        if year_row:
+            year_id = year_row['id']
+            await assign_relation_property(year_id, classes_property_id, page_class_id)
+            await assign_relation_property(year_id, classes_property_id, year_type_id)
+            
+            # Create month node
+            month_name = f"{today.year}/{today.month:02d}"
+            month_row = await conn.fetchrow("""
+                INSERT INTO node (uuid, graph_id, name, is_page, is_month, parent_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, TRUE, TRUE, $4, $5, $5, $6, $6)
+                RETURNING id
+            """, month_uuid, graph_id, month_name, year_id, now, user_id)
+            if month_row:
+                month_id = month_row['id']
+                await assign_relation_property(month_id, classes_property_id, page_class_id)
+                await assign_relation_property(month_id, classes_property_id, month_type_id)
+                
+                # Create today's day node
+                day_name = f"{today.year}/{today.month:02d}/{today.day:02d}"
+                day_row = await conn.fetchrow("""
+                    INSERT INTO node (uuid, graph_id, name, is_page, is_day, parent_id, create_date, write_date, create_uid, write_uid)
+                    VALUES ($1, $2, $3, TRUE, TRUE, $4, $5, $5, $6, $6)
+                    RETURNING id
+                """, day_uuid, graph_id, day_name, month_id, now, user_id)
+                if day_row:
+                    day_id = day_row['id']
+                    await assign_relation_property(day_id, classes_property_id, page_class_id)
+                    await assign_relation_property(day_id, classes_property_id, day_type_id)
 
 
 async def create_graph_for_user(
