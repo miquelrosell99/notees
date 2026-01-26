@@ -68,7 +68,8 @@ export function NodeContent({
   useBlockSelection(children, { containerRef: contentRef, enabled: true });
 
   // Debounced content save - batches rapid edits to reduce API calls
-  const { handleContentChange: handleBlockChange } = useContentSave();
+  // saveImmediate bypasses debounce for operations like asset uploads
+  const { handleContentChange: handleBlockChange, saveImmediate } = useContentSave();
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
@@ -113,14 +114,14 @@ export function NodeContent({
           assetMarkdown = `[file:${asset.filename}](${asset.uuid})`;
         }
         const newContent = block.name ? `${block.name}\n${assetMarkdown}` : assetMarkdown;
-        updateNode.mutate({ id: targetBlockId, data: { name: newContent } });
+        saveImmediate(targetBlockId, newContent);
       }
     }
     setIsAssetUploadOpen(false);
     setTargetBlockId(null);
     setAssetTypeFilter(undefined);
     setPendingFile(null);
-  }, [targetBlockId, children, updateNode]);
+  }, [targetBlockId, children, saveImmediate]);
 
   // Build block callbacks for context provider
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
