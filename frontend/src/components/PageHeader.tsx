@@ -11,8 +11,8 @@
  * Archive button and color picker have been moved to the NodeContextMenu.
  * Local graph button has been moved to the main header bar.
  */
-import { useState, useRef, useCallback, useMemo } from 'react';
-import { useUpdateNode, useClasses } from '@/hooks';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useUpdateNode, useClasses, useCreateNode } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -37,6 +37,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const iconRef = useRef<HTMLButtonElement>(null);
   const updateNode = useUpdateNode();
+  const createNode = useCreateNode();
   const { 
     addSidebarCard, 
     openNode,
@@ -46,6 +47,14 @@ export function PageHeader({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconPickerPos, setIconPickerPos] = useState({ x: 0, y: 0 });
   
+  // Local state for input value (to show preview before committing)
+  const [inputValue, setInputValue] = useState(page.name || '');
+  
+  // Sync with page name when it changes externally
+  useEffect(() => {
+    setInputValue(page.name || '');
+  }, [page.name]);
+  
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
   
@@ -54,11 +63,44 @@ export function PageHeader({
   
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);
+  
+  // Parse input to show child page preview
+  const childPagePreview = useMemo(() => {
+    if (!inputValue.includes('/')) return null;
+    const parts = inputValue.split('/');
+    const childPageName = parts.slice(1).join('/').trim();
+    return childPageName || null;
+  }, [inputValue]);
+
+  const handleInputChange = useCallback((newValue: string) => {
+    setInputValue(newValue);
+  }, []);
 
   const handleNameChange = useCallback((newName: string) => {
-    const data: NodeUpdate = { name: newName };
-    updateNode.mutate({ id: page.id, data });
-  }, [page.id, updateNode]);
+    // Check if the new name contains "/"
+    if (newName.includes('/')) {
+      const parts = newName.split('/');
+      const currentPageName = parts[0].trim();
+      const childPageName = parts.slice(1).join('/').trim();
+      
+      // Update current page name (remove the "/" and everything after)
+      const data: NodeUpdate = { name: currentPageName };
+      updateNode.mutate({ id: page.id, data });
+      
+      // If there's text after the "/", create a child page
+      if (childPageName) {
+        createNode.mutate({
+          name: childPageName,
+          is_page: true,
+          parent_id: page.id,
+        });
+      }
+    } else {
+      // Normal name change
+      const data: NodeUpdate = { name: newName };
+      updateNode.mutate({ id: page.id, data });
+    }
+  }, [page.id, updateNode, createNode]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -136,17 +178,25 @@ export function PageHeader({
                 {page.name || 'Untitled'}
               </h1>
             ) : (
-              <input
-                type="text"
-                className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
-                value={page.name || ''}
-                onChange={(e) => handleNameChange(e.target.value)}
-                onKeyDown={handlePageTitleKeyDown}
-                placeholder="Untitled"
-                onClick={(e) => e.stopPropagation()}
-                readOnly={!isNameEditable}
-                title={!isNameEditable ? 'System page names cannot be edited' : undefined}
-              />
+              <>
+                <input
+                  type="text"
+                  className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
+                  value={inputValue}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onBlur={(e) => handleNameChange(e.target.value)}
+                  onKeyDown={handlePageTitleKeyDown}
+                  placeholder="Untitled"
+                  onClick={(e) => e.stopPropagation()}
+                  readOnly={!isNameEditable}
+                  title={!isNameEditable ? 'System page names cannot be edited' : undefined}
+                />
+                {childPagePreview && (
+                  <span className="page-title-child-preview">
+                    → will create child page: {childPagePreview}
+                  </span>
+                )}
+              </>
             )}
             {page.active === false && (
               <span className="archived-badge">Archived</span>
