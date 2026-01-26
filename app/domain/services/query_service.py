@@ -653,8 +653,9 @@ class QuerySQLGenerator:
     ) -> str:
         """Generate reference path filter condition.
         
-        Finds nodes that reference any node matching the nested criteria.
-        For example: Find all tasks that reference any meeting.
+        Finds nodes that have ancestors (in their parent path) that reference 
+        any node matching the nested criteria.
+        For example: Find all blocks whose parent path contains a reference to a specific page.
         """
         nested_blocks = block.get("blocks", [])
         
@@ -663,14 +664,20 @@ class QuerySQLGenerator:
         
         # Build subquery for matching target nodes
         target_alias = self._next_alias("ref_target")
+        ancestor_alias = self._next_alias("ancestor")
         nested_tree = {"type": "AND_CONTAINER", "blocks": nested_blocks}
         nested_clause = self._generate_where_clause(nested_tree, runtime_params, target_alias)
         
         return f"""
             EXISTS (
-                SELECT 1 FROM node_link nl
+                SELECT 1 FROM node_path np
+                JOIN node {ancestor_alias} ON {ancestor_alias}.id = np.ancestor_id
+                JOIN node_link nl ON nl.source_id = {ancestor_alias}.id
                 JOIN node {target_alias} ON {target_alias}.id = nl.target_id
-                WHERE nl.source_id = {node_alias}.id
+                WHERE np.descendant_id = {node_alias}.id
+                  AND np.depth > 0
+                  AND {ancestor_alias}.graph_id = {self._next_param(self._graph_id)}
+                  AND {ancestor_alias}.active = TRUE
                   AND {target_alias}.graph_id = {self._next_param(self._graph_id)}
                   AND {target_alias}.active = TRUE
                   AND ({nested_clause})
