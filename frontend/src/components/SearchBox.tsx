@@ -23,28 +23,57 @@ export function SearchBox({
 }: SearchBoxProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const { openNode } = useNodesStore();
   const { data: results, isLoading } = useSearch(query);
+  
+  // Update dropdown position when opening
+  const updateDropdownPosition = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, []);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside and update position on scroll
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as HTMLElement)) {
         setIsOpen(false);
       }
     };
+    
+    const handleScroll = () => {
+      if (isOpen) {
+        updateDropdownPosition();
+      }
+    };
+    
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen, updateDropdownPosition]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
-    setIsOpen(value.length > 0);
-  }, []);
+    if (value.length > 0) {
+      updateDropdownPosition();
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+    }
+  }, [updateDropdownPosition]);
 
   const handleSelect = useCallback((node: Node) => {
     setQuery('');
@@ -76,7 +105,12 @@ export function SearchBox({
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => query.length > 0 && setIsOpen(true)}
+          onFocus={() => {
+            if (query.length > 0) {
+              updateDropdownPosition();
+              setIsOpen(true);
+            }
+          }}
           placeholder={placeholder}
         />
         <span className="search-box-icon">
@@ -85,7 +119,15 @@ export function SearchBox({
       </div>
       
       {isOpen && (
-        <div className="search-dropdown">
+        <div 
+          className="search-dropdown search-dropdown--fixed"
+          style={{
+            position: 'fixed',
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`
+          }}
+        >
           {isLoading && (
             <div className="search-loading">Searching...</div>
           )}
