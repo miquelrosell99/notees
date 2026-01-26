@@ -11,7 +11,6 @@ import type {
   NotNode as ASTNotNode,
   ValidationResult,
   ValidationIssue,
-  ValidationSeverity,
 } from '../types/queryAST';
 
 // ==================== Validation Functions ====================
@@ -144,16 +143,6 @@ function validateNot(node: ASTNotNode, path: string[], issues: ValidationIssue[]
     validateGroup(node.child, childPath, issues);
   } else if (node.child.type === 'condition') {
     validateCondition(node.child, childPath, issues);
-  }
-  
-  // Double negation check (NOT NOT)
-  if (node.child.type === 'not') {
-    issues.push({
-      severity: 'warning',
-      message: 'Double negation detected',
-      path,
-      suggestion: 'Simplify by removing both NOT operators',
-    });
   }
 }
 

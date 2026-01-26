@@ -66,6 +66,8 @@ class ClassExtensionService:
                 if not row:
                     raise RuntimeError("extends system property not found")
                 self._extends_property_id = row['id']
+        # Type checker: after the above check, _extends_property_id is always int
+        assert self._extends_property_id is not None
         return self._extends_property_id
     
     async def get_extended_classes(self, class_node_id: int) -> List[int]:
@@ -177,14 +179,35 @@ class ClassExtensionService:
                 
                 seen_property_ids.add(cp.property_id)
                 
+                # Get property details
+                property_details = await self._property_repo.get_by_id(cp.property_id)
+                if not property_details:
+                    logger.warning(f"Property {cp.property_id} not found")
+                    continue
+                
+                # Determine default value based on property type
+                default_value: Any = None
+                if property_details.type == 'integer':
+                    default_value = cp.default_integer
+                elif property_details.type == 'float':
+                    default_value = cp.default_float
+                elif property_details.type in ('text', 'url', 'email', 'phone'):
+                    default_value = cp.default_text
+                elif property_details.type == 'boolean':
+                    default_value = cp.default_boolean
+                elif property_details.type == 'relation':
+                    default_value = cp.default_node_id
+                elif property_details.type == 'selection':
+                    default_value = cp.default_selection_id
+                
                 inherited_props.append(InheritedProperty(
                     property_id=cp.property_id,
-                    property_name=cp.property_name,
-                    property_type=cp.property_type,
+                    property_name=property_details.name,
+                    property_type=property_details.type,
                     from_class_id=extended_class_id,
                     from_class_name=class_name,
                     sequence=cp.sequence,
-                    default_value=cp.default_value,
+                    default_value=default_value,
                     hidden=cp.hidden,
                     is_overridden=cp.property_id in dedicated_prop_ids,
                 ))

@@ -71,21 +71,6 @@ export function ScopeSelector({
     onChange(newScope);
   }, [scope, onChange]);
 
-  // Handle page selection - simplified
-  const handlePageSelect = useCallback((uuid: string) => {
-    if (!scope.page_uuids) {
-      onChange({
-        ...scope,
-        page_uuids: [uuid],
-      });
-    } else if (!scope.page_uuids.includes(uuid)) {
-      onChange({
-        ...scope,
-        page_uuids: [...scope.page_uuids, uuid],
-      });
-    }
-  }, [scope, onChange]);
-
   // Handle page removal
   const handlePageRemove = useCallback((uuid: string) => {
     if (!scope.page_uuids) return;

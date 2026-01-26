@@ -83,20 +83,6 @@ export function ConditionGroupBlock({
     });
   }, [group, onUpdate]);
   
-  // Handle moving a child
-  const handleMoveChild = useCallback((fromIndex: number, direction: 'up' | 'down') => {
-    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
-    if (toIndex < 0 || toIndex >= group.children.length) return;
-    
-    const newChildren = [...group.children];
-    [newChildren[fromIndex], newChildren[toIndex]] = [newChildren[toIndex], newChildren[fromIndex]];
-    
-    onUpdate({
-      ...group,
-      children: newChildren,
-    });
-  }, [group, onUpdate]);
-  
   const isNested = depth > 0;
   const isEmpty = group.children.length === 0;
   
