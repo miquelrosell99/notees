@@ -5,10 +5,12 @@
  * Handles all condition types: type, property, content, reference, etc.
  */
 
-import { mdiClose } from '@mdi/js';
+import { mdiClose, mdiTag, mdiTextBox, mdiLinkVariant, mdiCodeBraces } from '@mdi/js';
+import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { TextField } from '../core/TextField';
 import { Dropdown } from '../core/Dropdown';
+import { Badge } from '../core/Badge';
 import type { ConditionNode } from '@/types/queryAST';
 import './ConditionBlock.css';
 
@@ -33,7 +35,9 @@ export function ConditionBlock({
   if (condition.condition_type === 'type') {
     return (
       <div className="condition-block condition-block--type">
-        <span className="condition-block__label">Type is</span>
+        <Icon path={mdiTag} size={0.7} className="condition-block__icon" />
+        <span className="condition-block__label">Type</span>
+        <span className="condition-block__operator">is</span>
         <span className="condition-block__value">{condition.type_uuid}</span>
         {!readOnly && onDelete && (
           <Button
@@ -42,6 +46,7 @@ export function ConditionBlock({
             variant="ghost"
             size="xs"
             onClick={onDelete}
+            className="condition-block__delete"
             title="Remove condition"
           />
         )}
@@ -53,6 +58,7 @@ export function ConditionBlock({
   if (condition.condition_type === 'content') {
     return (
       <div className="condition-block condition-block--content">
+        <Icon path={mdiTextBox} size={0.7} className="condition-block__icon" />
         <span className="condition-block__label">Content</span>
         <Dropdown
           value={condition.operator}
@@ -79,6 +85,7 @@ export function ConditionBlock({
             variant="ghost"
             size="xs"
             onClick={onDelete}
+            className="condition-block__delete"
             title="Remove condition"
           />
         )}
@@ -90,11 +97,12 @@ export function ConditionBlock({
   if (condition.condition_type === 'property') {
     return (
       <div className="condition-block condition-block--property">
+        <Icon path={mdiCodeBraces} size={0.7} className="condition-block__icon" />
         <span className="condition-block__label">Property</span>
         <TextField
           value={condition.property_name}
           onChange={(e) => onUpdate({ ...condition, property_name: e.target.value })}
-          placeholder="Property name..."
+          placeholder="Name"
           disabled={readOnly}
         />
         <Dropdown
@@ -102,10 +110,10 @@ export function ConditionBlock({
           onChange={(value) => onUpdate({ ...condition, operator: value as any })}
           disabled={readOnly}
           options={[
-            { value: 'equals', label: 'equals' },
-            { value: 'not_equals', label: 'not equals' },
-            { value: 'greater_than', label: 'greater than' },
-            { value: 'less_than', label: 'less than' },
+            { value: 'equals', label: '=' },
+            { value: 'not_equals', label: '≠' },
+            { value: 'greater_than', label: '>' },
+            { value: 'less_than', label: '<' },
             { value: 'contains', label: 'contains' },
             { value: 'is_empty', label: 'is empty' },
             { value: 'is_not_empty', label: 'is not empty' },
@@ -115,7 +123,7 @@ export function ConditionBlock({
           <TextField
             value={String(condition.value || '')}
             onChange={(e) => onUpdate({ ...condition, value: e.target.value })}
-            placeholder="Value..."
+            placeholder="Value"
             disabled={readOnly}
           />
         )}
@@ -126,6 +134,7 @@ export function ConditionBlock({
             variant="ghost"
             size="xs"
             onClick={onDelete}
+            className="condition-block__delete"
             title="Remove condition"
           />
         )}
@@ -137,6 +146,7 @@ export function ConditionBlock({
   if (condition.condition_type === 'reference') {
     return (
       <div className="condition-block condition-block--reference">
+        <Icon path={mdiLinkVariant} size={0.7} className="condition-block__icon" />
         <span className="condition-block__label">References</span>
         <span className="condition-block__value">{condition.target_uuid}</span>
         {!readOnly && onDelete && (
@@ -146,6 +156,7 @@ export function ConditionBlock({
             variant="ghost"
             size="xs"
             onClick={onDelete}
+            className="condition-block__delete"
             title="Remove condition"
           />
         )}
@@ -156,8 +167,9 @@ export function ConditionBlock({
   // Fallback for other condition types
   return (
     <div className="condition-block condition-block--unknown">
+      <Badge variant="neutral" size="xs">{condition.condition_type}</Badge>
       <span className="condition-block__label">
-        {condition.condition_type} condition
+        Unknown condition type
       </span>
       {!readOnly && onDelete && (
         <Button
@@ -166,6 +178,7 @@ export function ConditionBlock({
           variant="ghost"
           size="xs"
           onClick={onDelete}
+          className="condition-block__delete"
           title="Remove condition"
         />
       )}
