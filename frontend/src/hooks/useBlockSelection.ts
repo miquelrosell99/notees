@@ -20,6 +20,33 @@ interface UseBlockSelectionOptions {
 }
 
 /**
+ * Get ALL block IDs recursively (for change detection)
+ * 
+ * IMPORTANT: This must collect IDs from ALL levels of the tree, not just top-level.
+ * 
+ * Previously, the useEffect that updates block hierarchy used `blocks.map(b => b.id).join(',')`
+ * which only tracked top-level block IDs. When a deeply nested block was added/deleted,
+ * the string didn't change (e.g., "1,2,3" stayed the same), so setBlockHierarchy was never
+ * called and getNextBlockId() returned incorrect results for navigation/merge operations.
+ * 
+ * DO NOT simplify this to only track top-level IDs - it will break keyboard navigation
+ * and block merging (Backspace/Delete) at deep nesting levels.
+ */
+function getAllBlockIds(blocks: Node[]): string {
+  const ids: number[] = [];
+  function collect(nodes: Node[]) {
+    for (const node of nodes) {
+      ids.push(node.id);
+      if (node.children && node.children.length > 0) {
+        collect(node.children);
+      }
+    }
+  }
+  collect(blocks);
+  return ids.join(',');
+}
+
+/**
  * Build a flat list of visible block IDs and their hierarchy
  */
 function buildBlockHierarchy(
@@ -84,8 +111,8 @@ export function useBlockSelection(
   useEffect(() => {
     if (!enabled) return;
     
-    // Only update if blocks actually changed (compare IDs, not references)
-    const currentBlockIds = blocks.map(b => b.id).join(',');
+    // Only update if blocks actually changed (compare ALL IDs recursively, not just top-level)
+    const currentBlockIds = getAllBlockIds(blocks);
     const blocksChanged = currentBlockIds !== prevBlockIdsRef.current;
     if (!blocksChanged) return;
     

@@ -166,17 +166,43 @@ export function useCreateNode() {
         return node;
       };
       
-      // Update all detail queries
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.details() },
-        (oldNode) => oldNode ? addChildToParent(oldNode) : oldNode
-      );
+      // IMPORTANT: We use explicit cache iteration instead of setQueriesData({ queryKey: nodeKeys.details() }).
+      // 
+      // Why not setQueriesData with partial keys?
+      // - setQueriesData uses partial key matching which SHOULD work, but in practice it was unreliable
+      //   for deeply nested block structures (page -> block -> child-block -> grandchild-block).
+      // - When creating a block at level 3+, the UI wouldn't update until page reload.
+      // 
+      // Why explicit iteration works:
+      // - We find ALL matching queries with getQueryCache().findAll()
+      // - We explicitly call setQueryData on each query with the exact query key
+      // - This guarantees React Query notifies all subscribers of the change
+      // - The "if (newData !== oldData)" check ensures we only update if the tree actually changed
+      //
+      // DO NOT REFACTOR this back to setQueriesData - it will break optimistic updates at deep nesting levels.
+      const queryCache = queryClient.getQueryCache();
+      const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+      for (const query of detailQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = addChildToParent(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
       // Update page-content queries
-      queryClient.setQueriesData<Node>(
-        { queryKey: ['nodes', 'page-content'] },
-        (oldNode) => oldNode ? addChildToParent(oldNode) : oldNode
-      );
+      const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+      for (const query of pageContentQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = addChildToParent(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
       // Update daily cache
       updateDailyCache(queryClient, addChildToParent);
@@ -278,8 +304,14 @@ export function useCreateNode() {
           if (oldPages.some(p => p.id === newNode.id)) return oldPages;
           return [...oldPages, newNode];
         });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-        queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'search'] });
+        queryClient.invalidateQueries({ 
+          queryKey: nodeKeys.pages(),
+          refetchType: 'none',
+        });
+        queryClient.invalidateQueries({ 
+          queryKey: [...nodeKeys.all, 'search'],
+          refetchType: 'none',
+        });
       }
     },
     onError: (_error, variables, context) => {
@@ -357,18 +389,32 @@ export function useUpdateNode() {
         return oldNode;
       };
       
-      // Optimistically update any parent nodes that might contain this node as a child
-      // by finding all detail queries and updating children recursively
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.details() },
-        applyUpdate
-      );
+      // IMPORTANT: We use explicit cache iteration instead of setQueriesData.
+      // See useCreateNode onMutate for detailed explanation.
+      // DO NOT REFACTOR to setQueriesData - it breaks optimistic updates at deep nesting levels.
+      const queryCache = queryClient.getQueryCache();
+      const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+      for (const query of detailQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = applyUpdate(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
-      // Also update page-content queries
-      queryClient.setQueriesData<Node>(
-        { queryKey: ['nodes', 'page-content'] },
-        applyUpdate
-      );
+      // Update page-content queries
+      const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+      for (const query of pageContentQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = applyUpdate(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
       // Update daily cache (daily pages have a separate cache key)
       updateDailyCache(queryClient, (page) => applyUpdate(page) ?? page);
@@ -395,11 +441,21 @@ export function useUpdateNode() {
           };
         }
       );
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      // SOFT invalidate to prevent race conditions with concurrent mutations
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.lists(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.pages(),
+        refetchType: 'none',
+      });
       // Also invalidate classes since the updated node might be used as a class
       // and its icon/name could have changed
-      queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.classes(),
+        refetchType: 'none',
+      });
       
       // If name/content was updated, invalidate link-related caches
       // This ensures backlink badges and linked references update in real-time
@@ -432,12 +488,20 @@ export function useUpdateNode() {
           type: 'active',
         });
         
-        // Invalidate the parent page's detail query to refresh children's backlink_count
-        // This is needed because backlink_count is included in the children data
+        // SOFT invalidate the parent page's detail query to refresh children's backlink_count
+        // Use refetchType: 'none' to avoid race conditions with optimistic updates
+        // The query will be refetched on next access (e.g., navigation back to page)
+        // This prevents overwriting optimistic updates from concurrent mutations
         if (updatedNode.page_id) {
-          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(updatedNode.page_id) });
+          queryClient.invalidateQueries({ 
+            queryKey: nodeKeys.detailBase(updatedNode.page_id),
+            refetchType: 'none',
+          });
         } else if (updatedNode.parent_id) {
-          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(updatedNode.parent_id) });
+          queryClient.invalidateQueries({ 
+            queryKey: nodeKeys.detailBase(updatedNode.parent_id),
+            refetchType: 'none',
+          });
         }
       }
     },
@@ -483,17 +547,32 @@ export function useDeleteNode() {
         return oldNode;
       };
       
-      // Optimistically remove the node from any parent's children array
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.details() },
-        removeNode
-      );
+      // IMPORTANT: We use explicit cache iteration instead of setQueriesData.
+      // See useCreateNode onMutate for detailed explanation.
+      // DO NOT REFACTOR to setQueriesData - it breaks optimistic updates at deep nesting levels.
+      const queryCache = queryClient.getQueryCache();
+      const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+      for (const query of detailQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = removeNode(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
-      // Also update page-content queries
-      queryClient.setQueriesData<Node>(
-        { queryKey: ['nodes', 'page-content'] },
-        removeNode
-      );
+      // Update page-content queries
+      const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+      for (const query of pageContentQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = removeNode(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
       // Update daily cache (daily pages have a separate cache key)
       updateDailyCache(queryClient, (page) => removeNode(page) ?? page);
@@ -516,17 +595,38 @@ export function useDeleteNode() {
       
       // Remove the deleted node's queries (all variations)
       queryClient.removeQueries({ queryKey: nodeKeys.detailBase(deletedId) });
-      // Invalidate all node lists since content may have changed
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      
+      // SOFT invalidate queries to prevent race conditions with concurrent mutations
+      // Use refetchType: 'none' to mark as stale without immediate refetch
+      // This prevents overwriting optimistic updates from other mutations
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.lists(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.pages(),
+        refetchType: 'none',
+      });
       // Invalidate all backlinks since they may reference the deleted node
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'backlinks'],
+        refetchType: 'none',
+      });
       // Invalidate linked references (legacy)
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'linked-refs'],
+        refetchType: 'none',
+      });
       // Invalidate page content as blocks may have been updated
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'page-content'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'page-content'],
+        refetchType: 'none',
+      });
       // Invalidate all node view query results (linked references, etc.)
-      queryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodeViews', 'queryResults'],
+        refetchType: 'none',
+      });
     },
   });
 }
@@ -544,9 +644,18 @@ export function useArchiveNode() {
         { queryKey: nodeKeys.detailBase(node.id) },
         () => node
       );
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'archived'] });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.lists(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.pages(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'archived'],
+        refetchType: 'none',
+      });
     },
   });
 }
@@ -564,9 +673,18 @@ export function useUnarchiveNode() {
         { queryKey: nodeKeys.detailBase(node.id) },
         () => node
       );
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'archived'] });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.lists(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.pages(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'archived'],
+        refetchType: 'none',
+      });
     },
   });
 }

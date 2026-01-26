@@ -801,37 +801,103 @@ function BlockInternal({
   }, []);
   
   // Handle Enter key creating a new block
-  const handleEnterCreateBlock = useCallback((textBefore: string, textAfter: string) => {
-    // Update current block with text before cursor
-    if (textBefore !== block.name) {
-      updateNode.mutate({
-        id: block.id,
-        data: { name: textBefore }
-      });
+  // Level-agnostic: works at any nesting depth
+  // 
+  // Behavior:
+  // 1. Enter at START of block (empty textBefore): Create new empty block BEFORE current block
+  //    - This preserves the current block's identity
+  //    - New block becomes the focused block
+  // 2. Enter in MIDDLE/END with children: Split block, new block becomes FIRST CHILD
+  //    - Current block keeps textBefore
+  //    - New block with textAfter becomes first child (sequence 0)
+  // 3. Enter in MIDDLE/END without children: Split block, new block becomes next sibling
+  //    - Current block keeps textBefore
+  //    - New block with textAfter becomes sibling after current
+  const handleEnterCreateBlock = useCallback(async (textBefore: string, textAfter: string) => {
+    // Check if this is an optimistic block (negative ID) that hasn't synced yet
+    // If so, we can't reliably update/create - the block might not exist on server yet
+    if (block.id < 0) {
+      console.warn('handleEnterCreateBlock: Cannot operate on optimistic block, waiting for sync');
+      return;
     }
     
+    // Use block.parent_id as the authoritative source (more reliable than parentId prop at deep levels)
+    const actualParentId = parentId ?? block.parent_id;
+    
+    // CASE 1: Enter at START of block - create new block BEFORE current block
+    if (textBefore === '') {
+      // Guard: need a parent to create sibling before
+      if (actualParentId === null || actualParentId === undefined) {
+        console.warn('handleEnterCreateBlock: Cannot determine parent for new block');
+        return;
+      }
+      if (actualParentId < 0) {
+        console.warn('handleEnterCreateBlock: Cannot create block under optimistic parent');
+        return;
+      }
+      
+      // Create new empty block at current block's position (it will push current block down)
+      createNode.mutate(
+        {
+          name: '', // New block is empty
+          parent_id: actualParentId,
+          sequence: block.sequence, // Same position as current block
+        },
+        {
+          onSuccess: (newNode) => {
+            // Set pending caret at start of new block (cursor at position 0)
+            setPendingCaret(newNode.id, 0);
+            // Set the new block to edit mode
+            setBlockState(newNode.id, 'edit');
+          },
+        }
+      );
+      return;
+    }
+    
+    // CASE 2 & 3: Enter in middle/end - split block
+    
     // Determine where to create the new block:
-    // - If current block has children, create as first child (sequence 0)
+    // - If current block has children, create as FIRST CHILD (sequence 0)
     // - Otherwise, create as sibling after current block
-    const newBlockParentId = hasChildren ? block.id : parentId;
+    const newBlockParentId = hasChildren ? block.id : actualParentId;
     const newBlockSequence = hasChildren ? 0 : block.sequence + 1;
     
-    createNode.mutate(
-      {
+    // Guard: don't create if we can't determine parent or parent is optimistic
+    if (newBlockParentId === null || newBlockParentId === undefined) {
+      console.warn('handleEnterCreateBlock: Cannot determine parent for new block');
+      return;
+    }
+    if (newBlockParentId < 0) {
+      console.warn('handleEnterCreateBlock: Cannot create block under optimistic parent');
+      return;
+    }
+    
+    // Update current block with text before cursor FIRST, then create new block
+    // Using sequential execution to prevent race conditions in cache updates
+    try {
+      if (textBefore !== block.name) {
+        await updateNode.mutateAsync({
+          id: block.id,
+          data: { name: textBefore }
+        });
+      }
+      
+      // Now create the new block after update has completed
+      const newNode = await createNode.mutateAsync({
         name: textAfter,
         parent_id: newBlockParentId,
         sequence: newBlockSequence,
-      },
-      {
-        onSuccess: (newNode) => {
-          // Set pending caret at start of new block (cursor at position 0)
-          setPendingCaret(newNode.id, 0);
-          // Set the new block to edit mode
-          setBlockState(newNode.id, 'edit');
-        },
-      }
-    );
-  }, [block.id, block.name, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState, setPendingCaret]);
+      });
+      
+      // Set pending caret at start of new block (cursor at position 0)
+      setPendingCaret(newNode.id, 0);
+      // Set the new block to edit mode
+      setBlockState(newNode.id, 'edit');
+    } catch (error) {
+      console.error('handleEnterCreateBlock: Error during block split', error);
+    }
+  }, [block.id, block.name, block.parent_id, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState, setPendingCaret]);
   
   // Handle Backspace at start of block - delete block and merge text with visual block above
   // Rules:
@@ -844,6 +910,15 @@ function BlockInternal({
     if (children && children.length > 0) {
       return;
     }
+    
+    // Don't operate on optimistic blocks (negative IDs) - server doesn't know about them
+    if (block.id < 0) {
+      console.warn('handleBackspaceAtStart: Cannot operate on optimistic block');
+      return;
+    }
+    
+    // Use block.parent_id as authoritative source (more reliable than parentId prop at deep levels)
+    const actualParentId = parentId ?? block.parent_id;
     
     // Try to find the previous block using store (works for blocks already in hierarchy)
     let prevBlockId = getNextBlockId(block.id, 'up');
@@ -870,13 +945,13 @@ function BlockInternal({
     }
     
     // Determine the previous block's parent for hierarchy checks
-    // First try the store, then fall back to props
+    // First try the store, then fall back to props/block data
     let prevBlockParentId: number | null | undefined = blockParentMapFromStore.get(prevBlockId);
     let currentBlockParentId: number | null | undefined = blockParentMapFromStore.get(block.id);
     
     // Fallback for current block parent if not in store
     if (currentBlockParentId === undefined) {
-      currentBlockParentId = parentId;
+      currentBlockParentId = actualParentId;
     }
     
     // Fallback for prev block parent - check if it's a sibling or the parent itself
@@ -886,7 +961,7 @@ function BlockInternal({
         prevBlockParentId = parentBlock.parent_id;
       } else if (siblings.some(s => s.id === prevBlockId)) {
         // Prev block is a sibling - same parent
-        prevBlockParentId = parentId;
+        prevBlockParentId = actualParentId;
       }
     }
     
@@ -959,6 +1034,12 @@ function BlockInternal({
     
     const targetBlock = findBlockData(prevBlockId);
     
+    // Don't merge with optimistic blocks (negative IDs)
+    if (prevBlockId < 0) {
+      console.warn('handleBackspaceAtStart: Cannot merge with optimistic block');
+      return;
+    }
+    
     // Get target content - even if we can't find the block data from props,
     // we can still attempt the merge
     const targetContent = targetBlock?.name || '';
@@ -968,28 +1049,54 @@ function BlockInternal({
     // Set pending caret BEFORE mutations - this will be restored after re-render
     setPendingCaret(prevBlockId, cursorPosition);
     
-    // If we found target block data and there's remaining text, merge it
-    if (remainingText && targetBlock) {
-      updateNode.mutate({
-        id: prevBlockId,
-        data: { name: mergedContent }
-      });
-    }
+    // Execute mutations sequentially to prevent race conditions
+    // First update the target block with merged content, then delete current block
+    const executeMerge = async () => {
+      try {
+        if (remainingText && targetBlock) {
+          await updateNode.mutateAsync({
+            id: prevBlockId,
+            data: { name: mergedContent }
+          });
+        }
+        
+        // Delete current block after update completes
+        await deleteNode.mutateAsync(block.id);
+        
+        // Set target block to edit mode
+        setBlockState(prevBlockId, 'edit');
+      } catch (error) {
+        console.error('handleBackspaceAtStart: Error during merge', error);
+      }
+    };
     
-    // Delete current block
-    deleteNode.mutate(block.id);
-    
-    // Set target block to edit mode
-    setBlockState(prevBlockId, 'edit');
-  }, [block.id, children, getNextBlockId, blockParentMapFromStore, parentId, parentBlock, siblings, updateNode, deleteNode, setBlockState, setPendingCaret]);
+    executeMerge();
+  }, [block.id, block.parent_id, children, getNextBlockId, blockParentMapFromStore, parentId, parentBlock, siblings, updateNode, deleteNode, setBlockState, setPendingCaret]);
   
   // Handle Delete at end of block - merge next block's text into current
   // Rules:
   // - Don't merge if next block has children
   // - Don't merge if next block is at a higher hierarchy level (parent/ancestor)
   const handleDeleteAtEnd = useCallback(() => {
+    // Don't operate on optimistic blocks (negative IDs)
+    if (block.id < 0) {
+      console.warn('handleDeleteAtEnd: Cannot operate on optimistic block');
+      return;
+    }
+    
     // Use visual order to find the block visually below
     const nextBlockId = getNextBlockId(block.id, 'down');
+    
+    if (!nextBlockId) {
+      // No block below to merge
+      return;
+    }
+    
+    // Don't merge with optimistic blocks
+    if (nextBlockId < 0) {
+      console.warn('handleDeleteAtEnd: Cannot merge with optimistic block');
+      return;
+    }
     
     if (!nextBlockId) {
       // No block below to merge
@@ -1079,23 +1186,44 @@ function BlockInternal({
     const nextContent = nextBlock.name || '';
     const mergedContent = currentContent + nextContent;
     
-    // Update current block with merged content
-    updateNode.mutate({
-      id: block.id,
-      data: { name: mergedContent }
-    });
+    // Execute mutations sequentially to prevent race conditions
+    const executeMerge = async () => {
+      try {
+        // Update current block with merged content first
+        await updateNode.mutateAsync({
+          id: block.id,
+          data: { name: mergedContent }
+        });
+        
+        // Delete the next block after update completes
+        await deleteNode.mutateAsync(nextBlockId);
+      } catch (error) {
+        console.error('handleDeleteAtEnd: Error during merge', error);
+      }
+    };
     
-    // Delete the next block
-    deleteNode.mutate(nextBlockId);
+    executeMerge();
   }, [block.id, block.name, children, siblings, getNextBlockId, blockParentMapFromStore, updateNode, deleteNode]);
   
   // Handle Tab - indent block (move as child of previous sibling)
   const handleIndent = useCallback(() => {
+    // Don't operate on optimistic blocks (negative IDs)
+    if (block.id < 0) {
+      console.warn('handleIndent: Cannot operate on optimistic block');
+      return;
+    }
+    
     const currentIndex = siblings.findIndex(s => s.id === block.id);
     const prevSibling = currentIndex > 0 ? siblings[currentIndex - 1] : null;
     
     if (!prevSibling) {
       // No previous sibling to indent into
+      return;
+    }
+    
+    // Don't indent into optimistic sibling
+    if (prevSibling.id < 0) {
+      console.warn('handleIndent: Cannot indent into optimistic sibling');
       return;
     }
     
@@ -1112,6 +1240,12 @@ function BlockInternal({
   
   // Handle Shift+Tab - outdent block (move to parent's level after parent)
   const handleOutdent = useCallback(() => {
+    // Don't operate on optimistic blocks (negative IDs)
+    if (block.id < 0) {
+      console.warn('handleOutdent: Cannot operate on optimistic block');
+      return;
+    }
+    
     if (!parentId || !parentBlock) {
       // Can't outdent if no parent
       return;
@@ -1127,6 +1261,12 @@ function BlockInternal({
     const grandparentId = parentBlock.parent_id;
     if (grandparentId === null || grandparentId === undefined) {
       // Parent has no parent - shouldn't happen for blocks, but guard anyway
+      return;
+    }
+    
+    // Don't outdent to optimistic grandparent
+    if (grandparentId < 0) {
+      console.warn('handleOutdent: Cannot outdent to optimistic grandparent');
       return;
     }
     
