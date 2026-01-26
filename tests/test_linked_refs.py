@@ -23,13 +23,13 @@ async def link_service_fixtures(db_pool, test_user):
     )
     from app.domain.services import LinkParsingService
     
-    workspace_id = test_user["workspace_id"]
+    graph_id = test_user["graph_id"]
     
     # Get system IDs
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-            SYSTEM_CLASS_UUIDS['page'], workspace_id
+            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+            SYSTEM_CLASS_UUIDS['page'], graph_id
         )
         page_type_id = row['id']
         
@@ -40,9 +40,9 @@ async def link_service_fixtures(db_pool, test_user):
         classes_property_id = row['id']
     
     # Create repositories
-    node_repo = PostgresNodeRepository(db_pool, workspace_id)
-    property_repo = PostgresPropertyRepository(db_pool, workspace_id)
-    link_repo = PostgresLinkRepository(db_pool, workspace_id)
+    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id, classes_property_id)
+    property_repo = PostgresPropertyRepository(db_pool, graph_id)
+    link_repo = PostgresLinkRepository(db_pool, graph_id)
     
     # Create link service
     link_service = LinkParsingService(
@@ -57,7 +57,7 @@ async def link_service_fixtures(db_pool, test_user):
         'link_service': link_service,
         'page_type_id': page_type_id,
         'classes_property_id': classes_property_id,
-        'workspace_id': workspace_id,
+        'graph_id': graph_id,
     }
 
 
@@ -65,12 +65,12 @@ async def link_service_fixtures(db_pool, test_user):
 async def test_schema_columns_exist(db_pool):
     """Test that new schema columns exist."""
     async with db_pool.acquire() as conn:
-        # Check node table has types_path column
+        # Check node table has classes_path column
         columns = await conn.fetch("""
             SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'node' AND column_name = 'types_path'
+            WHERE table_name = 'node' AND column_name = 'classes_path'
         """)
-        assert len(columns) == 1, f'types_path not in node columns'
+        assert len(columns) == 1, f'classes_path not in node columns'
         
         # Check node_link table has property_id column
         columns = await conn.fetch("""
@@ -151,7 +151,7 @@ async def test_classes_path_inheritance(db_pool, link_service_fixtures):
     node_repo = link_service_fixtures['node_repo']
     link_service = link_service_fixtures['link_service']
     classes_property_id = link_service_fixtures['classes_property_id']
-    workspace_id = link_service_fixtures['workspace_id']
+    graph_id = link_service_fixtures['graph_id']
     
     # Create two class nodes
     class_task = await node_repo.create(NodeCreateData(name='Task', is_class=True))
@@ -177,7 +177,7 @@ async def test_classes_path_inheritance(db_pool, link_service_fixtures):
         # Create property_value_relation entry
         await conn.execute(
             '''INSERT INTO property_value_relation 
-               (node_property_id, property_id, node_id, target_node_id, "order", create_date, write_date) 
+               (node_property_id, property_id, node_id, target_id, "order", create_date, write_date) 
                VALUES ($1, $2, $3, $4, $5, $6, $7)''',
             node_property_id, classes_property_id, page.id, class_task.id, 0, now, now
         )
@@ -236,7 +236,7 @@ async def test_backlinks_include_breadcrumb_path(link_service_fixtures):
 
 @pytest.mark.asyncio
 async def test_no_links_results_in_empty(link_service_fixtures):
-    """Test that nodes with no links have empty types_path and no backlinks."""
+    """Test that nodes with no links have empty classes_path and no backlinks."""
     from app.domain.entities import NodeCreateData
     
     node_repo = link_service_fixtures['node_repo']
@@ -256,8 +256,8 @@ async def test_no_links_results_in_empty(link_service_fixtures):
     block_updated = await node_repo.get_by_id(block.id)
     assert block_updated is not None
     
-    # types_path should be empty (no types set on ancestors)
-    assert block_updated.types_path == []
+    # classes_path should be empty (no types set on ancestors)
+    assert block_updated.classes_path == []
     
     # No backlinks to the page
     backlinks = await link_service.get_backlinks(page.id)
