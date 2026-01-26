@@ -1,0 +1,62 @@
+/**
+ * AddCoverButton styles
+ */
+
+.add-cover-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  background: var(--bg-tertiary);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--shape-small, 4px);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 1rem;
+}
+
+.add-cover-button:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.add-cover-button__text {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Size variants */
+.add-cover-button--sm {
+  min-height: 80px;
+  padding: 0.5rem;
+}
+
+.add-cover-button--sm .add-cover-button__text {
+  font-size: 0.75rem;
+}
+
+.add-cover-button--lg {
+  min-height: 160px;
+  padding: 1.5rem;
+}
+
+.add-cover-button--lg .add-cover-button__text {
+  font-size: 1rem;
+}
+
+/* When in card context */
+.node-card__cover .add-cover-button {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.node-card__cover .add-cover-button:hover {
+  border-bottom-color: var(--accent-color);
+}
