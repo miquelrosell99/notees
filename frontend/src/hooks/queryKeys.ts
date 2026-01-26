@@ -51,6 +51,8 @@ export const propertyKeys = {
   forClass: (classId: number) => [...propertyKeys.all, 'class', classId] as const,
   forClassInherited: (classId: number) => [...propertyKeys.all, 'class-inherited', classId] as const,
   classExtends: (classId: number) => [...propertyKeys.all, 'class-extends', classId] as const,
+  inheritedProperties: (classId: number) => [...propertyKeys.all, 'inherited', classId] as const,
+  extendedByClasses: (classId: number) => [...propertyKeys.all, 'extended-by', classId] as const,
 };
 
 // ==================== Comment Query Keys ====================

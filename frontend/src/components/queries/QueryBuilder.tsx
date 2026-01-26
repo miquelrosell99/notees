@@ -14,6 +14,7 @@
 import { useCallback } from 'react';
 import { ScopeSelector } from './ScopeSelector';
 import { ConditionGroupBlock } from './ConditionGroupBlock';
+import { isSystemQuery } from '@/lib/queryASTHelpers';
 import type { QueryAST, GroupNode, ScopeNode } from '@/types/queryAST';
 import './QueryBuilder.css';
 
@@ -55,8 +56,22 @@ export function QueryBuilder({
     });
   }, [ast, onChange]);
   
+  // Check if this is a system query
+  const isReadOnly = readOnly || isSystemQuery(ast);
+  
   return (
     <div className={`query-builder ${className}`}>
+      {/* System Query Banner */}
+      {isSystemQuery(ast) && (
+        <div className="query-builder__banner query-builder__banner--system">
+          <span className="query-builder__banner-icon">🔒</span>
+          <div className="query-builder__banner-content">
+            <strong>System Query</strong>
+            <p>This query is generated automatically (e.g., linked references, child pages) and cannot be modified.</p>
+          </div>
+        </div>
+      )}
+      
       {/* Scope Section */}
       <div className="query-builder__section">
         <h3 className="query-builder__section-title">Scope</h3>
@@ -64,7 +79,7 @@ export function QueryBuilder({
         <ScopeSelector
           scope={ast.scope}
           onChange={handleScopeChange}
-          readOnly={readOnly}
+          readOnly={isReadOnly}
         />
       </div>
       
@@ -76,7 +91,7 @@ export function QueryBuilder({
           group={ast.root_group}
           onUpdate={handleRootGroupChange}
           depth={0}
-          readOnly={readOnly}
+          readOnly={isReadOnly}
           showLogicToggle={true}
         />
       </div>

@@ -12,6 +12,8 @@ import type {
   ClassPropertiesResponse,
   ClassExtends,
   ClassExtendsResponse,
+  InheritedProperty,
+  ExtendedByClass,
 } from '@/types/api';
 
 const BASE = '/properties';
@@ -200,6 +202,44 @@ export async function removeClassExtends(
   extendsClassNodeId: number
 ): Promise<void> {
   await api.delete(`${BASE}/classes/${classNodeId}/extends/${extendsClassNodeId}`);
+}
+
+/**
+ * Get inherited properties for a class (from extended classes)
+ */
+export async function getInheritedProperties(
+  classNodeId: number
+): Promise<InheritedProperty[]> {
+  const response = await api.get<{ inherited_properties: InheritedProperty[] }>(
+    `${BASE}/classes/${classNodeId}/inherited-properties`
+  );
+  return response.data.inherited_properties;
+}
+
+/**
+ * Get classes that extend this class (reverse lookup)
+ */
+export async function getExtendedByClasses(
+  classNodeId: number
+): Promise<ExtendedByClass[]> {
+  const response = await api.get<{ classes: ExtendedByClass[] }>(
+    `${BASE}/classes/${classNodeId}/extended-by`
+  );
+  return response.data.classes;
+}
+
+/**
+ * Validate class extends (check for circular inheritance)
+ */
+export async function validateClassExtends(
+  classNodeId: number,
+  extendsIds: number[]
+): Promise<{ valid: boolean; error?: string; cycle_path?: number[] }> {
+  const response = await api.post<{ valid: boolean; error?: string; cycle_path?: number[] }>(
+    `${BASE}/classes/${classNodeId}/validate-extends`,
+    extendsIds
+  );
+  return response.data;
 }
 
 // ============== Node Properties ==============

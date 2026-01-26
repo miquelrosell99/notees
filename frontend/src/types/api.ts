@@ -260,6 +260,31 @@ export interface ClassProperty {
 }
 
 /**
+ * Inherited property (property inherited from an extended class)
+ */
+export interface InheritedProperty {
+  property_id: number;
+  property_name: string;
+  property_type: PropertyType;
+  from_class_id: number;
+  from_class_name: string;
+  sequence: number;
+  default_value: unknown;
+  hidden: boolean;
+  is_overridden: boolean;  // True if exists as a dedicated class property
+}
+
+/**
+ * Extended by class info (classes that extend this class)
+ */
+export interface ExtendedByClass {
+  id: number;
+  uuid: string;
+  name: string;
+  icon: string | null;
+}
+
+/**
  * Class extends (inheritance relationship)
  */
 export interface ClassExtends {

@@ -105,7 +105,97 @@ async def remove_class_property(
 
 
 # ============== Class Extends (Inheritance) ==============
-# NOTE: These endpoints are currently disabled because the repository
-# methods (get_class_extends, add_class_extends, remove_class_extends) 
-# are not yet implemented.
-# TODO: Implement class inheritance in PostgresPropertyRepository
+
+@router.get("/classes/{class_node_id}/inherited-properties")
+async def get_inherited_properties_endpoint(
+    class_node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get all properties inherited from extended classes.
+    
+    Returns properties with is_overridden flag indicating if they're
+    also defined as dedicated class properties.
+    """
+    from ...domain.services.class_extension_service import ClassExtensionService
+    from ...dependencies import get_pool, get_graph_id
+    
+    pool = await get_pool()
+    graph_id = await get_graph_id(user)
+    repo = await _get_property_repo(user)
+    
+    extension_service = ClassExtensionService(pool, graph_id, repo)
+    
+    try:
+        inherited_props = await extension_service.get_inherited_properties(class_node_id)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to get inherited properties: {str(e)}")
+    
+    result = []
+    for ip in inherited_props:
+        result.append({
+            "property_id": ip.property_id,
+            "property_name": ip.property_name,
+            "property_type": ip.property_type,
+            "from_class_id": ip.from_class_id,
+            "from_class_name": ip.from_class_name,
+            "sequence": ip.sequence,
+            "default_value": ip.default_value,
+            "hidden": ip.hidden,
+            "is_overridden": ip.is_overridden,
+        })
+    
+    return {"inherited_properties": result}
+
+
+@router.get("/classes/{class_node_id}/extended-by")
+async def get_extended_by_classes_endpoint(
+    class_node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get all classes that extend this class (reverse lookup).
+    
+    Returns a flat list of classes for display in the 'Extended By' section.
+    """
+    from ...domain.services.class_extension_service import ClassExtensionService
+    from ...dependencies import get_pool, get_graph_id
+    
+    pool = await get_pool()
+    graph_id = await get_graph_id(user)
+    repo = await _get_property_repo(user)
+    
+    extension_service = ClassExtensionService(pool, graph_id, repo)
+    
+    try:
+        classes = await extension_service.get_classes_extended_by(class_node_id)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to get extended-by classes: {str(e)}")
+    
+    return {"classes": classes}
+
+
+@router.post("/classes/{class_node_id}/validate-extends")
+async def validate_class_extends_endpoint(
+    class_node_id: int,
+    extends_ids: list[int],
+    user: User = Depends(get_current_user),
+):
+    """Validate that setting these extends would not create a circular reference.
+    
+    Returns {"valid": true} if OK, or {"valid": false, "error": "..."} if cycle detected.
+    """
+    from ...domain.services.class_extension_service import ClassExtensionService, CircularInheritanceError
+    from ...dependencies import get_pool, get_graph_id
+    
+    pool = await get_pool()
+    graph_id = await get_graph_id(user)
+    repo = await _get_property_repo(user)
+    
+    extension_service = ClassExtensionService(pool, graph_id, repo)
+    
+    try:
+        await extension_service.validate_extends_acyclic(class_node_id, extends_ids)
+        return {"valid": True}
+    except CircularInheritanceError as e:
+        return {"valid": False, "error": str(e), "cycle_path": e.cycle_path}
+    except Exception as e:
+        raise HTTPException(500, f"Validation failed: {str(e)}")
