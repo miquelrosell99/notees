@@ -11,10 +11,12 @@
  * - Block CRUD operations (add, remove, change)
  * - Keyboard handling (Enter to add, Backspace to remove)
  * - Block creation to destination page
+ * - Hierarchical page creation support (e.g., "Page1/Page2")
  */
 import { useState, useCallback } from 'react';
-import { useCreateNode } from './useNodes';
+import { useCreateNode, usePages } from './useNodes';
 import { useNodesStore } from '@/stores';
+import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 
 export interface DraftBlock {
   id: number;
@@ -84,6 +86,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   
   const createNodeMutation = useCreateNode();
   const { openNode } = useNodesStore();
+  const { data: allPages = [] } = usePages();
 
   // Reset blocks to initial state
   const resetBlocks = useCallback(() => {
@@ -157,12 +160,37 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
     [draftBlocks, createNodeMutation, resetBlocks, navigateOnSuccess, openNode, onSuccess]
   );
 
-  // Create a new page
+  // Create a new page (supports hierarchical paths like "Page1/Page2")
   const createPage = useCallback(
     async (name: string) => {
       if (!name.trim()) return undefined;
       
-      const newPage = await createNodeMutation.mutateAsync({ name: name.trim(), is_page: true });
+      const trimmedName = name.trim();
+      const parsed = parseHierarchicalPath(trimmedName);
+      
+      let parentId: number | null = null;
+      
+      // If hierarchical path, resolve parent (creating intermediate pages if needed)
+      if (parsed.isHierarchical) {
+        parentId = await resolveHierarchicalParent(
+          parsed.parentSegments,
+          allPages,
+          async (segmentName, parentIdForCreation) => {
+            return await createNodeMutation.mutateAsync({
+              name: segmentName,
+              is_page: true,
+              parent_id: parentIdForCreation,
+            });
+          }
+        );
+      }
+      
+      // Create the final page with resolved parent
+      const newPage = await createNodeMutation.mutateAsync({
+        name: parsed.leaf || trimmedName,
+        is_page: true,
+        parent_id: parentId,
+      });
       
       if (navigateOnSuccess) {
         openNode(newPage.id, 'page');
@@ -172,7 +200,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       
       return newPage;
     },
-    [createNodeMutation, navigateOnSuccess, openNode, onSuccess]
+    [allPages, createNodeMutation, navigateOnSuccess, openNode, onSuccess]
   );
 
   // Check if there's any content to send
