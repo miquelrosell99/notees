@@ -125,6 +125,8 @@ export function NodeCollection({
   hideToolbar = false,
   showAddButton = false,
   onAdd,
+  cardLayout = 'cover-top',
+  onCardLayoutChange,
 }: NodeCollectionProps) {
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
@@ -209,6 +211,7 @@ export function NodeCollection({
         return (
           <NodeCardView 
             {...viewProps} 
+            layout={cardLayout}
             sortable={sortable}
             onReorder={onReorder}
           />
@@ -277,6 +280,8 @@ export function NodeCollection({
                 onGroupByChange={handleGroupByChange}
                 showAddButton={showAddButton}
                 onAdd={onAdd}
+                cardLayout={cardLayout}
+                onCardLayoutChange={onCardLayoutChange}
               />
             </div>
           )}

@@ -33,6 +33,8 @@ interface NodeContentProps {
   children: Node[];
   /** Display mode for content */
   displayMode?: 'bullet' | 'document' | 'card';
+  /** Card layout mode for card view */
+  cardLayout?: 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
   /** Whether late night filter is active */
   lateNightFilterActive?: boolean;
   /** Total children count (before filtering) */
@@ -52,6 +54,7 @@ export function NodeContent({
   node, 
   children,
   displayMode = 'bullet',
+  cardLayout = 'cover-top',
   lateNightFilterActive = false,
   totalChildrenCount = 0,
 }: NodeContentProps) {
@@ -212,6 +215,7 @@ export function NodeContent({
             showEmpty={false}
             provideBlockCallbacks={true}
             blockCallbacks={blockCallbacks}
+            cardLayout={cardLayout}
           />
         </section>
       )}
