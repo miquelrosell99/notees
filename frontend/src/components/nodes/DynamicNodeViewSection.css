@@ -119,7 +119,7 @@
 
 /* Edit modal - wider for nested queries */
 .dynamic-section__edit-modal .modal {
-  width: 800px;
+  width: 1200px;
   max-width: 95vw;
   min-height: 400px;
   max-height: 85vh;
