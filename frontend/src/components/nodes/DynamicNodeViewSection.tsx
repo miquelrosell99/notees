@@ -158,6 +158,8 @@ export function DynamicNodeViewSection({
     if (!activeView?.query_block_tree) return 0;
     try {
       const ast = blockTreeToAST(activeView.query_block_tree);
+      // Hide badge for system queries
+      if (ast.is_system) return 0;
       return countConditions(ast);
     } catch {
       return countMainFilterBlocks(activeView.query_block_tree);
