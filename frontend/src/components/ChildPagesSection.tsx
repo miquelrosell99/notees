@@ -10,6 +10,7 @@
 import { useCallback, useState } from 'react';
 import { NodeCollection, NodeCollectionToolbar } from './nodes/NodeCollection';
 import { useNodesStore } from '@/stores';
+import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useCreateNode } from '@/hooks';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -32,6 +33,7 @@ export interface ChildPagesSectionToolbarState {
 export function useChildPagesSectionState(pageId: number, childPages?: Node[]): ChildPagesSectionToolbarState {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const { openNode } = useNodesStore();
+  const { setBlockState, setPendingCaret } = useBlockSelectionStore();
   const createNode = useCreateNode();
   
   const onAdd = useCallback(() => {
@@ -41,10 +43,27 @@ export function useChildPagesSectionState(pageId: number, childPages?: Node[]): 
     
     createNode.mutate({ name: '', is_page: true, parent_id: pageId, sequence: maxSequence + 1 }, {
       onSuccess: (newPage) => {
-        openNode(newPage.id, 'page');
+        if (viewMode === 'list') {
+          // List view: open the node in main view
+          openNode(newPage.id, 'page');
+        } else if (viewMode === 'table' || viewMode === 'card') {
+          // Table/Card view: set to edit mode and scroll to it
+          setTimeout(() => {
+            // Find the newly created element
+            const newElement = document.querySelector(`[data-block-id="${newPage.id}"]`);
+            if (newElement) {
+              // Scroll smoothly to the new element
+              newElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            
+            // Set block to edit mode with cursor at start
+            setBlockState(newPage.id, 'edit');
+            setPendingCaret(newPage.id, 0);
+          }, 100); // Small delay to ensure DOM update
+        }
       }
     });
-  }, [createNode, pageId, childPages, openNode]);
+  }, [createNode, pageId, childPages, openNode, viewMode, setBlockState, setPendingCaret]);
   
   return {
     viewMode,
