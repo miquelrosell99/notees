@@ -358,6 +358,8 @@ class NodeView:
     order_index: int = 0  # Tab order within view_type
     is_default: bool = False  # Whether this is the default tab for the view_type
     active: bool = True
+    shown_properties: List[Dict[str, Any]] = field(default_factory=list)  # [{uuid: str, sequence: int}] for table columns
+    group_by: Optional[str] = None  # Group by field for card view (property uuid or 'page'/'type')
     create_date: str = ""
     write_date: str = ""
     create_uid: Optional[int] = None

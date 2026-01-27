@@ -66,6 +66,14 @@ class PostgresNodeViewRepository:
             except json.JSONDecodeError:
                 query_json = DEFAULT_QUERY_BLOCK_TREE.copy()
         
+        # Parse shown_properties from JSONB
+        shown_properties = row.get('shown_properties', [])
+        if isinstance(shown_properties, str):
+            try:
+                shown_properties = json.loads(shown_properties)
+            except json.JSONDecodeError:
+                shown_properties = []
+        
         return NodeView(
             id=row['id'],
             uuid=str(row['uuid']),
@@ -76,6 +84,8 @@ class PostgresNodeViewRepository:
             order_index=row.get('order_index', 0),
             is_default=row.get('is_default', False),
             active=row.get('active', True),
+            shown_properties=shown_properties,
+            group_by=row.get('group_by'),
             create_date=create_date,
             write_date=write_date,
             create_uid=row.get('create_uid'),
@@ -302,6 +312,8 @@ class PostgresNodeViewRepository:
         name: Optional[str] = None,
         order_index: Optional[int] = None,
         is_default: Optional[bool] = None,
+        shown_properties: Optional[List[Dict[str, Any]]] = None,
+        group_by: Optional[str] = None,
     ) -> Optional[NodeView]:
         """Update a NodeView.
         
@@ -310,6 +322,8 @@ class PostgresNodeViewRepository:
             name: New display name
             order_index: New order index
             is_default: New default flag
+            shown_properties: New shown properties for table view
+            group_by: New group by field for card view
             
         Returns:
             Updated NodeView or None if not found
@@ -332,6 +346,16 @@ class PostgresNodeViewRepository:
             param_idx += 1
             updates.append(f"is_default = ${param_idx}")
             params.append(is_default)
+        
+        if shown_properties is not None:
+            param_idx += 1
+            updates.append(f"shown_properties = ${param_idx}::jsonb")
+            params.append(json.dumps(shown_properties))
+        
+        if group_by is not None:
+            param_idx += 1
+            updates.append(f"group_by = ${param_idx}")
+            params.append(group_by)
         
         if not updates:
             return await self.get_by_id(view_id)

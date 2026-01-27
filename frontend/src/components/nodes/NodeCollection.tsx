@@ -30,8 +30,9 @@
  * └─ NodeGraphView (graph)
  *     └─ GraphRenderer → nodes only with is_page = true
  */
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useNodesStore } from '@/stores';
+import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { 
   mdiFormatListBulleted, 
   mdiFileDocumentOutline, 
@@ -98,6 +99,8 @@ const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: s
  */
 export function NodeCollection({
   nodes,
+  viewId,
+  view,
   viewMode,
   availableViewModes,
   onViewModeChange,
@@ -143,6 +146,38 @@ export function NodeCollection({
       onGroupByChange(value);
     } else {
       setInternalGroupBy(value);
+    }
+  };
+  
+  // Property column selection state (for table view)
+  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
+  const updateNodeView = useUpdateNodeView();
+  
+  // Load property columns from view configuration
+  useEffect(() => {
+    if (view?.shown_properties) {
+      // Sort by sequence and extract UUIDs
+      const sortedProperties = [...view.shown_properties]
+        .sort((a, b) => a.sequence - b.sequence)
+        .map(p => p.uuid);
+      setSelectedPropertyUuids(sortedProperties);
+    }
+  }, [view]);
+  
+  const handlePropertyColumnsChange = (propertyUuids: string[]) => {
+    setSelectedPropertyUuids(propertyUuids);
+    
+    // Save to view configuration via API
+    if (viewId) {
+      const shown_properties = propertyUuids.map((uuid, index) => ({
+        uuid,
+        sequence: index + 1,
+      }));
+      
+      updateNodeView.mutate({
+        viewId,
+        data: { shown_properties },
+      });
     }
   };
   
@@ -231,6 +266,7 @@ export function NodeCollection({
             columns={tableColumns}
             sortable={sortable}
             onReorder={onReorder}
+            propertyUuids={selectedPropertyUuids}
           />
         );
       
@@ -288,8 +324,8 @@ export function NodeCollection({
                 showAddButton={showAddButton}
                 onAdd={onAdd}
                 cardLayout={effectiveCardLayout}
-                onCardLayoutChange={onCardLayoutChange}
-              />
+                onCardLayoutChange={onCardLayoutChange}                selectedPropertyUuids={selectedPropertyUuids}
+                onPropertyColumnsChange={handlePropertyColumnsChange}              />
             </div>
           )}
           

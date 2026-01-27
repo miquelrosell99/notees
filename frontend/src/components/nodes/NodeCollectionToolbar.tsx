@@ -9,7 +9,8 @@
  * - In NodeViewSection: Pass as headerActions to move buttons to section header
  */
 import { useMemo } from 'react';
-import { useNodesStore, type CardSizeMode } from '@/stores';
+import { useNodesStore } from '@/stores';
+import type { CardSizeMode } from '@/stores/nodesStore';
 import { 
   mdiGroup,
   mdiPlus,
@@ -17,12 +18,12 @@ import {
   mdiDockLeft,
   mdiDockRight,
   mdiDockTop,
-  mdiDockBottom,
   mdiNumeric1,
   mdiNumeric2,
   mdiNumeric3,
   mdiNumeric4,
   mdiNumeric5,
+  mdiTableColumn,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
@@ -30,6 +31,7 @@ import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { Button } from '../core/Button';
+import { PropertyColumnSelector } from '../properties/PropertyColumnSelector';
 import './NodeCollectionToolbar.css';
 
 // Card layout mode icon mappings
@@ -69,6 +71,10 @@ export interface NodeCollectionToolbarProps {
   cardLayout?: string;
   /** Callback when card layout changes */
   onCardLayoutChange?: (layout: string) => void;
+  /** Selected property UUIDs for table columns */
+  selectedPropertyUuids?: string[];
+  /** Callback when property column selection changes */
+  onPropertyColumnsChange?: (propertyUuids: string[]) => void;
   /** Additional CSS class */
   className?: string;
 }
@@ -89,6 +95,8 @@ export function NodeCollectionToolbar({
   onAdd,
   cardLayout,
   onCardLayoutChange,
+  selectedPropertyUuids = [],
+  onPropertyColumnsChange,
   className = '',
 }: NodeCollectionToolbarProps) {
   // Use store for card layout if not controlled
@@ -107,6 +115,7 @@ export function NodeCollectionToolbar({
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
   const showCardSizeSelector = viewMode === 'card';
+  const showPropertyColumnSelector = viewMode === 'table' && onPropertyColumnsChange;
   
   // Determine if using horizontal layout
   const isHorizontalLayout = effectiveCardLayout === 'cover-left' || effectiveCardLayout === 'cover-right';
@@ -148,7 +157,7 @@ export function NodeCollectionToolbar({
   );
 
   // Don't render if nothing to show
-  if (!showViewSwitcher && !showGroupByButton && !showAdd) {
+  if (!showViewSwitcher && !showGroupByButton && !showAdd && !showPropertyColumnSelector) {
     return null;
   }
 
@@ -164,6 +173,28 @@ export function NodeCollectionToolbar({
           title="Add"
           className="node-collection-toolbar__add"
         />
+      )}
+      
+      {/* Property Column Selector - only shown in table view */}
+      {showPropertyColumnSelector && (
+        <ButtonWithPanel
+          icon={mdiTableColumn}
+          variant="ghost"
+          size="sm"
+          panelPosition="bottom"
+          panelAlignment="start"
+          panelWidth={350}
+          className="node-collection-toolbar__property-columns"
+          tooltip="Select columns"
+        >
+          {(closePanel) => (
+            <PropertyColumnSelector
+              selectedPropertyUuids={selectedPropertyUuids}
+              onSelectionChange={onPropertyColumnsChange!}
+              onClose={closePanel}
+            />
+          )}
+        </ButtonWithPanel>
       )}
       
       {/* GroupBy selector - only shown in list view */}

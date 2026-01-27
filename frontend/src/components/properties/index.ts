@@ -10,3 +10,7 @@ export type { PropertyListProps, PropertyEntry } from './PropertyList';
 export { PropertyConfigPanel } from './PropertyConfigPanel';
 
 export { PropertySuggestionPopup } from './PropertySuggestionPopup';
+
+export { PropertyColumnSelector } from './PropertyColumnSelector';
+
+export { PropertyCell } from './PropertyCell';
