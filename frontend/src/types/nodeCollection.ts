@@ -42,7 +42,8 @@ export type NodeCollectionViewMode =
   | 'card'      // Card grid layout
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
-  | 'graph';    // Graph visualization
+  | 'graph'     // Graph visualization
+  | 'timeline'; // Timeline with date-based circular nodes
 
 /**
  * View mode icon and label for UI display

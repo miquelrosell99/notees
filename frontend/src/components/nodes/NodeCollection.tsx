@@ -40,6 +40,7 @@ import {
   mdiTable, 
   mdiChartGantt, 
   mdiGraphOutline,
+  mdiTimelineClockOutline,
 } from '@mdi/js';
 import type { 
   NodeCollectionProps, 
@@ -85,6 +86,7 @@ const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: s
   table: { icon: mdiTable, label: 'Table' },
   gantt: { icon: mdiChartGantt, label: 'Gantt' },
   graph: { icon: mdiGraphOutline, label: 'Graph' },
+  timeline: { icon: mdiTimelineClockOutline, label: 'Timeline' },
 };
 
 // ==================== Component ====================
