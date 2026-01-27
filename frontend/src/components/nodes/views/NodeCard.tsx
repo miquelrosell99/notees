@@ -171,16 +171,6 @@ export function NodeCard({
   }, [coverImageId, assetNode]);
   
   
-  // Handle click
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (e.shiftKey && onNodeShiftClick) {
-      e.preventDefault();
-      onNodeShiftClick(node);
-    } else if (onNodeClick) {
-      onNodeClick(node);
-    }
-  }, [node, onNodeClick, onNodeShiftClick]);
-  
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -295,7 +285,6 @@ export function NodeCard({
       <Card 
         className={cardClassName}
         style={cardStyle}
-        onClick={handleClick}
         onContextMenu={handleContextMenu}
         padding={false}
         elevation="none"
@@ -393,7 +382,10 @@ export function NodeCard({
               <div className="node-card__body">
                 <div 
                   className="node-card__content-header"
-                  onClick={() => setContentExpanded(!contentExpanded)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setContentExpanded(!contentExpanded);
+                  }}
                 >
                   <Button
                     variant="ghost"
@@ -487,17 +479,15 @@ export function NodeCard({
                     onContentChange={handleContentChange}
                   />
                 </div>
-                {editable && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleAddChild}
-                    icon={mdiPlus}
-                    className="node-card__action-button"
-                    aria-label="Add child block"
-                  />
-                )}
-                {editable && onNodeClick && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAddChild}
+                  icon={mdiPlus}
+                  className="node-card__action-button node-card__action-button--always-visible"
+                  aria-label="Add child block"
+                />
+                {onNodeClick && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -506,7 +496,7 @@ export function NodeCard({
                       onNodeClick(node);
                     }}
                     icon={mdiChevronRight}
-                    className="node-card__action-button"
+                    className="node-card__action-button node-card__action-button--always-visible"
                     aria-label="Navigate to node"
                   />
                 )}
@@ -562,7 +552,10 @@ export function NodeCard({
               <div className="node-card__body">
                 <div 
                   className="node-card__content-header"
-                  onClick={() => setContentExpanded(!contentExpanded)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setContentExpanded(!contentExpanded);
+                  }}
                 >
                   <Button
                     variant="ghost"
