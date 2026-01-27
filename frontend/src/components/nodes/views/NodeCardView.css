@@ -11,6 +11,22 @@
   width: 100%;
 }
 
+/* Vertical layouts with dynamic height based on tallest cover */
+.node-card-view--vertical-layout {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 280px));
+  grid-auto-rows: max-content;
+}
+
+.node-card-view--vertical-layout .node-card {
+  width: 280px;
+}
+
+/* Set cover height to match tallest image when available */
+.node-card-view--vertical-layout .node-card__cover {
+  height: var(--max-cover-height, auto);
+  aspect-ratio: unset;
+}
+
 /* Individual card - extends Card core component */
 .node-card.card {
   cursor: pointer;
