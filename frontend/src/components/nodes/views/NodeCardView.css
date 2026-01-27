@@ -9,44 +9,39 @@
   gap: 1rem;
   width: 100%;
   justify-content: center;
-  --card-width-percentage: 100%;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-width-percentage), 1fr));
 }
 
-/* Card size variants - percentage-based widths */
-.node-card-view--size-xs {
-  --card-width-percentage: 18%;
+/* Card size variants - column-based */
+.node-card-view--size-1 {
+  grid-template-columns: 1fr;
 }
 
-.node-card-view--size-s {
-  --card-width-percentage: 22%;
+.node-card-view--size-2 {
+  grid-template-columns: repeat(2, 1fr);
 }
 
-.node-card-view--size-m {
-  --card-width-percentage: 28%;
+.node-card-view--size-3 {
+  grid-template-columns: repeat(3, 1fr);
 }
 
-.node-card-view--size-l {
-  --card-width-percentage: 34%;
+.node-card-view--size-4 {
+  grid-template-columns: repeat(4, 1fr);
 }
 
-.node-card-view--size-xl {
-  --card-width-percentage: 42%;
+.node-card-view--size-5 {
+  grid-template-columns: repeat(5, 1fr);
 }
 
-/* Horizontal layout column sizes: 1, 2, or 3 columns */
-.node-card-view--size-xs.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-s.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  grid-template-columns: 1fr; /* 1 column */
+/* Horizontal layout overrides: max 2 columns */
+.node-card-view--size-1.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
+  grid-template-columns: 1fr;
 }
 
-.node-card-view--size-m.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-l.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  grid-template-columns: repeat(auto-fill, minmax(48%, 1fr)); /* 2 columns */
-}
-
-.node-card-view--size-xl.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  grid-template-columns: repeat(auto-fill, minmax(32%, 1fr)); /* 3 columns */
+.node-card-view--size-2.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-3.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-4.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-5.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 /* Vertical layouts with dynamic height based on tallest cover */
