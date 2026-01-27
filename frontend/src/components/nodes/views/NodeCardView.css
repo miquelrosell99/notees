@@ -9,110 +9,114 @@
   gap: 1rem;
   width: 100%;
   justify-content: center;
-  --card-min-width: 280px;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr));
+  --card-width-percentage: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width-percentage), 1fr));
 }
 
-/* Card size variants */
+/* Card size variants - percentage-based widths */
 .node-card-view--size-xs {
-  --card-min-width: 180px;
+  --card-width-percentage: 18%;
 }
 
 .node-card-view--size-s {
-  --card-min-width: 220px;
+  --card-width-percentage: 22%;
 }
 
 .node-card-view--size-m {
-  --card-min-width: 280px;
+  --card-width-percentage: 28%;
 }
 
 .node-card-view--size-l {
-  --card-min-width: 340px;
+  --card-width-percentage: 34%;
 }
 
 .node-card-view--size-xl {
-  --card-min-width: 420px;
+  --card-width-percentage: 42%;
 }
 
 /* Vertical layouts with dynamic height based on tallest cover */
 .node-card-view--vertical-layout {
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), var(--card-min-width)));
-  grid-auto-rows: max-content;
-}
-
-.node-card-view--vertical-layout .node-card {
-  width: var(--card-min-width);
+  /* Cards maintain percentage width */
 }
 
 /* Set cover height to match tallest image when available */
 .node-card-view--vertical-layout .node-card__cover {
   height: var(--max-cover-height, auto);
-  aspect-ratio: unset;
 }
 
 /* Individual card - extends Card core component */
 .node-card.card {
   cursor: pointer;
+  display: flex;
 }
 
 /* Card layouts */
 .node-card--cover-top {
-  display: flex;
   flex-direction: column;
-}
-
-.node-card--cover-bottom {
-  display: flex;
-  flex-direction: column-reverse;
-}
-
-.node-card--cover-left {
-  display: flex;
-  flex-direction: row;
-}
-
-.node-card--cover-left .node-card__cover {
-  width: 120px;
-  flex-shrink: 0;
-}
-
-.node-card--cover-right {
-  display: flex;
-  flex-direction: row-reverse;
-}
-
-.node-card--cover-right .node-card__cover {
-  width: 120px;
-  flex-shrink: 0;
-}
-
-.node-card--cover-side {
-  display: flex;
-  flex-direction: row;
-}
-
-.node-card--cover-side .node-card__cover {
-  width: 120px;
-  flex-shrink: 0;
 }
 
 .node-card--no-cover {
-  display: flex;
   flex-direction: column;
+}
+
+/* Horizontal layouts use CSS Grid */
+.node-card--cover-left,
+.node-card--cover-right {
+  display: grid;
+  grid-template-columns: 40% 1fr;
+  grid-template-rows: auto auto 1fr;
+  gap: 0;
+}
+
+.node-card--cover-right {
+  grid-template-columns: 1fr 40%;
+}
+
+/* Cover in horizontal layouts - spans all rows */
+.node-card--cover-left .node-card__cover {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+.node-card--cover-right .node-card__cover {
+  grid-column: 2;
+  grid-row: 1 / -1;
+}
+
+/* Grid content area in horizontal layouts */
+.node-card--cover-left .node-card__grid-content {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 0;
+}
+
+.node-card--cover-right .node-card__grid-content {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 0;
+}
+
+/* Remove old side-by-side width constraints */
+.node-card--cover-left .node-card__cover,
+.node-card--cover-right .node-card__cover {
+  aspect-ratio: 1;
+  height: 100%;
 }
 
 /* Cover image */
 .node-card__cover {
   position: relative;
-  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--bg-tertiary);
 }
 
-.node-card--cover-left .node-card__cover,
-.node-card--cover-right .node-card__cover,
-.node-card--cover-side .node-card__cover {
-  aspect-ratio: 1;
+/* Vertical layout covers use natural aspect ratio of images */
+.node-card--cover-top .node-card__cover {
+  /* No fixed aspect ratio - determined by image */
 }
 
 .node-card__cover-image {
@@ -148,10 +152,6 @@
   border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-.node-card--cover-bottom .node-card__header {
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
-}
-
 /* Separator between header and cover in horizontal layouts */
 .node-card--cover-left .node-card__header {
   border-left: 1px solid var(--color-outline-variant, var(--border-color));
@@ -161,8 +161,27 @@
   border-right: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-.node-card--cover-side .node-card__header {
+/* Metadata rows (classes and tags) */
+.node-card__metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.node-card--cover-left .node-card__metadata {
   border-left: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.node-card--cover-right .node-card__metadata {
+  border-right: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.node-card__metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
 }
 
 /* Title wrapper - contains block and nav button */
@@ -209,16 +228,19 @@
   border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-/* Adjust for vertical layouts - already has border from header */
-.node-card--cover-top .node-card__children,
-.node-card--cover-bottom .node-card__children {
+/* Horizontal layouts children borders */
+.node-card--cover-left .node-card__children {
+  border-left: 1px solid var(--color-outline-variant, var(--border-color));
   border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-/* Adjust for horizontal layouts */
-.node-card--cover-left .node-card__body,
-.node-card--cover-right .node-card__body,
-.node-card--cover-side .node-card__body {
+.node-card--cover-right .node-card__children {
+  border-right: 1px solid var(--color-outline-variant, var(--border-color));
+  border-top: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+/* Adjust for vertical layouts - already has border from header */
+.node-card--cover-top .node-card__children {
   border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 

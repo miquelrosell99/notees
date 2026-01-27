@@ -18,6 +18,7 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { Button } from '../../core/Button';
+import { NodeClassPill } from '../../NodeClassPill';
 import { mdiChevronRight, mdiPlus } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
@@ -26,9 +27,9 @@ import { AssetActions } from '../../assets/AssetActions';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import type { Asset } from '@/api/assets';
-import { useProperties, useSetNodeProperty, useNode, useCreateNode } from '@/hooks/useNodes';
+import { useProperties, useSetNodeProperty, useNode, useCreateNode, useNodes, useClasses, useTags } from '@/hooks/useNodes';
 import { useContentSave } from '@/hooks/useContentSave';
-import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { getAssetUrl } from '@/api/assets';
@@ -38,7 +39,7 @@ export interface NodeCardProps {
   index: number;
   maxDepth: number;
   depth: number;
-  layout: 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
+  layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
   sortable?: boolean;
   isDragging?: boolean;
   isDropTarget?: boolean;
@@ -60,7 +61,7 @@ export function NodeCard({
   isDragging,
   isDropTarget,
   editable = true,
-  allClasses,
+  allClasses: propsAllClasses,
   isSelected = false,
   onNodeClick,
   onNodeShiftClick,
@@ -70,17 +71,62 @@ export function NodeCard({
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
   
+  // Get all nodes for class/tag resolution
+  const { data: allNodes } = useNodes();
+  const { data: allClasses } = useClasses();
+  const { data: allTags } = useTags();
+  
+  // Resolve class details (excluding the implicit "page" class)
+  const classDetails = useMemo(() => {
+    if (!node?.classes) return [];
+    const classIds = node.classes;
+    return classIds
+      .map((classId: number) => {
+        const fromClasses = allClasses?.find(t => t.id === classId);
+        if (fromClasses) return fromClasses;
+        return allNodes?.find((n: Node) => n.id === classId);
+      })
+      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
+  }, [node?.classes, allClasses, allNodes]);
+  
+  // Resolve tag details
+  const tagDetails = useMemo(() => {
+    if (!node?.tags || node.tags.length === 0) return [];
+    return node.tags
+      .map(tagId => {
+        const fromTags = allTags?.find(t => t.id === tagId);
+        if (fromTags) return fromTags;
+        return allNodes?.find((n: Node) => n.id === tagId);
+      })
+      .filter((t): t is Node => {
+        if (t === undefined) return false;
+        if (t.is_type) return false;
+        return true;
+      });
+  }, [node?.tags, allTags, allNodes]);
+  
+  // Get effective icon (from node or inherited from class)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, propsAllClasses), [node, propsAllClasses]);
+  
+  // Determine if we should show the bullet in the header
+  const showBullet = !!effectiveIcon;
+  
+  // Use the layout as-is - the layout determines if cover should be shown
+  const effectiveLayout = layout;
+  
+  const hasMetadata = classDetails.length > 0 || tagDetails.length > 0;
+  const isHorizontalLayout = effectiveLayout === 'cover-left' || effectiveLayout === 'cover-right';
+  
   // Track temporary collapsed states (for system-initiated collapses)
   // Only applies to direct children - they start collapsed but this isn't persisted
   const [tempCollapsedChildren, setTempCollapsedChildren] = useState<Set<number>>(() => {
-    // Initialize all direct children as collapsed (temporary)
     return new Set(children.map(child => child.id));
   });
   
   // Reset temporary collapsed state when node changes
   useEffect(() => {
     setTempCollapsedChildren(new Set(children.map(child => child.id)));
-  }, [node.id]);
+  }, [node.id, children]);
   
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -122,16 +168,6 @@ export function NodeCard({
     return null;
   }, [coverImageId, assetNode]);
   
-  // Get effective icon (from node or inherited from class)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
-  
-  // Determine if we should show the bullet in the header
-  // Show bullet only if there's an effective icon (from node or type)
-  const showBullet = !!effectiveIcon;
-  
-  // Use the layout as-is - the layout determines if cover should be shown
-  // If no cover exists, the AddCoverButton will be shown in layouts that expect a cover
-  const effectiveLayout = layout;
   
   // Handle click
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -275,117 +311,257 @@ export function NodeCard({
           </div>
         )}
         
-
-        {/* Cover image or Add Cover button */}
-        {effectiveLayout !== 'no-cover' && (
-          <div 
-            className="node-card__cover" 
-            onClick={(e) => e.stopPropagation()}
-            onMouseEnter={() => setIsCoverHovered(true)}
-            onMouseLeave={() => setIsCoverHovered(false)}
-          >
-            {coverUrl ? (
-              <>
-                <img src={coverUrl} alt="" className="node-card__cover-image" />
-                {editable && (
-                  <AssetActions
-                    onEdit={() => setIsAssetUploadOpen(true)}
-                    onRemove={handleRemove}
-                    visible={isCoverHovered}
-                    position="bottom-right"
-                    compact
-                  />
+        {/* Vertical layout: cover-top or no-cover */}
+        {!isHorizontalLayout && (
+          <>
+            {/* Cover image or Add Cover button (vertical) */}
+            {effectiveLayout === 'cover-top' && (
+              <div 
+                className="node-card__cover" 
+                onClick={(e) => e.stopPropagation()}
+                onMouseEnter={() => setIsCoverHovered(true)}
+                onMouseLeave={() => setIsCoverHovered(false)}
+              >
+                {coverUrl ? (
+                  <>
+                    <img src={coverUrl} alt="" className="node-card__cover-image" />
+                    {editable && (
+                      <AssetActions
+                        onEdit={() => setIsAssetUploadOpen(true)}
+                        onRemove={handleRemove}
+                        visible={isCoverHovered}
+                        position="bottom-right"
+                        compact
+                      />
+                    )}
+                  </>
+                ) : (
+                  <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
                 )}
-              </>
-            ) : (
-              <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+              </div>
             )}
-          </div>
-        )}
-        
-        {/* Card header - similar to sidebar cards, also serves as drag zone */}
-        <div 
-          className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
-          onMouseDown={handleHeaderMouseDown}
-        >
-          <div className="node-card__title-wrapper">
-            <div className="node-card__title-block">
-              <Block
-                block={node}
-                parentId={node.parent_id}
-                showBullet={showBullet}
-                showChildren={false}
-                canMove={false}
-                canSelect={false}
-                canEdit={editable}
-                suppressColor={true}
-                onContentChange={handleContentChange}
-              />
-            </div>
-            {editable && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleAddChild}
-                icon={mdiPlus}
-                className="node-card__action-button"
-                aria-label="Add child block"
-              />
-            )}
-            {editable && onNodeClick && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNodeClick(node);
-                }}
-                icon={mdiChevronRight}
-                className="node-card__action-button"
-                aria-label="Navigate to node"
-              />
-            )}
-          </div>
-        </div>
-        
-        {/* Card body with children - render all recursively */}
-        {hasChildren && (
-          <div className="node-card__body">
-            <div className="node-card__children">
-              {children.map((child) => {
-                // Check if this child has a persisted collapsed state
-                const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
-                
-                // Use persisted collapse if it exists, otherwise use temporary state
-                const effectiveCollapsed = hasPersistedCollapse 
-                  ? child.collapsed 
-                  : tempCollapsedChildren.has(child.id);
-                
-                // Create a modified child node with the effective collapsed state
-                const childWithCollapse = hasPersistedCollapse 
-                  ? child 
-                  : { ...child, collapsed: effectiveCollapsed };
-                
-                return (
+            
+            {/* Card header - similar to sidebar cards, also serves as drag zone */}
+            <div 
+              className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
+              onMouseDown={handleHeaderMouseDown}
+            >
+              <div className="node-card__title-wrapper">
+                <div className="node-card__title-block">
                   <Block
-                    key={child.id}
-                    block={childWithCollapse}
-                    children={child.children}
-                    parentId={node.id}
-                    depth={1}
+                    block={node}
+                    parentId={node.parent_id}
+                    showBullet={showBullet}
+                    showChildren={false}
                     canMove={false}
                     canSelect={false}
                     canEdit={editable}
-                    showBullet={true}
-                    showChildren={true}
+                    suppressColor={true}
                     onContentChange={handleContentChange}
-                    onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                    onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
                   />
-                );
-              })}
+                </div>
+                {editable && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddChild}
+                    icon={mdiPlus}
+                    className="node-card__action-button"
+                    aria-label="Add child block"
+                  />
+                )}
+                {editable && onNodeClick && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNodeClick(node);
+                    }}
+                    icon={mdiChevronRight}
+                    className="node-card__action-button"
+                    aria-label="Navigate to node"
+                  />
+                )}
+              </div>
             </div>
-          </div>
+            
+            {/* Card body with children - render all recursively */}
+            {hasChildren && (
+              <div className="node-card__body">
+                <div className="node-card__children">
+                  {children.map((child) => {
+                    const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                    const effectiveCollapsed = hasPersistedCollapse 
+                      ? child.collapsed 
+                      : tempCollapsedChildren.has(child.id);
+                    const childWithCollapse = hasPersistedCollapse 
+                      ? child 
+                      : { ...child, collapsed: effectiveCollapsed };
+                    
+                    return (
+                      <Block
+                        key={child.id}
+                        block={childWithCollapse}
+                        children={child.children}
+                        parentId={node.id}
+                        depth={1}
+                        canMove={false}
+                        canSelect={false}
+                        canEdit={editable}
+                        showBullet={true}
+                        showChildren={true}
+                        onContentChange={handleContentChange}
+                        onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                        onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        
+        {/* Horizontal layout: cover-left or cover-right - use CSS Grid */}
+        {isHorizontalLayout && (
+          <>
+            {/* Cover image or Add Cover button (horizontal - spans rows) */}
+            <div 
+              className="node-card__cover" 
+              onClick={(e) => e.stopPropagation()}
+              onMouseEnter={() => setIsCoverHovered(true)}
+              onMouseLeave={() => setIsCoverHovered(false)}
+            >
+              {coverUrl ? (
+                <>
+                  <img src={coverUrl} alt="" className="node-card__cover-image" />
+                  {editable && (
+                    <AssetActions
+                      onEdit={() => setIsAssetUploadOpen(true)}
+                      onRemove={handleRemove}
+                      visible={isCoverHovered}
+                      position="bottom-right"
+                      compact
+                    />
+                  )}
+                </>
+              ) : (
+                <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+              )}
+            </div>
+            
+            {/* Grid content area */}
+            <div className="node-card__grid-content">
+              {/* Row 1: Title */}
+              <div 
+                className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
+                onMouseDown={handleHeaderMouseDown}
+              >
+                <div className="node-card__title-wrapper">
+                  <div className="node-card__title-block">
+                    <Block
+                      block={node}
+                      parentId={node.parent_id}
+                      showBullet={showBullet}
+                      showChildren={false}
+                      canMove={false}
+                      canSelect={false}
+                      canEdit={editable}
+                      suppressColor={true}
+                      onContentChange={handleContentChange}
+                    />
+                  </div>
+                  {editable && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddChild}
+                      icon={mdiPlus}
+                      className="node-card__action-button"
+                      aria-label="Add child block"
+                    />
+                  )}
+                  {editable && onNodeClick && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNodeClick(node);
+                      }}
+                      icon={mdiChevronRight}
+                      className="node-card__action-button"
+                      aria-label="Navigate to node"
+                    />
+                  )}
+                </div>
+              </div>
+              
+              {/* Row 2: Classes and Tags */}
+              {hasMetadata && (
+                <div className="node-card__metadata">
+                  {classDetails.length > 0 && (
+                    <div className="node-card__metadata-row">
+                      {classDetails.map((cls) => (
+                        <NodeClassPill
+                          key={cls.id}
+                          classNode={cls}
+                          readOnly={true}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {tagDetails.length > 0 && (
+                    <div className="node-card__metadata-row">
+                      {tagDetails.map((tag) => (
+                        <NodeClassPill
+                          key={tag.id}
+                          classNode={tag}
+                          readOnly={true}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Row 3: Children (full width) */}
+              {hasChildren && (
+                <div className="node-card__body">
+                  <div className="node-card__children">
+                    {children.map((child) => {
+                      const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                      const effectiveCollapsed = hasPersistedCollapse 
+                        ? child.collapsed 
+                        : tempCollapsedChildren.has(child.id);
+                      const childWithCollapse = hasPersistedCollapse 
+                        ? child 
+                        : { ...child, collapsed: effectiveCollapsed };
+                      
+                      return (
+                        <Block
+                          key={child.id}
+                          block={childWithCollapse}
+                          children={child.children}
+                          parentId={node.id}
+                          depth={1}
+                          canMove={false}
+                          canSelect={false}
+                          canEdit={editable}
+                          showBullet={true}
+                          showChildren={true}
+                          onContentChange={handleContentChange}
+                          onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                          onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </Card>
       
