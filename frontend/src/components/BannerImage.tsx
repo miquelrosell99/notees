@@ -256,27 +256,22 @@ export function BannerImage({
       />
       
       {editable && (
-        <div 
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+        <AssetActions
+          onEdit={onSelectImage}
+          onRemove={handleRemove}
+          visible={isHovered}
+          position="bottom-right"
         >
-          <AssetActions
-            onEdit={onSelectImage}
-            onRemove={handleRemove}
-            visible={isHovered}
-            position="bottom-right"
-          >
-            <Button
-              icon={mdiChevronUp}
-              variant="ghost"
-              size="sm"
-              onClick={handleToggleCollapse}
-              title="Collapse banner"
-              aria-label="Collapse banner image"
-              aria-expanded="true"
-            />
-          </AssetActions>
-        </div>
+          <Button
+            icon={mdiChevronUp}
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleCollapse}
+            title="Collapse banner"
+            aria-label="Collapse banner image"
+            aria-expanded="true"
+          />
+        </AssetActions>
       )}
     </Card>
   );
