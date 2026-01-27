@@ -290,9 +290,38 @@ class QueryASTToSQL:
         return None
     
     def _generate_ancestor_path_condition(self, condition: AncestorPathCondition) -> Optional[str]:
-        """Generate SQL for ancestor path condition."""
-        # This would need recursive CTE for ancestor checking
-        # Simplified for now
+        """Generate SQL for ancestor path condition.
+        
+        This finds nodes that are descendants of nodes matching the nested group.
+        For child_pages view: finds direct children (max_depth=1) of the current node.
+        """
+        if not condition.group or not condition.group.blocks:
+            return None
+        
+        # Get the first block in the group - typically a UUID block
+        first_block = condition.group.blocks[0]
+        
+        # Handle UUID block (most common case for current_node_uuid)
+        if hasattr(first_block, 'value'):
+            uuid_value = first_block.value
+            param_name = self._add_param(uuid_value)
+            
+            # Build the node_path query
+            depth_condition = ""
+            if condition.max_depth is not None:
+                depth_param = self._add_param(condition.max_depth)
+                depth_condition = f" AND np.depth = %({depth_param})s"
+            elif condition.min_depth is not None:
+                min_depth_param = self._add_param(condition.min_depth)
+                depth_condition = f" AND np.depth >= %({min_depth_param})s"
+            
+            return f"""(EXISTS (
+                SELECT 1 FROM node_path np
+                WHERE np.descendant_id = n.id
+                AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                {depth_condition}
+            ))"""
+        
         return None
     
     def _add_param(self, value: Any) -> str:
