@@ -42,6 +42,7 @@ import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { isSystemBlock } from '../queries/constants';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
+import { useNodesStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline } from '@mdi/js';
 import './DynamicNodeViewSection.css';
 
