@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiGraphOutline, mdiCog } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { DatabaseSwitcher } from '../databases/DatabaseSwitcher';
 import { DatabaseModal } from '../databases/DatabaseModal';
 import { SettingsModal } from '../SettingsModal';
@@ -168,6 +168,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
               onClick={() => setMainViewType('graph')}
             >
               Graph View
+            </Button>
+            
+            <Button 
+              className={`sidebar-nav-item ${mainViewType === 'timeline' ? 'active' : ''}`}
+              variant="ghost"
+              size="sm"
+              icon={mdiTimelineClockOutline}
+              fullWidth
+              active={mainViewType === 'timeline'}
+              onClick={() => setMainViewType('timeline')}
+            >
+              Timeline View
             </Button>
           </nav>
           
