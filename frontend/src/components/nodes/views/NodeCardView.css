@@ -150,6 +150,18 @@
   width: 100%;
 }
 
+/* Cover bullet - positioned at top left */
+.node-card__cover-bullet {
+  position: absolute;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: 20;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-2);
+  padding: 2px;
+}
+
 /* Vertical layout covers use natural aspect ratio of images */
 .node-card--cover-top .node-card__cover {
   /* Natural aspect ratio based on image */

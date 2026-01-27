@@ -191,11 +191,16 @@
 
 /* =============== Inline Image Styles =============== */
 
+.inline-image-container {
+  position: relative;
+  display: block;
+  margin: var(--spacing-2) 0;
+}
+
 .inline-image {
   display: block;
   max-width: 100%;
   height: auto;
-  margin: var(--spacing-2) 0;
   border-radius: var(--shape-medium);
   cursor: pointer;
   transition: box-shadow var(--motion-duration-short) var(--motion-easing-standard), transform var(--motion-duration-short) var(--motion-easing-standard);
@@ -205,6 +210,18 @@
 .inline-image:hover {
   box-shadow: var(--elevation-2);
   transform: scale(1.005);
+}
+
+.inline-image-bullet {
+  position: absolute;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: 10;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-2);
+  padding: 2px;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .inline-image-error {

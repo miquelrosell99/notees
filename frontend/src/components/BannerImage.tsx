@@ -20,11 +20,13 @@
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNode, useProperties, useSetNodeProperty } from '@/hooks';
+import { useNodesStore } from '@/stores';
 import { getAssetUrl } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
+import { Bullet } from './blocks/Bullet';
 import { AssetActions } from './assets/AssetActions';
 import { mdiImageOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -94,6 +96,7 @@ export function BannerImage({
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
   const { data: assetNode, isLoading } = useNode(bannerImageId, { include_children: false });
+  const { openNode, addSidebarCard } = useNodesStore();
   
   // Persist collapsed state when it changes
   useEffect(() => {
@@ -104,6 +107,21 @@ export function BannerImage({
   useEffect(() => {
     setIsCollapsed(getCollapsedState(pageId, !!bannerImageId));
   }, [pageId, bannerImageId]);
+  
+  // Bullet handlers
+  const handleBulletClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (assetNode) {
+      openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
+    }
+  }, [assetNode, openNode]);
+  
+  const handleBulletShiftClick = useCallback(() => {
+    if (assetNode) {
+      addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
+    }
+  }, [assetNode, addSidebarCard]);
   
   // Find the banner property by UUID
   const bannerProperty = useMemo(() => {
@@ -252,6 +270,22 @@ export function BannerImage({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        {/* Bullet - top left corner, visible on hover */}
+        {assetNode && isHovered && (
+          <div className="banner-image__bullet">
+            <Bullet
+              nodeId={assetNode.id}
+              icon={assetNode.icon}
+              isPage={assetNode.is_page}
+              interactive={true}
+              onClick={handleBulletClick}
+              onShiftClick={handleBulletShiftClick}
+              size="sm"
+              title="Click to open, Shift+click for sidebar"
+            />
+          </div>
+        )}
+        
         <img 
           src={imageUrl} 
           alt="Banner" 

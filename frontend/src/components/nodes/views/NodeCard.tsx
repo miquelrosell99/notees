@@ -17,6 +17,7 @@ import type { Node } from '@/types';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
+import { Bullet } from '../../blocks/Bullet';
 import { Button } from '../../core/Button';
 import { NodeClassPill } from '../../NodeClassPill';
 import { mdiChevronRight, mdiChevronDown, mdiPlus } from '@mdi/js';
@@ -163,8 +164,23 @@ export function NodeCard({
     return typeof coverValue === 'number' ? coverValue : null;
   }, [node?.properties]);
   
-  // Fetch the asset node to get its UUID for the image URL
+  // Get the asset node for the cover image (for bullet)
   const { data: assetNode } = useNode(coverImageId, { include_children: false });
+  
+  // Bullet handlers for cover asset
+  const handleCoverBulletClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (assetNode) {
+      onNodeClick?.(assetNode);
+    }
+  }, [assetNode, onNodeClick]);
+  
+  const handleCoverBulletShiftClick = useCallback(() => {
+    if (assetNode) {
+      onNodeShiftClick?.(assetNode);
+    }
+  }, [assetNode, onNodeShiftClick]);
   
   // Get the image URL from the asset node's uuid
   const coverUrl = useMemo(() => {
@@ -448,6 +464,21 @@ export function NodeCard({
             >
               {coverUrl ? (
                 <>
+                  {/* Bullet - top left corner, visible on hover */}
+                  {assetNode && isCoverHovered && (
+                    <div className="node-card__cover-bullet">
+                      <Bullet
+                        nodeId={assetNode.id}
+                        icon={assetNode.icon}
+                        isPage={assetNode.is_page}
+                        interactive={true}
+                        onClick={handleCoverBulletClick}
+                        onShiftClick={handleCoverBulletShiftClick}
+                        size="sm"
+                        title="Click to open, Shift+click for sidebar"
+                      />
+                    </div>
+                  )}
                   <img 
                     src={coverUrl} 
                     alt="" 

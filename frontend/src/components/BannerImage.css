@@ -12,6 +12,18 @@
   transition: height 0.25s ease, margin 0.25s ease, opacity 0.2s ease;
 }
 
+/* Bullet - positioned at top left of banner */
+.banner-image__bullet {
+  position: absolute;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: 20;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-2);
+  padding: 2px;
+}
+
 /* Extended hover zone - adds invisible padding for better action menu interaction */
 .banner-image--expanded::after {
   content: '';
