@@ -504,14 +504,16 @@ export function NodeCard({
                   readOnly={true}
                 />
               ))}
-              {classDetails.length === 0 && editable && (
+              {editable && (
                 <Button
                   variant="ghost"
                   size="xs"
                   icon={mdiPlus}
                   className="node-card__add-metadata-btn"
                   title="Add class"
-                />
+                >
+                  {classDetails.length === 0 ? 'Add class' : ''}
+                </Button>
               )}
             </div>
             
@@ -524,14 +526,16 @@ export function NodeCard({
                   readOnly={true}
                 />
               ))}
-              {tagDetails.length === 0 && editable && (
+              {editable && (
                 <Button
                   variant="ghost"
                   size="xs"
                   icon={mdiPlus}
                   className="node-card__add-metadata-btn"
                   title="Add tag"
-                />
+                >
+                  {tagDetails.length === 0 ? 'Add tag' : ''}
+                </Button>
               )}
             </div>
             
