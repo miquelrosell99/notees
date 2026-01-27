@@ -11,6 +11,7 @@ import {
   mdiTable, 
   mdiChartGantt, 
   mdiGraphOutline,
+  mdiTimelineClockOutline,
 } from '@mdi/js';
 import type { NodeCollectionViewMode } from './nodeCollection';
 
@@ -24,7 +25,8 @@ export const DEFAULT_VIEW_MODES_ORDER: NodeCollectionViewMode[] = [
   'card',
   'document',
   'gantt',
-  'graph'
+  'graph',
+  'timeline'
 ];
 
 /**
@@ -37,6 +39,7 @@ export const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
   table: mdiTable,
   gantt: mdiChartGantt,
   graph: mdiGraphOutline,
+  timeline: mdiTimelineClockOutline,
 };
 
 /**
@@ -49,4 +52,5 @@ export const VIEW_MODE_LABELS: Record<NodeCollectionViewMode, string> = {
   table: 'Table',
   gantt: 'Gantt',
   graph: 'Graph',
+  timeline: 'Timeline',
 };
