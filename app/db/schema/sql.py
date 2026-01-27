@@ -130,9 +130,8 @@ CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
--- Unique page name per graph + parent
-CREATE UNIQUE INDEX IF NOT EXISTS idx_node_page_unique ON node(graph_id, parent_id, name) 
-    WHERE is_page = TRUE AND active = TRUE;
+-- Note: Page name uniqueness per class is enforced at application level
+-- Database only enforces basic structure, complex class-based uniqueness in Python
 
 -- Node sharing with granular permissions
 CREATE TABLE IF NOT EXISTS node_share (
@@ -163,7 +162,7 @@ CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
 -- Property definition
 CREATE TABLE IF NOT EXISTS property (
     id SERIAL PRIMARY KEY,
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
     graph_id INTEGER REFERENCES graph(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     icon VARCHAR(100),
@@ -182,6 +181,7 @@ CREATE TABLE IF NOT EXISTS property (
 );
 
 CREATE INDEX IF NOT EXISTS idx_property_uuid ON property(uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_uuid_per_graph ON property(graph_id, uuid);
 CREATE INDEX IF NOT EXISTS idx_property_name ON property(name);
 CREATE INDEX IF NOT EXISTS idx_property_graph_id ON property(graph_id);
 CREATE INDEX IF NOT EXISTS idx_property_node_id ON property(node_id) WHERE node_id IS NOT NULL;
