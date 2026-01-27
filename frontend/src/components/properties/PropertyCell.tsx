@@ -7,6 +7,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
+import { useQuery } from '@tanstack/react-query';
+import { getNode } from '@/api/nodes';
+import { getAssetUrl } from '@/api/assets';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -29,6 +32,22 @@ export function PropertyCell({
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
+  
+  // Fetch asset node if property type is 'node' and value is a number (asset ID)
+  const assetNodeId = property.type === 'node' && typeof value === 'number' ? value : null;
+  const { data: assetNode } = useQuery({
+    queryKey: ['node', assetNodeId],
+    queryFn: () => getNode(assetNodeId!),
+    enabled: assetNodeId !== null,
+  });
+  
+  // Get asset URL if it's an asset node
+  const assetUrl = useMemo(() => {
+    if (assetNode && assetNode.is_asset && assetNode.uuid) {
+      return getAssetUrl(assetNode.uuid);
+    }
+    return null;
+  }, [assetNode]);
 
   // Format value for display
   const displayValue = useMemo(() => {
@@ -50,13 +69,15 @@ export function PropertyCell({
         }
         return String(value);
       case 'node':
-        // For node references, we'd need to fetch the node name
-        // For now, just show the ID
+        // If we have the asset node, show its name
+        if (assetNode) {
+          return assetNode.name || 'Unnamed asset';
+        }
         return `Node ${value}`;
       default:
         return String(value);
     }
-  }, [value, property]);
+  }, [value, property, assetNode]);
 
   // Start editing
   const handleClick = useCallback(() => {
@@ -171,11 +192,20 @@ export function PropertyCell({
   // Display mode
   return (
     <div 
-      className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''}`}
+      className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''} ${assetUrl ? 'property-cell--image' : ''}`}
       onClick={handleClick}
       title={editable ? 'Click to edit' : undefined}
     >
-      {displayValue || (editable ? '—' : '')}
+      {assetUrl ? (
+        <img 
+          src={assetUrl} 
+          alt={displayValue} 
+          className="property-cell__image"
+          loading="lazy"
+        />
+      ) : (
+        displayValue || (editable ? '—' : '')
+      )}
     </div>
   );
 }
