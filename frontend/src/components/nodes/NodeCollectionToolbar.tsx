@@ -34,7 +34,6 @@ const CARD_LAYOUT_ICONS: Record<string, string> = {
   'cover-left': mdiDockLeft,
   'cover-right': mdiDockRight,
   'cover-top': mdiDockTop,
-  'cover-bottom': mdiDockBottom,
 };
 
 // Card layout mode labels
@@ -43,7 +42,6 @@ const CARD_LAYOUT_LABELS: Record<string, string> = {
   'cover-left': 'Cover left',
   'cover-right': 'Cover right',
   'cover-top': 'Cover top',
-  'cover-bottom': 'Cover bottom',
 };
 
 export interface NodeCollectionToolbarProps {
@@ -97,7 +95,7 @@ export function NodeCollectionToolbar({
   
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
   const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => {
-    storeSetCardLayout(layout as 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right');
+    storeSetCardLayout(layout as 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right');
   });
   
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
@@ -118,7 +116,7 @@ export function NodeCollectionToolbar({
 
   // Build SelectionButton options for card layouts
   const cardLayoutOptions = useMemo<SelectionButtonOption[]>(() => 
-    ['no-cover', 'cover-left', 'cover-right', 'cover-top', 'cover-bottom'].map(layout => ({
+    ['no-cover', 'cover-left', 'cover-right', 'cover-top'].map(layout => ({
       value: layout,
       icon: CARD_LAYOUT_ICONS[layout],
       label: CARD_LAYOUT_LABELS[layout],

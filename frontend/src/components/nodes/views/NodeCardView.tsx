@@ -66,7 +66,7 @@ export function NodeCardView({
   
   // Track max cover height for vertical layouts
   const [maxCoverHeight, setMaxCoverHeight] = useState<number | null>(null);
-  const isVerticalLayout = layout === 'cover-top' || layout === 'cover-bottom';
+  const isVerticalLayout = layout === 'cover-top';
   
   // Calculate max cover height when images load
   useEffect(() => {
