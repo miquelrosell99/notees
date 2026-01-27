@@ -78,6 +78,24 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             ]
         }
     },
+    "all_pages": {
+        "name": "All Pages",
+        "block_tree": {
+            "type": "AND_CONTAINER",
+            "blocks": [
+                {
+                    "type": "TYPE",
+                    "value": "page"
+                },
+                {
+                    "type": "PROPERTY",
+                    "property_name": "parent_id",
+                    "operator": "is_empty",
+                    "value": None
+                }
+            ]
+        }
+    },
 }
 
 
