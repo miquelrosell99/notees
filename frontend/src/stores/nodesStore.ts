@@ -21,8 +21,8 @@ export type ContentDisplayMode = 'document' | 'bullet' | 'card';
 /** Card layout when in card display mode */
 export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
 
-/** Card size options */
-export type CardSizeMode = 'xs' | 's' | 'm' | 'l' | 'xl';
+/** Card size options - number of columns */
+export type CardSizeMode = 1 | 2 | 3 | 4 | 5;
 
 interface SidebarNode {
   id: number;
@@ -172,7 +172,7 @@ export const useNodesStore = create<NodesState>()(persist((set, get) => ({
   // New features state
   contentDisplayMode: 'bullet' as ContentDisplayMode,
   cardLayout: 'no-cover' as CardLayoutMode,
-  cardSize: 'm' as CardSizeMode,
+  cardSize: 3 as CardSizeMode,
   isScratchpadOpen: false,
   lateNightThoughtsFilter: false,
   nodeViewModes: {},
