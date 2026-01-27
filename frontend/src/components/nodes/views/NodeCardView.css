@@ -163,17 +163,28 @@
   opacity: 1;
 }
 
-/* Card children via NodeCollection */
+/* Card children via Block components */
 .node-card__children {
   font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-.node-card__children .node-collection__content {
-  padding: 0;
+/* Adjust for vertical layouts - already has border from header */
+.node-card--cover-top .node-card__children,
+.node-card--cover-bottom .node-card__children {
+  border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-.node-card__children .node-list-view {
-  gap: 0.125rem;
+/* Adjust for horizontal layouts */
+.node-card--cover-left .node-card__body,
+.node-card--cover-right .node-card__body,
+.node-card--cover-side .node-card__body {
+  border-top: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.node-card__children .block-container {
+  padding: 0.25rem 0;
 }
 
 .node-card__more {

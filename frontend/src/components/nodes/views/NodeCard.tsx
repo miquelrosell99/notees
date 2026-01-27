@@ -4,18 +4,19 @@
  * Individual card component for displaying a node in card view.
  * Uses the Card core component and handles:
  * - Cover images
- * - Header with BlockPreview title
- * - Children via nested NodeCollection
+ * - Header with editable Block title
+ * - Navigation button (visible on hover)
+ * - Children rendered recursively via Block components
+ * - Top-level children start collapsed (temporary state, not persisted)
  * - Context menu
  * - Selection checkbox
  * - Drag initiation from header
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import type { Node } from '@/types';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
-import { NodeCollection } from '../NodeCollection';
 import { Button } from '../../core/Button';
 import { mdiChevronRight } from '@mdi/js';
 import { Card } from '../../core/Card';
@@ -52,8 +53,6 @@ export interface NodeCardProps {
 export function NodeCard({
   node,
   index,
-  maxDepth,
-  depth,
   layout,
   sortable,
   isDragging,
@@ -68,7 +67,19 @@ export function NodeCard({
   onSelectionChange,
 }: NodeCardProps) {
   const children = node.children ?? [];
-  const shouldRenderChildren = depth < maxDepth && children.length > 0;
+  const hasChildren = children.length > 0;
+  
+  // Track temporary collapsed states (for system-initiated collapses)
+  // Only applies to direct children - they start collapsed but this isn't persisted
+  const [tempCollapsedChildren, setTempCollapsedChildren] = useState<Set<number>>(() => {
+    // Initialize all direct children as collapsed (temporary)
+    return new Set(children.map(child => child.id));
+  });
+  
+  // Reset temporary collapsed state when node changes
+  useEffect(() => {
+    setTempCollapsedChildren(new Set(children.map(child => child.id)));
+  }, [node.id]);
   
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -160,11 +171,16 @@ export function NodeCard({
         
         // Invalidate node queries to refetch and show the cover
         queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+        
+        // Also invalidate the parent page query so it refetches children with updated properties
+        if (node.page_id) {
+          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.page_id) });
+        }
       } catch (error) {
         console.error('Failed to set cover property:', error);
       }
     }
-  }, [coverProperty, node.id, setNodeProperty, queryClient]);
+  }, [coverProperty, node.id, node.page_id, setNodeProperty, queryClient]);
 
   // Handle drag start from header
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -267,22 +283,43 @@ export function NodeCard({
           </div>
         </div>
         
-        {/* Card body with children */}
-        {shouldRenderChildren && (
+        {/* Card body with children - render all recursively */}
+        {hasChildren && (
           <div className="node-card__body">
-            <NodeCollection
-              nodes={children}
-              viewMode="list"
-              availableViewModes={['list']}
-              editable={editable}
-              sortable={false}
-              maxDepth={maxDepth - depth - 1}
-              onNodeClick={onNodeClick}
-              onNodeShiftClick={onNodeShiftClick}
-              onContentChange={onContentChange}
-              showEmpty={false}
-              className="node-card__children"
-            />
+            <div className="node-card__children">
+              {children.map((child) => {
+                // Check if this child has a persisted collapsed state
+                const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                
+                // Use persisted collapse if it exists, otherwise use temporary state
+                const effectiveCollapsed = hasPersistedCollapse 
+                  ? child.collapsed 
+                  : tempCollapsedChildren.has(child.id);
+                
+                // Create a modified child node with the effective collapsed state
+                const childWithCollapse = hasPersistedCollapse 
+                  ? child 
+                  : { ...child, collapsed: effectiveCollapsed };
+                
+                return (
+                  <Block
+                    key={child.id}
+                    block={childWithCollapse}
+                    children={child.children}
+                    parentId={node.id}
+                    depth={1}
+                    canMove={false}
+                    canSelect={false}
+                    canEdit={editable}
+                    showBullet={true}
+                    showChildren={true}
+                    onContentChange={onContentChange}
+                    onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                    onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                  />
+                );
+              })}
+            </div>
           </div>
         )}
       </Card>
