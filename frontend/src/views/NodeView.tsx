@@ -11,7 +11,7 @@
  *   1. BannerImage / PageHeader / CoverImage
  *   2. PropertiesSection - Node properties
  *   3. NodeContent - Children blocks (supports list/document/card views)
- *   4. Class-specific sections (ClassedNodesView, ChildPagesSection)
+ *   4. Class-specific sections using DynamicNodeViewSection
  *   5. LinkedReferences
  *   6. NodeActivityLogSection
  * 
@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses, useLinkedReferencesCount } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -37,10 +37,7 @@ import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext'
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { NodeViewSection, DynamicNodeViewSection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
-import { ClassedNodesView, useClassedNodesSectionState, ClassedNodesSectionToolbar } from '../components/ClassedNodesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
-import { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from '../components/ChildPagesSection';
-import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../components/LinkedReferences';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
 import type { Asset } from '../api/assets';
@@ -179,9 +176,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     include_backlinks: true
   });
   
-  // Settings
-  const useDynamicNodeViews = useSettingsStore(state => state.useDynamicNodeViews);
-  
   // Hooks (needed for page header sections)
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
@@ -291,15 +285,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   // Section metadata hooks
   const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
   
-  // Linked references toolbar state (for external rendering in section header)
-  const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
-  
-  // Classed nodes section toolbar state (for external rendering in section header)
-  const classedNodesToolbarState = useClassedNodesSectionState(node?.id ?? 0);
-  
-  // Child pages section toolbar state (for external rendering in section header)
-  const childPagesToolbarState = useChildPagesSectionState(node?.id ?? 0, node?.children?.filter(c => c.is_page));
-  
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
@@ -367,7 +352,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     const pages: Node[] = [];
     
     for (const child of node.children) {
-      // Skip children with this node as their class (they appear in ClassedNodesView)
+      // Skip children with this node as their class (they appear in typed_nodes view)
       if (child.classes?.includes(node.id)) continue;
       
       // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
@@ -596,39 +581,30 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       
       {/* Show nodes that have this node as their class - only for class nodes */}
       {isClassNode && (
-        <NodeViewSection
+        <DynamicNodeViewSection
+          nodeId={node.id}
+          nodeUuid={node.uuid}
+          viewType="typed_nodes"
           title="Nodes"
           icon={<TableIcon size="sm" />}
-          count={classedNodes?.length ?? 0}
-          defaultExpanded={true}
           hideWhenEmpty={false}
-          headerActions={<ClassedNodesSectionToolbar state={classedNodesToolbarState} />}
-        >
-          <ClassedNodesView 
-            classId={node.id} 
-            className_={node.name || 'Untitled'} 
-            hideToolbar={true}
-            toolbarState={classedNodesToolbarState}
-          />
-        </NodeViewSection>
+          defaultExpanded={true}
+          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+        />
       )}
       
       {/* Child pages section - shows pages that have this node as parent (pages only) */}
-      {resolvedType === 'page' && pageChildren.length > 0 && (
-        <NodeViewSection
+      {resolvedType === 'page' && (
+        <DynamicNodeViewSection
+          nodeId={node.id}
+          nodeUuid={node.uuid}
+          viewType="child_pages"
           title="Children"
           icon={<PageIcon size="sm" />}
-          count={pageChildren.length}
+          hideWhenEmpty={true}
           defaultExpanded={true}
-          headerActions={<ChildPagesSectionToolbar state={childPagesToolbarState} />}
-        >
-          <ChildPagesSection 
-            pageId={node.id} 
-            childPages={pageChildren} 
-            hideToolbar={true}
-            toolbarState={childPagesToolbarState}
-          />
-        </NodeViewSection>
+          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+        />
       )}
       
       {/* Extended By section - shows classes that extend this class (class nodes only) */}
@@ -641,37 +617,16 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       )}
       
       {/* Linked References - shows all references to this node (universal for all nodes) */}
-      {useDynamicNodeViews ? (
-        <DynamicNodeViewSection
-          nodeId={node.id}
-          nodeUuid={node.uuid}
-          viewType="linked_references"
-          title="Linked References"
-          icon={<LinkIcon size="sm" />}
-          defaultExpanded={!linkedRefsCollapsed}
-          hideWhenEmpty={true}
-          onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
-        />
-      ) : (
-        <NodeViewSection
-          title="Linked References"
-          icon={<LinkIcon size="sm" />}
-          count={linkedRefsCount}
-          defaultExpanded={!linkedRefsCollapsed}
-          hideWhenEmpty={true}
-          headerActions={<LinkedReferencesToolbar state={linkedRefsToolbarState} />}
-        >
-          <LinkedReferences 
-            nodeId={node.id} 
-            hideToolbar={true}
-            toolbarState={linkedRefsToolbarState}
-            onLinkClick={(nodeId, _pageId, isPage) => {
-              // Open the actual clicked node (block or page)
-              openNode(nodeId, isPage ? 'page' : 'block');
-            }}
-          />
-        </NodeViewSection>
-      )}
+      <DynamicNodeViewSection
+        nodeId={node.id}
+        nodeUuid={node.uuid}
+        viewType="linked_references"
+        title="Linked References"
+        icon={<LinkIcon size="sm" />}
+        defaultExpanded={!linkedRefsCollapsed}
+        hideWhenEmpty={true}
+        onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
+      />
       
       {/* Footer */}
       <footer className="node-view-footer">

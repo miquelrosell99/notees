@@ -28,5 +28,6 @@ export * from './useStructuralHistory';
 export * from './useDebouncedSave';
 export * from './useContentSave';
 export * from './useKeyboardShortcuts';
+export * from './useLinkedReferencesCount';
 export * from './useFocusTrap';
 export * from './useProperties';

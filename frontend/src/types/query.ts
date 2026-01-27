@@ -185,7 +185,8 @@ export type NodeViewType =
   | 'child_pages'
   | 'typed_nodes'
   | 'linked_references'
-  | 'main_content';
+  | 'main_content'
+  | 'all_pages';
 
 /**
  * NodeView entity - defines a dynamic query tab for a node
