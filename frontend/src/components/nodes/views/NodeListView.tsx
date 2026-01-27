@@ -287,9 +287,9 @@ function NodeListItem({
     );
   }
 
-  // Read-only mode: render BlockPreview with recursive children
+  // Read-only mode: render Block with children (but no editing capabilities)
   return (
-    <div className="node-list-item" style={{ '--depth': showIndentation ? depth : 0 } as React.CSSProperties}>
+    <div className="node-list-item-wrapper">
       {/* Breadcrumbs for top-level items */}
       {showBreadcrumbs && depth === 0 && !node.is_page && (page || context || (node.page_id && node.page_name)) && (
         <InlineNodeBreadcrumbs
@@ -308,39 +308,22 @@ function NodeListItem({
           compact={true}
         />
       )}
-      <BlockPreview
-        variant="simple"
-        node={node}
-        showBullet={showBullets}
-        showTypes={showTypes}
-        onClick={() => onNodeClick?.(node)}
-        onShiftClick={() => onNodeShiftClick?.(node)}
+      <Block
+        block={node}
+        children={children}
+        siblings={siblings}
+        depth={showIndentation ? depth : 0}
+        parentId={node.parent_id}
+        parentBlock={parentBlock}
         onBulletClick={() => onNodeClick?.(node)}
+        onShiftClick={() => onNodeShiftClick?.(node)}
+        showBullet={showBullets}
+        showChildren={shouldRenderChildren}
+        showTypes={showTypes}
+        canMove={false}
+        canEdit={false}
+        canSelect={false}
       />
-      
-      {shouldRenderChildren && (
-        <div className="node-list-item__children">
-          {children.map((child) => (
-            <NodeListItem
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              editable={editable}
-              maxDepth={maxDepth}
-              showBullets={showBullets}
-              showIndentation={showIndentation}
-              showBreadcrumbs={false}
-              showTypes={showTypes}
-              pagesOnly={pagesOnly}
-              siblings={children}
-              parentBlock={node}
-              onNodeClick={onNodeClick}
-              onNodeShiftClick={onNodeShiftClick}
-              onContentChange={onContentChange}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
