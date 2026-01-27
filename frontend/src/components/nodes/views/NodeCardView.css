@@ -1,49 +1,53 @@
 /**
  * NodeCardView CSS
  * 
- * Styles for card grid view mode
+ * Styles for card masonry view mode
  */
 
 .node-card-view {
-  display: grid;
-  gap: 1rem;
+  column-gap: 1rem;
   width: 100%;
-  justify-content: center;
-  grid-auto-rows: auto;
-  align-items: start;
 }
 
-/* Card size variants - column-based */
+/* Card size variants - column-based masonry layout */
 .node-card-view--size-1 {
-  grid-template-columns: 1fr;
+  column-count: 1;
 }
 
 .node-card-view--size-2 {
-  grid-template-columns: repeat(2, 1fr);
+  column-count: 2;
 }
 
 .node-card-view--size-3 {
-  grid-template-columns: repeat(3, 1fr);
+  column-count: 3;
 }
 
 .node-card-view--size-4 {
-  grid-template-columns: repeat(4, 1fr);
+  column-count: 4;
 }
 
 .node-card-view--size-5 {
-  grid-template-columns: repeat(5, 1fr);
+  column-count: 5;
 }
 
 /* Horizontal layout overrides: max 2 columns */
 .node-card-view--size-1.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  grid-template-columns: 1fr;
+  column-count: 1;
 }
 
 .node-card-view--size-2.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
 .node-card-view--size-3.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
 .node-card-view--size-4.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
 .node-card-view--size-5.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  grid-template-columns: repeat(2, 1fr);
+  column-count: 2;
+}
+
+/* Individual cards in masonry layout */
+.node-card-view .node-card {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+  display: inline-block;
+  width: 100%;
 }
 
 /* Vertical layouts with natural cover heights */
