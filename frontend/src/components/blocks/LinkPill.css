@@ -188,3 +188,28 @@
 [contenteditable] .type-pill *::selection {
   background: transparent;
 }
+
+/* =============== Inline Image Styles =============== */
+
+.inline-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--spacing-2) 0;
+  border-radius: var(--shape-medium);
+  cursor: pointer;
+  transition: box-shadow var(--motion-duration-short) var(--motion-easing-standard), transform var(--motion-duration-short) var(--motion-easing-standard);
+  box-shadow: var(--elevation-1);
+}
+
+.inline-image:hover {
+  box-shadow: var(--elevation-2);
+  transform: scale(1.005);
+}
+
+.inline-image-error {
+  display: inline;
+  color: var(--color-error);
+  font: var(--font-body-small);
+  font-style: italic;
+}

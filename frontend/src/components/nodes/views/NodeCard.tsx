@@ -22,6 +22,7 @@ import { NodeClassPill } from '../../NodeClassPill';
 import { mdiChevronRight, mdiChevronDown, mdiPlus } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
+import { ImageModal } from '../../core/ImageModal';
 import { AddCoverButton } from '../../core/AddCoverButton';
 import { AssetActions } from '../../assets/AssetActions';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
@@ -132,6 +133,9 @@ export function NodeCard({
   
   // Cover hover state
   const [isCoverHovered, setIsCoverHovered] = useState(false);
+  
+  // Cover image modal state
+  const [isCoverModalOpen, setIsCoverModalOpen] = useState(false);
   
   // Asset upload state for cover
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
@@ -444,7 +448,14 @@ export function NodeCard({
             >
               {coverUrl ? (
                 <>
-                  <img src={coverUrl} alt="" className="node-card__cover-image" />
+                  <img 
+                    src={coverUrl} 
+                    alt="" 
+                    className="node-card__cover-image"
+                    onClick={() => setIsCoverModalOpen(true)}
+                    style={{ cursor: 'pointer' }}
+                    title="Click to view full size"
+                  />
                   {editable && (
                     <AssetActions
                       onEdit={() => setIsAssetUploadOpen(true)}
@@ -619,6 +630,16 @@ export function NodeCard({
         onUpload={handleCoverUploaded}
         acceptedTypes={['image']}
       />
+      
+      {/* Cover Image Modal */}
+      {coverUrl && (
+        <ImageModal
+          isOpen={isCoverModalOpen}
+          onClose={() => setIsCoverModalOpen(false)}
+          src={coverUrl}
+          alt="Cover"
+        />
+      )}
     </>
   );
 }

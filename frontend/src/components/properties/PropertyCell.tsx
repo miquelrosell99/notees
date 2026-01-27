@@ -10,6 +10,7 @@ import { useSetNodeProperty } from '@/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { getNode } from '@/api/nodes';
 import { getAssetUrl } from '@/api/assets';
+import { ImageModal } from '../core/ImageModal';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -30,6 +31,7 @@ export function PropertyCell({
 }: PropertyCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
   
@@ -191,21 +193,33 @@ export function PropertyCell({
 
   // Display mode
   return (
-    <div 
-      className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''} ${assetUrl ? 'property-cell--image' : ''}`}
-      onClick={handleClick}
-      title={editable ? 'Click to edit' : undefined}
-    >
-      {assetUrl ? (
-        <img 
-          src={assetUrl} 
-          alt={displayValue} 
-          className="property-cell__image"
-          loading="lazy"
+    <>
+      <div 
+        className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''} ${assetUrl ? 'property-cell--image' : ''}`}
+        onClick={assetUrl ? (e) => { e.stopPropagation(); setIsModalOpen(true); } : handleClick}
+        title={assetUrl ? 'Click to view full size' : (editable ? 'Click to edit' : undefined)}
+        style={assetUrl ? { cursor: 'pointer' } : undefined}
+      >
+        {assetUrl ? (
+          <img 
+            src={assetUrl} 
+            alt={displayValue} 
+            className="property-cell__image"
+            loading="lazy"
+          />
+        ) : (
+          displayValue || (editable ? '—' : '')
+        )}
+      </div>
+      
+      {assetUrl && (
+        <ImageModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          src={assetUrl}
+          alt={displayValue}
         />
-      ) : (
-        displayValue || (editable ? '—' : '')
       )}
-    </div>
+    </>
   );
 }

@@ -23,6 +23,7 @@ import { getAssetUrl } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
+import { ImageModal } from './core/ImageModal';
 import { AssetActions } from './assets/AssetActions';
 import { mdiImageOutline, mdiChevronRight, mdiChevronLeft } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -85,6 +86,7 @@ export function CoverImage({
 }: CoverImageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => getCollapsedState(pageId, !!coverImageId));
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
   const { data: assetNode, isLoading } = useNode(coverImageId, { include_children: false });
@@ -97,6 +99,7 @@ export function CoverImage({
   // Reset collapsed state when pageId or coverImageId changes
   useEffect(() => {
     setIsCollapsed(getCollapsedState(pageId, !!coverImageId));
+  }, [pageId, coverImageId]);
   }, [pageId, coverImageId]);
   
   // Find the cover property by UUID
@@ -263,8 +266,18 @@ export function CoverImage({
           src={imageUrl} 
           alt="Cover" 
           className="cover-image-card__img"
+          onClick={() => setIsModalOpen(true)}
+          style={{ cursor: 'pointer' }}
+          title="Click to view full size"
         />
       </Card>
+      
+      <ImageModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        src={imageUrl}
+        alt="Cover"
+      />
     </div>
   );
 }

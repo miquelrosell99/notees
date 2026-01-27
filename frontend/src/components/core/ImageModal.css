@@ -1,0 +1,50 @@
+/**
+ * ImageModal styles
+ */
+
+.image-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: var(--spacing-4);
+}
+
+.image-modal-container {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-modal-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-3);
+  z-index: 1;
+}
+
+.image-modal-close:hover {
+  background: var(--color-surface-variant);
+}
+
+.image-modal-image {
+  max-width: 100%;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-4);
+}
