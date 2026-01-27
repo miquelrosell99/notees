@@ -20,6 +20,7 @@ import { DatabaseModal } from '../components/databases/DatabaseModal';
 import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
 import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
 import { 
+  ArrowRightIcon,
   CheckIcon, 
   CloseIcon, 
   DeleteIcon,
@@ -334,6 +335,14 @@ export function DatabaseManagementView({
                     </div>
                     <div className="db-management__card-actions">
                       <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleSelectDatabase(db)}
+                        title="Open graph"
+                      >
+                        <ArrowRightIcon size="sm" />
+                      </Button>
+                      <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleExport(db.name)}
@@ -381,15 +390,12 @@ export function DatabaseManagementView({
                       )}
                     </div>
                   </div>
-                  <button
-                    className="db-management__card-content"
-                    onClick={() => handleSelectDatabase(db)}
-                  >
+                  <div className="db-management__card-content">
                     <div className="db-management__card-meta">
                       <span>Created {formatDate(db.created_at)}</span>
                       <span>Modified {formatRelativeTime(db.updated_at)}</span>
                     </div>
-                  </button>
+                  </div>
                 </Card>
               ))}
             </div>
