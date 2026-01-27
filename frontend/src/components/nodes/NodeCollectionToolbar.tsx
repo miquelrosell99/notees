@@ -25,6 +25,7 @@ import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { Button } from '../core/Button';
+import { Slider } from '../core/Slider';
 import './NodeCollectionToolbar.css';
 
 // Card layout mode icon mappings
@@ -91,6 +92,8 @@ export function NodeCollectionToolbar({
   // Use store for card layout if not controlled
   const storeCardLayout = useNodesStore(state => state.cardLayout);
   const storeSetCardLayout = useNodesStore(state => state.setCardLayout);
+  const storeCardSize = useNodesStore(state => state.cardSize);
+  const storeSetCardSize = useNodesStore(state => state.setCardSize);
   
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
   const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => {
@@ -101,6 +104,7 @@ export function NodeCollectionToolbar({
   const showGroupByButton = showGroupBy && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
+  const showCardSizeSlider = viewMode === 'card';
   
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
@@ -183,6 +187,25 @@ export function NodeCollectionToolbar({
           size="sm"
           className="node-collection-toolbar__card-layout-selector"
         />
+      )}
+      
+      {/* Card Size Slider - only shown in card view */}
+      {showCardSizeSlider && (
+        <div className="node-collection-toolbar__card-size-slider">
+          <Slider
+            value={storeCardSize}
+            onChange={(val) => storeSetCardSize(val as 'xs' | 's' | 'm' | 'l' | 'xl')}
+            options={[
+              { value: 'xs', label: 'XS' },
+              { value: 's', label: 'S' },
+              { value: 'm', label: 'M' },
+              { value: 'l', label: 'L' },
+              { value: 'xl', label: 'XL' },
+            ]}
+            showLabels={false}
+            size="sm"
+          />
+        </div>
       )}
       
       {/* View Mode Switcher */}

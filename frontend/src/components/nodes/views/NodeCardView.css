@@ -6,19 +6,42 @@
 
 .node-card-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
   width: 100%;
+  justify-content: center;
+  --card-min-width: 280px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr));
+}
+
+/* Card size variants */
+.node-card-view--size-xs {
+  --card-min-width: 180px;
+}
+
+.node-card-view--size-s {
+  --card-min-width: 220px;
+}
+
+.node-card-view--size-m {
+  --card-min-width: 280px;
+}
+
+.node-card-view--size-l {
+  --card-min-width: 340px;
+}
+
+.node-card-view--size-xl {
+  --card-min-width: 420px;
 }
 
 /* Vertical layouts with dynamic height based on tallest cover */
 .node-card-view--vertical-layout {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 280px));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), var(--card-min-width)));
   grid-auto-rows: max-content;
 }
 
 .node-card-view--vertical-layout .node-card {
-  width: 280px;
+  width: var(--card-min-width);
 }
 
 /* Set cover height to match tallest image when available */

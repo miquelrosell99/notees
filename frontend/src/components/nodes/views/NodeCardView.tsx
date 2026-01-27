@@ -18,6 +18,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
+import { useNodesStore } from '@/stores';
 import { NodeCard } from './NodeCard';
 import './NodeCardView.css';
 
@@ -41,6 +42,9 @@ export function NodeCardView({
   onContentChange,
   className = '',
 }: NodeCardViewProps) {
+  // Get card size from store
+  const cardSize = useNodesStore(state => state.cardSize);
+  
   const gridStyle = columns 
     ? { gridTemplateColumns: `repeat(${columns}, 1fr)` } 
     : undefined;
@@ -175,6 +179,7 @@ export function NodeCardView({
     sortable && 'node-card-view--sortable',
     selectable && 'node-card-view--selectable',
     isVerticalLayout && 'node-card-view--vertical-layout',
+    `node-card-view--size-${cardSize}`,
     className,
   ].filter(Boolean).join(' ');
   

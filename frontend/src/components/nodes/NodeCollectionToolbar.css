@@ -18,6 +18,11 @@
   /* View mode switcher */
 }
 
+.node-collection-toolbar__card-size-slider {
+  width: 120px;
+  padding: 0 var(--spacing-2);
+}
+
 /* GroupBy panel options */
 .node-collection-toolbar__group-by-options {
   display: flex;
