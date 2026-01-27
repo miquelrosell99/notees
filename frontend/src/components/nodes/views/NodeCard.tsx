@@ -64,7 +64,6 @@ export function NodeCard({
   isSelected = false,
   onNodeClick,
   onNodeShiftClick,
-  onContentChange,
   onDragStart,
   onSelectionChange,
 }: NodeCardProps) {
@@ -379,7 +378,7 @@ export function NodeCard({
                     canEdit={editable}
                     showBullet={true}
                     showChildren={true}
-                    onContentChange={onContentChange}
+                    onContentChange={handleContentChange}
                     onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
                     onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
                   />
