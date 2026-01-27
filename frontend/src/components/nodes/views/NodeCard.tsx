@@ -18,14 +18,14 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { Button } from '../../core/Button';
-import { mdiChevronRight } from '@mdi/js';
+import { mdiChevronRight, mdiPlus } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { AddCoverButton } from '../../core/AddCoverButton';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import type { Asset } from '@/api/assets';
-import { useProperties, useSetNodeProperty, useNode } from '@/hooks/useNodes';
+import { useProperties, useSetNodeProperty, useNode, useCreateNode } from '@/hooks/useNodes';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -91,6 +91,7 @@ export function NodeCard({
   const { data: allProperties } = useProperties();
   const setNodeProperty = useSetNodeProperty();
   const queryClient = useQueryClient();
+  const createNode = useCreateNode();
   
   // Find cover property
   const coverProperty = useMemo(() => {
@@ -157,6 +158,28 @@ export function NodeCard({
     e.stopPropagation();
   }, []);
 
+  // Handle creating a new child block
+  const handleAddChild = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Don't create if node has negative ID (optimistic)
+    if (node.id < 0) {
+      console.warn('Cannot create child under optimistic node');
+      return;
+    }
+    
+    // Create new child block at the end
+    const maxSequence = children.length > 0 
+      ? Math.max(...children.map(c => c.sequence))
+      : -1;
+    
+    createNode.mutate({
+      name: '',
+      parent_id: node.id,
+      sequence: maxSequence + 1,
+    });
+  }, [node.id, children, createNode]);
+  
   const handleCoverUploaded = useCallback(async (asset: Asset) => {
     setIsAssetUploadOpen(false);
     
@@ -267,6 +290,16 @@ export function NodeCard({
                 onContentChange={onContentChange}
               />
             </div>
+            {editable && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAddChild}
+                icon={mdiPlus}
+                className="node-card__action-button"
+                aria-label="Add child block"
+              />
+            )}
             {editable && onNodeClick && (
               <Button
                 variant="ghost"
@@ -276,7 +309,7 @@ export function NodeCard({
                   onNodeClick(node);
                 }}
                 icon={mdiChevronRight}
-                className="node-card__nav-button"
+                className="node-card__action-button"
                 aria-label="Navigate to node"
               />
             )}

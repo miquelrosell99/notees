@@ -152,14 +152,14 @@
   font-size: 0.9375rem;
 }
 
-/* Navigation button - only visible on hover */
-.node-card__nav-button {
+/* Action buttons (+ and →) - only visible on hover */
+.node-card__action-button {
   opacity: 0;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
 }
 
-.node-card:hover .node-card__nav-button {
+.node-card:hover .node-card__action-button {
   opacity: 1;
 }
 
