@@ -104,6 +104,16 @@
   border-radius: var(--shape-medium, 0.5rem) var(--shape-medium, 0.5rem) 0 0;
 }
 
+/* Title wrapper - contains block and nav button */
+.node-card__title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
 /* Title block inside header */
 .node-card__title-block {
   flex: 1;
@@ -111,16 +121,24 @@
   overflow: hidden;
 }
 
-.node-card__title-block .block-preview {
+.node-card__title-block .block-container {
   padding: 0;
 }
 
-.node-card__title-block .block-preview__content {
+.node-card__title-block .block-content {
   font-weight: 600;
   font-size: 0.9375rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* Navigation button - only visible on hover */
+.node-card__nav-button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.node-card:hover .node-card__nav-button {
+  opacity: 1;
 }
 
 /* Card children via NodeCollection */
