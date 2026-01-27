@@ -16,6 +16,7 @@ import { NodeView } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
 import { JournalsView } from '../../views/JournalsView';
 import { GraphViewAll } from '../graph';
+import { TimelineViewAll } from '../timeline/TimelineViewAll';
 import { PropertyView } from '../../views/PropertyView';
 import type { Node } from '@/types';
 
@@ -68,6 +69,14 @@ export function MainContent() {
     return (
       <main className="main-content graph-content">
         <GraphViewAll className="main-graph-view" />
+      </main>
+    );
+  }
+  
+  if (mainViewType === 'timeline') {
+    return (
+      <main className="main-content timeline-content">
+        <TimelineViewAll className="main-timeline-view" />
       </main>
     );
   }

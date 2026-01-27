@@ -1,0 +1,51 @@
+/**
+ * TimelineViewAll Styles
+ */
+
+.timeline-view-all {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.timeline-view-all__timeline {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Loading state */
+.timeline-view-all--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-view-all__loading {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Empty state */
+.timeline-view-all--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-view-all__empty {
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.timeline-view-all__empty h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.timeline-view-all__empty p {
+  margin: 0;
+  font-size: 14px;
+}
