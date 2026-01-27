@@ -376,12 +376,22 @@ export function DynamicNodeViewSection({
 
   // Loading state - wait for views to load AND ensure defaults to complete
   if (viewsLoading || isInitializing) {
+    console.log(`[DynamicNodeViewSection] ${viewType} still loading/initializing:`, { viewsLoading, isInitializing, nodeId, hasInitialized });
     return null; // Don't render section while loading
   }
 
   // Calculate values for UI logic
   const resultCount = resultNodes.length;
   const isSystemQuery = activeView?.is_default && filterBlockCount === 0;
+  
+  console.log(`[DynamicNodeViewSection] ${viewType} render:`, { 
+    nodeId, 
+    resultCount, 
+    hideWhenEmpty, 
+    activeViewId: activeView?.id,
+    queryLoading,
+    views: views.length 
+  });
 
   // Header actions - view selector and toolbar
   const headerActions = (
