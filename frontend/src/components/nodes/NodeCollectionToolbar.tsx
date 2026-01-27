@@ -9,7 +9,7 @@
  * - In NodeViewSection: Pass as headerActions to move buttons to section header
  */
 import { useMemo } from 'react';
-import { useNodesStore } from '@/stores';
+import { useNodesStore, type CardSizeMode } from '@/stores';
 import { 
   mdiGroup,
   mdiPlus,
@@ -18,6 +18,11 @@ import {
   mdiDockRight,
   mdiDockTop,
   mdiDockBottom,
+  mdiNumeric1,
+  mdiNumeric2,
+  mdiNumeric3,
+  mdiNumeric4,
+  mdiNumeric5,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
@@ -25,7 +30,6 @@ import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { Button } from '../core/Button';
-import { Slider } from '../core/Slider';
 import './NodeCollectionToolbar.css';
 
 // Card layout mode icon mappings
@@ -102,7 +106,26 @@ export function NodeCollectionToolbar({
   const showGroupByButton = showGroupBy && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
-  const showCardSizeSlider = viewMode === 'card';
+  const showCardSizeSelector = viewMode === 'card';
+  
+  // Determine if using horizontal layout
+  const isHorizontalLayout = effectiveCardLayout === 'cover-left' || effectiveCardLayout === 'cover-right';
+  
+  // SelectionButton options based on layout type
+  const cardSizeOptions = useMemo<SelectionButtonOption[]>(() => {
+    const allOptions = [
+      { value: '1', icon: mdiNumeric1, label: '1 column' },
+      { value: '2', icon: mdiNumeric2, label: '2 columns' },
+      { value: '3', icon: mdiNumeric3, label: '3 columns' },
+      { value: '4', icon: mdiNumeric4, label: '4 columns' },
+      { value: '5', icon: mdiNumeric5, label: '5 columns' },
+    ];
+    
+    return isHorizontalLayout ? allOptions.slice(0, 2) : allOptions;
+  }, [isHorizontalLayout]);
+  
+  // Clamp card size for horizontal layouts
+  const effectiveCardSize = isHorizontalLayout && storeCardSize > 2 ? 2 : storeCardSize;
   
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
@@ -187,23 +210,15 @@ export function NodeCollectionToolbar({
         />
       )}
       
-      {/* Card Size Slider - only shown in card view */}
-      {showCardSizeSlider && (
-        <div className="node-collection-toolbar__card-size-slider">
-          <Slider
-            value={storeCardSize}
-            onChange={(val) => storeSetCardSize(val as 'xs' | 's' | 'm' | 'l' | 'xl')}
-            options={[
-              { value: 'xs', label: 'XS' },
-              { value: 's', label: 'S' },
-              { value: 'm', label: 'M' },
-              { value: 'l', label: 'L' },
-              { value: 'xl', label: 'XL' },
-            ]}
-            showLabels={false}
-            size="sm"
-          />
-        </div>
+      {/* Card Size Selector - only shown in card view */}
+      {showCardSizeSelector && (
+        <SelectionButton
+          options={cardSizeOptions}
+          value={effectiveCardSize.toString()}
+          onChange={(val) => storeSetCardSize(parseInt(val) as CardSizeMode)}
+          size="sm"
+          className="node-collection-toolbar__card-size-selector"
+        />
       )}
       
       {/* View Mode Switcher */}
