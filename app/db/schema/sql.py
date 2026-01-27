@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_graph_share_user_id ON graph_share(user_id);
 -- Node table - the core entity
 CREATE TABLE IF NOT EXISTS node (
     id SERIAL PRIMARY KEY,
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
     graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT '',
     icon VARCHAR(100),
@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS node (
 -- Node indexes
 CREATE INDEX IF NOT EXISTS idx_node_graph_id ON node(graph_id);
 CREATE INDEX IF NOT EXISTS idx_node_uuid ON node(uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_uuid_per_graph ON node(graph_id, uuid);
 CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 CREATE INDEX IF NOT EXISTS idx_node_name ON node(name);
