@@ -19,7 +19,7 @@ export type RightSidebarContent = 'node' | 'localGraph' | 'activity' | null;
 export type ContentDisplayMode = 'document' | 'bullet' | 'card';
 
 /** Card layout when in card display mode */
-export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
+export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
 
 /** Card size options */
 export type CardSizeMode = 'xs' | 's' | 'm' | 'l' | 'xl';
