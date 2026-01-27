@@ -335,12 +335,12 @@ export function DatabaseManagementView({
                     </div>
                     <div className="db-management__card-actions">
                       <Button
-                        variant="primary"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleSelectDatabase(db)}
-                        title="Open graph"
+                        onClick={() => handleOpenRename(db.name)}
+                        title="Rename"
                       >
-                        <ArrowRightIcon size="sm" />
+                        <EditIcon size="sm" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -349,14 +349,6 @@ export function DatabaseManagementView({
                         title="Export"
                       >
                         <Icon path={mdiExport} size={0.7} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenRename(db.name)}
-                        title="Rename"
-                      >
-                        <EditIcon size="sm" />
                       </Button>
                       {deleteConfirm === db.name ? (
                         <>
@@ -388,6 +380,14 @@ export function DatabaseManagementView({
                           <DeleteIcon size="sm" />
                         </Button>
                       )}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleSelectDatabase(db)}
+                        title="Open graph"
+                      >
+                        <ArrowRightIcon size="sm" />
+                      </Button>
                     </div>
                   </div>
                   <div className="db-management__card-content">
