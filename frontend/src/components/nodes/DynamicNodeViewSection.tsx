@@ -244,6 +244,7 @@ export function DynamicNodeViewSection({
         type: 'AND_CONTAINER',
         blocks: [
           { type: 'TYPE', value: 'page' },
+          // Only get root pages - children will be loaded via include_children
           { type: 'PROPERTY', property_name: 'parent_id', operator: 'is_empty', value: null },
         ],
       },
@@ -262,8 +263,8 @@ export function DynamicNodeViewSection({
       current_node_uuid: nodeUuid,
       current_node_id: nodeId,
     },
-    // Include children for linked_references and any view that needs nested blocks
-    includeChildren: viewType === 'linked_references',
+    // Include children for linked_references, child_pages, and views that need nested content
+    includeChildren: viewType === 'linked_references' || viewType === 'child_pages',
     enabled: !!activeView && nodeId > 0,
   });
 
@@ -279,6 +280,8 @@ export function DynamicNodeViewSection({
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
       },
+      // Include children recursively for all_pages view
+      include_children: viewType === 'all_pages',
     },
     {
       enabled: isPseudoNode && !!pseudoNodeBlockTree,
@@ -533,6 +536,7 @@ export function DynamicNodeViewSection({
             showGroupBy={collectionViewMode === 'list'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
+            pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
