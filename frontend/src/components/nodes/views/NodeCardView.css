@@ -46,7 +46,6 @@
 .node-card-view .node-card {
   break-inside: avoid;
   margin-bottom: 1rem;
-  display: inline-block;
   width: 100%;
 }
 
