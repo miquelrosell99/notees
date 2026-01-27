@@ -114,7 +114,6 @@ export function NodeCard({
   // Use the layout as-is - the layout determines if cover should be shown
   const effectiveLayout = layout;
   
-  const hasMetadata = classDetails.length > 0 || tagDetails.length > 0;
   const isHorizontalLayout = effectiveLayout === 'cover-left' || effectiveLayout === 'cover-right';
   
   // Track temporary collapsed states (for system-initiated collapses)
@@ -426,7 +425,7 @@ export function NodeCard({
         {/* Horizontal layout: cover-left or cover-right - use CSS Grid */}
         {isHorizontalLayout && (
           <>
-            {/* Cover image or Add Cover button (horizontal - spans rows) */}
+            {/* Cover image or Add Cover button (horizontal - spans 3 rows) */}
             <div 
               className="node-card__cover" 
               onClick={(e) => e.stopPropagation()}
@@ -451,116 +450,125 @@ export function NodeCard({
               )}
             </div>
             
-            {/* Grid content area */}
-            <div className="node-card__grid-content">
-              {/* Row 1: Title */}
-              <div 
-                className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
-                onMouseDown={handleHeaderMouseDown}
-              >
-                <div className="node-card__title-wrapper">
-                  <div className="node-card__title-block">
-                    <Block
-                      block={node}
-                      parentId={node.parent_id}
-                      showBullet={showBullet}
-                      showChildren={false}
-                      canMove={false}
-                      canSelect={false}
-                      canEdit={editable}
-                      suppressColor={true}
-                      onContentChange={handleContentChange}
-                    />
-                  </div>
-                  {editable && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleAddChild}
-                      icon={mdiPlus}
-                      className="node-card__action-button"
-                      aria-label="Add child block"
-                    />
-                  )}
-                  {editable && onNodeClick && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNodeClick(node);
-                      }}
-                      icon={mdiChevronRight}
-                      className="node-card__action-button"
-                      aria-label="Navigate to node"
-                    />
-                  )}
+            {/* Row 1: Title */}
+            <div 
+              className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
+              onMouseDown={handleHeaderMouseDown}
+            >
+              <div className="node-card__title-wrapper">
+                <div className="node-card__title-block">
+                  <Block
+                    block={node}
+                    parentId={node.parent_id}
+                    showBullet={showBullet}
+                    showChildren={false}
+                    canMove={false}
+                    canSelect={false}
+                    canEdit={editable}
+                    suppressColor={true}
+                    onContentChange={handleContentChange}
+                  />
                 </div>
+                {editable && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddChild}
+                    icon={mdiPlus}
+                    className="node-card__action-button"
+                    aria-label="Add child block"
+                  />
+                )}
+                {editable && onNodeClick && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNodeClick(node);
+                    }}
+                    icon={mdiChevronRight}
+                    className="node-card__action-button"
+                    aria-label="Navigate to node"
+                  />
+                )}
               </div>
-              
-              {/* Row 2: Classes and Tags */}
-              {hasMetadata && (
-                <div className="node-card__metadata">
-                  {classDetails.length > 0 && (
-                    <div className="node-card__metadata-row">
-                      {classDetails.map((cls) => (
-                        <NodeClassPill
-                          key={cls.id}
-                          classNode={cls}
-                          readOnly={true}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {tagDetails.length > 0 && (
-                    <div className="node-card__metadata-row">
-                      {tagDetails.map((tag) => (
-                        <NodeClassPill
-                          key={tag.id}
-                          classNode={tag}
-                          readOnly={true}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Row 3: Children (full width) */}
-              {hasChildren && (
-                <div className="node-card__body">
-                  <div className="node-card__children">
-                    {children.map((child) => {
-                      const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
-                      const effectiveCollapsed = hasPersistedCollapse 
-                        ? child.collapsed 
-                        : tempCollapsedChildren.has(child.id);
-                      const childWithCollapse = hasPersistedCollapse 
-                        ? child 
-                        : { ...child, collapsed: effectiveCollapsed };
-                      
-                      return (
-                        <Block
-                          key={child.id}
-                          block={childWithCollapse}
-                          children={child.children}
-                          parentId={node.id}
-                          depth={1}
-                          canMove={false}
-                          canSelect={false}
-                          canEdit={editable}
-                          showBullet={true}
-                          showChildren={true}
-                          onContentChange={handleContentChange}
-                          onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                          onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
+            </div>
+            
+            {/* Row 2: Classes */}
+            <div className="node-card__metadata-row node-card__classes-row">
+              {classDetails.map((cls) => (
+                <NodeClassPill
+                  key={cls.id}
+                  classNode={cls}
+                  readOnly={true}
+                />
+              ))}
+              {classDetails.length === 0 && editable && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  icon={mdiPlus}
+                  className="node-card__add-metadata-btn"
+                  title="Add class"
+                />
               )}
             </div>
+            
+            {/* Row 3: Tags */}
+            <div className="node-card__metadata-row node-card__tags-row">
+              {tagDetails.map((tag) => (
+                <NodeClassPill
+                  key={tag.id}
+                  classNode={tag}
+                  readOnly={true}
+                />
+              ))}
+              {tagDetails.length === 0 && editable && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  icon={mdiPlus}
+                  className="node-card__add-metadata-btn"
+                  title="Add tag"
+                />
+              )}
+            </div>
+            
+            {/* Row 4: Children (spans both columns) */}
+            {hasChildren && (
+              <div className="node-card__body">
+                <div className="node-card__children">
+                  {children.map((child) => {
+                    const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                    const effectiveCollapsed = hasPersistedCollapse 
+                      ? child.collapsed 
+                      : tempCollapsedChildren.has(child.id);
+                    const childWithCollapse = hasPersistedCollapse 
+                      ? child 
+                      : { ...child, collapsed: effectiveCollapsed };
+                    
+                    return (
+                      <Block
+                        key={child.id}
+                        block={childWithCollapse}
+                        children={child.children}
+                        parentId={node.id}
+                        depth={1}
+                        canMove={false}
+                        canSelect={false}
+                        canEdit={editable}
+                        showBullet={true}
+                        showChildren={true}
+                        onContentChange={handleContentChange}
+                        onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                        onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </>
         )}
       </Card>
