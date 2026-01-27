@@ -54,7 +54,8 @@ import {
   NodeDocumentView, 
   NodeCardView, 
   NodeTableView, 
-  NodeGanttView, 
+  NodeGanttView,
+  NodeTimelineView, 
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
 import { BlockCallbacksProvider, type BlockCallbacks } from '../blocks/BlockCallbacksContext';
@@ -285,6 +286,9 @@ export function NodeCollection({
       
       case 'gantt':
         return <NodeGanttView {...viewProps} />;
+      
+      case 'timeline':
+        return <NodeTimelineView {...viewProps} />;
       
       case 'graph':
         // Graph only shows pages - convert Node to GraphNode format
