@@ -34,12 +34,23 @@ class NodeNotFoundError(NodeError):
 
 
 class DuplicateNodeError(NodeError):
-    """Raised when attempting to create a duplicate node."""
+    """Raised when attempting to create a duplicate page.
     
-    def __init__(self, title: str):
-        self.title = title
+    A page name is unique within (graph, parent) for each class.
+    If a page with classes [A, B] exists, you cannot create another page
+    with the same name that has class A or class B (but class C would be OK).
+    """
+    
+    def __init__(self, name: str, conflicting_classes: Optional[list] = None):
+        self.name = name
+        self.conflicting_classes = conflicting_classes or []
+        if conflicting_classes:
+            classes_str = ", ".join(conflicting_classes)
+            message = f"A page named '{name}' already exists with class(es): {classes_str}"
+        else:
+            message = f"A page with this name already exists: {name}"
         super().__init__(
-            message=f"A page with this title already exists: {title}",
+            message=message,
             code="DUPLICATE_NODE"
         )
 
