@@ -19,7 +19,7 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { Button } from '../../core/Button';
 import { NodeClassPill } from '../../NodeClassPill';
-import { mdiChevronRight, mdiPlus } from '@mdi/js';
+import { mdiChevronRight, mdiChevronDown, mdiPlus } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { AddCoverButton } from '../../core/AddCoverButton';
@@ -135,6 +135,9 @@ export function NodeCard({
   
   // Asset upload state for cover
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
+  
+  // Content section collapse state (collapsed by default)
+  const [contentExpanded, setContentExpanded] = useState(false);
   
   // Get all properties to find cover property ID
   const { data: allProperties } = useProperties();
@@ -388,35 +391,50 @@ export function NodeCard({
             {/* Card body with children - render all recursively */}
             {hasChildren && (
               <div className="node-card__body">
-                <div className="node-card__children">
-                  {children.map((child) => {
-                    const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
-                    const effectiveCollapsed = hasPersistedCollapse 
-                      ? child.collapsed 
-                      : tempCollapsedChildren.has(child.id);
-                    const childWithCollapse = hasPersistedCollapse 
-                      ? child 
-                      : { ...child, collapsed: effectiveCollapsed };
-                    
-                    return (
-                      <Block
-                        key={child.id}
-                        block={childWithCollapse}
-                        children={child.children}
-                        parentId={node.id}
-                        depth={1}
-                        canMove={false}
-                        canSelect={false}
-                        canEdit={editable}
-                        showBullet={true}
-                        showChildren={true}
-                        onContentChange={handleContentChange}
-                        onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                        onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
-                      />
-                    );
-                  })}
+                <div 
+                  className="node-card__content-header"
+                  onClick={() => setContentExpanded(!contentExpanded)}
+                >
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    icon={contentExpanded ? mdiChevronDown : mdiChevronRight}
+                    className="node-card__content-toggle"
+                  >
+                    Content
+                  </Button>
                 </div>
+                {contentExpanded && (
+                  <div className="node-card__children">
+                    {children.map((child) => {
+                      const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                      const effectiveCollapsed = hasPersistedCollapse 
+                        ? child.collapsed 
+                        : tempCollapsedChildren.has(child.id);
+                      const childWithCollapse = hasPersistedCollapse 
+                        ? child 
+                        : { ...child, collapsed: effectiveCollapsed };
+                      
+                      return (
+                        <Block
+                          key={child.id}
+                          block={childWithCollapse}
+                          children={child.children}
+                          parentId={node.id}
+                          depth={1}
+                          canMove={false}
+                          canSelect={false}
+                          canEdit={editable}
+                          showBullet={true}
+                          showChildren={true}
+                          onContentChange={handleContentChange}
+                          onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                          onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -542,35 +560,50 @@ export function NodeCard({
             {/* Row 4: Children (spans both columns) */}
             {hasChildren && (
               <div className="node-card__body">
-                <div className="node-card__children">
-                  {children.map((child) => {
-                    const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
-                    const effectiveCollapsed = hasPersistedCollapse 
-                      ? child.collapsed 
-                      : tempCollapsedChildren.has(child.id);
-                    const childWithCollapse = hasPersistedCollapse 
-                      ? child 
-                      : { ...child, collapsed: effectiveCollapsed };
-                    
-                    return (
-                      <Block
-                        key={child.id}
-                        block={childWithCollapse}
-                        children={child.children}
-                        parentId={node.id}
-                        depth={1}
-                        canMove={false}
-                        canSelect={false}
-                        canEdit={editable}
-                        showBullet={true}
-                        showChildren={true}
-                        onContentChange={handleContentChange}
-                        onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                        onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
-                      />
-                    );
-                  })}
+                <div 
+                  className="node-card__content-header"
+                  onClick={() => setContentExpanded(!contentExpanded)}
+                >
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    icon={contentExpanded ? mdiChevronDown : mdiChevronRight}
+                    className="node-card__content-toggle"
+                  >
+                    Content
+                  </Button>
                 </div>
+                {contentExpanded && (
+                  <div className="node-card__children">
+                    {children.map((child) => {
+                      const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                      const effectiveCollapsed = hasPersistedCollapse 
+                        ? child.collapsed 
+                        : tempCollapsedChildren.has(child.id);
+                      const childWithCollapse = hasPersistedCollapse 
+                        ? child 
+                        : { ...child, collapsed: effectiveCollapsed };
+                      
+                      return (
+                        <Block
+                          key={child.id}
+                          block={childWithCollapse}
+                          children={child.children}
+                          parentId={node.id}
+                          depth={1}
+                          canMove={false}
+                          canSelect={false}
+                          canEdit={editable}
+                          showBullet={true}
+                          showChildren={true}
+                          onContentChange={handleContentChange}
+                          onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                          onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </>
