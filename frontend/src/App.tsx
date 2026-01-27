@@ -12,7 +12,7 @@ import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { Layout } from './components/layout/Layout';
 import { LoginPage } from './views/LoginPage';
-import { DatabaseManagementView } from './views/DatabaseManagementView';
+import { GraphManagementView } from './views/GraphManagementView';
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
@@ -169,19 +169,19 @@ function AppContent() {
     );
   }
   
-  // Show database management if no databases exist or no active database
-  const hasNoDatabases = !dbData?.databases || dbData.databases.length === 0;
-  const hasNoActiveDatabase = !dbData?.active;
+  // Show graph management if no graphs exist or no active graph
+  const hasNoGraphs = !dbData?.databases || dbData.databases.length === 0;
+  const hasNoActiveGraph = !dbData?.active;
   
-  if (hasNoDatabases || hasNoActiveDatabase || showDbManagement) {
-    log.debug('Showing database management view', { hasNoDatabases, hasNoActiveDatabase, showDbManagement });
+  if (hasNoGraphs || hasNoActiveGraph || showDbManagement) {
+    log.debug('Showing graph management view', { hasNoGraphs, hasNoActiveGraph, showDbManagement });
     return (
-      <DatabaseManagementView 
-        onDatabaseSelected={() => {
+      <GraphManagementView 
+        onGraphSelected={() => {
           setShowDbManagement(false);
           refetchDatabases();
         }}
-        showClose={!hasNoDatabases && !hasNoActiveDatabase}
+        showClose={!hasNoGraphs && !hasNoActiveGraph}
         onClose={() => setShowDbManagement(false)}
       />
     );

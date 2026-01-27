@@ -1,20 +1,20 @@
 /**
- * Database Switcher Component Styles
+ * Graph Switcher Component Styles
  * 
  * Uses Dropdown component, these are custom trigger styles.
  */
 
 /* ==================== Container ==================== */
-.db-switcher {
+.graph-switcher {
   position: relative;
 }
 
-.db-switcher .dropdown {
+.graph-switcher .dropdown {
   width: 100%;
 }
 
 /* ==================== Custom Trigger ==================== */
-.db-switcher__trigger {
+.graph-switcher__trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -27,29 +27,29 @@
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.db-switcher__trigger:hover {
+.graph-switcher__trigger:hover {
   border-color: var(--color-outline);
   background: var(--color-surface-container);
 }
 
-.db-switcher__trigger--open {
+.graph-switcher__trigger--open {
   border-color: var(--color-primary);
 }
 
 /* ==================== Current Database Display ==================== */
-.db-switcher__current {
+.graph-switcher__current {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   overflow: hidden;
 }
 
-.db-switcher__icon {
+.graph-switcher__icon {
   flex-shrink: 0;
   color: var(--color-on-surface-variant);
 }
 
-.db-switcher__name {
+.graph-switcher__name {
   font: var(--font-label-large);
   color: var(--color-on-surface);
   overflow: hidden;
@@ -58,35 +58,35 @@
 }
 
 /* ==================== Status Indicators ==================== */
-.db-switcher__status {
+.graph-switcher__status {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
   flex-shrink: 0;
 }
 
-.db-switcher__sync-icon {
+.graph-switcher__sync-icon {
   display: flex;
   align-items: center;
 }
 
-.db-switcher__sync-icon--syncing {
+.graph-switcher__sync-icon--syncing {
   color: var(--color-primary);
 }
 
-.db-switcher__sync-icon--error {
+.graph-switcher__sync-icon--error {
   color: var(--color-error);
 }
 
-.db-switcher__sync-icon--offline {
+.graph-switcher__sync-icon--offline {
   color: var(--color-on-surface-variant);
 }
 
-.db-switcher__chevron {
+.graph-switcher__chevron {
   color: var(--color-on-surface-variant);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.db-switcher__trigger--open .db-switcher__chevron {
+.graph-switcher__trigger--open .graph-switcher__chevron {
   transform: rotate(180deg);
 }

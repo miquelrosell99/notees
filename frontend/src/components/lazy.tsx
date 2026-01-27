@@ -53,9 +53,9 @@ export const LazySettingsModal = withSuspense(
   300
 );
 
-/** Database management - admin feature */
-export const LazyDatabaseManagementView = withSuspense(
-  lazy(() => import('@/views/DatabaseManagementView').then(m => ({ default: m.DatabaseManagementView }))),
+/** Graph management - admin feature */
+export const LazyGraphManagementView = withSuspense(
+  lazy(() => import('@/views/GraphManagementView').then(m => ({ default: m.GraphManagementView }))),
   400
 );
 
