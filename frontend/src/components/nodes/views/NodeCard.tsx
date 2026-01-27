@@ -22,6 +22,7 @@ import { mdiChevronRight, mdiPlus } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { AddCoverButton } from '../../core/AddCoverButton';
+import { AssetActions } from '../../assets/AssetActions';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import type { Asset } from '@/api/assets';
@@ -84,6 +85,9 @@ export function NodeCard({
   
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  
+  // Cover hover state
+  const [isCoverHovered, setIsCoverHovered] = useState(false);
   
   // Asset upload state for cover
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
@@ -184,6 +188,15 @@ export function NodeCard({
     });
   }, [node.id, children, createNode]);
   
+  const handleRemove = useCallback(() => {
+    if (!coverProperty) return;
+    setNodeProperty.mutate({
+      nodeId: node.id,
+      propertyId: coverProperty.id,
+      value: null
+    });
+  }, [node.id, coverProperty, setNodeProperty]);
+  
   const handleCoverUploaded = useCallback(async (asset: Asset) => {
     setIsAssetUploadOpen(false);
     
@@ -266,9 +279,25 @@ export function NodeCard({
 
         {/* Cover image or Add Cover button */}
         {effectiveLayout !== 'no-cover' && (
-          <div className="node-card__cover" onClick={(e) => e.stopPropagation()}>
+          <div 
+            className="node-card__cover" 
+            onClick={(e) => e.stopPropagation()}
+            onMouseEnter={() => setIsCoverHovered(true)}
+            onMouseLeave={() => setIsCoverHovered(false)}
+          >
             {coverUrl ? (
-              <img src={coverUrl} alt="" className="node-card__cover-image" />
+              <>
+                <img src={coverUrl} alt="" className="node-card__cover-image" />
+                {editable && (
+                  <AssetActions
+                    onEdit={() => setIsAssetUploadOpen(true)}
+                    onRemove={handleRemove}
+                    visible={isCoverHovered}
+                    position="bottom-right"
+                    compact
+                  />
+                )}
+              </>
             ) : (
               <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
             )}
