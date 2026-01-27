@@ -28,11 +28,13 @@ import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
+import { ImageModal } from '../core/ImageModal';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { sanitizeContent } from '@/utils/linkSanitization';
+import { getAssetUrl } from '@/api/assets';
 import './LinkPill.css';
 
 // Regex for finding links - [[nodeId]] or [[nodeId:linkUuid]] format
@@ -41,12 +43,17 @@ const LINK_REGEX = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
 // Regex for finding inline types - {{typeId}} format
 const TYPE_REGEX = /\{\{([^\}]+)\}\}/g;
 
+// Regex for finding markdown images - ![alt](uuid) format
+const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
 interface ContentPart {
-  type: 'text' | 'link' | 'inline-type';
+  type: 'text' | 'link' | 'inline-type' | 'image';
   content: string;
   id?: string;  // The node ID for links/types
   raw?: string;
   linkUuid?: string;  // The unique link instance UUID (for links only)
+  imageAlt?: string;  // Alt text for images
+  imageUuid?: string;  // Asset UUID for images
 }
 
 interface BlockContentProps {
@@ -58,7 +65,7 @@ interface BlockContentProps {
 }
 
 /**
- * Parse content into parts (text, links, and inline types)
+ * Parse content into parts (text, links, inline types, and images)
  * Content is automatically sanitized to remove editor artifacts.
  */
 function parseContent(content: string): ContentPart[] {
@@ -69,12 +76,14 @@ function parseContent(content: string): ContentPart[] {
   
   // Find all matches with their positions
   interface Match {
-    type: 'link' | 'inline-type';
+    type: 'link' | 'inline-type' | 'image';
     id: string;
     raw: string;
     start: number;
     end: number;
     linkUuid?: string;  // Only for links
+    imageAlt?: string;  // Only for images
+    imageUuid?: string;  // Only for images
   }
   
   const matches: Match[] = [];
@@ -105,6 +114,20 @@ function parseContent(content: string): ContentPart[] {
     });
   }
   
+  // Find images - ![alt](uuid) format
+  const imageRegex = new RegExp(IMAGE_REGEX.source, 'g');
+  while ((match = imageRegex.exec(sanitizedContent)) !== null) {
+    matches.push({
+      type: 'image',
+      id: match[2],  // uuid
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+      imageAlt: match[1] || 'Image',
+      imageUuid: match[2],
+    });
+  }
+  
   // Sort by position
   matches.sort((a, b) => a.start - b.start);
   
@@ -125,6 +148,8 @@ function parseContent(content: string): ContentPart[] {
       id: m.id,
       raw: m.raw,
       linkUuid: m.linkUuid,
+      imageAlt: m.imageAlt,
+      imageUuid: m.imageUuid,
     });
     
     lastIndex = m.end;
@@ -374,6 +399,54 @@ function TypePill({ typeId, raw, onNavigate }: TypePillProps) {
   );
 }
 
+interface InlineImageProps {
+  uuid: string;
+  alt: string;
+}
+
+/**
+ * InlineImage - Renders an inline image with click-to-expand functionality
+ */
+function InlineImage({ uuid, alt }: InlineImageProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  
+  const imageUrl = getAssetUrl(uuid);
+  
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsModalOpen(true);
+  }, []);
+  
+  if (hasError) {
+    return (
+      <span className="inline-image-error" title="Failed to load image">
+        [Image Error: {alt}]
+      </span>
+    );
+  }
+  
+  return (
+    <>
+      <img
+        src={imageUrl}
+        alt={alt}
+        className="inline-image"
+        onClick={handleClick}
+        onError={() => setHasError(true)}
+        title="Click to view full size"
+      />
+      <ImageModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        src={imageUrl}
+        alt={alt}
+      />
+    </>
+  );
+}
+
 export function BlockContent({
   content,
   blockId,
@@ -452,6 +525,16 @@ export function BlockContent({
               typeId={part.id!}
               raw={part.raw!}
               onNavigate={handleNavigate}
+            />
+          );
+        }
+        
+        if (part.type === 'image') {
+          return (
+            <InlineImage
+              key={index}
+              uuid={part.imageUuid!}
+              alt={part.imageAlt!}
             />
           );
         }

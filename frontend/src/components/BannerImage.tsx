@@ -24,6 +24,7 @@ import { getAssetUrl } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
+import { ImageModal } from './core/ImageModal';
 import { AssetActions } from './assets/AssetActions';
 import { mdiImageOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -89,6 +90,7 @@ export function BannerImage({
 }: BannerImageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => getCollapsedState(pageId, !!bannerImageId));
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
   const { data: assetNode, isLoading } = useNode(bannerImageId, { include_children: false });
@@ -240,40 +242,52 @@ export function BannerImage({
   
   // Expanded state - show full banner
   return (
-    <Card 
-      className={`banner-image banner-image--${height} banner-image--expanded`}
-      elevation="low"
-      variant="default"
-      padding={false}
-      radius="md"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <img 
-        src={imageUrl} 
-        alt="Banner" 
-        className="banner-image__img"
-      />
+    <>
+      <Card 
+        className={`banner-image banner-image--${height} banner-image--expanded`}
+        elevation="low"
+        variant="default"
+        padding={false}
+        radius="md"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <img 
+          src={imageUrl} 
+          alt="Banner" 
+          className="banner-image__img"
+          onClick={() => setIsModalOpen(true)}
+          style={{ cursor: 'pointer' }}
+          title="Click to view full size"
+        />
+        
+        {editable && (
+          <AssetActions
+            onEdit={onSelectImage}
+            onRemove={handleRemove}
+            visible={isHovered}
+            position="bottom-right"
+          >
+            <Button
+              icon={mdiChevronUp}
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleCollapse}
+              title="Collapse banner"
+              aria-label="Collapse banner image"
+              aria-expanded="true"
+            />
+          </AssetActions>
+        )}
+      </Card>
       
-      {editable && (
-        <AssetActions
-          onEdit={onSelectImage}
-          onRemove={handleRemove}
-          visible={isHovered}
-          position="bottom-right"
-        >
-          <Button
-            icon={mdiChevronUp}
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleCollapse}
-            title="Collapse banner"
-            aria-label="Collapse banner image"
-            aria-expanded="true"
-          />
-        </AssetActions>
-      )}
-    </Card>
+      <ImageModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        src={imageUrl}
+        alt="Banner"
+      />
+    </>
   );
 }
 
