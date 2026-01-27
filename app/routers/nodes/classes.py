@@ -122,7 +122,7 @@ async def get_nodes_with_class(
         classes_property_id = row['id']
         
         # Get all subclasses (classes that extend this class)
-        property_repo = PostgresPropertyRepository(service._pool, service._graph_id or 0, service._user_id)
+        property_repo = PostgresPropertyRepository(service._pool, service._graph_id or 0, int(user.id))
         extension_service = ClassExtensionService(service._pool, service._graph_id or 0, property_repo)
         
         subclass_ids = await extension_service.get_all_subclasses(class_id)
