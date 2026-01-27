@@ -239,13 +239,42 @@ async def get_node(
                 if nid in node_type_map and tid:
                     node_type_map[nid].append(tid)
         
+        # Get properties for all descendants if include_properties is requested
+        node_properties_map: Dict[int, Dict[str, any]] = {}
+        if include_properties and descendant_ids:
+            for nid in descendant_ids:
+                node_properties_map[nid] = {}
+                all_prop_values = await service._property_repo.get_all_property_values(nid)
+                for prop_id, prop_data in all_prop_values.items():
+                    prop = prop_data['property']
+                    values = prop_data['values']
+                    if values:
+                        # Extract the actual value based on property type
+                        val = values[0]  # Get first value
+                        if hasattr(val, 'target_id'):
+                            # Relation type
+                            node_properties_map[nid][prop.name] = val.target_id
+                        elif hasattr(val, 'value_integer'):
+                            # Scalar type
+                            node_properties_map[nid][prop.name] = (
+                                val.value_integer or val.value_float or 
+                                val.value_text or val.value_boolean
+                            )
+                        elif hasattr(val, 'selection_line_id'):
+                            # Selection type
+                            node_properties_map[nid][prop.name] = val.selection_line_id
+        
         # Build tree structure from flat list using parent_id
         node_map: Dict[int, NodeResponse] = {}
         for d in all_descendants:
             if d.id is not None:
                 bcount = backlink_counts.get(d.id, 0)
                 d_type_ids = node_type_map.get(d.id, [])
-                node_map[d.id] = _node_to_response(d, classes=d_type_ids, backlink_count=bcount)
+                node_resp = _node_to_response(d, classes=d_type_ids, backlink_count=bcount)
+                # Add properties if they were loaded
+                if include_properties and d.id in node_properties_map:
+                    node_resp.properties = node_properties_map[d.id]
+                node_map[d.id] = node_resp
         
         root_children = []
         
