@@ -77,6 +77,7 @@ class QueryExecuteRequest(BaseModel):
     offset: Optional[int] = None
     order_by: Optional[str] = None
     include_children: Optional[bool] = False  # Whether to include children for each result
+    include_properties: Optional[bool] = False  # Whether to include properties for each result
 
 
 class QueryASTUpdateRequest(BaseModel):
@@ -113,6 +114,12 @@ async def _get_query_executor(user: User) -> QueryExecutor:
         graph_id=service._graph_id,
         user_id=user.id,
     )
+
+
+async def _get_property_repo(user: User):
+    """Get property repository for the current user."""
+    service = await _get_node_service(user)
+    return service._property_repo
 
 
 async def _include_children_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -167,6 +174,57 @@ async def _include_children_for_results(user: User, results: List[Dict[str, Any]
     for result in results:
         node_id = result.get("id")
         result["children"] = children_by_parent.get(node_id, [])
+    
+    return results
+
+
+async def _include_properties_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Fetch and attach properties for each node in results.
+    
+    This adds 'properties' to each node dict, populated with their property values.
+    """
+    if not results:
+        return results
+    
+    property_repo = await _get_property_repo(user)
+    
+    # Get node IDs from results
+    node_ids = [r.get("id") for r in results if r.get("id")]
+    
+    if not node_ids:
+        return results
+    
+    # Fetch properties for each node
+    for result in results:
+        node_id = result.get("id")
+        if not node_id:
+            continue
+            
+        # Get all property values for this node
+        all_prop_values = await property_repo.get_all_property_values(node_id)
+        props_dict = {}
+        
+        for prop_id, prop_data in all_prop_values.items():
+            prop = prop_data['property']
+            values = prop_data['values']
+            if values:
+                # Extract the actual value based on property type
+                val = values[0]  # Get first value
+                if hasattr(val, 'target_id'):
+                    # Relation type
+                    props_dict[prop.name] = val.target_id
+                elif hasattr(val, 'value_integer'):
+                    # Scalar type
+                    props_dict[prop.name] = (
+                        val.value_integer or val.value_float or 
+                        val.value_text or val.value_boolean
+                    )
+                elif hasattr(val, 'selection_line_id'):
+                    # Selection type
+                    props_dict[prop.name] = val.selection_line_id
+        
+        if props_dict:
+            result["properties"] = props_dict
     
     return results
 
@@ -568,6 +626,10 @@ async def execute_node_view_query(
     if request.include_children:
         results = await _include_children_for_results(user, results)
     
+    # If include_properties is requested, fetch properties for each node
+    if request.include_properties:
+        results = await _include_properties_for_results(user, results)
+    
     return {"nodes": results}
 
 
@@ -600,6 +662,10 @@ async def execute_query(
     # If include_children is requested, fetch children for each node
     if request.include_children:
         results = await _include_children_for_results(user, results)
+    
+    # If include_properties is requested, fetch properties for each node
+    if request.include_properties:
+        results = await _include_properties_for_results(user, results)
     
     return {"nodes": results}
 
