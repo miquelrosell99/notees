@@ -115,6 +115,7 @@ export function NodeCollectionToolbar({
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
   const showCardSizeSelector = viewMode === 'card';
+  // Show property column selector in table view when callback is provided
   const showPropertyColumnSelector = viewMode === 'table' && onPropertyColumnsChange;
   
   // Determine if using horizontal layout
