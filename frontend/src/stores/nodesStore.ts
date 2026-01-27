@@ -4,7 +4,9 @@
  * Manages the current node state and selection.
  */
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Node } from '@/types';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 
 export type ViewMode = 'default' | 'focus' | 'zen';
 export type MainViewType = 'node' | 'all-pages' | 'journals' | 'graph' | 'archived' | 'assets' | 'property';
@@ -86,6 +88,9 @@ interface NodesState {
   isScratchpadOpen: boolean;
   lateNightThoughtsFilter: boolean;
   
+  // Per-node view mode storage (persisted)
+  nodeViewModes: Record<number, NodeCollectionViewMode>;
+  
   // Actions
   setActiveNode: (node: Node | null) => void;
   setActiveNodeId: (id: number | null) => void;
@@ -129,9 +134,13 @@ interface NodesState {
   setScratchpadOpen: (open: boolean) => void;
   toggleLateNightThoughts: () => void;
   setLateNightThoughtsFilter: (enabled: boolean) => void;
+  
+  // Per-node view mode actions
+  setNodeViewMode: (nodeId: number, mode: NodeCollectionViewMode) => void;
+  getNodeViewMode: (nodeId: number) => NodeCollectionViewMode | undefined;
 }
 
-export const useNodesStore = create<NodesState>()((set) => ({
+export const useNodesStore = create<NodesState>()(persist((set, get) => ({
   activeNode: null,
   activeNodeId: null,
   currentNodeId: null,
@@ -160,6 +169,7 @@ export const useNodesStore = create<NodesState>()((set) => ({
   cardLayout: 'no-cover' as CardLayoutMode,
   isScratchpadOpen: false,
   lateNightThoughtsFilter: false,
+  nodeViewModes: {},
   
   setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
   setActiveNodeId: (id) => set({ activeNodeId: id }),
@@ -310,4 +320,17 @@ export const useNodesStore = create<NodesState>()((set) => ({
   setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
   toggleLateNightThoughts: () => set((state) => ({ lateNightThoughtsFilter: !state.lateNightThoughtsFilter })),
   setLateNightThoughtsFilter: (enabled) => set({ lateNightThoughtsFilter: enabled }),
+  
+  // Per-node view mode actions
+  setNodeViewMode: (nodeId, mode) => set((state) => ({
+    nodeViewModes: { ...state.nodeViewModes, [nodeId]: mode }
+  })),
+  getNodeViewMode: (nodeId) => get().nodeViewModes[nodeId],
+}), {
+  name: 'notees-node-view-modes',
+  partialize: (state) => ({ 
+    nodeViewModes: state.nodeViewModes,
+    cardLayout: state.cardLayout,
+    contentDisplayMode: state.contentDisplayMode,
+  }),
 }));
