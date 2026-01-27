@@ -138,13 +138,14 @@ export function useNodeViewQuery(
     offset?: number;
     orderBy?: string;
     includeChildren?: boolean;
+    includeProperties?: boolean;
     enabled?: boolean;
   }
 ) {
-  const { runtimeParams, limit, offset, orderBy, includeChildren, enabled = true } = options ?? {};
+  const { runtimeParams, limit, offset, orderBy, includeChildren, includeProperties, enabled = true } = options ?? {};
 
   return useQuery({
-    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren }),
+    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren, includeProperties }),
     queryFn: () =>
       executeNodeViewQuery(viewId, {
         runtime_params: runtimeParams,
@@ -152,6 +153,7 @@ export function useNodeViewQuery(
         offset,
         order_by: orderBy,
         include_children: includeChildren,
+        include_properties: includeProperties,
       }),
     enabled: enabled && viewId > 0,
   });

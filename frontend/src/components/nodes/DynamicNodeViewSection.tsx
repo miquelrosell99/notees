@@ -265,6 +265,8 @@ export function DynamicNodeViewSection({
     },
     // Include children for linked_references, child_pages, and views that need nested content
     includeChildren: viewType === 'linked_references' || viewType === 'child_pages',
+    // Include properties for child_pages to show covers
+    includeProperties: viewType === 'child_pages',
     enabled: !!activeView && nodeId > 0,
   });
 
