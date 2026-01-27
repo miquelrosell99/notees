@@ -26,11 +26,10 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "type": "AND_CONTAINER",
             "blocks": [
                 {
-                    "type": "ANCESTOR_PATH",
-                    "blocks": [
-                        {"type": "UUID", "value": "{current_node_uuid}"}
-                    ],
-                    "max_depth": 1  # Direct children only
+                    "type": "PROPERTY",
+                    "property_name": "parent_id",
+                    "operator": "=",
+                    "value": "{current_node_id}"
                 },
                 {
                     "type": "TYPE",
