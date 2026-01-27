@@ -1,11 +1,11 @@
 /**
- * DatabaseManagementView styles
+ * GraphManagementView styles
  * 
  * Fullscreen graph management interface
  * Uses design system CSS variables from variables.css
  */
 
-.db-management {
+.graph-management {
   position: fixed;
   inset: 0;
   background: var(--color-background);
@@ -15,7 +15,7 @@
   z-index: 9999;
 }
 
-.db-management__container {
+.graph-management__container {
   width: 100%;
   max-width: 800px;
   min-height: 100vh;
@@ -25,7 +25,7 @@
 }
 
 /* Header */
-.db-management__header {
+.graph-management__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -34,30 +34,30 @@
   margin-bottom: 2rem;
 }
 
-.db-management__header-content {
+.graph-management__header-content {
   display: flex;
   align-items: center;
   gap: 2rem;
 }
 
-.db-management__logo {
+.graph-management__logo {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.db-management__logo-icon {
+.graph-management__logo-icon {
   font-size: 2rem;
 }
 
-.db-management__title {
+.graph-management__title {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--color-on-surface);
   margin: 0;
 }
 
-.db-management__close {
+.graph-management__close {
   background: none;
   border: none;
   color: var(--color-on-surface-variant);
@@ -68,23 +68,23 @@
   transition: all 0.15s ease;
 }
 
-.db-management__close:hover {
+.graph-management__close:hover {
   background: var(--color-surface-variant);
   color: var(--color-on-surface);
 }
 
-.db-management__user-info {
+.graph-management__user-info {
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
-.db-management__username {
+.graph-management__username {
   color: var(--color-on-surface-variant);
   font-size: 0.9rem;
 }
 
-.db-management__logout {
+.graph-management__logout {
   background: none;
   border: 1px solid var(--color-outline-variant);
   color: var(--color-on-surface-variant);
@@ -95,46 +95,46 @@
   transition: all 0.15s ease;
 }
 
-.db-management__logout:hover {
+.graph-management__logout:hover {
   background: var(--color-error-container);
   border-color: var(--color-error);
   color: var(--color-error);
 }
 
 /* Main content */
-.db-management__main {
+.graph-management__main {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.db-management__welcome {
+.graph-management__welcome {
   text-align: center;
   margin-bottom: 2rem;
 }
 
-.db-management__welcome h2 {
+.graph-management__welcome h2 {
   font-size: 1.75rem;
   font-weight: 600;
   color: var(--color-on-surface);
   margin: 0 0 0.5rem;
 }
 
-.db-management__subtitle {
+.graph-management__subtitle {
   color: var(--color-on-surface-variant);
   font-size: 1rem;
   margin: 0;
 }
 
 /* Action buttons */
-.db-management__actions {
+.graph-management__actions {
   display: flex;
   gap: 1rem;
   justify-content: center;
   margin-bottom: 3rem;
 }
 
-.db-management__action-btn {
+.graph-management__action-btn {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -147,33 +147,33 @@
   border: none;
 }
 
-.db-management__action-btn--primary {
+.graph-management__action-btn--primary {
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
 
-.db-management__action-btn--primary:hover {
+.graph-management__action-btn--primary:hover {
   box-shadow: 0 0 0 3px var(--color-primary-container);
   transform: translateY(-1px);
 }
 
-.db-management__action-btn--secondary {
+.graph-management__action-btn--secondary {
   background: var(--color-surface-variant);
   color: var(--color-on-surface);
   border: 1px solid var(--color-outline-variant);
 }
 
-.db-management__action-btn--secondary:hover {
+.graph-management__action-btn--secondary:hover {
   background: var(--color-surface-container-high);
   border-color: var(--color-outline);
 }
 
-.db-management__action-icon {
+.graph-management__action-icon {
   font-size: 1.25rem;
 }
 
 /* Loading state */
-.db-management__loading {
+.graph-management__loading {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -182,7 +182,7 @@
   color: var(--color-on-surface-variant);
 }
 
-.db-management__spinner {
+.graph-management__spinner {
   width: 32px;
   height: 32px;
   border: 3px solid var(--color-outline-variant);
@@ -196,7 +196,7 @@
 }
 
 /* Database list */
-.db-management__list {
+.graph-management__list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -206,7 +206,7 @@
 }
 
 /* Database grid (cards layout) */
-.db-management__grid {
+.graph-management__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
@@ -216,17 +216,17 @@
 }
 
 /* Database card */
-.db-management__card {
+.graph-management__card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.db-management__card--active {
+.graph-management__card--active {
   border-color: var(--color-primary);
 }
 
-.db-management__card--delete-confirm {
+.graph-management__card--delete-confirm {
   border-color: var(--color-error, #ba1a1a);
   animation: delete-confirm-pulse 1.5s ease-in-out infinite;
 }
@@ -240,7 +240,7 @@
   }
 }
 
-.db-management__card-content {
+.graph-management__card-content {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -252,7 +252,7 @@
   gap: 0.5rem;
 }
 
-.db-management__card-header {
+.graph-management__card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -261,27 +261,27 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
-.db-management__card-title {
+.graph-management__card-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.db-management__card-actions {
+.graph-management__card-actions {
   display: flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.db-management__card-icon {
+.graph-management__card-icon {
   color: var(--color-on-surface-variant);
 }
 
-.db-management__card--active .db-management__card-icon {
+.graph-management__card--active .graph-management__card-icon {
   color: var(--color-primary);
 }
 
-.db-management__card-badge {
+.graph-management__card-badge {
   font-size: 0.65rem;
   padding: 0.15rem 0.5rem;
   background: var(--color-primary);
@@ -292,26 +292,26 @@
   letter-spacing: 0.5px;
 }
 
-.db-management__card-body {
+.graph-management__card-body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.db-management__card-name {
+.graph-management__card-name {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-on-surface);
 }
 
-.db-management__card-stats {
+.graph-management__card-stats {
   display: flex;
   gap: 0.75rem;
   font-size: 0.8rem;
   color: var(--color-on-surface-variant);
 }
 
-.db-management__card-meta {
+.graph-management__card-meta {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -319,26 +319,26 @@
   color: var(--color-on-surface-variant);
 }
 
-.db-management__card-actions .btn {
+.graph-management__card-actions .btn {
   opacity: 0.7;
 }
 
-.db-management__card-actions .btn:hover {
+.graph-management__card-actions .btn:hover {
   opacity: 1;
 }
 
-.db-management__delete-btn:hover {
+.graph-management__delete-btn:hover {
   color: var(--color-error);
 }
 
 /* Form container */
-.db-management__form-container {
+.graph-management__form-container {
   max-width: 500px;
   margin: 0 auto;
   width: 100%;
 }
 
-.db-management__back-btn {
+.graph-management__back-btn {
   background: none;
   border: none;
   color: var(--color-on-surface-variant);
@@ -349,49 +349,49 @@
   transition: color 0.15s ease;
 }
 
-.db-management__back-btn:hover {
+.graph-management__back-btn:hover {
   color: var(--color-on-surface);
 }
 
-.db-management__form-title {
+.graph-management__form-title {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--color-on-surface);
   margin: 0 0 0.5rem;
 }
 
-.db-management__form-subtitle {
+.graph-management__form-subtitle {
   color: var(--color-on-surface-variant);
   font-size: 0.95rem;
   margin: 0 0 2rem;
   line-height: 1.5;
 }
 
-.db-management__form {
+.graph-management__form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-.db-management__field {
+.graph-management__field {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.db-management__label {
+.graph-management__label {
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--color-on-surface-variant);
 }
 
-.db-management__input-wrapper {
+.graph-management__input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.db-management__input {
+.graph-management__input {
   width: 100%;
   padding: 0.875rem 1rem;
   padding-right: 2.5rem;
@@ -404,41 +404,41 @@
   transition: all 0.15s ease;
 }
 
-.db-management__input:focus {
+.graph-management__input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-hover-overlay);
 }
 
-.db-management__input--valid {
+.graph-management__input--valid {
   border-color: var(--color-success);
 }
 
-.db-management__input--error {
+.graph-management__input--error {
   border-color: var(--color-error);
 }
 
-.db-management__input-status {
+.graph-management__input-status {
   position: absolute;
   right: 1rem;
   font-size: 1rem;
 }
 
-.db-management__input-status--valid {
+.graph-management__input-status--valid {
   color: var(--color-success);
 }
 
-.db-management__input-status--error {
+.graph-management__input-status--error {
   color: var(--color-error);
 }
 
-.db-management__field-error {
+.graph-management__field-error {
   font-size: 0.85rem;
   color: var(--color-error);
   margin: 0;
 }
 
 /* Dropzone */
-.db-management__dropzone {
+.graph-management__dropzone {
   border: 2px dashed var(--color-outline-variant);
   border-radius: 10px;
   padding: 2rem;
@@ -447,62 +447,62 @@
   transition: all 0.15s ease;
 }
 
-.db-management__dropzone:hover {
+.graph-management__dropzone:hover {
   border-color: var(--color-primary);
   background: var(--color-hover-overlay);
 }
 
-.db-management__dropzone--has-file {
+.graph-management__dropzone--has-file {
   border-style: solid;
   border-color: var(--color-success);
   background: var(--color-success-container);
 }
 
-.db-management__dropzone-content {
+.graph-management__dropzone-content {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
 }
 
-.db-management__dropzone-icon {
+.graph-management__dropzone-icon {
   font-size: 2rem;
 }
 
-.db-management__dropzone-text {
+.graph-management__dropzone-text {
   color: var(--color-on-surface);
   margin: 0;
 }
 
-.db-management__dropzone-hint {
+.graph-management__dropzone-hint {
   color: var(--color-on-surface-variant);
   font-size: 0.85rem;
   margin: 0;
 }
 
-.db-management__file-info {
+.graph-management__file-info {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   justify-content: center;
 }
 
-.db-management__file-icon {
+.graph-management__file-icon {
   font-size: 1.5rem;
 }
 
-.db-management__file-name {
+.graph-management__file-name {
   color: var(--color-on-surface);
   font-weight: 500;
 }
 
-.db-management__file-size {
+.graph-management__file-size {
   color: var(--color-on-surface-variant);
   font-size: 0.9rem;
 }
 
 /* Error message */
-.db-management__error {
+.graph-management__error {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -515,14 +515,14 @@
 }
 
 /* Form actions */
-.db-management__form-actions {
+.graph-management__form-actions {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 0.5rem;
 }
 
-.db-management__btn {
+.graph-management__btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -535,30 +535,30 @@
   border: none;
 }
 
-.db-management__btn:disabled {
+.graph-management__btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.db-management__btn--primary {
+.graph-management__btn--primary {
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
 
-.db-management__btn--primary:hover:not(:disabled) {
+.graph-management__btn--primary:hover:not(:disabled) {
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
-.db-management__btn--secondary {
+.graph-management__btn--secondary {
   background: var(--color-surface-variant);
   color: var(--color-on-surface);
 }
 
-.db-management__btn--secondary:hover:not(:disabled) {
+.graph-management__btn--secondary:hover:not(:disabled) {
   background: var(--color-surface-container-high);
 }
 
-.db-management__btn-spinner {
+.graph-management__btn-spinner {
   width: 16px;
   height: 16px;
   border: 2px solid var(--color-on-primary);
@@ -568,14 +568,14 @@
 }
 
 /* Footer */
-.db-management__footer {
+.graph-management__footer {
   text-align: center;
   padding-top: 2rem;
   border-top: 1px solid var(--color-outline-variant);
   margin-top: 2rem;
 }
 
-.db-management__footer p {
+.graph-management__footer p {
   color: var(--color-on-surface-variant);
   font-size: 0.85rem;
   margin: 0;
@@ -583,21 +583,21 @@
 
 /* Responsive */
 @media (max-width: 640px) {
-  .db-management__container {
+  .graph-management__container {
     padding: 1rem;
   }
 
-  .db-management__header {
+  .graph-management__header {
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
   }
 
-  .db-management__actions {
+  .graph-management__actions {
     flex-direction: column;
   }
 
-  .db-management__action-btn {
+  .graph-management__action-btn {
     width: 100%;
     justify-content: center;
   }

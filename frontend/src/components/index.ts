@@ -137,11 +137,11 @@ export { Modal } from './core/Modal';
 export type { ModalProps, ModalSize } from './core/Modal';
 export { SettingsModal } from './SettingsModal';
 export { ConfirmationModal } from './core/ConfirmationModal';
-export { DatabaseModal } from './databases/DatabaseModal';
-export { DatabaseNameModal } from './databases/DatabaseNameModal';
-export { ImportOptionsModal } from './databases/ImportOptionsModal';
-export { DatabaseSwitcher } from './databases/DatabaseSwitcher';
-export { DatabaseManagementView } from '../views/DatabaseManagementView';
+export { GraphModal } from './graphs/GraphModal';
+export { GraphNameModal } from './graphs/GraphNameModal';
+export { ImportOptionsModal } from './graphs/ImportOptionsModal';
+export { GraphSwitcher } from './graphs/GraphSwitcher';
+export { GraphManagementView } from '../views/GraphManagementView';
 export { AssetUploadModal } from './assets/AssetUploadModal';
 
 // Asset components

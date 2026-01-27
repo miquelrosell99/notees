@@ -1,8 +1,8 @@
 /**
- * Sidebar component with database switcher, navigation, favorites, and recents
+ * Sidebar component with graph switcher, navigation, favorites, and recents
  * 
  * Matches the UI shown in screenshots with:
- * - Database switcher at top
+ * - Graph switcher at top
  * - Journal, All Pages, Graph View navigation
  * - FAVORITES section with user-favorited pages (draggable for reordering)
  * - RECENTS section with recently accessed pages
@@ -11,8 +11,8 @@ import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
-import { DatabaseSwitcher } from '../databases/DatabaseSwitcher';
-import { DatabaseModal } from '../databases/DatabaseModal';
+import { GraphSwitcher } from '../graphs/GraphSwitcher';
+import { GraphModal } from '../graphs/GraphModal';
 import { SettingsModal } from '../SettingsModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -87,7 +87,7 @@ function FavoriteItemText({ nodeId }: { nodeId: number }) {
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
-  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [favoritesExpanded, setFavoritesExpanded] = useState(true);
   const [recentsExpanded, setRecentsExpanded] = useState(true);
@@ -126,9 +126,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
   return (
     <>
       <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
-        {/* Database Switcher at Top */}
+        {/* Graph Switcher at Top */}
         <div className="sidebar-header">
-          <DatabaseSwitcher onAddDatabase={() => setIsDatabaseModalOpen(true)} />
+          <GraphSwitcher onAddGraph={() => setIsGraphModalOpen(true)} />
         </div>
 
         {/* Main Navigation */}
@@ -276,9 +276,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
       </Card>
 
       {/* Modals */}
-      <DatabaseModal
-        isOpen={isDatabaseModalOpen}
-        onClose={() => setIsDatabaseModalOpen(false)}
+      <GraphModal
+        isOpen={isGraphModalOpen}
+        onClose={() => setIsGraphModalOpen(false)}
       />
       <SettingsModal
         isOpen={isSettingsModalOpen}

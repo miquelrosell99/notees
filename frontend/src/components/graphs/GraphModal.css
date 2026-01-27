@@ -1,8 +1,8 @@
 /**
- * Database Modal styles
+ * Graph Modal styles
  */
 
-.database-modal {
+.graph-modal {
   width: 90%;
   max-width: 480px;
   background: var(--color-surface);
@@ -12,7 +12,7 @@
   animation: slideUp var(--motion-duration-medium) var(--motion-easing-emphasized);
 }
 
-.database-modal__header {
+.graph-modal__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -20,13 +20,13 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
-.database-modal__title {
+.graph-modal__title {
   font: var(--font-headline-small);
   color: var(--color-on-surface);
   margin: 0;
 }
 
-.database-modal__close {
+.graph-modal__close {
   width: 36px;
   height: 36px;
   display: flex;
@@ -41,19 +41,19 @@
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.database-modal__close:hover {
+.graph-modal__close:hover {
   background: var(--color-error-container);
   color: var(--color-error);
 }
 
-.database-modal__tabs {
+.graph-modal__tabs {
   display: flex;
   padding: var(--spacing-2) var(--spacing-4);
   gap: var(--spacing-2);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
-.database-modal__tab {
+.graph-modal__tab {
   flex: 1;
   display: flex;
   align-items: center;
@@ -69,38 +69,38 @@
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.database-modal__tab:hover {
+.graph-modal__tab:hover {
   background: var(--color-hover-overlay);
 }
 
-.database-modal__tab--active {
+.graph-modal__tab--active {
   background: var(--color-primary-container);
   border-color: var(--color-primary);
   color: var(--color-on-primary-container);
 }
 
-.database-modal__form {
+.graph-modal__form {
   padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
 }
 
-.database-modal__field {
+.graph-modal__field {
   margin-bottom: var(--spacing-4);
 }
 
-.database-modal__label {
+.graph-modal__label {
   display: block;
   font: var(--font-label-large);
   color: var(--color-on-surface);
   margin-bottom: var(--spacing-2);
 }
 
-.database-modal__input-wrapper {
+.graph-modal__input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.database-modal__input {
+.graph-modal__input {
   width: 100%;
   padding: var(--spacing-3) var(--spacing-4);
   padding-right: var(--spacing-10);
@@ -112,34 +112,34 @@
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.database-modal__input:focus {
+.graph-modal__input:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.database-modal__input--error {
+.graph-modal__input--error {
   border-color: var(--color-error);
 }
 
-.database-modal__input--valid {
+.graph-modal__input--valid {
   border-color: var(--color-success);
 }
 
-.database-modal__input-status {
+.graph-modal__input-status {
   position: absolute;
   right: var(--spacing-3);
   font-size: 0.875rem;
 }
 
-.database-modal__input-status--loading {
+.graph-modal__input-status--loading {
   animation: spin 1s linear infinite;
 }
 
-.database-modal__input-status--valid {
+.graph-modal__input-status--valid {
   color: var(--color-success);
 }
 
-.database-modal__input-status--error {
+.graph-modal__input-status--error {
   color: var(--color-error);
 }
 
@@ -148,13 +148,13 @@
   to { transform: rotate(360deg); }
 }
 
-.database-modal__field-error {
+.graph-modal__field-error {
   font: var(--font-body-small);
   color: var(--color-error);
   margin: var(--spacing-1) 0 0 0;
 }
 
-.database-modal__dropzone {
+.graph-modal__dropzone {
   border: 2px dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   padding: var(--spacing-6);
@@ -163,56 +163,56 @@
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.database-modal__dropzone:hover {
+.graph-modal__dropzone:hover {
   border-color: var(--color-primary);
   background: var(--color-primary-container);
 }
 
-.database-modal__dropzone--has-file {
+.graph-modal__dropzone--has-file {
   border-style: solid;
   border-color: var(--color-primary);
   background: var(--color-primary-container);
 }
 
-.database-modal__dropzone-icon {
+.graph-modal__dropzone-icon {
   font-size: 2rem;
   margin-bottom: var(--spacing-2);
 }
 
-.database-modal__dropzone-text {
+.graph-modal__dropzone-text {
   font: var(--font-body-medium);
   color: var(--color-on-surface);
   margin: 0 0 var(--spacing-1) 0;
 }
 
-.database-modal__dropzone-hint {
+.graph-modal__dropzone-hint {
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
   margin: 0;
 }
 
-.database-modal__file-info {
+.graph-modal__file-info {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--spacing-2);
 }
 
-.database-modal__file-icon {
+.graph-modal__file-icon {
   font-size: 1.25rem;
 }
 
-.database-modal__file-name {
+.graph-modal__file-name {
   font: var(--font-label-large);
   color: var(--color-on-primary-container);
 }
 
-.database-modal__file-size {
+.graph-modal__file-size {
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
 }
 
-.database-modal__error {
+.graph-modal__error {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -224,14 +224,14 @@
   margin-bottom: var(--spacing-4);
 }
 
-.database-modal__actions {
+.graph-modal__actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-3);
   margin-top: var(--spacing-4);
 }
 
-.database-modal__btn {
+.graph-modal__btn {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -243,30 +243,30 @@
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.database-modal__btn:disabled {
+.graph-modal__btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.database-modal__btn--secondary {
+.graph-modal__btn--secondary {
   background: var(--color-surface-container);
   color: var(--color-on-surface);
 }
 
-.database-modal__btn--secondary:hover:not(:disabled) {
+.graph-modal__btn--secondary:hover:not(:disabled) {
   background: var(--color-surface-container-high);
 }
 
-.database-modal__btn--primary {
+.graph-modal__btn--primary {
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
 
-.database-modal__btn--primary:hover:not(:disabled) {
+.graph-modal__btn--primary:hover:not(:disabled) {
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
-.database-modal__spinner {
+.graph-modal__spinner {
   width: 16px;
   height: 16px;
   border: 2px solid transparent;

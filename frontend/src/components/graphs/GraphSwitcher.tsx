@@ -1,5 +1,5 @@
 /**
- * DatabaseSwitcher Component
+ * GraphSwitcher Component
  * 
  * Dropdown at the top of the sidebar showing current graph,
  * sync status, and ability to switch or add graphs.
@@ -11,15 +11,15 @@ import { mdiSync, mdiAlertCircleOutline, mdiWifiOff, mdiChevronDown, mdiPlus, md
 import { listDatabases, switchDatabase } from '@/api/databases';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { Dropdown, type DropdownOption } from '../core/Dropdown';
-import './DatabaseSwitcher.css';
+import './GraphSwitcher.css';
 
-interface DatabaseSwitcherProps {
-  onAddDatabase: () => void;
+interface GraphSwitcherProps {
+  onAddGraph: () => void;
 }
 
 type SyncStatus = 'synced' | 'syncing' | 'error' | 'offline';
 
-export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
+export function GraphSwitcher({ onAddGraph }: GraphSwitcherProps) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
   const queryClient = useQueryClient();
   const { setShowDbManagement } = useNodesStore();
@@ -35,7 +35,7 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
     onSuccess: () => {
       const currentState = useNodesStore.getState();
       
-      // Reset node state to prevent showing stale data from previous database
+      // Reset node state to prevent showing stale data from previous graph
       useNodesStore.setState({
         currentNodeId: null,
         activeNode: null,
@@ -44,7 +44,7 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
         localGraphNodeId: null,
       });
       
-      // Clear favorites/recents immediately, then refresh to get new database data
+      // Clear favorites/recents immediately, then refresh to get new graph data
       useFavoritesStore.getState().clear();
       useFavoritesStore.getState().refresh();
       
@@ -92,19 +92,19 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
     switch (syncStatus) {
       case 'syncing':
         return (
-          <span className="db-switcher__sync-icon db-switcher__sync-icon--syncing" title="Syncing">
+          <span className="graph-switcher__sync-icon graph-switcher__sync-icon--syncing" title="Syncing">
             <Icon path={mdiSync} size={0.6} spin />
           </span>
         );
       case 'error':
         return (
-          <span className="db-switcher__sync-icon db-switcher__sync-icon--error" title="Sync error">
+          <span className="graph-switcher__sync-icon graph-switcher__sync-icon--error" title="Sync error">
             <Icon path={mdiAlertCircleOutline} size={0.6} />
           </span>
         );
       case 'offline':
         return (
-          <span className="db-switcher__sync-icon db-switcher__sync-icon--offline" title="Offline">
+          <span className="graph-switcher__sync-icon graph-switcher__sync-icon--offline" title="Offline">
             <Icon path={mdiWifiOff} size={0.6} />
           </span>
         );
@@ -114,10 +114,10 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
     }
   };
 
-  // Build dropdown options from databases
-  const dbOptions: DropdownOption<string>[] = data?.databases.map(db => ({
-    value: db.name,
-    label: db.name,
+  // Build dropdown options from graphs
+  const graphOptions: DropdownOption<string>[] = data?.databases.map(graph => ({
+    value: graph.name,
+    label: graph.name,
   })) || [];
 
   // Add separator options for actions
@@ -127,14 +127,14 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
   ];
 
   const allOptions = [
-    ...dbOptions,
-    ...(dbOptions.length > 0 ? [{ value: '__divider__', label: '─────────', disabled: true }] : []),
+    ...graphOptions,
+    ...(graphOptions.length > 0 ? [{ value: '__divider__', label: '─────────', disabled: true }] : []),
     ...actionOptions,
   ];
 
   const handleChange = (value: string | null) => {
     if (value === '__add__') {
-      onAddDatabase();
+      onAddGraph();
     } else if (value === '__manage__') {
       setShowDbManagement(true);
     } else if (value && !value.startsWith('__')) {
@@ -147,7 +147,7 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
     : (data?.active || 'No Graph');
 
   return (
-    <div className="db-switcher">
+    <div className="graph-switcher">
       <Dropdown
         options={allOptions}
         value={data?.active || null}
@@ -155,15 +155,15 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
         placeholder="Select graph..."
         disabled={isLoading}
         size="md"
-        className="db-switcher__dropdown"
+        className="graph-switcher__dropdown"
         renderTrigger={({ isOpen }) => (
-          <div className={`db-switcher__trigger ${isOpen ? 'db-switcher__trigger--open' : ''}`}>
-            <div className="db-switcher__current">
-              <span className="db-switcher__name">{displayName}</span>
+          <div className={`graph-switcher__trigger ${isOpen ? 'graph-switcher__trigger--open' : ''}`}>
+            <div className="graph-switcher__current">
+              <span className="graph-switcher__name">{displayName}</span>
             </div>
-            <div className="db-switcher__status">
+            <div className="graph-switcher__status">
               {getSyncIcon()}
-              <Icon path={mdiChevronDown} size={0.7} className="db-switcher__chevron" />
+              <Icon path={mdiChevronDown} size={0.7} className="graph-switcher__chevron" />
             </div>
           </div>
         )}
@@ -172,4 +172,4 @@ export function DatabaseSwitcher({ onAddDatabase }: DatabaseSwitcherProps) {
   );
 }
 
-export default DatabaseSwitcher;
+export default GraphSwitcher;
