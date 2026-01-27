@@ -21,6 +21,7 @@ import {
   useRemoveClass,
   useRemoveTag,
   useNodesWithClass,
+  useLinkedReferencesCount,
 } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore, useSettingsStore } from '@/stores';
@@ -30,9 +31,6 @@ import type { BlockCallbacks } from '../blocks/BlockCallbacksContext';
 import { BlockEditor } from '../blocks/BlockEditor';
 import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
-import { LinkedReferences, useLinkedReferencesCount, useLinkedReferencesState, LinkedReferencesToolbar } from '../LinkedReferences';
-import { ClassedNodesView, useClassedNodesSectionState, ClassedNodesSectionToolbar } from '../ClassedNodesSection';
-import { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from '../ChildPagesSection';
 import { PropertiesSection } from '../PropertiesSection';
 import { NodePillRow } from '../NodePillRow';
 import { NodeViewSection, DynamicNodeViewSection } from '../nodes';
@@ -55,9 +53,6 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     include_properties: true,
   });
   
-  // Settings
-  const useDynamicNodeViews = useSettingsStore(state => state.useDynamicNodeViews);
-  
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const addTag = useAddTag();
@@ -73,11 +68,8 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   // Check if node is used as a class
   const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
   
-  // Section toolbar states - for pages
-  const linkedRefsToolbarState = useLinkedReferencesState(nodeId);
+  // Linked references count
   const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
-  const classedNodesToolbarState = useClassedNodesSectionState(node?.id ?? 0);
-  const childPagesToolbarState = useChildPagesSectionState(node?.id ?? 0, node?.children?.filter(c => c.is_page));
 
   // Handlers
   const handleNameChange = useCallback((newName: string) => {
@@ -228,7 +220,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     const pages: Node[] = [];
     
     for (const child of node.children) {
-      // Skip children with this node as their class (they appear in ClassedNodesView)
+      // Skip children with this node as their class (they appear in typed_nodes view)
       if (child.classes?.includes(node.id)) continue;
       
       if (child.is_page) {
@@ -463,72 +455,43 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             
             {/* Classed nodes section - collapsed by default */}
             {isClassNode && (
-              <NodeViewSection
+              <DynamicNodeViewSection
+                nodeId={node.id}
+                nodeUuid={node.uuid}
+                viewType="typed_nodes"
                 title="Nodes"
                 icon={<TableIcon size="sm" />}
-                count={classedNodes?.length ?? 0}
-                defaultExpanded={false}
                 hideWhenEmpty={true}
-                headerActions={<ClassedNodesSectionToolbar state={classedNodesToolbarState} />}
-              >
-                <ClassedNodesView 
-                  classId={node.id} 
-                  className_={node.name || 'Untitled'} 
-                  hideToolbar={true}
-                  toolbarState={classedNodesToolbarState}
-                />
-              </NodeViewSection>
+                defaultExpanded={false}
+                onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              />
             )}
             
             {/* Child pages section - collapsed by default */}
             {pageChildren.length > 0 && (
-              <NodeViewSection
-                title="Children"
-                icon={<PageIcon size="sm" />}
-                count={pageChildren.length}
-                defaultExpanded={false}
-                headerActions={<ChildPagesSectionToolbar state={childPagesToolbarState} />}
-              >
-                <ChildPagesSection 
-                  pageId={node.id} 
-                  childPages={pageChildren} 
-                  hideToolbar={true}
-                  toolbarState={childPagesToolbarState}
-                />
-              </NodeViewSection>
-            )}
-            
-            {/* Linked References - collapsed by default */}
-            {useDynamicNodeViews ? (
               <DynamicNodeViewSection
                 nodeId={node.id}
                 nodeUuid={node.uuid}
-                viewType="linked_references"
-                title="Linked References"
-                icon={<LinkIcon size="sm" />}
-                defaultExpanded={false}
+                viewType="child_pages"
+                title="Children"
+                icon={<PageIcon size="sm" />}
                 hideWhenEmpty={true}
-                onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
+                defaultExpanded={false}
+                onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
               />
-            ) : (
-              <NodeViewSection
-                title="Linked References"
-                icon={<LinkIcon size="sm" />}
-                count={linkedRefsCount}
-                defaultExpanded={false}
-                hideWhenEmpty={true}
-                headerActions={<LinkedReferencesToolbar state={linkedRefsToolbarState} />}
-              >
-                <LinkedReferences 
-                  nodeId={node.id} 
-                  hideToolbar={true}
-                  toolbarState={linkedRefsToolbarState}
-                  onLinkClick={(targetId, _pageId, isPage) => {
-                    openNode(targetId, isPage ? 'page' : 'block');
-                  }}
-                />
-              </NodeViewSection>
             )}
+            
+            {/* Linked References - collapsed by default */}
+            <DynamicNodeViewSection
+              nodeId={node.id}
+              nodeUuid={node.uuid}
+              viewType="linked_references"
+              title="Linked References"
+              icon={<LinkIcon size="sm" />}
+              defaultExpanded={false}
+              hideWhenEmpty={true}
+              onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
+            />
           </>
         )}
         
@@ -593,10 +556,15 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       {/* Linked References for blocks only - already shown in page section via NodeViewSection */}
       {nodeType === 'block' && (
         <div className="sidebar-node-view__references">
-          <LinkedReferences
+          <DynamicNodeViewSection
             nodeId={node.id}
-            onLinkClick={handleLinkClick}
-            className="sidebar-node-view__linked-refs"
+            nodeUuid={node.uuid}
+            viewType="linked_references"
+            title="Linked References"
+            icon={<LinkIcon size="sm" />}
+            hideWhenEmpty={true}
+            defaultExpanded={false}
+            onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
           />
         </div>
       )}
