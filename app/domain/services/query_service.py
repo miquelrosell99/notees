@@ -352,7 +352,62 @@ class QuerySQLGenerator:
         if not property_name and not property_id:
             return "TRUE"
         
-        # Build property identification
+        # Handle built-in node columns as properties
+        BUILTIN_COLUMNS = {
+            'parent_id': 'integer',
+            'page_id': 'integer',
+            'name': 'text',
+            'icon': 'text',
+            'color': 'text',
+            'sequence': 'integer',
+            'collapsed': 'boolean',
+            'is_page': 'boolean',
+            'is_class': 'boolean',
+            'is_day': 'boolean',
+            'is_month': 'boolean',
+            'is_year': 'boolean',
+            'is_asset': 'boolean',
+            'is_template': 'boolean',
+            'is_comment': 'boolean',
+        }
+        
+        if property_name in BUILTIN_COLUMNS:
+            col_type = BUILTIN_COLUMNS[property_name]
+            col_name = f"{node_alias}.{property_name}"
+            
+            if operator == "is_empty":
+                return f"{col_name} IS NULL"
+            elif operator == "is_not_empty":
+                return f"{col_name} IS NOT NULL"
+            elif operator == "=":
+                param = self._next_param(value)
+                return f"{col_name} = {param}"
+            elif operator == "!=":
+                param = self._next_param(value)
+                return f"{col_name} != {param}"
+            elif col_type in ("integer", "float"):
+                param = self._next_param(value)
+                if operator == ">":
+                    return f"{col_name} > {param}"
+                elif operator == ">=":
+                    return f"{col_name} >= {param}"
+                elif operator == "<":
+                    return f"{col_name} < {param}"
+                elif operator == "<=":
+                    return f"{col_name} <= {param}"
+            elif col_type == "text":
+                if operator == "contains":
+                    param = self._next_param(f"%{value}%")
+                    return f"{col_name} ILIKE {param}"
+                elif operator == "starts_with":
+                    param = self._next_param(f"{value}%")
+                    return f"{col_name} ILIKE {param}"
+                elif operator == "ends_with":
+                    param = self._next_param(f"%{value}")
+                    return f"{col_name} ILIKE {param}"
+            return "TRUE"
+        
+        # Build property identification for user-defined properties
         if property_id:
             prop_condition = f"np.property_id = {self._next_param(property_id)}"
         else:
