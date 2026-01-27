@@ -247,14 +247,9 @@
   padding: 1rem 1.25rem;
   background: none;
   border: none;
-  cursor: pointer;
   text-align: left;
   color: inherit;
   gap: 0.5rem;
-}
-
-.db-management__card-content:hover {
-  background: var(--color-surface-variant);
 }
 
 .db-management__card-header {
