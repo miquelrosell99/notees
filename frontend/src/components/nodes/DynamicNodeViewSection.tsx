@@ -457,7 +457,7 @@ export function DynamicNodeViewSection({
         icon={icon}
         count={resultCount}
         defaultExpanded={defaultExpanded}
-        hideWhenEmpty={hideWhenEmpty && isSystemQuery}
+        hideWhenEmpty={hideWhenEmpty}
         headerActions={headerActions}
         className={`dynamic-node-view-section ${className}`}
       >
