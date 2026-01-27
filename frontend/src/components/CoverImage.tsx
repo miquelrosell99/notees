@@ -118,7 +118,6 @@ export function CoverImage({
       addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
     }
   }, [assetNode, addSidebarCard]);
-  }, [pageId, coverImageId]);
   
   // Find the cover property by UUID
   const coverProperty = useMemo(() => {
