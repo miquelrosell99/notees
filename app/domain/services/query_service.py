@@ -279,42 +279,58 @@ class QuerySQLGenerator:
     ) -> str:
         """Generate type filter condition.
         
-        Checks if node has the specified type via property_value_relation.
+        Checks if node has the specified class. For system classes with flags
+        (page, class, day, month, year, asset, template, comment), uses the 
+        is_* flag directly. For other classes, checks class_inline table.
         """
         type_value = block.get("value", "")
         type_id = block.get("type_id")
         
+        # Map of system class names to their corresponding node flags
+        SYSTEM_CLASS_FLAGS = {
+            'page': 'is_page',
+            'class': 'is_class',
+            'day': 'is_day',
+            'month': 'is_month',
+            'year': 'is_year',
+            'asset': 'is_asset',
+            'template': 'is_template',
+            'comment': 'is_comment',
+        }
+        
         if type_id:
-            # Use resolved type_id
+            # Use resolved type_id - check class_inline
             param = self._next_param(type_id)
-        elif type_value:
-            # Need to resolve type by name - use subquery
-            resolved_value = self._resolve_placeholder(type_value, runtime_params)
-            param = self._next_param(resolved_value)
             return f"""
                 EXISTS (
-                    SELECT 1 FROM property_value_relation pvr
-                    JOIN node_property np ON np.id = pvr.node_property_id
-                    JOIN property p ON p.id = np.property_id
-                    JOIN node type_node ON type_node.id = pvr.target_id
-                    WHERE pvr.node_id = {node_alias}.id
-                      AND p.name = 'types'
-                      AND (type_node.name = {param} OR type_node.uuid::text = {param})
+                    SELECT 1 FROM class_inline ci
+                    WHERE ci.node_id = {node_alias}.id
+                      AND ci.class_id = {param}
+                )
+            """.strip()
+        elif type_value:
+            # Resolve placeholder if needed
+            resolved_value = self._resolve_placeholder(type_value, runtime_params)
+            
+            # Check if this is a system class with a flag
+            if resolved_value.lower() in SYSTEM_CLASS_FLAGS:
+                flag_name = SYSTEM_CLASS_FLAGS[resolved_value.lower()]
+                return f"{node_alias}.{flag_name} = TRUE"
+            
+            # For custom classes, check class_inline
+            param = self._next_param(resolved_value)
+            graph_param = self._next_param(self._graph_id)
+            return f"""
+                EXISTS (
+                    SELECT 1 FROM class_inline ci
+                    JOIN node class_node ON class_node.id = ci.class_id
+                    WHERE ci.node_id = {node_alias}.id
+                      AND (class_node.name = {param} OR class_node.uuid::text = {param})
+                      AND class_node.graph_id = {graph_param}
                 )
             """.strip()
         else:
             return "TRUE"
-        
-        return f"""
-            EXISTS (
-                SELECT 1 FROM property_value_relation pvr
-                JOIN node_property np ON np.id = pvr.node_property_id
-                JOIN property p ON p.id = np.property_id
-                WHERE pvr.node_id = {node_alias}.id
-                  AND p.name = 'types'
-                  AND pvr.target_id = {param}
-            )
-        """.strip()
     
     def _generate_property_condition(
         self,
@@ -787,6 +803,8 @@ class QueryExecutor:
         
         logger.debug(f"Executing query SQL: {sql}")
         logger.debug(f"Query params: {params}")
+        logger.info(f"[QUERY DEBUG] SQL: {sql}")
+        logger.info(f"[QUERY DEBUG] Params: {params}")
         
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
