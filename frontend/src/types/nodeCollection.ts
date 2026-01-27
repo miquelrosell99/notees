@@ -184,6 +184,12 @@ export interface NodeCollectionProps {
   
   /** Called when card layout changes */
   onCardLayoutChange?: (layout: string) => void;
+  
+  /** Selected property UUIDs for table view columns (controlled) */
+  selectedPropertyUuids?: string[];
+  
+  /** Called when property column selection changes */
+  onPropertyColumnsChange?: (propertyUuids: string[]) => void;
 }
 
 // ==================== View-Specific Props ====================

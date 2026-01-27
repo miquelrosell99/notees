@@ -43,7 +43,7 @@ export function PropertyCell({
   
   // Get asset URL if it's an asset node
   const assetUrl = useMemo(() => {
-    if (assetNode && assetNode.is_asset && assetNode.uuid) {
+    if (assetNode?.uuid) {
       return getAssetUrl(assetNode.uuid);
     }
     return null;

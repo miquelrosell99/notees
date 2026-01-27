@@ -132,6 +132,8 @@ export function NodeCollection({
   onAdd,
   cardLayout,
   onCardLayoutChange,
+  selectedPropertyUuids: selectedPropertyUuidsProp,
+  onPropertyColumnsChange,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -150,22 +152,31 @@ export function NodeCollection({
   };
   
   // Property column selection state (for table view)
-  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
+  // Use controlled props if provided, otherwise manage internally
+  const [internalPropertyUuids, setInternalPropertyUuids] = useState<string[]>([]);
+  const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
   const updateNodeView = useUpdateNodeView();
   
-  // Load property columns from view configuration
+  // Load property columns from view configuration (only for uncontrolled mode)
   useEffect(() => {
-    if (view?.shown_properties) {
+    if (!selectedPropertyUuidsProp && view?.shown_properties) {
       // Sort by sequence and extract UUIDs
       const sortedProperties = [...view.shown_properties]
         .sort((a, b) => a.sequence - b.sequence)
         .map(p => p.uuid);
-      setSelectedPropertyUuids(sortedProperties);
+      setInternalPropertyUuids(sortedProperties);
     }
-  }, [view]);
+  }, [view, selectedPropertyUuidsProp]);
   
   const handlePropertyColumnsChange = (propertyUuids: string[]) => {
-    setSelectedPropertyUuids(propertyUuids);
+    // If controlled, call the callback
+    if (onPropertyColumnsChange) {
+      onPropertyColumnsChange(propertyUuids);
+      return;
+    }
+    
+    // Otherwise, update internal state and persist
+    setInternalPropertyUuids(propertyUuids);
     
     // Save to view configuration via API
     if (viewId) {

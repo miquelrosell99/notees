@@ -126,6 +126,7 @@ export function DynamicNodeViewSection({
   };
   
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Ensure default views exist
@@ -168,6 +169,32 @@ export function DynamicNodeViewSection({
     // Find default or first view
     return views.find(v => v.is_default) ?? views[0] ?? null;
   }, [views, activeViewId]);
+
+  // Load property columns from active view
+  useEffect(() => {
+    if (activeView?.shown_properties) {
+      const sortedProperties = [...activeView.shown_properties]
+        .sort((a, b) => a.sequence - b.sequence)
+        .map(p => p.uuid);
+      setSelectedPropertyUuids(sortedProperties);
+    }
+  }, [activeView]);
+
+  const handlePropertyColumnsChange = (propertyUuids: string[]) => {
+    setSelectedPropertyUuids(propertyUuids);
+    
+    if (activeView) {
+      const shown_properties = propertyUuids.map((uuid, index) => ({
+        uuid,
+        sequence: index + 1,
+      }));
+      
+      updateViewMutation.mutate({
+        viewId: activeView.id,
+        data: { shown_properties },
+      });
+    }
+  };
 
   // Count conditions for badge display
   const filterBlockCount = useMemo(() => {
@@ -406,6 +433,8 @@ export function DynamicNodeViewSection({
         showGroupBy={collectionViewMode === 'list'}
         groupBy={groupBy}
         onGroupByChange={setGroupBy}
+        selectedPropertyUuids={selectedPropertyUuids}
+        onPropertyColumnsChange={handlePropertyColumnsChange}
       />
       
       {/* Refresh button */}
@@ -447,6 +476,8 @@ export function DynamicNodeViewSection({
             showGroupBy={collectionViewMode === 'list'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
+            selectedPropertyUuids={selectedPropertyUuids}
+            onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
             emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
           />
