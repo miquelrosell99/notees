@@ -1538,6 +1538,7 @@ function BlockInternal({
             interactive={canMove || canSelect || !!onBulletClick}
             hasChildren={hasChildren}
             collapsed={isCollapsed}
+            hasCover={!!block.properties?.cover}
             onDragStart={handleDragStart}
             draggable={canMove && blockState !== 'edit'}
             onClick={handleBulletClickInternal}
