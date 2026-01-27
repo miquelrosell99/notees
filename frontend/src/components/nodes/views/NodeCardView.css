@@ -89,12 +89,14 @@
   grid-column: 1;
   grid-row: 1 / 4;
   height: auto;
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
 .node-card--cover-right .node-card__cover {
   grid-column: 2;
   grid-row: 1 / 4;
   height: auto;
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
 /* Header in horizontal layouts */
