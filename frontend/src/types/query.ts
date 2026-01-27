@@ -199,6 +199,8 @@ export interface NodeView {
   order_index: number;
   is_default: boolean;
   active: boolean;
+  shown_properties: Array<{ uuid: string; sequence: number }>;
+  group_by: string | null;
   create_date: string;
   write_date: string;
   // Query block tree is stored directly on the view
@@ -224,6 +226,8 @@ export interface NodeViewUpdate {
   name?: string;
   order_index?: number;
   is_default?: boolean;
+  shown_properties?: Array<{ uuid: string; sequence: number }>;
+  group_by?: string | null;
 }
 
 /**

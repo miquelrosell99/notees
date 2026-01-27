@@ -394,6 +394,8 @@ CREATE TABLE IF NOT EXISTS node_view (
     order_index INTEGER DEFAULT 0,
     is_default BOOLEAN DEFAULT FALSE,
     active BOOLEAN DEFAULT TRUE,
+    shown_properties JSONB DEFAULT '[]'::jsonb, -- Array of {uuid: string, sequence: number} for table view columns
+    group_by TEXT DEFAULT NULL, -- Group by field for card view (e.g., 'page', 'type', property uuid)
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,

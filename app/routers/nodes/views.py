@@ -35,6 +35,8 @@ class NodeViewResponse(BaseModel):
     order_index: int
     is_default: bool
     active: bool
+    shown_properties: List[Dict[str, Any]] = []
+    group_by: Optional[str] = None
     create_date: str
     write_date: str
     # The query block tree JSON (legacy format)
@@ -61,6 +63,8 @@ class NodeViewUpdateRequest(BaseModel):
     name: Optional[str] = None
     order_index: Optional[int] = None
     is_default: Optional[bool] = None
+    shown_properties: Optional[List[Dict[str, Any]]] = None
+    group_by: Optional[str] = None
 
 
 class QueryExecuteRequest(BaseModel):
@@ -182,6 +186,8 @@ async def _node_view_to_response(
         order_index=view.order_index,
         is_default=view.is_default,
         active=view.active,
+        shown_properties=view.shown_properties,
+        group_by=view.group_by,
         create_date=view.create_date,
         write_date=view.write_date,
     )
@@ -339,6 +345,8 @@ async def update_node_view(
         name=request.name,
         order_index=request.order_index,
         is_default=request.is_default,
+        shown_properties=request.shown_properties,
+        group_by=request.group_by,
     )
     
     if not view:

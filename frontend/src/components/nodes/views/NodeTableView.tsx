@@ -19,11 +19,13 @@ import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
 import * as nodesApi from '@/api/nodes';
+import { useProperties } from '@/hooks';
 import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
 import { Button } from '../../core/Button';
 import { Block } from '../../blocks/Block';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { DragHandleIcon } from '../../icons';
+import { PropertyCell } from '../../properties/PropertyCell';
 import './NodeTableView.css';
 
 // Custom column definition for node tables (external API)
@@ -103,6 +105,7 @@ export function NodeTableView({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
+  propertyUuids = [],
   className = '',
 }: NodeTableViewProps) {
   // Get block callbacks from context (for editable mode)
@@ -265,18 +268,53 @@ export function NodeTableView({
     );
   }, [openDailyPage]);
 
+  // Fetch property definitions
+  const { data: allProperties = [] } = useProperties();
+  
+  // Generate property columns from propertyUuids
+  const propertyColumns = useMemo(() => {
+    if (!propertyUuids.length) return [];
+    
+    return propertyUuids
+      .map(uuid => {
+        const property = allProperties.find(p => p.uuid === uuid);
+        if (!property) return null;
+        
+        return {
+          key: `property_${property.id}`,
+          label: property.icon ? `${property.icon} ${property.name}` : property.name,
+          width: '150px',
+          render: (node: Node) => {
+            const value = node.properties?.[property.uuid];
+            return (
+              <PropertyCell
+                node={node}
+                property={property}
+                value={value}
+                editable={editable}
+              />
+            );
+          },
+        };
+      })
+      .filter((col) => col !== null) as NodeTableColumn[];
+  }, [propertyUuids, allProperties, editable]);
+  
   // Convert node columns to Table columns, injecting column renderers
   const nodeColumns = useMemo(() => {
     const cols = customColumns ?? getDefaultColumns();
     // Inject renderers for special columns
-    return cols.map(col => {
+    const baseColumns = cols.map(col => {
       if (col.render) return col;
       if (col.key === 'name') return { ...col, render: nameColumnRenderer };
       if (col.key === 'create_date') return { ...col, render: dateColumnRenderer('create_date') };
       if (col.key === 'write_date') return { ...col, render: dateColumnRenderer('write_date') };
       return col;
     });
-  }, [customColumns, nameColumnRenderer, dateColumnRenderer]);
+    
+    // Add property columns after base columns
+    return [...baseColumns, ...propertyColumns];
+  }, [customColumns, nameColumnRenderer, dateColumnRenderer, propertyColumns]);
   const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
   
   // Convert Set<number> to Set<string | number> for Table component

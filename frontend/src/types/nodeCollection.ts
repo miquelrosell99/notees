@@ -5,6 +5,7 @@
  * NodeCollection is the universal interface for displaying collections of nodes.
  */
 import type { Node } from './api';
+import type { NodeView } from './query';
 import type { ReactNode } from 'react';
 
 // ==================== GroupBy Options ====================
@@ -60,6 +61,12 @@ export interface ViewModeOption {
 export interface NodeCollectionProps {
   /** Main nodes to display */
   nodes: Node[];
+  
+  /** Optional view ID for persisting configuration (property columns, etc.) */
+  viewId?: number;
+  
+  /** Optional view object for loading persisted configuration */
+  view?: NodeView;
   
   /** Current view mode */
   viewMode: NodeCollectionViewMode;
@@ -316,6 +323,9 @@ export interface NodeTableViewProps extends NodeCollectionViewBaseProps {
   
   /** Controlled selected node IDs */
   selectedIds?: Set<number>;
+  
+  /** Property UUIDs to show as columns */
+  propertyUuids?: string[];
   
   /** Called when selection changes */
   onSelectionChange?: (selectedIds: Set<number>) => void;
