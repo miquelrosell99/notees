@@ -25,26 +25,28 @@
 
 /* Page link pill */
 .content-pill--page {
-  background-color: var(--color-link-bg, rgba(59, 130, 246, 0.1));
-  color: var(--color-link, #3b82f6);
-  border: 1px solid var(--color-link-border, rgba(59, 130, 246, 0.2));
+  background-color: transparent;
+  color: var(--color-on-surface-variant);
+  border: none;
 }
 
 .content-pill--page:hover {
-  background-color: var(--color-link-bg-hover, rgba(59, 130, 246, 0.2));
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.2);
+  background-color: transparent;
+  text-decoration: underline;
+  box-shadow: none;
 }
 
 /* Block link pill */
 .content-pill--block {
-  background-color: var(--color-block-link-bg, rgba(168, 85, 247, 0.1));
-  color: var(--color-block-link, #a855f7);
-  border: 1px solid var(--color-block-link-border, rgba(168, 85, 247, 0.2));
+  background-color: transparent;
+  color: var(--color-on-surface-variant);
+  border: none;
 }
 
 .content-pill--block:hover {
-  background-color: var(--color-block-link-bg-hover, rgba(168, 85, 247, 0.2));
-  box-shadow: 0 1px 3px rgba(168, 85, 247, 0.2);
+  background-color: transparent;
+  text-decoration: underline;
+  box-shadow: none;
 }
 
 /* Pill icon */
@@ -74,17 +76,17 @@
   border-radius: 8px;
   font-size: 0.7em;
   font-weight: 600;
-  background-color: var(--color-badge-bg, rgba(0, 0, 0, 0.1));
-  color: inherit;
+  background-color: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
   opacity: 0.8;
 }
 
 .content-pill--page .content-pill__badge {
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: var(--color-surface-variant);
 }
 
 .content-pill--block .content-pill__badge {
-  background-color: rgba(168, 85, 247, 0.2);
+  background-color: var(--color-surface-variant);
 }
 
 /* Selected state (keyboard selection) */
@@ -96,21 +98,4 @@
 /* Active/pressed state */
 .content-pill:active {
   transform: scale(0.98);
-}
-
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .content-pill--page {
-    background-color: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.3);
-  }
-  
-  .content-pill--block {
-    background-color: rgba(168, 85, 247, 0.15);
-    border-color: rgba(168, 85, 247, 0.3);
-  }
-  
-  .content-pill__badge {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
 }
