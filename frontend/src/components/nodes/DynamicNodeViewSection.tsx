@@ -16,6 +16,7 @@ import {
   useNodeViews, 
   useEnsureDefaultViews,
   useNodeViewQuery,
+  useQuery_,
   useCreateNodeView,
   useUpdateQueryBlockTree,
   useUpdateNodeView,
@@ -129,6 +130,9 @@ export function DynamicNodeViewSection({
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
 
+  // Check if this is a pseudo-node (nodeId <= 0, used for all_pages view)
+  const isPseudoNode = nodeId <= 0;
+
   // Ensure default views exist
   const ensureDefaultViews = useEnsureDefaultViews();
   
@@ -138,6 +142,9 @@ export function DynamicNodeViewSection({
         { nodeId, viewTypes: [viewType] },
         { onSettled: () => setHasInitialized(true) }
       );
+    } else {
+      // For pseudo-nodes, mark as initialized immediately
+      setHasInitialized(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation is stable
   }, [nodeId, viewType]);
@@ -227,7 +234,25 @@ export function DynamicNodeViewSection({
     }));
   }, [views]);
 
-  // Execute query for active view
+  // Default block tree for pseudo-nodes (like all_pages)
+  const pseudoNodeBlockTree = useMemo(() => {
+    if (!isPseudoNode) return null;
+    
+    // Define default query for each pseudo view type
+    const defaultQueries: Record<string, QueryBlockTree> = {
+      'all_pages': {
+        type: 'AND_CONTAINER',
+        blocks: [
+          { type: 'TYPE', value: 'page' },
+          { type: 'PROPERTY', property_name: 'parent_id', operator: 'is_empty', value: null },
+        ],
+      },
+    };
+    
+    return defaultQueries[viewType] ?? { type: 'AND_CONTAINER', blocks: [] };
+  }, [isPseudoNode, viewType]);
+
+  // Execute query for active view (normal nodes)
   const {
     data: queryResults,
     isLoading: queryLoading,
@@ -242,8 +267,29 @@ export function DynamicNodeViewSection({
     enabled: !!activeView && nodeId > 0,
   });
 
-  // Query results are already Node[] from the API
-  const resultNodes = queryResults ?? [];
+  // Execute ad-hoc query for pseudo-nodes (like all_pages)
+  const {
+    data: pseudoQueryResults,
+    isLoading: pseudoQueryLoading,
+    refetch: refetchPseudoQuery,
+  } = useQuery_(
+    {
+      block_tree: pseudoNodeBlockTree ?? undefined,
+      runtime_params: {
+        current_node_uuid: nodeUuid,
+        current_node_id: nodeId,
+      },
+    },
+    {
+      enabled: isPseudoNode && !!pseudoNodeBlockTree,
+      queryKey: ['pseudo-node-query', viewType, nodeId],
+    }
+  );
+
+  // Use appropriate results based on node type
+  const resultNodes = isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []);
+  const isQueryLoading = isPseudoNode ? pseudoQueryLoading : queryLoading;
+  const handleRefetchQuery = isPseudoNode ? refetchPseudoQuery : refetchQuery;
 
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
@@ -389,7 +435,8 @@ export function DynamicNodeViewSection({
     resultCount, 
     hideWhenEmpty, 
     activeViewId: activeView?.id,
-    queryLoading,
+    queryLoading: isQueryLoading,
+    isPseudoNode,
     views: views.length 
   });
 
@@ -453,9 +500,9 @@ export function DynamicNodeViewSection({
         iconOnly
         variant="ghost"
         size="xs"
-        onClick={() => refetchQuery()}
+        onClick={() => handleRefetchQuery()}
         title="Refresh results"
-        disabled={queryLoading}
+        disabled={isQueryLoading}
       />
     </div>
   );
@@ -471,7 +518,7 @@ export function DynamicNodeViewSection({
         headerActions={headerActions}
         className={`dynamic-node-view-section ${className}`}
       >
-        {queryLoading ? (
+        {isQueryLoading ? (
           <div className="dynamic-section__loading">Loading...</div>
         ) : (
           <NodeCollection
