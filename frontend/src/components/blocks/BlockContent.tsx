@@ -29,12 +29,15 @@ import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
 import { ImageModal } from '../core/ImageModal';
+import { Bullet } from './Bullet';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { sanitizeContent } from '@/utils/linkSanitization';
 import { getAssetUrl } from '@/api/assets';
+import { getNodeByUuid } from '@/api/nodes';
+import { useQuery } from '@tanstack/react-query';
 import './LinkPill.css';
 
 // Regex for finding links - [[nodeId]] or [[nodeId:linkUuid]] format
@@ -405,19 +408,82 @@ interface InlineImageProps {
 }
 
 /**
- * InlineImage - Renders an inline image with click-to-expand functionality
+ * InlineImage - Renders an inline image with click-to-expand functionality and bullet
  */
 function InlineImage({ uuid, alt }: InlineImageProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const { openNode, addSidebarCard } = useNodesStore();
+  
+  // Fetch the asset node by UUID to get its ID
+  const { data: assetNode } = useQuery({
+    queryKey: ['node-by-uuid', uuid],
+    queryFn: () => getNodeByUuid(uuid),
+    enabled: !!uuid,
+  });
   
   const imageUrl = getAssetUrl(uuid);
   
-  const handleClick = useCallback((e: React.MouseEvent) => {
+  const handleImageClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsModalOpen(true);
   }, []);
+  
+  const handleBulletClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (assetNode) {
+      openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
+    }
+  }, [assetNode, openNode]);
+  
+  const handleBulletShiftClick = useCallback(() => {
+    if (assetNode) {
+      addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
+    }
+  }, [assetNode, addSidebarCard]);
+  
+  const handleBulletContextMenu = useCallback((_nodeId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+  
+  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+    if (!assetNode) return [];
+    
+    return [
+      {
+        id: 'open',
+        label: 'Open asset',
+        onClick: () => {
+          openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
+          setContextMenu(null);
+        },
+      },
+      {
+        id: 'open-sidebar',
+        label: 'Open in sidebar',
+        shortcut: '⇧Click',
+        onClick: () => {
+          addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
+          setContextMenu(null);
+        },
+      },
+      { id: 'sep1', label: '', separator: true },
+      {
+        id: 'view-fullsize',
+        label: 'View full size',
+        onClick: () => {
+          setIsModalOpen(true);
+          setContextMenu(null);
+        },
+      },
+    ];
+  }, [assetNode, openNode, addSidebarCard]);
   
   if (hasError) {
     return (
@@ -429,20 +495,48 @@ function InlineImage({ uuid, alt }: InlineImageProps) {
   
   return (
     <>
-      <img
-        src={imageUrl}
-        alt={alt}
-        className="inline-image"
-        onClick={handleClick}
-        onError={() => setHasError(true)}
-        title="Click to view full size"
-      />
+      <div 
+        className="inline-image-container"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {assetNode && isHovered && (
+          <div className="inline-image-bullet">
+            <Bullet
+              nodeId={assetNode.id}
+              icon={assetNode.icon}
+              isPage={assetNode.is_page}
+              interactive={true}
+              onClick={handleBulletClick}
+              onShiftClick={handleBulletShiftClick}
+              onContextMenu={handleBulletContextMenu}
+              size="sm"
+              title="Click to open, Shift+click for sidebar"
+            />
+          </div>
+        )}
+        <img
+          src={imageUrl}
+          alt={alt}
+          className="inline-image"
+          onClick={handleImageClick}
+          onError={() => setHasError(true)}
+          title="Click to view full size"
+        />
+      </div>
       <ImageModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         src={imageUrl}
         alt={alt}
       />
+      {contextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenu}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </>
   );
 }

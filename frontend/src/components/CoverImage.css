@@ -20,6 +20,18 @@
   transition: width 0.25s ease, margin 0.25s ease, opacity 0.2s ease;
 }
 
+/* Bullet - positioned at top left of image */
+.cover-image-card__bullet {
+  position: absolute;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: 20;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-2);
+  padding: 2px;
+}
+
 /* Expand hover area to include actions and image */
 .cover-image-card--expanded {
   /* Use padding to extend hover area for actions on the left */
