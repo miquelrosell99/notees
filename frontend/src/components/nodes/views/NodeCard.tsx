@@ -26,6 +26,7 @@ import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import type { Asset } from '@/api/assets';
 import { useProperties, useSetNodeProperty, useNode, useCreateNode } from '@/hooks/useNodes';
+import { useContentSave } from '@/hooks/useContentSave';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -92,6 +93,9 @@ export function NodeCard({
   const setNodeProperty = useSetNodeProperty();
   const queryClient = useQueryClient();
   const createNode = useCreateNode();
+  
+  // Content save hook for debounced saves
+  const { handleContentChange } = useContentSave();
   
   // Find cover property
   const coverProperty = useMemo(() => {
@@ -287,7 +291,7 @@ export function NodeCard({
                 canSelect={false}
                 canEdit={editable}
                 suppressColor={true}
-                onContentChange={onContentChange}
+                onContentChange={handleContentChange}
               />
             </div>
             {editable && (
