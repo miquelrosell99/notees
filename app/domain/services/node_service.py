@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import SystemClassConstraintError, DatePageDeletionError
+from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
 
@@ -65,6 +65,81 @@ class NodeService:
         self._page_class_id = page_class_id
         self._classes_property_id = classes_property_id
     
+    async def _validate_page_name_uniqueness(
+        self,
+        name: str,
+        parent_id: Optional[int],
+        classes: List[int],
+        exclude_node_id: Optional[int] = None,
+    ) -> None:
+        """Validate that a page name is unique per class within the same parent.
+        
+        A page name is unique within (graph, parent) for each class it has.
+        Example:
+        - "EXAMPLE PAGE" with classes [task, meeting] exists
+        - Cannot create "EXAMPLE PAGE" with [task] → conflicts on "task"
+        - Cannot create "EXAMPLE PAGE" with [task, urgent] → conflicts on "task"  
+        - CAN create "EXAMPLE PAGE" with [project] → no class overlap
+        - CAN create "EXAMPLE PAGE" with [project, meeting] → "project" is new
+        
+        Args:
+            name: Page name to check
+            parent_id: Parent node ID (None for root pages)
+            classes: List of class node IDs this page will have
+            exclude_node_id: Node ID to exclude from check (for updates)
+            
+        Raises:
+            DuplicateNodeError: If a page with this name exists with any overlapping class
+        """
+        if not classes:
+            # Unclassed pages can't conflict with anything
+            return
+        
+        # Query all pages with same name and parent in this graph
+        pool = self._node_repo.get_connection()
+        query = """
+            SELECT n.id, n.name, ci.class_id, class_node.name as class_name
+            FROM node n
+            LEFT JOIN class_inline ci ON ci.node_id = n.id
+            LEFT JOIN node class_node ON class_node.id = ci.class_id
+            WHERE n.graph_id = $1 
+                AND n.name = $2 
+                AND n.is_page = TRUE 
+                AND n.active = TRUE
+                AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
+        """
+        params = [self._graph_id, name, parent_id]
+        
+        if exclude_node_id:
+            query += " AND n.id != $4"
+            params.append(exclude_node_id)
+        
+        rows = await pool.fetch(query, *params)
+        
+        if not rows:
+            return
+        
+        # Group by node to get each existing page's classes
+        existing_pages: Dict[int, List[tuple]] = {}
+        for row in rows:
+            node_id = row['id']
+            if node_id not in existing_pages:
+                existing_pages[node_id] = []
+            if row['class_id']:
+                existing_pages[node_id].append((row['class_id'], row['class_name']))
+        
+        # Check each existing page for class overlap
+        for node_id, existing_classes in existing_pages.items():
+            existing_class_ids = {c[0] for c in existing_classes}
+            overlap = set(classes) & existing_class_ids
+            
+            if overlap:
+                # Found conflict - get class names for error message
+                conflicting_class_names = [
+                    c[1] for c in existing_classes if c[0] in overlap
+                ]
+                raise DuplicateNodeError(name, conflicting_class_names)
+    
     async def create_node(
         self,
         data: NodeCreateData,
@@ -72,10 +147,19 @@ class NodeService:
     ) -> Node:
         """Create a new node.
         
+        - Validates page name uniqueness per class
         - Computes page_id for blocks
         - Parses content for links and inline classes
         - Applies tag properties (SuperTags)
         """
+        # Validate page name uniqueness if it's a page with classes
+        if data.is_page and data.classes:
+            await self._validate_page_name_uniqueness(
+                name=data.name,
+                parent_id=data.parent_id,
+                classes=data.classes,
+            )
+        
         # Create the node
         node = await self._node_repo.create(data, user_id)
         
@@ -172,12 +256,37 @@ class NodeService:
     ) -> Optional[Node]:
         """Update an existing node.
         
+        Validates page name uniqueness if name or classes change.
         If name changes, re-parses links.
         If parent_id changes, updates classes path (inherited classes may change).
         """
-        # Get the node before update to check if parent changed
+        # Get the node before update
         old_node = await self._node_repo.get_by_id(node_id)
-        old_parent_id = old_node.parent_id if old_node else None
+        if not old_node:
+            return None
+        
+        old_parent_id = old_node.parent_id
+        
+        # Validate page name uniqueness if it's a page and name/parent/classes changed
+        if old_node.is_page and (data.name is not None or data.parent_id is not None):
+            # Need to get classes - either from update data or fetch them
+            check_classes = None
+            if data.name is not None or data.parent_id is not None:
+                # Get current classes for this node
+                pool = self._node_repo.get_connection()
+                class_rows = await pool.fetch(
+                    "SELECT class_id FROM class_inline WHERE node_id = $1 ORDER BY position",
+                    node_id
+                )
+                check_classes = [row['class_id'] for row in class_rows]
+            
+            if check_classes:
+                await self._validate_page_name_uniqueness(
+                    name=data.name if data.name is not None else old_node.name,
+                    parent_id=data.parent_id if data.parent_id is not None else old_parent_id,
+                    classes=check_classes,
+                    exclude_node_id=node_id,
+                )
         
         node = await self._node_repo.update(node_id, data, user_id)
         if not node:
@@ -425,6 +534,8 @@ class NodeService:
     async def add_class(self, node_id: int, class_node_id: int, *, _system_call: bool = False) -> bool:
         """Add a class to a node.
         
+        Validates page name uniqueness if this is a page.
+        
         Args:
             node_id: The node to add the class to
             class_node_id: The class node ID to add
@@ -432,7 +543,13 @@ class NodeService:
         
         Raises:
             SystemClassConstraintError: If trying to add a protected date class (day, month, year)
+            DuplicateNodeError: If adding this class would violate page name uniqueness
         """
+        # Get the node
+        node = await self._node_repo.get_by_id(node_id)
+        if not node:
+            return False
+        
         # Check if the class being added is a protected date class
         class_node = await self._node_repo.get_by_id(class_node_id)
         if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS and not _system_call:
@@ -440,12 +557,22 @@ class NodeService:
                 f"Cannot manually add '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
             )
         
-        # Get current classes by fetching relation values for the classes property
+        # Get current classes
         existing_values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
         existing_class_ids = [v.target_id for v in existing_values]
         
         if class_node_id in existing_class_ids:
             return False  # Already has this class
+        
+        # Validate page name uniqueness if this is a page
+        if node.is_page:
+            new_classes = existing_class_ids + [class_node_id]
+            await self._validate_page_name_uniqueness(
+                name=node.name,
+                parent_id=node.parent_id,
+                classes=new_classes,
+                exclude_node_id=node_id,
+            )
         
         # Add the class using set_relation_value
         await self._property_repo.set_relation_value(
