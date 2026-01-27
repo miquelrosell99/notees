@@ -64,51 +64,6 @@ export function NodeCardView({
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Track max cover height for vertical layouts
-  const [maxCoverHeight, setMaxCoverHeight] = useState<number | null>(null);
-  const isVerticalLayout = layout === 'cover-top';
-  
-  // Calculate max cover height when images load
-  useEffect(() => {
-    if (!isVerticalLayout || !containerRef.current) return;
-    
-    const images = containerRef.current.querySelectorAll('.node-card__cover-image');
-    if (images.length === 0) {
-      setMaxCoverHeight(null);
-      return;
-    }
-    
-    let loadedCount = 0;
-    let maxHeight = 0;
-    
-    const handleImageLoad = (img: HTMLImageElement) => {
-      if (img.complete && img.naturalHeight > 0) {
-        const height = img.clientHeight;
-        maxHeight = Math.max(maxHeight, height);
-      }
-      loadedCount++;
-      
-      if (loadedCount === images.length) {
-        setMaxCoverHeight(maxHeight > 0 ? maxHeight : null);
-      }
-    };
-    
-    images.forEach((img) => {
-      const imgElement = img as HTMLImageElement;
-      if (imgElement.complete) {
-        handleImageLoad(imgElement);
-      } else {
-        imgElement.addEventListener('load', () => handleImageLoad(imgElement));
-        imgElement.addEventListener('error', () => {
-          loadedCount++;
-          if (loadedCount === images.length) {
-            setMaxCoverHeight(maxHeight > 0 ? maxHeight : null);
-          }
-        });
-      }
-    });
-  }, [nodes, isVerticalLayout]);
-  
   // Handle selection change for individual card
   const handleCardSelectionChange = useCallback((nodeId: number, selected: boolean) => {
     if (!onSelectionChange) return;
@@ -178,19 +133,13 @@ export function NodeCardView({
     'node-card-view',
     sortable && 'node-card-view--sortable',
     selectable && 'node-card-view--selectable',
-    isVerticalLayout && 'node-card-view--vertical-layout',
+    layout === 'cover-top' && 'node-card-view--vertical-layout',
     `node-card-view--size-${cardSize}`,
     className,
   ].filter(Boolean).join(' ');
-  
-  // Combine grid style with max cover height
-  const combinedGridStyle = {
-    ...gridStyle,
-    ...(isVerticalLayout && maxCoverHeight ? { '--max-cover-height': `${maxCoverHeight}px` } as React.CSSProperties : {}),
-  };
 
   return (
-    <div className={gridClassName} style={combinedGridStyle} ref={containerRef}>
+    <div className={gridClassName} style={gridStyle} ref={containerRef}>
       {nodes.map((node, index) => (
         <NodeCard
           key={node.id}

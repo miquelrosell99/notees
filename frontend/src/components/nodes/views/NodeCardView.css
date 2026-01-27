@@ -9,6 +9,8 @@
   gap: 1rem;
   width: 100%;
   justify-content: center;
+  grid-auto-rows: auto;
+  align-items: start;
 }
 
 /* Card size variants - column-based */
@@ -44,14 +46,14 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
-/* Vertical layouts with dynamic height based on tallest cover */
+/* Vertical layouts with natural cover heights */
 .node-card-view--vertical-layout {
-  /* Cards maintain percentage width */
+  /* Cards use natural heights based on content */
 }
 
-/* Set cover height to match tallest image when available */
+/* Set cover height to natural aspect ratio */
 .node-card-view--vertical-layout .node-card__cover {
-  height: var(--max-cover-height, auto);
+  height: auto;
 }
 
 /* Individual card - extends Card core component */
@@ -69,10 +71,10 @@
   flex-direction: column;
 }
 
-/* Horizontal layouts use CSS Grid */
+/* Horizontal layouts use CSS Grid - override flex display */
 .node-card--cover-left,
 .node-card--cover-right {
-  display: grid;
+  display: grid !important;
   grid-template-columns: 30% 1fr;
   grid-template-rows: auto auto auto 1fr;
   gap: 0;
@@ -86,13 +88,13 @@
 .node-card--cover-left .node-card__cover {
   grid-column: 1;
   grid-row: 1 / 4;
-  height: var(--max-cover-height, auto);
+  height: auto;
 }
 
 .node-card--cover-right .node-card__cover {
   grid-column: 2;
   grid-row: 1 / 4;
-  height: var(--max-cover-height, auto);
+  height: auto;
 }
 
 /* Header in horizontal layouts */
@@ -140,11 +142,13 @@
   position: relative;
   overflow: hidden;
   background: var(--bg-tertiary);
+  width: 100%;
 }
 
 /* Vertical layout covers use natural aspect ratio of images */
 .node-card--cover-top .node-card__cover {
-  /* No fixed aspect ratio - determined by image */
+  /* Natural aspect ratio based on image */
+  aspect-ratio: auto;
 }
 
 .node-card__cover-image {
@@ -156,9 +160,9 @@
 /* Card body */
 .node-card__body {
   padding: 0.5rem 0.75rem 0.75rem;
-  flex: 1;
   min-width: 0;
   overflow: hidden;
+  height: auto;
 }
 
 /* Card header - similar to sidebar cards */
