@@ -1,0 +1,146 @@
+/**
+ * NodeTimelineView Styles
+ */
+
+.node-timeline-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.node-timeline-view.node-timeline-view--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-timeline-view__empty-message {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.node-timeline-view__canvas {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+
+.node-timeline-view__canvas:active {
+  cursor: grabbing;
+}
+
+/* Top left controls */
+.node-timeline-view__top-left {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+}
+
+/* Top right search */
+.node-timeline-view__top-right {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+}
+
+.timeline-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.timeline-search-input-container {
+  position: relative;
+}
+
+.timeline-search-input {
+  width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: var(--shadow-md);
+}
+
+.timeline-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.timeline-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.timeline-search-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  background: var(--color-surface-elevated);
+}
+
+.timeline-search-result:hover {
+  background: var(--color-surface-container-high);
+}
+
+.timeline-search-result .result-icon {
+  flex-shrink: 0;
+}
+
+.timeline-search-result .result-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Bottom right recenter */
+.node-timeline-view__bottom-right {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 10;
+}
+
+/* Settings panel */
+.timeline-settings-panel {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
