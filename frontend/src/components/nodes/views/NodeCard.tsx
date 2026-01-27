@@ -14,8 +14,10 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Node } from '@/types';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
-import { BlockPreview } from '../../blocks/BlockPreview';
+import { Block } from '../../blocks/Block';
 import { NodeCollection } from '../NodeCollection';
+import { Button } from '../../core/Button';
+import { mdiChevronRight } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { AddCoverButton } from '../../core/AddCoverButton';
@@ -235,17 +237,34 @@ export function NodeCard({
           className={`node-card__header${sortable ? ' node-card__header--sortable' : ''}`}
           onMouseDown={handleHeaderMouseDown}
         >
-          <BlockPreview
-            variant="simple"
-            node={node}
-            showBullet={showBullet}
-            showIcon={true}
-            icon={effectiveIcon}
-            onClick={() => onNodeClick?.(node)}
-            onShiftClick={() => onNodeShiftClick?.(node)}
-            className="node-card__title-block"
-            suppressColor={true}
-          />
+          <div className="node-card__title-wrapper">
+            <div className="node-card__title-block">
+              <Block
+                block={node}
+                parentId={node.parent_id}
+                showBullet={showBullet}
+                showChildren={false}
+                canMove={false}
+                canSelect={false}
+                canEdit={editable}
+                suppressColor={true}
+                onContentChange={onContentChange}
+              />
+            </div>
+            {editable && onNodeClick && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNodeClick(node);
+                }}
+                icon={mdiChevronRight}
+                className="node-card__nav-button"
+                aria-label="Navigate to node"
+              />
+            )}
+          </div>
         </div>
         
         {/* Card body with children */}
