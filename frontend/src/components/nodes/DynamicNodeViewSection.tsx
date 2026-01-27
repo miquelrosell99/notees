@@ -437,6 +437,8 @@ export function DynamicNodeViewSection({
         ) : (
           <NodeCollection
             nodes={resultNodes}
+            viewId={activeView?.id}
+            view={activeView}
             viewMode={collectionViewMode}
             availableViewModes={['list', 'table', 'card']}
             onViewModeChange={handleViewModeChange}

@@ -1,0 +1,61 @@
+.property-cell {
+  padding: 8px 12px;
+  min-height: 32px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: default;
+  display: flex;
+  align-items: center;
+}
+
+.property-cell--editable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.property-cell--editable:hover {
+  background: var(--bg-hover);
+}
+
+.property-cell--empty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.property-cell--editing {
+  padding: 0;
+}
+
+.property-cell--boolean {
+  justify-content: center;
+  cursor: pointer;
+}
+
+.property-cell__checkbox {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.property-cell__input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid var(--border-focus);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  outline: none;
+  resize: vertical;
+  min-height: 32px;
+}
+
+.property-cell__input:focus {
+  border-color: var(--accent-primary);
+}
+
+textarea.property-cell__input {
+  min-height: 60px;
+  max-height: 200px;
+}
