@@ -108,7 +108,22 @@ export function DynamicNodeViewSection({
   const [editMode, setEditMode] = useState<'blocks' | 'sql'>('blocks');
   const [editSqlQuery, setEditSqlQuery] = useState('');
   const [showSqlResetConfirm, setShowSqlResetConfirm] = useState(false);
-  const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>('list');
+  
+  // Get persisted view mode from store
+  const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
+  const setNodeViewMode = useNodesStore(state => state.setNodeViewMode);
+  const persistedViewMode = getNodeViewMode(nodeId);
+  
+  const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>(
+    persistedViewMode ?? 'list'
+  );
+  
+  // Update store when view mode changes
+  const handleViewModeChange = (mode: NodeCollectionViewMode) => {
+    setCollectionViewMode(mode);
+    setNodeViewMode(nodeId, mode);
+  };
+  
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
   const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -386,7 +401,7 @@ export function DynamicNodeViewSection({
       <NodeCollectionToolbar
         viewMode={collectionViewMode}
         availableViewModes={['list', 'table', 'card']}
-        onViewModeChange={setCollectionViewMode}
+        onViewModeChange={handleViewModeChange}
         showGroupBy={collectionViewMode === 'list'}
         groupBy={groupBy}
         onGroupByChange={setGroupBy}
@@ -423,7 +438,7 @@ export function DynamicNodeViewSection({
             nodes={resultNodes}
             viewMode={collectionViewMode}
             availableViewModes={['list', 'table', 'card']}
-            onViewModeChange={setCollectionViewMode}
+            onViewModeChange={handleViewModeChange}
             editable={false}
             hideToolbar={true}
             showGroupBy={collectionViewMode === 'list'}
