@@ -1,5 +1,5 @@
 /**
- * DatabaseManagementView Component
+ * GraphManagementView Component
  * 
  * Fullscreen view for managing graphs. Shown when user has no graphs
  * or accessed through settings. Allows creating, importing, and managing graphs.
@@ -16,9 +16,9 @@ import {
   type DatabaseInfo,
 } from '@/api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore } from '@/stores';
-import { DatabaseModal } from '../components/databases/DatabaseModal';
-import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
-import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
+import { GraphModal } from '../components/graphs/GraphModal';
+import { ImportOptionsModal } from '../components/graphs/ImportOptionsModal';
+import { GraphNameModal } from '../components/graphs/GraphNameModal';
 import { 
   ArrowRightIcon,
   CheckIcon, 
@@ -30,7 +30,7 @@ import Icon from '@mdi/react';
 import { mdiExport } from '@mdi/js';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
-import './DatabaseManagementView.css';
+import './GraphManagementView.css';
 
 type ImportType = 'sqlite' | 'zip';
 
@@ -70,20 +70,20 @@ function formatRelativeTime(dateStr: string | undefined): string {
   }
 }
 
-interface DatabaseManagementViewProps {
-  /** Called when a database is selected/activated */
-  onDatabaseSelected?: () => void;
+interface GraphManagementViewProps {
+  /** Called when a graph is selected/activated */
+  onGraphSelected?: () => void;
   /** Whether to show the back/close button */
   showClose?: boolean;
   /** Called when close is clicked */
   onClose?: () => void;
 }
 
-export function DatabaseManagementView({ 
-  onDatabaseSelected, 
+export function GraphManagementView({ 
+  onGraphSelected, 
   showClose = false,
   onClose,
-}: DatabaseManagementViewProps) {
+}: GraphManagementViewProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
   const [importNameModalState, setImportNameModalState] = useState<{
@@ -95,8 +95,8 @@ export function DatabaseManagementView({
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [renameModalState, setRenameModalState] = useState<{
     isOpen: boolean;
-    dbName: string | null;
-  }>({ isOpen: false, dbName: null });
+    graphName: string | null;
+  }>({ isOpen: false, graphName: null });
   const [renameError, setRenameError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
@@ -140,11 +140,11 @@ export function DatabaseManagementView({
       
       // Invalidate databases query to refetch the list (keep cache for smoother UX)
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      onDatabaseSelected?.();
+      onGraphSelected?.();
     },
   });
 
-  // Delete database mutation
+  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteDatabase,
     onSuccess: () => {
@@ -152,47 +152,47 @@ export function DatabaseManagementView({
       setDeleteConfirm(null);
     },
     onError: (err: Error) => {
-      console.error('Failed to delete database:', err.message);
+      console.error('Failed to delete graph:', err.message);
       setDeleteConfirm(null);
     },
   });
 
-  // Rename database mutation
+  // Rename mutation
   const renameMutation = useMutation({
     mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) => 
       renameDatabase(oldName, newName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      setRenameModalState({ isOpen: false, dbName: null });
+      setRenameModalState({ isOpen: false, graphName: null });
       setRenameError(null);
     },
     onError: (err: Error) => {
-      setRenameError(err.message || 'Failed to rename database');
+      setRenameError(err.message || 'Failed to rename graph');
     },
   });
 
-  // Import database mutation
+  // Import mutation
   const importMutation = useMutation({
     mutationFn: ({ name, file }: { name: string; file: File }) => importDatabase(name, file),
-    onSuccess: async (newDb) => {
+    onSuccess: async (newGraph) => {
       queryClient.invalidateQueries({ queryKey: ['databases'] });
       setImportNameModalState({ isOpen: false, file: null, type: null });
       setImportError(null);
-      // Auto-switch to the new database
-      await switchMutation.mutateAsync(newDb.name);
-      onDatabaseSelected?.();
+      // Auto-switch to the new graph
+      await switchMutation.mutateAsync(newGraph.name);
+      onGraphSelected?.();
     },
     onError: (err: Error) => {
-      setImportError(err.message || 'Failed to import database');
+      setImportError(err.message || 'Failed to import graph');
     },
   });
 
-  // Handle successful database creation from modal
-  const handleDatabaseCreated = async (newDb: DatabaseInfo) => {
-    // Auto-switch to the new database
-    await switchMutation.mutateAsync(newDb.name);
+  // Handle successful graph creation from modal
+  const handleGraphCreated = async (newGraph: DatabaseInfo) => {
+    // Auto-switch to the new graph
+    await switchMutation.mutateAsync(newGraph.name);
     setIsCreateModalOpen(false);
-    onDatabaseSelected?.();
+    onGraphSelected?.();
   };
 
   // Handle import option selection (after file is chosen)
@@ -216,29 +216,29 @@ export function DatabaseManagementView({
   };
 
   // Handle rename modal open
-  const handleOpenRename = (dbName: string) => {
+  const handleOpenRename = (graphName: string) => {
     setRenameError(null);
-    setRenameModalState({ isOpen: true, dbName });
+    setRenameModalState({ isOpen: true, graphName });
   };
 
   // Handle rename submission
   const handleRenameSubmit = (newName: string) => {
-    if (renameModalState.dbName) {
-      renameMutation.mutate({ oldName: renameModalState.dbName, newName });
+    if (renameModalState.graphName) {
+      renameMutation.mutate({ oldName: renameModalState.graphName, newName });
     }
   };
 
   // Handle rename modal close
   const handleRenameModalClose = () => {
-    setRenameModalState({ isOpen: false, dbName: null });
+    setRenameModalState({ isOpen: false, graphName: null });
     setRenameError(null);
   };
 
-  const handleSelectDatabase = (db: DatabaseInfo) => {
-    if (db.name !== data?.active) {
-      switchMutation.mutate(db.name);
+  const handleSelectGraph = (graph: DatabaseInfo) => {
+    if (graph.name !== data?.active) {
+      switchMutation.mutate(graph.name);
     } else {
-      onDatabaseSelected?.();
+      onGraphSelected?.();
     }
   };
 
@@ -246,43 +246,43 @@ export function DatabaseManagementView({
     window.open(getDatabaseExportUrl(name), '_blank');
   };
 
-  const databases = data?.databases || [];
-  const hasNoDatabases = !isLoading && databases.length === 0;
+  const graphs = data?.databases || [];
+  const hasNoGraphs = !isLoading && graphs.length === 0;
 
   return (
     <div className="db-management">
-      <div className="db-management__container">
+      <div className="graph-management__container">
         {/* Header */}
-        <header className="db-management__header">
-          <div className="db-management__header-content">
-            <div className="db-management__logo">
-              <h1 className="db-management__title">Notees</h1>
+        <header className="graph-management__header">
+          <div className="graph-management__header-content">
+            <div className="graph-management__logo">
+              <h1 className="graph-management__title">Notees</h1>
             </div>
             {showClose && onClose && (
-              <Button className="db-management__close" variant="ghost" size="sm" onClick={onClose}>
+              <Button className="graph-management__close" variant="ghost" size="sm" onClick={onClose}>
                 ← Back to app
               </Button>
             )}
           </div>
-          <div className="db-management__user-info">
-            <span className="db-management__username">{user?.username}</span>
-            <Button className="db-management__logout" variant="ghost" size="sm" onClick={logout}>
+          <div className="graph-management__user-info">
+            <span className="graph-management__username">{user?.username}</span>
+            <Button className="graph-management__logout" variant="ghost" size="sm" onClick={logout}>
               Logout
             </Button>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="db-management__main">
-          <div className="db-management__welcome">
+        <main className="graph-management__main">
+          <div className="graph-management__welcome">
             <h2>
-              {hasNoDatabases 
+              {hasNoGraphs 
                 ? 'Welcome! Create your first graph'
                 : 'Your Graphs'
               }
             </h2>
-            <p className="db-management__subtitle">
-              {hasNoDatabases
+            <p className="graph-management__subtitle">
+              {hasNoGraphs
                 ? 'A graph stores all your notes and pages. Get started by creating one.'
                 : 'Select a graph to open, or create a new one.'
               }
@@ -290,9 +290,9 @@ export function DatabaseManagementView({
           </div>
 
           {/* Action buttons */}
-          <div className="db-management__actions">
+          <div className="graph-management__actions">
             <Button 
-              className="db-management__action-btn"
+              className="graph-management__action-btn"
               variant="primary"
               size="md"
               onClick={() => setIsCreateModalOpen(true)}
@@ -300,7 +300,7 @@ export function DatabaseManagementView({
               Create New Graph
             </Button>
             <Button 
-              className="db-management__action-btn"
+              className="graph-management__action-btn"
               variant="default"
               size="md"
               onClick={() => setIsImportOptionsOpen(true)}
@@ -311,33 +311,33 @@ export function DatabaseManagementView({
 
           {/* Database list */}
           {isLoading ? (
-            <div className="db-management__loading">
-              <div className="db-management__spinner" />
+            <div className="graph-management__loading">
+              <div className="graph-management__spinner" />
               <span>Loading graphs...</span>
             </div>
-          ) : databases.length > 0 ? (
-            <div className="db-management__grid">
-              {databases.map((db) => (
+          ) : graphs.length > 0 ? (
+            <div className="graph-management__grid">
+              {graphs.map((graph) => (
                 <Card 
-                  key={db.name} 
-                  className={`db-management__card ${db.name === data?.active ? 'db-management__card--active' : ''} ${deleteConfirm === db.name ? 'db-management__card--delete-confirm' : ''}`}
+                  key={graph.name} 
+                  className={`graph-management__card ${graph.name === data?.active ? 'graph-management__card--active' : ''} ${deleteConfirm === graph.name ? 'graph-management__card--delete-confirm' : ''}`}
                   elevation="low"
                   padding={false}
                   interactive
-                  selected={db.name === data?.active}
+                  selected={graph.name === data?.active}
                 >
-                  <div className="db-management__card-header">
-                    <div className="db-management__card-title">
-                      <span className="db-management__card-name">{db.name}</span>
-                      {db.name === data?.active && (
-                        <span className="db-management__card-badge">Active</span>
+                  <div className="graph-management__card-header">
+                    <div className="graph-management__card-title">
+                      <span className="graph-management__card-name">{graph.name}</span>
+                      {graph.name === data?.active && (
+                        <span className="graph-management__card-badge">Active</span>
                       )}
                     </div>
-                    <div className="db-management__card-actions">
+                    <div className="graph-management__card-actions">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleOpenRename(db.name)}
+                        onClick={() => handleOpenRename(graph.name)}
                         title="Rename"
                       >
                         <EditIcon size="sm" />
@@ -345,17 +345,17 @@ export function DatabaseManagementView({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleExport(db.name)}
+                        onClick={() => handleExport(graph.name)}
                         title="Export"
                       >
                         <Icon path={mdiExport} size={0.7} />
                       </Button>
-                      {deleteConfirm === db.name ? (
+                      {deleteConfirm === graph.name ? (
                         <>
                           <Button
                             variant="danger"
                             size="sm"
-                            onClick={() => deleteMutation.mutate(db.name)}
+                            onClick={() => deleteMutation.mutate(graph.name)}
                             title="Confirm delete"
                           >
                             <CheckIcon size="sm" />
@@ -373,27 +373,27 @@ export function DatabaseManagementView({
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => setDeleteConfirm(db.name)}
+                          onClick={() => setDeleteConfirm(graph.name)}
                           title="Delete"
-                          className="db-management__delete-btn"
+                          className="graph-management__delete-btn"
                         >
                           <DeleteIcon size="sm" />
                         </Button>
                       )}
                       <Button
-                        variant="primary"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleSelectDatabase(db)}
+                        onClick={() => handleSelectGraph(graph)}
                         title="Open graph"
                       >
                         <ArrowRightIcon size="sm" />
                       </Button>
                     </div>
                   </div>
-                  <div className="db-management__card-content">
-                    <div className="db-management__card-meta">
-                      <span>Created {formatDate(db.created_at)}</span>
-                      <span>Modified {formatRelativeTime(db.updated_at)}</span>
+                  <div className="graph-management__card-content">
+                    <div className="graph-management__card-meta">
+                      <span>Created {formatDate(graph.created_at)}</span>
+                      <span>Modified {formatRelativeTime(graph.updated_at)}</span>
                     </div>
                   </div>
                 </Card>
@@ -403,16 +403,16 @@ export function DatabaseManagementView({
         </main>
 
         {/* Footer */}
-        <footer className="db-management__footer">
+        <footer className="graph-management__footer">
           <p>Notees — Your personal knowledge graph</p>
         </footer>
       </div>
 
-      {/* Create Database Modal */}
-      <DatabaseModal
+      {/* Create Graph Modal */}
+      <GraphModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleDatabaseCreated}
+        onSuccess={handleGraphCreated}
       />
 
       {/* Import Options Modal */}
@@ -423,7 +423,7 @@ export function DatabaseManagementView({
       />
 
       {/* Import Name Modal */}
-      <DatabaseNameModal
+      <GraphNameModal
         isOpen={importNameModalState.isOpen}
         onClose={handleImportNameModalClose}
         onSubmit={handleImportNameSubmit}
@@ -437,11 +437,11 @@ export function DatabaseManagementView({
       />
 
       {/* Rename Graph Modal */}
-      <DatabaseNameModal
+      <GraphNameModal
         isOpen={renameModalState.isOpen}
         onClose={handleRenameModalClose}
         onSubmit={handleRenameSubmit}
-        title={`Rename "${renameModalState.dbName}"`}
+        title={`Rename "${renameModalState.graphName}"`}
         submitLabel="Rename Graph"
         isLoading={renameMutation.isPending}
         error={renameError}
@@ -450,4 +450,4 @@ export function DatabaseManagementView({
   );
 }
 
-export default DatabaseManagementView;
+export default GraphManagementView;
