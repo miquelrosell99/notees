@@ -20,6 +20,8 @@ import {
 import { mdiPlus } from '@mdi/js';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
+import { TextField } from './core/TextField';
+import { SearchIcon } from './icons';
 import './PropertiesSection.css';
 
 interface ClassPropertiesEditorProps {
@@ -123,13 +125,14 @@ export function ClassPropertiesEditor({
         <div className="properties-add">
           {isAddingNew ? (
             <div className="class-properties-picker">
-              <input
+              <TextField
                 type="text"
                 className="class-properties-search"
                 placeholder="Search properties..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
+                icon={<SearchIcon size="sm" />}
               />
               <div className="class-properties-options">
                 {availableProperties.slice(0, 10).map((prop) => (

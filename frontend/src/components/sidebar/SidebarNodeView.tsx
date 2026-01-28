@@ -36,6 +36,7 @@ import { NodePillRow } from '../NodePillRow';
 import { DynamicNodeViewSection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
+import { TextField } from '../core/TextField';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
 import './SidebarNodeView.css';
 
@@ -339,7 +340,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             ) : (
               <NodeIcon isPage={true} size="sm" className="sidebar-node-view__icon" />
             )}
-            <input
+            <TextField
               type="text"
               className="sidebar-node-view__title-input"
               value={node.name || ''}
