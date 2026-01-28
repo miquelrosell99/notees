@@ -49,6 +49,7 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
   'graph': 'graph',
   'all-pages': 'pages',
   'journals': 'journal',
+  'timeline': 'timeline',
   'archived': 'archived',
   'assets': 'assets',
   'property': '', // Property view uses root path

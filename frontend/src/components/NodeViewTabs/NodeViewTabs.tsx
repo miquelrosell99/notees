@@ -13,7 +13,6 @@ import {
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
-import { QueryBuilder } from '../queries';
 import { DeleteIcon } from '../icons';
 import {
   useNodeViews,
@@ -274,10 +273,10 @@ export function NodeViewTabs({
       >
         {editingView && editedBlockTree && (
           <div className="node-view-tabs__edit-form">
-            <QueryBlockBuilder
-              blockTree={editedBlockTree}
-              onChange={setEditedBlockTree}
-            />
+            {/* TODO: QueryBlockBuilder needs to be updated to use QueryAST instead of QueryBlockTree */}
+            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+              Query editing UI under construction
+            </div>
             <div className="node-view-tabs__edit-actions">
               <InlineConfirmButton
                 onConfirm={() => handleDeleteView(editingView)}

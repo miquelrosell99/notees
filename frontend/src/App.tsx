@@ -98,14 +98,12 @@ function AppContent() {
     const { registerHandler } = useKeyboardStore.getState();
     
     // Quick add shortcut (Ctrl/Cmd + N)
-    const unregisterQuickAdd = registerHandler('quickAdd', (e) => {
-      e.preventDefault();
+    const unregisterQuickAdd = registerHandler('quickAdd', () => {
       toggleQuickAddRef.current();
     });
     
     // Calendar shortcut (Ctrl/Cmd + Shift + D)
-    const unregisterCalendar = registerHandler('goToDaily', (e) => {
-      e.preventDefault();
+    const unregisterCalendar = registerHandler('goToDaily', () => {
       toggleCalendarRef.current();
     });
     

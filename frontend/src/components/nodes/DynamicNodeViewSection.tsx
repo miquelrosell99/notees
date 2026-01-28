@@ -103,7 +103,7 @@ export function DynamicNodeViewSection({
   onNodeClick,
   onBlockCreated,
   className = '',
-}: DynamicNodeViewSectionProps): JSX.Element | null {
+}: DynamicNodeViewSectionProps): React.JSX.Element | null {
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
@@ -249,7 +249,7 @@ export function DynamicNodeViewSection({
         blocks: [
           { type: 'TYPE', value: 'page' },
           // Only get root pages - children will be loaded via include_children
-          { type: 'PROPERTY', property_name: 'parent_id', operator: 'is_empty', value: null },
+          { type: 'PROPERTY', property_name: 'parent_id', property_type: 'node', operator: 'is_empty', value: null },
         ],
       },
     };
@@ -478,7 +478,9 @@ export function DynamicNodeViewSection({
       }
 
       const newNode = await createNodeMutation.mutateAsync(nodeData);
-      - blocks open in sidebar, pages open in main view
+      
+      // Route new node based on type:
+      // - blocks open in sidebar, pages open in main view
       if (newNode.is_page) {
         onNodeClick?.(newNode.id, true);
       } else {
@@ -487,8 +489,7 @@ export function DynamicNodeViewSection({
     } catch (error) {
       console.error('Failed to create node:', error);
     }
-  }, [viewType, nodeId, createNodeMutation, onNodeClick, onBlockCreated
-  }, [viewType, nodeId, createNodeMutation, onNodeClick]);
+  }, [viewType, nodeId, createNodeMutation, onNodeClick, onBlockCreated]);
 
   // Loading state - wait for views to load AND ensure defaults to complete
   if (viewsLoading || isInitializing) {

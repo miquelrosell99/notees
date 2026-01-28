@@ -283,7 +283,7 @@ export interface NodeDocumentViewProps extends NodeCollectionViewBaseProps {
  */
 export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   /** Card layout style */
-  layout?: 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
+  layout?: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
   
   /** Number of columns (default: auto) */
   columns?: number;

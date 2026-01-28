@@ -236,8 +236,7 @@ function getNodeRadius(
 
 function buildFullPath(
   node: GraphNode,
-  nodes: GraphNode[],
-  links: GraphLink[]
+  nodes: GraphNode[]
 ): string {
   if (node.parentId === null) {
     // Root page, just return name
@@ -987,7 +986,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.textBaseline = 'top';
       
       // For nodes with parents (blocks/child pages), show full path
-      const fullPath = buildFullPath(node, nodesRef.current, linksRef.current);
+      const fullPath = buildFullPath(node, nodesRef.current);
       const displayName = fullPath.length > 35 
         ? fullPath.slice(0, 35) + '...' 
         : fullPath;

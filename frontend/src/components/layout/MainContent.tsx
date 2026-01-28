@@ -8,17 +8,17 @@ import { useMemo, useEffect, useState } from 'react';
 import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
 import { getNodeColorStyles } from '@/utils/color';
-import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiDockBottom } from '@mdi/js';
+import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
 import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
 import { NodeView } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
+import { ArchivedPagesView } from '../../views/ArchivedPagesView';
 import { JournalsView } from '../../views/JournalsView';
 import { GraphViewAll } from '../graph';
 import { TimelineViewAll } from '../timeline/TimelineViewAll';
 import { PropertyView } from '../../views/PropertyView';
-import type { Node } from '@/types';
 
 export function MainContent() {
   const { currentNodeId, currentNodeType, currentPropertyContext, viewMode, mainViewType, currentPropertyId, openNode, openPropertyView, addSidebarCard, contentDisplayMode, setContentDisplayMode, cardLayout, setCardLayout, lateNightThoughtsFilter, toggleLateNightThoughts, openLocalGraph, rightSidebarContent } = useNodesStore();
@@ -53,6 +53,14 @@ export function MainContent() {
     return (
       <main className="main-content">
         <AllPagesView />
+      </main>
+    );
+  }
+  
+  if (mainViewType === 'archived') {
+    return (
+      <main className="main-content">
+        <ArchivedPagesView />
       </main>
     );
   }
@@ -176,14 +184,6 @@ export function MainContent() {
                     className={`card-layout-option ${cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
                     onClick={() => setCardLayout('cover-top' as CardLayoutMode)}
                     title="Cover top"
-                  />
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    icon={mdiDockBottom}
-                    className={`card-layout-option ${cardLayout === 'cover-bottom' ? 'card-layout-option--active' : ''}`}
-                    onClick={() => setCardLayout('cover-bottom' as CardLayoutMode)}
-                    title="Cover bottom"
                   />
                 </div>
               )}

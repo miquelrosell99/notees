@@ -24,7 +24,7 @@ import {
   useLinkedReferencesCount,
 } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { useNodesStore, useSettingsStore } from '@/stores';
+import { useNodesStore } from '@/stores';
 import type { NodeUpdate, Node } from '@/types';
 import type { SidebarNodeType } from '@/stores';
 import type { BlockCallbacks } from '../blocks/BlockCallbacksContext';
@@ -33,7 +33,7 @@ import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
 import { NodePillRow } from '../NodePillRow';
-import { NodeViewSection, DynamicNodeViewSection } from '../nodes';
+import { DynamicNodeViewSection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
@@ -68,8 +68,8 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   // Check if node is used as a class
   const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
   
-  // Linked references count
-  const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
+  // Linked references count (triggers data fetch)
+  useLinkedReferencesCount(nodeId);
 
   // Handlers
   const handleNameChange = useCallback((newName: string) => {

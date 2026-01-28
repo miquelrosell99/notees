@@ -5,12 +5,9 @@
  */
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { nodesApi } from '@/api/nodes';
-import { SearchBox } from '../components/SearchBox';
 import { TrashIcon, RestoreIcon, DeleteIcon } from '../components/icons';
-import { useNodesStore } from '@/stores';
 import { nodeKeys } from '@/hooks/useNodes';
-import { Button } from '@/components/core';
+import { Button } from '../components/core/Button';
 import type { Node } from '@/types';
 import './TrashView.css';
 
@@ -19,7 +16,6 @@ interface TrashViewProps {
 }
 
 export function TrashView({ className = '' }: TrashViewProps) {
-  const { openNode } = useNodesStore();
   const queryClient = useQueryClient();
   const [selectedNodes, setSelectedNodes] = useState<Set<number>>(new Set());
   
