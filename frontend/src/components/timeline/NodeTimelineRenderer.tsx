@@ -252,37 +252,40 @@ export function NodeTimelineRenderer({
     const visibleMs = visibleEnd.getTime() - visibleStart.getTime();
     const visibleDays = visibleMs / (24 * 60 * 60 * 1000);
     
-    // Smooth opacity transition when zoom level changes
+    // Update prevVisibleDays and fade markers when zoom changes significantly
     const daysDiff = Math.abs(visibleDays - prevVisibleDays);
-    if (daysDiff > 10) {
-      // Significant zoom change - fade markers
-      if (markerOpacity > 0.3) {
-        setMarkerOpacity(Math.max(0.3, markerOpacity - 0.15));
-      } else {
-        setMarkerOpacity(1);
-        setPrevVisibleDays(visibleDays);
+    if (daysDiff > visibleDays * 0.3) {  // 30% change threshold
+      if (markerOpacity === 1) {
+        // Start fade out
+        setMarkerOpacity(0.3);
+        setTimeout(() => {
+          // Update visible days and fade in
+          setPrevVisibleDays(visibleDays);
+          setMarkerOpacity(1);
+        }, 150);
       }
-    } else if (markerOpacity < 1) {
-      setMarkerOpacity(Math.min(1, markerOpacity + 0.15));
     }
+    
+    // Use prevVisibleDays for stable marker intervals during fade
+    const stableVisibleDays = markerOpacity < 1 ? prevVisibleDays : visibleDays;
     
     let markerInterval: number;
     let dateFormat: (date: Date) => string;
     
-    // Choose interval based on how many days are visible
-    if (visibleDays <= 7) {
+    // Choose interval based on how many days are visible (using stable value)
+    if (stableVisibleDays <= 7) {
       markerInterval = 24 * 60 * 60 * 1000; // 1 day
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (visibleDays <= 60) {
+    } else if (stableVisibleDays <= 60) {
       markerInterval = 7 * 24 * 60 * 60 * 1000; // 1 week
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (visibleDays <= 180) {
+    } else if (stableVisibleDays <= 180) {
       markerInterval = 30 * 24 * 60 * 60 * 1000; // ~1 month
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (visibleDays <= 730) {
+    } else if (stableVisibleDays <= 730) {
       markerInterval = 90 * 24 * 60 * 60 * 1000; // ~3 months
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (visibleDays <= 3650) {
+    } else if (stableVisibleDays <= 3650) {
       markerInterval = 365 * 24 * 60 * 60 * 1000; // 1 year
       dateFormat = (d) => d.getFullYear().toString();
     } else {
@@ -638,8 +641,8 @@ export function NodeTimelineRenderer({
       preset === 'year' ? 365 :
       preset === 'semester' ? 180 :
       preset === 'quatrimester' ? 120 :
-      preset === 'month' ? 30 :
-      7;
+      preset === 'month' ? 45 :  // Increased from 30 to show more context
+      14;  // Increased from 7 to show 2 weeks
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, calculateScaleForDays(targetDays)));
     
     const today = new Date();
