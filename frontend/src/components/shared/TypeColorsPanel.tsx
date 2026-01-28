@@ -14,7 +14,6 @@ import { useState } from 'react';
 import { mdiClose } from '@mdi/js';
 import type { Node } from '@/types';
 import { Button } from '../core/Button';
-import { ColorPicker } from '../core/ColorPicker';
 import { ColorButton } from '../core/ColorButton';
 import { ListSortable } from '../core/ListSortable';
 import './TypeColorsPanel.css';
@@ -129,22 +128,13 @@ export function TypeColorsPanel({
               <span className="type-name">{item.typeName}</span>
             )}
             renderActions={(item) => [
-              <ColorPicker
+              <ColorButton
                 key="color"
-                value={item.color}
-                onChange={(color) => updateTypeColor(item.id as number, color || defaultColors[0])}
+                color={item.color}
                 size="xs"
-                panelPosition="left"
-                showNoColor={false}
-                showCustom={true}
-                tooltip="Change color"
-                trigger={
-                  <ColorButton
-                    color={item.color}
-                    size="xs"
-                    title="Change color"
-                  />
-                }
+                showPicker
+                onColorChange={(color) => updateTypeColor(item.id as number, color)}
+                title="Change color"
               />,
               <Button
                 key="remove"
