@@ -183,7 +183,7 @@ export function NodeTimelineRenderer({
   
   // Filter to pages with dates
   const pageNodes = useMemo(() => {
-    return nodes
+    const filtered = nodes
       .filter(n => n.is_page)
       .map(node => {
         const date = getNodeDate(node);
@@ -191,6 +191,9 @@ export function NodeTimelineRenderer({
       })
       .filter((item): item is { node: Node; date: Date } => item !== null)
       .sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    console.log('[Timeline] Filtered pages:', filtered.length, 'from', nodes.length, 'total nodes');
+    return filtered;
   }, [nodes, getNodeDate]);
   
   // Calculate date range
@@ -352,11 +355,13 @@ export function NodeTimelineRenderer({
     const { panX, scale } = transformRef.current;
     const centerY = height / 2;
     
+    const nodes = timelineNodesRef.current;
+    const gravityPoints = gravityPointsRef.current;
+    
     // Clear
     ctx.clearRect(0, 0, width, height);
     
     // Draw gravity point zones (subtle background)
-    const gravityPoints = gravityPointsRef.current;
     if (gravityPoints.length > 1) {
       gravityPoints.forEach((gp, i) => {
         const x = gp.x * scale + panX;
@@ -410,7 +415,14 @@ export function NodeTimelineRenderer({
     
     // Draw connector lines and nodes
     const nodes = timelineNodesRef.current;
-    
+    if (nodes.length === 0) {
+      // Debug: show message if no nodes
+      ctx.fillStyle = '#888';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No timeline nodes to display', width / 2, height / 2);
+      return;
+    }
     // First pass: connector lines
     nodes.forEach(node => {
       const x = node.x;
@@ -794,7 +806,7 @@ export function NodeTimelineRenderer({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
-        onWheel={handleWheel}
+        onWheelCapture={handleWheel}
       />
     </div>
   );
