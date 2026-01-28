@@ -76,18 +76,24 @@
 
 .graph-search-input {
   width: 100%;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-elevated);
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 13px;
-  box-shadow: var(--shadow-md);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.graph-search-input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .graph-search-input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
+  background: var(--bg-tertiary);
 }
 
 .graph-search-results {
