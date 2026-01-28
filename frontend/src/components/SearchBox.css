@@ -112,8 +112,19 @@
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.search-result-item:hover {
+.search-result-item:hover,
+.search-result-item--selected {
   background: var(--color-hover-overlay);
+}
+
+.search-result-item--create {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.search-result-item--create .result-icon {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .result-icon {

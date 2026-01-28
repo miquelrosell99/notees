@@ -25,6 +25,14 @@ interface SearchBoxProps<T = Node> {
   renderItem?: (item: T) => React.ReactNode;
   /** Filter function to apply to results */
   filterFn?: (item: T) => boolean;
+  /** Initial query value */
+  initialQuery?: string;
+  /** Auto-focus the input on mount */
+  autoFocus?: boolean;
+  /** Show create option for new items (Node search only) */
+  showCreate?: boolean;
+  /** Callback when create is selected (passes the query string) */
+  onCreate?: (query: string) => void | Promise<void>;
 }
 
 export function SearchBox<T = Node>({
@@ -35,10 +43,15 @@ export function SearchBox<T = Node>({
   getKey,
   renderItem,
   filterFn,
+  initialQuery = '',
+  autoFocus = false,
+  showCreate = false,
+  onCreate,
 }: SearchBoxProps<T>) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -56,7 +69,24 @@ export function SearchBox<T = Node>({
   const { data: rawResults, isLoading } = searchResults;
   
   // Apply filter if provided
-  const results = (filterFn && rawResults) ? (rawResults as T[]).filter(filterFn) : rawResults;
+  const filteredResults = (filterFn && rawResults) ? (rawResults as T[]).filter(filterFn) : rawResults;
+  const results = filteredResults || [];
+  
+  // Add create option if enabled and query exists
+  const showCreateOption = showCreate && query.trim().length > 0 && !isLoading;
+  const totalItems = results.length + (showCreateOption ? 1 : 0);
+  
+  // Reset selected index when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [totalItems]);
+  
+  // Auto-focus if requested
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus]);
   
   // Update dropdown position when opening
   const updateDropdownPosition = useCallback(() => {
@@ -103,9 +133,16 @@ export function SearchBox<T = Node>({
     }
   }, [updateDropdownPosition]);
 
-  const handleSelect = useCallback((item: T) => {
+  const handleSelect = useCallback((item: T | 'create') => {
     setQuery('');
     setIsOpen(false);
+    
+    if (item === 'create') {
+      if (onCreate) {
+        onCreate(query);
+      }
+      return;
+    }
     
     if (onSelect) {
       onSelect(item);
@@ -116,7 +153,7 @@ export function SearchBox<T = Node>({
         openNode(node.id, node.is_page ? 'page' : 'block');
       }
     }
-  }, [onSelect, openNode]);
+  }, [onSelect, openNode, onCreate, query]);
   
   // Default key extractor
   const defaultGetKey = (item: T): string | number => {
@@ -145,28 +182,62 @@ export function SearchBox<T = Node>({
   };
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setQuery('');
-      setIsOpen(false);
-      inputRef.current?.blur();
+    if (!isOpen) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(i => Math.max(i - 1, 0));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (totalItems > 0) {
+          if (showCreateOption && selectedIndex === 0) {
+            handleSelect('create' as T);
+          } else {
+            const resultIndex = showCreateOption ? selectedIndex - 1 : selectedIndex;
+            if (results && resultIndex >= 0 && resultIndex < results.length) {
+              handleSelect(results[resultIndex] as T);
+            }
+          }
+        }
+        break;
+      case 'Escape':
+        setQuery('');
+        setIsOpen(false);
+        inputRef.current?.blur();
+        break;
     }
-  }, []);
+  }, [isOpen, totalItems, showCreateOption, selectedIndex, results, handleSelect]);
+
+  const handleResultClick = useCallback((index: number) => {
+    if (showCreateOption && index === 0) {
+      handleSelect('create' as T);
+    } else {
+      const resultIndex = showCreateOption ? index - 1 : index;
+      if (results && resultIndex >= 0 && resultIndex < results.length) {
+        handleSelect(results[resultIndex] as T);
+      }
+    }
+  }, [showCreateOption, results, handleSelect]);
 
   return (
     <div ref={containerRef} className={`search-box ${className}`}>
       <TextField
         ref={inputRef}
-        type="search"
-        className="search-input"
         value={query}
         onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
         onFocus={() => {
           if (query.length > 0) {
             updateDropdownPosition();
             setIsOpen(true);
           }
         }}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         icon={<SearchIcon size="sm" />}
       />
@@ -185,22 +256,38 @@ export function SearchBox<T = Node>({
             <div className="search-loading">Searching...</div>
           )}
           
-          {!isLoading && results && results.length === 0 && (
+          {!isLoading && results.length === 0 && !showCreateOption && (
             <div className="search-empty">No results found</div>
           )}
           
-          {!isLoading && results && results.length > 0 && (
+          {!isLoading && (results.length > 0 || showCreateOption) && (
             <ul className="search-results">
-              {(results as T[]).map((item: T) => (
-                <li key={getKey ? getKey(item) : defaultGetKey(item)}>
+              {showCreateOption && (
+                <li key="create">
                   <button
-                    className="search-result-item"
-                    onClick={() => handleSelect(item)}
+                    className={`search-result-item search-result-item--create ${selectedIndex === 0 ? 'search-result-item--selected' : ''}`}
+                    onClick={() => handleResultClick(0)}
+                    onMouseEnter={() => setSelectedIndex(0)}
                   >
-                    {renderItem ? renderItem(item) : defaultRenderItem(item)}
+                    <span className="result-icon">+</span>
+                    <span className="result-title">Create "{query}"</span>
                   </button>
                 </li>
-              ))}
+              )}
+              {(results as T[]).map((item: T, index: number) => {
+                const displayIndex = showCreateOption ? index + 1 : index;
+                return (
+                  <li key={getKey ? getKey(item) : defaultGetKey(item)}>
+                    <button
+                      className={`search-result-item ${selectedIndex === displayIndex ? 'search-result-item--selected' : ''}`}
+                      onClick={() => handleResultClick(displayIndex)}
+                      onMouseEnter={() => setSelectedIndex(displayIndex)}
+                    >
+                      {renderItem ? renderItem(item) : defaultRenderItem(item)}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
