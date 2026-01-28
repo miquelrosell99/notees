@@ -25,6 +25,33 @@
   display: flex;
   gap: 8px;
   pointer-events: auto;
+  align-items: center;
+}
+
+.node-timeline-renderer__bottom-controls {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.timeline-zoom-preset {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.timeline-zoom-preset-btn {
+  min-width: 32px;
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .node-timeline-renderer__canvas {

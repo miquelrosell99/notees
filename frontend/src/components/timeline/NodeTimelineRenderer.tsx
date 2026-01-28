@@ -18,7 +18,7 @@ import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
 import type { TimelineNode, GravityPoint, TypeColor, DateProperty, ZoomLevel, TimelineTransform, NodeTimelineRendererProps } from './types';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiCalendar, mdiCalendarWeek, mdiCalendarToday, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiCalendar, mdiCalendarWeek, mdiCalendarToday, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -72,6 +72,8 @@ export function NodeTimelineRenderer({
   const [hoveredNode, setHoveredNode] = useState<TimelineNode | null>(null);
   const [hoveredGravityPoint, setHoveredGravityPoint] = useState<GravityPoint | null>(null);
   const [currentDateProperty, setCurrentDateProperty] = useState<DateProperty>(dateProperty);
+  const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week' | 'custom'>('custom');
+  const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
   
   const transformRef = useRef(transform);
   const settingsLoadedRef = useRef(false);
@@ -643,6 +645,8 @@ export function NodeTimelineRenderer({
           panX: newPanX
         };
       });
+      
+      setZoomPreset('custom');
     } else {
       // Normal scroll = Pan horizontally
       e.preventDefault();
@@ -658,9 +662,36 @@ export function NodeTimelineRenderer({
     isSettledRef.current = false;
   }, []);
   
+  // Calculate scale to fit a specific number of days in viewport
+  const calculateScaleForDays = useCallback((targetDays: number): number => {
+    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
+    if (totalDays <= 0) return 1.0;
+    return totalDays / targetDays;
+  }, [dateRange]);
+  
+  // Zoom to preset (decade/year/semester/quatrimester/month/week)
+  const zoomToPreset = useCallback((preset: 'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week') => {
+    const targetDays = 
+      preset === 'decade' ? 3650 :
+      preset === 'year' ? 365 :
+      preset === 'semester' ? 180 :
+      preset === 'quatrimester' ? 120 :
+      preset === 'month' ? 30 :
+      7; // week
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, calculateScaleForDays(targetDays)));
+    
+    setTransform(prev => ({
+      ...prev,
+      scale: newScale
+    }));
+    setZoomPreset(preset);
+    isSettledRef.current = false;
+  }, [calculateScaleForDays]);
+  
   // Recenter view
   const recenter = useCallback(() => {
     setTransform({ panX: 0, scale: 1.0 });
+    setZoomPreset('custom');
     isSettledRef.current = false;
   }, []);
   
@@ -700,6 +731,15 @@ export function NodeTimelineRenderer({
     { value: 'create_date', label: 'Created', icon: mdiCalendarPlus },
     { value: 'write_date', label: 'Modified', icon: mdiCalendarEdit },
     { value: 'open_date', label: 'Accessed', icon: mdiCalendarClock },
+  ];
+  
+  const zoomPresetOptions = [
+    { value: 'decade', label: 'D', tooltip: '10 Years' },
+    { value: 'year', label: 'Y', tooltip: '1 Year' },
+    { value: 'semester', label: 'S', tooltip: '6 Months' },
+    { value: 'quatrimester', label: 'Q', tooltip: '4 Months' },
+    { value: 'month', label: 'M', tooltip: '1 Month' },
+    { value: 'week', label: 'W', tooltip: '1 Week' },
   ];
   
   return (
@@ -796,6 +836,31 @@ export function NodeTimelineRenderer({
             title="Reset view"
           />
         </div>
+      </div>
+      
+      <div className="node-timeline-renderer__bottom-controls">
+        <div className="timeline-zoom-preset">
+          {zoomPresetOptions.map(opt => (
+            <Button
+              key={opt.value}
+              variant={zoomPreset === opt.value ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => zoomToPreset(opt.value as any)}
+              title={opt.tooltip}
+              className="timeline-zoom-preset-btn"
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
+        
+        <Button
+          icon={orientation === 'horizontal' ? mdiArrowExpandHorizontal : mdiArrowExpandVertical}
+          variant="secondary"
+          size="sm"
+          onClick={() => setOrientation(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+          title={`Switch to ${orientation === 'horizontal' ? 'vertical' : 'horizontal'} orientation`}
+        />
       </div>
       
       <canvas
