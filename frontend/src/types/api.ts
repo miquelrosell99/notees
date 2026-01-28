@@ -199,6 +199,7 @@ export interface NodeUpdate {
   parent_id?: number | null;
   sequence?: number | null;
   collapsed?: boolean | null;
+  expected_version?: number;  // For optimistic locking
 }
 
 // ==================== Property Types ====================
