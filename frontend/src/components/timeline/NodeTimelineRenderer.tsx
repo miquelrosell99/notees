@@ -203,27 +203,38 @@ export function NodeTimelineRenderer({
     ctx.textBaseline = 'top';
     
     const totalMs = dateRange.end.getTime() - dateRange.start.getTime();
-    const visibleMs = totalMs / scale;
-    const visibleStart = new Date(dateRange.start.getTime() + (-panX / scale / width) * totalMs);
-    const visibleEnd = new Date(visibleStart.getTime() + visibleMs);
     
-    // Determine marker interval based on zoom level
+    // Calculate what portion of the timeline is visible
+    // panX is in screen pixels, scale stretches the timeline
+    // At panX=0, left edge is at dateRange.start
+    // The visible portion of the timeline (0-1 range) starts at:
+    const visibleStartRatio = Math.max(0, -panX / (width * scale));
+    const visibleEndRatio = Math.min(1, (-panX + width) / (width * scale));
+    
+    const visibleStart = new Date(dateRange.start.getTime() + visibleStartRatio * totalMs);
+    const visibleEnd = new Date(dateRange.start.getTime() + visibleEndRatio * totalMs);
+    
+    // Determine marker interval based on visible time span
+    const visibleMs = visibleEnd.getTime() - visibleStart.getTime();
+    const visibleDays = visibleMs / (24 * 60 * 60 * 1000);
+    
     let markerInterval: number;
     let dateFormat: (date: Date) => string;
     
-    if (currentZoomLevel === 'hour' || currentZoomLevel === 'day') {
+    // Choose interval based on how many days are visible
+    if (visibleDays <= 7) {
       markerInterval = 24 * 60 * 60 * 1000; // 1 day
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (currentZoomLevel === 'week') {
+    } else if (visibleDays <= 60) {
       markerInterval = 7 * 24 * 60 * 60 * 1000; // 1 week
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (currentZoomLevel === 'month') {
+    } else if (visibleDays <= 180) {
       markerInterval = 30 * 24 * 60 * 60 * 1000; // ~1 month
-      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    } else if (currentZoomLevel === 'quarter') {
+      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    } else if (visibleDays <= 730) {
       markerInterval = 90 * 24 * 60 * 60 * 1000; // ~3 months
-      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    } else if (currentZoomLevel === 'year') {
+      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    } else if (visibleDays <= 3650) {
       markerInterval = 365 * 24 * 60 * 60 * 1000; // 1 year
       dateFormat = (d) => d.getFullYear().toString();
     } else {
@@ -231,9 +242,13 @@ export function NodeTimelineRenderer({
       dateFormat = (d) => d.getFullYear().toString();
     }
     
+    // Extend visible range a bit to catch markers just outside the view
+    const extendedStart = new Date(visibleStart.getTime() - markerInterval);
+    const extendedEnd = new Date(visibleEnd.getTime() + markerInterval);
+    
     // Draw markers
-    const firstMarker = new Date(Math.ceil(visibleStart.getTime() / markerInterval) * markerInterval);
-    for (let markerDate = firstMarker; markerDate <= visibleEnd; markerDate = new Date(markerDate.getTime() + markerInterval)) {
+    const firstMarker = new Date(Math.floor(extendedStart.getTime() / markerInterval) * markerInterval);
+    for (let markerDate = firstMarker; markerDate <= extendedEnd; markerDate = new Date(markerDate.getTime() + markerInterval)) {
       const markerPos = (markerDate.getTime() - dateRange.start.getTime()) / totalMs;
       const x = markerPos * width * scale + panX;
       
@@ -293,7 +308,7 @@ export function NodeTimelineRenderer({
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
     });
-  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, currentZoomLevel]);
+  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange]);
   
   // Render minimap
   const renderMinimap = useCallback(() => {
