@@ -229,6 +229,7 @@ class NodeService:
         """Move a node to a new parent and/or position.
         
         This properly handles sibling resequencing to maintain order consistency.
+        Prevents circular references by checking if new_parent is a descendant.
         """
         # Get the node before move to check if parent changed
         old_node = await self._node_repo.get_by_id(node_id)
@@ -236,6 +237,10 @@ class NodeService:
             return None
         
         old_parent_id = old_node.parent_id
+        
+        # Check for circular reference: prevent moving node to its own descendant
+        if new_parent_id is not None:
+            await self._check_circular_reference(node_id, new_parent_id)
         
         # Use dedicated move method for proper resequencing
         node = await self._node_repo.move(node_id, new_parent_id, new_sequence, user_id)
@@ -247,6 +252,35 @@ class NodeService:
             await self._link_service.update_classes_path(node.id)
         
         return node
+    
+    async def _check_circular_reference(self, node_id: int, new_parent_id: int) -> None:
+        """Check if new_parent_id would create a circular reference.
+        
+        A circular reference occurs if we try to move a node to be a child
+        of one of its own descendants.
+        
+        Args:
+            node_id: The node being moved
+            new_parent_id: The proposed new parent
+            
+        Raises:
+            ValueError: If the move would create a circular reference
+        """
+        if node_id == new_parent_id:
+            raise ValueError("Cannot move a node to be its own parent")
+        
+        # Use closure table (node_path) to check if new_parent is a descendant of node
+        pool = self._node_repo.get_connection()
+        row = await pool.fetchrow("""
+            SELECT 1 FROM node_path 
+            WHERE ancestor_id = $1 AND descendant_id = $2
+        """, node_id, new_parent_id)
+        
+        if row:
+            raise ValueError(
+                f"Cannot move node {node_id} to parent {new_parent_id}: "
+                f"would create circular reference (parent is a descendant)"
+            )
     
     async def update_node(
         self,
@@ -304,13 +338,15 @@ class NodeService:
         
         return node
     
-    async def delete_node(self, node_id: int) -> bool:
-        """Delete a node and all its children.
+    async def delete_node(self, node_id: int, user_id: Optional[int] = None) -> bool:
+        """Soft-delete a node and all its children by setting is_deleted=true.
         
-        Before deleting, updates all nodes that link to this node:
+        Before soft-deleting, updates all nodes that link to this node:
         - [[nodeId]] links are replaced with the node's name
         - {{nodeId}} inline class references are replaced with the node's name
         - Property class/tag references are removed
+        
+        If the node is an asset, also deletes the associated asset folder.
         
         Works for both active and archived nodes.
         
@@ -376,7 +412,117 @@ class NodeService:
         # Remove this node from any class/tag properties
         await self._remove_node_from_class_tag_properties(node_id)
         
-        # Now delete the node itself
+        # Soft-delete the node and all its descendants
+        from ...utils import utc_now
+        now = utc_now()
+        uid = user_id or self._user_id
+        
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Get all descendants using closure table
+                descendant_rows = await conn.fetch("""
+                    SELECT descendant_id FROM node_path 
+                    WHERE ancestor_id = $1 AND depth > 0
+                """, node_id)
+                
+                descendant_ids = [row['descendant_id'] for row in descendant_rows]
+                all_node_ids = [node_id] + descendant_ids
+                
+                # Soft-delete all nodes (parent and descendants)
+                await conn.execute("""
+                    UPDATE node 
+                    SET is_deleted = TRUE, deleted_at = $1, write_date = $1, write_uid = $2
+                    WHERE id = ANY($3::integer[]) AND graph_id = $4
+                """, now, uid, all_node_ids, self._graph_id)
+                
+                logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
+        
+        # If this is an asset node, delete the asset folder
+        if node.is_asset and node.uuid:
+            try:
+                from ...domain.services.asset_service import AssetService
+                asset_service = AssetService(self._graph_id)
+                asset_service.delete_asset(node.uuid)
+                logger.info(f"[DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
+            except Exception as e:
+                logger.error(f"[DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
+                # Continue with soft-delete even if asset deletion fails
+        
+        return True
+    
+    async def restore_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
+        """Restore a soft-deleted node (and optionally its descendants).
+        
+        Args:
+            node_id: The node to restore
+            user_id: User performing the restoration
+            
+        Returns:
+            The restored node, or None if not found
+        """
+        from ...utils import utc_now
+        now = utc_now()
+        uid = user_id or self._user_id
+        
+        pool = self._node_repo.get_connection()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Check if node exists and is deleted
+                row = await conn.fetchrow("""
+                    SELECT * FROM node 
+                    WHERE id = $1 AND graph_id = $2 AND is_deleted = TRUE
+                """, node_id, self._graph_id)
+                
+                if not row:
+                    return None
+                
+                # Restore the node
+                await conn.execute("""
+                    UPDATE node 
+                    SET is_deleted = FALSE, deleted_at = NULL, write_date = $1, write_uid = $2
+                    WHERE id = $3 AND graph_id = $4
+                """, now, uid, node_id, self._graph_id)
+                
+                logger.info(f"[RESTORE] Restored node {node_id}")
+        
+        return await self._node_repo.get_by_id(node_id)
+    
+    async def get_deleted_nodes(self) -> List[Node]:
+        """Get all soft-deleted nodes (trash) for the current graph.
+        
+        Returns:
+            List of deleted nodes
+        """
+        pool = self._node_repo.get_connection()
+        rows = await pool.fetch("""
+            SELECT * FROM node 
+            WHERE graph_id = $1 AND is_deleted = TRUE
+            ORDER BY deleted_at DESC
+        """, self._graph_id)
+        
+        return [self._node_repo.row_to_node(row) for row in rows]
+    
+    async def permanently_delete_node(self, node_id: int) -> bool:
+        """Permanently delete a soft-deleted node (hard delete from database).
+        
+        This is irreversible. Only works on nodes that are already soft-deleted.
+        
+        Args:
+            node_id: The node to permanently delete
+            
+        Returns:
+            True if deleted, False if not found or not in trash
+        """
+        pool = self._node_repo.get_connection()
+        row = await pool.fetchrow("""
+            SELECT * FROM node 
+            WHERE id = $1 AND graph_id = $2 AND is_deleted = TRUE
+        """, node_id, self._graph_id)
+        
+        if not row:
+            return False
+        
+        # Use the repository's delete method which handles cascades
         return await self._node_repo.delete(node_id)
     
     async def _replace_inline_class_references(self, node: Node, already_updated: set) -> None:
