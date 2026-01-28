@@ -189,7 +189,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       type: apiNode.type || 'page',
       isDaily: apiNode.is_daily || false,
       tags: apiNode.tags || [],
-      types: apiNode.type_ids || apiNode.types || [],
+      types: apiNode.class_ids || [],
       parentId: parentMap.get(apiNode.id) ?? null,
       glare: 'normal',
       pinned: pinnedNodes.has(apiNode.id),
