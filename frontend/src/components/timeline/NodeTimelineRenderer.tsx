@@ -510,6 +510,9 @@ export function NodeTimelineRenderer({
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     isPanningRef.current = true;
     panStartRef.current = { x: e.clientX, panX: transform.panX };
+    // Hide panel when starting to pan
+    setSelectedEvent(null);
+    setCardPosition(null);
   }, [transform.panX]);
   
   const handleMouseMoveCanvas = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
