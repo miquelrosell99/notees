@@ -3,7 +3,7 @@
  * 
  * Renders block text content with parsed tokens:
  * - TextToken: Plain text segments
- * - LinkPill: [[nodeId]] references rendered as atomic inline text links
+ * - InlineLink: [[nodeId]] references rendered as atomic inline text links (including asset nodes)
  * - TypePill: {{typeId}} inline type references
  * - ExternalLink: [text](url) markdown-style external links (http/https only)
  * 
@@ -13,7 +13,7 @@
  *  ├─ BlockBullet
  *  ├─ BlockContent     ← this component
  *  │    ├─ TextToken
- *  │    ├─ LinkPill (atomic inline text links)
+ *  │    ├─ InlineLink (atomic inline text links, including assets)
  *  │    ├─ TypePill
  *  │    └─ ExternalLink (clickable hyperlinks)
  *  └─ BlockChildren
@@ -26,21 +26,20 @@
  * - Icon display based on getEffectiveIcon (shows only if node has icon or inherits from type)
  * - Atomic inline behavior - cursor cannot enter links
  * - External links open in new tab with proper security (noopener noreferrer)
+ * 
+ * Note: Assets are nodes and should be referenced via [[nodeId]] like any other node.
+ * There is no special markdown syntax for images - assets display based on their node type.
  */
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
-import { ImageModal } from '../core/ImageModal';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { sanitizeContent } from '@/utils/linkSanitization';
-import { getAssetUrl } from '@/api/assets';
-import { getNodeByUuid } from '@/api/nodes';
-import { useQuery } from '@tanstack/react-query';
-import './LinkPill.css';
+import './InlineLink.css';
 
 // Regex for finding links - [[nodeId]] or [[nodeId:linkUuid]] format
 const LINK_REGEX = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
@@ -48,20 +47,15 @@ const LINK_REGEX = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
 // Regex for finding inline types - {{typeId}} format
 const TYPE_REGEX = /\{\{([^\}]+)\}\}/g;
 
-// Regex for finding markdown images - ![alt](uuid) format
-const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
-
 // Regex for finding markdown links - [text](url) format (for http/https URLs only)
 const MD_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
 
 interface ContentPart {
-  type: 'text' | 'link' | 'inline-type' | 'image' | 'external-link';
+  type: 'text' | 'link' | 'inline-type' | 'external-link';
   content: string;
   id?: string;  // The node ID for links/types
   raw?: string;
   linkUuid?: string;  // The unique link instance UUID (for links only)
-  imageAlt?: string;  // Alt text for images
-  imageUuid?: string;  // Asset UUID for images
   externalUrl?: string;  // External URL for markdown links
   linkText?: string;  // Display text for markdown links
 }
@@ -75,8 +69,11 @@ interface BlockContentProps {
 }
 
 /**
- * Parse content into parts (text, links, inline types, and images)
+ * Parse content into parts (text, links, inline types, and external links)
  * Content is automatically sanitized to remove editor artifacts.
+ * 
+ * Note: Assets are nodes and should be referenced via [[nodeId]] like any other node.
+ * The InlineLink component handles rendering asset nodes appropriately.
  */
 function parseContent(content: string): ContentPart[] {
   // Sanitize content first to remove editor artifacts
@@ -86,22 +83,19 @@ function parseContent(content: string): ContentPart[] {
   
   // Find all matches with their positions
   interface Match {
-    type: 'link' | 'inline-type' | 'image' | 'external-link';
+    type: 'link' | 'inline-type' | 'external-link';
     id: string;
     raw: string;
     start: number;
     end: number;
     linkUuid?: string;  // Only for links
-    imageAlt?: string;  // Only for images
-    imageUuid?: string;  // Only for images
     externalUrl?: string;  // Only for external links
     linkText?: string;  // Only for external links
   }
   
   const matches: Match[] = [];
   
-  // Find markdown links FIRST (before images) - [text](http://url) format
-  // This must run before image regex to avoid conflicts with ![alt](url)
+  // Find markdown links - [text](http://url) format
   let match;
   const mdLinkRegex = new RegExp(MD_LINK_REGEX.source, 'g');
   while ((match = mdLinkRegex.exec(sanitizedContent)) !== null) {
@@ -141,20 +135,6 @@ function parseContent(content: string): ContentPart[] {
     });
   }
   
-  // Find images - ![alt](uuid) format
-  const imageRegex = new RegExp(IMAGE_REGEX.source, 'g');
-  while ((match = imageRegex.exec(sanitizedContent)) !== null) {
-    matches.push({
-      type: 'image',
-      id: match[2],  // uuid
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-      imageAlt: match[1] || 'Image',
-      imageUuid: match[2],
-    });
-  }
-  
   // Sort by position
   matches.sort((a, b) => a.start - b.start);
   
@@ -175,8 +155,6 @@ function parseContent(content: string): ContentPart[] {
       id: m.id,
       raw: m.raw,
       linkUuid: m.linkUuid,
-      imageAlt: m.imageAlt,
-      imageUuid: m.imageUuid,
       externalUrl: m.externalUrl,
       linkText: m.linkText,
     });
@@ -195,7 +173,7 @@ function parseContent(content: string): ContentPart[] {
   return parts;
 }
 
-interface LinkPillProps {
+interface InlineLinkProps {
   linkId: string;
   raw: string;
   linkUuid?: string;  // Unique link instance UUID for per-link click tracking
@@ -205,14 +183,14 @@ interface LinkPillProps {
 }
 
 /**
- * LinkPill - Inline atomic element for node links in readonly mode
+ * InlineLink - Inline atomic element for node links in readonly mode
  * 
- * Renders as a pill-style element in text flow.
+ * Renders as an inline link element in text flow.
  * Icon display uses getEffectiveIcon:
  * - Shows icon only if node has its own icon or inherits from assigned types
  * - No icon/bullet shown if getEffectiveIcon returns null/undefined
  */
-function LinkPill({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDeleteLink }: LinkPillProps) {
+function InlineLink({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDeleteLink }: InlineLinkProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const nodeId = parseInt(linkId, 10);
   const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
@@ -428,131 +406,6 @@ function TypePill({ typeId, raw, onNavigate }: TypePillProps) {
   );
 }
 
-interface InlineImageProps {
-  uuid: string;
-  alt: string;
-}
-
-/**
- * InlineImage - Renders an inline image with click-to-expand functionality and bullet
- */
-function InlineImage({ uuid, alt }: InlineImageProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const { openNode, addSidebarCard } = useNodesStore();
-  
-  // Fetch the asset node by UUID to get its ID
-  const { data: assetNode } = useQuery({
-    queryKey: ['node-by-uuid', uuid],
-    queryFn: () => getNodeByUuid(uuid),
-    enabled: !!uuid,
-  });
-  
-  const imageUrl = getAssetUrl(uuid);
-  
-  const handleImageClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsModalOpen(true);
-  }, []);
-  
-  const handleBulletClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (assetNode) {
-      openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
-    }
-  }, [assetNode, openNode]);
-  
-  const handleBulletShiftClick = useCallback(() => {
-    if (assetNode) {
-      addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
-    }
-  }, [assetNode, addSidebarCard]);
-  
-  const handleBulletContextMenu = useCallback((_nodeId: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY });
-  }, []);
-  
-  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
-    if (!assetNode) return [];
-    
-    return [
-      {
-        id: 'open',
-        label: 'Open asset',
-        onClick: () => {
-          openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
-          setContextMenu(null);
-        },
-      },
-      {
-        id: 'open-sidebar',
-        label: 'Open in sidebar',
-        shortcut: '⇧Click',
-        onClick: () => {
-          addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
-          setContextMenu(null);
-        },
-      },
-      { id: 'sep1', label: '', separator: true },
-      {
-        id: 'view-fullsize',
-        label: 'View full size',
-        onClick: () => {
-          setIsModalOpen(true);
-          setContextMenu(null);
-        },
-      },
-    ];
-  }, [assetNode, openNode, addSidebarCard]);
-  
-  if (hasError) {
-    return (
-      <span className="inline-image-error" title="Failed to load image">
-        [Image Error: {alt}]
-      </span>
-    );
-  }
-  
-  return (
-    <>
-      <div 
-        className="inline-image-container"
-      >
-        <img
-          src={imageUrl}
-          alt={alt}
-          className="inline-image"
-          onClick={handleImageClick}
-          onError={() => setHasError(true)}
-          title="Click to view full size"
-        />
-      </div>
-      <ImageModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        src={imageUrl}
-        alt={alt}
-        assetNode={assetNode}
-        onBulletClick={handleBulletClick}
-        onBulletShiftClick={handleBulletShiftClick}
-        onBulletContextMenu={handleBulletContextMenu}
-      />
-      {contextMenu && (
-        <ContextMenu
-          items={contextMenuItems}
-          position={contextMenu}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-    </>
-  );
-}
-
 export function BlockContent({
   content,
   blockId,
@@ -635,16 +488,6 @@ export function BlockContent({
           );
         }
         
-        if (part.type === 'image') {
-          return (
-            <InlineImage
-              key={index}
-              uuid={part.imageUuid!}
-              alt={part.imageAlt!}
-            />
-          );
-        }
-        
         if (part.type === 'external-link') {
           return (
             <a
@@ -661,7 +504,7 @@ export function BlockContent({
         }
         
         return (
-          <LinkPill
+          <InlineLink
             key={index}
             linkId={part.id!}
             raw={part.raw!}

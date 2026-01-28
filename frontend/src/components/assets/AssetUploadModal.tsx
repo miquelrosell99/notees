@@ -19,6 +19,8 @@ interface AssetUploadModalProps {
   onUpload: (asset: Asset) => void;
   /** Optional parent node ID for the asset */
   parentId?: number;
+  /** Optional existing node ID to convert to asset (for empty blocks) */
+  existingNodeId?: number;
   /** Optional filter to limit accepted asset types */
   acceptedTypes?: AssetCategory[];
   /** Optional initial file to upload (e.g. from paste) */
@@ -85,6 +87,7 @@ export function AssetUploadModal({
   onClose,
   onUpload,
   parentId,
+  existingNodeId,
   acceptedTypes,
   initialFile,
 }: AssetUploadModalProps) {
@@ -200,7 +203,7 @@ export function AssetUploadModal({
     setError(null);
 
     try {
-      const asset = await uploadAsset(selectedFile, parentId);
+      const asset = await uploadAsset(selectedFile, parentId, existingNodeId);
       onUpload(asset);
       handleClose();
     } catch (err) {

@@ -25,6 +25,7 @@
  */
 import { useRef, useCallback, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import './BlockEditor.css';
+import './InlineNodeLink.css';
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
@@ -338,26 +339,12 @@ function contentToHtml(
         const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
         html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true"${uuidAttr}>${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
       } else {
-        // Render as atomic inline text link
-        const pillClass = isPage ? 'link-pill--page' : 'link-pill--block';
-        
-        // Only show icon if getEffectiveIcon returns a value
-        // Use renderIconHtml to handle emoji, MDI icon names, and SVG paths
-        let icon = '';
-        if (effectiveIcon) {
-          icon = renderIconHtml(effectiveIcon);
-        }
-        // No icon (or failed to render) = no icon shown (pure inline text link)
-        const hasIcon = icon.length > 0;
-        
-        const badge = clickCount > 0 
-          ? `<span class="link-pill__badge">${clickCount}</span>` 
-          : '';
-        
-        // Include link-uuid for click tracking (if present)
+        // Render as inline node link - atomic [[content]] style
+        // Use InlineNodeLink component styles
         const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
-        // Add data-node-id and data-label for proper serialization
-        html += `<span class="link-pill ${pillClass}${!hasIcon ? ' link-pill--no-icon' : ''}" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-node-id="${escapeAttr(pill.id)}" data-label="${escapeAttr(displayText)}"${uuidAttr}>${hasIcon ? `<span class="link-pill__icon">${icon}</span>` : ''}<span class="link-pill__text">${escapeHtml(displayText)}</span>${badge}</span>`;
+        const nodeUuidAttr = linkInfo ? ` data-node-uuid="${escapeAttr(linkInfo.name)}"` : '';
+        
+        html += `<span class="inline-node-link" contenteditable="false" data-node-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}"${uuidAttr}${nodeUuidAttr}><span class="inline-node-link__bracket">[[</span><span class="inline-node-link__content">${escapeHtml(displayText)}</span><span class="inline-node-link__bracket">]]</span></span>`;
       }
     } else {
       // Inline type pill
@@ -452,7 +439,8 @@ function getCaretCoordinates(element: HTMLDivElement): { top: number; left: numb
  * Check if an element is a pill (link, type, or tag)
  */
 function isPillElement(el: HTMLElement): boolean {
-  return el.classList?.contains('link-pill') || 
+  return el.classList?.contains('inline-node-link') || 
+         el.classList?.contains('link-pill') || 
          el.classList?.contains('type-pill') || 
          el.classList?.contains('tag-pill');
 }
@@ -461,7 +449,7 @@ function isPillElement(el: HTMLElement): boolean {
  * Get the raw content length of a pill element
  */
 function getPillRawLength(el: HTMLElement): number {
-  if (el.classList?.contains('link-pill') || el.classList?.contains('tag-pill')) {
+  if (el.classList?.contains('inline-node-link') || el.classList?.contains('link-pill') || el.classList?.contains('tag-pill')) {
     return (el.dataset.linkRaw || '').length;
   } else if (el.classList?.contains('type-pill')) {
     return (el.dataset.typeRaw || '').length;
@@ -1201,7 +1189,7 @@ export function BlockEditor({
     
     // Clear selected pill on typing
     if (selectedPill && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      selectedPill.classList.remove('link-pill--selected');
+      selectedPill.classList.remove('inline-node-link--selected', 'link-pill--selected');
       setSelectedPill(null);
     }
 
@@ -1372,7 +1360,7 @@ export function BlockEditor({
     // If a pill is selected, move cursor past it
     if (selectedPill) {
       e.preventDefault();
-      selectedPill.classList.remove('link-pill--selected');
+      selectedPill.classList.remove('inline-node-link--selected', 'link-pill--selected');
       setSelectedPill(null);
       
       const parent = selectedPill.parentNode;
@@ -1417,7 +1405,7 @@ export function BlockEditor({
         if (!prev && container.parentNode !== editorRef.current) {
           prev = container.parentNode?.previousSibling || null;
         }
-        if (prev && (prev as HTMLElement).classList?.contains('link-pill')) {
+        if (prev && ((prev as HTMLElement).classList?.contains('inline-node-link') || (prev as HTMLElement).classList?.contains('link-pill'))) {
           adjacentPill = prev as HTMLElement;
         }
       } else if (container.nodeType === Node.TEXT_NODE) {
@@ -1426,7 +1414,7 @@ export function BlockEditor({
         if (text === '\u200B' && range.startOffset <= 1) {
           // We're in a ZWS, check previous sibling for a pill
           let prev = container.previousSibling;
-          if (prev && (prev as HTMLElement).classList?.contains('link-pill')) {
+          if (prev && ((prev as HTMLElement).classList?.contains('inline-node-link') || (prev as HTMLElement).classList?.contains('link-pill'))) {
             adjacentPill = prev as HTMLElement;
           }
         }
@@ -1437,14 +1425,14 @@ export function BlockEditor({
       if (container.nodeType === Node.TEXT_NODE && 
           range.startOffset === (container.textContent?.length || 0)) {
         let next = container.nextSibling;
-        if (next && (next as HTMLElement).classList?.contains('link-pill')) {
+        if (next && ((next as HTMLElement).classList?.contains('inline-node-link') || (next as HTMLElement).classList?.contains('link-pill'))) {
           adjacentPill = next as HTMLElement;
         }
       } else if (container === editorRef.current) {
         // Cursor might be between nodes
         const childIndex = range.startOffset;
         const child = container.childNodes[childIndex];
-        if (child && (child as HTMLElement).classList?.contains('link-pill')) {
+        if (child && ((child as HTMLElement).classList?.contains('inline-node-link') || (child as HTMLElement).classList?.contains('link-pill'))) {
           adjacentPill = child as HTMLElement;
         }
       }
@@ -1453,7 +1441,7 @@ export function BlockEditor({
     if (adjacentPill) {
       e.preventDefault();
       // Select the pill (no need to deselect old pill since we return early if one is selected)
-      adjacentPill.classList.add('link-pill--selected');
+      adjacentPill.classList.add(adjacentPill.classList.contains('inline-node-link') ? 'inline-node-link--selected' : 'link-pill--selected');
       setSelectedPill(adjacentPill);
     }
   }, [selectedPill]);
