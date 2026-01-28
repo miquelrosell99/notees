@@ -145,6 +145,96 @@ class NodeService:
                 ]
                 raise DuplicateNodeError(name, conflicting_class_names)
     
+    async def _create_hierarchical_page(
+        self,
+        data: NodeCreateData,
+        user_id: Optional[int] = None,
+    ) -> Node:
+        """Create a page with hierarchical path (name contains '/').
+        
+        For a name like "Projects/Work/Q1 Planning", this will:
+        1. Create or find "Projects" as a root page
+        2. Create or find "Work" as a child of "Projects"
+        3. Create "Q1 Planning" as a child of "Work"
+        4. Return the leaf node
+        
+        All intermediate pages inherit the classes from the original request.
+        """
+        if not data.name or '/' not in data.name:
+            raise ValueError("Name must contain '/' for hierarchical creation")
+        
+        # Split the path into segments
+        segments = [s.strip() for s in data.name.split('/') if s.strip()]
+        
+        if not segments:
+            raise ValueError("Empty path after splitting")
+        
+        # Use provided classes or default to page class
+        classes = data.classes if data.classes else [self._page_class_id]
+        
+        # Walk through segments, creating or finding each parent
+        current_parent_id: Optional[int] = None
+        
+        for i, segment in enumerate(segments):
+            is_leaf = (i == len(segments) - 1)
+            
+            # Check if a page with this name already exists at this level
+            pool = self._node_repo.get_connection()
+            query = """
+                SELECT n.id
+                FROM node n
+                WHERE n.graph_id = $1 
+                    AND n.name = $2 
+                    AND n.is_page = TRUE 
+                    AND n.active = TRUE
+                    AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
+                LIMIT 1
+            """
+            row = await pool.fetchrow(query, self._graph_id, segment, current_parent_id)
+            
+            if row:
+                # Page exists, use it as parent for next iteration
+                current_parent_id = row['id']
+            else:
+                # Create new page at this level
+                page_data = NodeCreateData(
+                    name=segment,
+                    icon=data.icon if is_leaf else None,  # Only apply icon to leaf
+                    color=data.color if is_leaf else None,  # Only apply color to leaf
+                    parent_id=current_parent_id,
+                    classes=classes,
+                    is_page=True,
+                    property_values=data.property_values if is_leaf else None,  # Only apply properties to leaf
+                )
+                
+                # Validate and create
+                validate_node_create(page_data.name, page_data.icon, page_data.color)
+                
+                # Validate uniqueness for this segment
+                if page_data.classes:
+                    await self._validate_page_name_uniqueness(
+                        name=page_data.name,
+                        parent_id=page_data.parent_id,
+                        classes=page_data.classes,
+                    )
+                
+                new_page = await self._node_repo.create(page_data, user_id)
+                
+                # Parse links and inline classes for the new page
+                if new_page.name and new_page.id is not None:
+                    await self._link_service.update_node_links(new_page.id, new_page.name)
+                    await self._link_service.update_inline_classes(new_page.id, new_page.name)
+                
+                if is_leaf:
+                    # This is the final node to return
+                    return new_page
+                else:
+                    # Use this as parent for next iteration
+                    current_parent_id = new_page.id
+        
+        # Should never reach here, but handle gracefully
+        raise RuntimeError("Failed to create hierarchical page")
+    
     async def create_node(
         self,
         data: NodeCreateData,
@@ -157,7 +247,12 @@ class NodeService:
         - Computes page_id for blocks
         - Parses content for links and inline classes
         - Applies tag properties (SuperTags)
+        - For pages with '/' in name, creates parent hierarchy automatically
         """
+        # Handle hierarchical page creation (name contains '/')
+        if data.is_page and data.name and '/' in data.name and not data.parent_id:
+            return await self._create_hierarchical_page(data, user_id)
+        
         # Validate input
         validate_node_create(data.name, data.icon, data.color)
         
