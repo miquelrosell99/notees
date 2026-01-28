@@ -353,7 +353,14 @@ export function NodeCard({
               >
                 {coverUrl ? (
                   <>
-                    <img src={coverUrl} alt="" className="node-card__cover-image" />
+                    <img 
+                      src={coverUrl} 
+                      alt="" 
+                      className="node-card__cover-image"
+                      onClick={() => setIsCoverModalOpen(true)}
+                      style={{ cursor: 'pointer' }}
+                      title="Click to view full size"
+                    />
                     {editable && (
                       <AssetActions
                         onEdit={() => setIsAssetUploadOpen(true)}
