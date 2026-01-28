@@ -45,19 +45,15 @@ export type { SlashCommandPopupProps, SlashCommand } from './SlashCommandPopup';
 // List components
 export { TagList, TaggedNodes } from './TagList';
 
-// Linked references
-export { LinkedReferences, References, useLinkedReferencesCount } from './LinkedReferences';
+// Node View Section
 export { NodeViewSection } from './nodes/NodeViewSection';
 export type { NodeViewSectionProps } from './nodes/NodeViewSection';
-// ReferencesView - not yet implemented
 
 // Properties (from properties/ folder)
 export { PropertiesSection, InlineProperties } from './PropertiesSection';
 export { NodePicker } from './nodes/NodePicker';
 export { ClassExtendsEditor } from './ClassExtendsEditor';
 export { ClassPropertiesEditor } from './ClassPropertiesEditor';
-export { ClassedNodesView, useClassedNodesSectionState, ClassedNodesSectionToolbar } from './ClassedNodesSection';
-export type { ClassedNodesSectionToolbarState } from './ClassedNodesSection';
 export { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from './ChildPagesSection';
 export type { ChildPagesSectionToolbarState } from './ChildPagesSection';
 export { PropertyConfigPanel } from './properties/PropertyConfigPanel';

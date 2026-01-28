@@ -29,12 +29,11 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useBlockOperation } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useVisibleBlockIds, useBlockParentMap } from '@/stores';
+import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
-import { AssetBlock } from './AssetBlock';
 import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -161,9 +160,6 @@ function BlockInternal({
   // Parent map for hierarchy lookups
   const blockParentMapFromStore = useBlockParentMap();
   
-  // Operation queue for race condition protection on structural operations
-  const { wrapOperation } = useBlockOperation();
-  
   // PERFORMANCE: Use fine-grained selectors for selection state
   // These only trigger re-renders when THIS block's state changes
   const globalIsSelected = useIsBlockSelected(block.id);
@@ -180,11 +176,6 @@ function BlockInternal({
       .map((classId: number) => allClasses.find((c: Node) => c.id === classId))
       .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
   }, [block.classes, allClasses]);
-  
-  // Detect if block is an asset node (for atomic block behavior)
-  const isAssetBlock = useMemo(() => {
-    return blockClassDetails.some((c: Node) => c.uuid === SYSTEM_CLASS_UUIDS.asset);
-  }, [blockClassDetails]);
   
   // Determine the icon to show on the bullet
   // Priority: block's own icon > first class's icon
@@ -542,16 +533,6 @@ function BlockInternal({
     // Enter edit mode
     setBlockState(block.id, 'edit');
   }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick, setPendingCaret]);
-  
-  // Handle deleting a link from block content (replaces [[link]] with plain text)
-  const handleDeleteLink = useCallback((raw: string) => {
-    if (!block.name || !canEdit) return;
-    
-    // Remove the link syntax, keeping just the displayed text if needed
-    // The raw value is the full link syntax like "[[123]]"
-    const newContent = block.name.replace(raw, '');
-    onContentChange?.(block.id, newContent);
-  }, [block.id, block.name, canEdit, onContentChange]);
   
   // Handle bullet click for navigation
   const handleBulletClickInternal = useCallback((e: React.MouseEvent) => {
@@ -1544,7 +1525,6 @@ function BlockInternal({
             interactive={canMove || canSelect || !!onBulletClick}
             hasChildren={hasChildren}
             collapsed={isCollapsed}
-            hasCover={!!block.properties?.cover}
             onDragStart={handleDragStart}
             draggable={canMove && blockState !== 'edit'}
             onClick={handleBulletClickInternal}
@@ -1601,30 +1581,17 @@ function BlockInternal({
               ref={contentRef}
               className={`block-content-view${!block.name ? ' block-content-view--empty' : ''}`}
             >
-              {/* Asset node rendering - BlockImage or BlockAsset based on file type */}
-              {assetInfo ? (
-                assetInfo.isImage ? (
-                  <BlockImage
-                    nodeId={block.id}
-                    nodeUuid={block.uuid}
-                    title={block.name || ''}
-                    editable={canEdit}
-                    onTitleChange={(newTitle) => onContentChange?.(block.id, newTitle)}
-                  />
-                ) : (
-                  <BlockAsset
-                    nodeId={block.id}
-                    nodeUuid={block.uuid}
-                    title={block.name || ''}
-                    fileExtension={assetInfo.extension}
-                    editblocks are atomic - rendered with AssetBlock component */}
-              {isAssetBlock ? (
-                <AssetBlock
-                  node={block}
-                  isSelected={isSelected}
-                  canEdit={canEdit}
-                  onTitleChange={onContentChange}
-                /> size="xs"
+              <BlockContent
+                content={block.name || ''}
+                blockId={block.id}
+                onClick={() => {}}
+              />
+              
+              {/* Comment count badge */}
+              {commentCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="xs"
                   className="block-comment-badge"
                   onClick={(e) => {
                     e.stopPropagation();

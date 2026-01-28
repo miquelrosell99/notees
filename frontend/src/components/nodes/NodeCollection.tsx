@@ -141,7 +141,10 @@ export function NodeCollection({
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
   const storeCardLayout = useNodesStore(state => state.cardLayout);
-  const effectiveCardLayout = cardLayout ?? storeCardLayout;
+  const rawCardLayout = cardLayout ?? storeCardLayout;
+  // Filter out invalid 'cover-bottom' from old persisted state
+  const effectiveCardLayout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right' = 
+    (rawCardLayout === 'cover-bottom' ? 'no-cover' : rawCardLayout);
   
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);

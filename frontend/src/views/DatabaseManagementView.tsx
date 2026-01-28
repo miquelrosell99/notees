@@ -16,9 +16,10 @@ import {
   type DatabaseInfo,
 } from '@/api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore } from '@/stores';
-import { DatabaseModal } from '../components/databases/DatabaseModal';
-import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
-import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
+// TODO: Database modal components not yet implemented
+// import { DatabaseModal } from '../components/databases/DatabaseModal';
+// import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
+// import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
 import { 
   ArrowRightIcon,
   CheckIcon, 
@@ -408,22 +409,20 @@ export function DatabaseManagementView({
         </footer>
       </div>
 
-      {/* Create Database Modal */}
-      <DatabaseModal
+      {/* TODO: Database modal components not yet implemented */}
+      {/* <DatabaseModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={handleDatabaseCreated}
-      />
+      /> */}
 
-      {/* Import Options Modal */}
-      <ImportOptionsModal
+      {/* <ImportOptionsModal
         isOpen={isImportOptionsOpen}
         onClose={() => setIsImportOptionsOpen(false)}
         onSelectOption={handleImportOptionSelected}
-      />
+      /> */}
 
-      {/* Import Name Modal */}
-      <DatabaseNameModal
+      {/* <DatabaseNameModal
         isOpen={importNameModalState.isOpen}
         onClose={handleImportNameModalClose}
         onSubmit={handleImportNameSubmit}
@@ -434,10 +433,9 @@ export function DatabaseManagementView({
         submitLabel="Import Graph"
         isLoading={importMutation.isPending}
         error={importError}
-      />
+      /> */}
 
-      {/* Rename Graph Modal */}
-      <DatabaseNameModal
+      {/* <DatabaseNameModal
         isOpen={renameModalState.isOpen}
         onClose={handleRenameModalClose}
         onSubmit={handleRenameSubmit}
@@ -445,7 +443,7 @@ export function DatabaseManagementView({
         submitLabel="Rename Graph"
         isLoading={renameMutation.isPending}
         error={renameError}
-      />
+      /> */}
     </div>
   );
 }

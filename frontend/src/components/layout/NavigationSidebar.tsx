@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { GraphSwitcher } from '../graphs/GraphSwitcher';
 import { GraphModal } from '../graphs/GraphModal';
 import { SettingsModal } from '../SettingsModal';
@@ -156,6 +156,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
               onClick={() => setMainViewType('all-pages')}
             >
               All Pages
+            </Button>
+            
+            <Button 
+              className={`sidebar-nav-item ${mainViewType === 'archived' ? 'active' : ''}`}
+              variant="ghost"
+              size="sm"
+              icon={mdiArchive}
+              fullWidth
+              active={mainViewType === 'archived'}
+              onClick={() => setMainViewType('archived')}
+            >
+              Archived
             </Button>
             
             <Button 

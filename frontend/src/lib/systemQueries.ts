@@ -5,8 +5,7 @@
  * These queries are used for features like linked references, child pages, etc.
  */
 
-import type { QueryAST, ReferenceCondition, TypeCondition, PropertyCondition } from '@/types/queryAST';
-import { createDefaultScope, createEmptyGroup } from './queryASTHelpers';
+import type { QueryAST, ReferenceCondition, TypeCondition, PropertyCondition, ContentCondition } from '@/types/queryAST';
 
 /**
  * Create a system query for linked references to a specific page.
@@ -17,7 +16,6 @@ export function createLinkedReferencesQuery(pageUuid: string): QueryAST {
     type: 'condition',
     condition_type: 'reference',
     target_uuid: pageUuid,
-    direction: 'incoming', // Pages that link TO this page
   };
 
   return {
@@ -48,7 +46,7 @@ export function createChildPagesQuery(parentPageUuid: string): QueryAST {
     condition_type: 'property',
     property_name: 'parent_uuid',
     property_type: 'text',
-    operator: 'equals',
+    operator: '=',
     value: parentPageUuid,
   };
 
@@ -104,7 +102,7 @@ export function createClassedNodesQuery(typeUuid: string, typeName?: string): Qu
  * Shows pages that mention the page name but don't have an explicit link.
  */
 export function createUnlinkedReferencesQuery(pageName: string): QueryAST {
-  const condition: PropertyCondition = {
+  const condition: ContentCondition = {
     type: 'condition',
     condition_type: 'content',
     operator: 'contains',
@@ -142,7 +140,7 @@ export function createRecentChangesQuery(daysBack: number = 7): QueryAST {
     condition_type: 'property',
     property_name: 'updated_at',
     property_type: 'date',
-    operator: 'greater_than',
+    operator: '>',
     value: dateThreshold.toISOString(),
   };
 
@@ -183,7 +181,7 @@ export function isSystemQueryPattern(query: QueryAST): boolean {
     
     if (child.type === 'condition') {
       // Linked references pattern: reference condition with specific target
-      if (child.condition_type === 'reference' && child.direction === 'incoming') {
+      if (child.condition_type === 'reference') {
         return true;
       }
       
