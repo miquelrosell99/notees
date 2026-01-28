@@ -33,61 +33,7 @@ import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { stripHtml } from '@/utils/sanitize';
 import { mdiTag } from '@mdi/js';
-import * as mdiIcons from '@mdi/js';
 import type { Node } from '@/types';
-
-/**
- * Convert an icon name to an MDI SVG path
- * Accepts formats: "mdi-calendar-today", "mdiCalendarToday", "calendar-today", "calendarToday"
- */
-function getMdiPath(iconName: string): string | null {
-  // Normalize: remove "mdi-" prefix, convert kebab-case to camelCase
-  let normalized = iconName
-    .replace(/^mdi-?/i, '')  // Remove mdi- or mdi prefix
-    .replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());  // kebab to camelCase
-  
-  // Ensure first letter is lowercase, then prepend "mdi"
-  normalized = 'mdi' + normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  
-  // Look up in the mdiIcons object
-  const path = (mdiIcons as Record<string, string>)[normalized];
-  return path || null;
-}
-
-/**
- * Check if a string is likely an emoji (not an MDI-like pattern)
- */
-function isEmoji(icon: string): boolean {
-  // Emojis typically don't match MDI patterns and are short
-  return !icon.match(/^mdi/i) && !icon.match(/^[a-z-]+$/i) && !icon.startsWith('M');
-}
-
-/**
- * Render an icon as HTML for contenteditable
- * Handles: emoji, MDI icon names, and raw SVG paths
- */
-function renderIconHtml(icon: string, size: number = 14.4): string {
-  // Check if it's an emoji
-  if (isEmoji(icon)) {
-    return `<span class="link-pill__icon" style="font-size: ${size}px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;">${icon}</span>`;
-  }
-  
-  // Check if it's already an SVG path (starts with M for moveto command)
-  let svgPath = icon;
-  if (!icon.startsWith('M')) {
-    // Try to resolve as MDI icon name
-    const mdiPath = getMdiPath(icon);
-    if (!mdiPath) {
-      // Could not resolve - don't show icon
-      return '';
-    }
-    svgPath = mdiPath;
-  }
-  
-  // Render as SVG
-  const iconSvg = `<svg viewBox="0 0 24 24" style="width: ${size}px; height: ${size}px;"><path fill="currentColor" d="${svgPath}"></path></svg>`;
-  return `<span class="link-pill__icon">${iconSvg}</span>`;
-}
 
 // Task states for cycling with Shift+Enter
 export const TASK_STATES = ['todo', 'doing', 'done', 'cancelled'] as const;
@@ -323,11 +269,8 @@ function contentToHtml(
       // Look up the link info
       const linkInfo = linkNames.get(pill.id);
       const displayText = linkInfo?.name || pill.id;
-      const isPage = linkInfo?.isPage ?? true;
       const isTag = linkInfo?.isTag ?? false;
-      const clickCount = linkInfo?.clickCount ?? 0;
       // effectiveIcon is computed from getEffectiveIcon - includes node's icon or type-inherited icon
-      const effectiveIcon = linkInfo?.effectiveIcon;
       
       if (isTag) {
         // Render as tag pill with hashtag icon
