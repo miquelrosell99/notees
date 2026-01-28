@@ -263,9 +263,9 @@ export function NodeTimelineRenderer({
       ctx.fillRect(x - 1, height / 2 - 8, 2, 16);
     });
     
-    // View zone
+    // View zone (clamped to 0-width)
     const viewWidth = width / scale;
-    const viewX = -panX / scale;
+    const viewX = Math.max(0, Math.min(width - viewWidth, -panX / scale));
     
     ctx.strokeStyle = '#6366f1';
     ctx.fillStyle = '#6366f144';
