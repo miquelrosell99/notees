@@ -176,10 +176,8 @@ export interface NodeCreate {
   parent_id?: number | null;
   sequence?: number;
   tags?: number[];
-  classes?: number[];
+  classes?: number[];  // Class node IDs - backend computes is_page, is_class etc from these
   properties?: Record<number, unknown>;
-  is_page?: boolean;  // Create as a page (no parent needed)
-  is_class?: boolean;  // Create as a class/type (is_class=true)
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;

@@ -41,28 +41,20 @@ async def create_node(
     """Create a new node."""
     service = await _get_node_service(user)
     
-    # Handle date nodes with special UUIDs
-    # The repository will use generate_uuid() by default,
-    # but for date nodes we override
-    classes = list(request.classes)
-    
-    # TODO: Look up date class IDs and add them
-    # For now, dates are handled by classes parameter from client
-    
+    # Create node with provided classes
+    # The repository will compute is_page, is_class, etc. from the classes
     data = NodeCreateData(
         name=request.name,
         icon=request.icon,
         color=request.color,
         parent_id=request.parent_id,
         sequence=request.sequence,
-        classes=classes,
+        classes=list(request.classes),
         property_values=request.properties,
-        is_page=request.is_page,
-        is_class=request.is_class,
     )
     
     node = await service.create_node(data, user_id=None)  # TODO: user_id from JWT
-    return _node_to_response(node, classes=classes)
+    return _node_to_response(node, classes=list(request.classes))
 
 
 @router.post("/page")

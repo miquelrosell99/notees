@@ -98,10 +98,8 @@ class NodeCreateRequest(BaseModel):
     color: Optional[str] = None
     parent_id: Optional[int] = None
     sequence: int = 0
-    classes: List[int] = []  # Class node IDs
+    classes: List[int] = []  # Class node IDs - flags are computed from these
     properties: Dict[int, Any] = {}  # property_id -> value
-    is_page: bool = False  # Whether to create as a page
-    is_class: bool = False  # Whether to create as a class definition
     # For date nodes
     is_daily: bool = False
     daily_date: Optional[str] = None  # YYYY-MM-DD
