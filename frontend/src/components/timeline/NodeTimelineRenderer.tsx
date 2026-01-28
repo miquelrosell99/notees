@@ -22,6 +22,7 @@ import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiCalendarPlus, mdiCalendarEdit,
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
+import { ToggleSwitch } from '../core/ToggleSwitch';
 import { TypeColorsPanel } from '../shared/TypeColorsPanel';
 import { generateGravityPoints, assignNodesToGravityPoints, getZoomLevelFromScale } from './utils/gravityPoints';
 import { assignLanes } from './utils/laneAssignment';
@@ -71,7 +72,7 @@ export function NodeTimelineRenderer({
   const [hoveredNode, setHoveredNode] = useState<TimelineNode | null>(null);
   const [hoveredGravityPoint, setHoveredGravityPoint] = useState<GravityPoint | null>(null);
   const [currentDateProperty, setCurrentDateProperty] = useState<DateProperty>(dateProperty);
-  const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week' | 'custom'>('custom');
+  const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week' | 'custom'>('year');
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
   
   const transformRef = useRef(transform);
@@ -141,6 +142,17 @@ export function NodeTimelineRenderer({
     }, 500);
     return () => clearTimeout(timer);
   }, [currentDateProperty]);
+  
+  // Apply initial year zoom preset on mount
+  useEffect(() => {
+    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
+    if (totalDays > 0) {
+      const targetDays = 365; // year
+      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, totalDays / targetDays));
+      setTransform(prev => ({ ...prev, scale: newScale }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
   
   // Keep transform ref in sync
   useEffect(() => {
@@ -732,12 +744,12 @@ export function NodeTimelineRenderer({
   ];
   
   const zoomPresetOptions = [
-    { value: 'decade', label: 'D', tooltip: '10 Years' },
-    { value: 'year', label: 'Y', tooltip: '1 Year' },
-    { value: 'semester', label: 'S', tooltip: '6 Months' },
-    { value: 'quatrimester', label: 'Q', tooltip: '4 Months' },
-    { value: 'month', label: 'M', tooltip: '1 Month' },
-    { value: 'week', label: 'W', tooltip: '1 Week' },
+    { value: 'decade', label: 'Decade', icon: mdiCalendarPlus },
+    { value: 'year', label: 'Year', icon: mdiCalendarEdit },
+    { value: 'semester', label: 'Semester', icon: mdiCalendarClock },
+    { value: 'quatrimester', label: 'Quatrimester', icon: mdiCog },
+    { value: 'month', label: 'Month', icon: mdiPalette },
+    { value: 'week', label: 'Week', icon: mdiMagnify },
   ];
   
   return (
@@ -837,27 +849,19 @@ export function NodeTimelineRenderer({
       </div>
       
       <div className="node-timeline-renderer__bottom-controls">
-        <div className="timeline-zoom-preset">
-          {zoomPresetOptions.map(opt => (
-            <Button
-              key={opt.value}
-              variant={zoomPreset === opt.value ? 'primary' : 'default'}
-              size="sm"
-              onClick={() => zoomToPreset(opt.value as any)}
-              title={opt.tooltip}
-              className="timeline-zoom-preset-btn"
-            >
-              {opt.label}
-            </Button>
-          ))}
-        </div>
-        
-        <Button
-          icon={orientation === 'horizontal' ? mdiArrowExpandHorizontal : mdiArrowExpandVertical}
-          variant="default"
+        <SelectionButton
+          options={zoomPresetOptions}
+          value={zoomPreset === 'custom' ? 'year' : zoomPreset}
+          onChange={(val) => zoomToPreset(val as any)}
           size="sm"
-          onClick={() => setOrientation(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-          title={`Switch to ${orientation === 'horizontal' ? 'vertical' : 'horizontal'} orientation`}
+        />
+        
+        <ToggleSwitch
+          leftLabel="Horizontal"
+          rightLabel="Vertical"
+          checked={orientation === 'vertical'}
+          onChange={(checked) => setOrientation(checked ? 'vertical' : 'horizontal')}
+          size="sm"
         />
       </div>
       
