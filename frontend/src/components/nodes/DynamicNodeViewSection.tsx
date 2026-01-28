@@ -67,6 +67,8 @@ export interface DynamicNodeViewSectionProps {
   defaultExpanded?: boolean;
   /** Callback when a node is clicked */
   onNodeClick?: (nodeId: number, isPage?: boolean) => void;
+  /** Callback when a block is created (for opening in sidebar) */
+  onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
 }
@@ -99,8 +101,9 @@ export function DynamicNodeViewSection({
   hideWhenEmpty = true,
   defaultExpanded = true,
   onNodeClick,
+  onBlockCreated,
   className = '',
-}: DynamicNodeViewSectionProps) {
+}: DynamicNodeViewSectionProps): JSX.Element | null {
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
@@ -475,12 +478,16 @@ export function DynamicNodeViewSection({
       }
 
       const newNode = await createNodeMutation.mutateAsync(nodeData);
-      
-      // Open the new node for editing
-      onNodeClick?.(newNode.id, newNode.is_page);
+      - blocks open in sidebar, pages open in main view
+      if (newNode.is_page) {
+        onNodeClick?.(newNode.id, true);
+      } else {
+        onBlockCreated?.(newNode.id);
+      }
     } catch (error) {
       console.error('Failed to create node:', error);
     }
+  }, [viewType, nodeId, createNodeMutation, onNodeClick, onBlockCreated
   }, [viewType, nodeId, createNodeMutation, onNodeClick]);
 
   // Loading state - wait for views to load AND ensure defaults to complete

@@ -464,6 +464,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                 hideWhenEmpty={true}
                 defaultExpanded={false}
                 onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+                onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               />
             )}
             
@@ -478,6 +479,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                 hideWhenEmpty={true}
                 defaultExpanded={false}
                 onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+                onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               />
             )}
             
@@ -491,6 +493,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
               defaultExpanded={false}
               hideWhenEmpty={true}
               onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
+              onBlockCreated={(targetId) => addSidebarCard(targetId, 'block')}
             />
           </>
         )}
@@ -564,6 +567,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             icon={<LinkIcon size="sm" />}
             hideWhenEmpty={true}
             defaultExpanded={false}
+            onBlockCreated={(targetId) => addSidebarCard(targetId, 'block')}
             onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
           />
         </div>

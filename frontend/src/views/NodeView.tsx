@@ -590,6 +590,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           hideWhenEmpty={false}
           defaultExpanded={true}
           onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
         />
       )}
       
@@ -604,6 +605,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           hideWhenEmpty={true}
           defaultExpanded={true}
           onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
         />
       )}
       
@@ -626,6 +628,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         defaultExpanded={!linkedRefsCollapsed}
         hideWhenEmpty={true}
         onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
+        onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
       />
       
       {/* Footer */}
