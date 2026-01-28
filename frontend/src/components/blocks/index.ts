@@ -8,7 +8,6 @@
 export { Block } from './Block';
 export { BlockEditor, TASK_STATES } from './BlockEditor';
 export type { TaskState } from './BlockEditor';
-export { BlockContent } from './BlockContent';
 
 // Block preview (deprecated - use Block with capability flags)
 export { BlockPreview } from './BlockPreview';
@@ -25,7 +24,4 @@ export type { BlockDragProps } from './BlockDrag';
 // Bullet component
 export { Bullet } from './Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './Bullet';
-
-// Specialized blocks
-export { ImageBlock } from './ImageBlock';
 export { TextPropertyBlock } from './TextPropertyBlock';
