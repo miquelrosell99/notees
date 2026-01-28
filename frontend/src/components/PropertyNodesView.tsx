@@ -60,7 +60,7 @@ function useNodesWithProperty(propertyId: number | null) {
           parent_id: item.parent_id,
           page_id: item.page_id,
           is_page: item.is_page,
-          is_type: item.is_type,
+          is_class: item.is_class,
           sequence: 0,
           collapsed: false,
           active: true,
