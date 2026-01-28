@@ -200,6 +200,21 @@ export function NodeTimelineRenderer({
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
   
+  // Add native wheel event listener to prevent browser zoom
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const handleNativeWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+    
+    canvas.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleNativeWheel);
+  }, []);
+  
   // Render timeline
   const render = useCallback(() => {
     const canvas = canvasRef.current;
