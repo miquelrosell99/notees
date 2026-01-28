@@ -30,6 +30,7 @@
 .node-timeline-renderer__canvas {
   flex: 1;
   cursor: grab;
+  touch-action: none; /* Prevent browser gestures */
 }
 
 .node-timeline-renderer__canvas:active {
