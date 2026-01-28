@@ -324,8 +324,8 @@ export function NodeCard({
         {/* Vertical layout: cover-top or no-cover */}
         {!isHorizontalLayout && (
           <>
-            {/* Cover image or Add Cover button (vertical) */}
-            {effectiveLayout === 'cover-top' && (
+            {/* Cover image or Add Cover button (vertical) - show if cover exists or layout explicitly requests cover */}
+            {(coverUrl || effectiveLayout === 'cover-top') && (
               <div 
                 className="node-card__cover" 
                 onClick={(e) => e.stopPropagation()}
