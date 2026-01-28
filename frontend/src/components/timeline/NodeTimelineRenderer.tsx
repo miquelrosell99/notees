@@ -238,19 +238,18 @@ export function NodeTimelineRenderer({
     
     const totalMs = dateRange.end.getTime() - dateRange.start.getTime();
     
-    // Calculate what portion of the timeline is visible
-    // panX is in screen pixels, scale stretches the timeline
-    // At panX=0, left edge is at dateRange.start
-    // The visible portion of the timeline (0-1 range) starts at:
+    // Calculate visible days based on scale directly
+    // When scale < 1, we're viewing more than the dateRange
+    // The visible window is: totalDays / scale
+    const totalDays = totalMs / (24 * 60 * 60 * 1000);
+    const visibleDays = totalDays / scale;
+    
+    // Calculate visible date range for marker positioning
     const visibleStartRatio = Math.max(0, -panX / (width * scale));
     const visibleEndRatio = Math.min(1, (-panX + width) / (width * scale));
     
     const visibleStart = new Date(dateRange.start.getTime() + visibleStartRatio * totalMs);
     const visibleEnd = new Date(dateRange.start.getTime() + visibleEndRatio * totalMs);
-    
-    // Determine marker interval based on visible time span
-    const visibleMs = visibleEnd.getTime() - visibleStart.getTime();
-    const visibleDays = visibleMs / (24 * 60 * 60 * 1000);
     
     // Fade markers when zoom changes significantly (but always use current visibleDays for calculations)
     const daysDiff = Math.abs(visibleDays - prevVisibleDays);
