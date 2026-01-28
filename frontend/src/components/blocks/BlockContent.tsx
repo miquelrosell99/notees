@@ -500,21 +500,6 @@ function InlineImage({ uuid, alt }: InlineImageProps) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {assetNode && isHovered && (
-          <div className="inline-image-bullet">
-            <Bullet
-              nodeId={assetNode.id}
-              icon={assetNode.icon}
-              isPage={assetNode.is_page}
-              interactive={true}
-              onClick={handleBulletClick}
-              onShiftClick={handleBulletShiftClick}
-              onContextMenu={handleBulletContextMenu}
-              size="sm"
-              title="Click to open, Shift+click for sidebar"
-            />
-          </div>
-        )}
         <img
           src={imageUrl}
           alt={alt}
@@ -529,6 +514,10 @@ function InlineImage({ uuid, alt }: InlineImageProps) {
         onClose={() => setIsModalOpen(false)}
         src={imageUrl}
         alt={alt}
+        assetNode={assetNode}
+        onBulletClick={handleBulletClick}
+        onBulletShiftClick={handleBulletShiftClick}
+        onBulletContextMenu={handleBulletContextMenu}
       />
       {contextMenu && (
         <ContextMenu

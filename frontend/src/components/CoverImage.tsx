@@ -256,22 +256,6 @@ export function CoverImage({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Bullet - top left corner, visible on hover */}
-      {assetNode && isHovered && (
-        <div className="cover-image-card__bullet">
-          <Bullet
-            nodeId={assetNode.id}
-            icon={assetNode.icon}
-            isPage={assetNode.is_page}
-            interactive={true}
-            onClick={handleBulletClick}
-            onShiftClick={handleBulletShiftClick}
-            size="sm"
-            title="Click to open, Shift+click for sidebar"
-          />
-        </div>
-      )}
-      
       {/* Action buttons - vertical stack on left side of image */}
       {editable && (
         <AssetActions
@@ -310,6 +294,9 @@ export function CoverImage({
         onClose={() => setIsModalOpen(false)}
         src={imageUrl}
         alt="Cover"
+        assetNode={assetNode}
+        onBulletClick={handleBulletClick}
+        onBulletShiftClick={handleBulletShiftClick}
       />
     </div>
   );
