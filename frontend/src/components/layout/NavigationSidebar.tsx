@@ -274,7 +274,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {/* Footer - Trash & Settings */}
         <div className="sidebar-footer">
           <Button 
-            className="sidebar-trash-btn"
+            className="sidebar-nav-item"
             variant="ghost"
             size="sm"
             icon={mdiTrashCanOutline}
@@ -286,7 +286,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             Trash
           </Button>
           <Button 
-            className="sidebar-settings-btn"
+            className="sidebar-nav-item"
             variant="ghost"
             size="sm"
             icon={mdiCog}
