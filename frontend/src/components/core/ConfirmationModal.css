@@ -29,6 +29,14 @@
   white-space: pre-line;
 }
 
+.confirmation-modal__secondary-message {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: -16px;
+  margin-bottom: 24px;
+}
+
 .confirmation-modal__actions {
   display: flex;
   gap: 12px;

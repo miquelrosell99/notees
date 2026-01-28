@@ -9,7 +9,7 @@
  * The menus are composable - page and block menus include the common items.
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode } from '@/hooks';
+import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
@@ -170,6 +170,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   }, []);
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const updateNode = useUpdateNode();
+  const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };
@@ -203,6 +204,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
@@ -232,6 +234,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
+  const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
   // Favorites - use selector for data, getState() for actions
   const favorites = useFavoritesStore((state) => state.favorites);
@@ -338,6 +341,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
@@ -375,6 +379,7 @@ export function BlockContextMenu({
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
   const { openNode } = useNodesStore();
   const updateNode = useUpdateNode();
+  const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
   const blockItems = useMemo((): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [
@@ -448,6 +453,16 @@ export function BlockContextMenu({
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
+    </>
+  );
+}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
