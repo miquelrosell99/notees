@@ -463,14 +463,5 @@ export function BlockContextMenu({
     </>
   );
 }
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
-      />
-    </>
-  );
-}
 
 export default NodeContextMenu;
