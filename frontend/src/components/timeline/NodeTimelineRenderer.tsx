@@ -9,7 +9,6 @@ import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM, mdiAlphaW } from '@mdi/js';
-import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -196,15 +195,7 @@ export function NodeTimelineRenderer({
     
     ctx.clearRect(0, 0, width, height);
     
-    // Draw timeline line
-    ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--color-outline').trim() || '#a3a3a3';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(width, centerY);
-    ctx.stroke();
-    
-    // Draw time markers
+    // Draw time markers FIRST (behind timeline)
     const textColor = getComputedStyle(canvas).getPropertyValue('--color-on-surface-variant').trim() || '#a3a3a3';
     ctx.fillStyle = textColor;
     ctx.font = '11px sans-serif';
@@ -260,6 +251,14 @@ export function NodeTimelineRenderer({
         ctx.fillText(dateFormat(markerDate), x, centerY + 10);
       }
     }
+    
+    // Draw timeline line
+    ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--color-outline').trim() || '#a3a3a3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    ctx.lineTo(width, centerY);
+    ctx.stroke();
     
     // Draw time events
     timeEvents.forEach(event => {
