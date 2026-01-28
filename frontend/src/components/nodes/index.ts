@@ -17,9 +17,6 @@ export { NodeContextMenu, PageContextMenu, BlockContextMenu, ColorPickerRow } fr
 export { NodeLink } from './NodeLink';
 export type { NodeLinkProps } from './NodeLink';
 
-export { NodeLinkSearch } from './NodeLinkSearch';
-export type { NodeLinkSearchProps, LinkSearchType } from './NodeLinkSearch';
-
 
 
 export { NodePicker } from './NodePicker';
