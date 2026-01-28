@@ -55,9 +55,9 @@ import {
   NodeCardView, 
   NodeTableView, 
   NodeGanttView,
-  NodeTimelineView, 
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
+import { NodeTimelineRenderer } from '@/components/timeline';
 import { BlockCallbacksProvider, type BlockCallbacks } from '../blocks/BlockCallbacksContext';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import './NodeCollectionToolbar.css';
@@ -292,7 +292,7 @@ export function NodeCollection({
         return <NodeGanttView {...viewProps} />;
       
       case 'timeline':
-        return <NodeTimelineView {...viewProps} />;
+        return <NodeTimelineRenderer nodes={nodes} />;
       
       case 'graph':
         // Graph only shows pages - convert Node to GraphNode format
