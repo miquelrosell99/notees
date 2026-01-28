@@ -602,7 +602,7 @@ export function DynamicNodeViewSection({
             viewMode={collectionViewMode}
             availableViewModes={['list', 'table', 'card']}
             onViewModeChange={handleViewModeChange}
-            editable={false}
+            editable={true}
             hideToolbar={true}
             showGroupBy={collectionViewMode === 'list'}
             groupBy={groupBy}
