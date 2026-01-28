@@ -268,19 +268,19 @@ export function NodeTimelineRenderer({
     let dateFormat: (date: Date) => string;
     
     // Choose interval based on how many days are visible (always use current value)
-    if (visibleDays <= 7) {
+    if (visibleDays <= 10) {
       markerInterval = 24 * 60 * 60 * 1000; // 1 day
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (visibleDays <= 60) {
+    } else if (visibleDays <= 90) {
       markerInterval = 7 * 24 * 60 * 60 * 1000; // 1 week
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (visibleDays <= 180) {
+    } else if (visibleDays <= 365) {
       markerInterval = 30 * 24 * 60 * 60 * 1000; // ~1 month
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (visibleDays <= 730) {
+    } else if (visibleDays <= 1460) {
       markerInterval = 90 * 24 * 60 * 60 * 1000; // ~3 months
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (visibleDays <= 3650) {
+    } else if (visibleDays <= 5475) {
       markerInterval = 365 * 24 * 60 * 60 * 1000; // 1 year
       dateFormat = (d) => d.getFullYear().toString();
     } else {
@@ -636,8 +636,8 @@ export function NodeTimelineRenderer({
       preset === 'year' ? 365 :
       preset === 'semester' ? 180 :
       preset === 'quatrimester' ? 120 :
-      preset === 'month' ? 45 :  // Increased from 30 to show more context
-      14;  // Increased from 7 to show 2 weeks
+      preset === 'month' ? 60 :  // Increased to show full 2 months
+      7;  // Show exactly 7 days to get day markers
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, calculateScaleForDays(targetDays)));
     
     const today = new Date();
