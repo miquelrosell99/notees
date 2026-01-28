@@ -269,8 +269,8 @@ export function DynamicNodeViewSection({
     },
     // Include children for linked_references, child_pages, and views that need nested content
     includeChildren: viewType === 'linked_references' || viewType === 'child_pages',
-    // Include properties for child_pages to show covers
-    includeProperties: viewType === 'child_pages',
+    // Always include properties to support cover images in card view
+    includeProperties: true,
     enabled: !!activeView && nodeId > 0,
   });
 
@@ -288,6 +288,8 @@ export function DynamicNodeViewSection({
       },
       // Include children recursively for all_pages view
       include_children: viewType === 'all_pages',
+      // Always include properties to support cover images in card view
+      include_properties: true,
     },
     {
       enabled: isPseudoNode && !!pseudoNodeBlockTree,
