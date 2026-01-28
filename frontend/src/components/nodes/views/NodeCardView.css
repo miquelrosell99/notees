@@ -395,3 +395,45 @@
   box-shadow: 0 0 0 2px var(--accent-color);
   background: var(--color-surface-container-high, var(--bg-tertiary));
 }
+
+/* Add block button at end of children list */
+.node-card__add-block {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+.node-card__add-block-button {
+  width: 100%;
+  justify-content: flex-start;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.node-card__add-block-button:hover {
+  opacity: 1;
+}
+
+/* Bottom add zone for cards with no children - appears on hover */
+.node-card__bottom-add-zone {
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid transparent;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.node-card:hover .node-card__bottom-add-zone {
+  border-top-color: var(--color-outline-variant, var(--border-color));
+  background: var(--color-surface-container, var(--bg-secondary));
+}
+
+.node-card__bottom-add-button {
+  opacity: 0.8;
+}
+
+.node-card__bottom-add-button:hover {
+  opacity: 1;
+}
