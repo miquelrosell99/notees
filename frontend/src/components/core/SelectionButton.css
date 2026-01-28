@@ -52,7 +52,7 @@
   z-index: 1;
 }
 
-.selection-button__option:hover:not(:disabled) {
+.selection-button__option:hover:not(:disabled):not(.selection-button__option--selected) {
   color: var(--color-on-surface);
 }
 
