@@ -137,13 +137,19 @@
 
 .timeline-search-input {
   width: 100%;
-  padding: 10px 12px;
-  background: var(--bg-tertiary);
-  border: none;
-  border-bottom: 1px solid var(--border-primary);
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px 6px 0 0;
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
+  transition: border-color 0.2s;
+}
+
+.timeline-search-input:focus {
+  border-color: var(--color-accent);
+  background: var(--bg-tertiary);
 }
 
 .timeline-search-input::placeholder {
