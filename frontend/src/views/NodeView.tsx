@@ -233,14 +233,18 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   // Handle creating a new class via NodePillRow
   const handleCreateClass = useCallback((name: string) => {
     if (!node) return;
-    const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
-    // Create as both a page AND a class so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_class: true }, {
+    const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
+    const pageClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.page);
+    
+    // Create with Page and Class classes - backend will compute is_page and is_class flags
+    const classes = [];
+    if (pageClass) classes.push(pageClass.id);
+    if (classClass) classes.push(classClass.id);
+    
+    createNode.mutate({ name, classes }, {
       onSuccess: (newPage) => {
+        // Add the new class to the current node
         addClass.mutate({ nodeId: node.id, classId: newPage.id });
-        if (classClass) {
-          addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
-        }
       }
     });
   }, [node, createNode, addClass, allClasses]);
