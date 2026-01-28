@@ -72,45 +72,11 @@
 
 /* Icon + Text buttons - icon on side, text centered */
 .btn--icon-text {
-  position: relative;
   justify-content: center;
 }
 
 .btn--icon-text .btn__icon {
-  position: absolute;
   flex-shrink: 0;
-}
-
-.btn--icon-text .btn__icon--left {
-  left: var(--spacing-4);
-}
-
-.btn--icon-text .btn__icon--right {
-  right: var(--spacing-4);
-}
-
-.btn--icon-text.btn--xs .btn__icon--left {
-  left: var(--spacing-2);
-}
-
-.btn--icon-text.btn--xs .btn__icon--right {
-  right: var(--spacing-2);
-}
-
-.btn--icon-text.btn--sm .btn__icon--left {
-  left: var(--spacing-3);
-}
-
-.btn--icon-text.btn--sm .btn__icon--right {
-  right: var(--spacing-3);
-}
-
-.btn--icon-text.btn--lg .btn__icon--left {
-  left: var(--spacing-5);
-}
-
-.btn--icon-text.btn--lg .btn__icon--right {
-  right: var(--spacing-5);
 }
 
 .btn--icon-only.btn--xs {
