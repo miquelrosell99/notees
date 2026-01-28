@@ -37,8 +37,6 @@ export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollecti
 export { NodeListView } from './views/NodeListView';
 export { NodeDocumentView } from './views/NodeDocumentView';
 export { NodeCardView } from './views/NodeCardView';
-export { NodeCard } from './views/NodeCard';
-export type { NodeCardProps } from './views/NodeCard';
 export { NodeTableView } from './views/NodeTableView';
 export { NodeGanttView } from './views/NodeGanttView';
 
