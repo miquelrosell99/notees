@@ -319,8 +319,7 @@ export interface GraphNode {
   name: string;
   type?: 'page' | 'block';
   tags?: string[];
-  types?: number[];
-  type_ids?: number[];
+  class_ids?: number[];
   properties?: Record<string, unknown>;
   is_daily?: boolean;
   is_class?: boolean;

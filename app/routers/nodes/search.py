@@ -55,7 +55,7 @@ async def get_graph_data_endpoint(
                 "is_daily": row['is_day'],
                 "is_monthly": row['is_month'],
                 "is_yearly": row['is_year'],
-                "classes": node_class_ids,
+                "class_ids": node_class_ids,
             })
         
         # Get reference links between pages (only page-to-page links)
