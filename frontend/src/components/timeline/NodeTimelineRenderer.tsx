@@ -165,6 +165,15 @@ export function NodeTimelineRenderer({
             ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
           }
         }
+        if (minimapRef.current) {
+          const minimapWidth = minimapRef.current.getBoundingClientRect().width;
+          minimapRef.current.width = minimapWidth * window.devicePixelRatio;
+          minimapRef.current.height = MINIMAP_HEIGHT * window.devicePixelRatio;
+          const ctx = minimapRef.current.getContext('2d');
+          if (ctx) {
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+          }
+        }
       }
     };
     
@@ -194,6 +203,63 @@ export function NodeTimelineRenderer({
     ctx.moveTo(0, centerY);
     ctx.lineTo(width, centerY);
     ctx.stroke();
+    
+    // Draw time markers
+    const textColor = getComputedStyle(canvas).getPropertyValue('--color-on-surface-variant').trim() || '#a3a3a3';
+    ctx.fillStyle = textColor;
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    
+    const totalMs = dateRange.end.getTime() - dateRange.start.getTime();
+    const visibleMs = totalMs / scale;
+    const visibleStart = new Date(dateRange.start.getTime() + (-panX / scale / width) * totalMs);
+    const visibleEnd = new Date(visibleStart.getTime() + visibleMs);
+    
+    // Determine marker interval based on zoom level
+    let markerInterval: number;
+    let dateFormat: (date: Date) => string;
+    
+    if (currentZoomLevel === 'hour' || currentZoomLevel === 'day') {
+      markerInterval = 24 * 60 * 60 * 1000; // 1 day
+      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else if (currentZoomLevel === 'week') {
+      markerInterval = 7 * 24 * 60 * 60 * 1000; // 1 week
+      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else if (currentZoomLevel === 'month') {
+      markerInterval = 30 * 24 * 60 * 60 * 1000; // ~1 month
+      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    } else if (currentZoomLevel === 'quarter') {
+      markerInterval = 90 * 24 * 60 * 60 * 1000; // ~3 months
+      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    } else if (currentZoomLevel === 'year') {
+      markerInterval = 365 * 24 * 60 * 60 * 1000; // 1 year
+      dateFormat = (d) => d.getFullYear().toString();
+    } else {
+      markerInterval = 3650 * 24 * 60 * 60 * 1000; // 10 years
+      dateFormat = (d) => d.getFullYear().toString();
+    }
+    
+    // Draw markers
+    const firstMarker = new Date(Math.ceil(visibleStart.getTime() / markerInterval) * markerInterval);
+    for (let markerDate = firstMarker; markerDate <= visibleEnd; markerDate = new Date(markerDate.getTime() + markerInterval)) {
+      const markerPos = (markerDate.getTime() - dateRange.start.getTime()) / totalMs;
+      const x = markerPos * width * scale + panX;
+      
+      if (x >= -50 && x <= width + 50) {
+        // Tick mark
+        ctx.strokeStyle = textColor + '80';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, centerY - 5);
+        ctx.lineTo(x, centerY + 5);
+        ctx.stroke();
+        
+        // Label
+        ctx.fillStyle = textColor;
+        ctx.fillText(dateFormat(markerDate), x, centerY + 10);
+      }
+    }
     
     // Draw time events
     timeEvents.forEach(event => {
@@ -228,7 +294,7 @@ export function NodeTimelineRenderer({
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
     });
-  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent]);
+  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, currentZoomLevel]);
   
   // Render minimap
   const renderMinimap = useCallback(() => {
@@ -238,9 +304,10 @@ export function NodeTimelineRenderer({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    const width = 800; // Fixed width for minimap
+    const width = canvas.width / window.devicePixelRatio;
     const height = MINIMAP_HEIGHT;
     const { panX, scale } = transform;
+    const mainWidth = dimensions.width;
     
     ctx.clearRect(0, 0, width, height);
     
@@ -269,8 +336,9 @@ export function NodeTimelineRenderer({
     });
     
     // View zone (clamped to 0-width)
-    const viewWidth = width / scale;
-    const viewX = Math.max(0, Math.min(width - viewWidth, -panX / scale));
+    // Convert main canvas pan/scale to minimap coordinates
+    const viewWidth = (mainWidth / scale) * (width / mainWidth);
+    const viewX = Math.max(0, Math.min(width - viewWidth, (-panX / scale) * (width / mainWidth)));
     
     ctx.strokeStyle = primaryColor;
     ctx.fillStyle = primaryColor + '44';
@@ -372,9 +440,11 @@ export function NodeTimelineRenderer({
     if (!rect) return;
     
     const mouseX = e.clientX - rect.left;
+    const minimapWidth = rect.width;
     const { scale, panX } = transform;
-    const viewWidth = dimensions.width / scale;
-    const viewX = -panX / scale;
+    const mainWidth = dimensions.width;
+    const viewWidth = (mainWidth / scale) * (minimapWidth / mainWidth);
+    const viewX = (-panX / scale) * (minimapWidth / mainWidth);
     
     const handleWidth = 8;
     
@@ -398,8 +468,8 @@ export function NodeTimelineRenderer({
     }
     
     // Click outside - jump to position
-    const targetX = mouseX;
-    const newPanX = -targetX * scale + dimensions.width / 2;
+    const targetX = mouseX * (mainWidth / minimapWidth);
+    const newPanX = -targetX * scale + mainWidth / 2;
     setTransform(prev => ({ ...prev, panX: newPanX }));
   }, [dimensions, transform]);
   
@@ -408,31 +478,37 @@ export function NodeTimelineRenderer({
     if (!rect) return;
     
     const mouseX = e.clientX - rect.left;
+    const minimapWidth = rect.width;
+    const mainWidth = dimensions.width;
     const { scale } = transform;
     
     if (isDraggingHandle) {
-      const viewX = -transform.panX / scale;
-      const viewWidth = dimensions.width / scale;
+      const viewX = (-transform.panX / scale) * (minimapWidth / mainWidth);
+      const viewWidth = (mainWidth / scale) * (minimapWidth / mainWidth);
       
       if (isDraggingHandle === 'left') {
         // Dragging left handle - change scale and panX
         const newViewX = Math.max(0, Math.min(mouseX, viewX + viewWidth - 20));
         const newViewWidth = (viewX + viewWidth) - newViewX;
-        const newScale = dimensions.width / newViewWidth;
+        const actualViewWidth = newViewWidth * (mainWidth / minimapWidth);
+        const newScale = mainWidth / actualViewWidth;
         const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-        const newPanX = -newViewX * clampedScale;
+        const actualViewX = newViewX * (mainWidth / minimapWidth);
+        const newPanX = -actualViewX * clampedScale;
         setTransform({ scale: clampedScale, panX: newPanX });
       } else if (isDraggingHandle === 'right') {
         // Dragging right handle - change scale
         const newViewWidth = Math.max(20, mouseX - viewX);
-        const newScale = dimensions.width / newViewWidth;
+        const actualViewWidth = newViewWidth * (mainWidth / minimapWidth);
+        const newScale = mainWidth / actualViewWidth;
         const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
         setTransform(prev => ({ ...prev, scale: clampedScale }));
       }
       setZoomPreset('custom');
     } else if (isDraggingViewZone) {
       const dx = mouseX - panStartRef.current.x;
-      const newPanX = panStartRef.current.panX - dx * scale;
+      const actualDx = dx * (mainWidth / minimapWidth);
+      const newPanX = panStartRef.current.panX - actualDx * scale;
       setTransform(prev => ({ ...prev, panX: newPanX }));
     }
   }, [dimensions, transform, isDraggingHandle, isDraggingViewZone]);
@@ -568,8 +644,6 @@ export function NodeTimelineRenderer({
         <canvas
           ref={minimapRef}
           className="node-timeline-renderer__minimap"
-          width={800}
-          height={MINIMAP_HEIGHT}
           onMouseDown={handleMinimapMouseDown}
           onMouseMove={handleMinimapMouseMove}
           onMouseUp={handleMinimapMouseUp}

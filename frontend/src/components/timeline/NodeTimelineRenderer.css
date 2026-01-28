@@ -61,8 +61,7 @@
 }
 
 .node-timeline-renderer__minimap {
-  width: 800px;
-  max-width: 90%;
+  width: 80%;
   height: 60px;
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
