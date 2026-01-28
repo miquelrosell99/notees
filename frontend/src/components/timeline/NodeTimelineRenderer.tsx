@@ -8,7 +8,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
-import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM, mdiAlphaW } from '@mdi/js';
+import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
 import { Card } from '../core/Card';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -46,7 +46,7 @@ export function NodeTimelineRenderer({
   ]);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [transform, setTransform] = useState<TimelineTransform>({ panX: 0, scale: 1.0 });
-  const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week' | 'custom'>('year');
+  const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'custom'>('year');
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
   const [hoveredEvent, setHoveredEvent] = useState<TimeEvent | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TimeEvent | null>(null);
@@ -630,14 +630,13 @@ export function NodeTimelineRenderer({
     return totalDays / targetDays;
   }, [dateRange]);
   
-  const zoomToPreset = useCallback((preset: 'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week') => {
+  const zoomToPreset = useCallback((preset: 'decade' | 'year' | 'semester' | 'quatrimester' | 'month') => {
     const targetDays = 
       preset === 'decade' ? 3650 :
       preset === 'year' ? 365 :
       preset === 'semester' ? 180 :
       preset === 'quatrimester' ? 120 :
-      preset === 'month' ? 60 :  // Increased to show full 2 months
-      7;  // Show exactly 7 days to get day markers
+      30;  // month - show exactly 30 days
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, calculateScaleForDays(targetDays)));
     
     const today = new Date();
@@ -656,7 +655,6 @@ export function NodeTimelineRenderer({
     { value: 'semester', label: 'Semester', icon: mdiAlphaS },
     { value: 'quatrimester', label: 'Quatrimester', icon: mdiAlphaQ },
     { value: 'month', label: 'Month', icon: mdiAlphaM },
-    { value: 'week', label: 'Week', icon: mdiAlphaW },
   ];
   
   if (timeEvents.length === 0) {
