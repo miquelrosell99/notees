@@ -9,6 +9,7 @@ import { mdiCheck } from '@mdi/js';
 import { ButtonWithPanel } from './ButtonWithPanel';
 import { Button } from './Button';
 import { ButtonWithText } from './ButtonWithText';
+import { ColorButton } from './ColorButton';
 import './ColorPicker.css';
 
 // Preset colors using CSS variable names - these reference themed colors from variables.css
@@ -196,21 +197,15 @@ export function ColorPicker({
                     handleCustomHexApply();
                   }
                 }}
-                placeholder="#3b82f6"
+                placeholder="3b82f6"
                 maxLength={7}
                 buttonContent={
-                  <Button
-                    icon={mdiCheck}
+                  <ColorButton
+                    color={customHex}
                     size="sm"
-                    variant="primary"
                     onClick={handleCustomHexApply}
                     disabled={!isCustomHexValid}
                     title="Apply custom color"
-                    className="color-picker-apply-btn"
-                    style={isCustomHexValid ? { 
-                      backgroundColor: customHex,
-                      borderColor: customHex 
-                    } : undefined}
                   />
                 }
               />
