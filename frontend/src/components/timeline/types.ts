@@ -6,38 +6,24 @@ import type { Node } from '@/types';
 export type ZoomLevel = 'decade' | 'year' | 'quarter' | 'month' | 'week' | 'day' | 'hour';
 export type DateProperty = 'create_date' | 'write_date' | 'open_date';
 
-export interface TimelineNode {
-  id: number;
-  x: number;           // Horizontal position (pixels)
-  y: number;           // Vertical position (pixels)
-  vx: number;          // Horizontal velocity
-  vy: number;          // Vertical velocity
-  date: Date;          // Node's timestamp
-  node: Node;          // Reference to original node
-  radius: number;
-  color: string;
-  laneIndex: number;   // Assigned vertical lane
-  targetY: number;     // Target vertical position
-  gravityPointId: string; // Which gravity point this belongs to
-}
-
-export interface GravityPoint {
-  id: string;
-  position: number;    // 0-1 along timeline (normalized)
-  x: number;           // Pixel position (calculated from position)
-  startTime: Date;
-  endTime: Date;
+export interface DatePropertyConfig {
+  property: string;
   label: string;
-  nodes: TimelineNode[]; // Nodes within this time range
-  hasPage: boolean;    // Whether a journal page exists for this time
-  uuid?: string;       // Journal page UUID
+  color: string;
+  visible: boolean;
+  removable: boolean;
 }
 
-export interface TypeColor {
-  typeId: number;
-  typeName: string;
-  color: string;
-  order: number;
+export interface TimeEvent {
+  id: string;                 // Unique identifier
+  timePeriod: string;         // Day/month identifier (YYYYMMDD or YYYYMM00)
+  timePeriodDate: Date;       // Start date of time period
+  property: string;           // Date property name (create_date, write_date, etc.)
+  propertyLabel: string;      // Display label
+  color: string;              // Color for this property
+  nodes: Node[];              // Pages with this property in this time period
+  position: number;           // 0-1 normalized position on timeline
+  stackIndex: number;         // Vertical stacking order (0 = closest to line)
 }
 
 export interface TimelineTransform {
@@ -47,8 +33,5 @@ export interface TimelineTransform {
 
 export interface NodeTimelineRendererProps {
   nodes: Node[];
-  dateProperty?: DateProperty;
-  onNodeClick?: (node: Node) => void;
-  onNodeShiftClick?: (node: Node) => void;
   className?: string;
 }

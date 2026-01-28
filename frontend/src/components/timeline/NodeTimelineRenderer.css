@@ -51,6 +51,63 @@
   cursor: grabbing;
 }
 
+.node-timeline-renderer__minimap {
+  width: 100%;
+  height: 60px;
+  border-top: 1px solid var(--border-primary);
+  cursor: pointer;
+  background: #1a1a1a;
+}
+
+.node-timeline-renderer__minimap:active {
+  cursor: grabbing;
+}
+
+.node-timeline-renderer--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-timeline-renderer__empty-message {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Event Card */
+.timeline-event-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+  max-width: 400px;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.timeline-event-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
+.timeline-event-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.timeline-event-card__content {
+  overflow-y: auto;
+  max-height: 450px;
+}
+
 .node-timeline-renderer--empty {
   display: flex;
   align-items: center;
