@@ -31,7 +31,6 @@ import {
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
-import { ColorPicker } from '../core/ColorPicker';
 import { ColorButton } from '../core/ColorButton';
 import { SelectionButton } from '../core/SelectionButton';
 import { ListSortable } from '../core/ListSortable';
@@ -454,22 +453,13 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                   <span className="type-name">{item.typeName}</span>
                 )}
                 renderActions={(item) => [
-                  <ColorPicker
+                  <ColorButton
                     key="color"
-                    value={item.color}
-                    onChange={(color) => updateTypeColor(item.id as number, color || DEFAULT_TYPE_COLORS[0])}
+                    color={item.color}
                     size="xs"
-                    panelPosition="left"
-                    showNoColor={false}
-                    showCustom={true}
-                    tooltip="Change color"
-                    trigger={
-                      <ColorButton
-                        color={item.color}
-                        size="xs"
-                        title="Change color"
-                      />
-                    }
+                    showPicker
+                    onColorChange={(color) => updateTypeColor(item.id as number, color)}
+                    title="Change color"
                   />,
                   <Button
                     key="remove"
