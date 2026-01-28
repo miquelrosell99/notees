@@ -10,9 +10,10 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
+import { TextField } from '../core/TextField';
 import { useNodeSearch, useCreateNode, usePages } from '@/hooks';
 import type { Node } from '@/types';
-import { AddIcon, NodeIcon, BulletIcon } from '../icons';
+import { AddIcon, NodeIcon, BulletIcon, SearchIcon } from '../icons';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import './NodeLinkSearch.css';
 
@@ -201,13 +202,14 @@ export function NodeLinkSearch({
       }
     >
       <div className="node-link-search" onKeyDown={handleKeyDown}>
-        <input
+        <TextField
           type="text"
           className="node-link-search__input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
           autoFocus
+          icon={<SearchIcon size="sm" />}
         />
         
         <div className="node-link-search__results">
