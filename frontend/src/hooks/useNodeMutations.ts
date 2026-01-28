@@ -307,17 +307,40 @@ export function useCreateNode() {
         refetchType: 'none',
       });
       
-      // If this is a page, add to pages cache
+      // If this is a page, update pages cache
       if (newNode.is_page) {
-        queryClient.setQueryData<Node[]>(nodeKeys.pages(), (oldPages) => {
-          if (!oldPages) return [newNode];
-          if (oldPages.some(p => p.id === newNode.id)) return oldPages;
-          return [...oldPages, newNode];
-        });
-        queryClient.invalidateQueries({ 
-          queryKey: nodeKeys.pages(),
-          refetchType: 'none',
-        });
+        // Check if the page name contains '/' which indicates hierarchical creation
+        // In this case, multiple pages may have been created, so we need to refetch
+        const isHierarchical = variables.name?.includes('/');
+        
+        if (isHierarchical) {
+          // Force refetch to get all newly created parent pages
+          queryClient.invalidateQueries({ 
+            queryKey: nodeKeys.pages(),
+            refetchType: 'active',
+          });
+          
+          // If the new node has a parent, invalidate parent's detail cache to show new child
+          if (newNode.parent_id) {
+            queryClient.invalidateQueries({
+              queryKey: nodeKeys.detailBase(newNode.parent_id),
+              refetchType: 'active',
+            });
+          }
+        } else {
+          // For non-hierarchical pages, just add to cache without refetching
+          queryClient.setQueryData<Node[]>(nodeKeys.pages(), (oldPages) => {
+            if (!oldPages) return [newNode];
+            if (oldPages.some(p => p.id === newNode.id)) return oldPages;
+            return [...oldPages, newNode];
+          });
+          queryClient.invalidateQueries({ 
+            queryKey: nodeKeys.pages(),
+            refetchType: 'none',
+          });
+        }
+        
+        // Always invalidate search cache (soft invalidate)
         queryClient.invalidateQueries({ 
           queryKey: [...nodeKeys.all, 'search'],
           refetchType: 'none',
