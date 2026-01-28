@@ -131,15 +131,6 @@ class NodeCreateData:
     collapsed: bool = False
     classes: List[int] = field(default_factory=list)  # Class node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
-    # Class flags (optional - can be set explicitly or derived from classes)
-    is_class: bool = False
-    is_page: bool = False
-    is_day: bool = False
-    is_month: bool = False
-    is_year: bool = False
-    is_asset: bool = False
-    is_template: bool = False
-    is_comment: bool = False
     uuid: Optional[str] = None  # Optional: override auto-generated UUID (for assets)
 
 
