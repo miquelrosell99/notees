@@ -12,7 +12,6 @@ import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM
 import { Card } from '../core/Card';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
-import { ToggleSwitch } from '../core/ToggleSwitch';
 import { DatePropertiesPanel } from './DatePropertiesPanel';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { getDateRange } from './utils/dateUtils';
@@ -47,7 +46,6 @@ export function NodeTimelineRenderer({
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [transform, setTransform] = useState<TimelineTransform>({ panX: 0, scale: 1.0 });
   const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'custom'>('year');
-  const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
   const [hoveredEvent, setHoveredEvent] = useState<TimeEvent | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TimeEvent | null>(null);
   const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
@@ -554,38 +552,44 @@ export function NodeTimelineRenderer({
     const mouseX = e.clientX - rect.left;
     const minimapWidth = rect.width;
     const mainWidth = dimensions.width;
+    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
     const { scale } = transform;
     
     if (isDraggingHandle) {
-      const viewX = (-transform.panX / scale) * (minimapWidth / mainWidth);
-      const viewWidth = (mainWidth / scale) * (minimapWidth / mainWidth);
+      // Calculate current view zone in minimap coordinates
+      const viewStartRatio = -transform.panX / (mainWidth * scale);
+      const viewEndRatio = viewStartRatio + (1 / scale);
+      const viewStartX = viewStartRatio * minimapWidth;
+      const viewEndX = viewEndRatio * minimapWidth;
       
       if (isDraggingHandle === 'left') {
-        // Dragging left handle - change scale and panX
-        const newViewX = Math.max(0, Math.min(mouseX, viewX + viewWidth - 20));
-        const newViewWidth = (viewX + viewWidth) - newViewX;
-        const actualViewWidth = newViewWidth * (mainWidth / minimapWidth);
-        const newScale = mainWidth / actualViewWidth;
-        const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-        const actualViewX = newViewX * (mainWidth / minimapWidth);
-        const newPanX = -actualViewX * clampedScale;
-        setTransform({ scale: clampedScale, panX: newPanX });
+        // Dragging left handle - adjust start of view (affects both panX and scale)
+        const newViewStartX = Math.max(0, Math.min(mouseX, viewEndX - 20));
+        const newViewStartRatio = newViewStartX / minimapWidth;
+        const newViewEndRatio = viewEndRatio;
+        const newViewRatio = newViewEndRatio - newViewStartRatio;
+        
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, 1 / newViewRatio));
+        const newPanX = -newViewStartRatio * mainWidth * newScale;
+        setTransform({ scale: newScale, panX: newPanX });
       } else if (isDraggingHandle === 'right') {
-        // Dragging right handle - change scale
-        const newViewWidth = Math.max(20, mouseX - viewX);
-        const actualViewWidth = newViewWidth * (mainWidth / minimapWidth);
-        const newScale = mainWidth / actualViewWidth;
-        const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-        setTransform(prev => ({ ...prev, scale: clampedScale }));
+        // Dragging right handle - adjust end of view (affects scale, keeps left edge fixed)
+        const newViewEndX = Math.max(viewStartX + 20, Math.min(mouseX, minimapWidth));
+        const newViewEndRatio = newViewEndX / minimapWidth;
+        const newViewStartRatio = viewStartRatio;
+        const newViewRatio = newViewEndRatio - newViewStartRatio;
+        
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, 1 / newViewRatio));
+        const newPanX = -newViewStartRatio * mainWidth * newScale;
+        setTransform({ scale: newScale, panX: newPanX });
       }
-      setZoomPreset('custom');
     } else if (isDraggingViewZone) {
       const dx = mouseX - panStartRef.current.x;
       const actualDx = dx * (mainWidth / minimapWidth);
       const newPanX = panStartRef.current.panX - actualDx * scale;
       setTransform(prev => ({ ...prev, panX: newPanX }));
     }
-  }, [dimensions, transform, isDraggingHandle, isDraggingViewZone]);
+  }, [dimensions, transform, isDraggingHandle, isDraggingViewZone, dateRange]);
   
   const handleMinimapMouseUp = useCallback(() => {
     setIsDraggingViewZone(false);
@@ -738,14 +742,6 @@ export function NodeTimelineRenderer({
             options={zoomPresetOptions}
             value={zoomPreset === 'custom' ? 'year' : zoomPreset}
             onChange={(val) => zoomToPreset(val as any)}
-            size="sm"
-          />
-          
-          <ToggleSwitch
-            leftLabel="Horizontal"
-            rightLabel="Vertical"
-            checked={orientation === 'vertical'}
-            onChange={(checked) => setOrientation(checked ? 'vertical' : 'horizontal')}
             size="sm"
           />
         </div>
