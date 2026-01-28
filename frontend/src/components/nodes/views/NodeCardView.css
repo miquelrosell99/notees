@@ -453,23 +453,32 @@
 
 /* Bottom add zone for cards with no children - appears on hover */
 .node-card__bottom-add-zone {
-  min-height: 2.5rem;
+  min-height: 0;
+  height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 1px solid transparent;
   transition: all 0.15s ease;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.node-card:hover .node-card__bottom-add-zone {
-  border-top-color: var(--color-outline-variant, var(--border-color));
+/* Show zone on hover */
+.node-card__bottom-add-zone:hover {
+  min-height: 3rem;
+  height: auto;
+  padding: 0.75rem 0.5rem;
+  opacity: 1;
+  pointer-events: auto;
   background: var(--color-surface-container, var(--bg-secondary));
 }
 
 .node-card__bottom-add-button {
-  opacity: 0.8;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
 }
 
 .node-card__bottom-add-button:hover {
