@@ -3,10 +3,9 @@
  * 
  * Global timeline view showing all pages in the system.
  * Rendered in the main content area as a dedicated view.
- * Uses NodeTimelineView with all pages.
  */
 import { usePages } from '@/hooks';
-import { NodeTimelineView } from '../nodes/views/NodeTimelineView';
+import { NodeTimelineRenderer } from './NodeTimelineRenderer';
 import './TimelineViewAll.css';
 
 export interface TimelineViewAllProps {
@@ -38,7 +37,7 @@ export function TimelineViewAll({ className = '' }: TimelineViewAllProps) {
 
   return (
     <div className={`timeline-view-all ${className}`}>
-      <NodeTimelineView 
+      <NodeTimelineRenderer 
         nodes={pages}
         className="timeline-view-all__timeline" 
       />
