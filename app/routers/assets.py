@@ -201,12 +201,17 @@ async def upload_asset(
         extension = get_extension_from_content_type(content_type)
         category = get_asset_category(content_type)
         
+        # Extract filename without extension for the name field
+        from pathlib import Path
+        filename_without_ext = Path(file.filename).stem if file.filename else "asset"
+        
         # Create repository
         node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
         
         # Create the asset node with 'asset' class
+        # Store filename WITHOUT extension as the name (extension will be in the file itself)
         data = NodeCreateData(
-            name=file.filename or f"asset{extension}",
+            name=filename_without_ext,
             parent_id=parent_id,
             classes=[asset_type_id] if asset_type_id else [],
             is_asset=True,

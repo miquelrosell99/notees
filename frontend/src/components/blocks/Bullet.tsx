@@ -30,8 +30,6 @@ export interface BulletProps {
   hasChildren?: boolean;
   /** Whether the node is collapsed */
   collapsed?: boolean;
-  /** Whether the node has a cover image */
-  hasCover?: boolean;
   /** Whether the block/node is being hovered */
   isHovered?: boolean;
   /** Whether to show the collapse arrow (can be controlled externally) */
@@ -65,7 +63,6 @@ export function Bullet({
   interactive = true,
   hasChildren = false,
   collapsed = false,
-  hasCover = false,
   isHovered = false,
   showCollapseArrow: showCollapseArrowProp,
   onClick,
@@ -129,13 +126,12 @@ export function Bullet({
     if (interactive) classes.push('bullet-interactive');
     if (hasChildren) classes.push('bullet-has-children');
     if (collapsed) classes.push('bullet-collapsed');
-    if (hasCover) classes.push('bullet-has-cover');
     if (isDragging) classes.push('bullet-dragging');
     if (isHovered) classes.push('bullet-hovered');
     if (icon) classes.push('bullet-has-icon');
     if (className) classes.push(className);
     return classes.join(' ');
-  }, [size, interactive, hasChildren, collapsed, hasCover, isDragging, isHovered, icon, className]);
+  }, [size, interactive, hasChildren, collapsed, isDragging, isHovered, icon, className]);
   
   // Compute title
   const computedTitle = useMemo(() => {
@@ -183,9 +179,6 @@ export function Bullet({
           {collapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
         </button>
       )}
-      
-      {/* Cover indicator - shown to the left of bullet when node has cover */}
-      {hasCover && <span className="bullet-cover-indicator" title="Has cover image" />}
       
       {/* Bullet container */}
       <span className="bullet-container">
