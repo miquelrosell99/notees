@@ -34,7 +34,7 @@ export function FloatingButtonArray({
       elevation="medium"
       variant="filled"
       padding={false}
-      radius="sm"
+      radius="md"
     >
       <div className="floating-button-array__inner">
         {children}
