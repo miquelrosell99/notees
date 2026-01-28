@@ -32,6 +32,16 @@
   padding: 2px;
 }
 
+/* Cover action buttons - positioned on left side (vertical stack) */
+.cover-image-card__actions {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 4px;
+  z-index: 20;
+}
+
 /* Expand hover area to include actions and image */
 .cover-image-card--expanded {
   /* Use padding to extend hover area for actions on the left */

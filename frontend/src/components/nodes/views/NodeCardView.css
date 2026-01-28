@@ -150,6 +150,14 @@
   width: 100%;
 }
 
+/* Cover action buttons - positioned at bottom right */
+.node-card__cover-actions {
+  position: absolute;
+  bottom: var(--spacing-2, 8px);
+  right: var(--spacing-2, 8px);
+  z-index: 10;
+}
+
 /* Cover bullet - positioned at top left */
 .node-card__cover-bullet {
   position: absolute;

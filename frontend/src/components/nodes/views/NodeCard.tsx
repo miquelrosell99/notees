@@ -19,12 +19,12 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { Button } from '../../core/Button';
 import { NodeClassPill } from '../../NodeClassPill';
-import { mdiChevronRight, mdiChevronDown, mdiPlus, mdiDockRight, mdiOpenInNew } from '@mdi/js';
+import { mdiChevronRight, mdiChevronDown, mdiPlus, mdiDockRight, mdiOpenInNew, mdiPencil, mdiClose } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { ImageModal } from '../../core/ImageModal';
 import { AddCoverButton } from '../../core/AddCoverButton';
-import { AssetActions } from '../../assets/AssetActions';
+import { FloatingButtonArray } from '../../core/FloatingButtonArray';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import type { Asset } from '@/api/assets';
@@ -361,14 +361,28 @@ export function NodeCard({
                       style={{ cursor: 'pointer' }}
                       title="Click to view full size"
                     />
-                    {editable && (
-                      <AssetActions
-                        onEdit={() => setIsAssetUploadOpen(true)}
-                        onRemove={handleRemove}
-                        visible={isCoverHovered}
-                        position="bottom-right"
-                        compact
-                      />
+                    {editable && isCoverHovered && (
+                      <FloatingButtonArray
+                        className="node-card__cover-actions"
+                        size="sm"
+                      >
+                        <Button
+                          icon={mdiPencil}
+                          iconOnly
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsAssetUploadOpen(true)}
+                          title="Change image"
+                        />
+                        <Button
+                          icon={mdiClose}
+                          iconOnly
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemove}
+                          title="Remove image"
+                        />
+                      </FloatingButtonArray>
                     )}
                   </>
                 ) : (
@@ -530,14 +544,28 @@ export function NodeCard({
                     style={{ cursor: 'pointer' }}
                     title="Click to view full size"
                   />
-                  {editable && (
-                    <AssetActions
-                      onEdit={() => setIsAssetUploadOpen(true)}
-                      onRemove={handleRemove}
-                      visible={isCoverHovered}
-                      position="bottom-right"
-                      compact
-                    />
+                  {editable && isCoverHovered && (
+                    <FloatingButtonArray
+                      className="node-card__cover-actions"
+                      size="sm"
+                    >
+                      <Button
+                        icon={mdiPencil}
+                        iconOnly
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsAssetUploadOpen(true)}
+                        title="Change image"
+                      />
+                      <Button
+                        icon={mdiClose}
+                        iconOnly
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRemove}
+                        title="Remove image"
+                      />
+                    </FloatingButtonArray>
                   )}
                 </>
               ) : (
