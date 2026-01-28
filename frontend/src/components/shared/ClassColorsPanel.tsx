@@ -45,12 +45,6 @@ export function ClassColorsPanel({
   onChange,
 }: ClassColorsPanelProps) {
   const addClassColor = (classNode: Node) => {
-    // Only allow nodes that are classes (is_class=true)
-    if (!classNode.is_class) return;
-    
-    // Don't add duplicates
-    if (classColors.some(cc => cc.typeId === classNode.id)) return;
-    
     const newClassColor: ClassColor = {
       typeId: classNode.id,
       typeName: classNode.name || 'Untitled',
@@ -91,6 +85,10 @@ export function ClassColorsPanel({
       <div className="class-colors-search">
         <SearchBox
           placeholder="Search classes to add..."
+          filterFn={(node) => 
+            node.is_class === true && 
+            !classColors.some(cc => cc.typeId === node.id)
+          }
           onSelect={addClassColor}
         />
       </div>
