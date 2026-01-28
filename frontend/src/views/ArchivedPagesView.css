@@ -1,0 +1,135 @@
+.archived-pages-view {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.archived-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.archived-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.archived-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.archived-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+}
+
+.archived-empty p {
+  margin: 0.5rem 0;
+}
+
+.archived-empty-hint {
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+}
+
+.archived-list {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.archived-list-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.archived-list-columns {
+  display: grid;
+  grid-template-columns: 1fr 150px 120px;
+  gap: 1rem;
+  flex: 1;
+}
+
+.archived-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s ease;
+}
+
+.archived-item:last-child {
+  border-bottom: none;
+}
+
+.archived-item:hover {
+  background: var(--bg-hover);
+}
+
+.archived-item.selected {
+  background: var(--bg-selected);
+}
+
+.archived-checkbox {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+  cursor: pointer;
+}
+
+.archived-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--accent-primary);
+}
+
+.archived-item-content {
+  display: grid;
+  grid-template-columns: 1fr 150px 120px;
+  gap: 1rem;
+  flex: 1;
+  align-items: center;
+}
+
+.archived-col-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.archived-item-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.archived-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archived-col-archived {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.archived-col-actions {
+  display: flex;
+  justify-content: flex-end;
+}
