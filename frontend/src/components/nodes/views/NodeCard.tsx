@@ -19,7 +19,7 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { Button } from '../../core/Button';
 import { NodeClassPill } from '../../NodeClassPill';
-import { mdiChevronRight, mdiChevronDown, mdiPlus } from '@mdi/js';
+import { mdiChevronRight, mdiChevronDown, mdiPlus, mdiDockRight, mdiOpenInNew } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { ImageModal } from '../../core/ImageModal';
@@ -34,6 +34,7 @@ import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { getAssetUrl } from '@/api/assets';
+import { useNodesStore } from '@/stores';
 
 export interface NodeCardProps {
   node: Node;
@@ -76,6 +77,9 @@ export function NodeCard({
   const { data: allNodes } = useNodes();
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
+  
+  // Store actions for navigation
+  const { openNode, addSidebarCard } = useNodesStore();
   
   // Resolve class details (excluding the implicit "page" class)
   const classDetails = useMemo(() => {
@@ -142,6 +146,9 @@ export function NodeCard({
   
   // Content section collapse state (collapsed by default)
   const [contentExpanded, setContentExpanded] = useState(false);
+  
+  // Bottom hover state for add button
+  const [isBottomHovered, setIsBottomHovered] = useState(false);
   
   // Get all properties to find cover property ID
   const { data: allProperties } = useProperties();
@@ -233,6 +240,18 @@ export function NodeCard({
       sequence: maxSequence + 1,
     });
   }, [node.id, children, createNode]);
+  
+  // Handle opening node in main view
+  const handleOpenInView = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    openNode(node.id, node.is_page ? 'page' : 'block');
+  }, [node.id, node.is_page, openNode]);
+  
+  // Handle opening node in sidebar
+  const handleOpenInSidebar = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    addSidebarCard(node.id, node.is_page ? 'page' : 'block');
+  }, [node.id, node.is_page, addSidebarCard]);
   
   const handleRemove = useCallback(() => {
     if (!coverProperty) return;
@@ -374,30 +393,27 @@ export function NodeCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={handleAddChild}
-                    icon={mdiPlus}
+                    onClick={handleOpenInSidebar}
+                    icon={mdiDockRight}
                     className="node-card__action-button"
-                    aria-label="Add child block"
+                    aria-label="Open in sidebar"
                   />
                 )}
-                {editable && onNodeClick && (
+                {editable && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNodeClick(node);
-                    }}
-                    icon={mdiChevronRight}
+                    onClick={handleOpenInView}
+                    icon={mdiOpenInNew}
                     className="node-card__action-button"
-                    aria-label="Navigate to node"
+                    aria-label="Open node"
                   />
                 )}
               </div>
             </div>
             
             {/* Card body with children - render all recursively */}
-            {hasChildren && (
+            {hasChildren ? (
               <div className="node-card__body">
                 <div 
                   className="node-card__content-header"
@@ -444,9 +460,46 @@ export function NodeCard({
                         />
                       );
                     })}
+                    {editable && (
+                      <div className="node-card__add-block">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleAddChild}
+                          icon={mdiPlus}
+                          className="node-card__add-block-button"
+                        >
+                          Add block
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+            ) : (
+              editable && (
+                <div 
+                  className="node-card__bottom-add-zone"
+                  onMouseEnter={() => setIsBottomHovered(true)}
+                  onMouseLeave={() => setIsBottomHovered(false)}
+                  onClick={handleAddChild}
+                >
+                  {isBottomHovered && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={mdiPlus}
+                      className="node-card__bottom-add-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddChild(e);
+                      }}
+                    >
+                      Add block
+                    </Button>
+                  )}
+                </div>
+              )
             )}
           </>
         )}
@@ -505,25 +558,24 @@ export function NodeCard({
                     onContentChange={handleContentChange}
                   />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleAddChild}
-                  icon={mdiPlus}
-                  className="node-card__action-button node-card__action-button--always-visible"
-                  aria-label="Add child block"
-                />
-                {onNodeClick && (
+                {editable && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNodeClick(node);
-                    }}
-                    icon={mdiChevronRight}
+                    onClick={handleOpenInSidebar}
+                    icon={mdiDockRight}
                     className="node-card__action-button node-card__action-button--always-visible"
-                    aria-label="Navigate to node"
+                    aria-label="Open in sidebar"
+                  />
+                )}
+                {editable && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleOpenInView}
+                    icon={mdiOpenInNew}
+                    className="node-card__action-button node-card__action-button--always-visible"
+                    aria-label="Open node"
                   />
                 )}
               </div>
@@ -574,7 +626,7 @@ export function NodeCard({
             </div>
             
             {/* Row 4: Children (spans both columns) */}
-            {hasChildren && (
+            {hasChildren ? (
               <div className="node-card__body">
                 <div 
                   className="node-card__content-header"
@@ -621,9 +673,46 @@ export function NodeCard({
                         />
                       );
                     })}
+                    {editable && (
+                      <div className="node-card__add-block">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleAddChild}
+                          icon={mdiPlus}
+                          className="node-card__add-block-button"
+                        >
+                          Add block
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+            ) : (
+              editable && (
+                <div 
+                  className="node-card__bottom-add-zone"
+                  onMouseEnter={() => setIsBottomHovered(true)}
+                  onMouseLeave={() => setIsBottomHovered(false)}
+                  onClick={handleAddChild}
+                >
+                  {isBottomHovered && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={mdiPlus}
+                      className="node-card__bottom-add-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddChild(e);
+                      }}
+                    >
+                      Add block
+                    </Button>
+                  )}
+                </div>
+              )
             )}
           </>
         )}
