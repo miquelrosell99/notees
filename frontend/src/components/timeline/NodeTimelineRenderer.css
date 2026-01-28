@@ -33,6 +33,7 @@
   cursor: grab;
   touch-action: none; /* Prevent browser gestures */
   background: transparent;
+  padding-bottom: 120px; /* Make room for minimap container */
 }
 
 .node-timeline-renderer__canvas:active {
@@ -52,6 +53,7 @@
   padding: var(--spacing-3);
   gap: var(--spacing-2);
   z-index: 10;
+  overflow: visible;
 }
 
 .node-timeline-renderer__minimap-controls {
