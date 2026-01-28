@@ -2,15 +2,16 @@
  * DatePropertiesPanel Component
  * 
  * Manages visibility and colors of date properties displayed on timeline.
- * Allows adding date-type properties from a predefined list.
+ * Uses SearchBox with properties table to fetch date-type properties.
  */
-import { useState, useMemo } from 'react';
-import { mdiEye, mdiEyeOff, mdiClose, mdiPlus } from '@mdi/js';
+import { useMemo } from 'react';
+import { mdiEye, mdiEyeOff, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
+import type { Property } from '@/types';
+import { useProperties } from '@/hooks';
 import { Button } from '../core/Button';
 import { ColorButton } from '../core/ColorButton';
-import { TextField } from '../core/TextField';
-import { SearchIcon } from '../icons';
+import { SearchBox } from '../SearchBox';
 
 export interface DatePropertyConfig {
   property: string;
@@ -23,24 +24,27 @@ export interface DatePropertyConfig {
 interface DatePropertiesPanelProps {
   properties: DatePropertyConfig[];
   onChange: (properties: DatePropertyConfig[]) => void;
-  availableProperties?: Array<{ value: string; label: string }>;
 }
 
 export function DatePropertiesPanel({ 
   properties, 
   onChange,
-  availableProperties = []
 }: DatePropertiesPanelProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { data: allProperties = [] } = useProperties();
   
-  const filteredAvailable = useMemo(() => {
-    if (!searchQuery) return [];
-    const existingProps = new Set(properties.map(p => p.property));
-    return availableProperties
-      .filter(p => !existingProps.has(p.value))
-      .filter(p => p.label.toLowerCase().includes(searchQuery.toLowerCase()))
-      .slice(0, 5);
-  }, [searchQuery, properties, availableProperties]);
+  // Get property names that are already added
+  const existingPropNames = useMemo(() => 
+    new Set(properties.map(p => p.property)), 
+    [properties]
+  );
+  
+  // Search function for properties
+  const searchProperties = (query: string): Property[] => {
+    if (!query) return [];
+    return allProperties
+      .filter(p => p.name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 10);
+  };
   
   const toggleVisibility = (property: string) => {
     onChange(
@@ -62,20 +66,19 @@ export function DatePropertiesPanel({
     );
   };
   
-  const addProperty = (prop: { value: string; label: string }) => {
+  const addProperty = (prop: Property) => {
     const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
     const color = colors[properties.length % colors.length];
     onChange([
       ...properties,
       {
-        property: prop.value,
-        label: prop.label,
+        property: prop.name,
+        label: prop.name,
         color,
         visible: true,
         removable: true,
       },
     ]);
-    setSearchQuery('');
   };
   
   return (
@@ -117,29 +120,19 @@ export function DatePropertiesPanel({
       </div>
       
       <div className="date-properties-panel__add">
-        <TextField
-          type="search"
-          placeholder="Add date property..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          size="sm"
-          icon={<SearchIcon size="sm" />}
+        <SearchBox<Property>
+          placeholder="Search date properties..."
+          searchFn={searchProperties}
+          filterFn={(prop: Property) => prop.type === 'date' && !existingPropNames.has(prop.name)}
+          getKey={(prop: Property) => prop.id}
+          renderItem={(prop: Property) => (
+            <>
+              {prop.icon && <Icon path={prop.icon} size={0.6} />}
+              <span>{prop.name}</span>
+            </>
+          )}
+          onSelect={addProperty}
         />
-        {filteredAvailable.length > 0 && (
-          <div className="date-properties-panel__results">
-            {filteredAvailable.map((prop) => (
-              <Button
-                key={prop.value}
-                variant="ghost"
-                className="date-properties-panel__result"
-                onClick={() => addProperty(prop)}
-              >
-                <Icon path={mdiPlus} size={0.6} />
-                <span>{prop.label}</span>
-              </Button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
