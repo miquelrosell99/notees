@@ -251,7 +251,7 @@ class PostgresNodeRepository(NodeRepository):
             await self.permissions.require_graph_create(self._graph_id)
         
         now = utc_now()
-        uuid = generate_uuid()
+        uuid = data.uuid or generate_uuid()  # Use provided UUID or generate
         uid = user_id or self._user_id
         
         # Compute page_id for blocks
