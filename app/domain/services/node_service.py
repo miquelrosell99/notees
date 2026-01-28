@@ -70,6 +70,22 @@ class NodeService:
         self._page_class_id = page_class_id
         self._classes_property_id = classes_property_id
     
+    async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
+        """Compute is_* flags based on the classes assigned to a node.
+        
+        Returns a dict with flag names as keys and boolean values.
+        Only includes flags for system classes that have corresponding flags.
+        """
+        flags = {}
+        
+        for class_id in class_ids:
+            class_node = await self._node_repo.get_by_id(class_id)
+            if class_node and class_node.uuid in CLASS_UUID_TO_FLAG:
+                flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
+                flags[flag_name] = True
+        
+        return flags
+    
     async def _validate_page_name_uniqueness(
         self,
         name: str,
@@ -203,7 +219,6 @@ class NodeService:
                     color=data.color if is_leaf else None,  # Only apply color to leaf
                     parent_id=current_parent_id,
                     classes=classes,
-                    is_page=True,
                     property_values=data.property_values if is_leaf else None,  # Only apply properties to leaf
                 )
                 
@@ -304,7 +319,6 @@ class NodeService:
             icon=icon,
             color=color,
             classes=classes,
-            is_page=True,
         )
         return await self.create_node(data, user_id)
     

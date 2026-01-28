@@ -110,19 +110,6 @@ class NodeRepository(ABC):
         pass
     
     @abstractmethod
-    async def create_with_uuid(
-        self,
-        uuid: str,
-        data: NodeCreateData,
-        user_id: Optional[int] = None
-    ) -> Node:
-        """Create a new node with a specific UUID.
-        
-        Used for date nodes (day/month/year) which have deterministic UUIDs.
-        """
-        pass
-    
-    @abstractmethod
     async def get_breadcrumbs(
         self,
         exit_node_id: int,

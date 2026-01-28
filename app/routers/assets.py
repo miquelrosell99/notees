@@ -267,7 +267,6 @@ async def upload_asset(
                 name=filename_without_ext,
                 parent_id=parent_id,
                 classes=[asset_type_id] if asset_type_id else [],
-                is_asset=True,
             )
             
             node = await node_repo.create(data)
