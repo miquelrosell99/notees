@@ -607,7 +607,7 @@ export function NodeCard({
                     variant="ghost"
                     size="sm"
                     onClick={handleOpenInView}
-                    icon={mdiOpenInNew}
+                    icon={mdiArrowRight}
                     className="node-card__action-button node-card__action-button--always-visible"
                     aria-label="Open node"
                   />
