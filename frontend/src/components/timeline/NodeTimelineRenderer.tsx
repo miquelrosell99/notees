@@ -770,6 +770,7 @@ export function NodeTimelineRenderer({
       {selectedEvent && cardPosition && (
         <Card
           elevation="high"
+          variant="default"
           padding={false}
           showCloseButton
           onClose={() => {
