@@ -203,6 +203,8 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
         <div
           ref={pickerRef}
           className="color-btn-picker"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
             top: `${pickerPosition.top}px`,
@@ -216,7 +218,10 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
                 key={varName}
                 className={`color-btn-picker__swatch ${color === hex ? 'selected' : ''}`}
                 style={{ backgroundColor: `var(${varName})` }}
-                onClick={() => handleColorSelect(hex)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleColorSelect(hex);
+                }}
                 title={hex}
                 type="button"
               />
@@ -240,7 +245,10 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
             <button
               type="button"
               className={`color-btn color-btn--sm ${!isHexValid ? 'color-btn--disabled' : ''}`}
-              onClick={isHexValid ? handleHexApply : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isHexValid) handleHexApply();
+              }}
               disabled={!isHexValid}
               title={isHexValid ? 'Apply' : 'Invalid hex'}
             >
