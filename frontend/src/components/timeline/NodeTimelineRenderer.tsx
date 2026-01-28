@@ -188,7 +188,7 @@ export function NodeTimelineRenderer({
     ctx.clearRect(0, 0, width, height);
     
     // Draw timeline line
-    ctx.strokeStyle = '#666';
+    ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--color-outline').trim() || '#a3a3a3';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
@@ -238,18 +238,23 @@ export function NodeTimelineRenderer({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    const width = dimensions.width;
+    const width = 800; // Fixed width for minimap
     const height = MINIMAP_HEIGHT;
     const { panX, scale } = transform;
     
     ctx.clearRect(0, 0, width, height);
     
+    // Get CSS variables
+    const bgColor = getComputedStyle(canvas).getPropertyValue('--color-surface-container-low').trim() || '#262626';
+    const lineColor = getComputedStyle(canvas).getPropertyValue('--color-outline-variant').trim() || '#444';
+    const primaryColor = getComputedStyle(canvas).getPropertyValue('--color-preset-blue').trim() || '#336cf6';
+    
     // Background
-    ctx.fillStyle = '#1a1a1a';
+    ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, width, height);
     
     // Timeline line
-    ctx.strokeStyle = '#444';
+    ctx.strokeStyle = lineColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, height / 2);
@@ -267,15 +272,15 @@ export function NodeTimelineRenderer({
     const viewWidth = width / scale;
     const viewX = Math.max(0, Math.min(width - viewWidth, -panX / scale));
     
-    ctx.strokeStyle = '#6366f1';
-    ctx.fillStyle = '#6366f144';
+    ctx.strokeStyle = primaryColor;
+    ctx.fillStyle = primaryColor + '44';
     ctx.lineWidth = 2;
     ctx.fillRect(viewX, 0, viewWidth, height);
     ctx.strokeRect(viewX, 0, viewWidth, height);
     
     // Resize handles
     const handleWidth = 8;
-    ctx.fillStyle = '#6366f1';
+    ctx.fillStyle = primaryColor;
     ctx.fillRect(viewX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
     ctx.fillRect(viewX + viewWidth - handleWidth / 2, height / 2 - 15, handleWidth, 30);
   }, [dimensions, transform, timeEvents]);
@@ -531,23 +536,6 @@ export function NodeTimelineRenderer({
         </div>
       </div>
       
-      <div className="node-timeline-renderer__bottom-controls">
-        <SelectionButton
-          options={zoomPresetOptions}
-          value={zoomPreset === 'custom' ? 'year' : zoomPreset}
-          onChange={(val) => zoomToPreset(val as any)}
-          size="sm"
-        />
-        
-        <ToggleSwitch
-          leftLabel="Horizontal"
-          rightLabel="Vertical"
-          checked={orientation === 'vertical'}
-          onChange={(checked) => setOrientation(checked ? 'vertical' : 'horizontal')}
-          size="sm"
-        />
-      </div>
-      
       <canvas
         ref={canvasRef}
         className="node-timeline-renderer__canvas"
@@ -559,16 +547,35 @@ export function NodeTimelineRenderer({
         onWheel={handleWheel}
       />
       
-      <canvas
-        ref={minimapRef}
-        className="node-timeline-renderer__minimap"
-        width={dimensions.width}
-        height={MINIMAP_HEIGHT}
-        onMouseDown={handleMinimapMouseDown}
-        onMouseMove={handleMinimapMouseMove}
-        onMouseUp={handleMinimapMouseUp}
-        onMouseLeave={handleMinimapMouseUp}
-      />
+      <div className="node-timeline-renderer__minimap-container">
+        <div className="node-timeline-renderer__minimap-controls">
+          <SelectionButton
+            options={zoomPresetOptions}
+            value={zoomPreset === 'custom' ? 'year' : zoomPreset}
+            onChange={(val) => zoomToPreset(val as any)}
+            size="sm"
+          />
+          
+          <ToggleSwitch
+            leftLabel="Horizontal"
+            rightLabel="Vertical"
+            checked={orientation === 'vertical'}
+            onChange={(checked) => setOrientation(checked ? 'vertical' : 'horizontal')}
+            size="sm"
+          />
+        </div>
+        
+        <canvas
+          ref={minimapRef}
+          className="node-timeline-renderer__minimap"
+          width={800}
+          height={MINIMAP_HEIGHT}
+          onMouseDown={handleMinimapMouseDown}
+          onMouseMove={handleMinimapMouseMove}
+          onMouseUp={handleMinimapMouseUp}
+          onMouseLeave={handleMinimapMouseUp}
+        />
+      </div>
       
       {selectedEvent && cardPosition && (
         <Card
