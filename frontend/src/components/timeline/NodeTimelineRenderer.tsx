@@ -18,7 +18,7 @@ import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
 import type { TimelineNode, GravityPoint, TypeColor, DateProperty, TimelineTransform, NodeTimelineRendererProps } from './types';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -258,10 +258,13 @@ export function NodeTimelineRenderer({
     
     timelineNodesRef.current = newTimelineNodes;
     
+    console.log('[Timeline] Initialized nodes:', newTimelineNodes.length, 'Sample:', newTimelineNodes[0]);
+    
     // Assign to gravity points and lanes
     if (gravityPointsRef.current.length > 0) {
       assignNodesToGravityPoints(newTimelineNodes, gravityPointsRef.current);
       assignLanes(newTimelineNodes, dimensions.width);
+      console.log('[Timeline] Assigned to gravity points and lanes');
     }
     
     // Reset simulation
@@ -361,7 +364,10 @@ export function NodeTimelineRenderer({
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) return;
+    if (!ctx || !canvas) {
+      console.log('[Timeline] Render: No canvas or context');
+      return;
+    }
     
     const { width, height } = dimensions;
     const { panX, scale } = transformRef.current;
@@ -428,12 +434,15 @@ export function NodeTimelineRenderer({
     // Draw connector lines and nodes
     if (nodes.length === 0) {
       // Debug: show message if no nodes
+      console.log('[Timeline] Render: No nodes in array');
       ctx.fillStyle = '#888';
       ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('No timeline nodes to display', width / 2, height / 2);
       return;
     }
+    
+    console.log('[Timeline] Rendering', nodes.length, 'nodes. First node:', { x: nodes[0].x, y: nodes[0].y, color: nodes[0].color });
     
     // First pass: connector lines
     nodes.forEach(node => {
@@ -838,13 +847,6 @@ export function NodeTimelineRenderer({
               </div>
             )}
           </div>
-          
-          <Button
-            icon={mdiCrosshairsGps}
-            size="sm"
-            onClick={recenter}
-            title="Reset view"
-          />
         </div>
       </div>
       
