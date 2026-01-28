@@ -147,8 +147,8 @@ export { AssetBlock } from './assets/AssetBlock';
 // Emoji/Icon picker
 export { EmojiPicker, EmojiPickerTrigger } from './core/EmojiPicker';
 
-// Color picker
-export { ColorPicker, ColorSwatch } from './core/ColorPicker';
+// Color button
+export { ColorButton } from './core/ColorButton';
 
 // Context menu
 export { ContextMenu } from './core/ContextMenu';
