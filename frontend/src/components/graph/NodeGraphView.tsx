@@ -33,11 +33,12 @@ import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { ColorButton } from '../core/ColorButton';
 import { SelectionButton } from '../core/SelectionButton';
-import { ListSortable } from '../core/ListSortable';
+import { ClassColorsPanel } from '../shared/ClassColorsPanel';
+import type { ClassColor } from '../shared/ClassColorsPanel';
 import './NodeGraphView.css';
 
-// Default type colors
-const DEFAULT_TYPE_COLORS = [
+// Default class colors
+const DEFAULT_CLASS_COLORS = [
   '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#14b8a6', '#f97316', '#3b82f6', '#84cc16',
 ];
@@ -74,39 +75,38 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
   });
   const settingsLoadedRef = useRef(false);
   
-  // Type colors
-  const [typeColors, setTypeColors] = useState<TypeColor[]>([]);
-  const typeColorsLoadedRef = useRef(false);
+  // Class colors
+  const [classColors, setClassColors] = useState<ClassColor[]>([]);
+  const classColorsLoadedRef = useRef(false);
   const [showTypeNodes, setShowTypeNodes] = useState(true);
   
   // UI panel state
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [typeColorsOpen, setTypeColorsOpen] = useState(false);
+  const [classColorsOpen, setClassColorsOpen] = useState(false);
   const [typeVisibilityOpen, setTypeVisibilityOpen] = useState(false);
-  const [typeColorSearch, setTypeColorSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   
   // Load settings from database
   useEffect(() => {
-    if (typeColorsLoadedRef.current) return;
+    if (classColorsLoadedRef.current) return;
     
     getSettings().then(settings => {
-      const saved = settings['graph_type_colors'];
+      const saved = settings['graph_class_colors'];
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            setTypeColors(parsed);
+            setClassColors(parsed);
           }
         } catch (e) {
-          console.error('Failed to parse graph_type_colors:', e);
+          console.error('Failed to parse graph_class_colors:', e);
         }
       }
-      typeColorsLoadedRef.current = true;
+      classColorsLoadedRef.current = true;
     }).catch(e => {
       console.error('Failed to load settings:', e);
-      typeColorsLoadedRef.current = true;
+      classColorsLoadedRef.current = true;
     });
   }, []);
   
@@ -132,16 +132,16 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
   
   // Save settings (debounced)
   useEffect(() => {
-    if (!typeColorsLoadedRef.current) return;
+    if (!classColorsLoadedRef.current) return;
     
     const timer = setTimeout(() => {
-      setSetting('graph_type_colors', JSON.stringify(typeColors)).catch(e => {
-        console.error('Failed to save graph_type_colors:', e);
+      setSetting('graph_class_colors', JSON.stringify(classColors)).catch(e => {
+        console.error('Failed to save graph_class_colors:', e);
       });
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [typeColors]);
+  }, [classColors]);
   
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
@@ -198,7 +198,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       internalLinkCount: apiNode.internal_link_count ?? 0,
       createdAt: apiNode.created_at,
       visible: true,
-      isTypeNode: apiNode.is_type || classIds.has(apiNode.id),
+      isTypeNode: apiNode.is_class || classIds.has(apiNode.id),
     }));
     
     const links: GraphLink[] = graphData.links.map(link => ({
@@ -262,20 +262,9 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     }
   }, []);
   
-  // Type color handlers
-  const updateTypeColor = useCallback((typeId: number, color: string) => {
-    setTypeColors(prev => prev.map(tc => 
-      tc.typeId === typeId ? { ...tc, color } : tc
-    ));
-  }, []);
-  
-  const moveTypeColor = useCallback((fromIndex: number, toIndex: number) => {
-    setTypeColors(prev => {
-      const newList = [...prev];
-      const [removed] = newList.splice(fromIndex, 1);
-      newList.splice(toIndex, 0, removed);
-      return newList.map((item, i) => ({ ...item, order: i }));
-    });
+  // Class color handler
+  const handleClassColorsChange = useCallback((newClassColors: ClassColor[]) => {
+    setClassColors(newClassColors);
   }, []);
   
   // Selection handlers
@@ -398,86 +387,17 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
           panelAlignment="start"
           panelWidth={280}
           panelMaxHeight={400}
-          title="Type Colors"
-          tooltip="Type colors"
-          open={typeColorsOpen}
-          onOpenChange={setTypeColorsOpen}
-          panelClassName="type-colors-panel"
+          title="Class Colors"
+          tooltip="Class colors"
+          open={classColorsOpen}
+          onOpenChange={setClassColorsOpen}
+          panelClassName="class-colors-panel"
         >
-          <p className="type-colors-description">
-            Colors apply by priority. First match wins. Drag to reorder.
-          </p>
-          <div className="type-colors-search">
-            <input
-              type="text"
-              placeholder="Search classes to add..."
-              value={typeColorSearch}
-              onChange={(e) => setTypeColorSearch(e.target.value)}
-            />
-            {typeColorSearch && (
-              <div className="type-colors-search-results">
-                {classes
-                  ?.filter((c: Node) => 
-                    c.name?.toLowerCase().includes(typeColorSearch.toLowerCase()) &&
-                    !typeColors.some(tc => tc.typeId === c.id)
-                  )
-                  .slice(0, 5)
-                  .map((c: Node) => (
-                    <Button
-                      key={c.id}
-                      variant="ghost"
-                      className="type-search-result"
-                      onClick={() => {
-                        setTypeColors(prev => [...prev, {
-                          typeId: c.id,
-                          typeName: c.name || 'Untitled',
-                          color: DEFAULT_TYPE_COLORS[prev.length % DEFAULT_TYPE_COLORS.length],
-                          order: prev.length,
-                        }]);
-                        setTypeColorSearch('');
-                      }}
-                    >
-                      {c.name || 'Untitled'}
-                    </Button>
-                  ))}
-              </div>
-            )}
-          </div>
-          <div className="type-colors-list-floating">
-            {typeColors.length > 0 ? (
-              <ListSortable
-                items={typeColors.map(tc => ({ id: tc.typeId, ...tc }))}
-                onReorder={moveTypeColor}
-                itemClassName="type-color-item"
-                renderText={(item) => (
-                  <span className="type-name">{item.typeName}</span>
-                )}
-                renderActions={(item) => [
-                  <ColorButton
-                    key="color"
-                    color={item.color}
-                    size="xs"
-                    showPicker
-                    onColorChange={(color) => updateTypeColor(item.id as number, color)}
-                    title="Change color"
-                  />,
-                  <Button
-                    key="remove"
-                    icon={mdiClose}
-                    size="xs"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTypeColors(prev => prev.filter(t => t.typeId !== item.id));
-                    }}
-                    title="Remove class"
-                  />
-                ]}
-              />
-            ) : (
-              <p className="no-types-floating">Search to add classes</p>
-            )}
-          </div>
+          <ClassColorsPanel
+            classColors={classColors}
+            defaultColors={DEFAULT_CLASS_COLORS}
+            onChange={handleClassColorsChange}
+          />
         </ButtonWithPanel>
         
         <ButtonWithPanel
@@ -586,7 +506,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
         links={links}
         viewMode={viewMode}
         settings={graphSettings}
-        typeColors={typeColors}
+        typeColors={classColors}
         showTypeNodes={showTypeNodes}
         selectedNodeIds={selectedNodeIds}
         onNodeClick={handleNodeClick}

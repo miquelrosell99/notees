@@ -2,13 +2,15 @@
  * DatePropertiesPanel Component
  * 
  * Manages visibility and colors of date properties displayed on timeline.
- * Similar to TypeColorsPanel.
+ * Allows adding date-type properties from a predefined list.
  */
 import { useState, useMemo } from 'react';
 import { mdiEye, mdiEyeOff, mdiClose, mdiPlus } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { ColorButton } from '../core/ColorButton';
+import { TextField } from '../core/TextField';
+import { SearchIcon } from '../icons';
 
 export interface DatePropertyConfig {
   property: string;
@@ -115,12 +117,13 @@ export function DatePropertiesPanel({
       </div>
       
       <div className="date-properties-panel__add">
-        <input
-          type="text"
+        <TextField
+          type="search"
           placeholder="Add date property..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="date-properties-panel__search"
+          size="sm"
+          icon={<SearchIcon size="sm" />}
         />
         {filteredAvailable.length > 0 && (
           <div className="date-properties-panel__results">

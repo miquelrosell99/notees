@@ -256,7 +256,7 @@ export interface NodeWithPropertyValue {
   parent_id: number | null;
   page_id: number | null;
   is_page: boolean;
-  is_type: boolean;
+  is_class: boolean;
   create_date: string;
   write_date: string;
   property_value: unknown;

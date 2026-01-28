@@ -323,7 +323,7 @@ export interface GraphNode {
   type_ids?: number[];
   properties?: Record<string, unknown>;
   is_daily?: boolean;
-  is_type?: boolean;
+  is_class?: boolean;
   is_monthly?: boolean;
   is_yearly?: boolean;
   icon?: string;
@@ -510,7 +510,7 @@ export interface RecentPage {
   parent_id: number | null;
   page_id: number | null;
   is_page: boolean;
-  is_type: boolean;
+  is_class: boolean;
   is_daily: boolean;
   is_monthly: boolean;
   is_yearly: boolean;
