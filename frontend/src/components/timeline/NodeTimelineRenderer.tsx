@@ -587,9 +587,14 @@ export function NodeTimelineRenderer({
         const newViewEndRatio = viewEndRatio;
         const newViewRatio = newViewEndRatio - newViewStartRatio;
         
-        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, 1 / newViewRatio));
-        const newPanX = -newViewStartRatio * mainWidth * newScale;
-        setTransform({ scale: newScale, panX: newPanX });
+        const targetScale = 1 / newViewRatio;
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
+        
+        // Only update if scale actually changed (not clamped)
+        if (newScale !== transform.scale) {
+          const newPanX = -newViewStartRatio * mainWidth * newScale;
+          setTransform({ scale: newScale, panX: newPanX });
+        }
       } else if (isDraggingHandle === 'right') {
         // Dragging right handle - adjust end of view (affects scale, keeps left edge fixed)
         const newViewEndX = Math.max(viewStartX + 20, Math.min(mouseX, minimapWidth));
@@ -597,9 +602,14 @@ export function NodeTimelineRenderer({
         const newViewStartRatio = viewStartRatio;
         const newViewRatio = newViewEndRatio - newViewStartRatio;
         
-        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, 1 / newViewRatio));
-        const newPanX = -newViewStartRatio * mainWidth * newScale;
-        setTransform({ scale: newScale, panX: newPanX });
+        const targetScale = 1 / newViewRatio;
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
+        
+        // Only update if scale actually changed (not clamped)
+        if (newScale !== transform.scale) {
+          const newPanX = -newViewStartRatio * mainWidth * newScale;
+          setTransform({ scale: newScale, panX: newPanX });
+        }
       }
     } else if (isDraggingViewZone) {
       const dx = mouseX - panStartRef.current.x;
