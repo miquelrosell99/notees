@@ -54,8 +54,6 @@ export { PropertiesSection, InlineProperties } from './PropertiesSection';
 export { NodePicker } from './nodes/NodePicker';
 export { ClassExtendsEditor } from './ClassExtendsEditor';
 export { ClassPropertiesEditor } from './ClassPropertiesEditor';
-export { ChildPagesSection, useChildPagesSectionState, ChildPagesSectionToolbar } from './ChildPagesSection';
-export type { ChildPagesSectionToolbarState } from './ChildPagesSection';
 export { PropertyConfigPanel } from './properties/PropertyConfigPanel';
 export { PropertyList } from './properties/PropertyList';
 export type { PropertyListProps, PropertyEntry } from './properties/PropertyList';
