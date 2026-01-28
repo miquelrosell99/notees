@@ -58,6 +58,7 @@ export function NodeTimelineRenderer({
   const transformRef = useRef(transform);
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, panX: 0 });
+  const manualZoomRef = useRef(false);
   
   const currentZoomLevel = useMemo(() => getZoomLevelFromScale(transform.scale), [transform.scale]);
   
@@ -649,12 +650,19 @@ export function NodeTimelineRenderer({
     const todayX = todayPosition * dimensions.width * newScale;
     const newPanX = dimensions.width / 2 - todayX;
     
+    manualZoomRef.current = true;
     setTransform({ scale: newScale, panX: newPanX });
     setZoomPreset(preset);
   }, [calculateScaleForDays, dateRange, dimensions.width]);
   
   // Auto-detect zoom preset based on current scale (debounced to avoid flickering)
   useEffect(() => {
+    // Skip auto-detection if zoom was manually set via preset button
+    if (manualZoomRef.current) {
+      manualZoomRef.current = false;
+      return;
+    }
+    
     const timeout = setTimeout(() => {
       const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
       if (totalDays <= 0) return;
@@ -743,7 +751,7 @@ export function NodeTimelineRenderer({
         <div className="node-timeline-renderer__minimap-controls">
           <SelectionButton
             options={zoomPresetOptions}
-            value={zoomPreset === 'custom' ? 'year' : zoomPreset}
+            value={zoomPreset === 'custom' ? undefined : zoomPreset}
             onChange={(val) => zoomToPreset(val as any)}
             size="sm"
           />
