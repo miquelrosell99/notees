@@ -5,6 +5,7 @@
  * - TextToken: Plain text segments
  * - LinkPill: [[nodeId]] references rendered as atomic inline text links
  * - TypePill: {{typeId}} inline type references
+ * - ExternalLink: [text](url) markdown-style external links (http/https only)
  * 
  * Part of the Block hierarchy:
  * Block
@@ -13,7 +14,8 @@
  *  ├─ BlockContent     ← this component
  *  │    ├─ TextToken
  *  │    ├─ LinkPill (atomic inline text links)
- *  │    └─ TypePill
+ *  │    ├─ TypePill
+ *  │    └─ ExternalLink (clickable hyperlinks)
  *  └─ BlockChildren
  * 
  * Features:
@@ -23,6 +25,7 @@
  * - Click count badge display
  * - Icon display based on getEffectiveIcon (shows only if node has icon or inherits from type)
  * - Atomic inline behavior - cursor cannot enter links
+ * - External links open in new tab with proper security (noopener noreferrer)
  */
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
@@ -48,14 +51,19 @@ const TYPE_REGEX = /\{\{([^\}]+)\}\}/g;
 // Regex for finding markdown images - ![alt](uuid) format
 const IMAGE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
+// Regex for finding markdown links - [text](url) format (for http/https URLs only)
+const MD_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+
 interface ContentPart {
-  type: 'text' | 'link' | 'inline-type' | 'image';
+  type: 'text' | 'link' | 'inline-type' | 'image' | 'external-link';
   content: string;
   id?: string;  // The node ID for links/types
   raw?: string;
   linkUuid?: string;  // The unique link instance UUID (for links only)
   imageAlt?: string;  // Alt text for images
   imageUuid?: string;  // Asset UUID for images
+  externalUrl?: string;  // External URL for markdown links
+  linkText?: string;  // Display text for markdown links
 }
 
 interface BlockContentProps {
@@ -78,7 +86,7 @@ function parseContent(content: string): ContentPart[] {
   
   // Find all matches with their positions
   interface Match {
-    type: 'link' | 'inline-type' | 'image';
+    type: 'link' | 'inline-type' | 'image' | 'external-link';
     id: string;
     raw: string;
     start: number;
@@ -86,12 +94,29 @@ function parseContent(content: string): ContentPart[] {
     linkUuid?: string;  // Only for links
     imageAlt?: string;  // Only for images
     imageUuid?: string;  // Only for images
+    externalUrl?: string;  // Only for external links
+    linkText?: string;  // Only for external links
   }
   
   const matches: Match[] = [];
   
-  // Find links - supports [[nodeId]] and [[nodeId:linkUuid]] formats
+  // Find markdown links FIRST (before images) - [text](http://url) format
+  // This must run before image regex to avoid conflicts with ![alt](url)
   let match;
+  const mdLinkRegex = new RegExp(MD_LINK_REGEX.source, 'g');
+  while ((match = mdLinkRegex.exec(sanitizedContent)) !== null) {
+    matches.push({
+      type: 'external-link',
+      id: match[2],  // url
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+      externalUrl: match[2],
+      linkText: match[1],
+    });
+  }
+  
+  // Find links - supports [[nodeId]] and [[nodeId:linkUuid]] formats
   const linkRegex = new RegExp(LINK_REGEX.source, 'g');
   while ((match = linkRegex.exec(sanitizedContent)) !== null) {
     matches.push({
@@ -152,6 +177,8 @@ function parseContent(content: string): ContentPart[] {
       linkUuid: m.linkUuid,
       imageAlt: m.imageAlt,
       imageUuid: m.imageUuid,
+      externalUrl: m.externalUrl,
+      linkText: m.linkText,
     });
     
     lastIndex = m.end;
@@ -615,6 +642,21 @@ export function BlockContent({
               uuid={part.imageUuid!}
               alt={part.imageAlt!}
             />
+          );
+        }
+        
+        if (part.type === 'external-link') {
+          return (
+            <a
+              key={index}
+              href={part.externalUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="external-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {part.linkText}
+            </a>
           );
         }
         
