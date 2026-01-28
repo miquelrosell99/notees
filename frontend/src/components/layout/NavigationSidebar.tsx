@@ -135,7 +135,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
         <div className="sidebar-content">
           <nav className="sidebar-nav">
             <Button 
-              className={`sidebar-nav-item ${mainViewType === 'journals' ? 'active' : ''}`}
+              className="sidebar-nav-item"
               variant="ghost"
               size="sm"
               icon={mdiNotebookOutline}
@@ -147,7 +147,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className={`sidebar-nav-item ${mainViewType === 'all-pages' ? 'active' : ''}`}
+              className="sidebar-nav-item"
               variant="ghost"
               size="sm"
               icon={mdiBookOpenPageVariant}
@@ -159,7 +159,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className={`sidebar-nav-item ${mainViewType === 'archived' ? 'active' : ''}`}
+              className="sidebar-nav-item"
               variant="ghost"
               size="sm"
               icon={mdiArchive}
@@ -171,7 +171,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className={`sidebar-nav-item ${mainViewType === 'graph' ? 'active' : ''}`}
+              className="sidebar-nav-item"
               variant="ghost"
               size="sm"
               icon={mdiGraphOutline}
@@ -183,7 +183,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className={`sidebar-nav-item ${mainViewType === 'timeline' ? 'active' : ''}`}
+              className="sidebar-nav-item"
               variant="ghost"
               size="sm"
               icon={mdiTimelineClockOutline}
