@@ -5,7 +5,6 @@
  * Used by:
  * - NodePicker (property value selection)
  * - SuggestionPopup (inline @/# /[[ triggers)
- * - NodeLinkSearch (modal link insertion)
  * 
  * Features:
  * - Query-based search using useSearch API
