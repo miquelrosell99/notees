@@ -328,7 +328,7 @@ export function NodeTimelineRenderer({
     // Get CSS variables
     const bgColor = getComputedStyle(canvas).getPropertyValue('--color-surface-container-low').trim() || '#262626';
     const lineColor = getComputedStyle(canvas).getPropertyValue('--color-outline-variant').trim() || '#444';
-    const primaryColor = getComputedStyle(canvas).getPropertyValue('--color-preset-blue').trim() || '#336cf6';
+    const accentColor = getComputedStyle(canvas).getPropertyValue('--color-primary').trim() || '#e5e5e5';
     
     // Background
     ctx.fillStyle = bgColor;
@@ -354,15 +354,15 @@ export function NodeTimelineRenderer({
     const viewWidth = (mainWidth / scale) * (width / mainWidth);
     const viewX = Math.max(0, Math.min(width - viewWidth, (-panX / scale) * (width / mainWidth)));
     
-    ctx.strokeStyle = primaryColor;
-    ctx.fillStyle = primaryColor + '44';
+    ctx.strokeStyle = accentColor;
+    ctx.fillStyle = accentColor + '44';
     ctx.lineWidth = 2;
     ctx.fillRect(viewX, 0, viewWidth, height);
     ctx.strokeRect(viewX, 0, viewWidth, height);
     
     // Resize handles
     const handleWidth = 8;
-    ctx.fillStyle = primaryColor;
+    ctx.fillStyle = accentColor;
     ctx.fillRect(viewX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
     ctx.fillRect(viewX + viewWidth - handleWidth / 2, height / 2 - 15, handleWidth, 30);
   }, [dimensions, transform, timeEvents]);
