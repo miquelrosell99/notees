@@ -88,10 +88,6 @@
 
 /* Event Card */
 .timeline-event-card {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   min-width: 250px;
   max-width: 400px;
   max-height: 500px;
@@ -105,14 +101,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border-primary);
-  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .timeline-event-card__title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .timeline-event-card__content {
