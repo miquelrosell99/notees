@@ -63,7 +63,7 @@ async def set_setting(key: str, request: Request, user: User = Depends(get_curre
     # Value is already a JSON-compatible Python value (string, number, list, dict, etc.)
     # Serialize to JSON string for JSONB insertion
     json_value = json.dumps(value) if value is not None else 'null'
-    now = _get_utc_now()
+    now = utc_now()
     
     async with pool.acquire() as conn:
         # Upsert the setting - the ::jsonb cast will parse the JSON string
