@@ -229,6 +229,8 @@ export function NodeTimelineRenderer({
       gp.x = gp.position;
     });
     
+    console.log('[Timeline] Generated gravity points:', gravityPoints.length, 'Sample:', { id: gravityPoints[0]?.id, x: gravityPoints[0]?.x, position: gravityPoints[0]?.position });
+    
     gravityPointsRef.current = gravityPoints;
   }, [dateRange, currentZoomLevel, dimensions.width, pageUuidMap]);
   
@@ -257,13 +259,15 @@ export function NodeTimelineRenderer({
     
     timelineNodesRef.current = newTimelineNodes;
     
-    console.log('[Timeline] Initialized nodes:', newTimelineNodes.length, 'Sample:', newTimelineNodes[0]);
+    console.log('[Timeline] Initialized nodes:', newTimelineNodes.length, 'Sample node x:', newTimelineNodes[0]?.x, 'Date:', newTimelineNodes[0]?.date);
+    console.log('[Timeline] Date range:', { start: dateRange.start, end: dateRange.end });
     
     // Assign to gravity points and lanes
     if (gravityPointsRef.current.length > 0) {
       assignNodesToGravityPoints(newTimelineNodes, gravityPointsRef.current);
+      console.log('[Timeline] After gravity assignment, first node:', { x: newTimelineNodes[0]?.x, gravityPointId: newTimelineNodes[0]?.gravityPointId });
       assignLanes(newTimelineNodes, dimensions.width);
-      console.log('[Timeline] Assigned to gravity points and lanes');
+      console.log('[Timeline] After lane assignment, first node:', { x: newTimelineNodes[0]?.x, y: newTimelineNodes[0]?.y });
     }
     
     // Reset simulation
@@ -330,11 +334,12 @@ export function NodeTimelineRenderer({
         if (other.gravityPointId !== node.gravityPointId) continue; // Only within same cluster
         
         const dx = node.x - other.x;
-        const horizontalDist = Math.abs(dx * dimensions.width); // Convert to pixels for distance check
+        const normalizedDist = Math.abs(dx);
         
-        if (horizontalDist < 50) {
-          const force = INTER_NODE_REPULSION / (horizontalDist * horizontalDist + 1);
-          node.vx += Math.sign(dx || 1) * force * 0.00005; // Scaled for normalized space
+        // Repulsion threshold in normalized space (0.03 = ~3% of timeline width)
+        if (normalizedDist < 0.03) {
+          const force = 0.0001 / (normalizedDist * normalizedDist + 0.0001);
+          node.vx += Math.sign(dx || 1) * force;
         }
       }
       
