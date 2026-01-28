@@ -224,9 +224,9 @@ export function NodeTimelineRenderer({
       pageUuidMap
     );
     
-    // Calculate pixel positions
+    // Keep positions normalized (0-1)
     gravityPoints.forEach(gp => {
-      gp.x = gp.position * dimensions.width;
+      gp.x = gp.position;
     });
     
     gravityPointsRef.current = gravityPoints;
@@ -238,11 +238,10 @@ export function NodeTimelineRenderer({
     
     const newTimelineNodes: TimelineNode[] = pageNodes.map(({ node, date }) => {
       const position = normalizeDate(date, start, end);
-      const x = position * dimensions.width;
       
       return {
         id: node.id,
-        x,
+        x: position, // Store as normalized position (0-1)
         y: 0,
         vx: 0,
         vy: 0,
@@ -308,16 +307,14 @@ export function NodeTimelineRenderer({
     
     const nodes = timelineNodesRef.current;
     const gravityPoints = gravityPointsRef.current;
-    const { panX, scale } = transformRef.current;
     
     let maxVelocity = 0;
     
     for (const node of nodes) {
-      // 1. Attraction to gravity point
+      // 1. Attraction to gravity point (in normalized space)
       const gravityPoint = gravityPoints.find(gp => gp.id === node.gravityPointId);
       if (gravityPoint) {
-        const targetX = gravityPoint.x * scale + panX;
-        const dx = targetX - node.x;
+        const dx = gravityPoint.x - node.x;
         node.vx += dx * GRAVITY_ATTRACTION;
       }
       
@@ -327,17 +324,17 @@ export function NodeTimelineRenderer({
         node.vy += dy * LANE_PULL_STRENGTH;
       }
       
-      // 3. Horizontal repulsion from nearby nodes
+      // 3. Horizontal repulsion from nearby nodes (in normalized space)
       for (const other of nodes) {
         if (other.id === node.id) continue;
         if (other.gravityPointId !== node.gravityPointId) continue; // Only within same cluster
         
         const dx = node.x - other.x;
-        const horizontalDist = Math.abs(dx);
+        const horizontalDist = Math.abs(dx * dimensions.width); // Convert to pixels for distance check
         
         if (horizontalDist < 50) {
           const force = INTER_NODE_REPULSION / (horizontalDist * horizontalDist + 1);
-          node.vx += Math.sign(dx || 1) * force * 0.05;
+          node.vx += Math.sign(dx || 1) * force * 0.00005; // Scaled for normalized space
         }
       }
       
@@ -403,7 +400,7 @@ export function NodeTimelineRenderer({
     
     // Draw gravity point markers
     gravityPoints.forEach(gp => {
-      const x = gp.x * scale + panX;
+      const x = gp.x * width * scale + panX;
       if (x < -50 || x > width + 50) return;
       
       const isHovered = hoveredGravityPoint?.id === gp.id;
@@ -446,7 +443,7 @@ export function NodeTimelineRenderer({
     
     // First pass: connector lines
     nodes.forEach(node => {
-      const x = node.x * scale + panX;
+      const x = node.x * width * scale + panX;
       const y = centerY + node.y;
       
       if (x < -100 || x > width + 100) return;
@@ -461,7 +458,7 @@ export function NodeTimelineRenderer({
     
     // Second pass: nodes
     nodes.forEach(node => {
-      const x = node.x * scale + panX;
+      const x = node.x * width * scale + panX;
       const y = centerY + node.y;
       
       if (x < -100 || x > width + 100) return;
@@ -525,7 +522,8 @@ export function NodeTimelineRenderer({
     
     // Check for node click
     const clickedNode = timelineNodesRef.current.find(node => {
-      const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - centerY - node.y) ** 2);
+      const nodeScreenX = node.x * dimensions.width * transform.scale + transform.panX;
+      const dist = Math.sqrt((mouseX - nodeScreenX) ** 2 + (mouseY - centerY - node.y) ** 2);
       return dist < node.radius + 3;
     });
     
@@ -614,7 +612,8 @@ export function NodeTimelineRenderer({
     const centerY = dimensions.height / 2;
     
     const clickedNode = timelineNodesRef.current.find(node => {
-      const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - centerY - node.y) ** 2);
+      const nodeScreenX = node.x * dimensions.width * transform.scale + transform.panX;
+      const dist = Math.sqrt((mouseX - nodeScreenX) ** 2 + (mouseY - centerY - node.y) ** 2);
       return dist < node.radius + 3;
     });
     
@@ -718,7 +717,7 @@ export function NodeTimelineRenderer({
   const scrollToNode = useCallback((node: Node) => {
     const tNode = timelineNodesRef.current.find(t => t.id === node.id);
     if (tNode) {
-      const targetX = tNode.x * transform.scale;
+      const targetX = tNode.x * dimensions.width * transform.scale;
       const newPanX = dimensions.width / 2 - targetX;
       setTransform(prev => ({ ...prev, panX: newPanX }));
       isSettledRef.current = false;
@@ -753,12 +752,12 @@ export function NodeTimelineRenderer({
   ];
   
   const zoomPresetOptions = [
-    { value: 'decade', label: 'Decade', icon: mdiCalendarPlus },
-    { value: 'year', label: 'Year', icon: mdiCalendarEdit },
-    { value: 'semester', label: 'Semester', icon: mdiCalendarClock },
-    { value: 'quatrimester', label: 'Quatrimester', icon: mdiCog },
-    { value: 'month', label: 'Month', icon: mdiPalette },
-    { value: 'week', label: 'Week', icon: mdiMagnify },
+    { value: 'decade', label: 'D' },
+    { value: 'year', label: 'Y' },
+    { value: 'semester', label: 'S' },
+    { value: 'quatrimester', label: 'Q' },
+    { value: 'month', label: 'M' },
+    { value: 'week', label: 'W' },
   ];
   
   return (
