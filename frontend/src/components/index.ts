@@ -171,8 +171,6 @@ export { CoverImage } from './CoverImage';
 // Node link components
 export { NodeLink } from './nodes/NodeLink';
 export type { NodeLinkProps } from './nodes/NodeLink';
-export { NodeLinkSearch } from './nodes/NodeLinkSearch';
-export type { NodeLinkSearchProps, LinkSearchType } from './nodes/NodeLinkSearch';
 
 // NodeCollection - Universal node collection system
 export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './nodes/NodeCollection';
