@@ -97,15 +97,6 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   const handleBlockShiftClick = useCallback((blockId: number) => {
     addSidebarCard(blockId, 'block');
   }, [addSidebarCard]);
-
-  const handleLinkClick = useCallback((targetId: number, pageId?: number | null, isPage?: boolean) => {
-    if (pageId) {
-      openNode(pageId, 'page');
-    } else {
-      openNode(targetId, isPage ? 'page' : 'block');
-    }
-    closeSidebarNode();
-  }, [openNode, closeSidebarNode]);
   
   // Navigate to class/tag
   const handleNavigateToNode = useCallback((targetId: number) => {

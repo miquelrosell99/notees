@@ -499,7 +499,6 @@ export function DynamicNodeViewSection({
 
   // Calculate values for UI logic
   const resultCount = resultNodes.length;
-  const isSystemQuery = activeView?.is_default && filterBlockCount === 0;
   
   console.log(`[DynamicNodeViewSection] ${viewType} render:`, { 
     nodeId, 
@@ -667,7 +666,7 @@ export function DynamicNodeViewSection({
               disabled={
                 updateBlockTreeMutation.isPending || 
                 updateViewMutation.isPending || 
-                (validation && !canSaveQuery(validation))
+                (validation ? !canSaveQuery(validation) : false)
               }
               title={validation && !canSaveQuery(validation) ? getValidationSummary(validation) : undefined}
             >

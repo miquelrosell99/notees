@@ -17,7 +17,6 @@ import type {
   PropertyOperator,
   PropertyType,
 } from '@/types/queryAST';
-import type { QueryBlockType } from '@/types/query';
 
 // ==================== Factory Functions ====================
 

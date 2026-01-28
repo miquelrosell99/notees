@@ -153,7 +153,7 @@ export function useNodeViewQuery(
         offset,
         order_by: orderBy,
         include_children: includeChildren,
-        include_properties: includeProperties,
+
       }),
     enabled: enabled && viewId > 0,
   });
