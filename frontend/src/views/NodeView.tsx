@@ -283,7 +283,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
   
   // Section metadata hooks
-  const { count: linkedRefsCount } = useLinkedReferencesCount(nodeId);
+  useLinkedReferencesCount(nodeId);
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -345,7 +345,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   }, [node?.properties, allProperties]);
   
   // Separate block children from page children
-  const { blockChildren, pageChildren } = useMemo(() => {
+  const { blockChildren } = useMemo(() => {
     if (!node?.children) return { blockChildren: [], pageChildren: [] };
     
     const blocks: Node[] = [];

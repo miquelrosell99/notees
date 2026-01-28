@@ -15,17 +15,24 @@
   z-index: 10000;
 }
 
-.image-modal-close {
+.image-modal-actions {
   position: fixed;
   top: var(--spacing-4);
   right: var(--spacing-4);
-  background: var(--color-surface);
-  border-radius: var(--shape-full);
-  box-shadow: var(--elevation-3);
+  display: flex;
+  gap: var(--spacing-2);
   z-index: 10001;
 }
 
-.image-modal-close:hover {
+.image-modal-close,
+.image-modal-download {
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-3);
+}
+
+.image-modal-close:hover,
+.image-modal-download:hover {
   background: var(--color-surface-variant);
 }
 

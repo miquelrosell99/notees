@@ -1,44 +1,41 @@
 /**
- * BlockAsset styles
+ * GenericRenderer styles
  */
 
-.block-asset {
+.generic-renderer {
   width: 100%;
-  max-width: 800px;
+  max-width: 600px;
   margin: var(--spacing-2) 0;
 }
 
-.block-asset__content {
+.generic-renderer__card {
+  cursor: default;
+}
+
+.generic-renderer__content {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  padding-bottom: var(--spacing-3);
-  border-bottom: 1px solid var(--color-border);
 }
 
-.block-asset__icon {
+.generic-renderer__icon {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 32px;
   background: var(--color-surface-variant);
   border-radius: var(--shape-medium);
-  color: var(--color-text-secondary);
 }
 
-.block-asset__icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.block-asset__info {
+.generic-renderer__info {
   flex: 1;
   min-width: 0;
 }
 
-.block-asset__filename {
+.generic-renderer__filename {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   color: var(--color-text);
@@ -47,23 +44,24 @@
   white-space: nowrap;
 }
 
-.block-asset__type {
+.generic-renderer__type {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-top: var(--spacing-1);
 }
 
-.block-asset__actions {
+.generic-renderer__actions {
   flex-shrink: 0;
   display: flex;
   gap: var(--spacing-2);
 }
 
-.block-asset__title {
-  padding-top: var(--spacing-3);
+.generic-renderer__title {
+  margin-top: var(--spacing-2);
+  padding: 0 var(--spacing-1);
 }
 
-.block-asset__title-input {
+.generic-renderer__title-input {
   width: 100%;
   padding: var(--spacing-1);
   border: 1px solid transparent;
@@ -75,21 +73,21 @@
   transition: border-color var(--transition-fast);
 }
 
-.block-asset__title-input:hover {
+.generic-renderer__title-input:hover {
   border-color: var(--color-border);
 }
 
-.block-asset__title-input:focus {
+.generic-renderer__title-input:focus {
   outline: none;
   border-color: var(--color-primary);
   background: var(--color-surface);
 }
 
-.block-asset__title-input::placeholder {
+.generic-renderer__title-input::placeholder {
   color: var(--color-text-secondary);
 }
 
-.block-asset__title-text {
+.generic-renderer__title-text {
   padding: var(--spacing-1);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
