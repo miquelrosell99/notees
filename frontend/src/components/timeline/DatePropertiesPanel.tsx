@@ -9,7 +9,6 @@ import { mdiEye, mdiEyeOff, mdiClose, mdiPlus } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { ColorButton } from '../core/ColorButton';
-import { ColorPicker } from '../core/ColorPicker';
 
 export interface DatePropertyConfig {
   property: string;
@@ -91,18 +90,12 @@ export function DatePropertiesPanel({
               <Icon path={prop.visible ? mdiEye : mdiEyeOff} size={0.7} />
             </Button>
             
-            <ColorPicker
-              value={prop.color}
-              onChange={(color) => color && changeColor(prop.property, color)}
+            <ColorButton
+              color={prop.color}
               size="sm"
-              showNoColor={false}
-              trigger={
-                <ColorButton
-                  color={prop.color}
-                  size="sm"
-                  title="Change color"
-                />
-              }
+              showPicker
+              onColorChange={(color) => changeColor(prop.property, color)}
+              title="Change color"
             />
             
             <span className="date-property-label">{prop.label}</span>

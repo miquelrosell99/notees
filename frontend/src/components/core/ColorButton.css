@@ -95,3 +95,70 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Color Picker Popover */
+.color-btn-picker {
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large, 8px);
+  box-shadow: var(--elevation-3);
+  padding: 12px;
+  min-width: 200px;
+}
+
+.color-btn-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.color-btn-picker__swatch {
+  width: 32px;
+  height: 32px;
+  border: 2px solid transparent;
+  border-radius: var(--shape-small, 4px);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+  padding: 0;
+  outline: none;
+}
+
+.color-btn-picker__swatch:hover {
+  transform: scale(1.1);
+  border-color: var(--color-outline);
+}
+
+.color-btn-picker__swatch.selected {
+  border-color: var(--color-primary);
+  border-width: 3px;
+}
+
+.color-btn-picker__custom {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.color-btn-picker__input {
+  flex: 1;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small, 4px);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--color-on-surface);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.color-btn-picker__input:focus {
+  border-color: var(--color-primary);
+}
+
+.color-btn-picker__input::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+}
