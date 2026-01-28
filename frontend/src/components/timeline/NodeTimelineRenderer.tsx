@@ -29,12 +29,12 @@ import { assignLanes } from './utils/laneAssignment';
 import { getDateRange, normalizeDate } from './utils/dateUtils';
 import './NodeTimelineRenderer.css';
 
-// Physics constants
-const GRAVITY_ATTRACTION = 0.035;
-const LANE_PULL_STRENGTH = 0.15;
+// Physics constants (tuned for normalized 0-1 space)
+const GRAVITY_ATTRACTION = 0.002;
+const LANE_PULL_STRENGTH = 0.08;
 const INTER_NODE_REPULSION = 300;
-const VELOCITY_DAMPING = 0.88;
-const MIN_VELOCITY = 0.05;
+const VELOCITY_DAMPING = 0.92;
+const MIN_VELOCITY = 0.0001;
 const NODE_RADIUS = 8;
 const HOVER_RADIUS_EXTRA = 3;
 
