@@ -482,21 +482,20 @@ export function NodeCard({
                   className="node-card__bottom-add-zone"
                   onMouseEnter={() => setIsBottomHovered(true)}
                   onMouseLeave={() => setIsBottomHovered(false)}
-                  onClick={handleAddChild}
                 >
                   {isBottomHovered && (
                     <Button
                       variant="ghost"
                       size="sm"
                       icon={mdiPlus}
+                      iconOnly
                       className="node-card__bottom-add-button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleAddChild(e);
                       }}
-                    >
-                      Add block
-                    </Button>
+                      aria-label="Add block"
+                    />
                   )}
                 </div>
               )
