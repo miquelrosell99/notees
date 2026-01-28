@@ -34,8 +34,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useVisibleBlockIds, useBlockParentMap } from '@/stores';
 import { BlockEditor, type TaskState } from './BlockEditor';
 import { BlockContent } from './BlockContent';
-import { BlockImage } from './BlockImage';
-import { BlockAsset } from './BlockAsset';
+import { AssetBlock } from './AssetBlock';
 import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -182,26 +181,10 @@ function BlockInternal({
       .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
   }, [block.classes, allClasses]);
   
-  // Detect if block is an asset node and what category
-  const assetInfo = useMemo(() => {
-    const hasAssetClass = blockClassDetails.some((c: Node) => c.uuid === SYSTEM_CLASS_UUIDS.asset);
-    if (!hasAssetClass) return null;
-    
-    // Try to determine asset type from node name (usually has extension)
-    const name = block.name || '';
-    const match = name.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i);
-    const isImage = Boolean(match);
-    
-    // Extract extension if present
-    const extMatch = name.match(/\.([^.]+)$/);
-    const extension = extMatch ? extMatch[1] : undefined;
-    
-    return {
-      isAsset: true,
-      isImage,
-      extension,
-    };
-  }, [blockClassDetails, block.name]);
+  // Detect if block is an asset node (for atomic block behavior)
+  const isAssetBlock = useMemo(() => {
+    return blockClassDetails.some((c: Node) => c.uuid === SYSTEM_CLASS_UUIDS.asset);
+  }, [blockClassDetails]);
   
   // Determine the icon to show on the bullet
   // Priority: block's own icon > first class's icon
@@ -1634,26 +1617,14 @@ function BlockInternal({
                     nodeUuid={block.uuid}
                     title={block.name || ''}
                     fileExtension={assetInfo.extension}
-                    editable={canEdit}
-                    onTitleChange={(newTitle) => onContentChange?.(block.id, newTitle)}
-                  />
-                )
-              ) : block.name ? (
-                <BlockContent
-                  content={block.name}
-                  blockId={block.id}
-                  className="block-content-pills"
-                  onDeleteLink={canEdit ? handleDeleteLink : undefined}
-                />
-              ) : (
-                /* Empty block - no placeholder, just maintain width */
-                <span className="block-content-empty">&nbsp;</span>
-              )}
-              {/* Comment indicator in view mode */}
-              {commentCount > 0 && (
-                <Button 
-                  variant="ghost"
-                  size="xs"
+                    editblocks are atomic - rendered with AssetBlock component */}
+              {isAssetBlock ? (
+                <AssetBlock
+                  node={block}
+                  isSelected={isSelected}
+                  canEdit={canEdit}
+                  onTitleChange={onContentChange}
+                /> size="xs"
                   className="block-comment-badge"
                   onClick={(e) => {
                     e.stopPropagation();

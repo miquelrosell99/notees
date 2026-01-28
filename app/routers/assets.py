@@ -1,13 +1,14 @@
 """Assets router - handles file uploads and downloads.
 
-Updated for graph-based schema:
+Updated for graph-based schema with per-asset folder structure:
 - workspace_id -> graph_id
 - Uses get_or_create_user_graph
 - Repositories now take user_id for audit trails
 - target_node_id -> target_id in property_value_relation
 
-Assets are stored as files in graph's assets folder:
-  graphs/{graph_id}/assets/{node_uuid}.{extension}
+Assets are stored in per-asset folders for future thumbnail support:
+  graphs/{graph_id}/assets/{node_uuid}/{node_uuid}.{extension}
+  graphs/{graph_id}/assets/{node_uuid}/thumbnail.webp  (future)
 
 Each asset is associated with a node that has the 'asset' type tag.
 Supported file types: Images (JPEG, PNG), Audio (MP3, WAV, OGG, OPUS, WebM)
@@ -27,6 +28,7 @@ from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PRO
 from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
 from ..domain.services import NodeService, LinkParsingService
+from ..domain.services.asset_service import AssetService, AssetMissingError, AssetPermissionError, AssetInvariantViolation
 from .auth import get_current_user, get_current_user_optional
 from ..models import User
 from ..logging_config import get_logger
@@ -87,9 +89,14 @@ class AssetListResponse(BaseModel):
 
 
 def get_asset_path(graph_id: int, asset_uuid: str, extension: str) -> Path:
-    """Get the file path for an asset."""
+    """Get the file path for an asset in per-asset folder structure.
+    
+    Structure: graphs/{graph_id}/assets/{asset_uuid}/{asset_uuid}.{extension}
+    """
     assets_dir = get_graph_assets_dir(graph_id)
-    return assets_dir / f"{asset_uuid}{extension}"
+    asset_folder = assets_dir / asset_uuid
+    asset_folder.mkdir(parents=True, exist_ok=True)
+    return asset_folder / f"{asset_uuid}{extension}"
 
 
 def get_extension_from_content_type(content_type: str) -> str:
@@ -161,10 +168,10 @@ async def upload_asset(
     parent_id: Optional[int] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a new asset file.
+    """Upload a new asset file using AssetService.
     
     Creates a node with the 'asset' type and stores the file
-    in the graph's assets folder.
+    in the graph's assets folder using atomic operations.
     
     Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)
     Max file size: 50MB
@@ -197,20 +204,26 @@ async def upload_asset(
     try:
         page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
         
-        # Get file extension and category
-        extension = get_extension_from_content_type(content_type)
-        category = get_asset_category(content_type)
+        # Initialize AssetService
+        asset_service = AssetService(graph_id)
         
-        # Extract filename without extension for the name field
-        from pathlib import Path
+        # Create asset using service (ATOMIC OPERATION)
+        # This creates folder + writes file before we create node
+        asset_uuid, extension = await asset_service.create_asset(
+            file_bytes=content,
+            original_filename=file.filename or f"asset{get_extension_from_content_type(content_type)}",
+            content_type=content_type
+        )
+        
+        # Extract filename without extension for node name
         filename_without_ext = Path(file.filename).stem if file.filename else "asset"
         
         # Create repository
         node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
         
-        # Create the asset node with 'asset' class
-        # Store filename WITHOUT extension as the name (extension will be in the file itself)
+        # Create the asset node ONLY after file is safely written
         data = NodeCreateData(
+            uuid=asset_uuid,  # Use UUID from service
             name=filename_without_ext,
             parent_id=parent_id,
             classes=[asset_type_id] if asset_type_id else [],
@@ -219,9 +232,7 @@ async def upload_asset(
         
         node = await node_repo.create(data)
         
-        # Save file to assets directory using node UUID
-        asset_path = get_asset_path(graph_id, node.uuid, extension)
-        asset_path.write_bytes(content)
+        category = get_asset_category(content_type)
         
         logger.info(f"Uploaded {category} asset '{file.filename}' as {node.uuid} for user {user_id}")
         
@@ -238,6 +249,9 @@ async def upload_asset(
             url=f"/api/assets/{node.uuid}"
         )
         
+    except AssetPermissionError as e:
+        logger.error(f"Permission error uploading asset: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to upload asset: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload asset: {e}")
@@ -271,6 +285,8 @@ async def get_asset(
     Returns the file content with appropriate content type.
     Accepts authentication via Authorization header or token query parameter
     (needed for img/audio src URLs which don't send headers).
+    
+    Scans the per-asset folder: assets/{uuid}/{uuid}.{ext}
     """
     # Try token param first (for img/audio src), fall back to header auth
     user = await get_user_from_token_param(token) if token else None
@@ -286,10 +302,15 @@ async def get_asset(
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     assets_dir = get_graph_assets_dir(graph_id)
+    asset_folder = assets_dir / asset_uuid
     
-    # Find the asset file (we don't know the extension)
+    # Check if asset folder exists
+    if not asset_folder.exists() or not asset_folder.is_dir():
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    # Find the asset file: {uuid}.{ext}
     for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = assets_dir / f"{asset_uuid}{ext}"
+        asset_path = asset_folder / f"{asset_uuid}{ext}"
         if asset_path.exists():
             # Determine content type from extension
             content_type = "application/octet-stream"
@@ -304,7 +325,44 @@ async def get_asset(
                 filename=f"{asset_uuid}{ext}"
             )
     
-    raise HTTPException(status_code=404, detail="Asset not found")
+    raise HTTPException(status_code=404, detail="Asset file not found in folder")
+
+
+@router.get("/{asset_uuid}/thumbnail")
+async def get_asset_thumbnail(
+    asset_uuid: str,
+    token: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Get thumbnail for an image asset.
+    
+    Returns 404 if thumbnail doesn't exist (client should fall back to original).
+    """
+    # Try token param first (for img src), fall back to header auth
+    user = await get_user_from_token_param(token) if token else None
+    if not user:
+        user = current_user
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    user_id = int(user.id)
+    pool = await get_pool()
+    
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+    
+    asset_service = AssetService(graph_id)
+    thumbnail_path = asset_service.get_thumbnail_path(asset_uuid)
+    
+    if not thumbnail_path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    
+    return FileResponse(
+        thumbnail_path,
+        media_type="image/webp",
+        filename=f"{asset_uuid}_thumbnail.webp"
+    )
 
 
 @router.get("/{asset_uuid}/info", response_model=AssetResponse)
@@ -312,7 +370,7 @@ async def get_asset_info(
     asset_uuid: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Get metadata about an asset."""
+    """Get metadata about an asset from per-asset folder."""
     user_id = int(current_user.id)
     pool = await get_pool()
     
@@ -326,10 +384,15 @@ async def get_asset_info(
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
-    # Find the asset file
+    # Find the asset file in per-asset folder
     assets_dir = get_graph_assets_dir(graph_id)
+    asset_folder = assets_dir / asset_uuid
+    
+    if not asset_folder.exists() or not asset_folder.is_dir():
+        raise HTTPException(status_code=404, detail="Asset folder not found")
+    
     for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = assets_dir / f"{asset_uuid}{ext}"
+        asset_path = asset_folder / f"{asset_uuid}{ext}"
         if asset_path.exists():
             content_type = "application/octet-stream"
             for ct, e in ALLOWED_CONTENT_TYPES.items():
@@ -350,7 +413,7 @@ async def get_asset_info(
                 url=f"/api/assets/{asset_uuid}"
             )
     
-    raise HTTPException(status_code=404, detail="Asset file not found")
+    raise HTTPException(status_code=404, detail="Asset file not found in folder")
 
 
 @router.delete("/{asset_uuid}")
@@ -358,7 +421,7 @@ async def delete_asset(
     asset_uuid: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Delete an asset and its associated node."""
+    """Delete an asset and its associated node using AssetService."""
     user_id = int(current_user.id)
     pool = await get_pool()
     
@@ -368,28 +431,22 @@ async def delete_asset(
     page_type_id, types_property_id, _ = await _get_system_ids(pool, graph_id, user_id)
     node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
     
+    # Get the node
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
-    # Delete the file first
-    assets_dir = get_graph_assets_dir(graph_id)
-    deleted_file = False
-    for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = assets_dir / f"{asset_uuid}{ext}"
-        if asset_path.exists():
-            asset_path.unlink()
-            deleted_file = True
-            break
+    # Delete the node first (references must be cleaned up)
+    if node.id:
+        await node_repo.delete(node.id)
     
-    # Soft delete the node
-    if node.id is None:
-        raise HTTPException(status_code=500, detail="Invalid asset node")
-    await node_repo.delete(node.id)
+    # Then delete the asset folder (failures logged, not raised)
+    asset_service = AssetService(graph_id)
+    asset_service.delete_asset(asset_uuid)
     
     logger.info(f"Deleted asset {asset_uuid} for user {user_id}")
     
-    return {"success": True, "deleted_file": deleted_file}
+    return {"status": "deleted", "uuid": asset_uuid}
 
 
 @router.get("/", response_model=AssetListResponse)
