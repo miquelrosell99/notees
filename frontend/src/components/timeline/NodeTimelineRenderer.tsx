@@ -622,6 +622,12 @@ export function NodeTimelineRenderer({
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     
+    // Close panel when scrolling
+    if (selectedEvent) {
+      setSelectedEvent(null);
+      setCardPosition(null);
+    }
+    
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       
@@ -644,7 +650,7 @@ export function NodeTimelineRenderer({
       const delta = -e.deltaY;
       setTransform(prev => ({ ...prev, panX: prev.panX + delta }));
     }
-  }, []);
+  }, [selectedEvent]);
   
   const calculateScaleForDays = useCallback((targetDays: number): number => {
     const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
