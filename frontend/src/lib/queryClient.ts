@@ -1,7 +1,7 @@
 /**
  * React Query client configuration
  */
-import { QueryClient, type Mutation } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { useNotificationStore } from '@/stores/notificationStore';
 

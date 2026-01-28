@@ -8,8 +8,6 @@ export * from './nodeCollection';
 export * from './viewModes';
 export { 
   type QueryBlockType,
-  type PropertyOperator,
-  type ContentOperator,
   type BaseQueryBlock,
   type ContainerBlock,
   type NotBlock,
@@ -29,5 +27,19 @@ export {
   type QueryExecuteRequest,
 } from './query';
 
-// Export QueryAST types
-export * from './queryAST';
+// Export QueryAST types (excluding PropertyType which comes from api.ts)
+export type {
+  PropertyOperator,
+  ContentOperator,
+  ASTNodeType,
+  QueryAST,
+  ScopeNode,
+  GroupNode,
+  ConditionNode,
+  TypeCondition,
+  ContentCondition,
+  PropertyCondition,
+  ReferenceCondition,
+  ReferencePathCondition,
+  BaseConditionNode,
+} from './queryAST';
