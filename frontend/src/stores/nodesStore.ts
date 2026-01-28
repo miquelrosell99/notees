@@ -9,7 +9,7 @@ import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 
 export type ViewMode = 'default' | 'focus' | 'zen';
-export type MainViewType = 'node' | 'all-pages' | 'journals' | 'graph' | 'timeline' | 'archived' | 'assets' | 'property';
+export type MainViewType = 'node' | 'all-pages' | 'journals' | 'graph' | 'timeline' | 'archived' | 'trash' | 'assets' | 'property';
 export type NodeViewType = 'page' | 'block';
 export type SidebarTab = 'pages' | 'graph';
 export type SidebarNodeType = 'page' | 'block';

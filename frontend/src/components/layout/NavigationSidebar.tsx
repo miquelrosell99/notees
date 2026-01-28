@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { GraphSwitcher } from '../graphs/GraphSwitcher';
 import { GraphModal } from '../graphs/GraphModal';
 import { SettingsModal } from '../SettingsModal';
@@ -271,8 +271,20 @@ export function Sidebar({ collapsed }: SidebarProps) {
           
         </div>
         
-        {/* Footer - Settings */}
+        {/* Footer - Trash & Settings */}
         <div className="sidebar-footer">
+          <Button 
+            className="sidebar-trash-btn"
+            variant="ghost"
+            size="sm"
+            icon={mdiTrashCanOutline}
+            fullWidth
+            onClick={() => setMainViewType('trash')}
+            active={mainViewType === 'trash'}
+            title="Trash"
+          >
+            Trash
+          </Button>
           <Button 
             className="sidebar-settings-btn"
             variant="ghost"

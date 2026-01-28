@@ -15,6 +15,7 @@ import { Button } from '../core/Button';
 import { NodeView } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
+import { TrashView } from '../../views/TrashView';
 import { JournalsView } from '../../views/JournalsView';
 import { GraphViewAll } from '../graph';
 import { TimelineViewAll } from '../timeline/TimelineViewAll';
@@ -61,6 +62,14 @@ export function MainContent() {
     return (
       <main className="main-content">
         <ArchivedPagesView />
+      </main>
+    );
+  }
+  
+  if (mainViewType === 'trash') {
+    return (
+      <main className="main-content">
+        <TrashView />
       </main>
     );
   }
