@@ -252,40 +252,36 @@ export function NodeTimelineRenderer({
     const visibleMs = visibleEnd.getTime() - visibleStart.getTime();
     const visibleDays = visibleMs / (24 * 60 * 60 * 1000);
     
-    // Update prevVisibleDays and fade markers when zoom changes significantly
+    // Fade markers when zoom changes significantly (but always use current visibleDays for calculations)
     const daysDiff = Math.abs(visibleDays - prevVisibleDays);
-    if (daysDiff > visibleDays * 0.3) {  // 30% change threshold
-      if (markerOpacity === 1) {
-        // Start fade out
-        setMarkerOpacity(0.3);
-        setTimeout(() => {
-          // Update visible days and fade in
-          setPrevVisibleDays(visibleDays);
-          setMarkerOpacity(1);
-        }, 150);
-      }
-    }
+    const thresholdChange = Math.max(10, prevVisibleDays * 0.3);  // At least 10 days or 30% change
     
-    // Use prevVisibleDays for stable marker intervals during fade
-    const stableVisibleDays = markerOpacity < 1 ? prevVisibleDays : visibleDays;
+    if (daysDiff > thresholdChange && prevVisibleDays !== 365) {  // Skip initial default value
+      if (markerOpacity === 1) {
+        setMarkerOpacity(0.3);
+      }
+      setPrevVisibleDays(visibleDays);
+    } else if (markerOpacity < 1) {
+      setMarkerOpacity(Math.min(1, markerOpacity + 0.2));
+    }
     
     let markerInterval: number;
     let dateFormat: (date: Date) => string;
     
-    // Choose interval based on how many days are visible (using stable value)
-    if (stableVisibleDays <= 7) {
+    // Choose interval based on how many days are visible (always use current value)
+    if (visibleDays <= 7) {
       markerInterval = 24 * 60 * 60 * 1000; // 1 day
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (stableVisibleDays <= 60) {
+    } else if (visibleDays <= 60) {
       markerInterval = 7 * 24 * 60 * 60 * 1000; // 1 week
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (stableVisibleDays <= 180) {
+    } else if (visibleDays <= 180) {
       markerInterval = 30 * 24 * 60 * 60 * 1000; // ~1 month
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (stableVisibleDays <= 730) {
+    } else if (visibleDays <= 730) {
       markerInterval = 90 * 24 * 60 * 60 * 1000; // ~3 months
       dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (stableVisibleDays <= 3650) {
+    } else if (visibleDays <= 3650) {
       markerInterval = 365 * 24 * 60 * 60 * 1000; // 1 year
       dateFormat = (d) => d.getFullYear().toString();
     } else {
