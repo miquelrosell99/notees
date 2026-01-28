@@ -13,7 +13,6 @@
 import { useCallback, useMemo } from 'react';
 import { useNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import type { Node } from '@/types';
 import './InlineNodeLink.css';
 
 interface InlineNodeLinkProps {
