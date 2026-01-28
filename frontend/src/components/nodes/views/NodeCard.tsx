@@ -17,7 +17,6 @@ import type { Node } from '@/types';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
-import { Bullet } from '../../blocks/Bullet';
 import { Button } from '../../core/Button';
 import { NodeClassPill } from '../../NodeClassPill';
 import { mdiChevronRight, mdiChevronDown, mdiPlus } from '@mdi/js';
@@ -464,21 +463,6 @@ export function NodeCard({
             >
               {coverUrl ? (
                 <>
-                  {/* Bullet - top left corner, visible on hover */}
-                  {assetNode && isCoverHovered && (
-                    <div className="node-card__cover-bullet">
-                      <Bullet
-                        nodeId={assetNode.id}
-                        icon={assetNode.icon}
-                        isPage={assetNode.is_page}
-                        interactive={true}
-                        onClick={handleCoverBulletClick}
-                        onShiftClick={handleCoverBulletShiftClick}
-                        size="sm"
-                        title="Click to open, Shift+click for sidebar"
-                      />
-                    </div>
-                  )}
                   <img 
                     src={coverUrl} 
                     alt="" 
@@ -669,6 +653,9 @@ export function NodeCard({
           onClose={() => setIsCoverModalOpen(false)}
           src={coverUrl}
           alt="Cover"
+          assetNode={assetNode}
+          onBulletClick={handleCoverBulletClick}
+          onBulletShiftClick={handleCoverBulletShiftClick}
         />
       )}
     </>
