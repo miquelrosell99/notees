@@ -70,18 +70,13 @@
   aspect-ratio: 1;
 }
 
-/* Icon + Text buttons (two-column layout) */
+/* Icon + Text buttons - keep centered alignment */
 .btn--icon-text {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .btn--icon-text .btn__icon {
   flex-shrink: 0;
-}
-
-.btn--icon-text .btn__text {
-  flex: 1;
-  text-align: left;
 }
 
 .btn--icon-only.btn--xs {
@@ -202,11 +197,9 @@
 }
 
 .btn__text {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
 }
