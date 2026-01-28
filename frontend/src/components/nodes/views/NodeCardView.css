@@ -396,6 +396,44 @@
   background: var(--color-surface-container-high, var(--bg-tertiary));
 }
 
+/* Add card pseudo-card */
+.node-card-add {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  border: 2px dashed var(--color-outline-variant, var(--border-color));
+  background: var(--color-surface-container, var(--bg-secondary));
+  transition: all 0.2s ease;
+}
+
+.node-card-add:hover {
+  border-color: var(--accent-color);
+  background: var(--color-surface-container-high, var(--bg-tertiary));
+}
+
+.node-card-add__content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.node-card-add__button {
+  font-size: 1rem;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.node-card-add:hover .node-card-add__button {
+  opacity: 1;
+}
+
 /* Add block button at end of children list */
 .node-card__add-block {
   padding: 0.5rem 0.75rem;

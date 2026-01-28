@@ -297,6 +297,9 @@ export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   /** Whether cards are selectable (shows checkbox on hover) */
   selectable?: boolean;
   
+  /** Callback when Add button is clicked */
+  onAdd?: () => void;
+  
   /** Controlled selected node IDs */
   selectedIds?: Set<number>;
   
