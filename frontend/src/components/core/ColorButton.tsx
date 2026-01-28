@@ -12,6 +12,7 @@
  * <ColorButton color="#ff5722" showPicker onColorChange={handleChange} />
  */
 import { forwardRef, useState, useRef, useEffect, useCallback, type ButtonHTMLAttributes } from 'react';
+import { createPortal } from 'react-dom';
 import './ColorButton.css';
 
 export type ColorButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -158,6 +159,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
   };
 
   const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     if (showPicker) {
       setIsPickerOpen(!isPickerOpen);
     } else {
@@ -197,7 +199,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
         />
       </button>
 
-      {showPicker && isPickerOpen && (
+      {showPicker && isPickerOpen && createPortal(
         <div
           ref={pickerRef}
           className="color-btn-picker"
@@ -248,7 +250,8 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               />
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
