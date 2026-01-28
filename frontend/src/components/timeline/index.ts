@@ -4,4 +4,4 @@
 
 export { TimelineViewAll } from './TimelineViewAll';
 export { NodeTimelineRenderer } from './NodeTimelineRenderer';
-export type { NodeTimelineRendererProps, TimelineNode, GravityPoint, ZoomLevel, DateProperty } from './types';
+export type { NodeTimelineRendererProps, TimeEvent, DatePropertyConfig, ZoomLevel, DateProperty, TimelineTransform } from './types';
