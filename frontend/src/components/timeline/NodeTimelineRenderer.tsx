@@ -10,6 +10,7 @@ import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM, mdiAlphaW } from '@mdi/js';
 import { Button } from '../core/Button';
+import { Card } from '../core/Card';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
 import { ToggleSwitch } from '../core/ToggleSwitch';
@@ -226,15 +227,6 @@ export function NodeTimelineRenderer({
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
-      
-      // Count badge
-      if (event.nodes.length > 1) {
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(event.nodes.length.toString(), x, y);
-      }
     });
   }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent]);
   
@@ -579,7 +571,14 @@ export function NodeTimelineRenderer({
       />
       
       {selectedEvent && cardPosition && (
-        <div 
+        <Card
+          elevation="high"
+          padding={false}
+          showCloseButton
+          onClose={() => {
+            setSelectedEvent(null);
+            setCardPosition(null);
+          }}
           className="timeline-event-card"
           style={{
             position: 'fixed',
@@ -590,16 +589,6 @@ export function NodeTimelineRenderer({
         >
           <div className="timeline-event-card__header">
             <span className="timeline-event-card__title">{selectedEvent.propertyLabel}</span>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                setSelectedEvent(null);
-                setCardPosition(null);
-              }}
-            >
-              ×
-            </Button>
           </div>
           <div className="timeline-event-card__content">
             <NodeCollection
@@ -608,7 +597,7 @@ export function NodeTimelineRenderer({
               editable={false}
             />
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
