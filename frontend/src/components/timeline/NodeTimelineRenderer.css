@@ -44,6 +44,7 @@
   flex: 1;
   cursor: grab;
   touch-action: none; /* Prevent browser gestures */
+  background: transparent;
 }
 
 .node-timeline-renderer__canvas:active {
