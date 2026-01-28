@@ -53,6 +53,8 @@ export function NodeTimelineRenderer({
   const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDraggingViewZone, setIsDraggingViewZone] = useState(false);
   const [isDraggingHandle, setIsDraggingHandle] = useState<'left' | 'right' | null>(null);
+  const [prevVisibleDays, setPrevVisibleDays] = useState<number>(365);
+  const [markerOpacity, setMarkerOpacity] = useState<number>(1);
   
   const minimapRef = useRef<HTMLCanvasElement>(null);
   const transformRef = useRef(transform);
@@ -235,6 +237,20 @@ export function NodeTimelineRenderer({
     const visibleMs = visibleEnd.getTime() - visibleStart.getTime();
     const visibleDays = visibleMs / (24 * 60 * 60 * 1000);
     
+    // Smooth opacity transition when zoom level changes
+    const daysDiff = Math.abs(visibleDays - prevVisibleDays);
+    if (daysDiff > 10) {
+      // Significant zoom change - fade markers
+      if (markerOpacity > 0.3) {
+        setMarkerOpacity(Math.max(0.3, markerOpacity - 0.15));
+      } else {
+        setMarkerOpacity(1);
+        setPrevVisibleDays(visibleDays);
+      }
+    } else if (markerOpacity < 1) {
+      setMarkerOpacity(Math.min(1, markerOpacity + 0.15));
+    }
+    
     let markerInterval: number;
     let dateFormat: (date: Date) => string;
     
@@ -271,6 +287,7 @@ export function NodeTimelineRenderer({
       
       if (x >= -50 && x <= width + 50) {
         // Tick mark
+        ctx.globalAlpha = markerOpacity;
         ctx.strokeStyle = textColor + '80';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -281,6 +298,7 @@ export function NodeTimelineRenderer({
         // Label
         ctx.fillStyle = textColor;
         ctx.fillText(dateFormat(markerDate), x, centerY + 10);
+        ctx.globalAlpha = 1;
       }
     }
     
@@ -325,7 +343,7 @@ export function NodeTimelineRenderer({
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
     });
-  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange]);
+  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, markerOpacity, prevVisibleDays]);
   
   // Render minimap
   const renderMinimap = useCallback(() => {
@@ -368,8 +386,18 @@ export function NodeTimelineRenderer({
     
     // View zone (clamped to 0-width)
     // Convert main canvas pan/scale to minimap coordinates
-    const viewWidth = (mainWidth / scale) * (width / mainWidth);
-    const viewX = Math.max(0, Math.min(width - viewWidth, (-panX / scale) * (width / mainWidth)));
+    let viewWidth = (mainWidth / scale) * (width / mainWidth);
+    let viewX = (-panX / scale) * (width / mainWidth);
+    
+    // Clamp view zone to minimap bounds
+    if (viewX < 0) {
+      viewWidth += viewX;
+      viewX = 0;
+    }
+    if (viewX + viewWidth > width) {
+      viewWidth = width - viewX;
+    }
+    viewWidth = Math.max(20, viewWidth); // Ensure minimum visible width
     
     ctx.strokeStyle = accentColor;
     ctx.fillStyle = accentColor + '44';
@@ -377,11 +405,13 @@ export function NodeTimelineRenderer({
     ctx.fillRect(viewX, 0, viewWidth, height);
     ctx.strokeRect(viewX, 0, viewWidth, height);
     
-    // Resize handles
+    // Resize handles (always visible)
     const handleWidth = 8;
     ctx.fillStyle = accentColor;
-    ctx.fillRect(viewX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
-    ctx.fillRect(viewX + viewWidth - handleWidth / 2, height / 2 - 15, handleWidth, 30);
+    const leftHandleX = Math.max(handleWidth / 2, viewX);
+    const rightHandleX = Math.min(width - handleWidth / 2, viewX + viewWidth);
+    ctx.fillRect(leftHandleX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
+    ctx.fillRect(rightHandleX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
   }, [dimensions, transform, timeEvents]);
   
   // Animation loop for minimap
