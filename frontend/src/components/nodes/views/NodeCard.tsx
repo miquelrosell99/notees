@@ -19,7 +19,7 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { Button } from '../../core/Button';
 import { NodeClassPill } from '../../NodeClassPill';
-import { mdiChevronRight, mdiChevronDown, mdiPlus, mdiDockRight, mdiOpenInNew, mdiPencil, mdiClose } from '@mdi/js';
+import { mdiChevronRight, mdiChevronDown, mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { ImageModal } from '../../core/ImageModal';
@@ -425,7 +425,7 @@ export function NodeCard({
                     variant="ghost"
                     size="sm"
                     onClick={handleOpenInView}
-                    icon={mdiOpenInNew}
+                    icon={mdiArrowRight}
                     className="node-card__action-button"
                     aria-label="Open node"
                   />
