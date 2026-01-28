@@ -17,14 +17,14 @@ import { useClasses, usePages } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
-import type { TimelineNode, GravityPoint, TypeColor, DateProperty, ZoomLevel, TimelineTransform, NodeTimelineRendererProps } from './types';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiCalendar, mdiCalendarWeek, mdiCalendarToday, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical } from '@mdi/js';
+import type { TimelineNode, GravityPoint, TypeColor, DateProperty, TimelineTransform, NodeTimelineRendererProps } from './types';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
 import { TypeColorsPanel } from '../shared/TypeColorsPanel';
 import { generateGravityPoints, assignNodesToGravityPoints, getZoomLevelFromScale } from './utils/gravityPoints';
-import { assignLanes, getLaneSpacing } from './utils/laneAssignment';
+import { assignLanes } from './utils/laneAssignment';
 import { getDateRange, normalizeDate } from './utils/dateUtils';
 import './NodeTimelineRenderer.css';
 
@@ -41,7 +41,6 @@ const HOVER_RADIUS_EXTRA = 3;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
 const ZOOM_SPEED_WHEEL = 0.002;      // Mouse wheel (discrete, larger deltas)
-const ZOOM_SPEED_TRACKPAD = 0.005;   // Trackpad (continuous, smaller deltas)
 const ZOOM_SPEED_PINCH = 0.01;       // Trackpad pinch-to-zoom
 
 export function NodeTimelineRenderer({
@@ -295,7 +294,6 @@ export function NodeTimelineRenderer({
     const nodes = timelineNodesRef.current;
     const gravityPoints = gravityPointsRef.current;
     const { panX, scale } = transformRef.current;
-    const centerY = dimensions.height / 2;
     
     let maxVelocity = 0;
     
@@ -416,7 +414,6 @@ export function NodeTimelineRenderer({
     });
     
     // Draw connector lines and nodes
-    const nodes = timelineNodesRef.current;
     if (nodes.length === 0) {
       // Debug: show message if no nodes
       ctx.fillStyle = '#888';
@@ -425,6 +422,7 @@ export function NodeTimelineRenderer({
       ctx.fillText('No timeline nodes to display', width / 2, height / 2);
       return;
     }
+    
     // First pass: connector lines
     nodes.forEach(node => {
       const x = node.x;
@@ -843,7 +841,7 @@ export function NodeTimelineRenderer({
           {zoomPresetOptions.map(opt => (
             <Button
               key={opt.value}
-              variant={zoomPreset === opt.value ? 'primary' : 'secondary'}
+              variant={zoomPreset === opt.value ? 'primary' : 'default'}
               size="sm"
               onClick={() => zoomToPreset(opt.value as any)}
               title={opt.tooltip}
@@ -856,7 +854,7 @@ export function NodeTimelineRenderer({
         
         <Button
           icon={orientation === 'horizontal' ? mdiArrowExpandHorizontal : mdiArrowExpandVertical}
-          variant="secondary"
+          variant="default"
           size="sm"
           onClick={() => setOrientation(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
           title={`Switch to ${orientation === 'horizontal' ? 'vertical' : 'horizontal'} orientation`}
