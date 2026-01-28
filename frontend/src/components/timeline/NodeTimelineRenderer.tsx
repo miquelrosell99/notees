@@ -649,6 +649,43 @@ export function NodeTimelineRenderer({
     setZoomPreset(preset);
   }, [calculateScaleForDays, dateRange, dimensions.width]);
   
+  // Auto-detect zoom preset based on current scale
+  useEffect(() => {
+    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
+    if (totalDays <= 0) return;
+    
+    const visibleDays = totalDays / transform.scale;
+    
+    // Find the closest preset based on visible days
+    const presets = [
+      { name: 'decade' as const, targetDays: 3650 },
+      { name: 'year' as const, targetDays: 365 },
+      { name: 'semester' as const, targetDays: 180 },
+      { name: 'quatrimester' as const, targetDays: 120 },
+      { name: 'month' as const, targetDays: 30 },
+    ];
+    
+    let closestPreset: 'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'custom' = 'custom';
+    let minDiff = Infinity;
+    
+    for (const preset of presets) {
+      const diff = Math.abs(visibleDays - preset.targetDays);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPreset = preset.name;
+      }
+    }
+    
+    // Only snap to preset if we're within 20% of target days
+    const threshold = 0.2;
+    const targetDays = presets.find(p => p.name === closestPreset)?.targetDays ?? 365;
+    if (minDiff / targetDays <= threshold) {
+      setZoomPreset(closestPreset);
+    } else {
+      setZoomPreset('custom');
+    }
+  }, [transform.scale, dateRange]);
+  
   const zoomPresetOptions = [
     { value: 'decade', label: 'Decade', icon: mdiAlphaD },
     { value: 'year', label: 'Year', icon: mdiAlphaY },
