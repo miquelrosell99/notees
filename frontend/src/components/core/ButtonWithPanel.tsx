@@ -153,43 +153,74 @@ export function ButtonWithPanel({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeOnEscape, closePanel]);
 
-  // Calculate portal position when panel opens
+  // Calculate portal position when panel opens with viewport-aware positioning
   useEffect(() => {
     if (!usePortal || !isOpen || !containerRef.current) return;
     
     const rect = containerRef.current.getBoundingClientRect();
     const gap = 8;
+    const actualWidth = typeof panelWidth === 'number' ? panelWidth : 280;
+    const estimatedHeight = 300; // Estimate for collision detection
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
     let top = 0;
     let left = 0;
+    let preferredPosition = panelPosition;
     
-    const actualWidth = typeof panelWidth === 'number' ? panelWidth : 280;
+    // Try to fit in preferred position, fallback if doesn't fit
+    const tryPosition = (pos: PanelPosition): { top: number; left: number; fits: boolean } => {
+      let t = 0;
+      let l = 0;
+      
+      switch (pos) {
+        case 'right':
+          l = rect.right + gap;
+          t = panelAlignment === 'start' ? rect.top 
+              : panelAlignment === 'end' ? rect.bottom - estimatedHeight
+              : rect.top + rect.height / 2 - estimatedHeight / 2;
+          return { top: t, left: l, fits: l + actualWidth <= viewportWidth - 16 };
+        case 'left':
+          l = rect.left - gap - actualWidth;
+          t = panelAlignment === 'start' ? rect.top 
+              : panelAlignment === 'end' ? rect.bottom - estimatedHeight
+              : rect.top + rect.height / 2 - estimatedHeight / 2;
+          return { top: t, left: l, fits: l >= 16 };
+        case 'bottom':
+          t = rect.bottom + gap;
+          l = panelAlignment === 'start' ? rect.left 
+               : panelAlignment === 'end' ? rect.right - actualWidth 
+               : rect.left + rect.width / 2 - actualWidth / 2;
+          return { top: t, left: l, fits: t + estimatedHeight <= viewportHeight - 16 };
+        case 'top':
+          t = rect.top - gap - estimatedHeight;
+          l = panelAlignment === 'start' ? rect.left 
+               : panelAlignment === 'end' ? rect.right - actualWidth 
+               : rect.left + rect.width / 2 - actualWidth / 2;
+          return { top: t, left: l, fits: t >= 16 };
+      }
+    };
     
-    switch (panelPosition) {
-      case 'right':
-        left = rect.right + gap;
-        top = panelAlignment === 'start' ? rect.top 
-            : panelAlignment === 'end' ? rect.bottom 
-            : rect.top + rect.height / 2;
-        break;
-      case 'left':
-        left = rect.left - gap - actualWidth;
-        top = panelAlignment === 'start' ? rect.top 
-            : panelAlignment === 'end' ? rect.bottom 
-            : rect.top + rect.height / 2;
-        break;
-      case 'bottom':
-        top = rect.bottom + gap;
-        left = panelAlignment === 'start' ? rect.left 
-             : panelAlignment === 'end' ? rect.right - actualWidth 
-             : rect.left + rect.width / 2 - actualWidth / 2;
-        break;
-      case 'top':
-        top = rect.top - gap;
-        left = panelAlignment === 'start' ? rect.left 
-             : panelAlignment === 'end' ? rect.right - actualWidth 
-             : rect.left + rect.width / 2 - actualWidth / 2;
-        break;
+    // Try preferred position first
+    let result = tryPosition(preferredPosition);
+    
+    // If doesn't fit, try alternatives
+    if (!result.fits) {
+      const alternatives: PanelPosition[] = 
+        preferredPosition === 'right' ? ['left', 'bottom', 'top'] :
+        preferredPosition === 'left' ? ['right', 'bottom', 'top'] :
+        preferredPosition === 'bottom' ? ['top', 'right', 'left'] :
+        ['bottom', 'right', 'left'];
+      
+      for (const alt of alternatives) {
+        result = tryPosition(alt);
+        if (result.fits) break;
+      }
     }
+    
+    // Clamp to viewport
+    top = Math.max(16, Math.min(result.top, viewportHeight - estimatedHeight - 16));
+    left = Math.max(16, Math.min(result.left, viewportWidth - actualWidth - 16));
     
     setPortalPosition({ top, left });
   }, [usePortal, isOpen, panelPosition, panelAlignment, panelWidth]);
