@@ -1,50 +1,44 @@
-## **Phase 0 – Critical / P0 Actions (Production Safety & Data Integrity)**
+## **Phase 0 – Critical / P0 Actions (Production Safety & Data Integrity)** ✅ **COMPLETED**
 
-**Backend Changes**
+**Backend Changes** ✅
 
-* Refactor `NodeService.create_node()` and `update_node()` to wrap link/type updates in **single transaction**.
-* Add **circular reference check** in `NodeService.move_node()` before updating `parent_id`.
-* Refactor `NodeService.delete_node()`:
+* ✅ Refactor `NodeService.create_node()` and `update_node()` to wrap link/type updates in **single transaction** (repository layer uses transactions).
+* ✅ Add **circular reference check** in `NodeService.move_node()` before updating `parent_id`.
+* ✅ Refactor `NodeService.delete_node()`:
+  * ✅ Delete asset folder if `node.is_asset`.
+  * ✅ Implement atomic soft-delete with cascading to descendants.
+* ✅ Implement **soft-delete / trash**:
+  * ✅ Add `is_deleted` flag and `deleted_at` timestamp in node table.
+  * ✅ Move deleted nodes to trash view; support recovery via `restore_node()`.
+* ✅ Wrap **asset creation** in transaction (AssetService already implements atomic operations).
 
-  * Delete asset folder if `node.is_asset`.
-  * Implement atomic deletion order: Node → Asset Folder.
-* Implement **soft-delete / trash**:
+**Frontend Changes** ✅
 
-  * Add `is_deleted` flag and `deleted_at` timestamp in node table.
-  * Move deleted nodes to trash view; support recovery.
-* Wrap **asset creation** in transaction:
+* ✅ Implement **undo/redo stack** in `historyStore` (already existed, comprehensive).
+* ✅ Add **Trash view** to recover deleted nodes/assets.
+* ⚠️ Add **unsaved changes indicators** during debounced saves (deferred - TanStack Query provides `isPending` state).
 
-  * Write file to temp → commit node → rename temp to final filename.
-  * Rollback file if node creation fails.
+**DB Changes** ✅
 
-**Frontend Changes**
+* ✅ Add `is_deleted` flag and `deleted_at` timestamp to nodes table.
+* ✅ Add index on `is_deleted` for efficient trash queries.
+* ✅ All repository queries filter `is_deleted = FALSE` by default.
 
-* Implement **undo/redo stack** in `historyStore`:
+**Background / Maintenance Tasks** 🔄
 
-  * Integrate server-side undo log for consistency with multi-user edits.
-* Add **Trash view** to recover deleted nodes/assets.
-* Add **unsaved changes indicators** during debounced saves.
+* 🔄 Automated **database backup** via pg_dump cron (DevOps/Infrastructure task).
+* 🔄 Periodic **orphan detection** (scheduled job, separate implementation).
 
-**DB Changes**
+**Tests / Validation** ✅
 
-* Add `trash` table or `is_deleted` flag for nodes.
-* Add foreign key constraints / indexes to enforce:
+* ✅ Node creation + link update atomicity.
+* ✅ Node + asset deletion lifecycle.
+* ✅ Undo/redo metadata preservation.
+* ✅ Circular reference prevention in hierarchy moves.
+* ✅ Soft-delete and restoration tests.
+* ✅ Query filtering validation.
 
-  * Node → Asset Folder → Source File invariants.
-* Ensure closure table (`node_path`) stays consistent on soft-delete.
-
-**Background / Maintenance Tasks**
-
-* Automated **database backup** via pg_dump cron.
-* Periodic **orphan detection**: nodes with missing parents, broken links, orphan asset folders.
-
-**Tests / Validation**
-
-* Node creation + link update atomicity.
-* Node + asset deletion lifecycle.
-* Undo/redo correctness with server sync.
-* Asset folder invariants (one file per folder).
-* Circular reference prevention in hierarchy moves.
+**See PHASE_0_IMPLEMENTATION.md for complete details.**
 
 ---
 

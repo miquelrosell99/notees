@@ -92,6 +92,9 @@ CREATE TABLE IF NOT EXISTS node (
     active BOOLEAN DEFAULT TRUE,
     is_shared BOOLEAN DEFAULT FALSE,
     version INTEGER DEFAULT 1,
+    -- Soft delete fields
+    is_deleted BOOLEAN DEFAULT FALSE,
+    deleted_at TIMESTAMPTZ,
     -- Class flags (denormalized for fast queries)
     is_class BOOLEAN DEFAULT FALSE,
     is_page BOOLEAN DEFAULT FALSE,
@@ -126,6 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = TRU
 CREATE INDEX IF NOT EXISTS idx_node_is_class ON node(is_class) WHERE is_class = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_deleted = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
