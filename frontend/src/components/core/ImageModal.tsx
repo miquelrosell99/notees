@@ -22,6 +22,8 @@ export interface ImageModalProps {
   src: string;
   /** Image alt text */
   alt?: string;
+  /** Optional filename for download */
+  filename?: string;
   /** Optional asset node for bullet navigation */
   assetNode?: {
     id: number;
@@ -44,6 +46,7 @@ export function ImageModal({
   onClose,
   src,
   alt = 'Image',
+  filename,
   assetNode,
   onBulletClick,
   onBulletShiftClick,
@@ -72,21 +75,43 @@ export function ImageModal({
     },
     [onClose]
   );
+  
+  // Handle download
+  const handleDownload = useCallback(() => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = filename || 'image';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [src, filename]);
 
   if (!isOpen) return null;
 
   return (
     <div className="image-modal-backdrop" onClick={handleBackdropClick}>
-      {/* Close button - top right corner of screen */}
-      <Button
-        icon={mdiClose}
-        iconOnly
-        className="image-modal-close"
-        onClick={onClose}
-        size="md"
-        variant="ghost"
-        title="Close (Esc)"
-      />
+      {/* Action buttons - top right corner of screen */}
+      <div className="image-modal-actions">
+        <Button
+          iconOnly
+          className="image-modal-download"
+          onClick={handleDownload}
+          size="md"
+          variant="ghost"
+          title="Download image"
+        >
+          ⬇️
+        </Button>
+        <Button
+          icon={mdiClose}
+          iconOnly
+          className="image-modal-close"
+          onClick={onClose}
+          size="md"
+          variant="ghost"
+          title="Close (Esc)"
+        />
+      </div>
       
       {/* Bullet - top left corner of screen */}
       {assetNode && (

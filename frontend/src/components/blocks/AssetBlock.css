@@ -1,0 +1,37 @@
+/**
+ * AssetBlock styles
+ * 
+ * Atomic block styling - cursor cannot enter
+ */
+
+.asset-block {
+  position: relative;
+  user-select: none;
+  cursor: default;
+  
+  /* Prevent cursor from entering the block */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Atomic block indicator (optional visual cue) */
+.asset-block::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.asset-block:hover::before {
+  background: var(--color-primary-muted);
+}
+
+/* Selected state */
+.asset-block[data-selected="true"]::before {
+  background: var(--color-primary);
+}
