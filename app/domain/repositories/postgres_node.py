@@ -91,6 +91,7 @@ class PostgresNodeRepository(NodeRepository):
         create_date = row['create_date']
         write_date = row['write_date']
         open_date = row.get('open_date')
+        deleted_at = row.get('deleted_at')
         
         if isinstance(create_date, datetime):
             create_date = create_date.isoformat()
@@ -98,6 +99,8 @@ class PostgresNodeRepository(NodeRepository):
             write_date = write_date.isoformat()
         if isinstance(open_date, datetime):
             open_date = open_date.isoformat()
+        if isinstance(deleted_at, datetime):
+            deleted_at = deleted_at.isoformat()
         
         return Node(
             id=row['id'],
@@ -112,6 +115,8 @@ class PostgresNodeRepository(NodeRepository):
             collapsed=row.get('collapsed', False),
             active=row.get('active', True),
             is_shared=row.get('is_shared', False),
+            is_deleted=row.get('is_deleted', False),
+            deleted_at=deleted_at,
             is_class=row.get('is_class', False),
             is_page=row.get('is_page', False),
             is_day=row.get('is_day', False),
@@ -438,7 +443,7 @@ class PostgresNodeRepository(NodeRepository):
         """Get node by internal ID."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE id = $1 AND graph_id = $2 AND active = TRUE",
+                "SELECT * FROM node WHERE id = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 node_id, self._graph_id
             )
             if not row:
@@ -455,7 +460,7 @@ class PostgresNodeRepository(NodeRepository):
         """Get node by UUID."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE uuid = $1 AND graph_id = $2 AND active = TRUE",
+                "SELECT * FROM node WHERE uuid = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 uuid, self._graph_id
             )
             if not row:
@@ -645,7 +650,7 @@ class PostgresNodeRepository(NodeRepository):
         """Get direct children of a node."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE ORDER BY sequence",
+                "SELECT * FROM node WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
                 parent_id, self._graph_id
             )
             return [self._row_to_node(row) for row in rows]
@@ -655,7 +660,7 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
-                WHERE is_page = TRUE AND active = TRUE AND graph_id = $1
+                WHERE is_page = TRUE AND active = TRUE AND is_deleted = FALSE AND graph_id = $1
                 ORDER BY write_date DESC
             """, self._graph_id)
             return [self._row_to_node(row) for row in rows]
@@ -664,8 +669,8 @@ class PostgresNodeRepository(NodeRepository):
         """Get all nodes belonging to a page (recursive children)."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT * FROM node 
-                WHERE (page_id = $1 OR id = $1) AND graph_id = $2 AND active = TRUE
+                SELECT * FROM node
+                WHERE (page_id = $1 OR id = $1) AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE
                 ORDER BY sequence
             """, page_id, self._graph_id)
             return [self._row_to_node(row) for row in rows]
@@ -678,14 +683,14 @@ class PostgresNodeRepository(NodeRepository):
                 rows = await conn.fetch("""
                     SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node
-                    WHERE graph_id = $2 AND active = TRUE
+                    WHERE graph_id = $2 AND active = TRUE AND is_deleted = FALSE
                     AND (search_vector @@ plainto_tsquery('english', $1) OR name ILIKE $3)
                     ORDER BY rank DESC, write_date DESC
                     LIMIT $4
                 """, query, self._graph_id, f'%{query}%', limit)
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM node WHERE name ILIKE $1 AND graph_id = $2 AND active = TRUE LIMIT $3",
+                    "SELECT * FROM node WHERE name ILIKE $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE LIMIT $3",
                     f'%{query}%', self._graph_id, limit
                 )
             return [self._row_to_node(row) for row in rows]
@@ -696,7 +701,7 @@ class PostgresNodeRepository(NodeRepository):
             rows = await conn.fetch("""
                 SELECT n.* FROM node n
                 JOIN property_value_relation pvr ON n.id = pvr.node_id
-                WHERE pvr.property_id = $1 AND pvr.target_id = $2 AND n.graph_id = $3 AND n.active = TRUE
+                WHERE pvr.property_id = $1 AND pvr.target_id = $2 AND n.graph_id = $3 AND n.active = TRUE AND n.is_deleted = FALSE
             """, self._types_property_id, type_node_id, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
@@ -810,7 +815,7 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT np.ancestor_id
                     FROM node_path np
                     JOIN node n ON n.id = np.ancestor_id
-                    WHERE np.descendant_id = $1 AND n.graph_id = $2 AND n.active = TRUE
+                    WHERE np.descendant_id = $1 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                     ORDER BY np.depth DESC
                 """, node_id, self._graph_id)
             else:
@@ -818,7 +823,7 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT np.ancestor_id
                     FROM node_path np
                     JOIN node n ON n.id = np.ancestor_id
-                    WHERE np.descendant_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE
+                    WHERE np.descendant_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                     ORDER BY np.depth DESC
                 """, node_id, self._graph_id)
             
@@ -846,14 +851,14 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT np.descendant_id
                     FROM node_path np
                     JOIN node n ON n.id = np.descendant_id
-                    WHERE np.ancestor_id = $1 AND n.graph_id = $2 AND n.active = TRUE
+                    WHERE np.ancestor_id = $1 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                 """, node_id, self._graph_id)
             else:
                 rows = await conn.fetch("""
                     SELECT np.descendant_id
                     FROM node_path np
                     JOIN node n ON n.id = np.descendant_id
-                    WHERE np.ancestor_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE
+                    WHERE np.ancestor_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                 """, node_id, self._graph_id)
             
             return [row['descendant_id'] for row in rows]

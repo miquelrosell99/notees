@@ -59,6 +59,10 @@ class Node:
     active: bool = True  # Whether node is active (soft-delete flag)
     is_shared: bool = False  # Whether this node is shared with other users
     
+    # Soft delete
+    is_deleted: bool = False  # Whether node is deleted (trash)
+    deleted_at: Optional[str] = None  # When the node was deleted (ISO string)
+    
     # Class flags (stored for fast queries, not mutually exclusive)
     is_class: bool = False     # This node defines a class
     is_page: bool = False      # Regular page

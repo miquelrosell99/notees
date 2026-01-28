@@ -63,6 +63,7 @@ import {
   mdiFitToScreen,
   mdiRefresh,
   mdiPalette,
+  mdiRestore,
 } from '@mdi/js';
 
 // Icon size presets
@@ -199,6 +200,10 @@ export const DeleteIcon = ({ size = 'md', className, color, title }: IconProps) 
 
 export const TrashIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path={mdiTrashCanOutline} size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const RestoreIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path={mdiRestore} size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CloseIcon = ({ size = 'md', className, color, title }: IconProps) => (

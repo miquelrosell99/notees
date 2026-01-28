@@ -1,0 +1,106 @@
+.trash-view {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.trash-view__loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+}
+
+.trash-view__empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+}
+
+.trash-view__empty svg {
+  margin-bottom: 1rem;
+  opacity: 0.4;
+}
+
+.trash-view__empty p {
+  font-size: 1.1rem;
+}
+
+.trash-view__bulk-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.trash-view__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+}
+
+.trash-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.trash-item--selected {
+  background: var(--bg-selected);
+  border-color: var(--accent-primary);
+}
+
+.trash-item__checkbox {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+.trash-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.trash-item__name {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-item__meta {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.trash-item__deleted-date {
+  font-style: italic;
+}
+
+.trash-item__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Icon button overrides */
+.trash-item__actions button {
+  padding: 0.5rem;
+}
+
+.trash-item__actions button:hover {
+  background: var(--bg-hover);
+}
