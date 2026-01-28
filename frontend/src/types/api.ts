@@ -31,8 +31,8 @@ export interface Node {
   collapsed: boolean;
   active: boolean;
   is_page: boolean; // Whether this node is a page
-  is_type?: boolean; // Whether this node defines a class/type
-  usable_in?: 'pages' | 'blocks' | 'both'; // Where this class can be applied (only meaningful when is_type=true)
+  is_class?: boolean; // Whether this node defines a class/type
+  usable_in?: 'pages' | 'blocks' | 'both'; // Where this class can be applied (only meaningful when is_class=true)
   create_date: string;
   write_date: string;
   open_date?: string | null; // When the page was last opened/viewed
@@ -179,7 +179,7 @@ export interface NodeCreate {
   classes?: number[];
   properties?: Record<number, unknown>;
   is_page?: boolean;  // Create as a page (no parent needed)
-  is_type?: boolean;  // Create as a class/type (is_type=true)
+  is_class?: boolean;  // Create as a class/type (is_class=true)
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;

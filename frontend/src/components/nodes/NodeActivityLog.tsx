@@ -119,7 +119,7 @@ function activityToNode(activity: NodeActivity): Node {
     is_page: false,
     parent_id: null,
     page_id: null,
-    is_type: false,
+    is_class: false,
     active: true,
     create_date: activity.create_date,
     write_date: activity.create_date,

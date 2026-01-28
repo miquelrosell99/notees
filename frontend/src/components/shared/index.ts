@@ -4,5 +4,5 @@
  * Exports for shared/reusable components
  */
 
-export { TypeColorsPanel } from './TypeColorsPanel';
-export type { TypeColor, TypeColorsPanelProps } from './TypeColorsPanel';
+export { ClassColorsPanel } from './ClassColorsPanel';
+export type { ClassColor, ClassColorsPanelProps } from './ClassColorsPanel';

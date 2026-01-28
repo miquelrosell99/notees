@@ -105,7 +105,7 @@ export function NodeCard({
       })
       .filter((t): t is Node => {
         if (t === undefined) return false;
-        if (t.is_type) return false;
+        if (t.is_class) return false;
         return true;
       });
   }, [node?.tags, allTags, allNodes]);
