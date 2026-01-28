@@ -14,6 +14,9 @@
 
 import type { PropertyOperator, ContentOperator, PropertyType } from './query';
 
+// Re-export for convenience
+export type { PropertyOperator, ContentOperator, PropertyType };
+
 // ==================== AST Node Types ====================
 
 export type ASTNodeType =

@@ -25,7 +25,6 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
-import { Bullet } from './blocks/Bullet';
 import { AssetActions } from './assets/AssetActions';
 import { mdiImageOutline, mdiChevronRight, mdiChevronLeft } from '@mdi/js';
 import Icon from '@mdi/react';

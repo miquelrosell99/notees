@@ -7,18 +7,19 @@
  */
 import { useState } from 'react';
 import { useArchivedPages, useUnarchiveNode } from '@/hooks';
-import { Button } from '@/components/core';
+import { Button } from '../components/core/Button';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import Icon from '@mdi/react';
 import * as mdiIcons from '@mdi/js';
+import type { Node } from '@/types';
 import './ArchivedPagesView.css';
 
 export function ArchivedPagesView() {
-  const { data: response, isLoading } = useArchivedPages();
+  const { data: pages, isLoading } = useArchivedPages();
   const unarchiveMutation = useUnarchiveNode();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const pages = response?.pages || [];
+  const pageList = pages || [];
 
   const toggleSelection = (id: number) => {
     const newSelected = new Set(selectedIds);
@@ -31,10 +32,10 @@ export function ArchivedPagesView() {
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === pages.length) {
+    if (selectedIds.size === pageList.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(pages.map(p => p.id)));
+      setSelectedIds(new Set(pageList.map((p: Node) => p.id)));
     }
   };
 
@@ -65,7 +66,7 @@ export function ArchivedPagesView() {
     );
   }
 
-  if (pages.length === 0) {
+  if (pageList.length === 0) {
     return (
       <div className="archived-pages-view">
         <div className="archived-header">
@@ -104,7 +105,7 @@ export function ArchivedPagesView() {
           <label className="archived-checkbox">
             <input
               type="checkbox"
-              checked={selectedIds.size === pages.length && pages.length > 0}
+              checked={selectedIds.size === pageList.length && pageList.length > 0}
               onChange={toggleAll}
             />
           </label>
@@ -115,7 +116,7 @@ export function ArchivedPagesView() {
           </div>
         </div>
 
-        {pages.map((page) => {
+        {pageList.map((page: Node) => {
           const icon = getEffectiveIcon(page);
           const mdiPath = icon ? (mdiIcons as any)[icon] : null;
 
@@ -148,7 +149,7 @@ export function ArchivedPagesView() {
                   <Button
                     onClick={() => handleUnarchive(page.id)}
                     size="sm"
-                    variant="secondary"
+                    variant="ghost"
                     disabled={unarchiveMutation.isPending}
                   >
                     Unarchive

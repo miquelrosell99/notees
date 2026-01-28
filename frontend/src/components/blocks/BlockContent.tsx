@@ -29,7 +29,6 @@ import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { ContextMenu } from '../core/ContextMenu';
 import { ImageModal } from '../core/ImageModal';
-import { Bullet } from './Bullet';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
@@ -413,7 +412,6 @@ interface InlineImageProps {
 function InlineImage({ uuid, alt }: InlineImageProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const { openNode, addSidebarCard } = useNodesStore();
   
@@ -497,8 +495,6 @@ function InlineImage({ uuid, alt }: InlineImageProps) {
     <>
       <div 
         className="inline-image-container"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
       >
         <img
           src={imageUrl}

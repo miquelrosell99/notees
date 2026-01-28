@@ -9,7 +9,7 @@
  * The menus are composable - page and block menus include the common items.
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useCreateNode } from '@/hooks';
+import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode } from '@/hooks';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
