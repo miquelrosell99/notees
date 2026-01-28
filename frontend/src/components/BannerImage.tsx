@@ -270,22 +270,6 @@ export function BannerImage({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Bullet - top left corner, visible on hover */}
-        {assetNode && isHovered && (
-          <div className="banner-image__bullet">
-            <Bullet
-              nodeId={assetNode.id}
-              icon={assetNode.icon}
-              isPage={assetNode.is_page}
-              interactive={true}
-              onClick={handleBulletClick}
-              onShiftClick={handleBulletShiftClick}
-              size="sm"
-              title="Click to open, Shift+click for sidebar"
-            />
-          </div>
-        )}
-        
         <img 
           src={imageUrl} 
           alt="Banner" 
@@ -320,6 +304,9 @@ export function BannerImage({
         onClose={() => setIsModalOpen(false)}
         src={imageUrl}
         alt="Banner"
+        assetNode={assetNode}
+        onBulletClick={handleBulletClick}
+        onBulletShiftClick={handleBulletShiftClick}
       />
     </>
   );

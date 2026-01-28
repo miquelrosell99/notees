@@ -1,15 +1,16 @@
 /**
  * ImageModal Component
  * 
- * Modal for displaying full-size images.
- * - Shows image with aspect ratio preserved
- * - Close button in top right
- * - Max size with good proportions
+ * Fullscreen modal for displaying images.
+ * - Fullscreen overlay with image centered
+ * - Close button in top right corner of screen
+ * - Optional bullet in top left corner for navigation
  * - Click outside or Escape to close
  */
 import { useEffect, useCallback } from 'react';
 import { mdiClose } from '@mdi/js';
 import { Button } from './Button';
+import { Bullet } from '../blocks/Bullet';
 import './ImageModal.css';
 
 export interface ImageModalProps {
@@ -21,16 +22,32 @@ export interface ImageModalProps {
   src: string;
   /** Image alt text */
   alt?: string;
+  /** Optional asset node for bullet navigation */
+  assetNode?: {
+    id: number;
+    icon: string | null;
+    is_page: boolean;
+  } | null;
+  /** Callback when bullet is clicked */
+  onBulletClick?: (e: React.MouseEvent) => void;
+  /** Callback when bullet is shift-clicked */
+  onBulletShiftClick?: () => void;
+  /** Callback for bullet context menu */
+  onBulletContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
 }
 
 /**
- * Modal component for displaying full-size images.
+ * Modal component for displaying fullscreen images.
  */
 export function ImageModal({
   isOpen,
   onClose,
   src,
   alt = 'Image',
+  assetNode,
+  onBulletClick,
+  onBulletShiftClick,
+  onBulletContextMenu,
 }: ImageModalProps) {
   // Handle escape key
   useEffect(() => {
@@ -60,22 +77,40 @@ export function ImageModal({
 
   return (
     <div className="image-modal-backdrop" onClick={handleBackdropClick}>
-      <div className="image-modal-container">
-        <Button
-          icon={mdiClose}
-          iconOnly
-          className="image-modal-close"
-          onClick={onClose}
-          size="md"
-          variant="ghost"
-          title="Close (Esc)"
-        />
-        <img
-          src={src}
-          alt={alt}
-          className="image-modal-image"
-        />
-      </div>
+      {/* Close button - top right corner of screen */}
+      <Button
+        icon={mdiClose}
+        iconOnly
+        className="image-modal-close"
+        onClick={onClose}
+        size="md"
+        variant="ghost"
+        title="Close (Esc)"
+      />
+      
+      {/* Bullet - top left corner of screen */}
+      {assetNode && (
+        <div className="image-modal-bullet">
+          <Bullet
+            nodeId={assetNode.id}
+            icon={assetNode.icon}
+            isPage={assetNode.is_page}
+            interactive={true}
+            onClick={onBulletClick}
+            onShiftClick={onBulletShiftClick}
+            onContextMenu={onBulletContextMenu}
+            size="md"
+            title="Click to open, Shift+click for sidebar"
+          />
+        </div>
+      )}
+      
+      {/* Image - centered, fullscreen */}
+      <img
+        src={src}
+        alt={alt}
+        className="image-modal-image"
+      />
     </div>
   );
 }
