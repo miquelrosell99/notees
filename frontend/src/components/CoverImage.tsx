@@ -25,8 +25,8 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
-import { AssetActions } from './assets/AssetActions';
-import { mdiImageOutline, mdiChevronRight, mdiChevronLeft } from '@mdi/js';
+import { FloatingButtonArray } from './core/FloatingButtonArray';
+import { mdiImageOutline, mdiChevronRight, mdiChevronLeft, mdiPencil, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import './CoverImage.css';
 
@@ -256,17 +256,15 @@ export function CoverImage({
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Action buttons - vertical stack on left side of image */}
-      {editable && (
-        <AssetActions
-          onEdit={onSelectImage}
-          onRemove={handleRemove}
-          visible={isHovered}
-          position="left"
+      {editable && isHovered && (
+        <FloatingButtonArray
           className="cover-image-card__actions"
-          compact={true}
+          direction="vertical"
+          size="sm"
         >
           <Button
             icon={mdiChevronRight}
+            iconOnly
             variant="ghost"
             size="sm"
             onClick={handleToggleCollapse}
@@ -274,7 +272,23 @@ export function CoverImage({
             aria-label="Collapse cover image"
             aria-expanded="true"
           />
-        </AssetActions>
+          <Button
+            icon={mdiPencil}
+            iconOnly
+            variant="ghost"
+            size="sm"
+            onClick={onSelectImage}
+            title="Change image"
+          />
+          <Button
+            icon={mdiClose}
+            iconOnly
+            variant="ghost"
+            size="sm"
+            onClick={handleRemove}
+            title="Remove image"
+          />
+        </FloatingButtonArray>
       )}
       
       <Card padding={false} radius="md" elevation="low">

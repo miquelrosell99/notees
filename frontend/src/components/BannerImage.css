@@ -24,6 +24,14 @@
   padding: 2px;
 }
 
+/* Banner action buttons - positioned at bottom right */
+.banner-image__actions {
+  position: absolute;
+  bottom: var(--spacing-2, 8px);
+  right: var(--spacing-2, 8px);
+  z-index: 20;
+}
+
 /* Extended hover zone - adds invisible padding for better action menu interaction */
 .banner-image--expanded::after {
   content: '';
