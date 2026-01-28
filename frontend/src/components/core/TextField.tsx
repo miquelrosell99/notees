@@ -4,7 +4,7 @@
  * A reusable text input component with consistent styling.
  * Features slightly rounded corners and subtle border.
  */
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import './TextField.css';
 
 export type TextFieldSize = 'sm' | 'md' | 'lg';
@@ -20,6 +20,10 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   label?: string;
   /** Additional wrapper className */
   wrapperClassName?: string;
+  /** Optional icon to show on the right with a divider */
+  icon?: ReactNode;
+  /** Additional className for the container */
+  containerClassName?: string;
 }
 
 /**
@@ -35,6 +39,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     wrapperClassName = '',
     className = '',
     disabled,
+    icon,
+    containerClassName = '',
     ...props
   },
   ref
@@ -44,6 +50,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     `text-field--${size}`,
     error && 'text-field--error',
     disabled && 'text-field--disabled',
+    icon && 'text-field--with-icon',
     className,
   ]
     .filter(Boolean)
@@ -56,16 +63,44 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     .filter(Boolean)
     .join(' ');
 
+  const containerClasses = [
+    'text-field__container',
+    error && 'text-field__container--error',
+    disabled && 'text-field__container--disabled',
+    containerClassName,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const inputElement = icon ? (
+    <div className={containerClasses}>
+      <input
+        ref={ref}
+        className={inputClasses}
+        disabled={disabled}
+        {...props}
+      />
+      {icon && (
+        <>
+          <div className="text-field__divider" />
+          <div className="text-field__icon">{icon}</div>
+        </>
+      )}
+    </div>
+  ) : (
+    <input
+      ref={ref}
+      className={inputClasses}
+      disabled={disabled}
+      {...props}
+    />
+  );
+
   if (label) {
     return (
       <div className={wrapperClasses}>
         <label className="text-field__label">{label}</label>
-        <input
-          ref={ref}
-          className={inputClasses}
-          disabled={disabled}
-          {...props}
-        />
+        {inputElement}
         {error && errorMessage && (
           <span className="text-field__error">{errorMessage}</span>
         )}
@@ -75,12 +110,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
 
   return (
     <>
-      <input
-        ref={ref}
-        className={inputClasses}
-        disabled={disabled}
-        {...props}
-      />
+      {inputElement}
       {error && errorMessage && (
         <span className="text-field__error">{errorMessage}</span>
       )}

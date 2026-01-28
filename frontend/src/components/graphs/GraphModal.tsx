@@ -11,6 +11,7 @@ import { AlertIcon, SyncIcon } from '../icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
 import { Button } from '../core/Button';
+import { TextField } from '../core/TextField';
 
 interface GraphModalProps {
   isOpen: boolean;
@@ -88,45 +89,30 @@ export function GraphModal({ isOpen, onClose, onSuccess }: GraphModalProps) {
 
         <form className="graph-modal__form" onSubmit={handleSubmit}>
           <div className="graph-modal__field">
-            <label className="graph-modal__label">Graph Name</label>
-            <div className="graph-modal__input-wrapper">
-              <input
-                type="text"
-                className={`graph-modal__input ${
-                  name.length >= 2 
-                    ? nameCheck?.available === false 
-                      ? 'graph-modal__input--error' 
-                      : 'graph-modal__input--valid'
-                    : ''
-                }`}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="my-notes"
-                autoFocus
-              />
-              {isCheckingName && (
-                <span className="graph-modal__input-status graph-modal__input-status--loading">
-                  <SyncIcon size="xs" />
-                </span>
-              )}
-              {!isCheckingName && name.length >= 2 && (
-                <span className={`graph-modal__input-status ${
-                  nameCheck?.available 
-                    ? 'graph-modal__input-status--valid' 
-                    : 'graph-modal__input-status--error'
-                }`}>
-                  {nameCheck?.available 
-                    ? <Icon path={mdiCheck} size={0.6} /> 
-                    : <Icon path={mdiClose} size={0.6} />
-                  }
-                </span>
-              )}
-            </div>
-            {name.length >= 2 && nameCheck?.available === false && (
-              <p className="graph-modal__field-error">
-                This name is already taken
-              </p>
-            )}
+            <TextField
+              label="Graph Name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="my-notes"
+              autoFocus
+              error={name.length >= 2 && nameCheck?.available === false}
+              errorMessage={name.length >= 2 && nameCheck?.available === false ? 'This name is already taken' : undefined}
+              containerClassName={name.length >= 2 && nameCheck?.available && !isCheckingName ? 'text-field__container--valid' : ''}
+              icon={
+                isCheckingName ? (
+                  <span className="graph-modal__input-status--loading">
+                    <SyncIcon size="xs" />
+                  </span>
+                ) : name.length >= 2 ? (
+                  <span
+                    className={nameCheck?.available ? 'graph-modal__input-status--valid' : 'graph-modal__input-status--error'}
+                  >
+                    <Icon path={nameCheck?.available ? mdiCheck : mdiClose} size={0.6} />
+                  </span>
+                ) : undefined
+              }
+            />
           </div>
 
           {error && (

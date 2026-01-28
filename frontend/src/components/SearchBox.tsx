@@ -8,6 +8,7 @@ import { useSearch } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, SearchIcon } from './icons';
+import { TextField } from './core/TextField';
 import './SearchBox.css';
 
 interface SearchBoxProps {
@@ -97,26 +98,22 @@ export function SearchBox({
 
   return (
     <div ref={containerRef} className={`search-box ${className}`}>
-      <div className="search-box-input-wrapper">
-        <input
-          ref={inputRef}
-          type="search"
-          className="search-input"
-          value={query}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (query.length > 0) {
-              updateDropdownPosition();
-              setIsOpen(true);
-            }
-          }}
-          placeholder={placeholder}
-        />
-        <span className="search-box-icon">
-          <SearchIcon size="sm" />
-        </span>
-      </div>
+      <TextField
+        ref={inputRef}
+        type="search"
+        className="search-input"
+        value={query}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => {
+          if (query.length > 0) {
+            updateDropdownPosition();
+            setIsOpen(true);
+          }
+        }}
+        placeholder={placeholder}
+        icon={<SearchIcon size="sm" />}
+      />
       
       {isOpen && (
         <div 
