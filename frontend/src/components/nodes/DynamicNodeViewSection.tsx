@@ -22,6 +22,7 @@ import {
   useUpdateNodeView,
   useDeleteNodeView,
 } from '@/hooks/useNodeViews';
+import { useCreateNode } from '@/hooks/useNodes';
 import type { NodeView, QueryBlockTree, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
@@ -425,6 +426,63 @@ export function DynamicNodeViewSection({
     }
   }, [nodeId, viewType, views.length, createViewMutation, handleEditView]);
 
+  // Create node mutation for adding nodes to the collection
+  const createNodeMutation = useCreateNode();
+
+  // Handle adding a node to the collection
+  const handleAddNode = useCallback(async () => {
+    try {
+      // Determine what kind of node to create based on viewType
+      let nodeData: { name: string; is_page?: boolean; parent_id?: number; class_ids?: number[] } = {
+        name: '',
+        is_page: false,
+      };
+
+      switch (viewType) {
+        case 'child_pages':
+          // Create a child page under the current node
+          nodeData = {
+            name: '',
+            is_page: true,
+            parent_id: nodeId,
+          };
+          break;
+        
+        case 'typed_nodes':
+          // Create a block that is a child of this class page and has the class assigned
+          nodeData = {
+            name: '',
+            is_page: false,
+            parent_id: nodeId,
+            class_ids: [nodeId],
+          };
+          break;
+        
+        case 'all_pages':
+          // Create a new page
+          nodeData = {
+            name: '',
+            is_page: true,
+          };
+          break;
+        
+        default:
+          // Default: create a block
+          nodeData = {
+            name: '',
+            is_page: false,
+          };
+      }
+
+      const newNode = await createNodeMutation.mutateAsync(nodeData);
+      
+      // Open the new node for editing
+      onNodeClick?.(newNode.id, newNode.is_page);
+    } catch (error) {
+      console.error('Failed to create node:', error);
+    }
+  }, [viewType, nodeId, createNodeMutation, onNodeClick]);
+
   // Loading state - wait for views to load AND ensure defaults to complete
   if (viewsLoading || isInitializing) {
     console.log(`[DynamicNodeViewSection] ${viewType} still loading/initializing:`, { viewsLoading, isInitializing, nodeId, hasInitialized });
@@ -497,6 +555,8 @@ export function DynamicNodeViewSection({
         onGroupByChange={setGroupBy}
         selectedPropertyUuids={selectedPropertyUuids}
         onPropertyColumnsChange={handlePropertyColumnsChange}
+        showAddButton={viewType !== 'linked_references'}
+        onAdd={handleAddNode}
       />
       
       {/* Refresh button */}
