@@ -167,7 +167,7 @@ CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
 CREATE TABLE IF NOT EXISTS property (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
-    graph_id INTEGER REFERENCES graph(id) ON DELETE CASCADE,
+    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     icon VARCHAR(100),
     type VARCHAR(50) NOT NULL DEFAULT 'text',
@@ -184,19 +184,15 @@ CREATE TABLE IF NOT EXISTS property (
     CHECK (type NOT IN ('text', 'image') OR is_multi = FALSE)
 );
 
-CREATE INDEX IF NOT EXISTS idx_property_uuid ON property(uuid);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_uuid_per_graph ON property(graph_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_graph_uuid ON property(graph_id, uuid);
 CREATE INDEX IF NOT EXISTS idx_property_name ON property(name);
 CREATE INDEX IF NOT EXISTS idx_property_graph_id ON property(graph_id);
 CREATE INDEX IF NOT EXISTS idx_property_node_id ON property(node_id) WHERE node_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_property_create_uid ON property(create_uid);
 CREATE INDEX IF NOT EXISTS idx_property_write_uid ON property(write_uid);
--- Unique constraint for global properties (graph NULL, non-local)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_global ON property(name) 
-    WHERE is_local = FALSE AND graph_id IS NULL AND active = TRUE;
--- Unique constraint for graph properties
+-- Unique constraint for graph properties (name unique per graph, non-local)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_graph ON property(name, graph_id) 
-    WHERE is_local = FALSE AND graph_id IS NOT NULL AND active = TRUE;
+    WHERE is_local = FALSE AND active = TRUE;
 -- Unique constraint for local properties (unique name per node_id)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_local ON property(name, node_id) 
     WHERE is_local = TRUE AND active = TRUE;

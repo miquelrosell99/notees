@@ -104,14 +104,14 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         raise RuntimeError("Failed to create 'page' node")
     page_class_id = page_row['id']
     
-    # Create 'classes' property (global, not graph-specific)
+    # Create 'classes' property (per-graph)
     classes_prop_uuid = SYSTEM_PROPERTY_UUIDS["classes"]
     classes_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, 'classes', 'node', TRUE, TRUE, $2, $2, $3, $3)
-        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'classes', 'node', TRUE, TRUE, $3, $3, $4, $4)
+        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, classes_prop_uuid, now, user_id)
+    """, classes_prop_uuid, graph_id, now, user_id)
     if classes_row is None:
         raise RuntimeError("Failed to create 'classes' property")
     classes_property_id = classes_row['id']
@@ -126,19 +126,19 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create other system properties
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
     await conn.execute("""
-        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, 'show_hierarchy', 'boolean', FALSE, TRUE, $2, $2, $3, $3)
-        ON CONFLICT (uuid) DO NOTHING
-    """, show_hier_uuid, now, user_id)
+        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'show_hierarchy', 'boolean', FALSE, TRUE, $3, $3, $4, $4)
+        ON CONFLICT (graph_id, uuid) DO NOTHING
+    """, show_hier_uuid, graph_id, now, user_id)
     
     # Create 'cover' property
     cover_uuid = SYSTEM_PROPERTY_UUIDS["cover"]
     cover_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, 'cover', 'image', FALSE, TRUE, $2, $2, $3, $3)
-        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'cover', 'image', FALSE, TRUE, $3, $3, $4, $4)
+        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, cover_uuid, now, user_id)
+    """, cover_uuid, graph_id, now, user_id)
     if cover_row is None:
         raise RuntimeError("Failed to create 'cover' property")
     cover_property_id = cover_row['id']
@@ -146,11 +146,11 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create 'banner' property
     banner_uuid = SYSTEM_PROPERTY_UUIDS["banner"]
     banner_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, 'banner', 'image', FALSE, TRUE, $2, $2, $3, $3)
-        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'banner', 'image', FALSE, TRUE, $3, $3, $4, $4)
+        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, banner_uuid, now, user_id)
+    """, banner_uuid, graph_id, now, user_id)
     if banner_row is None:
         raise RuntimeError("Failed to create 'banner' property")
     banner_property_id = banner_row['id']
@@ -158,11 +158,11 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create 'extends' property (for class inheritance)
     extends_uuid = SYSTEM_PROPERTY_UUIDS["extends"]
     extends_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, 'extends', 'node', TRUE, TRUE, $2, $2, $3, $3)
-        ON CONFLICT (uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'extends', 'node', TRUE, TRUE, $3, $3, $4, $4)
+        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, extends_uuid, now, user_id)
+    """, extends_uuid, graph_id, now, user_id)
     if extends_row is None:
         raise RuntimeError("Failed to create 'extends' property")
     extends_property_id = extends_row['id']
