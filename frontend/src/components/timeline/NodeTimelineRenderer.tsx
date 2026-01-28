@@ -106,7 +106,24 @@ export function NodeTimelineRenderer({
         }
       });
     });
-    return getDateRange(dates, 0.1);
+    
+    const eventRange = getDateRange(dates, 0.1);
+    
+    // Ensure minimum range of 2 years centered on today
+    const today = new Date();
+    const minRangeMs = 2 * 365 * 24 * 60 * 60 * 1000; // 2 years
+    const currentRangeMs = eventRange.end.getTime() - eventRange.start.getTime();
+    
+    if (currentRangeMs < minRangeMs) {
+      // Expand range to 2 years, centered on today
+      const halfRange = minRangeMs / 2;
+      return {
+        start: new Date(today.getTime() - halfRange),
+        end: new Date(today.getTime() + halfRange)
+      };
+    }
+    
+    return eventRange;
   }, [nodes, dateProperties]);
   
   // Generate time events
