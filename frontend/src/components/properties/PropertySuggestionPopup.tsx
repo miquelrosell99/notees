@@ -12,7 +12,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';
 import type { Property } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { AddIcon, PropertiesIcon } from '../icons';
+import { AddIcon, PropertiesIcon, SearchIcon } from '../icons';
+import { TextField } from '../core/TextField';
 import './PropertySuggestionPopup.css';
 
 /** System property UUIDs that should be hidden from the "Add property" menu */
@@ -196,7 +197,7 @@ export function PropertySuggestionPopup({
       </div>
       
       <div className="property-suggestion-popup__search">
-        <input
+        <TextField
           ref={inputRef}
           type="text"
           className="property-suggestion-popup__input"
@@ -204,6 +205,7 @@ export function PropertySuggestionPopup({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
+          icon={<SearchIcon size="sm" />}
         />
       </div>
       

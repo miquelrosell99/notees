@@ -5,6 +5,7 @@ import { useState } from 'react';
 import './LoginPage.css';
 import { useAuthStore } from '@/stores';
 import { Button } from '../components/core/Button';
+import { TextField } from '../components/core/TextField';
 
 export function LoginPage() {
   const [username, setUsername] = useState('');
@@ -36,31 +37,27 @@ export function LoginPage() {
         </p>
         
         <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
-              required
-              autoComplete="username"
-            />
-          </div>
+          <TextField
+            id="username"
+            type="text"
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Enter username"
+            required
+            autoComplete="username"
+          />
           
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              required
-              autoComplete={isRegister ? 'new-password' : 'current-password'}
-            />
-          </div>
+          <TextField
+            id="password"
+            type="password"
+            label="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter password"
+            required
+            autoComplete={isRegister ? 'new-password' : 'current-password'}
+          />
           
           {error && <div className="error-message">{error}</div>}
           

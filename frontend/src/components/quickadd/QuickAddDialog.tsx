@@ -12,8 +12,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePages, useSearch, useQuickAdd } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
-import { PageIcon, NodeIcon, AddIcon } from '../icons';
+import { PageIcon, NodeIcon, AddIcon, SearchIcon } from '../icons';
 import { Button } from '../core/Button';
+import { TextField } from '../core/TextField';
 import './QuickAddDialog.css';
 
 interface QuickAddProps {
@@ -152,7 +153,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
           {createType === 'page' ? (
             /* Page creation mode */
             <div className="quick-add-page-mode">
-              <input
+              <TextField
                 ref={inputRef}
                 type="text"
                 className="quick-add-input"
@@ -178,7 +179,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
                       <span>{destinationPage.name || 'Untitled'}</span>
                     </button>
                   ) : (
-                    <input
+                    <TextField
                       ref={destinationInputRef}
                       type="text"
                       className="quick-add-destination-input"
@@ -189,6 +190,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
                       }}
                       onFocus={() => setShowDestinationPicker(true)}
                       placeholder="Search for destination page..."
+                      icon={<SearchIcon size="sm" />}
                     />
                   )}
                   
