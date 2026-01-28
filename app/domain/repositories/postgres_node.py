@@ -244,14 +244,25 @@ class PostgresNodeRepository(NodeRepository):
                 
                 return await self.get_by_id(node_id)
     
-    async def create(self, data: NodeCreateData, user_id: Optional[int] = None) -> Node:
-        """Create a new node."""
+    async def create(
+        self,
+        data: NodeCreateData,
+        user_id: Optional[int] = None,
+        uuid: Optional[str] = None
+    ) -> Node:
+        """Create a new node.
+        
+        Args:
+            data: Node creation data
+            user_id: Optional user ID override
+            uuid: Optional UUID override (for date nodes, assets, etc.)
+        """
         # Permission check - need create permission on graph
         if self._user_id:
             await self.permissions.require_graph_create(self._graph_id)
         
         now = utc_now()
-        uuid = data.uuid or generate_uuid()  # Use provided UUID or generate
+        uuid = uuid or data.uuid or generate_uuid()  # Use provided UUID or generate
         uid = user_id or self._user_id
         
         # Compute page_id for blocks
@@ -261,6 +272,54 @@ class PostgresNodeRepository(NodeRepository):
                 page_id = data.parent_id
             else:
                 page_id = await self._compute_page_id(data.parent_id)
+        
+        # Compute is_* flags from classes (if any classes are provided)
+        # These flags should NEVER be set directly - they are derived from classes
+        is_class = False
+        is_page = False
+        is_day = False
+        is_month = False
+        is_year = False
+        is_asset = False
+        is_template = False
+        is_comment = False
+        
+        if data.classes:
+            from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+            
+            # Map system class UUIDs to flag names
+            class_uuid_to_flag = {
+                SYSTEM_CLASS_UUIDS["class"]: "is_class",
+                SYSTEM_CLASS_UUIDS["page"]: "is_page",
+                SYSTEM_CLASS_UUIDS["day"]: "is_day",
+                SYSTEM_CLASS_UUIDS["month"]: "is_month",
+                SYSTEM_CLASS_UUIDS["year"]: "is_year",
+                SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
+                SYSTEM_CLASS_UUIDS["template"]: "is_template",
+                SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
+            }
+            
+            # Get UUIDs for all classes being assigned
+            for class_id in data.classes:
+                class_node = await self.get_by_id(class_id)
+                if class_node and class_node.uuid in class_uuid_to_flag:
+                    flag_name = class_uuid_to_flag[class_node.uuid]
+                    if flag_name == "is_class":
+                        is_class = True
+                    elif flag_name == "is_page":
+                        is_page = True
+                    elif flag_name == "is_day":
+                        is_day = True
+                    elif flag_name == "is_month":
+                        is_month = True
+                    elif flag_name == "is_year":
+                        is_year = True
+                    elif flag_name == "is_asset":
+                        is_asset = True
+                    elif flag_name == "is_template":
+                        is_template = True
+                    elif flag_name == "is_comment":
+                        is_comment = True
         
         async with self._pool.acquire() as conn:
             async with conn.transaction():
@@ -281,9 +340,9 @@ class PostgresNodeRepository(NodeRepository):
                     RETURNING id
                 """, uuid, self._graph_id, data.name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
-                    data.is_class, data.is_page, data.is_day,
-                    data.is_month, data.is_year, data.is_asset,
-                    data.is_template, data.is_comment,
+                    is_class, is_page, is_day,
+                    is_month, is_year, is_asset,
+                    is_template, is_comment,
                     now, uid)
                 
                 if row is None:
@@ -327,111 +386,14 @@ class PostgresNodeRepository(NodeRepository):
             sequence=data.sequence,
             collapsed=data.collapsed,
             active=True,
-            is_class=data.is_class,
-            is_page=data.is_page,
-            is_day=data.is_day,
-            is_month=data.is_month,
-            is_year=data.is_year,
-            is_asset=data.is_asset,
-            is_template=data.is_template,
-            is_comment=data.is_comment,
-            create_date=now.isoformat(),
-            write_date=now.isoformat(),
-            create_uid=uid,
-            write_uid=uid,
-            version=1,
-        )
-    
-    async def create_with_uuid(
-        self,
-        uuid: str,
-        data: NodeCreateData,
-        user_id: Optional[int] = None
-    ) -> Node:
-        """Create a new node with a specific UUID (for date nodes)."""
-        # Permission check - need create permission on graph
-        if self._user_id:
-            await self.permissions.require_graph_create(self._graph_id)
-        
-        now = utc_now()
-        uid = user_id or self._user_id
-        
-        # Compute page_id for blocks
-        page_id = None
-        if data.parent_id:
-            if await self._is_page(data.parent_id):
-                page_id = data.parent_id
-            else:
-                page_id = await self._compute_page_id(data.parent_id)
-        
-        async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                row = await conn.fetchrow("""
-                    INSERT INTO node (
-                        uuid, graph_id, name, icon, color, parent_id, page_id,
-                        sequence, collapsed,
-                        is_class, is_page, is_day, is_month, is_year,
-                        is_asset, is_template, is_comment,
-                        create_date, write_date, create_uid, write_uid
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $19, $19)
-                    RETURNING id
-                """, uuid, self._graph_id, data.name, data.icon, data.color,
-                    data.parent_id, page_id, data.sequence, data.collapsed,
-                    data.is_class, data.is_page, data.is_day,
-                    data.is_month, data.is_year, data.is_asset,
-                    data.is_template, data.is_comment,
-                    now, uid)
-                
-                if row is None:
-                    raise RuntimeError("Failed to create node with UUID")
-                node_id = row['id']
-                
-                # Add classes
-                if data.classes:
-                    np_uuid = generate_uuid()
-                    await conn.execute("""
-                        INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
-                        VALUES ($1, $2, $3, $4, $4, $5, $5)
-                        ON CONFLICT (node_id, property_id) DO NOTHING
-                    """, np_uuid, node_id, self._types_property_id, now, uid)
-                    
-                    np_row = await conn.fetchrow(
-                        "SELECT id FROM node_property WHERE node_id = $1 AND property_id = $2",
-                        node_id, self._types_property_id
-                    )
-                    if not np_row:
-                        raise RuntimeError(f"Failed to create node_property for node {node_id}")
-                    node_property_id = np_row['id']
-                    
-                    for class_id in data.classes:
-                        pvr_uuid = generate_uuid()
-                        await conn.execute("""
-                            INSERT INTO property_value_relation 
-                            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
-                            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, class_id, now, uid)
-        
-        return Node(
-            id=node_id,
-            uuid=uuid,
-            graph_id=self._graph_id,
-            name=data.name,
-            icon=data.icon,
-            color=data.color,
-            parent_id=data.parent_id,
-            page_id=page_id,
-            sequence=data.sequence,
-            collapsed=data.collapsed,
-            active=True,
-            is_class=data.is_class,
-            is_page=data.is_page,
-            is_day=data.is_day,
-            is_month=data.is_month,
-            is_year=data.is_year,
-            is_asset=data.is_asset,
-            is_template=data.is_template,
-            is_comment=data.is_comment,
+            is_class=is_class,
+            is_page=is_page,
+            is_day=is_day,
+            is_month=is_month,
+            is_year=is_year,
+            is_asset=is_asset,
+            is_template=is_template,
+            is_comment=is_comment,
             create_date=now.isoformat(),
             write_date=now.isoformat(),
             create_uid=uid,

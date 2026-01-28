@@ -131,11 +131,9 @@ async def get_or_create_daily(
             year_data = NodeCreateData(
                 name=str(d.year),
                 classes=[page_type_id, year_type_id],
-                is_page=True,
-                is_year=True,
             )
             try:
-                year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
+                year_node = await service._node_repo.create(year_data, uuid=year_uuid)
             except Exception as e:
                 # Handle race condition - another request may have created it
                 if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
@@ -154,11 +152,9 @@ async def get_or_create_daily(
                 name=month_name_str,
                 classes=[page_type_id, month_type_id],
                 parent_id=year_node.id,
-                is_page=True,
-                is_month=True,
             )
             try:
-                month_node = await service._node_repo.create_with_uuid(month_uuid, month_data)
+                month_node = await service._node_repo.create(month_data, uuid=month_uuid)
             except Exception as e:
                 # Handle race condition - another request may have created it
                 if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
@@ -192,10 +188,8 @@ async def get_or_create_daily(
             name=name,
             classes=[page_type_id, day_type_id],
             parent_id=month_node.id if month_node else None,
-            is_page=True,
-            is_day=True,
         )
-        node = await service._node_repo.create_with_uuid(uuid, day_data)
+        node = await service._node_repo.create(day_data, uuid=uuid)
         # Return with types (page and day)
         return _node_to_response(node, classes=[page_type_id, day_type_id])
     except HTTPException:
@@ -250,10 +244,8 @@ async def get_or_create_monthly(
         year_data = NodeCreateData(
             name=str(year),
             classes=[page_type_id, year_type_id],
-            is_page=True,
-            is_year=True,
         )
-        year_node = await service._node_repo.create_with_uuid(year_uuid, year_data)
+        year_node = await service._node_repo.create(year_data, uuid=year_uuid)
     
     # Check if month page exists
     existing = await service._node_repo.get_by_uuid(uuid)
@@ -282,10 +274,8 @@ async def get_or_create_monthly(
         name=name,
         classes=[page_type_id, month_type_id],
         parent_id=year_node.id if year_node else None,
-        is_page=True,
-        is_month=True,
     )
-    node = await service._node_repo.create_with_uuid(uuid, data)
+    node = await service._node_repo.create(data, uuid=uuid)
     return _node_to_response(node)
 
 
@@ -329,8 +319,6 @@ async def get_or_create_yearly(
     data = NodeCreateData(
         name=name,
         classes=[page_type_id, year_type_id],
-        is_page=True,
-        is_year=True,
     )
-    node = await service._node_repo.create_with_uuid(uuid, data)
+    node = await service._node_repo.create(data, uuid=uuid)
     return _node_to_response(node)
