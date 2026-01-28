@@ -668,7 +668,6 @@ export function ContainerFilterBlock({ block, onUpdate, onDelete, readOnly, dept
     : (containerBlock as ContainerBlock).blocks;
   
   const containerType = block.type as 'AND_CONTAINER' | 'OR_CONTAINER' | 'NOT_CONTAINER';
-  const icon = containerType === 'AND_CONTAINER' ? mdiSetAll : containerType === 'OR_CONTAINER' ? mdiSetCenter : mdiCancel;
   const label = containerType === 'AND_CONTAINER' ? 'all' : containerType === 'OR_CONTAINER' ? 'any' : 'none';
   
   const handleAddNestedBlock = useCallback((type: QueryBlockType) => {

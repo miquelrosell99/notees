@@ -646,11 +646,9 @@ export function PropertiesSection({
         )}
 
         {/* Inherited Properties Section - only for class nodes */}
-        {node.is_class && firstClassId && (
+        {firstClassId && (
           <InheritedPropertiesSection
             classNodeId={firstClassId}
-            readOnly={readOnly}
-            onNavigateToNode={onNavigateToNode}
           />
         )}
 
@@ -707,12 +705,8 @@ export function PropertiesSection({
  */
 function InheritedPropertiesSection({
   classNodeId,
-  readOnly,
-  onNavigateToNode,
 }: {
   classNodeId: number;
-  readOnly?: boolean;
-  onNavigateToNode?: (nodeId: number) => void;
 }) {
   const [showInherited, setShowInherited] = useState(false);
   const { data: inheritedProps, isLoading } = useInheritedProperties(classNodeId);

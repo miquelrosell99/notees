@@ -10,9 +10,10 @@ import {
   listDatabases, 
   switchDatabase,
   deleteDatabase,
-  renameDatabase,
+  // TODO: Uncomment when implementing create/rename/import modals
+  // renameDatabase,
+  // importDatabase,
   getDatabaseExportUrl,
-  importDatabase,
   type DatabaseInfo,
 } from '@/api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore } from '@/stores';
@@ -25,7 +26,8 @@ import {
   CheckIcon, 
   CloseIcon, 
   DeleteIcon,
-  EditIcon,
+  // TODO: Uncomment when rename modal is implemented
+  // EditIcon,
 } from '../components/icons';
 import Icon from '@mdi/react';
 import { mdiExport } from '@mdi/js';
@@ -33,7 +35,8 @@ import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import './DatabaseManagementView.css';
 
-type ImportType = 'sqlite' | 'zip';
+// TODO: Uncomment when implementing import modal
+// type ImportType = 'sqlite' | 'zip';
 
 /** Format a date string for display */
 function formatDate(dateStr: string | undefined): string {
@@ -85,20 +88,21 @@ export function DatabaseManagementView({
   showClose = false,
   onClose,
 }: DatabaseManagementViewProps) {
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
-  const [importNameModalState, setImportNameModalState] = useState<{
-    isOpen: boolean;
-    file: File | null;
-    type: ImportType | null;
-  }>({ isOpen: false, file: null, type: null });
-  const [importError, setImportError] = useState<string | null>(null);
+  // TODO: Database modal state - commented out until modals are implemented
+  // const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
+  // const [importNameModalState, setImportNameModalState] = useState<{
+  //   isOpen: boolean;
+  //   file: File | null;
+  //   type: ImportType | null;
+  // }>({ isOpen: false, file: null, type: null });
+  // const [importError, setImportError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [renameModalState, setRenameModalState] = useState<{
-    isOpen: boolean;
-    dbName: string | null;
-  }>({ isOpen: false, dbName: null });
-  const [renameError, setRenameError] = useState<string | null>(null);
+  // const [renameModalState, setRenameModalState] = useState<{
+  //   isOpen: boolean;
+  //   dbName: string | null;
+  // }>({ isOpen: false, dbName: null });
+  // const [renameError, setRenameError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
 
@@ -158,7 +162,8 @@ export function DatabaseManagementView({
     },
   });
 
-  // Rename database mutation
+  // TODO: Rename mutation - commented out until modals are implemented
+  /*
   const renameMutation = useMutation({
     mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) => 
       renameDatabase(oldName, newName),
@@ -171,8 +176,10 @@ export function DatabaseManagementView({
       setRenameError(err.message || 'Failed to rename database');
     },
   });
+  */
 
-  // Import database mutation
+  // TODO: Import mutation - commented out until modals are implemented
+  /*
   const importMutation = useMutation({
     mutationFn: ({ name, file }: { name: string; file: File }) => importDatabase(name, file),
     onSuccess: async (newDb) => {
@@ -187,8 +194,10 @@ export function DatabaseManagementView({
       setImportError(err.message || 'Failed to import database');
     },
   });
+  */
 
-  // Handle successful database creation from modal
+  // TODO: Handler functions for database modals - commented out until modals are implemented
+  /*
   const handleDatabaseCreated = async (newDb: DatabaseInfo) => {
     // Auto-switch to the new database
     await switchMutation.mutateAsync(newDb.name);
@@ -196,44 +205,45 @@ export function DatabaseManagementView({
     onDatabaseSelected?.();
   };
 
-  // Handle import option selection (after file is chosen)
   const handleImportOptionSelected = (type: ImportType, file: File) => {
     setIsImportOptionsOpen(false);
     setImportError(null);
     setImportNameModalState({ isOpen: true, file, type });
   };
 
-  // Handle import name submission
   const handleImportNameSubmit = (name: string) => {
     if (importNameModalState.file) {
       importMutation.mutate({ name, file: importNameModalState.file });
     }
   };
 
-  // Handle import name modal close
   const handleImportNameModalClose = () => {
     setImportNameModalState({ isOpen: false, file: null, type: null });
     setImportError(null);
   };
+  */
 
-  // Handle rename modal open
+  // TODO: Rename handler - commented out until modal is implemented
+  /*
   const handleOpenRename = (dbName: string) => {
-    setRenameError(null);
+    // setRenameError(null);
     setRenameModalState({ isOpen: true, dbName });
   };
+  */
 
-  // Handle rename submission
+  // TODO: Rename handlers - commented out until modal is implemented
+  /*
   const handleRenameSubmit = (newName: string) => {
     if (renameModalState.dbName) {
       renameMutation.mutate({ oldName: renameModalState.dbName, newName });
     }
   };
 
-  // Handle rename modal close
   const handleRenameModalClose = () => {
     setRenameModalState({ isOpen: false, dbName: null });
     setRenameError(null);
   };
+  */
 
   const handleSelectDatabase = (db: DatabaseInfo) => {
     if (db.name !== data?.active) {
@@ -292,6 +302,8 @@ export function DatabaseManagementView({
 
           {/* Action buttons */}
           <div className="db-management__actions">
+            {/* TODO: Buttons disabled until modals are implemented */}
+            {/*
             <Button 
               className="db-management__action-btn"
               variant="primary"
@@ -308,6 +320,7 @@ export function DatabaseManagementView({
             >
               Import Graph
             </Button>
+            */}
           </div>
 
           {/* Database list */}
@@ -335,6 +348,8 @@ export function DatabaseManagementView({
                       )}
                     </div>
                     <div className="db-management__card-actions">
+                      {/* TODO: Uncomment when rename modal is implemented */}
+                      {/*
                       <Button
                         variant="ghost"
                         size="sm"
@@ -343,6 +358,7 @@ export function DatabaseManagementView({
                       >
                         <EditIcon size="sm" />
                       </Button>
+                      */}
                       <Button
                         variant="ghost"
                         size="sm"
