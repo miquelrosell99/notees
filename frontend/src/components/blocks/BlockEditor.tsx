@@ -30,6 +30,7 @@ import { SlashCommandPopup } from '../SlashCommandPopup';
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { stripHtml } from '@/utils/sanitize';
 import { mdiTag } from '@mdi/js';
 import * as mdiIcons from '@mdi/js';
 import type { Node } from '@/types';
@@ -1756,8 +1757,13 @@ export function BlockEditor({
     // Prevent default paste to avoid HTML insertion
     e.preventDefault();
     
-    // Get plain text
-    let text = e.clipboardData?.getData('text/plain') || '';
+    // Get text content (sanitize HTML if present)
+    const html = e.clipboardData?.getData('text/html');
+    const plainText = e.clipboardData?.getData('text/plain') || '';
+    
+    // If HTML is present, strip all tags to get safe plain text
+    // This prevents XSS attacks from malicious clipboard content
+    let text = html ? stripHtml(html) : plainText;
     
     // Check for files
     const items = e.clipboardData?.items;

@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
+from ..validation import validate_node_create, validate_node_update, ValidationError
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
 
@@ -16,6 +17,10 @@ if TYPE_CHECKING:
     from .link_service import LinkParsingService
 
 logger = get_logger(__name__)
+
+
+# Maximum allowed hierarchy depth to prevent pathological trees
+MAX_HIERARCHY_DEPTH = 100
 
 
 # Date-related classes that are automatically assigned by the system (cannot be manually added/removed)
@@ -147,11 +152,15 @@ class NodeService:
     ) -> Node:
         """Create a new node.
         
+        - Validates input fields
         - Validates page name uniqueness per class
         - Computes page_id for blocks
         - Parses content for links and inline classes
         - Applies tag properties (SuperTags)
         """
+        # Validate input
+        validate_node_create(data.name, data.icon, data.color)
+        
         # Validate page name uniqueness if it's a page with classes
         if data.is_page and data.classes:
             await self._validate_page_name_uniqueness(
@@ -230,6 +239,7 @@ class NodeService:
         
         This properly handles sibling resequencing to maintain order consistency.
         Prevents circular references by checking if new_parent is a descendant.
+        Enforces maximum hierarchy depth to prevent pathological trees.
         """
         # Get the node before move to check if parent changed
         old_node = await self._node_repo.get_by_id(node_id)
@@ -241,6 +251,9 @@ class NodeService:
         # Check for circular reference: prevent moving node to its own descendant
         if new_parent_id is not None:
             await self._check_circular_reference(node_id, new_parent_id)
+            
+            # Check that move won't exceed maximum depth
+            await self._check_max_depth(node_id, new_parent_id)
         
         # Use dedicated move method for proper resequencing
         node = await self._node_repo.move(node_id, new_parent_id, new_sequence, user_id)
@@ -282,18 +295,66 @@ class NodeService:
                 f"would create circular reference (parent is a descendant)"
             )
     
+    async def _check_max_depth(self, node_id: int, new_parent_id: int) -> None:
+        """Check if moving node would exceed maximum hierarchy depth.
+        
+        Args:
+            node_id: The node being moved
+            new_parent_id: The proposed new parent
+            
+        Raises:
+            ValueError: If the move would exceed MAX_HIERARCHY_DEPTH
+        """
+        pool = self._node_repo.get_connection()
+        
+        # Get depth of new parent (how deep is new_parent from root)
+        parent_depth_row = await pool.fetchrow("""
+            SELECT COALESCE(MAX(depth), 0) as parent_depth
+            FROM node_path
+            WHERE descendant_id = $1
+        """, new_parent_id)
+        parent_depth = parent_depth_row['parent_depth'] if parent_depth_row else 0
+        
+        # Get max depth of subtree being moved (how deep is node's deepest descendant)
+        subtree_depth_row = await pool.fetchrow("""
+            SELECT COALESCE(MAX(depth), 0) as subtree_depth
+            FROM node_path
+            WHERE ancestor_id = $1
+        """, node_id)
+        subtree_depth = subtree_depth_row['subtree_depth'] if subtree_depth_row else 0
+        
+        # New depth would be: parent_depth + 1 (for the move) + subtree_depth
+        new_max_depth = parent_depth + 1 + subtree_depth
+        
+        if new_max_depth > MAX_HIERARCHY_DEPTH:
+            raise ValueError(
+                f"Cannot move node: would exceed maximum hierarchy depth of {MAX_HIERARCHY_DEPTH} "
+                f"(resulting depth would be {new_max_depth})"
+            )
+    
     async def update_node(
         self,
         node_id: int,
         data: NodeUpdateData,
         user_id: Optional[int] = None,
+        expected_version: Optional[int] = None,
     ) -> Optional[Node]:
         """Update an existing node.
         
+        Validates input fields.
         Validates page name uniqueness if name or classes change.
         If name changes, re-parses links.
         If parent_id changes, updates classes path (inherited classes may change).
+        
+        Args:
+            node_id: ID of node to update
+            data: Update data
+            user_id: User performing the update
+            expected_version: For optimistic locking - update only if version matches
         """
+        # Validate input
+        validate_node_update(data.name, data.icon, data.color)
+        
         # Get the node before update
         old_node = await self._node_repo.get_by_id(node_id)
         if not old_node:
@@ -322,7 +383,7 @@ class NodeService:
                     exclude_node_id=node_id,
                 )
         
-        node = await self._node_repo.update(node_id, data, user_id)
+        node = await self._node_repo.update(node_id, data, user_id, expected_version=expected_version)
         if not node:
             return None
         

@@ -514,6 +514,18 @@ export function useUpdateNode() {
         }
       }
     },
+    onError: (error: any, variables) => {
+      // Handle optimistic locking conflicts
+      if (error.response?.status === 409) {
+        console.warn('[useUpdateNode] Conflict detected - node was modified by another user/session');
+        // Refetch the node to get the latest version
+        queryClient.invalidateQueries({ 
+          queryKey: nodeKeys.detailBase(variables.id),
+        });
+        // Show a toast notification (optional - could use a toast library here)
+        console.error('Conflict: The node was modified by another user. Please refresh and try again.');
+      }
+    },
   });
 }
 

@@ -655,14 +655,26 @@ class PostgresNodeRepository(NodeRepository):
             )
             return [self._row_to_node(row) for row in rows]
     
-    async def get_all_pages(self) -> List[Node]:
-        """Get all active nodes tagged as 'page'."""
+    async def get_all_pages(self, limit: Optional[int] = None, offset: int = 0) -> List[Node]:
+        """Get all active nodes tagged as 'page'.
+        
+        Args:
+            limit: Maximum number of pages to return (default: no limit for backward compatibility)
+            offset: Number of pages to skip (for pagination)
+        """
         async with self._pool.acquire() as conn:
-            rows = await conn.fetch("""
+            query = """
                 SELECT * FROM node
                 WHERE is_page = TRUE AND active = TRUE AND is_deleted = FALSE AND graph_id = $1
                 ORDER BY write_date DESC
-            """, self._graph_id)
+            """
+            params = [self._graph_id]
+            
+            if limit is not None:
+                query += " LIMIT $2 OFFSET $3"
+                params.extend([limit, offset])
+            
+            rows = await conn.fetch(query, *params)
             return [self._row_to_node(row) for row in rows]
     
     async def get_page_content(self, page_id: int) -> List[Node]:

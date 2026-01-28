@@ -119,6 +119,7 @@ class NodeUpdateRequest(BaseModel):
     parent_id: Optional[int] = None
     sequence: Optional[int] = None
     collapsed: Optional[bool] = None
+    expected_version: Optional[int] = None  # For optimistic locking
 
 
 class ClassRequest(BaseModel):

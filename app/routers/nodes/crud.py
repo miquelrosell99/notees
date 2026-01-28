@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...domain.errors import DatePageDeletionError
+from ...domain.errors import DatePageDeletionError, OptimisticLockError
 from ...db.schema import SYSTEM_CLASS_UUIDS
 from ...db.connection import get_graph_assets_dir
 from ..auth import get_current_user
@@ -559,11 +559,18 @@ async def update_node(
         collapsed=request.collapsed,
     )
     
-    node = await service.update_node(node_id, data)
-    if not node:
-        raise HTTPException(404, "Node not found")
-    
-    return _node_to_response(node)
+    try:
+        node = await service.update_node(
+            node_id, 
+            data, 
+            expected_version=request.expected_version
+        )
+        if not node:
+            raise HTTPException(404, "Node not found")
+        
+        return _node_to_response(node)
+    except OptimisticLockError as e:
+        raise HTTPException(409, str(e))
 
 
 @router.put("/{node_id}/move")
