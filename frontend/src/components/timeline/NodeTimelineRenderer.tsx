@@ -1,287 +1,154 @@
 /**
  * NodeTimelineRenderer Component
  * 
- * Timeline visualization with gravity-point based physics.
- * Nodes cluster around time anchors that adapt based on zoom level.
- * 
- * Features:
- * - Gravity points (time anchors) prevent oscillation
- * - Deterministic lane assignment for vertical positioning
- * - Adaptive zoom (decade to hour granularity)
- * - Stable physics with convergence detection
- * - Type-based coloring
- * - Journal page indicators
+ * Displays timeline with time events (date property occurrences).
+ * Each event is rendered as a NodeCircle, stacked if multiple events at same time.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useClasses, usePages } from '@/hooks';
-import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
-import type { TimelineNode, GravityPoint, TypeColor, DateProperty, TimelineTransform, NodeTimelineRendererProps } from './types';
-import { mdiCog, mdiPalette, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM, mdiAlphaW } from '@mdi/js';
+import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
+import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM, mdiAlphaW } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
 import { ToggleSwitch } from '../core/ToggleSwitch';
-import { TypeColorsPanel } from '../shared/TypeColorsPanel';
-import { generateGravityPoints, assignNodesToGravityPoints, getZoomLevelFromScale } from './utils/gravityPoints';
-import { assignLanes } from './utils/laneAssignment';
-import { getDateRange, normalizeDate } from './utils/dateUtils';
+import { DatePropertiesPanel } from './DatePropertiesPanel';
+import { NodeCollection } from '../nodes/NodeCollection';
+import { getDateRange } from './utils/dateUtils';
+import { generateTimeEvents } from './utils/timeEvents';
+import { getZoomLevelFromScale } from './utils/zoomLevels';
 import './NodeTimelineRenderer.css';
+import './DatePropertiesPanel.css';
 
-// Physics constants (tuned for normalized 0-1 space)
-const GRAVITY_ATTRACTION = 0.002;
-const LANE_PULL_STRENGTH = 0.08;
-const INTER_NODE_REPULSION = 300;
-const VELOCITY_DAMPING = 0.92;
-const MIN_VELOCITY = 0.0001;
-const NODE_RADIUS = 8;
-const HOVER_RADIUS_EXTRA = 3;
+const EVENT_RADIUS_MIN = 4;
+const EVENT_RADIUS_MAX = 12;
+const EVENT_STACK_SPACING = 18;
+const EVENT_OFFSET = 25;
+const MINIMAP_HEIGHT = 60;
 
-// Zoom constants
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
-const ZOOM_SPEED_WHEEL = 0.002;      // Mouse wheel (discrete, larger deltas)
-const ZOOM_SPEED_PINCH = 0.01;       // Trackpad pinch-to-zoom
+const ZOOM_SPEED_WHEEL = 0.002;
+const ZOOM_SPEED_PINCH = 0.01;
 
 export function NodeTimelineRenderer({
   nodes,
-  dateProperty = 'create_date',
-  onNodeClick,
-  onNodeShiftClick,
   className = '',
 }: NodeTimelineRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>(0);
-  const timelineNodesRef = useRef<TimelineNode[]>([]);
-  const gravityPointsRef = useRef<GravityPoint[]>([]);
-  const dragNodeRef = useRef<TimelineNode | null>(null);
-  const isSettledRef = useRef(false);
   
-  const { openNode } = useNodesStore();
-  const { data: classes } = useClasses();
-  const { data: pages } = usePages();
-  
-  // State
-  const [typeColors, setTypeColors] = useState<TypeColor[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [dateProperties, setDateProperties] = useState<DatePropertyConfig[]>([
+    { property: 'create_date', label: 'Created', color: '#6366f1', visible: true, removable: false },
+    { property: 'write_date', label: 'Modified', color: '#8b5cf6', visible: true, removable: false },
+  ]);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [transform, setTransform] = useState<TimelineTransform>({ panX: 0, scale: 1.0 });
-  const [hoveredNode, setHoveredNode] = useState<TimelineNode | null>(null);
-  const [hoveredGravityPoint, setHoveredGravityPoint] = useState<GravityPoint | null>(null);
-  const [currentDateProperty, setCurrentDateProperty] = useState<DateProperty>(dateProperty);
   const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week' | 'custom'>('year');
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
+  const [hoveredEvent, setHoveredEvent] = useState<TimeEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<TimeEvent | null>(null);
+  const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingViewZone, setIsDraggingViewZone] = useState(false);
+  const [isDraggingHandle, setIsDraggingHandle] = useState<'left' | 'right' | null>(null);
   
+  const minimapRef = useRef<HTMLCanvasElement>(null);
   const transformRef = useRef(transform);
-  const settingsLoadedRef = useRef(false);
-  const typeColorsLoadedRef = useRef(false);
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, panX: 0 });
   
-  // Derived state
   const currentZoomLevel = useMemo(() => getZoomLevelFromScale(transform.scale), [transform.scale]);
   
   // Load settings
   useEffect(() => {
-    if (typeColorsLoadedRef.current) return;
-    
     getSettings().then(settings => {
-      const saved = settings['graph_type_colors'];
+      const saved = settings['timeline_date_properties'];
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            setTypeColors(parsed);
+            setDateProperties(parsed);
           }
         } catch (e) {
-          console.error('Failed to parse graph_type_colors:', e);
+          console.error('Failed to parse timeline_date_properties:', e);
         }
       }
-      typeColorsLoadedRef.current = true;
-    }).catch(e => {
-      console.error('Failed to load settings:', e);
-      typeColorsLoadedRef.current = true;
-    });
-  }, []);
-  
-  useEffect(() => {
-    if (settingsLoadedRef.current) return;
-    
-    getSettings().then(settings => {
-      const savedDate = settings['timeline_date_property'];
-      if (savedDate && ['create_date', 'write_date', 'open_date'].includes(savedDate)) {
-        setCurrentDateProperty(savedDate as DateProperty);
-      }
-      settingsLoadedRef.current = true;
-    }).catch(e => {
-      console.error('Failed to load timeline settings:', e);
-      settingsLoadedRef.current = true;
     });
   }, []);
   
   // Save settings
   useEffect(() => {
-    if (!typeColorsLoadedRef.current) return;
     const timer = setTimeout(() => {
-      setSetting('graph_type_colors', JSON.stringify(typeColors)).catch(e => {
-        console.error('Failed to save graph_type_colors:', e);
+      setSetting('timeline_date_properties', JSON.stringify(dateProperties)).catch(e => {
+        console.error('Failed to save timeline_date_properties:', e);
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [typeColors]);
+  }, [dateProperties]);
   
-  useEffect(() => {
-    if (!settingsLoadedRef.current) return;
-    const timer = setTimeout(() => {
-      setSetting('timeline_date_property', currentDateProperty).catch(e => {
-        console.error('Failed to save timeline_date_property:', e);
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [currentDateProperty]);
-  
-  // Apply initial year zoom preset on mount
-  useEffect(() => {
-    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
-    if (totalDays > 0) {
-      const targetDays = 365; // year
-      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, totalDays / targetDays));
-      setTransform(prev => ({ ...prev, scale: newScale }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
-  
-  // Keep transform ref in sync
   useEffect(() => {
     transformRef.current = transform;
   }, [transform]);
   
-  // Build page UUID map
-  const pageUuidMap = useMemo(() => {
-    const map = new Map<string, Node>();
-    if (pages) {
-      for (const page of pages) {
-        map.set(page.uuid, page);
-      }
-    }
-    return map;
-  }, [pages]);
-  
-  // Get node color
-  const getNodeColor = useCallback((node: Node): string => {
-    if (node.color) return node.color;
-    
-    if (node.classes && node.classes.length > 0 && typeColors.length > 0) {
-      const sortedTypeColors = [...typeColors].sort((a, b) => a.order - b.order);
-      for (const typeColor of sortedTypeColors) {
-        if (node.classes.includes(typeColor.typeId)) {
-          return typeColor.color;
-        }
-      }
-    }
-    
-    return '#6366f1';
-  }, [typeColors]);
-  
-  // Extract date from node
-  const getNodeDate = useCallback((node: Node): Date | null => {
-    const dateStr = node[currentDateProperty];
-    if (!dateStr) return null;
-    const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? null : date;
-  }, [currentDateProperty]);
-  
-  // Filter to pages with dates
-  const pageNodes = useMemo(() => {
-    const filtered = nodes
-      .filter(n => n.is_page)
-      .map(node => {
-        const date = getNodeDate(node);
-        return date ? { node, date } : null;
-      })
-      .filter((item): item is { node: Node; date: Date } => item !== null)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-    
-    console.log('[Timeline] Filtered pages:', filtered.length, 'from', nodes.length, 'total nodes');
-    return filtered;
-  }, [nodes, getNodeDate]);
-  
   // Calculate date range
   const dateRange = useMemo(() => {
-    const dates = pageNodes.map(p => p.date);
+    const dates: Date[] = [];
+    nodes.forEach(node => {
+      dateProperties.filter(p => p.visible).forEach(prop => {
+        const dateStr = node[prop.property as keyof Node];
+        if (dateStr && typeof dateStr === 'string') {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            dates.push(date);
+          }
+        }
+      });
+    });
     return getDateRange(dates, 0.1);
-  }, [pageNodes]);
+  }, [nodes, dateProperties]);
   
-  // Generate gravity points
-  useEffect(() => {
-    const gravityPoints = generateGravityPoints(
-      dateRange.start,
-      dateRange.end,
-      currentZoomLevel,
-      pageUuidMap
-    );
+  // Generate time events
+  const timeEvents = useMemo(() => {
+    return generateTimeEvents(nodes, dateProperties, currentZoomLevel, dateRange.start, dateRange.end);
+  }, [nodes, dateProperties, currentZoomLevel, dateRange]);
+  
+  // Calculate event sizes (normalized by node count)
+  const eventSizes = useMemo(() => {
+    if (timeEvents.length === 0) return new Map<string, number>();
     
-    // Keep positions normalized (0-1)
-    gravityPoints.forEach(gp => {
-      gp.x = gp.position;
+    const minNodes = Math.min(...timeEvents.map(e => e.nodes.length));
+    const maxNodes = Math.max(...timeEvents.map(e => e.nodes.length));
+    const range = maxNodes - minNodes || 1;
+    
+    const sizes = new Map<string, number>();
+    timeEvents.forEach(event => {
+      const normalized = (event.nodes.length - minNodes) / range;
+      const radius = EVENT_RADIUS_MIN + (normalized * (EVENT_RADIUS_MAX - EVENT_RADIUS_MIN));
+      sizes.set(event.id, radius);
     });
     
-    console.log('[Timeline] Generated gravity points:', gravityPoints.length, 'Sample:', { id: gravityPoints[0]?.id, x: gravityPoints[0]?.x, position: gravityPoints[0]?.position });
-    
-    gravityPointsRef.current = gravityPoints;
-  }, [dateRange, currentZoomLevel, dimensions.width, pageUuidMap]);
+    return sizes;
+  }, [timeEvents]);
   
-  // Initialize timeline nodes
+  // Initial zoom to year and center on today
   useEffect(() => {
-    const { start, end } = dateRange;
-    
-    const newTimelineNodes: TimelineNode[] = pageNodes.map(({ node, date }) => {
-      const position = normalizeDate(date, start, end);
+    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
+    if (totalDays > 0) {
+      const targetDays = 365;
+      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, totalDays / targetDays));
       
-      return {
-        id: node.id,
-        x: position, // Store as normalized position (0-1)
-        y: 0,
-        vx: 0,
-        vy: 0,
-        date,
-        node,
-        radius: NODE_RADIUS,
-        color: getNodeColor(node),
-        laneIndex: 0,
-        targetY: 0,
-        gravityPointId: '',
-      };
-    });
-    
-    timelineNodesRef.current = newTimelineNodes;
-    
-    console.log('[Timeline] Initialized nodes:', newTimelineNodes.length, 'Sample node x:', newTimelineNodes[0]?.x, 'Date:', newTimelineNodes[0]?.date);
-    console.log('[Timeline] Date range:', { start: dateRange.start, end: dateRange.end });
-    
-    // Assign to gravity points and lanes
-    if (gravityPointsRef.current.length > 0) {
-      assignNodesToGravityPoints(newTimelineNodes, gravityPointsRef.current);
-      console.log('[Timeline] After gravity assignment, first node:', { x: newTimelineNodes[0]?.x, gravityPointId: newTimelineNodes[0]?.gravityPointId });
-      assignLanes(newTimelineNodes, dimensions.width);
-      console.log('[Timeline] After lane assignment, first node:', { x: newTimelineNodes[0]?.x, y: newTimelineNodes[0]?.y });
+      const today = new Date();
+      let todayPosition = (today.getTime() - dateRange.start.getTime()) / (dateRange.end.getTime() - dateRange.start.getTime());
+      todayPosition = Math.max(0, Math.min(1, todayPosition));
+      const todayX = todayPosition * dimensions.width * newScale;
+      const newPanX = dimensions.width / 2 - todayX;
+      
+      setTransform({ scale: newScale, panX: newPanX });
     }
-    
-    // Reset simulation
-    isSettledRef.current = false;
-  }, [pageNodes, dateRange, dimensions.width, getNodeColor]);
-  
-  // Reassign lanes when zoom changes
-  useEffect(() => {
-    if (timelineNodesRef.current.length > 0 && gravityPointsRef.current.length > 0) {
-      assignNodesToGravityPoints(timelineNodesRef.current, gravityPointsRef.current);
-      assignLanes(timelineNodesRef.current, dimensions.width);
-      isSettledRef.current = false;
-    }
-  }, [currentZoomLevel, dimensions.width]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Handle canvas resize
   useEffect(() => {
@@ -305,259 +172,138 @@ export function NodeTimelineRenderer({
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
   
-  // Physics simulation
-  const simulate = useCallback(() => {
-    if (isSettledRef.current) return false;
-    
-    const nodes = timelineNodesRef.current;
-    const gravityPoints = gravityPointsRef.current;
-    
-    let maxVelocity = 0;
-    
-    for (const node of nodes) {
-      // 1. Attraction to gravity point (in normalized space)
-      const gravityPoint = gravityPoints.find(gp => gp.id === node.gravityPointId);
-      if (gravityPoint) {
-        const dx = gravityPoint.x - node.x;
-        node.vx += dx * GRAVITY_ATTRACTION;
-      }
-      
-      // 2. Pull toward assigned lane
-      if (!dragNodeRef.current || dragNodeRef.current.id !== node.id) {
-        const dy = node.targetY - node.y;
-        node.vy += dy * LANE_PULL_STRENGTH;
-      }
-      
-      // 3. Horizontal repulsion from nearby nodes (in normalized space)
-      for (const other of nodes) {
-        if (other.id === node.id) continue;
-        if (other.gravityPointId !== node.gravityPointId) continue; // Only within same cluster
-        
-        const dx = node.x - other.x;
-        const normalizedDist = Math.abs(dx);
-        
-        // Repulsion threshold in normalized space (0.03 = ~3% of timeline width)
-        if (normalizedDist < 0.03) {
-          const force = 0.0001 / (normalizedDist * normalizedDist + 0.0001);
-          node.vx += Math.sign(dx || 1) * force;
-        }
-      }
-      
-      // 4. Apply damping and update
-      node.vx *= VELOCITY_DAMPING;
-      node.vy *= VELOCITY_DAMPING;
-      node.x += node.vx;
-      node.y += node.vy;
-      
-      // Track max velocity for convergence
-      maxVelocity = Math.max(maxVelocity, Math.abs(node.vx), Math.abs(node.vy));
-    }
-    
-    // Check convergence
-    if (maxVelocity < MIN_VELOCITY && !dragNodeRef.current) {
-      isSettledRef.current = true;
-      return false;
-    }
-    
-    return true;
-  }, [dimensions.height]);
-  
-  // Render
+  // Render timeline
   const render = useCallback(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) {
-      console.log('[Timeline] Render: No canvas or context');
-      return;
-    }
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     
     const { width, height } = dimensions;
-    const { panX, scale } = transformRef.current;
+    const { panX, scale } = transform;
     const centerY = height / 2;
     
-    const nodes = timelineNodesRef.current;
-    const gravityPoints = gravityPointsRef.current;
-    
-    // Clear
     ctx.clearRect(0, 0, width, height);
     
-    // Draw gravity point zones (subtle background)
-    if (gravityPoints.length > 1) {
-      gravityPoints.forEach((gp, i) => {
-        const x = gp.x * scale + panX;
-        const nextGp = gravityPoints[i + 1];
-        const nextX = nextGp ? nextGp.x * scale + panX : width;
-        
-        if (x > width || nextX < 0) return;
-        
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(100, 100, 255, 0.02)' : 'rgba(150, 100, 255, 0.02)';
-        ctx.fillRect(Math.max(0, x), 0, Math.min(width, nextX) - Math.max(0, x), height);
-      });
-    }
-    
-    // Draw center timeline
-    ctx.strokeStyle = '#444';
+    // Draw timeline line
+    ctx.strokeStyle = '#666';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     ctx.lineTo(width, centerY);
     ctx.stroke();
     
-    // Draw gravity point markers
-    gravityPoints.forEach(gp => {
-      const x = gp.x * width * scale + panX;
+    // Draw time events
+    timeEvents.forEach(event => {
+      const x = event.position * width * scale + panX;
       if (x < -50 || x > width + 50) return;
       
-      const isHovered = hoveredGravityPoint?.id === gp.id;
+      const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
+      const yOffset = EVENT_OFFSET + (event.stackIndex * EVENT_STACK_SPACING);
+      const y = centerY - yOffset;
       
-      // Tick mark
-      ctx.strokeStyle = gp.hasPage ? '#6366f1' : '#666';
-      ctx.lineWidth = gp.hasPage ? 2 : 1;
-      ctx.beginPath();
-      ctx.moveTo(x, centerY - 10);
-      ctx.lineTo(x, centerY + 10);
-      ctx.stroke();
+      const isHovered = hoveredEvent?.id === event.id;
+      const isSelected = selectedEvent?.id === event.id;
       
-      // Label
-      ctx.fillStyle = isHovered ? '#fff' : (gp.hasPage ? '#aaa' : '#888');
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(gp.label, x, centerY + 25);
-      
-      // Page indicator
-      if (gp.hasPage) {
-        ctx.fillStyle = isHovered ? '#8b8ff1' : '#6366f1';
-        ctx.beginPath();
-        ctx.arc(x, centerY, 3, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    });
-    
-    // Draw connector lines and nodes
-    if (nodes.length === 0) {
-      // Debug: show message if no nodes
-      console.log('[Timeline] Render: No nodes in array');
-      ctx.fillStyle = '#888';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('No timeline nodes to display', width / 2, height / 2);
-      return;
-    }
-    
-    console.log('[Timeline] Rendering', nodes.length, 'nodes. First node:', { x: nodes[0].x, y: nodes[0].y, color: nodes[0].color });
-    
-    // First pass: connector lines
-    nodes.forEach(node => {
-      const x = node.x * width * scale + panX;
-      const y = centerY + node.y;
-      
-      if (x < -100 || x > width + 100) return;
-      
-      ctx.strokeStyle = node.color + '20';
+      // Connector line
+      ctx.strokeStyle = event.color + '40';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x, centerY);
       ctx.stroke();
-    });
-    
-    // Second pass: nodes
-    nodes.forEach(node => {
-      const x = node.x * width * scale + panX;
-      const y = centerY + node.y;
       
-      if (x < -100 || x > width + 100) return;
-      
-      const isHovered = hoveredNode?.id === node.id;
-      const radius = isHovered ? node.radius + HOVER_RADIUS_EXTRA : node.radius;
-      
-      // Glow when hovered
-      if (isHovered) {
-        ctx.fillStyle = node.color + '30';
+      // Event circle
+      if (isSelected || isHovered) {
+        ctx.fillStyle = event.color + '40';
         ctx.beginPath();
-        ctx.arc(x, y, radius + 6, 0, 2 * Math.PI);
+        ctx.arc(x, y, radius + 4, 0, 2 * Math.PI);
         ctx.fill();
       }
       
-      // Node circle
-      ctx.fillStyle = node.color;
+      ctx.fillStyle = event.color;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
       
-      // Label
-      if (isHovered) {
+      // Count badge
+      if (event.nodes.length > 1) {
         ctx.fillStyle = '#fff';
-        ctx.font = '12px sans-serif';
+        ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
-        const textY = y < centerY ? y - radius - 8 : y + radius + 15;
-        ctx.fillText(node.node.name || 'Untitled', x, textY);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(event.nodes.length.toString(), x, y);
       }
     });
-  }, [dimensions, hoveredNode, hoveredGravityPoint]);
+  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent]);
+  
+  // Render minimap
+  const renderMinimap = useCallback(() => {
+    const canvas = minimapRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const width = dimensions.width;
+    const height = MINIMAP_HEIGHT;
+    const { panX, scale } = transform;
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    // Background
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Timeline line
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+    
+    // Events (simplified)
+    timeEvents.forEach(event => {
+      const x = event.position * width;
+      ctx.fillStyle = event.color;
+      ctx.fillRect(x - 1, height / 2 - 8, 2, 16);
+    });
+    
+    // View zone
+    const viewWidth = width / scale;
+    const viewX = -panX / scale;
+    
+    ctx.strokeStyle = '#6366f1';
+    ctx.fillStyle = '#6366f144';
+    ctx.lineWidth = 2;
+    ctx.fillRect(viewX, 0, viewWidth, height);
+    ctx.strokeRect(viewX, 0, viewWidth, height);
+    
+    // Resize handles
+    const handleWidth = 8;
+    ctx.fillStyle = '#6366f1';
+    ctx.fillRect(viewX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
+    ctx.fillRect(viewX + viewWidth - handleWidth / 2, height / 2 - 15, handleWidth, 30);
+  }, [dimensions, transform, timeEvents]);
+  
+  // Animation loop for minimap
+  useEffect(() => {
+    renderMinimap();
+  }, [renderMinimap]);
   
   // Animation loop
   useEffect(() => {
     const loop = () => {
-      const shouldContinue = simulate();
       render();
-      
-      if (shouldContinue || !isSettledRef.current) {
-        animationRef.current = requestAnimationFrame(loop);
-      }
+      animationRef.current = requestAnimationFrame(loop);
     };
-    
     animationRef.current = requestAnimationFrame(loop);
-    
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [simulate, render]);
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [render]);
   
-  // Mouse interaction
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const centerY = dimensions.height / 2;
-    
-    // Check for node click
-    const clickedNode = timelineNodesRef.current.find(node => {
-      const nodeScreenX = node.x * dimensions.width * transform.scale + transform.panX;
-      const dist = Math.sqrt((mouseX - nodeScreenX) ** 2 + (mouseY - centerY - node.y) ** 2);
-      return dist < node.radius + 3;
-    });
-    
-    if (clickedNode) {
-      dragNodeRef.current = clickedNode;
-      isSettledRef.current = false;
-      return;
-    }
-    
-    // Check for gravity point click
-    const { panX, scale } = transform;
-    const clickedGP = gravityPointsRef.current.find(gp => {
-      const x = gp.x * scale + panX;
-      return Math.abs(mouseX - x) < 10 && Math.abs(mouseY - centerY) < 15;
-    });
-    
-    if (clickedGP && clickedGP.hasPage && clickedGP.uuid) {
-      const page = pageUuidMap.get(clickedGP.uuid);
-      if (page) {
-        openNode(page.id, 'page');
-      }
-      return;
-    }
-    
-    // Start panning
-    isPanningRef.current = true;
-    panStartRef.current = { x: e.clientX, panX: transform.panX };
-  }, [dimensions, transform, pageUuidMap, openNode]);
-  
+  // Mouse handlers
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -566,45 +312,17 @@ export function NodeTimelineRenderer({
     const mouseY = e.clientY - rect.top;
     const centerY = dimensions.height / 2;
     
-    // Dragging node
-    if (dragNodeRef.current) {
-      dragNodeRef.current.y = mouseY - centerY;
-      dragNodeRef.current.vy = 0;
-      isSettledRef.current = false;
-      return;
-    }
-    
-    // Panning
-    if (isPanningRef.current) {
-      const dx = e.clientX - panStartRef.current.x;
-      setTransform(prev => ({
-        ...prev,
-        panX: panStartRef.current.panX + dx
-      }));
-      isSettledRef.current = false;
-      return;
-    }
-    
-    // Hover detection - nodes
-    const hovered = timelineNodesRef.current.find(node => {
-      const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - centerY - node.y) ** 2);
-      return dist < node.radius + 3;
+    const hovered = timeEvents.find(event => {
+      const x = event.position * dimensions.width * transform.scale + transform.panX;
+      const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
+      const yOffset = EVENT_OFFSET + (event.stackIndex * EVENT_STACK_SPACING);
+      const y = centerY - yOffset;
+      const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
+      return dist < radius + 3;
     });
-    setHoveredNode(hovered || null);
     
-    // Hover detection - gravity points
-    const { panX, scale } = transform;
-    const hoveredGP = gravityPointsRef.current.find(gp => {
-      const x = gp.x * scale + panX;
-      return Math.abs(mouseX - x) < 10 && Math.abs(mouseY - centerY) < 15;
-    });
-    setHoveredGravityPoint(hoveredGP || null);
-  }, [dimensions, transform]);
-  
-  const handleMouseUp = useCallback(() => {
-    dragNodeRef.current = null;
-    isPanningRef.current = false;
-  }, []);
+    setHoveredEvent(hovered || null);
+  }, [dimensions, transform, timeEvents, eventSizes]);
   
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanningRef.current) return;
@@ -616,83 +334,155 @@ export function NodeTimelineRenderer({
     const mouseY = e.clientY - rect.top;
     const centerY = dimensions.height / 2;
     
-    const clickedNode = timelineNodesRef.current.find(node => {
-      const nodeScreenX = node.x * dimensions.width * transform.scale + transform.panX;
-      const dist = Math.sqrt((mouseX - nodeScreenX) ** 2 + (mouseY - centerY - node.y) ** 2);
-      return dist < node.radius + 3;
+    const clicked = timeEvents.find(event => {
+      const x = event.position * dimensions.width * transform.scale + transform.panX;
+      const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
+      const yOffset = EVENT_OFFSET + (event.stackIndex * EVENT_STACK_SPACING);
+      const y = centerY - yOffset;
+      const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
+      return dist < radius + 3;
     });
     
-    if (clickedNode) {
-      if (e.shiftKey && onNodeShiftClick) {
-        onNodeShiftClick(clickedNode.node);
-      } else if (onNodeClick) {
-        onNodeClick(clickedNode.node);
-      } else {
-        openNode(clickedNode.node.id, 'page');
-      }
+    if (clicked) {
+      setSelectedEvent(clicked);
+      const x = clicked.position * dimensions.width * transform.scale + transform.panX;
+      const yOffset = EVENT_OFFSET + (clicked.stackIndex * EVENT_STACK_SPACING);
+      const y = centerY - yOffset;
+      setCardPosition({ x: x + rect.left, y: y + rect.top });
+    } else {
+      setSelectedEvent(null);
+      setCardPosition(null);
     }
-  }, [dimensions, onNodeClick, onNodeShiftClick, openNode]);
+  }, [dimensions, transform, timeEvents, eventSizes]);
+  
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    isPanningRef.current = true;
+    panStartRef.current = { x: e.clientX, panX: transform.panX };
+  }, [transform.panX]);
+  
+  const handleMouseMoveCanvas = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    handleMouseMove(e);
+    
+    if (isPanningRef.current) {
+      const dx = e.clientX - panStartRef.current.x;
+      setTransform(prev => ({ ...prev, panX: panStartRef.current.panX + dx }));
+    }
+  }, [handleMouseMove]);
+  
+  // Minimap handlers
+  const handleMinimapMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = minimapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const mouseX = e.clientX - rect.left;
+    const { scale, panX } = transform;
+    const viewWidth = dimensions.width / scale;
+    const viewX = -panX / scale;
+    
+    const handleWidth = 8;
+    
+    // Check left handle
+    if (Math.abs(mouseX - viewX) < handleWidth) {
+      setIsDraggingHandle('left');
+      return;
+    }
+    
+    // Check right handle
+    if (Math.abs(mouseX - (viewX + viewWidth)) < handleWidth) {
+      setIsDraggingHandle('right');
+      return;
+    }
+    
+    // Check view zone
+    if (mouseX >= viewX && mouseX <= viewX + viewWidth) {
+      setIsDraggingViewZone(true);
+      panStartRef.current = { x: mouseX, panX: transform.panX };
+      return;
+    }
+    
+    // Click outside - jump to position
+    const targetX = mouseX;
+    const newPanX = -targetX * scale + dimensions.width / 2;
+    setTransform(prev => ({ ...prev, panX: newPanX }));
+  }, [dimensions, transform]);
+  
+  const handleMinimapMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = minimapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const mouseX = e.clientX - rect.left;
+    const { scale } = transform;
+    
+    if (isDraggingHandle) {
+      const viewX = -transform.panX / scale;
+      const viewWidth = dimensions.width / scale;
+      
+      if (isDraggingHandle === 'left') {
+        // Dragging left handle - change scale and panX
+        const newViewX = Math.max(0, Math.min(mouseX, viewX + viewWidth - 20));
+        const newViewWidth = (viewX + viewWidth) - newViewX;
+        const newScale = dimensions.width / newViewWidth;
+        const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+        const newPanX = -newViewX * clampedScale;
+        setTransform({ scale: clampedScale, panX: newPanX });
+      } else if (isDraggingHandle === 'right') {
+        // Dragging right handle - change scale
+        const newViewWidth = Math.max(20, mouseX - viewX);
+        const newScale = dimensions.width / newViewWidth;
+        const clampedScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+        setTransform(prev => ({ ...prev, scale: clampedScale }));
+      }
+      setZoomPreset('custom');
+    } else if (isDraggingViewZone) {
+      const dx = mouseX - panStartRef.current.x;
+      const newPanX = panStartRef.current.panX - dx * scale;
+      setTransform(prev => ({ ...prev, panX: newPanX }));
+    }
+  }, [dimensions, transform, isDraggingHandle, isDraggingViewZone]);
+  
+  const handleMinimapMouseUp = useCallback(() => {
+    setIsDraggingViewZone(false);
+    setIsDraggingHandle(null);
+  }, []);
+  
+  const handleMouseUp = useCallback(() => {
+    isPanningRef.current = false;
+  }, []);
   
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     
     if (e.ctrlKey || e.metaKey) {
-      // Ctrl/Cmd + Scroll = Zoom (prevent browser zoom)
       e.preventDefault();
       
       const mouseX = e.clientX - rect.left;
       const delta = -e.deltaY;
       
-      // Detect input type and adjust zoom speed
-      let zoomSpeed: number;
-      if (Math.abs(e.deltaY) > 50) {
-        // Mouse wheel (larger discrete values)
-        zoomSpeed = ZOOM_SPEED_WHEEL;
-      } else {
-        // Trackpad pinch or scroll (smaller continuous values)
-        zoomSpeed = ZOOM_SPEED_PINCH;
-      }
-      
+      const zoomSpeed = Math.abs(e.deltaY) > 50 ? ZOOM_SPEED_WHEEL : ZOOM_SPEED_PINCH;
       const zoomFactor = 1 + delta * zoomSpeed;
       
       setTransform(prev => {
         const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, prev.scale * zoomFactor));
         const scaleRatio = newScale / prev.scale;
-        
-        // Zoom toward mouse position
         const newPanX = mouseX - (mouseX - prev.panX) * scaleRatio;
-        
-        return {
-          scale: newScale,
-          panX: newPanX
-        };
+        return { scale: newScale, panX: newPanX };
       });
       
       setZoomPreset('custom');
     } else {
-      // Normal scroll = Pan horizontally
       e.preventDefault();
-      
       const delta = -e.deltaY;
-      
-      setTransform(prev => ({
-        ...prev,
-        panX: prev.panX + delta
-      }));
+      setTransform(prev => ({ ...prev, panX: prev.panX + delta }));
     }
-    
-    isSettledRef.current = false;
   }, []);
   
-  // Calculate scale to fit a specific number of days in viewport
   const calculateScaleForDays = useCallback((targetDays: number): number => {
     const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
     if (totalDays <= 0) return 1.0;
     return totalDays / targetDays;
   }, [dateRange]);
   
-  // Zoom to preset (decade/year/semester/quatrimester/month/week)
   const zoomToPreset = useCallback((preset: 'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'week') => {
     const targetDays = 
       preset === 'decade' ? 3650 :
@@ -700,61 +490,18 @@ export function NodeTimelineRenderer({
       preset === 'semester' ? 180 :
       preset === 'quatrimester' ? 120 :
       preset === 'month' ? 30 :
-      7; // week
+      7;
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, calculateScaleForDays(targetDays)));
     
-    setTransform(prev => ({
-      ...prev,
-      scale: newScale
-    }));
+    const today = new Date();
+    let todayPosition = (today.getTime() - dateRange.start.getTime()) / (dateRange.end.getTime() - dateRange.start.getTime());
+    todayPosition = Math.max(0, Math.min(1, todayPosition));
+    const todayX = todayPosition * dimensions.width * newScale;
+    const newPanX = dimensions.width / 2 - todayX;
+    
+    setTransform({ scale: newScale, panX: newPanX });
     setZoomPreset(preset);
-    isSettledRef.current = false;
-  }, [calculateScaleForDays]);
-  
-  // Recenter view
-  const recenter = useCallback(() => {
-    setTransform({ panX: 0, scale: 1.0 });
-    setZoomPreset('custom');
-    isSettledRef.current = false;
-  }, []);
-  
-  // Search and scroll to node
-  const scrollToNode = useCallback((node: Node) => {
-    const tNode = timelineNodesRef.current.find(t => t.id === node.id);
-    if (tNode) {
-      const targetX = tNode.x * dimensions.width * transform.scale;
-      const newPanX = dimensions.width / 2 - targetX;
-      setTransform(prev => ({ ...prev, panX: newPanX }));
-      isSettledRef.current = false;
-    }
-    setSearchQuery('');
-    setSearchOpen(false);
-  }, [dimensions, transform.scale]);
-  
-  const searchResults = useMemo(() => {
-    if (!searchQuery) return [];
-    const query = searchQuery.toLowerCase();
-    return pageNodes
-      .filter(({ node }) => node.name?.toLowerCase().includes(query))
-      .slice(0, 5)
-      .map(({ node }) => node);
-  }, [searchQuery, pageNodes]);
-  
-  if (pageNodes.length === 0) {
-    return (
-      <div className={`node-timeline-renderer node-timeline-renderer--empty ${className}`}>
-        <div className="node-timeline-renderer__empty-message">
-          No pages with dates to display
-        </div>
-      </div>
-    );
-  }
-  
-  const dateOptions: Array<{ value: DateProperty; label: string; icon: string }> = [
-    { value: 'create_date', label: 'Created', icon: mdiCalendarPlus },
-    { value: 'write_date', label: 'Modified', icon: mdiCalendarEdit },
-    { value: 'open_date', label: 'Accessed', icon: mdiCalendarClock },
-  ];
+  }, [calculateScaleForDays, dateRange, dimensions.width]);
   
   const zoomPresetOptions = [
     { value: 'decade', label: 'Decade', icon: mdiAlphaD },
@@ -765,92 +512,30 @@ export function NodeTimelineRenderer({
     { value: 'week', label: 'Week', icon: mdiAlphaW },
   ];
   
+  if (timeEvents.length === 0) {
+    return (
+      <div className={`node-timeline-renderer node-timeline-renderer--empty ${className}`}>
+        <div className="node-timeline-renderer__empty-message">
+          No timeline events to display
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className={`node-timeline-renderer ${className}`} ref={containerRef}>
       <div className="node-timeline-renderer__controls">
         <div className="node-timeline-renderer__controls-left">
           <ButtonWithPanel
-            icon={mdiCog}
+            icon={mdiCalendarRange}
             size="sm"
             panelPosition="right"
-            panelAlignment="start"
-            panelWidth={220}
-            title="Timeline Settings"
-            tooltip="Settings"
           >
-            <div className="timeline-settings-panel">
-              <div className="settings-group">
-                <label className="settings-label-text">Date Property</label>
-                <SelectionButton
-                  options={dateOptions}
-                  value={currentDateProperty}
-                  onChange={(val) => setCurrentDateProperty(val as DateProperty)}
-                  size="sm"
-                />
-              </div>
-              
-              <div className="settings-group">
-                <label className="settings-label-text">Current Zoom</label>
-                <div className="timeline-zoom-display">{currentZoomLevel}</div>
-                <p className="settings-hint">Use mouse wheel to zoom</p>
-              </div>
-            </div>
-          </ButtonWithPanel>
-          
-          <ButtonWithPanel
-            icon={mdiPalette}
-            size="sm"
-            panelPosition="right"
-            panelAlignment="start"
-            title="Type Colors"
-            tooltip="Type colors"
-          >
-            <TypeColorsPanel
-              typeColors={typeColors}
-              classes={classes}
-              onChange={setTypeColors}
+            <DatePropertiesPanel
+              properties={dateProperties}
+              onChange={setDateProperties}
             />
           </ButtonWithPanel>
-        </div>
-        
-        <div className="node-timeline-renderer__controls-right">
-          <div className="timeline-search-panel">
-            <Button
-              icon={mdiMagnify}
-              size="sm"
-              variant="ghost"
-              onClick={() => setSearchOpen(!searchOpen)}
-              title="Search pages"
-            />
-            {searchOpen && (
-              <div className="timeline-search-dropdown">
-                <input
-                  type="text"
-                  className="timeline-search-input"
-                  placeholder="Search to navigate..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
-                  autoFocus
-                />
-                {searchResults.length > 0 && (
-                  <div className="timeline-search-results">
-                    {searchResults.map((node: Node) => (
-                      <Button
-                        key={node.id}
-                        variant="ghost"
-                        className="timeline-search-result"
-                        onClick={() => scrollToNode(node)}
-                      >
-                        {node.icon && <span className="result-icon">{node.icon}</span>}
-                        <span className="result-name">{node.name || 'Untitled'}</span>
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </div>
       
@@ -874,13 +559,57 @@ export function NodeTimelineRenderer({
       <canvas
         ref={canvasRef}
         className="node-timeline-renderer__canvas"
+        onMouseMove={handleMouseMoveCanvas}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
-        onWheelCapture={handleWheel}
+        onWheel={handleWheel}
       />
+      
+      <canvas
+        ref={minimapRef}
+        className="node-timeline-renderer__minimap"
+        width={dimensions.width}
+        height={MINIMAP_HEIGHT}
+        onMouseDown={handleMinimapMouseDown}
+        onMouseMove={handleMinimapMouseMove}
+        onMouseUp={handleMinimapMouseUp}
+        onMouseLeave={handleMinimapMouseUp}
+      />
+      
+      {selectedEvent && cardPosition && (
+        <div 
+          className="timeline-event-card"
+          style={{
+            position: 'fixed',
+            left: cardPosition.x + 15,
+            top: cardPosition.y - 20,
+            zIndex: 1000,
+          }}
+        >
+          <div className="timeline-event-card__header">
+            <span className="timeline-event-card__title">{selectedEvent.propertyLabel}</span>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => {
+                setSelectedEvent(null);
+                setCardPosition(null);
+              }}
+            >
+              ×
+            </Button>
+          </div>
+          <div className="timeline-event-card__content">
+            <NodeCollection
+              nodes={selectedEvent.nodes}
+              viewMode="list"
+              editable={false}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
