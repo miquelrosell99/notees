@@ -1,0 +1,30 @@
+/**
+ * FloatingButtonArray Component Styles
+ * 
+ * Container for floating button groups with consistent spacing.
+ */
+
+.floating-button-array__inner {
+  display: flex;
+  align-items: center;
+}
+
+/* Direction variants */
+.floating-button-array--horizontal .floating-button-array__inner {
+  flex-direction: row;
+}
+
+.floating-button-array--vertical .floating-button-array__inner {
+  flex-direction: column;
+}
+
+/* Size variants */
+.floating-button-array--sm .floating-button-array__inner {
+  gap: 2px;
+  padding: 2px;
+}
+
+.floating-button-array--md .floating-button-array__inner {
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-1, 4px);
+}

@@ -26,8 +26,8 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
-import { AssetActions } from './assets/AssetActions';
-import { mdiImageOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
+import { FloatingButtonArray } from './core/FloatingButtonArray';
+import { mdiImageOutline, mdiChevronDown, mdiChevronUp, mdiPencil, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import './BannerImage.css';
 
@@ -278,15 +278,14 @@ export function BannerImage({
           title="Click to view full size"
         />
         
-        {editable && (
-          <AssetActions
-            onEdit={onSelectImage}
-            onRemove={handleRemove}
-            visible={isHovered}
-            position="bottom-right"
+        {editable && isHovered && (
+          <FloatingButtonArray
+            className="banner-image__actions"
+            size="md"
           >
             <Button
               icon={mdiChevronUp}
+              iconOnly
               variant="ghost"
               size="sm"
               onClick={handleToggleCollapse}
@@ -294,7 +293,23 @@ export function BannerImage({
               aria-label="Collapse banner image"
               aria-expanded="true"
             />
-          </AssetActions>
+            <Button
+              icon={mdiPencil}
+              iconOnly
+              variant="ghost"
+              size="sm"
+              onClick={onSelectImage}
+              title="Change image"
+            />
+            <Button
+              icon={mdiClose}
+              iconOnly
+              variant="ghost"
+              size="sm"
+              onClick={handleRemove}
+              title="Remove image"
+            />
+          </FloatingButtonArray>
         )}
       </Card>
       
