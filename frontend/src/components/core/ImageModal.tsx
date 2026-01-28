@@ -8,7 +8,7 @@
  * - Click outside or Escape to close
  */
 import { useEffect, useCallback } from 'react';
-import { mdiClose } from '@mdi/js';
+import { mdiClose, mdiDownload } from '@mdi/js';
 import { Button } from './Button';
 import { Bullet } from '../blocks/Bullet';
 import './ImageModal.css';
@@ -93,15 +93,14 @@ export function ImageModal({
       {/* Action buttons - top right corner of screen */}
       <div className="image-modal-actions">
         <Button
+          icon={mdiDownload}
           iconOnly
           className="image-modal-download"
           onClick={handleDownload}
           size="md"
           variant="ghost"
           title="Download image"
-        >
-          ⬇️
-        </Button>
+        />
         <Button
           icon={mdiClose}
           iconOnly
