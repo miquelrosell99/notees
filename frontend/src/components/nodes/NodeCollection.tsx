@@ -273,6 +273,7 @@ export function NodeCollection({
             layout={effectiveCardLayout}
             sortable={sortable}
             onReorder={onReorder}
+            onAdd={onAdd}
           />
         );
       

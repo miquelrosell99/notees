@@ -20,6 +20,9 @@ import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodeCard } from './NodeCard';
+import { Button } from '../../core/Button';
+import { Card } from '../../core/Card';
+import { mdiPlus } from '@mdi/js';
 import './NodeCardView.css';
 
 /**
@@ -40,6 +43,7 @@ export function NodeCardView({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
+  onAdd,
   className = '',
 }: NodeCardViewProps) {
   // Get card size from store
@@ -161,6 +165,30 @@ export function NodeCardView({
           onSelectionChange={selectable ? handleCardSelectionChange : undefined}
         />
       ))}
+      {editable && onAdd && (
+        <Card 
+          className="node-card-add"
+          padding={false}
+          elevation="none"
+          variant="default"
+          onClick={onAdd}
+        >
+          <div className="node-card-add__content">
+            <Button
+              variant="ghost"
+              size="lg"
+              icon={mdiPlus}
+              className="node-card-add__button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdd();
+              }}
+            >
+              Add card
+            </Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
