@@ -48,7 +48,7 @@ export function NodeTimelineRenderer({
   const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'custom'>('year');
   const [hoveredEvent, setHoveredEvent] = useState<TimeEvent | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TimeEvent | null>(null);
-  const [cardPosition, setCardPosition] = useState<{ x: number; y: number } | null>(null);
+  const [cardPosition, setCardPosition] = useState<{ x: number; y: number; showOnLeft?: boolean } | null>(null);
   const [isDraggingViewZone, setIsDraggingViewZone] = useState(false);
   const [isDraggingHandle, setIsDraggingHandle] = useState<'left' | 'right' | null>(null);
   const [prevVisibleDays, setPrevVisibleDays] = useState<number>(365);
@@ -486,7 +486,21 @@ export function NodeTimelineRenderer({
       const x = clicked.position * dimensions.width * transform.scale + transform.panX;
       const yOffset = EVENT_OFFSET + (clicked.stackIndex * EVENT_STACK_SPACING);
       const y = centerY - yOffset;
-      setCardPosition({ x: x + rect.left, y: y + rect.top });
+      
+      // Calculate position based on available space
+      const cardWidth = 400; // max-width from CSS
+      const clickedX = x + rect.left;
+      const viewportWidth = window.innerWidth;
+      
+      // Check if there's enough space on the right
+      const spaceOnRight = viewportWidth - clickedX;
+      const showOnLeft = spaceOnRight < cardWidth + 30; // 30px margin
+      
+      setCardPosition({ 
+        x: clickedX, 
+        y: y + rect.top,
+        showOnLeft 
+      });
     } else {
       setSelectedEvent(null);
       setCardPosition(null);
@@ -780,7 +794,8 @@ export function NodeTimelineRenderer({
           className="timeline-event-card"
           style={{
             position: 'fixed',
-            left: cardPosition.x + 15,
+            left: cardPosition.showOnLeft ? undefined : cardPosition.x + 15,
+            right: cardPosition.showOnLeft ? window.innerWidth - cardPosition.x + 15 : undefined,
             top: cardPosition.y - 20,
             zIndex: 1000,
           }}
