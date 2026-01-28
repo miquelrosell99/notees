@@ -8,6 +8,7 @@ import { useState, useMemo } from 'react';
 import { mdiEye, mdiEyeOff, mdiClose, mdiPlus } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
+import { ColorButton } from '../core/ColorButton';
 
 export interface DatePropertyConfig {
   property: string;
@@ -89,11 +90,16 @@ export function DatePropertiesPanel({
               <Icon path={prop.visible ? mdiEye : mdiEyeOff} size={0.7} />
             </Button>
             
-            <input
-              type="color"
-              value={prop.color}
-              onChange={(e) => changeColor(prop.property, e.target.value)}
-              className="date-property-color"
+            <ColorButton
+              color={prop.color}
+              size="sm"
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'color';
+                input.value = prop.color;
+                input.onchange = (e) => changeColor(prop.property, (e.target as HTMLInputElement).value);
+                input.click();
+              }}
               title="Change color"
             />
             
