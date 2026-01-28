@@ -18,7 +18,7 @@ import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
 import type { Node } from '@/types';
 import type { TimelineNode, GravityPoint, TypeColor, DateProperty, TimelineTransform, NodeTimelineRendererProps } from './types';
-import { mdiCog, mdiPalette, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCalendarPlus, mdiCalendarEdit, mdiCalendarClock, mdiMagnify, mdiArrowExpandHorizontal, mdiArrowExpandVertical, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM, mdiAlphaW } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -752,12 +752,12 @@ export function NodeTimelineRenderer({
   ];
   
   const zoomPresetOptions = [
-    { value: 'decade', label: 'D' },
-    { value: 'year', label: 'Y' },
-    { value: 'semester', label: 'S' },
-    { value: 'quatrimester', label: 'Q' },
-    { value: 'month', label: 'M' },
-    { value: 'week', label: 'W' },
+    { value: 'decade', label: 'Decade', icon: mdiAlphaD },
+    { value: 'year', label: 'Year', icon: mdiAlphaY },
+    { value: 'semester', label: 'Semester', icon: mdiAlphaS },
+    { value: 'quatrimester', label: 'Quatrimester', icon: mdiAlphaQ },
+    { value: 'month', label: 'Month', icon: mdiAlphaM },
+    { value: 'week', label: 'Week', icon: mdiAlphaW },
   ];
   
   return (
