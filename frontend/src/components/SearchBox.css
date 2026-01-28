@@ -98,6 +98,20 @@
   padding: var(--spacing-1);
 }
 
+.search-section-header {
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: var(--spacing-1);
+  list-style: none;
+}
+
+.search-section-header:first-child {
+  margin-top: 0;
+}
+
 .search-result-item {
   display: flex;
   align-items: center;
