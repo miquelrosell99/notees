@@ -140,6 +140,7 @@ class NodeCreateData:
     is_asset: bool = False
     is_template: bool = False
     is_comment: bool = False
+    uuid: Optional[str] = None  # Optional: override auto-generated UUID (for assets)
 
 
 @dataclass
