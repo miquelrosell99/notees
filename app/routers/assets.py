@@ -166,12 +166,16 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
 async def upload_asset(
     file: UploadFile = File(...),
     parent_id: Optional[int] = None,
+    existing_node_id: Optional[int] = None,
     current_user: User = Depends(get_current_user)
 ):
     """Upload a new asset file using AssetService.
     
     Creates a node with the 'asset' type and stores the file
     in the graph's assets folder using atomic operations.
+    
+    If existing_node_id is provided, converts that node to an asset
+    instead of creating a new one (useful for empty blocks).
     
     Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)
     Max file size: 50MB
@@ -221,16 +225,52 @@ async def upload_asset(
         # Create repository
         node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
         
-        # Create the asset node ONLY after file is safely written
-        data = NodeCreateData(
-            uuid=asset_uuid,  # Use UUID from service
-            name=filename_without_ext,
-            parent_id=parent_id,
-            classes=[asset_type_id] if asset_type_id else [],
-            is_asset=True,
-        )
-        
-        node = await node_repo.create(data)
+        # If existing_node_id is provided, convert that node to an asset
+        if existing_node_id:
+            node = await node_repo.get(existing_node_id)
+            if not node:
+                raise HTTPException(status_code=404, detail=f"Node {existing_node_id} not found")
+            
+            # Update the node to be an asset
+            async with pool.acquire() as conn:
+                now = datetime.now(timezone.utc)
+                await conn.execute("""
+                    UPDATE node 
+                    SET name = $1, uuid = $2, is_asset = TRUE, write_date = $3, write_uid = $4
+                    WHERE id = $5 AND graph_id = $6
+                """, filename_without_ext, asset_uuid, now, user_id, existing_node_id, graph_id)
+                
+                # Add asset class to the node
+                if asset_type_id:
+                    # Create node_property assignment
+                    np_id = await conn.fetchval("""
+                        INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
+                        VALUES ($1, $2, $3, $4, $4, $5, $5)
+                        RETURNING id
+                    """, generate_uuid(), existing_node_id, types_property_id, now, user_id)
+                    
+                    # Add class value
+                    await conn.execute("""
+                        INSERT INTO property_value_relation 
+                            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
+                        VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
+                    """, generate_uuid(), np_id, types_property_id, existing_node_id, asset_type_id, now, user_id)
+            
+            # Fetch updated node
+            node = await node_repo.get(existing_node_id)
+            if not node:
+                raise HTTPException(status_code=500, detail="Failed to update node to asset")
+        else:
+            # Create the asset node ONLY after file is safely written
+            data = NodeCreateData(
+                uuid=asset_uuid,  # Use UUID from service
+                name=filename_without_ext,
+                parent_id=parent_id,
+                classes=[asset_type_id] if asset_type_id else [],
+                is_asset=True,
+            )
+            
+            node = await node_repo.create(data)
         
         category = get_asset_category(content_type)
         

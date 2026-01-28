@@ -9,7 +9,7 @@
  *  ├─ BlockBullet      (Bullet component - drag handle, expand/collapse)
  *  ├─ BlockContent     (view mode - text with atomic inline links)
  *  │    ├─ TextToken
- *  │    ├─ LinkPill (atomic inline text links)
+ *  │    ├─ InlineLink (atomic inline text links)
  *  │    └─ ClassPill
  *  ├─ BlockEditor      (edit mode - rich text editing)
  *  └─ BlockChildren    (recursive child blocks)

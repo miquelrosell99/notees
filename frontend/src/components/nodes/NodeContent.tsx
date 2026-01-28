@@ -74,6 +74,7 @@ export function NodeContent({
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
   const [targetBlockId, setTargetBlockId] = useState<number | null>(null);
+  const [convertToAsset, setConvertToAsset] = useState(false); // Whether to convert block to asset
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
@@ -101,27 +102,25 @@ export function NodeContent({
   }, [addSidebarCard]);
 
   // Handle successful asset upload
-  const handleAssetUploaded = useCallback((asset: Asset) => {
-    if (targetBlockId) {
+  // Strategy:
+  // - If block was converted to asset: do nothing (block is now the asset)
+  // - If block has content: insert [[assetNodeId]] link at end
+  const handleAssetUploaded = useCallback(async (asset: Asset) => {
+    if (targetBlockId && !convertToAsset) {
       const block = children.find(c => c.id === targetBlockId);
       if (block) {
-        let assetMarkdown: string;
-        if (asset.category === 'image') {
-          assetMarkdown = `![${asset.filename}](${asset.uuid})`;
-        } else if (asset.category === 'audio') {
-          assetMarkdown = `[audio:${asset.filename}](${asset.uuid})`;
-        } else {
-          assetMarkdown = `[file:${asset.filename}](${asset.uuid})`;
-        }
-        const newContent = block.name ? `${block.name}\n${assetMarkdown}` : assetMarkdown;
+        // Insert asset link
+        const assetLink = `[[${asset.node_id}]]`;
+        const newContent = block.name ? `${block.name}\n${assetLink}` : assetLink;
         saveImmediate(targetBlockId, newContent);
       }
     }
     setIsAssetUploadOpen(false);
     setTargetBlockId(null);
+    setConvertToAsset(false);
     setAssetTypeFilter(undefined);
     setPendingFile(null);
-  }, [targetBlockId, children, saveImmediate]);
+  }, [targetBlockId, convertToAsset, children, saveImmediate]);
 
   // Build block callbacks for context provider
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
@@ -166,6 +165,11 @@ export function NodeContent({
     },
     onAssetUpload: (blockId, typesOrFile) => {
       setTargetBlockId(blockId);
+      // Check if block is empty - if so, convert it to an asset
+      const block = children.find(c => c.id === blockId);
+      const isEmpty = !block?.name || block.name.trim() === '';
+      setConvertToAsset(isEmpty);
+      
       if (typesOrFile instanceof File) {
         setPendingFile(typesOrFile);
         setAssetTypeFilter(undefined);
@@ -238,12 +242,14 @@ export function NodeContent({
       <AssetUploadModal
         isOpen={isAssetUploadOpen}
         onClose={() => { 
-          setIsAssetUploadOpen(false); 
+          setIsAssetUploadOpen(false);
+          setConvertToAsset(false);
           setAssetTypeFilter(undefined); 
           setPendingFile(null); 
         }}
         onUpload={handleAssetUploaded}
         parentId={targetBlockId || node.id}
+        existingNodeId={convertToAsset ? targetBlockId || undefined : undefined}
         acceptedTypes={assetTypeFilter}
         initialFile={pendingFile}
       />
