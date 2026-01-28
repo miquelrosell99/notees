@@ -446,7 +446,7 @@ export function NodeTimelineRenderer({
     
     // First pass: connector lines
     nodes.forEach(node => {
-      const x = node.x;
+      const x = node.x * scale + panX;
       const y = centerY + node.y;
       
       if (x < -100 || x > width + 100) return;
@@ -461,7 +461,7 @@ export function NodeTimelineRenderer({
     
     // Second pass: nodes
     nodes.forEach(node => {
-      const x = node.x;
+      const x = node.x * scale + panX;
       const y = centerY + node.y;
       
       if (x < -100 || x > width + 100) return;
