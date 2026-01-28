@@ -6,6 +6,8 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { getSettings, setSetting } from '@/api/databases';
+import * as nodesApi from '@/api/nodes';
+import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
@@ -59,6 +61,9 @@ export function NodeTimelineRenderer({
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, panX: 0 });
   const manualZoomRef = useRef(false);
+  const markersRef = useRef<Array<{ x: number; date: Date; interval: number }>>([]);
+  
+  const { openNode, addSidebarCard } = useNodesStore();
   
   const currentZoomLevel = useMemo(() => getZoomLevelFromScale(transform.scale), [transform.scale]);
   
@@ -291,6 +296,9 @@ export function NodeTimelineRenderer({
     const extendedStart = new Date(visibleStart.getTime() - markerInterval);
     const extendedEnd = new Date(visibleEnd.getTime() + markerInterval);
     
+    // Store markers for click detection
+    const markers: Array<{ x: number; date: Date; interval: number }> = [];
+    
     // Draw markers
     const firstMarker = new Date(Math.floor(extendedStart.getTime() / markerInterval) * markerInterval);
     for (let markerDate = firstMarker; markerDate <= extendedEnd; markerDate = new Date(markerDate.getTime() + markerInterval)) {
@@ -298,6 +306,8 @@ export function NodeTimelineRenderer({
       const x = markerPos * width * scale + panX;
       
       if (x >= -50 && x <= width + 50) {
+        // Store marker for click detection
+        markers.push({ x, date: new Date(markerDate), interval: markerInterval });
         // Tick mark
         ctx.globalAlpha = markerOpacity;
         ctx.strokeStyle = textColor + '80';
@@ -313,6 +323,9 @@ export function NodeTimelineRenderer({
         ctx.globalAlpha = 1;
       }
     }
+    
+    // Update markers ref for click detection
+    markersRef.current = markers;
     
     // Draw timeline line
     ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--color-outline').trim() || '#a3a3a3';
@@ -462,7 +475,7 @@ export function NodeTimelineRenderer({
     setHoveredEvent(hovered || null);
   }, [dimensions, transform, timeEvents, eventSizes]);
   
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleClick = useCallback(async (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanningRef.current) return;
     
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -472,6 +485,50 @@ export function NodeTimelineRenderer({
     const mouseY = e.clientY - rect.top;
     const centerY = dimensions.height / 2;
     
+    // Check if clicked on a time marker
+    const clickedMarker = markersRef.current.find(marker => {
+      return Math.abs(mouseX - marker.x) < 15 && mouseY >= centerY - 10 && mouseY <= centerY + 25;
+    });
+    
+    if (clickedMarker) {
+      const date = clickedMarker.date;
+      const interval = clickedMarker.interval;
+      
+      try {
+        // Determine if it's a day, month, or year based on interval
+        if (interval === 24 * 60 * 60 * 1000) {
+          // Daily marker
+          const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          const dailyNode = await nodesApi.getOrCreateDaily(formattedDate);
+          if (e.shiftKey) {
+            addSidebarCard(dailyNode.id, 'page');
+          } else {
+            openNode(dailyNode.id, 'page');
+          }
+        } else if (interval >= 30 * 24 * 60 * 60 * 1000 && interval <= 90 * 24 * 60 * 60 * 1000) {
+          // Monthly marker (30 days or 3 months)
+          const monthlyNode = await nodesApi.getOrCreateMonthly(date.getFullYear(), date.getMonth() + 1);
+          if (e.shiftKey) {
+            addSidebarCard(monthlyNode.id, 'page');
+          } else {
+            openNode(monthlyNode.id, 'page');
+          }
+        } else if (interval >= 365 * 24 * 60 * 60 * 1000) {
+          // Yearly marker
+          const yearlyNode = await nodesApi.getOrCreateYearly(date.getFullYear());
+          if (e.shiftKey) {
+            addSidebarCard(yearlyNode.id, 'page');
+          } else {
+            openNode(yearlyNode.id, 'page');
+          }
+        }
+        return; // Don't check for events if marker was clicked
+      } catch (error) {
+        console.error('Failed to open date page:', error);
+      }
+    }
+    
+    // Check if clicked on an event
     const clicked = timeEvents.find(event => {
       const x = event.position * dimensions.width * transform.scale + transform.panX;
       const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
@@ -505,7 +562,7 @@ export function NodeTimelineRenderer({
       setSelectedEvent(null);
       setCardPosition(null);
     }
-  }, [dimensions, transform, timeEvents, eventSizes]);
+  }, [dimensions, transform, timeEvents, eventSizes, openNode, addSidebarCard]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     isPanningRef.current = true;
