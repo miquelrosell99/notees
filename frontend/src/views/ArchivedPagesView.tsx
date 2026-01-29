@@ -27,7 +27,9 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       <div className="page-header-section">
         <div className="page-header-section__header">
           <div className="page-header">
-            <h1 className="page-header__title">📦 Archived Pages</h1>
+            <h1 className="page-header__title">
+              <i className="mdi mdi-archive"></i> Archived Pages
+            </h1>
           </div>
         </div>
         <div className="page-header-section__subtitle">
@@ -41,7 +43,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         nodeUuid={PSEUDO_NODE_UUID}
         viewType="archived"
         title="Archived Pages"
-        icon={<span>📦</span>}
+        icon={<i className="mdi mdi-archive"></i>}
         hideWhenEmpty={false}
         defaultExpanded={true}
         onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
