@@ -999,11 +999,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       
-      // For nodes with parents (blocks/child pages), show full path
-      const fullPath = buildFullPath(node, nodesRef.current);
-      const displayName = fullPath.length > 35 
-        ? fullPath.slice(0, 35) + '...' 
-        : fullPath;
+      // Display just the node name
+      const displayName = node.name.length > 35 
+        ? node.name.slice(0, 35) + '...' 
+        : node.name;
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
