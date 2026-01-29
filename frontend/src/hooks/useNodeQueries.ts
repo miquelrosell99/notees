@@ -65,17 +65,19 @@ export function useNode(
   });
   
   // If we get a 404 for the currently viewed node, navigate to home
+  // Note: We need to use dynamic import here to avoid circular dependency
   if (result.error && (result.error as any)?.response?.status === 404 && id) {
-    const { useNodesStore } = require('@/stores');
-    const currentNodeId = useNodesStore.getState().currentNodeId;
-    if (currentNodeId === id) {
-      // Node was deleted, navigate away
-      useNodesStore.setState({ 
-        currentNodeId: null,
-        mainViewType: 'node'
-      });
-      window.history.replaceState(null, '', '/');
-    }
+    import('@/stores').then(({ useNodesStore }) => {
+      const currentNodeId = useNodesStore.getState().currentNodeId;
+      if (currentNodeId === id) {
+        // Node was deleted, navigate away
+        useNodesStore.setState({ 
+          currentNodeId: null,
+          mainViewType: 'node'
+        });
+        window.history.replaceState(null, '', '/');
+      }
+    });
   }
   
   return result;
