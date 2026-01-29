@@ -377,29 +377,34 @@ export function NodeTableView({
       />
       
       {/* Context menu */}
-      {contextMenu && (
-        customContextMenuItems ? (
-          customContextMenu && (
-            <customContextMenu
+      {contextMenu && (() => {
+        if (customContextMenu) {
+          const CustomContextMenu = customContextMenu;
+          return (
+            <CustomContextMenu
               node={contextMenu.node}
               position={contextMenu.position}
               onClose={handleCloseContextMenu}
             />
-          )
-        ) : contextMenu.node.is_page ? (
-          <PageContextMenu
-            node={contextMenu.node}
-            position={contextMenu.position}
-            onClose={handleCloseContextMenu}
-          />
-        ) : (
-          <BlockContextMenu
-            node={contextMenu.node}
-            position={contextMenu.position}
-            onClose={handleCloseContextMenu}
-          />
-        )
-      )}
+          );
+        } else if (contextMenu.node.is_page) {
+          return (
+            <PageContextMenu
+              node={contextMenu.node}
+              position={contextMenu.position}
+              onClose={handleCloseContextMenu}
+            />
+          );
+        } else {
+          return (
+            <BlockContextMenu
+              node={contextMenu.node}
+              position={contextMenu.position}
+              onClose={handleCloseContextMenu}
+            />
+          );
+        }
+      })()}
     </>
   );
 }
