@@ -65,30 +65,49 @@ export function SearchBox<T = Node>({
   sections,
 }: SearchBoxProps<T>) {
   const [query, setQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const { openNode } = useNodesStore();
+  
+  // Debounce the query to avoid flashing results
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [query]);
   
   // Multi-section mode: run queries for each section
   const sectionQueries = (sections || []).map((section, index) => {
     const sectionSearchFn = section.searchFn;
     return useQuery({
-      queryKey: ['section-search', index, query],
-      queryFn: () => sectionSearchFn!(query),
-      enabled: !!sectionSearchFn && query.length > 0,
+      queryKey: ['section-search', index, debouncedQuery],
+      queryFn: () => sectionSearchFn!(debouncedQuery),
+      enabled: !!sectionSearchFn && debouncedQuery.length > 0,
     });
   });
   
   // Single-section mode: use custom search function or default to node search
-  const defaultSearch = useSearch(query);
+  const defaultSearch = useSearch(debouncedQuery);
   const customSearch = useQuery({
-    queryKey: ['custom-search', query],
-    queryFn: () => searchFn!(query),
-    enabled: !!searchFn && query.length > 0,
+    queryKey: ['custom-search', debouncedQuery],
+    queryFn: () => searchFn!(debouncedQuery),
+    enabled: !!searchFn && debouncedQuery.length > 0,
   });
   
   const searchResults = searchFn ? customSearch : defaultSearch;
