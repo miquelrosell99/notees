@@ -43,6 +43,7 @@ export const FILTER_TYPE_OPTIONS: FilterTypeOption[] = [
   { value: 'REFERENCE', label: 'References', icon: mdiLink, description: 'Nodes that reference...' },
   { value: 'REFERENCE_PATH', label: 'Path References', icon: mdiLink, description: 'Nodes referenced by path' },
   { value: 'ANCESTOR_PATH', label: 'Inside page', icon: mdiArrowUp, description: 'Descendant of page' },
+  { value: 'CLASS_PATH', label: 'Inherited class', icon: mdiTagOutline, description: 'Has class from ancestors' },
   { value: 'PROPERTY', label: 'Property', icon: mdiCodeBraces, description: 'Filter by property value' },
   { value: 'AND_CONTAINER', label: 'All of (AND)', icon: mdiSetAll, description: 'Match all nested conditions' },
   { value: 'OR_CONTAINER', label: 'Any of (OR)', icon: mdiSetCenter, description: 'Match any nested condition' },
@@ -127,6 +128,8 @@ export function createDefaultBlock(type: QueryBlockType): QueryBlock {
     case 'REFERENCE_PATH':
       return { type, blocks: [] };
     case 'ANCESTOR_PATH':
+      return { type, blocks: [] };
+    case 'CLASS_PATH':
       return { type, blocks: [] };
     case 'UUID':
       return { type, value: '' };

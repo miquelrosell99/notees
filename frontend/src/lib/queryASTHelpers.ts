@@ -13,6 +13,8 @@ import type {
   ContentCondition,
   PropertyCondition,
   ReferenceCondition,
+  AncestorPathCondition,
+  ClassPathCondition,
   ContentOperator,
   PropertyOperator,
   PropertyType,
@@ -99,6 +101,20 @@ export function createConditionFromType(blockType: string): ConditionNode {
         condition_type: 'reference',
         target_uuid: '', // Will be filled by user
       } as ReferenceCondition;
+    
+    case 'ancestor_path':
+      return {
+        type: 'condition',
+        condition_type: 'ancestor_path',
+        nested_group: createGroupNode(),
+      } as AncestorPathCondition;
+    
+    case 'class_path':
+      return {
+        type: 'condition',
+        condition_type: 'class_path',
+        nested_group: createGroupNode(),
+      } as ClassPathCondition;
     
     default:
       // Default to content condition

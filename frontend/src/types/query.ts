@@ -20,6 +20,7 @@ export type QueryBlockType =
   | 'REFERENCE'
   | 'REFERENCE_PATH'
   | 'ANCESTOR_PATH'
+  | 'CLASS_PATH'
   | 'UUID';
 
 /**
@@ -147,6 +148,14 @@ export interface AncestorPathBlock extends BaseQueryBlock {
 }
 
 /**
+ * Class path filter block - nodes with inherited classes from ancestors
+ */
+export interface ClassPathBlock extends BaseQueryBlock {
+  type: 'CLASS_PATH';
+  blocks: QueryBlock[]; // Filters for what classes should be in the path
+}
+
+/**
  * UUID filter block
  */
 export interface UuidBlock extends BaseQueryBlock {
@@ -166,6 +175,7 @@ export type QueryBlock =
   | ReferenceBlock
   | ReferencePathBlock
   | AncestorPathBlock
+  | ClassPathBlock
   | UuidBlock;
 
 /**
@@ -343,6 +353,18 @@ export function createAncestorPathBlock(
     type: 'ANCESTOR_PATH',
     blocks: nestedBlocks,
     max_depth: maxDepth,
+  };
+}
+
+/**
+ * Create a class path filter block
+ */
+export function createClassPathBlock(
+  nestedBlocks: QueryBlock[],
+): ClassPathBlock {
+  return {
+    type: 'CLASS_PATH',
+    blocks: nestedBlocks,
   };
 }
 

@@ -207,6 +207,8 @@ class QuerySQLGenerator:
             return self._generate_reference_path_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.ANCESTOR_PATH.value:
             return self._generate_ancestor_path_condition(block, runtime_params, node_alias)
+        elif block_type == QueryBlockType.CLASS_PATH.value:
+            return self._generate_class_path_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.UUID.value:
             return self._generate_uuid_condition(block, runtime_params, node_alias)
         else:
@@ -791,6 +793,39 @@ class QuerySQLGenerator:
                   {depth_condition}
                   AND {ancestor_alias}.graph_id = {self._next_param(self._graph_id)}
                   AND {ancestor_alias}.active = TRUE
+                  AND ({nested_clause})
+            )
+        """.strip()
+    
+    def _generate_class_path_condition(
+        self,
+        block: Dict[str, Any],
+        runtime_params: Dict[str, Any],
+        node_alias: str,
+    ) -> str:
+        """Generate class path filter condition.
+        
+        Finds nodes that have specific classes in their classes_path
+        (classes inherited from ancestor pages).
+        The classes_path column stores class IDs inherited from all ancestors.
+        """
+        nested_blocks = block.get("blocks", [])
+        
+        if not nested_blocks:
+            return "TRUE"
+        
+        # Build subquery for matching class nodes
+        class_alias = self._next_alias("class_node")
+        nested_tree = {"type": "AND_CONTAINER", "blocks": nested_blocks}
+        nested_clause = self._generate_where_clause(nested_tree, runtime_params, class_alias)
+        
+        # Find nodes whose classes_path contains any class matching the criteria
+        return f"""
+            EXISTS (
+                SELECT 1 FROM unnest({node_alias}.classes_path) AS class_id
+                JOIN node {class_alias} ON {class_alias}.id = class_id
+                WHERE {class_alias}.graph_id = {self._next_param(self._graph_id)}
+                  AND {class_alias}.active = TRUE
                   AND ({nested_clause})
             )
         """.strip()

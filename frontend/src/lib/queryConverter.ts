@@ -16,6 +16,7 @@ import type {
   ReferenceBlock,
   ReferencePathBlock,
   AncestorPathBlock,
+  ClassPathBlock,
   UuidBlock,
 } from '@/types/query';
 
@@ -31,6 +32,7 @@ import type {
   ReferenceCondition,
   ReferencePathCondition,
   AncestorPathCondition,
+  ClassPathCondition,
 } from '@/types/queryAST';
 
 // Helper factory functions
@@ -265,6 +267,19 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
       } as AncestorPathCondition;
     }
     
+    case 'CLASS_PATH': {
+      const classPathBlock = block as ClassPathBlock;
+      return {
+        type: 'condition',
+        condition_type: 'class_path',
+        nested_group: {
+          type: 'group',
+          logic: 'AND',
+          children: classPathBlock.blocks.map(b => convertBlockToASTNode(b)),
+        },
+      } as ClassPathCondition;
+    }
+    
     default:
       throw new Error(`Unknown block type: ${(block as QueryBlock).type}`);
   }
@@ -411,6 +426,14 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
         blocks: ancestorCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
         max_depth: ancestorCond.max_depth,
       } as AncestorPathBlock;
+    }
+    
+    case 'class_path': {
+      const classPathCond = condition as ClassPathCondition;
+      return {
+        type: 'CLASS_PATH',
+        blocks: classPathCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
+      } as ClassPathBlock;
     }
     
     default:
