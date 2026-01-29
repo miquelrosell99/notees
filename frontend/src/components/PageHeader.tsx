@@ -12,7 +12,8 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass, usePages } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass } from '@/hooks';
+import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -40,7 +41,6 @@ export function PageHeader({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
-  const { data: allPages } = usePages({ includeChildren: true });
   const { 
     addSidebarCard, 
     openNode,
@@ -109,7 +109,7 @@ export function PageHeader({
     const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
     
     // Check if the new name contains "/" and this is not a date page
-    if (newName.includes('/') && !isDatePage && allPages && pageClassId) {
+    if (newName.includes('/') && !isDatePage && pageClassId) {
       const parsed = parseHierarchicalPath(newName);
       const originalName = page.name || '';
       
@@ -118,12 +118,14 @@ export function PageHeader({
       // Create child pages under the current page
       if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
         try {
+          // Fetch fresh pages from API to avoid stale cache issues
+          const freshPages = await listNodes({ pages_only: true, include_children: true });
           // The child hierarchy starts after the original name
           const childSegments = parsed.parentSegments.slice(1);
           
           // Build lookup map for O(1) access
           const pageMap = new Map<string, Node>();
-          for (const p of allPages) {
+          for (const p of freshPages) {
             const key = `${p.name}|${p.parent_id ?? 'null'}`;
             pageMap.set(key, p);
           }
@@ -170,10 +172,13 @@ export function PageHeader({
       // Change the parent of the current page
       if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
         try {
+          // Fetch fresh pages from API to avoid stale cache issues
+          const freshPages = await listNodes({ pages_only: true, include_children: true });
+          
           // Resolve or create parent pages (supports multiple levels)
           const parentId = await resolveHierarchicalParent(
             parsed.parentSegments,
-            allPages,
+            freshPages,
             async (name, parent) => {
               return await createNode.mutateAsync({
                 name,
@@ -202,10 +207,13 @@ export function PageHeader({
       // This is a different name entirely - update name and move to parent
       if (parsed.leaf !== originalName) {
         try {
+          // Fetch fresh pages from API to avoid stale cache issues
+          const freshPages = await listNodes({ pages_only: true, include_children: true });
+          
           // Resolve or create parent pages (supports multiple levels)
           const parentId = await resolveHierarchicalParent(
             parsed.parentSegments,
-            allPages,
+            freshPages,
             async (name, parent) => {
               return await createNode.mutateAsync({
                 name,
@@ -234,7 +242,7 @@ export function PageHeader({
     // Normal name change (no hierarchy, date pages, or fallback on error)
     const data: NodeUpdate = { name: newName };
     updateNode.mutate({ id: page.id, data });
-  }, [page.id, page.name, page.is_daily, page.is_monthly, page.is_yearly, allPages, pageClassId, updateNode, createNode]);
+  }, [page.id, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassId, updateNode, createNode]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {

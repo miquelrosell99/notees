@@ -14,7 +14,8 @@
  * - Hierarchical page creation support (e.g., "Page1/Page2")
  */
 import { useState, useCallback } from 'react';
-import { useCreateNode, usePages, usePageClass } from './useNodes';
+import { useCreateNode, usePageClass } from './useNodes';
+import { listNodes } from '@/api/nodes';
 import { useNodesStore } from '@/stores';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 
@@ -86,7 +87,6 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   
   const createNodeMutation = useCreateNode();
   const { openNode } = useNodesStore();
-  const { data: allPages = [] } = usePages();
   const { pageClassId } = usePageClass();
 
   // Reset blocks to initial state
@@ -173,9 +173,11 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       
       // If hierarchical path, resolve parent (creating intermediate pages if needed)
       if (parsed.isHierarchical) {
+        // Fetch fresh pages from API to avoid stale cache issues
+        const freshPages = await listNodes({ pages_only: true, include_children: true });
         parentId = await resolveHierarchicalParent(
           parsed.parentSegments,
-          allPages,
+          freshPages,
           async (segmentName, parentIdForCreation) => {
             return await createNodeMutation.mutateAsync({
               name: segmentName,
