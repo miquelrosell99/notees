@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useCreateNode, useAddTag, useAddClass, useBlockSelection, useClasses, useAddTagLink, useContentSave } from '@/hooks';
+import { useCreateNode, useAddTag, useAddClass, useBlockSelection, useClasses, useAddTagLink, useContentSave, useSystemClasses } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -61,6 +61,7 @@ export function NodeContent({
   const addClass = useAddClass();
   const addTagLink = useAddTagLink();
   const { data: allClasses } = useClasses();
+  const { systemClassIds } = useSystemClasses();
   const { addSidebarCard, openNode, openCommentsForNode } = useNodesStore();
   
   // Block selection
@@ -134,18 +135,16 @@ export function NodeContent({
       }
     },
     onCreateClass: (blockId, name, _keepInline) => {
-      const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
-      createNode.mutate({ name, is_page: true }, {
+      if (!systemClassIds?.page || !systemClassIds?.class) return;
+      createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
         onSuccess: (newPage) => {
           addClass.mutate({ nodeId: blockId, classId: newPage.id });
-          if (classClass) {
-            addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
-          }
         }
       });
     },
     onCreateTag: (blockId, name, _keepInline) => {
-      createNode.mutate({ name, is_page: true }, {
+      if (!systemClassIds?.page) return;
+      createNode.mutate({ name, classes: [systemClassIds.page] }, {
         onSuccess: (newPage) => {
           addTag.mutate({ nodeId: blockId, tagId: newPage.id });
         }
@@ -153,7 +152,8 @@ export function NodeContent({
     },
     onCreatePageLink: async (name) => {
       try {
-        const newPage = await createNode.mutateAsync({ name, is_page: true });
+        if (!systemClassIds?.page) return undefined;
+        const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
         return String(newPage.id);
       } catch (error) {
         console.error('Failed to create page for link:', error);

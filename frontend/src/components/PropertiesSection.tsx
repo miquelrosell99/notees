@@ -20,6 +20,7 @@ import {
   useCreateProperty,
   useClassProperties,
   useInheritedProperties,
+  usePageClass,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Property, Node, ClassProperty } from '@/types/api';
@@ -363,12 +364,16 @@ export function PropertiesSection({
 
   const handleCreatePage = useCallback(async (name: string): Promise<Node> => {
     return new Promise((resolve, reject) => {
-      createNodeMutation.mutate({ name, is_page: true }, {
+      if (!pageClassId) {
+        reject(new Error('Page class not found'));
+        return;
+      }
+      createNodeMutation.mutate({ name, classes: [pageClassId] }, {
         onSuccess: (newPage) => resolve(newPage),
         onError: (error) => reject(error),
       });
     });
-  }, [createNodeMutation]);
+  }, [createNodeMutation, pageClassId]);
 
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {

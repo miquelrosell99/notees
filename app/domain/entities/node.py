@@ -157,12 +157,3 @@ class NodeUpdateData:
     collapsed: Optional[bool] = None
     classes: Optional[List[int]] = None
     property_values: Optional[dict] = None
-    # Class flags (optional)
-    is_class: Optional[bool] = None
-    is_page: Optional[bool] = None
-    is_day: Optional[bool] = None
-    is_month: Optional[bool] = None
-    is_year: Optional[bool] = None
-    is_asset: Optional[bool] = None
-    is_template: Optional[bool] = None
-    is_comment: Optional[bool] = None

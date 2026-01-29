@@ -697,7 +697,6 @@ function ExtendedBySection({
     sequence: 0,
     collapsed: false,
     active: true,
-    is_page: true,
     is_class: true,
     create_date: '',
     write_date: '',
