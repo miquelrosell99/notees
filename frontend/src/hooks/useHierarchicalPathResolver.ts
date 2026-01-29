@@ -2,7 +2,7 @@
  * Hook for resolving hierarchical paths with conflict resolution
  */
 import { useState, useCallback } from 'react';
-import { usePages } from './useNodes';
+import { listNodes } from '@/api/nodes';
 import { analyzeHierarchicalPath, parseHierarchicalPath, type PathSegmentInfo } from '@/utils/hierarchicalPath';
 import type { Node } from '@/types';
 
@@ -24,7 +24,6 @@ export interface ConflictState {
  * Returns conflict state for UI to resolve, then continues resolution after user selects.
  */
 export function useHierarchicalPathResolver() {
-  const { data: allPages } = usePages({ includeChildren: true });
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
 
   /**
@@ -36,7 +35,8 @@ export function useHierarchicalPathResolver() {
     path: string,
     createPageFn: (name: string, parentId: number | null) => Promise<Node>
   ): Promise<number | null> => {
-    if (!allPages) return null;
+    // Fetch fresh pages from API to avoid stale cache issues
+    const allPages = await listNodes({ pages_only: true, include_children: true });
 
     const parsed = parseHierarchicalPath(path);
     if (!parsed.isHierarchical || parsed.parentSegments.length === 0) {
@@ -72,7 +72,7 @@ export function useHierarchicalPathResolver() {
 
     // No conflicts - resolve the path
     return await resolvePathSegments(parsed.parentSegments, allPages, createPageFn);
-  }, [allPages]);
+  }, []);
 
   /**
    * Continue resolution after user has resolved a conflict
@@ -81,7 +81,10 @@ export function useHierarchicalPathResolver() {
     selectedNode: Node,
     createPageFn: (name: string, parentId: number | null) => Promise<Node>
   ): Promise<number | null> => {
-    if (!conflictState || !allPages) return null;
+    if (!conflictState) return null;
+
+    // Fetch fresh pages from API to avoid stale cache issues
+    const allPages = await listNodes({ pages_only: true, include_children: true });
 
     const { segmentIndex, fullPath, resolvedNodes } = conflictState;
     const parsed = parseHierarchicalPath(fullPath);
@@ -140,7 +143,7 @@ export function useHierarchicalPathResolver() {
     // All resolved - clear conflict state
     setConflictState(null);
     return currentParentId;
-  }, [conflictState, allPages]);
+  }, [conflictState]);
 
   /**
    * Cancel conflict resolution

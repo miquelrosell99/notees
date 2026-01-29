@@ -11,6 +11,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath } from '@/hooks';
+import { listNodes } from '@/api/nodes';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon } from './icons';
@@ -236,10 +237,12 @@ export function CommandPalette({
           let parentId: number | null = null;
           
           // If hierarchical path, create parent pages as needed
-          if (parsed.isHierarchical && allPages) {
+          if (parsed.isHierarchical) {
+            // Fetch fresh pages from API to avoid stale cache issues
+            const freshPages = await listNodes({ pages_only: true, include_children: true });
             parentId = await resolveHierarchicalParent(
               parsed.parentSegments,
-              allPages,
+              freshPages,
               async (name, parent) => {
                 return await createNodeMutation.mutateAsync({
                   name,
