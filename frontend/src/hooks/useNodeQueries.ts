@@ -31,6 +31,7 @@ export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; t
     queryKey: nodeKeys.list(filters ?? {}),
     queryFn: () => nodesApi.listNodes(filters ?? undefined),
     enabled: filters !== null,
+    initialData: [],
   });
 }
 
@@ -335,6 +336,7 @@ export function useTags() {
   return useQuery({
     queryKey: nodeKeys.tags(),
     queryFn: () => nodesApi.listNodes({ pages_only: true }),
+    initialData: [],
   });
 }
 
@@ -346,6 +348,7 @@ export function useClasses() {
   return useQuery({
     queryKey: nodeKeys.classes(),
     queryFn: () => nodesApi.listClasses(),
+    initialData: [],
   });
 }
 
@@ -368,6 +371,7 @@ export function useNodesByTag(tagId: number | null) {
     queryKey: nodeKeys.list({ tag_id: tagId ?? 0 }),
     queryFn: () => nodesApi.listNodes({ tag_id: tagId! }),
     enabled: !!tagId,
+    initialData: [],
   });
 }
 
@@ -378,6 +382,7 @@ export function useTasks(includeComplete = false) {
   return useQuery({
     queryKey: nodeKeys.tasks(includeComplete),
     queryFn: () => nodesApi.listTasks(includeComplete),
+    initialData: [],
   });
 }
 
@@ -388,6 +393,7 @@ export function useArchivedPages() {
   return useQuery({
     queryKey: ['nodes', 'archived'],
     queryFn: () => nodesApi.getArchivedPages(),
+    initialData: [],
   });
 }
 
@@ -399,6 +405,7 @@ export function useNodesWithClass(classId: number | null) {
     queryKey: ['nodes', 'by-class', classId],
     queryFn: () => nodesApi.getNodesWithClass(classId!),
     enabled: !!classId,
+    initialData: [],
     select: (nodes) => nodes,  // Returns Node[]
   });
 }
