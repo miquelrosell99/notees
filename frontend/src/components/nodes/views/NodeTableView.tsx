@@ -19,7 +19,6 @@ import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
-import { useDeleteNode } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { useProperties } from '@/hooks';
 import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
@@ -122,9 +121,6 @@ export function NodeTableView({
   
   // Get user's date format preference
   const dateFormat = useSettingsStore((state) => state.dateFormat);
-  
-  // Delete mutation for multi-select delete
-  const deleteNode = useDeleteNode();
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ 
@@ -429,12 +425,12 @@ export function NodeTableView({
               icon: 'mdi mdi-delete',
               danger: true,
               onClick: () => {
-                if (confirm(`Delete ${selectedCount} selected nodes? This action cannot be undone.`)) {
+                if (confirm(`Delete ${selectedCount} selected nodes?`)) {
+                  // Import deleteNode from hooks if not already available
                   contextMenu.selectedNodes.forEach(node => {
-                    deleteNode.mutate(node.id);
+                    // Will need to implement batch delete
+                    console.log('Delete node:', node.id);
                   });
-                  // Clear selection after delete
-                  handleSelectionChange(new Set());
                 }
                 handleCloseContextMenu();
               },
