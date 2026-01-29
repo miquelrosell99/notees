@@ -88,7 +88,7 @@ async def get_recent_pages(
                    is_page, is_class, is_day, is_month, is_year,
                    create_date, write_date, open_date
             FROM node 
-            WHERE is_page = TRUE AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL) 
+            WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
                   AND open_date IS NOT NULL AND graph_id = $1
             ORDER BY open_date DESC
             LIMIT $2

@@ -671,8 +671,8 @@ class NodeService:
         pool = self._node_repo.get_connection()
         rows = await pool.fetch("""
             SELECT * FROM node 
-            WHERE graph_id = $1 AND is_deleted = TRUE
-            ORDER BY deleted_at DESC
+            WHERE graph_id = $1 AND is_deleted = true
+            ORDER BY deleted_at DESC NULLS LAST
         """, self._graph_id)
         
         return [self._node_repo.row_to_node(row) for row in rows]
