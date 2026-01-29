@@ -210,6 +210,7 @@ export function useExistingDailyPages() {
   return useQuery({
     queryKey: [...nodeKeys.all, 'daily-pages'],
     queryFn: () => nodesApi.listDailyPages(),
+    initialData: [],
   });
 }
 
