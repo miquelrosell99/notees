@@ -444,9 +444,6 @@ export function DynamicNodeViewSection({
     }
   }, [nodeId, viewType, views.length, createViewMutation, handleEditView]);
 
-  // Create node mutation for adding nodes to the collection
-  const createNodeMutation = useCreateNode();
-
   // Handle adding a node to the collection
   const handleAddNode = useCallback(async () => {
     try {
