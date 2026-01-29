@@ -174,12 +174,21 @@ export function PageHeader({
         try {
           // Fetch fresh pages from API to avoid stale cache issues
           const freshPages = await listNodes({ pages_only: true, include_children: true });
+          console.log('[PageHeader] Fresh pages API call params:', { pages_only: true, include_children: true });
+          console.log('[PageHeader] Fresh pages response:', freshPages);
+          console.log('[PageHeader] Fresh pages fetched:', freshPages.length, 'pages');
+          console.log('[PageHeader] Looking for parent segments:', parsed.parentSegments);
+          
+          // Check if Pokemon already exists at root
+          const existingPokemon = freshPages.filter(p => p.name === 'Pokemon');
+          console.log('[PageHeader] Existing "Pokemon" pages:', existingPokemon.map(p => ({ id: p.id, name: p.name, parent_id: p.parent_id })));
           
           // Resolve or create parent pages (supports multiple levels)
           const parentId = await resolveHierarchicalParent(
             parsed.parentSegments,
             freshPages,
             async (name, parent) => {
+              console.log('[PageHeader] Creating page:', name, 'with parent:', parent);
               return await createNode.mutateAsync({
                 name,
                 parent_id: parent,
@@ -187,6 +196,8 @@ export function PageHeader({
               });
             }
           );
+          
+          console.log('[PageHeader] Resolved parentId:', parentId);
           
           // Move current page under the new parent
           updateNode.mutate({ 
