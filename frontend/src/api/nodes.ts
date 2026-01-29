@@ -35,7 +35,7 @@ export async function listNodes(params?: {
 }): Promise<Node[]> {
   // Use trailing slash to match FastAPI route
   const response = await api.get<NodesResponse>(`${BASE}/`, { params });
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**
@@ -104,7 +104,7 @@ export async function createPage(
  */
 export async function listDailyPages(): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/daily/list`);
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**
@@ -173,7 +173,7 @@ export async function unarchiveNode(id: number): Promise<Node> {
  */
 export async function getArchivedPages(): Promise<Node[]> {
   const response = await api.get<{ pages: Node[] }>(`${BASE}/archived`);
-  return response.data.pages;
+  return response.data.pages ?? [];
 }
 
 /**
@@ -181,7 +181,7 @@ export async function getArchivedPages(): Promise<Node[]> {
  */
 export async function getNodesWithClass(classId: number): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/classes/${classId}/nodes`);
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**
@@ -222,7 +222,7 @@ export async function getBacklinks(
   const response = await api.get<BacklinksResponse>(`${BASE}/${nodeId}/backlinks`, {
     params: { include_inherited: includeInherited },
   });
-  return response.data.backlinks;
+  return response.data.backlinks ?? [];
 }
 
 /**
@@ -232,7 +232,7 @@ export async function getLinkedReferences(nodeId: number): Promise<LinkedReferen
   const response = await api.get<LinkedReferencesResponse>(
     `${BASE}/${nodeId}/linked-references`
   );
-  return response.data.linked_references;
+  return response.data.linked_references ?? [];
 }
 
 /**
@@ -260,7 +260,7 @@ export async function searchNodes(query: string, type_filters?: string): Promise
   const response = await api.get<NodesResponse>(`${BASE}/search`, {
     params: { q: query, type_filters },
   });
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**
@@ -268,7 +268,7 @@ export async function searchNodes(query: string, type_filters?: string): Promise
  */
 export async function listClasses(): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/classes`);
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**
@@ -278,7 +278,7 @@ export async function searchClasses(query: string): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/classes/search`, {
     params: { q: query },
   });
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**
@@ -306,7 +306,7 @@ export async function listTasks(includeComplete = false): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/tasks`, {
     params: { include_complete: includeComplete },
   });
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 // ==================== Graph ====================
@@ -391,7 +391,7 @@ export async function getPropertyBacklinks(nodeId: number): Promise<PropertyBack
   const response = await api.get<{ property_backlinks: PropertyBacklink[] }>(
     `${BASE}/${nodeId}/property-backlinks`
   );
-  return response.data.property_backlinks;
+  return response.data.property_backlinks ?? [];
 }
 
 // ==================== Comments ====================
@@ -467,7 +467,7 @@ export interface TextLink {
  */
 export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
   const response = await api.get<{ links: TextLink[] }>(`${BASE}/${nodeId}/text-links`);
-  return response.data.links;
+  return response.data.links ?? [];
 }
 
 /**
@@ -523,7 +523,7 @@ export interface RecentPage {
  */
 export async function getRecentPages(limit: number = 10): Promise<RecentPage[]> {
   const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/recents`, { params: { limit } });
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 // ============== Favorites (DB-backed) ==============
@@ -533,7 +533,7 @@ export async function getRecentPages(limit: number = 10): Promise<RecentPage[]> 
  */
 export async function getFavorites(): Promise<number[]> {
   const response = await api.get<{ favorites: number[] }>(`${BASE}/favorites`);
-  return response.data.favorites;
+  return response.data.favorites ?? [];
 }
 
 /**
@@ -541,7 +541,7 @@ export async function getFavorites(): Promise<number[]> {
  */
 export async function setFavorites(favorites: number[]): Promise<number[]> {
   const response = await api.put<{ status: string; favorites: number[] }>(`${BASE}/favorites`, { favorites });
-  return response.data.favorites;
+  return response.data.favorites ?? [];
 }
 
 /**
@@ -549,7 +549,7 @@ export async function setFavorites(favorites: number[]): Promise<number[]> {
  */
 export async function addFavorite(nodeId: number): Promise<number[]> {
   const response = await api.post<{ status: string; favorites: number[] }>(`${BASE}/favorites/${nodeId}`);
-  return response.data.favorites;
+  return response.data.favorites ?? [];
 }
 
 /**
@@ -557,7 +557,7 @@ export async function addFavorite(nodeId: number): Promise<number[]> {
  */
 export async function removeFavorite(nodeId: number): Promise<number[]> {
   const response = await api.delete<{ status: string; favorites: number[] }>(`${BASE}/favorites/${nodeId}`);
-  return response.data.favorites;
+  return response.data.favorites ?? [];
 }
 
 /**
@@ -568,7 +568,7 @@ export async function reorderFavorites(fromIndex: number, toIndex: number): Prom
     from_index: fromIndex,
     to_index: toIndex,
   });
-  return response.data.favorites;
+  return response.data.favorites ?? [];
 }
 
 /**
@@ -576,7 +576,7 @@ export async function reorderFavorites(fromIndex: number, toIndex: number): Prom
  */
 export async function getTrash(): Promise<Node[]> {
   const response = await api.get<{ nodes: Node[]; total: number }>(`${BASE}/trash`);
-  return response.data.nodes;
+  return response.data.nodes ?? [];
 }
 
 /**

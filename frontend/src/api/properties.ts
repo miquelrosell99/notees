@@ -23,7 +23,7 @@ const BASE = '/properties';
  */
 export async function listProperties(): Promise<Property[]> {
   const response = await api.get<PropertiesResponse>(`${BASE}/`);
-  return response.data.properties;
+  return response.data.properties ?? [];
 }
 
 /**
@@ -131,7 +131,7 @@ export async function getClassProperties(
     `${BASE}/classes/${classNodeId}/properties`,
     { params: { include_inherited: includeInherited } }
   );
-  return response.data.class_properties;
+  return response.data.class_properties ?? [];
 }
 
 /**
@@ -173,7 +173,7 @@ export async function getClassExtends(classNodeId: number): Promise<ClassExtends
   const response = await api.get<ClassExtendsResponse>(
     `${BASE}/classes/${classNodeId}/extends`
   );
-  return response.data.extends;
+  return response.data.extends ?? [];
 }
 
 /**
@@ -213,7 +213,7 @@ export async function getInheritedProperties(
   const response = await api.get<{ inherited_properties: InheritedProperty[] }>(
     `${BASE}/classes/${classNodeId}/inherited-properties`
   );
-  return response.data.inherited_properties;
+  return response.data.inherited_properties ?? [];
 }
 
 /**
@@ -225,7 +225,7 @@ export async function getExtendedByClasses(
   const response = await api.get<{ classes: ExtendedByClass[] }>(
     `${BASE}/classes/${classNodeId}/extended-by`
   );
-  return response.data.classes;
+  return response.data.classes ?? [];
 }
 
 /**
