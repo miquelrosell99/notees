@@ -995,12 +995,72 @@ class NodeService:
         return await self.get_node_classes(node_id)
 
     async def archive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
-        """Archive a node (set active to false)."""
-        return await self._node_repo.set_active(node_id, False, user_id)
+        """Archive a node and all its descendants (set active to false)."""
+        from ...utils import utc_now
+        pool = self._node_repo.get_connection()
+        now = utc_now()
+        uid = user_id or self._user_id
+        
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Get all descendants using closure table
+                descendant_rows = await conn.fetch("""
+                    SELECT descendant_id FROM node_path 
+                    WHERE ancestor_id = $1 AND depth > 0
+                """, node_id)
+                
+                descendant_ids = [row['descendant_id'] for row in descendant_rows]
+                all_node_ids = [node_id] + descendant_ids
+                
+                # Archive all nodes (parent and descendants)
+                await conn.execute("""
+                    UPDATE node 
+                    SET active = FALSE, write_date = $1, write_uid = $2, version = version + 1
+                    WHERE id = ANY($3::integer[]) AND graph_id = $4
+                """, now, uid, all_node_ids, self._graph_id)
+                
+                logger.info(f"[ARCHIVE] Archived node {node_id} and {len(descendant_ids)} descendants")
+                
+                # Return the archived parent node
+                row = await conn.fetchrow(
+                    "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
+                    node_id, self._graph_id
+                )
+                return self._node_repo.row_to_node(row) if row else None
 
     async def unarchive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
-        """Unarchive a node (set active to true)."""
-        return await self._node_repo.set_active(node_id, True, user_id)
+        """Unarchive a node and all its descendants (set active to true)."""
+        from ...utils import utc_now
+        pool = self._node_repo.get_connection()
+        now = utc_now()
+        uid = user_id or self._user_id
+        
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Get all descendants using closure table
+                descendant_rows = await conn.fetch("""
+                    SELECT descendant_id FROM node_path 
+                    WHERE ancestor_id = $1 AND depth > 0
+                """, node_id)
+                
+                descendant_ids = [row['descendant_id'] for row in descendant_rows]
+                all_node_ids = [node_id] + descendant_ids
+                
+                # Unarchive all nodes (parent and descendants)
+                await conn.execute("""
+                    UPDATE node 
+                    SET active = TRUE, write_date = $1, write_uid = $2, version = version + 1
+                    WHERE id = ANY($3::integer[]) AND graph_id = $4
+                """, now, uid, all_node_ids, self._graph_id)
+                
+                logger.info(f"[UNARCHIVE] Unarchived node {node_id} and {len(descendant_ids)} descendants")
+                
+                # Return the unarchived parent node
+                row = await conn.fetchrow(
+                    "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
+                    node_id, self._graph_id
+                )
+                return self._node_repo.row_to_node(row) if row else None
 
     async def get_archived_pages(self) -> List[Node]:
         """Get all archived pages."""
