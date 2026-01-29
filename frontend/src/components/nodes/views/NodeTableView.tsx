@@ -17,7 +17,8 @@ import { useMemo, useCallback, useState, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
-import { useNodesStore } from '@/stores';
+import { useNodesStore, useSettingsStore } from '@/stores';
+import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
 import { useProperties } from '@/hooks';
 import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
@@ -38,13 +39,13 @@ interface NodeTableColumn {
 }
 
 /**
- * Safely format a date string, returning fallback if invalid
+ * Format a date string using user's date format preference
  */
-function formatDate(dateStr: string | undefined | null): string {
+function formatDateString(dateStr: string | undefined | null, userDateFormat: string): string {
   if (!dateStr || dateStr === '') return '—';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString();
+  return formatDateWithFormat(date, userDateFormat as any);
 }
 
 /**
@@ -116,6 +117,9 @@ export function NodeTableView({
   
   // Get openNode and addSidebarCard from store for navigation
   const { openNode, addSidebarCard } = useNodesStore();
+  
+  // Get user's date format preference
+  const dateFormat = useSettingsStore((state) => state.dateFormat);
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ node: Node; position: { x: number; y: number } } | null>(null);
@@ -250,7 +254,7 @@ export function NodeTableView({
   // Create date column renderer with action buttons
   const dateColumnRenderer = useCallback((dateField: 'create_date' | 'write_date') => (node: Node) => {
     const dateStr = node[dateField];
-    return (
+    return (String(dateStr, dateFormat
       <div className="node-table__date-cell">
         <span className="node-table__date">
           {formatDate(dateStr)}
@@ -281,7 +285,7 @@ export function NodeTableView({
         )}
       </div>
     );
-  }, [openDailyPage]);
+  }, [openDailyPage, dateFormat]);
 
   // Fetch property definitions
   const { data: allProperties = [] } = useProperties();
