@@ -21,6 +21,22 @@ export interface ParsedPath {
   parentSegments: string[];
 }
 
+export interface PathSegmentInfo {
+  /** The segment name */
+  name: string;
+  /** Whether a page with this name exists at this level */
+  exists: boolean;
+  /** The node if it exists */
+  node?: Node;
+}
+
+export interface HierarchicalPathAnalysis {
+  /** Information about each segment in the path */
+  segments: PathSegmentInfo[];
+  /** The parsed path structure */
+  parsed: ParsedPath;
+}
+
 /**
  * Parse a page name/query into hierarchical segments
  */
@@ -156,4 +172,59 @@ export async function resolveHierarchicalParent(
   }
   
   return currentParentId;
+}
+
+/**
+ * Analyze a hierarchical path to determine which pages exist and which need to be created
+ * Useful for showing path previews, validation, etc.
+ * 
+ * @param path - The path string to analyze (e.g., "Pokemon/Charizard")
+ * @param allPages - All available pages
+ * @param includeLeaf - Whether to include the leaf segment in the analysis (default: true)
+ * @returns Analysis of the path structure, or null if not hierarchical
+ */
+export function analyzeHierarchicalPath(
+  path: string,
+  allPages: Node[],
+  includeLeaf: boolean = true
+): HierarchicalPathAnalysis | null {
+  if (!path.trim()) return null;
+  
+  const parsed = parseHierarchicalPath(path.trim());
+  if (!parsed.isHierarchical) return null;
+  
+  // Check which segments exist
+  const segments: PathSegmentInfo[] = [];
+  let currentParentId: number | null = null;
+  
+  // Analyze parent segments
+  for (const segment of parsed.parentSegments) {
+    const existingNode = allPages.find(
+      page => page.name === segment && page.parent_id === currentParentId
+    );
+    
+    segments.push({
+      name: segment,
+      exists: !!existingNode,
+      node: existingNode,
+    });
+    
+    currentParentId = existingNode?.id ?? null;
+  }
+  
+  // Optionally add the leaf segment
+  if (includeLeaf) {
+    // Check if leaf exists at the current parent level
+    const leafNode = allPages.find(
+      page => page.name === parsed.leaf && page.parent_id === currentParentId
+    );
+    
+    segments.push({
+      name: parsed.leaf,
+      exists: !!leafNode,
+      node: leafNode,
+    });
+  }
+  
+  return { segments, parsed };
 }

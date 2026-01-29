@@ -10,7 +10,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass } from '@/hooks';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath } from '@/hooks';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon } from './icons';
@@ -166,38 +166,7 @@ export function CommandPalette({
   }, [searchResults]);
   
   // Analyze hierarchical path structure
-  const pathInfo = useMemo(() => {
-    if (!query.trim() || !allPages) return null;
-    
-    const parsed = parseHierarchicalPath(query.trim());
-    if (!parsed.isHierarchical) return null;
-    
-    // Check which segments exist
-    const segments: Array<{ name: string; exists: boolean; node?: Node }> = [];
-    let currentParentId: number | null = null;
-    
-    for (const segment of parsed.parentSegments) {
-      const existingNode = allPages.find(
-        page => page.name === segment && page.parent_id === currentParentId
-      );
-      
-      segments.push({
-        name: segment,
-        exists: !!existingNode,
-        node: existingNode,
-      });
-      
-      currentParentId = existingNode?.id ?? null;
-    }
-    
-    // Add the leaf segment (will be created)
-    segments.push({
-      name: parsed.leaf,
-      exists: false,
-    });
-    
-    return { segments, parsed };
-  }, [query, allPages]);
+  const pathInfo = useHierarchicalPath(query, true);
   
   // All selectable items (pages, blocks, quick-add actions)
   const allItems = useMemo(() => {
