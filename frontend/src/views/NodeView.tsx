@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses, useLinkedReferencesCount } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses, useLinkedReferencesCount, usePageClass } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -71,6 +71,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const addClass = useAddClass();
   const addTagLink = useAddTagLink();
   const { data: allClasses } = useClasses();
+  const { pageClassId } = usePageClass();
   const { openCommentsForNode, openNode } = useNodesStore();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -99,7 +100,8 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     },
     onCreateClass: (blockId: number, name: string, _keepInline: boolean) => {
       const classClass = allClasses?.find(c => c.name?.toLowerCase() === 'class');
-      createNode.mutate({ name, is_page: true }, {
+      if (!pageClassId) return;
+      createNode.mutate({ name, classes: [pageClassId] }, {
         onSuccess: (newPage) => {
           addClass.mutate({ nodeId: blockId, classId: newPage.id });
           if (classClass) {
@@ -109,7 +111,8 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
       });
     },
     onCreateTag: (blockId: number, name: string, _keepInline: boolean) => {
-      createNode.mutate({ name, is_page: true }, {
+      if (!pageClassId) return;
+      createNode.mutate({ name, classes: [pageClassId] }, {
         onSuccess: (newPage) => {
           addTag.mutate({ nodeId: blockId, tagId: newPage.id });
         }
@@ -117,7 +120,8 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     },
     onCreatePageLink: async (name) => {
       try {
-        const newPage = await createNode.mutateAsync({ name, is_page: true });
+        if (!pageClassId) return undefined;
+        const newPage = await createNode.mutateAsync({ name, classes: [pageClassId] });
         return String(newPage.id);
       } catch (error) {
         console.error('Failed to create page for link:', error);
@@ -181,6 +185,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const { data: allTags } = useTags();
   const { data: allNodes } = useNodes({ pages_only: true });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
+  const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
@@ -263,14 +268,14 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Handle creating a new tag via NodePillRow
   const handleCreateTag = useCallback((name: string) => {
-    if (!node) return;
+    if (!node || !pageClassId) return;
     // Create as a page (tags are just pages linked to nodes)
-    createNode.mutate({ name, is_page: true }, {
+    createNode.mutate({ name, classes: [pageClassId] }, {
       onSuccess: (newPage) => {
         addTag.mutate({ nodeId: node.id, tagId: newPage.id });
       }
     });
-  }, [node, createNode, addTag]);
+  }, [node, createNode, addTag, pageClassId]);
   
   // Handle removing a tag via NodePillRow
   const handleRemoveTag = useCallback((tagNode: Node) => {
