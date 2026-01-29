@@ -38,7 +38,7 @@ import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
-import { ColorPickerRow } from '../nodes/NodeContextMenu';
+import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
 import type { ContextMenuItem } from '../core/ContextMenu';
@@ -581,104 +581,6 @@ function BlockInternal({
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
-  
-  // Context menu items for blocks
-  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
-    const items: (ContextMenuItem | null)[] = [
-      {
-        id: 'open',
-        label: 'Open in focused view',
-        shortcut: 'Click',
-        onClick: () => {
-          if (onBulletClick) onBulletClick(block.id);
-          handleCloseContextMenu();
-        }
-      },
-      {
-        id: 'open-sidebar',
-        label: 'Open in sidebar',
-        shortcut: '⇧Click',
-        onClick: () => {
-          if (onShiftClick) onShiftClick(block.id);
-          handleCloseContextMenu();
-        }
-      },
-      { id: 'sep1', label: '', separator: true },
-      {
-        id: 'duplicate',
-        label: 'Duplicate',
-        shortcut: '⌘D',
-        onClick: () => {
-          // TODO: Implement duplicate node
-          handleCloseContextMenu();
-        },
-        disabled: true // Not yet implemented
-      },
-      {
-        id: 'copy-link',
-        label: 'Copy block link',
-        shortcut: '⌥⌘C',
-        onClick: () => {
-          const link = `@[[${block.uuid || block.id}]]`;
-          navigator.clipboard.writeText(link);
-          handleCloseContextMenu();
-        }
-      },
-      { id: 'sep2', label: '', separator: true },
-      {
-        id: 'indent',
-        label: 'Indent',
-        shortcut: 'Tab',
-        onClick: () => {
-          // Find previous sibling to make parent
-          // This would need access to siblings - for now just close
-          handleCloseContextMenu();
-        },
-        disabled: true // Would need sibling context
-      },
-      {
-        id: 'outdent',
-        label: 'Outdent',
-        shortcut: '⇧Tab',
-        onClick: () => {
-          // Move to parent's parent
-          handleCloseContextMenu();
-        },
-        disabled: !parentId // Can't outdent if no parent
-      },
-      { id: 'sep3', label: '', separator: true },
-      hasChildren ? {
-        id: 'collapse',
-        label: isCollapsed ? 'Expand' : 'Collapse',
-        shortcut: '⌘↓',
-        onClick: () => {
-          updateNode.mutate({
-            id: block.id,
-            data: { collapsed: !isCollapsed }
-          });
-          handleCloseContextMenu();
-        }
-      } : null,
-      {
-        id: 'delete',
-        label: 'Delete',
-        shortcut: '⌫',
-        danger: true,
-        onClick: () => {
-          if (block.is_page) {
-            setShowDeleteModal(true);
-          } else {
-            deleteNode.mutate(block.id);
-          }
-          handleCloseContextMenu();
-        }
-      }
-    ];
-    return items.filter((item): item is ContextMenuItem => item !== null);
-  }, [
-    block.id, block.uuid, block.is_page, hasChildren, isCollapsed, parentId,
-    onBulletClick, onShiftClick, updateNode, deleteNode, handleCloseContextMenu
-  ]);
   
   // Handle keyboard events
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -1698,19 +1600,33 @@ function BlockInternal({
       
       {/* Context menu for bullet right-click */}
       {contextMenu && (
-        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000 }}>
-          <ColorPickerRow 
-            currentColor={block.color ?? null} 
-            onColorChange={(color) => {
-              updateNode.mutate({ id: block.id, data: { color } });
-            }} 
-          />
-          <ContextMenu
-            items={customContextMenuItems ?? contextMenuItems}
-            position={{ x: 0, y: 0 }}
+        customContextMenuItems ? (
+          <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000 }}>
+            <ColorPickerRow 
+              currentColor={block.color ?? null} 
+              onColorChange={(color) => {
+                updateNode.mutate({ id: block.id, data: { color } });
+              }} 
+            />
+            <ContextMenu
+              items={customContextMenuItems}
+              position={{ x: 0, y: 0 }}
+              onClose={handleCloseContextMenu}
+            />
+          </div>
+        ) : block.is_page ? (
+          <PageContextMenu
+            node={block}
+            position={contextMenu}
             onClose={handleCloseContextMenu}
           />
-        </div>
+        ) : (
+          <BlockContextMenu
+            node={block}
+            position={contextMenu}
+            onClose={handleCloseContextMenu}
+          />
+        )
       )}
       
       {/* Deletion confirmation modal */}
