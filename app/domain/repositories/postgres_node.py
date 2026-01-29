@@ -627,8 +627,8 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             query = """
                 SELECT * FROM node
-                WHERE is_page = TRUE AND active = TRUE AND is_deleted = FALSE AND graph_id = $1
-                ORDER BY write_date DESC
+                WHERE is_page = true AND active = true AND is_deleted = false AND graph_id = $1
+                ORDER BY write_date DESC NULLS LAST
             """
             params = [self._graph_id]
             
@@ -701,10 +701,10 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
-                WHERE is_page = TRUE AND active = FALSE 
-                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                WHERE is_page = true AND active = false 
+                      AND (is_deleted = false OR is_deleted IS NULL)
                       AND graph_id = $1
-                ORDER BY write_date DESC
+                ORDER BY write_date DESC NULLS LAST
             """, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
