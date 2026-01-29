@@ -151,9 +151,6 @@ export function filterNodesByHierarchy(
  * Example: If you have "Company/Pokemon" and create "Pokemon/Charizard",
  * a NEW root-level "Pokemon" page will be created (not reusing Company/Pokemon).
  * 
- * CACHE HANDLING: Maintains a local array of pages including newly created ones
- * to avoid duplicate page creation when resolving multi-level hierarchies.
- * 
  * @param pathSegments - Path segments (excluding the leaf/final page)
  * @param allPages - All available pages
  * @param createPageFn - Function to create a page (returns the created node)
@@ -168,27 +165,28 @@ export async function resolveHierarchicalParent(
     return null; // Root level
   }
   
-  // Maintain a local copy of pages that includes newly created ones
-  // This prevents duplicate page creation during multi-level resolution
-  const pagesCache = [...allPages];
+  // Build a lookup map for O(1) access: "name|parentId" -> Node
+  // This includes both existing pages and newly created ones
+  const pageMap = new Map<string, Node>();
+  for (const page of allPages) {
+    const key = `${page.name}|${page.parent_id ?? 'null'}`;
+    pageMap.set(key, page);
+  }
+  
   let currentParentId: number | null = null;
   
   for (const segment of pathSegments) {
-    // Try to find existing page with this name AND parent at this level
-    // This ensures "Pokemon" under "Company" is different from "Pokemon" at root
-    // Search in our local cache which includes newly created pages
-    let existingNode = pagesCache.find(
-      page => page.name === segment && page.parent_id === currentParentId
-    );
+    const key = `${segment}|${currentParentId ?? 'null'}`;
+    let node = pageMap.get(key);
     
-    if (!existingNode) {
+    if (!node) {
       // Create the intermediate page
-      existingNode = await createPageFn(segment, currentParentId);
-      // Add to local cache so subsequent iterations can find it
-      pagesCache.push(existingNode);
+      node = await createPageFn(segment, currentParentId);
+      // Add to map so subsequent iterations can find it
+      pageMap.set(key, node);
     }
     
-    currentParentId = existingNode.id;
+    currentParentId = node.id;
   }
   
   return currentParentId;
