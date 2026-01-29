@@ -28,8 +28,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
       <div className="page-header-section">
         <div className="page-header-section__header">
           <div className="page-header">
-            <TrashIcon size="lg" />
-            <h1 className="page-header__title">Trash</h1>
+            <h1 className="page-header__title">
+              <TrashIcon size="lg" /> Trash
+            </h1>
           </div>
         </div>
       </div>
