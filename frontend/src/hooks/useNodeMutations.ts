@@ -635,8 +635,8 @@ export function useDeleteNode() {
       const { useNodesStore } = await import('@/stores');
       const currentNodeId = useNodesStore.getState().currentNodeId;
       
-      // If we deleted the page we're currently viewing, navigate to home
-      if (currentNodeId === deletedId && deletedNode?.is_page) {
+      // If we deleted the node we're currently viewing, navigate to home
+      if (currentNodeId === deletedId) {
         // Navigate to home and clear the current node
         useNodesStore.setState({ 
           currentNodeId: null,
