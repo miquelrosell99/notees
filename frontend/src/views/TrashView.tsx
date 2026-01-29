@@ -44,6 +44,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
     mutationFn: permanentDeleteNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
   });
   
