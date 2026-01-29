@@ -32,9 +32,6 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             </h1>
           </div>
         </div>
-        <div className="page-header-section__subtitle">
-          Archived pages are hidden from normal views but not deleted
-        </div>
       </div>
       
       {/* Archived Section - use DynamicNodeViewSection with archived view type */}
