@@ -10,10 +10,11 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
-import { useSearch, useCreateNode, useTodayNote, usePages } from '@/hooks';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass } from '@/hooks';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon } from './icons';
+import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 
 export interface CommandPaletteProps {
   /** Whether the palette is open */
@@ -150,6 +151,7 @@ export function CommandPalette({
   const { quickAddDestination } = useSettingsStore();
   const { data: searchResults, isLoading } = useSearch(query);
   const createNodeMutation = useCreateNode();
+  const { pageClassId } = usePageClass();
   
   // Get destination page for quick add
   const { data: todayNote } = useTodayNote();
@@ -219,12 +221,37 @@ export function CommandPalette({
         break;
         
       case 'add-page':
-        // Create new page and navigate to it
+        // Create new page with hierarchical path support (e.g., "Pokemon/Charizard")
         console.log('[CommandPalette] Creating page with name:', query.trim());
         try {
+          if (!pageClassId) {
+            console.error('[CommandPalette] Page class not found');
+            break;
+          }
+          
+          const parsed = parseHierarchicalPath(query.trim());
+          let parentId: number | null = null;
+          
+          // If hierarchical path, create parent pages as needed
+          if (parsed.isHierarchical && allPages) {
+            parentId = await resolveHierarchicalParent(
+              parsed.parentSegments,
+              allPages,
+              async (name, parent) => {
+                return await createNodeMutation.mutateAsync({
+                  name,
+                  parent_id: parent,
+                  classes: [pageClassId],
+                });
+              }
+            );
+          }
+          
+          // Create the final page (leaf of the path)
           const newNode = await createNodeMutation.mutateAsync({
-            name: query.trim(),
-            is_page: true,
+            name: parsed.leaf || query.trim(),
+            parent_id: parentId,
+            classes: [pageClassId],
           });
           console.log('[CommandPalette] Page created successfully:', newNode);
           onClose();
