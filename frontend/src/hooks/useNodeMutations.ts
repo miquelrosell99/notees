@@ -307,7 +307,7 @@ export function useCreateNode() {
         refetchType: 'none',
       });
       
-      // If this is a page, update pages cache
+      // GLOBAL: If the new node is a page, invalidate pages cache
       if (newNode.is_page) {
         // Check if the page name contains '/' which indicates hierarchical creation
         // In this case, multiple pages may have been created, so we need to refetch
@@ -345,6 +345,11 @@ export function useCreateNode() {
           queryKey: [...nodeKeys.all, 'search'],
           refetchType: 'none',
         });
+      }
+      
+      // GLOBAL: If the new node is a class, invalidate classes cache
+      if (newNode.is_class) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       }
     },
     onError: (_error, variables, context) => {
@@ -936,12 +941,29 @@ export function useAddClass() {
   return useMutation({
     mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
       nodesApi.addClass(nodeId, classId),
-    onSuccess: (updatedNode, { nodeId, classId }) => {
+    onMutate: async ({ nodeId }) => {
+      // Get the old node to compare flags after mutation
+      const oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      return { oldNode };
+    },
+    onSuccess: (updatedNode, { nodeId, classId }, context) => {
+      const oldNode = context?.oldNode;
+      
       // Update the node cache with the returned node (which includes the new class)
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(nodeId) },
         () => updatedNode
       );
+      
+      // GLOBAL: If is_page flag changed, invalidate pages cache
+      if (oldNode && oldNode.is_page !== updatedNode.is_page) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      }
+      
+      // GLOBAL: If is_class flag changed, invalidate classes cache
+      if (oldNode && oldNode.is_class !== updatedNode.is_class) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
+      }
       
       // Invalidate class properties queries to ensure they're refetched
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
@@ -978,9 +1000,26 @@ export function useRemoveClass() {
   return useMutation({
     mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
       nodesApi.removeClass(nodeId, classId),
-    onSuccess: (updatedNode, { nodeId, classId }) => {
+    onMutate: async ({ nodeId }) => {
+      // Get the old node to compare flags after mutation
+      const oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      return { oldNode };
+    },
+    onSuccess: (updatedNode, { nodeId, classId }, context) => {
+      const oldNode = context?.oldNode;
+      
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      
+      // GLOBAL: If is_page flag changed, invalidate pages cache
+      if (oldNode && oldNode.is_page !== updatedNode.is_page) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      }
+      
+      // GLOBAL: If is_class flag changed, invalidate classes cache
+      if (oldNode && oldNode.is_class !== updatedNode.is_class) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
+      }
       
       // Invalidate the classed nodes list so the removed node disappears immediately
       queryClient.invalidateQueries({ queryKey: ['nodes', 'by-class', classId] });
