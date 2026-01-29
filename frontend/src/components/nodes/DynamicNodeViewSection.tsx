@@ -35,13 +35,14 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { TextField } from '../core/TextField';
-import { QueryBuilder } from '../queries';
+import { ViewBuilder } from '../queries';
 import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
 import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
 import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
+import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { isSystemBlock } from '../queries/constants';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
@@ -322,7 +323,14 @@ export function DynamicNodeViewSection({
     // Convert QueryBlockTree to AST with query identity
     const blockTree = view.query_block_tree ?? createEmptyBlockTree();
     const queryId = `view-${view.id}-${view.uuid}`;
-    const ast = blockTreeToAST(blockTree, queryId, false); // false = not system
+    let ast = blockTreeToAST(blockTree, queryId, false); // false = not system
+    
+    // Auto-fix: Restore missing system conditions
+    ast = autoFixSystemQuery(ast, viewType, {
+      nodeUuid: nodeUuid,
+      parentUuid: nodeUuid,
+      typeUuid: undefined, // Could be passed in for type-specific views
+    });
     
     // Set created_at if not already set
     if (!ast.created_at) {
@@ -349,6 +357,13 @@ export function DynamicNodeViewSection({
     }
     
     try {
+      // Auto-fix: Ensure system conditions are present before saving
+      const fixedAST = autoFixSystemQuery(editAST, viewType, {
+        nodeUuid: nodeUuid,
+        parentUuid: nodeUuid,
+        typeUuid: undefined,
+      });
+      
       // Save name if changed
       if (editViewName !== editingView.name) {
         await updateViewMutation.mutateAsync({
@@ -358,7 +373,7 @@ export function DynamicNodeViewSection({
       }
       
       // Convert AST back to BlockTree for backend
-      const blockTree = astToBlockTree(editAST);
+      const blockTree = astToBlockTree(fixedAST);
       
       // Save block tree
       await updateBlockTreeMutation.mutateAsync({
@@ -374,7 +389,7 @@ export function DynamicNodeViewSection({
     } catch (error) {
       console.error('Failed to save view:', error);
     }
-  }, [editingView, editAST, validation, editViewName, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
+  }, [editingView, editAST, validation, editViewName, viewType, nodeUuid, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
 
   // Handle switching from SQL to blocks mode (requires confirmation)
   const handleModeSwitch = useCallback((toSql: boolean) => {
@@ -679,11 +694,6 @@ export function DynamicNodeViewSection({
       >
         {editingView && editAST && (
           <div className="dynamic-section__edit-form">
-            {/* Subtitle explaining purpose */}
-            <p className="dynamic-section__subtitle">
-              This query dynamically defines which nodes appear in this view.
-            </p>
-
             {/* Validation messages */}
             {validation && validation.issues.length > 0 && (
               <div className="dynamic-section__validation">
@@ -704,8 +714,8 @@ export function DynamicNodeViewSection({
             {/* Mode toggle: Builder vs Advanced SQL */}
             <div className="dynamic-section__mode-toggle-section">
               <ToggleSwitch
-                leftLabel="Builder"
-                rightLabel="Advanced (SQL)"
+                leftLabel="View definition"
+                rightLabel="Advanced logic"
                 checked={editMode === 'sql'}
                 onChange={handleModeSwitch}
                 size="sm"
@@ -720,28 +730,15 @@ export function DynamicNodeViewSection({
             {/* Query editor - blocks or SQL */}
             {editMode === 'blocks' ? (
               <div className="dynamic-section__builder-mode">
-                {/* QueryBuilder - native AST editing */}
-                <QueryBuilder
+                {/* ViewBuilder - prose-based AST editing */}
+                <ViewBuilder
                   ast={editAST}
                   onChange={(updatedAST) => {
                     setEditAST(updatedAST);
                     setValidation(validateQueryAST(updatedAST));
                   }}
-                />
-
-                {/* Live result count */}
-                {resultNodes.length > 0 && (
-                  <div className="dynamic-section__result-preview">
-                    <span className="dynamic-section__result-count">
-                      {resultNodes.length} node{resultNodes.length !== 1 ? 's' : ''} match this query
-                    </span>
-                  </div>
-                )}
-
-                {/* SQL Preview */}
-                <QuerySQLPreview 
-                  ast={editAST} 
-                  disabled={validation ? !canSaveQuery(validation) : false}
+                  resultCount={resultNodes.length}
+                  isLoading={isQueryLoading}
                 />
               </div>
             ) : (

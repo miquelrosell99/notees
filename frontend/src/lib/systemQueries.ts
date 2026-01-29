@@ -6,17 +6,18 @@
  */
 
 import type { QueryAST, ReferenceCondition, TypeCondition, PropertyCondition, ContentCondition } from '@/types/queryAST';
+import { markAsSystemNode } from '@/types/queryAST';
 
 /**
  * Create a system query for linked references to a specific page.
  * Shows all pages that link to the current page.
  */
 export function createLinkedReferencesQuery(pageUuid: string): QueryAST {
-  const condition: ReferenceCondition = {
+  const condition: ReferenceCondition = markAsSystemNode({
     type: 'condition',
     condition_type: 'reference',
     target_uuid: pageUuid,
-  };
+  });
 
   return {
     type: 'query',
@@ -41,14 +42,14 @@ export function createLinkedReferencesQuery(pageUuid: string): QueryAST {
  * Shows all direct children of the current page.
  */
 export function createChildPagesQuery(parentPageUuid: string): QueryAST {
-  const condition: PropertyCondition = {
+  const condition: PropertyCondition = markAsSystemNode({
     type: 'condition',
     condition_type: 'property',
     property_name: 'parent_uuid',
     property_type: 'text',
     operator: '=',
     value: parentPageUuid,
-  };
+  });
 
   return {
     type: 'query',
@@ -73,11 +74,11 @@ export function createChildPagesQuery(parentPageUuid: string): QueryAST {
  * Shows all pages tagged with a specific type.
  */
 export function createClassedNodesQuery(typeUuid: string, typeName?: string): QueryAST {
-  const condition: TypeCondition = {
+  const condition: TypeCondition = markAsSystemNode({
     type: 'condition',
     condition_type: 'type',
     type_uuid: typeUuid,
-  };
+  });
 
   return {
     type: 'query',
@@ -102,12 +103,12 @@ export function createClassedNodesQuery(typeUuid: string, typeName?: string): Qu
  * Shows pages that mention the page name but don't have an explicit link.
  */
 export function createUnlinkedReferencesQuery(pageName: string): QueryAST {
-  const condition: ContentCondition = {
+  const condition: ContentCondition = markAsSystemNode({
     type: 'condition',
     condition_type: 'content',
     operator: 'contains',
     value: pageName,
-  };
+  });
 
   return {
     type: 'query',
@@ -196,4 +197,42 @@ export function isSystemQueryPattern(query: QueryAST): boolean {
   }
 
   return false;
+}
+
+/**
+ * Create a system query for nodes classed as a specific type with user conditions.
+ * This demonstrates combining locked system conditions with editable user conditions.
+ * 
+ * Example: "Nodes classed as Research" with additional user filters
+ */
+export function createClassedNodesQueryWithUserFilters(
+  typeUuid: string,
+  typeName?: string
+): QueryAST {
+  // System condition (locked)
+  const systemCondition: TypeCondition = markAsSystemNode({
+    type: 'condition',
+    condition_type: 'type',
+    type_uuid: typeUuid,
+  });
+
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: {
+      type: 'scope',
+      scope_type: 'entire_graph',
+    },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        systemCondition,
+        // User can add more conditions here
+      ],
+    },
+    is_system: false, // Not a pure system query since users can add conditions
+    description: typeName ? `Nodes classed as ${typeName}` : 'Classed Nodes',
+    created_at: new Date().toISOString(),
+  };
 }
