@@ -195,13 +195,18 @@ function App() {
   }, []);
   
   return (
-    <QueryClientProvider client={queryClient}>
-      <KeyboardShortcutsProvider>
-        <GlobalKeyboardHandler />
-        <AppContent />
-        <NotificationToast />
-      </KeyboardShortcutsProvider>
-    </QueryClientProvider>
+    <>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <QueryClientProvider client={queryClient}>
+        <KeyboardShortcutsProvider>
+          <GlobalKeyboardHandler />
+          <AppContent />
+          <NotificationToast />
+        </KeyboardShortcutsProvider>
+      </QueryClientProvider>
+    </>
   );
 }
 
