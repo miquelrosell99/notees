@@ -949,10 +949,10 @@ export function useAddClass() {
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
       
-      // Update the node cache with the returned node (which includes the new class)
+      // Merge the updated node with existing cache to preserve fields not returned by backend
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(nodeId) },
-        () => updatedNode
+        (old) => old ? { ...old, ...updatedNode } : updatedNode
       );
       
       // GLOBAL: If is_page flag changed, invalidate pages cache
