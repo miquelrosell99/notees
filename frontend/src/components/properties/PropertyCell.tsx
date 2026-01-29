@@ -73,9 +73,9 @@ export function PropertyCell({
       case 'node':
         // If we have the asset node, show its name
         if (assetNode) {
-          return assetNode.name || 'Unnamed asset';
+          return assetNode.name || 'Unnamed node';
         }
-        return `Node ${value}`;
+        return typeof value === 'number' ? `Node ${value}` : String(value);
       default:
         return String(value);
     }
@@ -195,7 +195,7 @@ export function PropertyCell({
   return (
     <>
       <div 
-        className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''} ${assetUrl ? 'property-cell--image' : ''}`}
+        className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue && !assetUrl ? 'property-cell--empty' : ''} ${assetUrl ? 'property-cell--image' : ''}`}
         onClick={assetUrl ? (e) => { e.stopPropagation(); setIsModalOpen(true); } : handleClick}
         title={assetUrl ? 'Click to view full size' : (editable ? 'Click to edit' : undefined)}
         style={assetUrl ? { cursor: 'pointer' } : undefined}

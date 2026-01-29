@@ -289,6 +289,7 @@ export function NodeCollection({
             sortable={sortable}
             onReorder={onReorder}
             propertyUuids={selectedPropertyUuids}
+            customContextMenu={customContextMenu}
           />
         );
       

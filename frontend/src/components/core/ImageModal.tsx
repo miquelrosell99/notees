@@ -6,8 +6,10 @@
  * - Close button in top right corner of screen
  * - Optional bullet in top left corner for navigation
  * - Click outside or Escape to close
+ * - Rendered using React portal to escape parent constraints
  */
 import { useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { mdiClose, mdiDownload } from '@mdi/js';
 import { Button } from './Button';
 import { Bullet } from '../blocks/Bullet';
@@ -88,7 +90,7 @@ export function ImageModal({
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className="image-modal-backdrop" onClick={handleBackdropClick}>
       {/* Action buttons - top right corner of screen */}
       <div className="image-modal-actions">
@@ -137,6 +139,9 @@ export function ImageModal({
       />
     </div>
   );
+
+  // Render in a portal to escape any parent constraints
+  return createPortal(modalContent, document.body);
 }
 
 export default ImageModal;
