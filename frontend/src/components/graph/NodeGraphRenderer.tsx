@@ -480,10 +480,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       n.visible = false;
     });
     
+    // Build node lookup map for O(1) access
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    
     const revealDelay = 80;
     sortedNodes.forEach((sortedNode, index) => {
       const timer = setTimeout(() => {
-        const node = nodes.find(n => n.id === sortedNode.id);
+        const node = nodeMap.get(sortedNode.id);
         if (node) {
           // Spawn at center with random offset
           node.x = centerX + (Math.random() - 0.5) * spawnRadius;
@@ -560,10 +563,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         n.glare = n.id === selectedIds[0] ? 'bright' : 'dim';
       });
     } else {
+      // Build node lookup map for O(1) access
+      const nodeMap = new Map(nodes.map(n => [n.id, n]));
+      
       nodes.forEach(n => n.glare = 'dim');
       
       for (const id of selectedIds) {
-        const node = nodes.find(n => n.id === id);
+        const node = nodeMap.get(id);
         if (node) node.glare = 'bright';
       }
       
@@ -577,7 +583,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         );
         
         for (const nodeId of path) {
-          const node = nodes.find(n => n.id === nodeId);
+          const node = nodeMap.get(nodeId);
           if (node && node.glare !== 'bright') {
             node.glare = 'path';
           }
@@ -708,8 +714,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         const dragNode = dragNodeRef.current;
         const connected = getConnectedNodes(dragNode.id);
         
+        // Build lookup map for O(1) access
+        const nodeMap = new Map(nodes.map(n => [n.id, n]));
+        
         for (const connectedId of connected) {
-          const connectedNode = nodes.find(n => n.id === connectedId);
+          const connectedNode = nodeMap.get(connectedId);
           if (!connectedNode || connectedNode.pinned || !connectedNode.visible) continue;
           if (!showTypes && connectedNode.isTypeNode) continue;
           
@@ -803,9 +812,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Draw links (deduped - draw each pair only once)
     const drawnLinks = new Set<string>();
+    const nodeMap = new Map(visibleNodes.map(n => [n.id, n]));
+    
     for (const link of visibleLinks) {
-      const source = visibleNodes.find(n => n.id === link.source);
-      const target = visibleNodes.find(n => n.id === link.target);
+      const source = nodeMap.get(link.source);
+      const target = nodeMap.get(link.target);
       if (!source || !target) continue;
       
       // Skip if we've already drawn this link pair
