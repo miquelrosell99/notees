@@ -312,6 +312,7 @@ export function usePages(options?: { includeChildren?: boolean; rootOnly?: boole
       include_children: includeChildren,
       root_only: rootOnly,
     }),
+    initialData: [],
   });
 }
 
