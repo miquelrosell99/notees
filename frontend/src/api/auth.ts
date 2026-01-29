@@ -2,6 +2,7 @@
  * Authentication API functions
  */
 import api from './client';
+import { getAuthToken, setAuthToken, clearAuthToken, isAuthenticated as checkAuth, setUserData, getUserData } from '@/utils/auth';
 import type { Token, UserCreate, UserLogin, User } from '@/types';
 
 /**
@@ -32,41 +33,34 @@ export async function getMe(): Promise<User> {
  * Logout (client-side only for JWT)
  */
 export function logout(): void {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  clearAuthToken();
 }
 
 /**
  * Check if user is authenticated
  */
 export function isAuthenticated(): boolean {
-  return !!localStorage.getItem('token');
+  return checkAuth();
 }
 
 /**
  * Get stored token
  */
 export function getToken(): string | null {
-  return localStorage.getItem('token');
+  return getAuthToken();
 }
 
 /**
  * Store auth data after login/register
  */
 export function storeAuth(token: Token): void {
-  localStorage.setItem('token', token.access_token);
-  localStorage.setItem('user', JSON.stringify(token.user));
+  setAuthToken(token.access_token);
+  setUserData(token.user);
 }
 
 /**
  * Get stored user
  */
 export function getStoredUser(): User | null {
-  const userStr = localStorage.getItem('user');
-  if (!userStr) return null;
-  try {
-    return JSON.parse(userStr) as User;
-  } catch {
-    return null;
-  }
+  return getUserData<User>();
 }

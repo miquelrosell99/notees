@@ -1,51 +1,47 @@
 """Backup scheduler for Notees.
 
-NOTE: With PostgreSQL, database backups should be handled at the database level
-using pg_dump, pg_basebackup, or WAL archiving. This module is kept for
-backward compatibility but primarily manages the backup scheduler lifecycle.
-
-For production, configure PostgreSQL backups using:
-- pg_dump for logical backups
-- Continuous archiving for point-in-time recovery
-- Cloud provider snapshots (if applicable)
+Provides automated PostgreSQL backups using pg_dump.
+Backups are stored as custom-format .dump files for efficient compression and restore.
 """
 import asyncio
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from .config import settings
+from .db.connection import get_database_url
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
 
-MAX_BACKUPS = settings.max_backups
-BACKUP_INTERVAL_SECONDS = settings.backup_interval_seconds
-
 
 class BackupScheduler:
-    """Manages automatic database backups.
+    """PostgreSQL backup scheduler using pg_dump."""
     
-    NOTE: With PostgreSQL, this scheduler logs backup reminders rather than
-    performing file-based backups. Configure pg_dump or WAL archiving for
-    actual database backups.
-    """
-    
-    def __init__(self):
+    def __init__(self, interval_seconds: int = 3600, max_backups: int = 50):
+        """Initialize backup scheduler.
+        
+        Args:
+            interval_seconds: Time between backups (default: 1 hour)
+            max_backups: Maximum number of backups to keep (default: 50)
+        """
+        self.interval = interval_seconds
+        self.max_backups = max_backups
+        self.backup_dir = Path("data/backups")
         self.running = False
         self.task: Optional[asyncio.Task] = None
     
     async def start(self):
         """Start the backup scheduler."""
         if self.running:
+            logger.warning("Backup scheduler already running")
             return
         
         self.running = True
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.task = asyncio.create_task(self._backup_loop())
-        logger.info(
-            f"Backup scheduler started. NOTE: PostgreSQL backups should be "
-            f"configured separately using pg_dump or WAL archiving."
-        )
+        logger.info(f"Backup scheduler started (interval: {self.interval}s, max_backups: {self.max_backups})")
     
     async def stop(self):
         """Stop the backup scheduler."""
@@ -55,48 +51,146 @@ class BackupScheduler:
             try:
                 await self.task
             except asyncio.CancelledError:
-                pass
+                logger.info("Backup scheduler stopped")
     
     async def _backup_loop(self):
-        """Main backup loop - logs reminders for PostgreSQL backup."""
+        """Main backup loop."""
         while self.running:
             try:
-                logger.debug(
-                    f"Backup interval check. PostgreSQL backups should be "
-                    f"handled via pg_dump or continuous archiving."
-                )
+                await self._create_backup()
+                await self._cleanup_old_backups()
             except Exception as e:
-                logger.error(f"Backup scheduler error: {e}", exc_info=True)
+                logger.error(f"Backup failed: {e}", exc_info=True)
             
-            await asyncio.sleep(BACKUP_INTERVAL_SECONDS)
+            await asyncio.sleep(self.interval)
     
-    async def backup_all_databases(self):
-        """Placeholder for PostgreSQL backup.
+    async def _create_backup(self):
+        """Create a PostgreSQL backup using pg_dump."""
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_file = self.backup_dir / f"notees_backup_{timestamp}.dump"
         
-        In a production setup, this could trigger pg_dump via subprocess.
-        For now, it just logs a message.
-        """
-        logger.info("PostgreSQL backup triggered - use pg_dump for actual backups")
+        # Get database URL
+        db_url = get_database_url()
+        
+        logger.info(f"Creating backup: {backup_file.name}")
+        
+        try:
+            # Run pg_dump with custom format for better compression
+            process = await asyncio.create_subprocess_exec(
+                "pg_dump",
+                db_url,
+                "--file", str(backup_file),
+                "--format", "custom",
+                "--compress", "9",
+                "--verbose",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                raise RuntimeError(f"pg_dump failed with code {process.returncode}: {error_msg}")
+            
+            # Get file size
+            size_mb = backup_file.stat().st_size / (1024 * 1024)
+            logger.info(f"Backup created successfully: {backup_file.name} ({size_mb:.2f} MB)")
+            
+        except FileNotFoundError:
+            logger.error(
+                "pg_dump command not found. Please install PostgreSQL client tools. "
+                "On Ubuntu: apt install postgresql-client, on macOS: brew install postgresql"
+            )
+        except Exception as e:
+            logger.error(f"Failed to create backup: {e}", exc_info=True)
+            # Clean up partial backup file
+            if backup_file.exists():
+                backup_file.unlink()
     
-    def list_backups(self, user_id: str, db_name: str) -> list:
-        """List available backups for a workspace.
+    async def _cleanup_old_backups(self):
+        """Remove old backups exceeding max_backups limit."""
+        backups = sorted(self.backup_dir.glob("notees_backup_*.dump"), key=lambda p: p.stat().st_mtime)
         
-        NOTE: With PostgreSQL, backups are managed at the database level.
-        This returns an empty list as file-based backups no longer exist.
-        """
-        return []
+        while len(backups) > self.max_backups:
+            oldest = backups.pop(0)
+            try:
+                oldest.unlink()
+                logger.info(f"Removed old backup: {oldest.name}")
+            except Exception as e:
+                logger.error(f"Failed to remove old backup {oldest.name}: {e}")
     
-    def restore_backup(self, user_id: str, db_name: str, backup_filename: str) -> bool:
-        """Restore a database from a backup.
+    def list_backups(self) -> List[dict]:
+        """List all available backups.
         
-        NOTE: With PostgreSQL, use pg_restore or point-in-time recovery.
+        Returns:
+            List of backup info dicts with name, path, size, and created timestamp
         """
-        logger.warning(
-            f"restore_backup called but PostgreSQL backups should be "
-            f"restored using pg_restore. Backup: {backup_filename}"
-        )
-        return False
+        backups = []
+        for backup_file in sorted(self.backup_dir.glob("notees_backup_*.dump"), reverse=True):
+            stat = backup_file.stat()
+            backups.append({
+                "name": backup_file.name,
+                "path": str(backup_file),
+                "size_mb": stat.st_size / (1024 * 1024),
+                "created": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            })
+        return backups
+    
+    async def restore_backup(self, backup_filename: str) -> bool:
+        """Restore a database from a backup using pg_restore.
+        
+        WARNING: This will drop and recreate the database. All current data will be lost.
+        
+        Args:
+            backup_filename: Name of the backup file to restore
+            
+        Returns:
+            True if restore was successful, False otherwise
+        """
+        backup_file = self.backup_dir / backup_filename
+        
+        if not backup_file.exists():
+            logger.error(f"Backup file not found: {backup_filename}")
+            return False
+        
+        db_url = get_database_url()
+        
+        logger.warning(f"Starting database restore from {backup_filename} - THIS WILL ERASE CURRENT DATA")
+        
+        try:
+            # Use pg_restore with --clean to drop existing objects first
+            process = await asyncio.create_subprocess_exec(
+                "pg_restore",
+                "--dbname", db_url,
+                "--clean",
+                "--if-exists",
+                "--verbose",
+                str(backup_file),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                logger.error(f"pg_restore failed: {error_msg}")
+                return False
+            
+            logger.info(f"Database restored successfully from {backup_filename}")
+            return True
+            
+        except FileNotFoundError:
+            logger.error("pg_restore command not found. Please install PostgreSQL client tools.")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to restore backup: {e}", exc_info=True)
+            return False
 
 
-# Global backup scheduler instance
-backup_scheduler = BackupScheduler()
+# Global backup scheduler instance using settings
+backup_scheduler = BackupScheduler(
+    interval_seconds=settings.backup_interval_seconds,
+    max_backups=settings.max_backups
+)

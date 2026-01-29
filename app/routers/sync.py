@@ -24,14 +24,17 @@ router = APIRouter(prefix="/api", tags=["Sync & Settings"])
 
 @router.post("/sync")
 async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
-    """Sync data between client and server.
+    """Sync endpoint - Coming soon.
     
-    NOTE: This endpoint is currently a stub. Sync functionality needs to be
-    redesigned for PostgreSQL graphs.
+    For now, use the export/import endpoints for data transfer.
     """
     raise HTTPException(
         status_code=501,
-        detail="Sync is not yet implemented for PostgreSQL. Use direct API calls instead."
+        detail={
+            "message": "Sync is planned for v2.1",
+            "alternative": "Use /api/export and /api/import for data transfer",
+            "docs": "/docs#/export"
+        }
     )
 
 
