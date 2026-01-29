@@ -32,9 +32,6 @@ export function TrashView({ className = '' }: TrashViewProps) {
             <h1 className="page-header__title">Trash</h1>
           </div>
         </div>
-        <div className="page-header-section__subtitle">
-          Deleted items can be restored or permanently deleted
-        </div>
       </div>
       
       {/* Trash Section - use DynamicNodeViewSection with trash view type */}
