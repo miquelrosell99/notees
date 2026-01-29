@@ -90,7 +90,15 @@ export function Modal({
         onClose();
       }
     },
-    [cloref={containerRef}
+    [closeOnBackdrop, onClose]
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-backdrop" onClick={handleBackdropClick}>
+      <Card
+        ref={containerRef}
         className={`modal modal--${size} ${className}`}
         elevation="high"
         padding={false}
@@ -102,15 +110,7 @@ export function Modal({
       >
         {(title || showCloseButton) && (
           <div className="modal__header">
-            {title && <h2 id="modal-title" modal--${size} ${className}`}
-        elevation="high"
-        padding={false}
-        radius="lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {(title || showCloseButton) && (
-          <div className="modal__header">
-            {title && <h2 className="modal__title">{title}</h2>}
+            {title && <h2 id="modal-title" className="modal__title">{title}</h2>}
             {showCloseButton && (
               <Button
                 icon={mdiClose}
