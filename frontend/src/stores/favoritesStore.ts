@@ -43,6 +43,7 @@ interface FavoritesState {
   
   // Actions for recents
   loadRecents: () => Promise<void>;
+  removeRecent: (nodeId: number) => void;
   
   // Clear all data (used when switching databases)
   clear: () => void;
@@ -140,6 +141,12 @@ export const useFavoritesStore = create<FavoritesState>()((set, get) => ({
       log.error('Failed to load recents', error);
       set({ isLoadingRecents: false });
     }
+  },
+  
+  removeRecent: (nodeId: number) => {
+    set(state => ({
+      recents: state.recents.filter(item => item.nodeId !== nodeId),
+    }));
   },
   
   clear: () => {
