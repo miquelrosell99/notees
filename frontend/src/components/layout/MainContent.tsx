@@ -227,6 +227,7 @@ export function MainContent() {
       
       {/* Scrollable content area */}
       <main 
+        id="main-content"
         className={`main-content${nodeColorStyle ? ' has-page-color' : ''}`}
         style={nodeColorStyle}
       >
