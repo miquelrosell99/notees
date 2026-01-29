@@ -33,6 +33,7 @@ import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { ColorButton } from '../core/ColorButton';
 import { SelectionButton } from '../core/SelectionButton';
+import { ListSortable } from '../core/ListSortable';
 import { ClassColorsPanel } from '../shared/ClassColorsPanel';
 import type { ClassColor } from '../shared/ClassColorsPanel';
 import './NodeGraphView.css';
