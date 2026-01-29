@@ -419,8 +419,7 @@ function NodeCard({
                     block={node}
                     parentId={node.parent_id}
                     showBullet={showBullet}
-                    showChildren={false}
-                    canMove={false}
+                    showChildren={false}                    showTypes={false}                    canMove={false}
                     canSelect={false}
                     canEdit={editable}
                     suppressColor={true}
