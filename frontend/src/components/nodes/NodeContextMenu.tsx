@@ -74,7 +74,12 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
 /**
  * Get common context menu items shared between pages and blocks
  */
-function useCommonMenuItems(node: Node, onClose: () => void, onDeleteClick: () => void): ContextMenuItem[] {
+function useCommonMenuItems(
+  node: Node, 
+  onClose: () => void, 
+  onDeleteClick: () => void,
+  onArchiveClick: () => void
+): ContextMenuItem[] {
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const { addSidebarCard, openLocalGraph } = useNodesStore();
@@ -126,10 +131,8 @@ function useCommonMenuItems(node: Node, onClose: () => void, onDeleteClick: () =
         id: 'archive',
         label: 'Archive',
         danger: true,
-        onClick: () => {
-          archiveNode.mutate(node.id);
-          onClose();
-        }
+        keepOpen: true,
+        onClick: onArchiveClick
       });
     } else {
       items.push({
@@ -152,7 +155,7 @@ function useCommonMenuItems(node: Node, onClose: () => void, onDeleteClick: () =
     });
     
     return items;
-  }, [node, onClose, archiveNode, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick]);
+  }, [node, onClose, archiveNode, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick]);
 }
 
 // ==================== Node Context Menu (Base) ====================
@@ -164,11 +167,25 @@ interface NodeContextMenuProps extends BaseContextMenuProps {}
  */
 export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const deleteNode = useDeleteNode();
+  const archiveNode = useArchiveNode();
+  
   const handleDeleteClick = useCallback(() => {
     setShowDeleteModal(true);
   }, []);
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
+  
+  const handleArchiveClick = useCallback(() => {
+    // Show warning if node has a parent
+    if (node.parent_id) {
+      setShowArchiveModal(true);
+    } else {
+      archiveNode.mutate(node.id);
+      onClose();
+    }
+  }, [node.parent_id, node.id, archiveNode, onClose]);
+  
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
@@ -188,9 +205,20 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
     onClose();
   }, [onClose]);
   
+  const handleConfirmArchive = useCallback(() => {
+    archiveNode.mutate(node.id);
+    setShowArchiveModal(false);
+    onClose();
+  }, [node.id, archiveNode, onClose]);
+  
+  const handleCancelArchive = useCallback(() => {
+    setShowArchiveModal(false);
+    onClose();
+  }, [onClose]);
+  
   return (
     <>
-      {!showDeleteModal && (
+      {!showDeleteModal && !showArchiveModal && (
         <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -211,6 +239,17 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
+      <ConfirmationModal
+        isOpen={showArchiveModal}
+        title="Archive child node"
+        message={`This node is a child of another node. If the parent is deleted in the future, this archived node will also be deleted.`}
+        secondaryMessage="Archiving this node will also archive all its child nodes."
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleConfirmArchive}
+        onCancel={handleCancelArchive}
+      />
     </>
   );
 }
@@ -227,11 +266,25 @@ interface PageContextMenuProps extends BaseContextMenuProps {
  */
 export function PageContextMenu({ node, position, onClose, onParentChange }: PageContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const deleteNode = useDeleteNode();
+  const archiveNode = useArchiveNode();
+  
   const handleDeleteClick = useCallback(() => {
     setShowDeleteModal(true);
   }, []);
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
+  
+  const handleArchiveClick = useCallback(() => {
+    // Show warning if node has a parent
+    if (node.parent_id) {
+      setShowArchiveModal(true);
+    } else {
+      archiveNode.mutate(node.id);
+      onClose();
+    }
+  }, [node.parent_id, node.id, archiveNode, onClose]);
+  
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
@@ -325,10 +378,21 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     onClose();
   }, [onClose]);
   
+  const handleConfirmArchive = useCallback(() => {
+    archiveNode.mutate(node.id);
+    setShowArchiveModal(false);
+    onClose();
+  }, [node.id, archiveNode, onClose]);
+  
+  const handleCancelArchive = useCallback(() => {
+    setShowArchiveModal(false);
+    onClose();
+  }, [onClose]);
+  
   return (
     <>
-      {!showDeleteModal && (
-        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+      {!showDeleteModal && !showArchiveModal && (
+        <div className="page-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={pageItems}
@@ -347,6 +411,17 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
+      />
+      <ConfirmationModal
+        isOpen={showArchiveModal}
+        title="Archive child page"
+        message={`This page is a child of another page. If the parent is deleted in the future, this archived page will also be deleted.`}
+        secondaryMessage="Archiving this page will also archive all its child pages and blocks."
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleConfirmArchive}
+        onCancel={handleCancelArchive}
       />
     </>
   );
@@ -372,11 +447,20 @@ export function BlockContextMenu({
   onMoveBlock 
 }: BlockContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const deleteNode = useDeleteNode();
+  const archiveNode = useArchiveNode();
+  
   const handleDeleteClick = useCallback(() => {
     setShowDeleteModal(true);
   }, []);
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick);
+  
+  const handleArchiveClick = useCallback(() => {
+    // Always show warning for blocks since they always have a parent
+    setShowArchiveModal(true);
+  }, []);
+  
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
   const { openNode } = useNodesStore();
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
@@ -437,9 +521,20 @@ export function BlockContextMenu({
     onClose();
   }, [onClose]);
   
+  const handleConfirmArchive = useCallback(() => {
+    archiveNode.mutate(node.id);
+    setShowArchiveModal(false);
+    onClose();
+  }, [node.id, archiveNode, onClose]);
+  
+  const handleCancelArchive = useCallback(() => {
+    setShowArchiveModal(false);
+    onClose();
+  }, [onClose]);
+  
   return (
     <>
-      {!showDeleteModal && (
+      {!showDeleteModal && !showArchiveModal && (
         <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -459,6 +554,17 @@ export function BlockContextMenu({
         variant="danger"
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
+      />
+      <ConfirmationModal
+        isOpen={showArchiveModal}
+        title="Archive child block"
+        message={`This block is a child of another node. If the parent is deleted in the future, this archived block will also be deleted.`}
+        secondaryMessage="Archiving this block will also archive all its child blocks."
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleConfirmArchive}
+        onCancel={handleCancelArchive}
       />
     </>
   );
