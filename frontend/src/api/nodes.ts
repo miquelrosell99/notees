@@ -575,8 +575,8 @@ export async function reorderFavorites(fromIndex: number, toIndex: number): Prom
  * Get all soft-deleted nodes (trash)
  */
 export async function getTrash(): Promise<Node[]> {
-  const response = await api.get<Node[]>(`${BASE}/trash`);
-  return response.data;
+  const response = await api.get<{ nodes: Node[]; total: number }>(`${BASE}/trash`);
+  return response.data.nodes;
 }
 
 /**
