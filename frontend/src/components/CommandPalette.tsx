@@ -165,6 +165,40 @@ export function CommandPalette({
     return categorizeResults(searchResults);
   }, [searchResults]);
   
+  // Analyze hierarchical path structure
+  const pathInfo = useMemo(() => {
+    if (!query.trim() || !allPages) return null;
+    
+    const parsed = parseHierarchicalPath(query.trim());
+    if (!parsed.isHierarchical) return null;
+    
+    // Check which segments exist
+    const segments: Array<{ name: string; exists: boolean; node?: Node }> = [];
+    let currentParentId: number | null = null;
+    
+    for (const segment of parsed.parentSegments) {
+      const existingNode = allPages.find(
+        page => page.name === segment && page.parent_id === currentParentId
+      );
+      
+      segments.push({
+        name: segment,
+        exists: !!existingNode,
+        node: existingNode,
+      });
+      
+      currentParentId = existingNode?.id ?? null;
+    }
+    
+    // Add the leaf segment (will be created)
+    segments.push({
+      name: parsed.leaf,
+      exists: false,
+    });
+    
+    return { segments, parsed };
+  }, [query, allPages]);
+  
   // All selectable items (pages, blocks, quick-add actions)
   const allItems = useMemo(() => {
     const items: Array<{ type: 'page' | 'block' | 'add-page' | 'quick-add'; result?: SearchResult; label?: string }> = [];
@@ -338,6 +372,24 @@ export function CommandPalette({
           />
           <kbd className="command-palette__shortcut">Esc</kbd>
         </div>
+        
+        {/* Hierarchical path preview */}
+        {pathInfo && (
+          <div className="command-palette__path-preview">
+            <span className="command-palette__path-label">Will create:</span>
+            <span className="command-palette__path-segments">
+              {pathInfo.segments.map((segment, index) => (
+                <span key={index}>
+                  {index > 0 && <span className="command-palette__path-separator"> → </span>}
+                  <span className={segment.exists ? 'command-palette__path-segment--existing' : 'command-palette__path-segment--new'}>
+                    {segment.name}
+                    {segment.exists && <span className="command-palette__path-indicator" title="Page exists">✓</span>}
+                  </span>
+                </span>
+              ))}
+            </span>
+          </div>
+        )}
         
         <div className="command-palette__results">
           {isLoading && (

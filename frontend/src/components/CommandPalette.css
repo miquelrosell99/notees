@@ -48,6 +48,49 @@
   color: var(--color-on-surface-variant);
 }
 
+.command-palette__path-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline-variant);
+  font: var(--font-label-medium);
+}
+
+.command-palette__path-label {
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+}
+
+.command-palette__path-segments {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.command-palette__path-separator {
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+}
+
+.command-palette__path-segment--existing {
+  color: var(--color-tertiary);
+  font-weight: 500;
+}
+
+.command-palette__path-segment--new {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.command-palette__path-indicator {
+  margin-left: var(--spacing-1);
+  color: var(--color-tertiary);
+  font-size: 0.85em;
+}
+
 .command-palette__shortcut {
   padding: var(--spacing-1) var(--spacing-2);
   background: var(--color-surface-container);
