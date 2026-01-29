@@ -90,14 +90,21 @@ export function useHierarchicalPathResolver() {
     const resolvedSoFar = [...resolvedNodes, selectedNode];
     let currentParentId = selectedNode.id;
 
+    // Build lookup map for O(1) access
+    const pageMap = new Map<string, Node[]>();
+    for (const page of allPages) {
+      const key = `${page.name}|${page.parent_id ?? 'null'}`;
+      const existing = pageMap.get(key) || [];
+      existing.push(page);
+      pageMap.set(key, existing);
+    }
+
     // Continue from after the resolved conflict
     const remainingSegments = parsed.parentSegments.slice(segmentIndex + 1);
 
     for (const segment of remainingSegments) {
-      // Check for conflicts at this level
-      const matchingNodes = allPages.filter(
-        page => page.name === segment && page.parent_id === currentParentId
-      );
+      const key = `${segment}|${currentParentId ?? 'null'}`;
+      const matchingNodes = pageMap.get(key) || [];
 
       if (matchingNodes.length > 1) {
         // Another conflict - update state and return null
@@ -122,6 +129,9 @@ export function useHierarchicalPathResolver() {
       let node = matchingNodes[0];
       if (!node) {
         node = await createPageFn(segment, currentParentId);
+        // Add to map for subsequent iterations
+        const newKey = `${node.name}|${node.parent_id ?? 'null'}`;
+        pageMap.set(newKey, [node]);
       }
       resolvedSoFar.push(node);
       currentParentId = node.id;
@@ -157,15 +167,24 @@ async function resolvePathSegments(
 ): Promise<number | null> {
   if (segments.length === 0) return null;
 
+  // Build lookup map for O(1) access
+  const pageMap = new Map<string, Node>();
+  for (const page of allPages) {
+    const key = `${page.name}|${page.parent_id ?? 'null'}`;
+    pageMap.set(key, page);
+  }
+
   let currentParentId: number | null = null;
 
   for (const segment of segments) {
-    let node = allPages.find(
-      page => page.name === segment && page.parent_id === currentParentId
-    );
+    const key = `${segment}|${currentParentId ?? 'null'}`;
+    let node = pageMap.get(key);
 
     if (!node) {
       node = await createPageFn(segment, currentParentId);
+      // Add to map for subsequent iterations
+      const newKey = `${node.name}|${node.parent_id ?? 'null'}`;
+      pageMap.set(newKey, node);
     }
 
     currentParentId = node.id;
