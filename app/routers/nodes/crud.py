@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, OptimisticLockError
 from ...db.schema import SYSTEM_CLASS_UUIDS
-from ...db.connection import get_graph_assets_dir
+from ...db.connection import get_graph_assets_dir, get_graph_uuid
 from ..auth import get_current_user
 from ...models import User
 from ...logging_config import get_logger
@@ -693,14 +693,17 @@ async def delete_node(
     
     # Try to delete any associated asset file
     if node_uuid and service._graph_id is not None:
-        assets_dir = get_graph_assets_dir(service._graph_id)
-        # Check for asset files with any extension
-        for asset_file in assets_dir.glob(f"{node_uuid}.*"):
-            try:
-                asset_file.unlink()
-                logger.info(f"Deleted asset file {asset_file} for node {node_id}")
-            except Exception as e:
-                logger.warning(f"Failed to delete asset file {asset_file}: {e}")
+        # Get graph UUID for asset storage
+        graph_uuid = await get_graph_uuid(service._graph_id)
+        if graph_uuid:
+            assets_dir = get_graph_assets_dir(graph_uuid)
+            # Check for asset files with any extension
+            for asset_file in assets_dir.glob(f"{node_uuid}.*"):
+                try:
+                    asset_file.unlink()
+                    logger.info(f"Deleted asset file {asset_file} for node {node_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete asset file {asset_file}: {e}")
     
     try:
         success = await service.delete_node(node_id)
