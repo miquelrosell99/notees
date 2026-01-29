@@ -22,7 +22,7 @@ import {
   useUpdateNodeView,
   useDeleteNodeView,
 } from '@/hooks/useNodeViews';
-import { useCreateNode } from '@/hooks/useNodes';
+import { useCreateNode, usePageClass } from '@/hooks/useNodes';
 import type { NodeView, QueryBlockTree, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
@@ -167,6 +167,9 @@ export function DynamicNodeViewSection({
   const updateBlockTreeMutation = useUpdateQueryBlockTree();
   const updateViewMutation = useUpdateNodeView();
   const deleteViewMutation = useDeleteNodeView();
+  const createNodeMutation = useCreateNode();
+  const { pageClassId } = usePageClass();
+  const { addSidebarCard, openNode } = useNodesStore();
 
   // Determine active view
   const activeView = useMemo(() => {
@@ -448,9 +451,13 @@ export function DynamicNodeViewSection({
   const handleAddNode = useCallback(async () => {
     try {
       // Determine what kind of node to create based on viewType
-      let nodeData: { name: string; is_page?: boolean; parent_id?: number; class_ids?: number[] } = {
+      if (!pageClassId) {
+        console.error('Page class not found');
+        return;
+      }
+
+      let nodeData: { name: string; classes?: number[]; parent_id?: number } = {
         name: '',
-        is_page: false,
       };
 
       switch (viewType) {
@@ -458,7 +465,7 @@ export function DynamicNodeViewSection({
           // Create a child page under the current node
           nodeData = {
             name: '',
-            is_page: true,
+            classes: [pageClassId],
             parent_id: nodeId,
           };
           break;
@@ -467,9 +474,7 @@ export function DynamicNodeViewSection({
           // Create a block that is a child of this class page and has the class assigned
           nodeData = {
             name: '',
-            is_page: false,
             parent_id: nodeId,
-            class_ids: [nodeId],
           };
           break;
         
@@ -477,7 +482,7 @@ export function DynamicNodeViewSection({
           // Create a new page
           nodeData = {
             name: '',
-            is_page: true,
+            classes: [pageClassId],
           };
           break;
         
@@ -485,7 +490,6 @@ export function DynamicNodeViewSection({
           // Default: create a block
           nodeData = {
             name: '',
-            is_page: false,
           };
       }
 

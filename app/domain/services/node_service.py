@@ -87,6 +87,19 @@ class NodeService:
         
         return flags
     
+    async def _update_flags_from_classes(self, node_id: int, class_ids: List[int]) -> None:
+        """Update a node's is_* flags based on its current classes.
+        
+        This ensures flags are always in sync with the assigned classes.
+        """
+        # Compute all flags from the current classes
+        flags_to_set = await self._compute_flags_from_classes(class_ids)
+        
+        # Create update data with the computed flags
+        # We use the classes field to trigger flag recomputation in the repository
+        update_data = NodeUpdateData(classes=class_ids)
+        await self._node_repo.update(node_id, update_data)
+    
     async def _validate_page_name_uniqueness(
         self,
         name: str,
@@ -903,12 +916,9 @@ class NodeService:
             node_id, self._classes_property_id, class_node_id
         )
         
-        # Update the corresponding flag if this is a system class with a flag
-        if class_node and class_node.uuid in CLASS_UUID_TO_FLAG:
-            flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
-            update_data = NodeUpdateData()
-            setattr(update_data, flag_name, True)
-            await self._node_repo.update(node_id, update_data)
+        # Recompute all flags from the updated classes list
+        new_classes = existing_class_ids + [class_node_id]
+        await self._update_flags_from_classes(node_id, new_classes)
         
         # Apply Class properties
         class_properties = await self._property_repo.get_class_properties(class_node_id)
@@ -960,12 +970,9 @@ class NodeService:
                 if val.id is not None:
                     await self._property_repo.remove_relation_value(val.id)
                 
-                # Update the corresponding flag if this is a system class with a flag
-                if class_node and class_node.uuid in CLASS_UUID_TO_FLAG:
-                    flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
-                    update_data = NodeUpdateData()
-                    setattr(update_data, flag_name, False)
-                    await self._node_repo.update(node_id, update_data)
+                # Recompute all flags from the updated classes list
+                remaining_class_ids = [v.target_id for v in values if v.id != val.id and v.target_id is not None]
+                await self._update_flags_from_classes(node_id, remaining_class_ids)
                 
                 return True
         

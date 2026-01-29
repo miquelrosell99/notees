@@ -101,7 +101,6 @@ function groupBlocksByPage(
           sequence: 0,
           collapsed: false,
           active: true,
-          is_page: true,
           create_date: '',
           write_date: '',
         };
@@ -271,8 +270,7 @@ function NodeListItem({
               if (nodeType === 'page') {
                 // Create a minimal page node to pass to onNodeClick
                 const pageNode = page && page.id === nodeId ? page : { 
-                  id: nodeId, 
-                  is_page: true 
+                  id: nodeId
                 } as Node;
                 onNodeClick?.(pageNode);
               }
@@ -313,8 +311,7 @@ function NodeListItem({
           onNavigate={(nodeId, nodeType) => {
             if (nodeType === 'page') {
               const pageNode = page && page.id === nodeId ? page : { 
-                id: nodeId, 
-                is_page: true 
+                id: nodeId
               } as Node;
               onNodeClick?.(pageNode);
             }

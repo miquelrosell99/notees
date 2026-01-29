@@ -22,6 +22,7 @@ import {
   useRemoveTag,
   useNodesWithClass,
   useLinkedReferencesCount,
+  useSystemClasses,
 } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
@@ -63,8 +64,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   const removeTag = useRemoveTag();
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
-  const { data: allNodes } = useNodes({ pages_only: true });
-  const { openNode, closeSidebarNode, addSidebarCard, openCommentsForNode } = useNodesStore();
+  const { data: allNodes } = useNodes({ pages_only: true });  const { systemClassIds } = useSystemClasses();  const { openNode, closeSidebarNode, addSidebarCard, openCommentsForNode } = useNodesStore();
   
   // Check if node is used as a class
   const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
@@ -119,37 +119,36 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
 
   // Handle creating a new class
   const handleCreateClassForBlock = useCallback((blockId: number) => (name: string) => {
-    const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
-    // Create as both a page AND a class so it shows up in @ menu
-    createNode.mutate({ name, is_page: true, is_type: true }, {
+    if (!systemClassIds?.page || !systemClassIds?.class) return;
+    // Create as both Page and Class so it shows up in @ menu
+    createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
       onSuccess: (newPage) => {
         addClass.mutate({ nodeId: blockId, classId: newPage.id });
-        if (classClass) {
-          addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
-        }
       }
     });
-  }, [createNode, addClass, allClasses]);
+  }, [createNode, addClass, systemClassIds]);
 
   // Handle creating a new tag
   const handleCreateTagForBlock = useCallback((blockId: number) => (name: string) => {
-    createNode.mutate({ name, is_page: true }, {
+    if (!systemClassIds?.page) return;
+    createNode.mutate({ name, classes: [systemClassIds.page] }, {
       onSuccess: (newPage) => {
         addTag.mutate({ nodeId: blockId, tagId: newPage.id });
       }
     });
-  }, [createNode, addTag]);
+  }, [createNode, addTag, systemClassIds]);
 
   // Handle creating a new page link (from [[ menu)
   const handleCreatePageLink = useCallback(async (name: string): Promise<string | undefined> => {
     try {
-      const newPage = await createNode.mutateAsync({ name, is_page: true });
+      if (!systemClassIds?.page) return undefined;
+      const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
       return String(newPage.id);
     } catch (error) {
       console.error('Failed to create page for link:', error);
       return undefined;
     }
-  }, [createNode]);
+  }, [createNode, systemClassIds]);
 
   // Handle opening comments
   const handleOpenComments = useCallback((blockId: number) => () => {
@@ -163,17 +162,13 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   }, [node, addClass]);
   
   const handleCreatePageClass = useCallback((name: string) => {
-    if (!node) return;
-    const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
-    createNode.mutate({ name, is_page: true, is_type: true }, {
+    if (!node || !systemClassIds?.page || !systemClassIds?.class) return;
+    createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
       onSuccess: (newPage) => {
         addClass.mutate({ nodeId: node.id, classId: newPage.id });
-        if (classClass) {
-          addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
-        }
       }
     });
-  }, [node, createNode, addClass, allClasses]);
+  }, [node, createNode, addClass, systemClassIds]);
   
   const handleRemovePageClass = useCallback((classNode: Node) => {
     if (!node) return;
@@ -191,13 +186,13 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   }, [node, addTag]);
   
   const handleCreatePageTag = useCallback((name: string) => {
-    if (!node) return;
-    createNode.mutate({ name, is_page: true }, {
+    if (!node || !systemClassIds?.page) return;
+    createNode.mutate({ name, classes: [systemClassIds.page] }, {
       onSuccess: (newPage) => {
         addTag.mutate({ nodeId: node.id, tagId: newPage.id });
       }
     });
-  }, [node, createNode, addTag]);
+  }, [node, createNode, addTag, systemClassIds]);
   
   const handleRemovePageTag = useCallback((tagNode: Node) => {
     if (!node) return;
@@ -271,18 +266,16 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       }
     },
     onCreateClass: (blockId, name, _keepInline) => {
-      const classClass = allClasses?.find(t => t.name?.toLowerCase() === 'class');
-      createNode.mutate({ name, is_page: true }, {
+      if (!systemClassIds?.page || !systemClassIds?.class) return;
+      createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
         onSuccess: (newPage) => {
           addClass.mutate({ nodeId: blockId, classId: newPage.id });
-          if (classClass) {
-            addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
-          }
         }
       });
     },
     onCreateTag: (blockId, name, _keepInline) => {
-      createNode.mutate({ name, is_page: true }, {
+      if (!systemClassIds?.page) return;
+      createNode.mutate({ name, classes: [systemClassIds.page] }, {
         onSuccess: (newPage) => {
           addTag.mutate({ nodeId: blockId, tagId: newPage.id });
         }
@@ -290,7 +283,8 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     },
     onCreatePageLink: async (name) => {
       try {
-        const newPage = await createNode.mutateAsync({ name, is_page: true });
+        if (!systemClassIds?.page) return undefined;
+        const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
         return String(newPage.id);
       } catch (error) {
         console.error('Failed to create page for link:', error);

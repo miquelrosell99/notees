@@ -104,4 +104,4 @@ export {
 } from './useActivity';
 
 // ==================== Helper Hooks ====================
-export { usePageClass } from './usePageClass';
+export { usePageClass, useClassClass, useSystemClasses } from './usePageClass';

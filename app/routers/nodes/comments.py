@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from ...domain.entities import NodeCreateData
 from ..auth import get_current_user
 from ...models import User
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from .models import CommentCreateRequest, CommentsResponse
 from .helpers import _get_node_service, _node_to_comment_response
 
@@ -66,6 +67,11 @@ async def create_comment(
     if not target_node:
         raise HTTPException(404, "Node not found")
     
+    # Get the Comment class
+    comment_class = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["comment"])
+    if not comment_class:
+        raise HTTPException(500, "Comment class not found")
+    
     # Get the next sequence number for comments
     pool = service._node_repo.get_connection()
     seq_row = await pool.fetchrow("""
@@ -74,11 +80,11 @@ async def create_comment(
     """, node_id)
     next_seq = seq_row['next_seq'] if seq_row else 0
     
-    # Create the comment node as a child of target node
+    # Create the comment node as a child of target node with Comment class
     data = NodeCreateData(
         name=request.name,
         parent_id=node_id,
-        is_comment=True,
+        classes=[comment_class.id],
         sequence=next_seq,
     )
     

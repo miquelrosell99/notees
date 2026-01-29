@@ -12,7 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useUpdateNode, useClasses, useCreateNode } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
@@ -38,6 +38,7 @@ export function PageHeader({
   const iconRef = useRef<HTMLButtonElement>(null);
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
+  const { pageClassId } = usePageClass();
   const { 
     addSidebarCard, 
     openNode,
@@ -94,10 +95,10 @@ export function PageHeader({
       updateNode.mutate({ id: page.id, data });
       
       // If there's text after the "/", create a child page
-      if (childPageName) {
+      if (childPageName && pageClassId) {
         createNode.mutate({
           name: childPageName,
-          is_page: true,
+          classes: [pageClassId],
           parent_id: page.id,
         });
       }
