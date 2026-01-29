@@ -171,6 +171,14 @@ export interface AncestorPathCondition extends BaseConditionNode {
 }
 
 /**
+ * Class path condition - filter by inherited classes from ancestors
+ */
+export interface ClassPathCondition extends BaseConditionNode {
+  condition_type: 'class_path';
+  nested_group: GroupNode;
+}
+
+/**
  * Union type for all conditions
  */
 export type ConditionNode =
@@ -179,7 +187,8 @@ export type ConditionNode =
   | ContentCondition
   | ReferenceCondition
   | ReferencePathCondition
-  | AncestorPathCondition;
+  | AncestorPathCondition
+  | ClassPathCondition;
 
 // ==================== Group Node ====================
 

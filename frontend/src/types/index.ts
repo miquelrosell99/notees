@@ -17,6 +17,7 @@ export {
   type ReferenceBlock,
   type ReferencePathBlock,
   type AncestorPathBlock,
+  type ClassPathBlock,
   type UuidBlock,
   type QueryBlock,
   type QueryBlockTree,

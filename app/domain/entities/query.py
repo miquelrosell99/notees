@@ -26,6 +26,7 @@ class QueryBlockType(str, Enum):
     REFERENCE = "REFERENCE"
     REFERENCE_PATH = "REFERENCE_PATH"
     ANCESTOR_PATH = "ANCESTOR_PATH"
+    CLASS_PATH = "CLASS_PATH"
     UUID = "UUID"
 
 
@@ -90,6 +91,8 @@ class QueryBlock:
             return ReferencePathBlock.from_dict(data)
         elif block_type == QueryBlockType.ANCESTOR_PATH:
             return AncestorPathBlock.from_dict(data)
+        elif block_type == QueryBlockType.CLASS_PATH:
+            return ClassPathBlock.from_dict(data)
         elif block_type == QueryBlockType.UUID:
             return UuidBlock.from_dict(data)
         else:
