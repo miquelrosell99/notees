@@ -42,8 +42,8 @@ async def get_favorites(
                 exists = await conn.fetchval("""
                     SELECT 1 FROM node 
                     WHERE id = $1 AND graph_id = $2 
-                          AND active = TRUE 
-                          AND (is_deleted = FALSE OR is_deleted IS NULL)
+                          AND active = true 
+                          AND (is_deleted = false OR is_deleted IS NULL)
                 """, node_id, service._graph_id)
                 if exists:
                     valid_favorites.append(node_id)
