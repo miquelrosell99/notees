@@ -82,13 +82,8 @@ export interface DynamicNodeViewSectionProps {
 function countMainFilterBlocks(tree: QueryBlockTree | null): number {
   if (!tree || !tree.blocks) return 0;
   
-  let count = 0;
-  for (const block of tree.blocks) {
-    if (!isSystemBlock(block)) {
-      count++;
-    }
-  }
-  return count;
+  // Count only non-system blocks
+  return tree.blocks.filter(block => !isSystemBlock(block)).length;
 }
 
 // ==================== Main Component ====================

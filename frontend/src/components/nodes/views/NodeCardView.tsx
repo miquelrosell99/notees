@@ -360,8 +360,8 @@ function NodeCard({
         {/* Vertical layout: cover-top or no-cover */}
         {!isHorizontalLayout && (
           <>
-            {/* Cover image or Add Cover button (vertical) - show if cover exists or layout explicitly requests cover */}
-            {(coverUrl || effectiveLayout === 'cover-top') && (
+            {/* Cover image or Add Cover button (vertical) - show if cover exists AND layout is not no-cover */}
+            {(coverUrl && effectiveLayout !== 'no-cover') && (
               <div 
                 className="node-card__cover" 
                 onClick={(e) => e.stopPropagation()}

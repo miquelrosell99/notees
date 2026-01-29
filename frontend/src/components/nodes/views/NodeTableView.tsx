@@ -99,6 +99,7 @@ export function NodeTableView({
   onContentChange,
   propertyUuids = [],
   className = '',
+  customContextMenu,
 }: NodeTableViewProps) {
   // Get block callbacks from context (for editable mode)
   const blockCallbacks = useBlockCallbacks();
@@ -111,6 +112,10 @@ export function NodeTableView({
   
   // Internal selection state (used when not controlled)
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
+  
+  // Context menu state
+  const [contextMenuNode, setContextMenuNode] = useState<Node | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   
   // Use controlled or internal selection state
   const selectedIds = controlledSelectedIds ?? internalSelectedIds;
@@ -339,24 +344,49 @@ export function NodeTableView({
       renderDragHandle: () => <DragHandleIcon size="xs" />,
     };
   }, [sortable, onReorder]);
+  
+  // Context menu handler
+  const handleRowContextMenu = useCallback((node: Node, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenuNode(node);
+    setContextMenuPosition({ x: event.clientX, y: event.clientY });
+  }, []);
+  
+  // Close context menu
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenuNode(null);
+  }, []);
 
   return (
-    <Table<Node>
-      data={nodes}
-      columns={tableColumns}
-      getRowKey={(node) => node.id}
-      size="md"
-      variant="bordered"
-      selectable={selectable}
-      selectedKeys={selectedKeys}
-      onSelectionChange={handleSelectionChange}
-      onRowClick={onNodeClick}
-      onRowShiftClick={onNodeShiftClick}
-      expandable={expandableConfig}
-      reorderable={reorderableConfig}
-      depth={depth}
-      className={`node-table-view ${className}`}
-      getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
-    />
+    <>
+      <Table<Node>
+        data={nodes}
+        columns={tableColumns}
+        getRowKey={(node) => node.id}
+        size="md"
+        variant="bordered"
+        selectable={selectable}
+        selectedKeys={selectedKeys}
+        onSelectionChange={handleSelectionChange}
+        onRowClick={onNodeClick}
+        onRowShiftClick={onNodeShiftClick}
+        onRowContextMenu={handleRowContextMenu}
+        expandable={expandableConfig}
+        reorderable={reorderableConfig}
+        depth={depth}
+        className={`node-table-view ${className}`}
+        getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
+      />
+      
+      {/* Context menu */}
+      {contextMenuNode && customContextMenu && (
+        <customContextMenu
+          node={contextMenuNode}
+          position={contextMenuPosition}
+          onClose={handleCloseContextMenu}
+        />
+      )}
+    </>
   );
 }
