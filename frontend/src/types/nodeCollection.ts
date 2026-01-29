@@ -7,6 +7,7 @@
 import type { Node } from './api';
 import type { NodeView } from './query';
 import type { ReactNode } from 'react';
+import type { ContextMenuItem } from '../components/core/ContextMenu';
 
 // ==================== GroupBy Options ====================
 
@@ -198,6 +199,9 @@ export interface NodeCollectionProps {
     position: { x: number; y: number };
     onClose: () => void;
   }>;
+  
+  /** Custom context menu items generator (for list view with Block component) */
+  customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
 }
 
 // ==================== View-Specific Props ====================
@@ -245,6 +249,9 @@ export interface NodeCollectionViewBaseProps {
     position: { x: number; y: number };
     onClose: () => void;
   }>;
+  
+  /** Custom context menu items generator (for list view with Block component) */
+  customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
 }
 
 /**
