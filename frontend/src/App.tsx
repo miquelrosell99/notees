@@ -19,6 +19,7 @@ import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/us
 import { listDatabases } from './api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
+import { getAuthToken, clearAuthToken, getUserData, setUserData } from './utils/auth';
 import './App.css';
 
 const log = getLogger('App');
@@ -58,25 +59,17 @@ function AppContent() {
   // Check auth on mount
   useEffect(() => {
     log.info('Checking authentication state...');
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
+    const token = getAuthToken();
+    const user = getUserData();
     
-    if (token && userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        log.debug('Found stored auth, restoring session', { username: user.username });
-        useAuthStore.getState().setUser(user);
-      } catch (error) {
-        log.warn('Failed to parse stored user data, clearing auth');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+    if (token && user) {
+      log.debug('Found stored auth, restoring session', { username: (user as any).username });
+      useAuthStore.getState().setUser(user);
     } else {
       log.debug('No valid stored auth found');
       // Clear any partial auth data
-      if (token || userStr) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+      if (token || user) {
+        clearAuthToken();
       }
     }
   }, []);

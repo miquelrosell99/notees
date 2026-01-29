@@ -744,30 +744,33 @@ class PostgresNodeRepository(NodeRepository):
             List of Node entities ordered from root/enter_node to exit_node
         """
         async with self._pool.acquire() as conn:
-            # Call the Postgres get_breadcrumbs function
-            # It returns: id, uuid, name, is_page, is_class, is_day, is_month, is_year, parent_id, depth
+            # Call the Postgres get_breadcrumbs function and join with full node data
+            # to avoid N+1 queries
             if enter_node_id is not None:
                 rows = await conn.fetch(
-                    "SELECT * FROM get_breadcrumbs($1, $2)",
-                    exit_node_id, enter_node_id
+                    """
+                    SELECT n.* 
+                    FROM get_breadcrumbs($1, $2) AS bc
+                    JOIN node n ON n.id = bc.id
+                    WHERE n.graph_id = $3
+                    ORDER BY bc.depth
+                    """,
+                    exit_node_id, enter_node_id, self._graph_id
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM get_breadcrumbs($1)",
-                    exit_node_id
+                    """
+                    SELECT n.* 
+                    FROM get_breadcrumbs($1) AS bc
+                    JOIN node n ON n.id = bc.id
+                    WHERE n.graph_id = $2
+                    ORDER BY bc.depth
+                    """,
+                    exit_node_id, self._graph_id
                 )
             
-            # Convert to Node entities - fetch full node data for each
-            nodes = []
-            for row in rows:
-                node_row = await conn.fetchrow(
-                    "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
-                    row['id'], self._graph_id
-                )
-                if node_row:
-                    nodes.append(self._row_to_node(node_row))
-            
-            return nodes
+            # Convert to Node entities in a single pass
+            return [self._row_to_node(row) for row in rows]
     
     async def get_ancestors(
         self,

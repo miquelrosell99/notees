@@ -5,6 +5,7 @@
  */
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getLogger } from '../utils/logger';
+import { getAuthToken, clearAuthToken } from '../utils/auth';
 
 const log = getLogger('api');
 
@@ -18,7 +19,7 @@ const api: AxiosInstance = axios.create({
 
 // Request interceptor to add auth token and logging
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -49,8 +50,7 @@ api.interceptors.response.use(
       log.warn(`Authentication failed: ${method} ${url}`);
       
       // Token expired or invalid - clear auth data
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuthToken();
       localStorage.removeItem('auth-storage'); // Clear persisted auth store
       
       // Dispatch custom event to notify app of auth failure
