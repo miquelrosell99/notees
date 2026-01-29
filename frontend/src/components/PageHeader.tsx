@@ -64,13 +64,16 @@ export function PageHeader({
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);
   
-  // Parse input to show child page preview
+  // Parse input to show child page preview (disabled for date pages)
   const childPagePreview = useMemo(() => {
+    // Don't show preview for date pages
+    if (page.is_daily || page.is_monthly || page.is_yearly) return null;
+    
     if (!inputValue.includes('/')) return null;
     const parts = inputValue.split('/');
     const childPageName = parts.slice(1).join('/').trim();
     return childPageName || null;
-  }, [inputValue]);
+  }, [inputValue, page.is_daily, page.is_monthly, page.is_yearly]);
 
   const handleInputChange = useCallback((newValue: string) => {
     setInputValue(newValue);
