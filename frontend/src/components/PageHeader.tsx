@@ -121,28 +121,30 @@ export function PageHeader({
           // The child hierarchy starts after the original name
           const childSegments = parsed.parentSegments.slice(1);
           
-          // Maintain local cache of pages to avoid duplicate lookups
-          const pagesCache = [...allPages];
+          // Build lookup map for O(1) access
+          const pageMap = new Map<string, Node>();
+          for (const p of allPages) {
+            const key = `${p.name}|${p.parent_id ?? 'null'}`;
+            pageMap.set(key, p);
+          }
           
           // Resolve or create intermediate child pages
           let currentParent = page.id;
           for (const segment of childSegments) {
-            const existingChild = pagesCache.find(
-              p => p.name === segment && p.parent_id === currentParent
-            );
+            const key = `${segment}|${currentParent}`;
+            let node = pageMap.get(key);
             
-            if (existingChild) {
-              currentParent = existingChild.id;
-            } else {
-              const newChild = await createNode.mutateAsync({
+            if (!node) {
+              node = await createNode.mutateAsync({
                 name: segment,
                 classes: [pageClassId],
                 parent_id: currentParent,
               });
-              // Add to local cache so subsequent iterations can find it
-              pagesCache.push(newChild);
-              currentParent = newChild.id;
+              // Add to map so subsequent iterations can find it
+              pageMap.set(key, node);
             }
+            
+            currentParent = node.id;
           }
           
           // Create the final leaf page
