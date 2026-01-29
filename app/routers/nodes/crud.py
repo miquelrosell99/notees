@@ -180,25 +180,6 @@ async def restore_node(
     return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
-@router.delete("/{node_id}/permanent", name="permanently_delete_node")
-async def permanently_delete_node(
-    node_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Permanently delete a node from trash (hard delete from database).
-    
-    This is irreversible. Only works on nodes that are already soft-deleted.
-    The node and all its relationships will be removed from the database.
-    """
-    service = await _get_node_service(user)
-    
-    success = await service.permanently_delete_node(node_id)
-    if not success:
-        raise HTTPException(404, "Node not found in trash")
-    
-    return {"status": "permanently_deleted"}
-
-
 @router.get("/{node_id}")
 async def get_node(
     node_id: int = Path(..., ge=1, description="Node ID (must be a positive integer)"),
@@ -658,6 +639,25 @@ async def move_node(
         raise HTTPException(404, "Node not found")
     
     return _node_to_response(node)
+
+
+@router.delete("/{node_id}/permanent", name="permanently_delete_node")
+async def permanently_delete_node(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete a node from trash (hard delete from database).
+    
+    This is irreversible. Only works on nodes that are already soft-deleted.
+    The node and all its relationships will be removed from the database.
+    """
+    service = await _get_node_service(user)
+    
+    success = await service.permanently_delete_node(node_id)
+    if not success:
+        raise HTTPException(404, "Node not found in trash")
+    
+    return {"status": "permanently_deleted"}
 
 
 @router.delete("/{node_id}")
