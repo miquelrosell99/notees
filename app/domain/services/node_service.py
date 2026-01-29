@@ -264,15 +264,19 @@ class NodeService:
         - Applies tag properties (SuperTags)
         - For pages with '/' in name, creates parent hierarchy automatically
         """
+        # Compute flags from classes to determine if this is a page
+        flags = await self._compute_flags_from_classes(data.classes)
+        is_page = flags.get('is_page', False)
+        
         # Handle hierarchical page creation (name contains '/')
-        if data.is_page and data.name and '/' in data.name and not data.parent_id:
+        if is_page and data.name and '/' in data.name and not data.parent_id:
             return await self._create_hierarchical_page(data, user_id)
         
         # Validate input
         validate_node_create(data.name, data.icon, data.color)
         
         # Validate page name uniqueness if it's a page with classes
-        if data.is_page and data.classes:
+        if is_page and data.classes:
             await self._validate_page_name_uniqueness(
                 name=data.name,
                 parent_id=data.parent_id,
