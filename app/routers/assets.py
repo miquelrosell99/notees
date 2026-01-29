@@ -15,13 +15,14 @@ Supported file types: Images (JPEG, PNG), Audio (MP3, WAV, OGG, OPUS, WebM)
 """
 from typing import cast, Optional, List
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid as uuid_module
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Response
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Response, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from jose import jwt
 
 from ..db.connection import get_pool, get_graph_assets_dir
 from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
@@ -32,6 +33,7 @@ from ..domain.services.asset_service import AssetService, AssetMissingError, Ass
 from .auth import get_current_user, get_current_user_optional
 from ..models import User
 from ..logging_config import get_logger
+from ..config import settings
 
 router = APIRouter(prefix="/api/assets", tags=["Assets"])
 logger = get_logger(__name__)
@@ -86,6 +88,63 @@ class AssetListResponse(BaseModel):
     """Response model for listing assets."""
     assets: List[AssetResponse]
     total: int
+
+
+class AssetTokenResponse(BaseModel):
+    """Response model for asset token generation."""
+    token: str
+    expires_at: str
+
+
+def create_asset_token(asset_uuid: str, user_id: str) -> str:
+    """Create a short-lived JWT token for asset access (5 minutes)."""
+    expires_delta = timedelta(minutes=5)
+    expire = datetime.now(timezone.utc) + expires_delta
+    
+    payload = {
+        "asset_uuid": asset_uuid,
+        "user_id": user_id,
+        "exp": expire,
+        "type": "asset_access"
+    }
+    
+    token = jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return token
+
+
+def decode_asset_token(token: str) -> Optional[dict]:
+    """Decode and verify an asset token."""
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        if payload.get("type") != "asset_access":
+            return None
+        return payload
+    except Exception as e:
+        logger.warning(f"Asset token decode error: {e}")
+        return None
+
+
+async def get_user_from_asset_token(asset_token: str, asset_uuid: str) -> Optional[User]:
+    """Get user from asset token and validate it matches the requested asset."""
+    payload = decode_asset_token(asset_token)
+    if not payload:
+        return None
+    
+    # Verify the token is for this specific asset
+    if payload.get("asset_uuid") != asset_uuid:
+        logger.warning(f"Asset token asset_uuid mismatch: {payload.get('asset_uuid')} != {asset_uuid}")
+        return None
+    
+    user_id = payload.get("user_id")
+    if not user_id:
+        return None
+    
+    from .. import auth
+    user_data = await auth.get_user_by_id(user_id)
+    if not user_data:
+        return None
+    
+    return User(**user_data)
 
 
 def get_asset_path(graph_id: int, asset_uuid: str, extension: str) -> Path:
@@ -313,24 +372,79 @@ async def get_user_from_token_param(token: Optional[str] = None) -> Optional[Use
     return User(**user_data)
 
 
+@router.post("/{asset_uuid}/token", response_model=AssetTokenResponse)
+async def generate_asset_token(
+    asset_uuid: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate a short-lived token for accessing a specific asset.
+    
+    This token can be used in the asset_token query parameter when fetching assets.
+    Tokens expire after 5 minutes.
+    
+    This is the secure alternative to passing JWTs in image/audio src URLs.
+    """
+    user_id = str(current_user.id)
+    pool = await get_pool()
+    
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user_id))
+    
+    # Verify the asset exists and belongs to this user's graph
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2 AND is_asset = TRUE",
+            asset_uuid, graph_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Asset not found")
+    
+    # Generate token
+    token = create_asset_token(asset_uuid, user_id)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+    
+    logger.debug(f"Generated asset token for {asset_uuid} (expires: {expires_at.isoformat()})")
+    
+    return AssetTokenResponse(
+        token=token,
+        expires_at=expires_at.isoformat()
+    )
+
+
 @router.get("/{asset_uuid}")
 async def get_asset(
     asset_uuid: str,
-    token: Optional[str] = None,
+    asset_token: Optional[str] = Query(None, description="Short-lived asset access token"),
+    token: Optional[str] = Query(None, description="Deprecated: Use asset_token instead"),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Get an asset file by its UUID.
     
     Returns the file content with appropriate content type.
-    Accepts authentication via Authorization header or token query parameter
-    (needed for img/audio src URLs which don't send headers).
+    
+    Authentication methods (in order of preference):
+    1. asset_token query parameter (short-lived, asset-specific)
+    2. Authorization header (standard JWT)
+    3. token query parameter (deprecated, for backward compatibility)
     
     Scans the per-asset folder: assets/{uuid}/{uuid}.{ext}
     """
-    # Try token param first (for img/audio src), fall back to header auth
-    user = await get_user_from_token_param(token) if token else None
+    # Try asset_token first (preferred method)
+    user = None
+    if asset_token:
+        user = await get_user_from_asset_token(asset_token, asset_uuid)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired asset token")
+    
+    # Fall back to header auth
     if not user:
         user = current_user
+    
+    # Fall back to deprecated token param (for backward compatibility during migration)
+    if not user and token:
+        user = await get_user_from_token_param(token)
+    
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -370,18 +484,35 @@ async def get_asset(
 @router.get("/{asset_uuid}/thumbnail")
 async def get_asset_thumbnail(
     asset_uuid: str,
-    token: Optional[str] = None,
+    asset_token: Optional[str] = Query(None, description="Short-lived asset access token"),
+    token: Optional[str] = Query(None, description="Deprecated: Use asset_token instead"),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Get thumbnail for an image asset.
     
     Returns 404 if thumbnail doesn't exist (client should fall back to original).
+    
+    Authentication methods (in order of preference):
+    1. asset_token query parameter (short-lived, asset-specific)
+    2. Authorization header (standard JWT)
+    3. token query parameter (deprecated, for backward compatibility)
     """
-    # Try token param first (for img src), fall back to header auth
-    user = await get_user_from_token_param(token) if token else None
+    # Try asset_token first (preferred method)
+    user = None
+    if asset_token:
+        user = await get_user_from_asset_token(asset_token, asset_uuid)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired asset token")
+    
+    # Fall back to header auth
     if not user:
         user = current_user
+    
+    # Fall back to deprecated token param (for backward compatibility)
+    if not user and token:
+        user = await get_user_from_token_param(token)
+    
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     

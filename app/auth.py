@@ -32,10 +32,7 @@ def verify_password(password: str, hashed: str) -> bool:
     try:
         return pwd_context.verify(password, hashed)
     except Exception as e:
-        import traceback
-        logger.error(f"Password verification error: {e}")
-        logger.error(f"Stack trace: {''.join(traceback.format_stack()[-4:-1])}")
-        logger.error(f"Hash type: {hashed[:15] if hashed else 'EMPTY'}")
+        logger.error(f"Password verification failed for technical reasons: {e}")
         return False
 
 
@@ -169,12 +166,31 @@ async def authenticate_user(username: str, password: str) -> Optional[dict]:
 
 
 async def ensure_admin_user():
-    """Ensure the default admin user exists."""
+    """Ensure an admin user exists with secure credentials."""
+    import os
+    import secrets
+    
     existing = await get_user_by_username("admin")
-    if not existing:
-        logger.info("Creating default admin user...")
-        await create_user("admin", "admin")
-        logger.warning("Default admin user created (username: admin, password: admin) - CHANGE PASSWORD IN PRODUCTION!")
+    if existing:
+        return
+    
+    # Check for admin password in environment
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    
+    if admin_password:
+        await create_user("admin", admin_password)
+        logger.info("Created admin user with password from ADMIN_PASSWORD env var")
+    else:
+        # Generate secure random password
+        generated_password = secrets.token_urlsafe(16)
+        await create_user("admin", generated_password)
+        logger.warning("=" * 60)
+        logger.warning("ADMIN USER CREATED WITH GENERATED PASSWORD")
+        logger.warning(f"Username: admin")
+        logger.warning(f"Password: {generated_password}")
+        logger.warning("SAVE THIS PASSWORD - IT WILL NOT BE SHOWN AGAIN")
+        logger.warning("Set ADMIN_PASSWORD env var to use a specific password")
+        logger.warning("=" * 60)
 
 
 async def get_current_user_from_token(token: str) -> Optional[dict]:

@@ -21,6 +21,7 @@ Provides REST API for:
 - Automatic backups
 """
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from contextlib import asynccontextmanager
@@ -92,6 +93,17 @@ app = FastAPI(
     lifespan=lifespan,
     redirect_slashes=True  # Redirect /api/nodes to /api/nodes/
 )
+
+# Configure CORS if origins are specified
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    logger.info(f"CORS enabled for origins: {settings.cors_origins}")
 
 
 # Exception handler for validation errors to log details

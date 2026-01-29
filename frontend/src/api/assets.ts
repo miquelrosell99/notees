@@ -5,6 +5,7 @@
  */
 import api from './client';
 import { getLogger } from '../utils/logger';
+import { getAssetToken, getAssetUrlSync } from './assetTokens';
 
 const log = getLogger('assets-api');
 
@@ -83,20 +84,40 @@ export async function uploadAsset(file: File, parentId?: number, existingNodeId?
 }
 
 /**
- * Get asset URL for embedding in content.
+ * Get asset URL for embedding in content (synchronous version).
  * 
- * Includes the auth token as a query parameter since img/audio tags
- * don't send Authorization headers.
+ * This is the backward-compatible version that doesn't use asset tokens.
+ * For new code, consider using useAssetUrl hook or getAssetUrlAsync.
+ * 
+ * Note: This still works but passes the asset UUID without a token.
+ * The backend will fall back to Authorization header authentication.
  * 
  * @param uuid - The asset UUID
  * @returns The URL to access the asset
  */
 export function getAssetUrl(uuid: string): string {
-  const token = localStorage.getItem('token');
-  if (token) {
-    return `/api/assets/${uuid}?token=${encodeURIComponent(token)}`;
-  }
+  // Return URL without token - will use Authorization header
   return `/api/assets/${uuid}`;
+}
+
+/**
+ * Get asset URL with short-lived token (async version).
+ * 
+ * Uses short-lived asset tokens instead of passing JWTs in URLs.
+ * Preferred for new code.
+ * 
+ * @param uuid - The asset UUID
+ * @returns Promise resolving to the URL to access the asset with token
+ */
+export async function getAssetUrlAsync(uuid: string): Promise<string> {
+  try {
+    const token = await getAssetToken(uuid);
+    return getAssetUrlSync(uuid, token);
+  } catch (error) {
+    log.error(`Failed to get asset token for ${uuid}:`, error);
+    // Fallback to URL without token (will use Authorization header)
+    return `/api/assets/${uuid}`;
+  }
 }
 
 /**
