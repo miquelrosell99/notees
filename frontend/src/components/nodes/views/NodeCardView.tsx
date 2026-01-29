@@ -36,7 +36,7 @@ import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { getAssetUrl } from '@/api/assets';
+import { getAssetUrlAsync } from '@/api/assets';
 import type { Asset } from '@/api/assets';
 import { mdiPlus, mdiChevronRight, mdiChevronDown, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
 import './NodeCardView.css';
@@ -184,11 +184,19 @@ function NodeCard({
   // Get cover image ID from properties
   const coverImageId = useMemo(() => {
     const coverValue = node?.properties?.cover;
+    console.log(`[NodeCard ${node.id}] coverValue:`, coverValue, 'properties:', node?.properties);
     return typeof coverValue === 'number' ? coverValue : null;
-  }, [node?.properties]);
+  }, [node?.properties, node.id]);
   
   // Get the asset node for the cover image (for bullet)
   const { data: assetNode } = useNode(coverImageId, { include_children: false });
+  
+  // Debug asset node
+  useEffect(() => {
+    if (coverImageId) {
+      console.log(`[NodeCard ${node.id}] Asset node for cover ${coverImageId}:`, assetNode);
+    }
+  }, [coverImageId, assetNode, node.id]);
   
   // Bullet handlers for cover asset
   const handleCoverBulletClick = useCallback((e: React.MouseEvent) => {
@@ -205,13 +213,22 @@ function NodeCard({
     }
   }, [assetNode, onNodeShiftClick]);
   
-  // Get the image URL from the asset node's uuid
-  const coverUrl = useMemo(() => {
+  // State for the cover URL (needs to be async to get token)
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  
+  // Get the image URL from the asset node's uuid (async with token)
+  useEffect(() => {
     if (coverImageId && assetNode?.uuid) {
-      return getAssetUrl(assetNode.uuid);
+      console.log(`[NodeCard ${node.id}] Loading cover URL for asset:`, assetNode.uuid);
+      getAssetUrlAsync(assetNode.uuid).then(url => {
+        console.log(`[NodeCard ${node.id}] Cover URL loaded:`, url);
+        setCoverUrl(url);
+      });
+    } else {
+      console.log(`[NodeCard ${node.id}] No cover - coverImageId:`, coverImageId, 'assetNode:', assetNode);
+      setCoverUrl(null);
     }
-    return null;
-  }, [coverImageId, assetNode]);
+  }, [coverImageId, assetNode, node.id]);
   
   
   // Handle context menu
