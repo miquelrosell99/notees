@@ -141,6 +141,10 @@ export function filterNodesByHierarchy(
  * Resolve the parent ID for a hierarchical path when creating a new page
  * Creates intermediate pages if they don't exist
  * 
+ * IMPORTANT: Pages are matched by name AND parent_id at each level.
+ * Example: If you have "Company/Pokemon" and create "Pokemon/Charizard",
+ * a NEW root-level "Pokemon" page will be created (not reusing Company/Pokemon).
+ * 
  * @param pathSegments - Path segments (excluding the leaf/final page)
  * @param allPages - All available pages
  * @param createPageFn - Function to create a page (returns the created node)
@@ -158,7 +162,8 @@ export async function resolveHierarchicalParent(
   let currentParentId: number | null = null;
   
   for (const segment of pathSegments) {
-    // Try to find existing page with this name and parent
+    // Try to find existing page with this name AND parent at this level
+    // This ensures "Pokemon" under "Company" is different from "Pokemon" at root
     let existingNode = allPages.find(
       page => page.name === segment && page.parent_id === currentParentId
     );
@@ -177,6 +182,10 @@ export async function resolveHierarchicalParent(
 /**
  * Analyze a hierarchical path to determine which pages exist and which need to be created
  * Useful for showing path previews, validation, etc.
+ * 
+ * IMPORTANT: Pages are matched by name AND parent_id at each level.
+ * Example: If you have "Company/Pokemon" and analyze "Pokemon/Charizard",
+ * it will show Pokemon as "needs to be created" (not reusing Company/Pokemon).
  * 
  * @param path - The path string to analyze (e.g., "Pokemon/Charizard")
  * @param allPages - All available pages
@@ -199,6 +208,8 @@ export function analyzeHierarchicalPath(
   
   // Analyze parent segments
   for (const segment of parsed.parentSegments) {
+    // Look for page with this name AND parent at this level
+    // This ensures hierarchy is respected (Pokemon at root ≠ Company/Pokemon)
     const existingNode = allPages.find(
       page => page.name === segment && page.parent_id === currentParentId
     );
@@ -215,6 +226,7 @@ export function analyzeHierarchicalPath(
   // Optionally add the leaf segment
   if (includeLeaf) {
     // Check if leaf exists at the current parent level
+    // Again, respecting hierarchy: looks for name AND parent match
     const leafNode = allPages.find(
       page => page.name === parsed.leaf && page.parent_id === currentParentId
     );
