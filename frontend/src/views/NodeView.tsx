@@ -466,6 +466,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             pageId={node.id}
             bannerImageId={bannerImageId}
             onSelectImage={handleSelectBannerImage}
+            onImageUploaded={handleBannerImageUploaded}
             editable={true}
             height="medium"
           />
@@ -530,6 +531,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               pageId={node.id}
               coverImageId={coverImageId}
               onSelectImage={handleSelectCoverImage}
+              onImageUploaded={handleCoverImageUploaded}
               editable={true}
             />
           </div>

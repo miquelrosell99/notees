@@ -21,8 +21,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNode, useProperties, useSetNodeProperty } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import { getAssetUrl } from '@/api/assets';
+import { getAssetUrlAsync, uploadAsset, type Asset } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
@@ -76,6 +77,8 @@ interface BannerImageProps {
   bannerImageId: number | null;
   /** Callback to open asset picker */
   onSelectImage?: () => void;
+  /** Callback when image uploaded (for handling after drag-drop) */
+  onImageUploaded?: (asset: Asset) => void;
   /** Whether banner can be edited */
   editable?: boolean;
   /** Height variant */
@@ -86,12 +89,14 @@ export function BannerImage({
   pageId, 
   bannerImageId, 
   onSelectImage,
+  onImageUploaded,
   editable = true,
   height = 'medium'
 }: BannerImageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => getCollapsedState(pageId, !!bannerImageId));
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
   const { data: assetNode, isLoading } = useNode(bannerImageId, { include_children: false });
@@ -148,10 +153,78 @@ export function BannerImage({
     }
   }, [handleToggleCollapse]);
   
-  // Get the image URL from the asset node's uuid
-  const imageUrl = bannerImageId && assetNode?.uuid 
-    ? getAssetUrl(assetNode.uuid)
-    : null;
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, [editable]);
+  
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+  
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (!editable || !bannerProperty) return;
+    
+    try {
+      const result = await extractImageFromDragEvent(e);
+      if (result) {
+        const asset = await uploadAsset(result.file);
+        setPropertyMutation.mutate({
+          nodeId: pageId,
+          propertyId: bannerProperty.id,
+          value: asset.node_id
+        });
+        if (onImageUploaded) {
+          onImageUploaded(asset);
+        }
+        // Expand if collapsed after successful drop
+        if (isCollapsed) {
+          setIsCollapsed(false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to upload dropped banner:', error);
+    }
+  }, [editable, bannerProperty, pageId, setPropertyMutation, onImageUploaded, isCollapsed]);
+  
+  // State for the image URL (needs to be async to get token)
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  
+  // Get the image URL from the asset node's uuid (async with token)
+  useEffect(() => {
+    if (!bannerImageId || !assetNode?.uuid) {
+      setImageUrl(null);
+      return;
+    }
+    
+    let cancelled = false;
+    
+    getAssetUrlAsync(assetNode.uuid)
+      .then(url => {
+        if (!cancelled) {
+          setImageUrl(url);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load banner image URL:', err);
+        if (!cancelled) {
+          setImageUrl(null);
+        }
+      });
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [bannerImageId, assetNode?.uuid]);
   
   // Loading state
   if (bannerImageId && isLoading) {
@@ -192,9 +265,12 @@ export function BannerImage({
     // Expanded empty state - show add button
     return (
       <div 
-        className="banner-image banner-image--empty"
+        className={`banner-image banner-image--empty ${isDragging ? 'banner-image--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <Button
           variant="ghost"
@@ -261,21 +337,26 @@ export function BannerImage({
   return (
     <>
       <Card 
-        className={`banner-image banner-image--${height} banner-image--expanded`}
+        className={`banner-image banner-image--${height} banner-image--expanded ${isDragging ? 'banner-image--dragging' : ''}`}
         elevation="low"
         variant="default"
         padding={false}
         radius="md"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <img 
+          key={imageUrl}
           src={imageUrl} 
           alt="Banner" 
           className="banner-image__img"
           onClick={() => setIsModalOpen(true)}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
           title="Click to view full size"
+          draggable="false"
         />
         
         {editable && isHovered && (
