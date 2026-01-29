@@ -1,5 +1,14 @@
 """Node domain entity.
 
+Notees
+Copyright (C) 2026 Miquel Rosell Tarragó
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, version 3.
+
+See the LICENSE file for details.
+
 The Node is the core entity of Notees. Everything is a node:
 - Pages (nodes with is_page=1)
 - Blocks (nodes with a parent_id, always have page_id set)
