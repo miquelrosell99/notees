@@ -865,14 +865,13 @@ export function BlockEditor({
     if (allNodes && linkIds.length > 0) {
       const nodeIdMap = new Map(allNodes.map(n => [n.id, n]));
       const nodeUuidMap = new Map(allNodes.map(n => [n.uuid, n]));
-      const nodeNameMap = new Map(allNodes.map(n => [n.name, n]));
       
       for (const linkId of linkIds) {
         // linkId could be a node ID (number as string) - find the node
         const nodeId = parseInt(linkId, 10);
         const node = !isNaN(nodeId) 
           ? nodeIdMap.get(nodeId)
-          : nodeUuidMap.get(linkId) || nodeNameMap.get(linkId);
+          : nodeUuidMap.get(linkId) || allNodes.find(n => n.name === linkId);
         if (node) {
           // Compute effective icon using getEffectiveIcon - considers node's own icon and class icons
           const effectiveIcon = getEffectiveIcon(node, allClasses ?? []);
@@ -894,13 +893,12 @@ export function BlockEditor({
     if (allNodes && typeIds.length > 0) {
       const nodeIdMap = new Map(allNodes.map(n => [n.id, n]));
       const nodeUuidMap = new Map(allNodes.map(n => [n.uuid, n]));
-      const nodeNameMap = new Map(allNodes.map(n => [n.name, n]));
       
       for (const typeId of typeIds) {
         const nodeId = parseInt(typeId, 10);
         const node = !isNaN(nodeId) 
           ? nodeIdMap.get(nodeId)
-          : nodeUuidMap.get(typeId) || nodeNameMap.get(typeId);
+          : nodeUuidMap.get(typeId) || allNodes.find(n => n.name === typeId);
         if (node) {
           map.set(typeId, {
             name: node.name || 'Untitled',
