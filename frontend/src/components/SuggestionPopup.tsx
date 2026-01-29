@@ -223,7 +223,8 @@ export function SuggestionPopup({
   // Calculate indices for each section (accounting for selected items at top in multi-select)
   const selectedStartIndex = 0;
   const pageStartIndex = selectedCount;
-  const blockStartIndex = selectedCount + (multiSelect ? allItems.filter(i => pageResults.some(p => p.node.id === i.node.id)).length : pageResults.length);
+  const pageResultIds = new Set(pageResults.map(p => p.node.id));
+  const blockStartIndex = selectedCount + (multiSelect ? allItems.filter(i => pageResultIds.has(i.node.id)).length : pageResults.length);
   const createIndex = selectedCount + allItems.length;
   
   // Helper to get icon for item
