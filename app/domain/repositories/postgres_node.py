@@ -507,13 +507,45 @@ class PostgresNodeRepository(NodeRepository):
             params.append(data.collapsed)
             param_idx += 1
         
-        # Class flags
-        for flag in ['is_class', 'is_page', 'is_day', 'is_month', 'is_year', 
-                     'is_asset', 'is_template', 'is_comment']:
-            value = getattr(data, flag, None)
-            if value is not None:
-                set_clauses.append(f"{flag} = ${param_idx}")
-                params.append(value)
+        # If classes are being updated, recompute all flags from the new classes
+        if data.classes is not None:
+            from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+            
+            # Map system class UUIDs to flag names
+            class_uuid_to_flag = {
+                SYSTEM_CLASS_UUIDS["class"]: "is_class",
+                SYSTEM_CLASS_UUIDS["page"]: "is_page",
+                SYSTEM_CLASS_UUIDS["day"]: "is_day",
+                SYSTEM_CLASS_UUIDS["month"]: "is_month",
+                SYSTEM_CLASS_UUIDS["year"]: "is_year",
+                SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
+                SYSTEM_CLASS_UUIDS["template"]: "is_template",
+                SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
+            }
+            
+            # Reset all flags to False
+            flags = {
+                "is_class": False,
+                "is_page": False,
+                "is_day": False,
+                "is_month": False,
+                "is_year": False,
+                "is_asset": False,
+                "is_template": False,
+                "is_comment": False,
+            }
+            
+            # Get UUIDs for all classes being assigned
+            for class_id in data.classes:
+                class_node = await self.get_by_id(class_id)
+                if class_node and class_node.uuid in class_uuid_to_flag:
+                    flag_name = class_uuid_to_flag[class_node.uuid]
+                    flags[flag_name] = True
+            
+            # Add flag updates to SET clause
+            for flag_name, flag_value in flags.items():
+                set_clauses.append(f"{flag_name} = ${param_idx}")
+                params.append(flag_value)
                 param_idx += 1
         
         # Build WHERE clause
