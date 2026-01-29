@@ -269,8 +269,11 @@ class NodeService:
         flags = await self._compute_flags_from_classes(data.classes)
         is_page = flags.get('is_page', False)
         
-        # Handle hierarchical page creation (name contains '/')
-        if is_page and data.name and '/' in data.name and not data.parent_id:
+        # Disable hierarchical creation for date pages
+        is_date_page = flags.get('is_day', False) or flags.get('is_month', False) or flags.get('is_year', False)
+        
+        # Handle hierarchical page creation (name contains '/') - but not for date pages
+        if is_page and data.name and '/' in data.name and not data.parent_id and not is_date_page:
             return await self._create_hierarchical_page(data, user_id)
         
         # Validate input
