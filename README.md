@@ -5,7 +5,7 @@ A self-hosted, privacy-first note-taking application with bidirectional linking 
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![React](https://img.shields.io/badge/react-18-61dafb.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178c6.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 
 ## Features
 
@@ -192,7 +192,11 @@ Contributions are welcome! Please read the contributing guidelines before submit
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+Notees is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This ensures the software remains free and open-source, even when used over a network. If you modify and deploy Notees as a web service, you must make your source code available to users.
+
+See the [LICENSE](LICENSE) file for the full license text.
 
 ## Acknowledgments
 
