@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
 import { TrashIcon } from '../components/icons';
+import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useNodesStore } from '@/stores';
 import { getTrash } from '@/api/nodes';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -59,6 +60,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             viewMode={viewMode}
             editable={false}
             hideToolbar={true}
+            customContextMenu={TrashNodeContextMenu}
             onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
           />
         )}
