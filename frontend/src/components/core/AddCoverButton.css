@@ -51,6 +51,15 @@
   font-size: 1rem;
 }
 
+/* Dragging state */
+.add-cover-button--dragging {
+  background: var(--accent-bg);
+  border-color: var(--accent-color);
+  border-style: solid;
+  color: var(--accent-color);
+  transform: scale(1.05);
+}
+
 /* When in card context */
 .node-card__cover .add-cover-button {
   border-radius: 0;
@@ -60,4 +69,9 @@
 
 .node-card__cover .add-cover-button:hover {
   border-bottom-color: var(--accent-color);
+}
+
+.node-card__cover .add-cover-button--dragging {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
 }

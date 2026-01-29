@@ -12,6 +12,22 @@
   transition: height 0.25s ease, margin 0.25s ease, opacity 0.2s ease;
 }
 
+/* Dragging state */
+.banner-image--dragging {
+  outline: 2px dashed var(--accent-color);
+  outline-offset: -4px;
+  opacity: 0.9;
+}
+
+.banner-image--dragging::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--accent-bg);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 /* Bullet - positioned at top left of banner */
 .banner-image__bullet {
   position: absolute;

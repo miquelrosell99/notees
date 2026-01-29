@@ -8,6 +8,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { mdiClose } from '@mdi/js';
 import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '@/api/assets';
 import { Button } from '../core/Button';
+import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import './AssetUploadModal.css';
 
 interface AssetUploadModalProps {
@@ -179,13 +180,18 @@ export function AssetUploadModal({
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
 
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFile(file);
+    try {
+      const result = await extractImageFromDragEvent(e);
+      if (result) {
+        handleFile(result.file);
+      }
+    } catch (err) {
+      setError('Failed to process dropped image');
+      console.error('Failed to process dropped image:', err);
     }
   }, [handleFile]);
 
