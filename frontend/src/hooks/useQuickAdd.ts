@@ -14,7 +14,7 @@
  * - Hierarchical page creation support (e.g., "Page1/Page2")
  */
 import { useState, useCallback } from 'react';
-import { useCreateNode, usePages } from './useNodes';
+import { useCreateNode, usePages, usePageClass } from './useNodes';
 import { useNodesStore } from '@/stores';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 
@@ -87,6 +87,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   const createNodeMutation = useCreateNode();
   const { openNode } = useNodesStore();
   const { data: allPages = [] } = usePages();
+  const { pageClassId } = usePageClass();
 
   // Reset blocks to initial state
   const resetBlocks = useCallback(() => {
@@ -163,7 +164,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   // Create a new page (supports hierarchical paths like "Page1/Page2")
   const createPage = useCallback(
     async (name: string) => {
-      if (!name.trim()) return undefined;
+      if (!name.trim() || !pageClassId) return undefined;
       
       const trimmedName = name.trim();
       const parsed = parseHierarchicalPath(trimmedName);
@@ -178,7 +179,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
           async (segmentName, parentIdForCreation) => {
             return await createNodeMutation.mutateAsync({
               name: segmentName,
-              is_page: true,
+              classes: [pageClassId],
               parent_id: parentIdForCreation,
             });
           }
@@ -188,7 +189,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       // Create the final page with resolved parent
       const newPage = await createNodeMutation.mutateAsync({
         name: parsed.leaf || trimmedName,
-        is_page: true,
+        classes: [pageClassId],
         parent_id: parentId,
       });
       
