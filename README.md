@@ -187,7 +187,11 @@ Environment variables (or `.env` file):
 
 **⚠️ IMPORTANT: Before running in production, you MUST configure security settings!**
 
-#### 1. Generate a Secure SECRET_KEY
+#### Required Environment Variables
+
+Before running in production, you MUST configure:
+
+**1. SECRET_KEY** - A secure random string for JWT signing
 
 The `SECRET_KEY` is required and must be at least 32 characters:
 
@@ -204,9 +208,9 @@ Add the generated key to your `.env` file:
 SECRET_KEY=your-generated-secret-key-here
 ```
 
-#### 2. Set Admin Password
+**2. ADMIN_PASSWORD** - Initial admin password (optional)
 
-On first startup, if `ADMIN_PASSWORD` is not set, a random password will be generated and logged **once**. 
+On first startup, if `ADMIN_PASSWORD` is not set, a random password will be generated and logged **once**.
 
 **Option A:** Set a specific password (recommended):
 ```bash
@@ -217,8 +221,9 @@ ADMIN_PASSWORD=your-secure-password-here
 - Watch the logs on first startup
 - Save the generated password immediately
 - It will never be shown again!
+- Change this password after first login
 
-#### 3. Configure CORS
+**3. CORS_ORIGINS** - Allowed frontend origins
 
 For production, set specific allowed origins (never use `*`):
 
@@ -239,13 +244,15 @@ CORS_ORIGINS=http://localhost:5173
 
 Before deploying to production:
 
-- [ ] Set a strong `SECRET_KEY` (minimum 32 characters)
-- [ ] Set `ADMIN_PASSWORD` or save the generated password
+- [ ] Set strong `SECRET_KEY` (minimum 32 characters)
+- [ ] Set or note the admin password
 - [ ] Configure specific `CORS_ORIGINS` (never use `*`)
 - [ ] Enable HTTPS in production
-- [ ] Set up regular database backups
-- [ ] Review and configure log levels
+- [ ] Set up database backups (automatic with PostgreSQL)
+- [ ] Review rate limiting settings
 - [ ] Change default admin password after first login
+- [ ] Regularly update dependencies
+- [ ] Monitor application logs for security issues
 
 
 ## Contributing
