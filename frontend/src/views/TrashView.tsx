@@ -113,6 +113,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             nodes={nodes ?? []}
             viewMode={viewMode}
             editable={false}
+            showTypes={true}
             hideToolbar={true}
             customContextMenu={TrashNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}

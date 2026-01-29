@@ -291,6 +291,7 @@ function NodeListItem({
           onBulletClick={handleBulletClick}
           onShiftClick={handleShiftClick}
           showBullet={showBullets}
+          showTypes={showTypes}
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
           customContextMenuItems={generatedContextMenuItems}
