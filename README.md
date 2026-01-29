@@ -176,9 +176,77 @@ Environment variables (or `.env` file):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECRET_KEY` | (generated) | JWT signing key |
-| `ACCESS_TOKEN_EXPIRE_HOURS` | `24` | Token expiration |
+| `SECRET_KEY` | (required) | JWT signing key - must be set! |
+| `ADMIN_PASSWORD` | (generated) | Initial admin password |
+| `CORS_ORIGINS` | (empty) | Allowed CORS origins |
+| `ACCESS_TOKEN_EXPIRE_HOURS` | `168` | Token expiration (1 week) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `DATABASE_DIR` | `data` | Data storage directory |
+
+### Security Configuration
+
+**⚠️ IMPORTANT: Before running in production, you MUST configure security settings!**
+
+#### 1. Generate a Secure SECRET_KEY
+
+The `SECRET_KEY` is required and must be at least 32 characters:
+
+```bash
+# Generate a secure key
+python scripts/generate_secret_key.py
+
+# Or manually:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Add the generated key to your `.env` file:
+```bash
+SECRET_KEY=your-generated-secret-key-here
+```
+
+#### 2. Set Admin Password
+
+On first startup, if `ADMIN_PASSWORD` is not set, a random password will be generated and logged **once**. 
+
+**Option A:** Set a specific password (recommended):
+```bash
+ADMIN_PASSWORD=your-secure-password-here
+```
+
+**Option B:** Use the generated password:
+- Watch the logs on first startup
+- Save the generated password immediately
+- It will never be shown again!
+
+#### 3. Configure CORS
+
+For production, set specific allowed origins (never use `*`):
+
+```bash
+# Single origin
+CORS_ORIGINS=https://your-domain.com
+
+# Multiple origins
+CORS_ORIGINS=https://your-domain.com,https://app.your-domain.com
+```
+
+For development only:
+```bash
+CORS_ORIGINS=http://localhost:5173
+```
+
+#### Security Checklist
+
+Before deploying to production:
+
+- [ ] Set a strong `SECRET_KEY` (minimum 32 characters)
+- [ ] Set `ADMIN_PASSWORD` or save the generated password
+- [ ] Configure specific `CORS_ORIGINS` (never use `*`)
+- [ ] Enable HTTPS in production
+- [ ] Set up regular database backups
+- [ ] Review and configure log levels
+- [ ] Change default admin password after first login
+
 
 ## Contributing
 

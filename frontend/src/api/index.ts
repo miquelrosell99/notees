@@ -7,5 +7,6 @@ export * from './nodeViews';
 export * from './properties';
 export * from './databases';
 export * from './assets';
+export * from './assetTokens';
 export * from './activity';
 export { default as api } from './client';
