@@ -4,14 +4,16 @@
  * Displays pages that have been archived (active = false).
  * Fetches directly from the /archived endpoint instead of using query system.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
 import { useNodesStore } from '@/stores';
 import api from '@/api/client';
+import { unarchiveNode, deleteNode } from '@/api/nodes';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { useState } from 'react';
+import type { ContextMenuItem } from '@/components/core/ContextMenu';
+import { useState, useCallback, useMemo } from 'react';
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -21,6 +23,50 @@ interface ArchivedPagesViewProps {
 export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const { openNode } = useNodesStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const queryClient = useQueryClient();
+  
+  // Mutation for unarchiving nodes
+  const unarchiveMutation = useMutation({
+    mutationFn: unarchiveNode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+    },
+  });
+  
+  // Mutation for deleting nodes
+  const deleteMutation = useMutation({
+    mutationFn: deleteNode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+    },
+  });
+  
+  // Generate context menu items for archived nodes
+  const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
+    return [
+      {
+        label: 'Unarchive',
+        icon: 'mdi mdi-archive-arrow-up',
+        action: () => {
+          if (confirm('Unarchive this page?')) {
+            unarchiveMutation.mutate(node.id);
+          }
+          closeMenu();
+        },
+      },
+      {
+        label: 'Delete',
+        icon: 'mdi mdi-delete',
+        action: () => {
+          if (confirm('Delete this page permanently? This action cannot be undone.')) {
+            deleteMutation.mutate(node.id);
+          }
+          closeMenu();
+        },
+        danger: true,
+      },
+    ];
+  }, [unarchiveMutation, deleteMutation]);
   
   // Fetch archived pages directly from API
   const { data: nodes, isLoading, error } = useQuery({
@@ -65,6 +111,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             editable={false}
             hideToolbar={true}
             customContextMenu={ArchivedNodeContextMenu}
+            customContextMenuItems={generateContextMenuItems}
             onNodeClick={(node) => openNode(node.id, 'page')}
           />
         )}

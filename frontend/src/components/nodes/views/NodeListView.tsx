@@ -17,6 +17,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
+import type { ContextMenuItem } from '../../core/ContextMenu';
 import { Block } from '../../blocks/Block';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { Bullet } from '../../blocks/Bullet';
@@ -145,6 +146,8 @@ interface NodeListItemProps {
   isolatedBlockState?: boolean;
   /** Suppress color styling on this block (used when color is applied at container level) */
   suppressColor?: boolean;
+  /** Custom context menu items generator */
+  customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
 }
 
 function NodeListItem({
@@ -166,6 +169,7 @@ function NodeListItem({
   onContentChange,
   isolatedBlockState = false,
   suppressColor = false,
+  customContextMenuItems,
 }: NodeListItemProps) {
   const rawChildren = node.children ?? [];
   // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
@@ -211,6 +215,14 @@ function NodeListItem({
   const handleContentChange = useCallback((blockId: number, content: string) => {
     onContentChange?.(blockId, content);
   }, [onContentChange]);
+
+  // Generate custom context menu items if provided
+  const generatedContextMenuItems = useMemo(() => {
+    if (!customContextMenuItems) return undefined;
+    return customContextMenuItems(node, () => {
+      // closeMenu callback - handled by Block component internally
+    });
+  }, [customContextMenuItems, node]);
 
   // Editable mode: render full Block component
   if (editable) {
@@ -281,6 +293,7 @@ function NodeListItem({
           showBullet={showBullets}
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
+          customContextMenuItems={generatedContextMenuItems}
           {...blockProps}
         />
       </div>
@@ -323,6 +336,7 @@ function NodeListItem({
         canMove={false}
         canEdit={false}
         canSelect={false}
+        customContextMenuItems={generatedContextMenuItems}
       />
     </div>
   );
@@ -424,6 +438,7 @@ function GroupHeader({
               onNodeShiftClick={onNodeShiftClick}
               onContentChange={onContentChange}
               isolatedBlockState={isolatedBlockState}
+              customContextMenuItems={customContextMenuItems}
             />
           ))}
         </div>
@@ -457,6 +472,7 @@ export function NodeListView({
   className = '',
   isolatedBlockState = false,
   suppressRootColor = false,
+  customContextMenuItems,
 }: NodeListViewProps) {
   // If sortable, use ListSortable wrapper (no grouping in sortable mode)
   if (sortable && onReorder) {
@@ -520,6 +536,7 @@ export function NodeListView({
                 onNodeShiftClick={onNodeShiftClick}
                 onContentChange={onContentChange}
                 isolatedBlockState={isolatedBlockState}
+                customContextMenuItems={customContextMenuItems}
               />
             ))}
           </div>
@@ -579,6 +596,7 @@ export function NodeListView({
             onContentChange={onContentChange}
             isolatedBlockState={isolatedBlockState}
             suppressColor={shouldSuppressColor}
+            customContextMenuItems={customContextMenuItems}
           />
         );
       })}
