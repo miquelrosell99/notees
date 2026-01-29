@@ -44,7 +44,7 @@ export function useNode(
     include_properties?: boolean;
   }
 ) {
-  return useQuery({
+  const result = useQuery({
     queryKey: nodeKeys.detail(id ?? 0, options),
     queryFn: () => nodesApi.getNode(id!, options),
     enabled: !!id,
@@ -55,7 +55,30 @@ export function useNode(
     // need new references for React to detect the change and re-render.
     // Without this, Enter/Backspace at deep nesting levels won't update the UI.
     structuralSharing: false,
+    retry: (failureCount, error) => {
+      // Don't retry on 404 - node has been deleted
+      if ((error as any)?.response?.status === 404) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
+  
+  // If we get a 404 for the currently viewed node, navigate to home
+  if (result.error && (result.error as any)?.response?.status === 404 && id) {
+    const { useNodesStore } = require('@/stores');
+    const currentNodeId = useNodesStore.getState().currentNodeId;
+    if (currentNodeId === id) {
+      // Node was deleted, navigate away
+      useNodesStore.setState({ 
+        currentNodeId: null,
+        mainViewType: 'node'
+      });
+      window.history.replaceState(null, '', '/');
+    }
+  }
+  
+  return result;
 }
 
 /**
