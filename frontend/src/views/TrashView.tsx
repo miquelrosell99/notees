@@ -22,7 +22,7 @@ interface TrashViewProps {
 
 export function TrashView({ className = '' }: TrashViewProps) {
   const { openNode } = useNodesStore();
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const queryClient = useQueryClient();
   
   // Fetch trash directly from API
