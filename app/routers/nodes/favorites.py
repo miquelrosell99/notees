@@ -18,6 +18,7 @@ async def get_favorites(
     """Get the list of favorite page IDs.
     
     Favorites are stored as a JSON array of node IDs in the settings table.
+    Only returns IDs for nodes that are active (not deleted, not archived).
     """
     service = await _get_node_service(user)
     async with service._pool.acquire() as conn:
@@ -31,7 +32,23 @@ async def get_favorites(
     
     try:
         favorites = json.loads(row['value'])
-        return {"favorites": favorites if isinstance(favorites, list) else []}
+        if not isinstance(favorites, list):
+            return {"favorites": []}
+        
+        # Filter out deleted or archived nodes
+        async with service._pool.acquire() as conn:
+            valid_favorites = []
+            for node_id in favorites:
+                exists = await conn.fetchval("""
+                    SELECT 1 FROM node 
+                    WHERE id = $1 AND graph_id = $2 
+                          AND active = TRUE 
+                          AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """, node_id, service._graph_id)
+                if exists:
+                    valid_favorites.append(node_id)
+        
+        return {"favorites": valid_favorites}
     except json.JSONDecodeError:
         return {"favorites": []}
 
