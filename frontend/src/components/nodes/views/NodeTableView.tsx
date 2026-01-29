@@ -21,14 +21,13 @@ import { useNodesStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
 import { useProperties } from '@/hooks';
-import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
+import type { TableColumn, ExpandableConfig, ReorderableConfig } from '../../core/Table';
+import { Table } from '../../core/Table';
 import { Button } from '../../core/Button';
 import { Block } from '../../blocks/Block';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
-import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
-import { ContextMenu, type ContextMenuItem } from '../../core/ContextMenu';
 import './NodeTableView.css';
 
 // Custom column definition for node tables (external API)
@@ -37,16 +36,6 @@ interface NodeTableColumn {
   label: string;
   width?: string;
   render?: (node: Node) => ReactNode;
-}
-
-/**
- * Format a date string using user's date format preference
- */
-function formatDateString(dateStr: string | undefined | null, userDateFormat: string): string {
-  if (!dateStr || dateStr === '') return '—';
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return '—';
-  return formatDateWithFormat(date, userDateFormat as any);
 }
 
 /**
@@ -109,8 +98,6 @@ export function NodeTableView({
   onNodeShiftClick,
   onContentChange,
   propertyUuids = [],
-  customContextMenu,
-  customContextMenuItems,
   className = '',
 }: NodeTableViewProps) {
   // Get block callbacks from context (for editable mode)
@@ -122,38 +109,8 @@ export function NodeTableView({
   // Get user's date format preference
   const dateFormat = useSettingsStore((state) => state.dateFormat);
   
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ 
-    node: Node; 
-    position: { x: number; y: number }; 
-    isMultiSelect: boolean;
-    selectedNodes: Node[];
-  } | null>(null);
-  
   // Internal selection state (used when not controlled)
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
-  
-  // Handle context menu on row right-click
-  const handleRowContextMenu = useCallback((node: Node, event: React.MouseEvent) => {
-    const isNodeSelected = selectedIds.has(node.id);
-    const isMultiSelect = isNodeSelected && selectedIds.size > 1;
-    
-    // Get all selected nodes if multi-select
-    const selectedNodes = isMultiSelect 
-      ? nodes.filter(n => selectedIds.has(n.id))
-      : [node];
-    
-    setContextMenu({ 
-      node, 
-      position: { x: event.clientX, y: event.clientY },
-      isMultiSelect,
-      selectedNodes,
-    });
-  }, [selectedIds, nodes]);
-  
-  const handleCloseContextMenu = useCallback(() => {
-    setContextMenu(null);
-  }, []);
   
   // Use controlled or internal selection state
   const selectedIds = controlledSelectedIds ?? internalSelectedIds;
@@ -271,37 +228,40 @@ export function NodeTableView({
   }, [openNode, addSidebarCard]);
 
   // Create date column renderer with action buttons
-  const dateColumnRenderer = useCallback((dateField: 'create_date' | 'write_date') => (node: Node) => {
+  const dateColumnRenderer = useCallback((dateField: 'create_date' | 'write_date') => (node: Node): ReactNode => {
     const dateStr = node[dateField];
-    return (String(dateStr, dateFormat
+    if (!dateStr || dateStr === '') return '—';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '—';
+    const formattedDate = formatDateWithFormat(date, dateFormat as any);
+    
+    return (
       <div className="node-table__date-cell">
         <span className="node-table__date">
-          {formatDate(dateStr)}
+          {formattedDate}
         </span>
-        {dateStr && dateStr !== '' && (
-          <div className="node-table__actions">
-            <Button
-              icon={mdiDockRight}
-              variant="ghost"
-              size="xs"
-              title="Open day in sidebar"
-              onClick={(e) => {
-                e.stopPropagation();
-                openDailyPage(dateStr, true);
-              }}
-            />
-            <Button
-              icon={mdiArrowRight}
-              variant="ghost"
-              size="xs"
-              title="Open day"
-              onClick={(e) => {
-                e.stopPropagation();
-                openDailyPage(dateStr, false);
-              }}
-            />
-          </div>
-        )}
+        <div className="node-table__actions">
+          <Button
+            icon={mdiDockRight}
+            variant="ghost"
+            size="xs"
+            title="Open day in sidebar"
+            onClick={(e) => {
+              e.stopPropagation();
+              openDailyPage(dateStr, true);
+            }}
+          />
+          <Button
+            icon={mdiArrowRight}
+            variant="ghost"
+            size="xs"
+            title="Open day"
+            onClick={(e) => {
+              e.stopPropagation();
+              openDailyPage(dateStr, false);
+            }}
+          />
+        </div>
       </div>
     );
   }, [openDailyPage, dateFormat]);
@@ -310,11 +270,11 @@ export function NodeTableView({
   const { data: allProperties = [] } = useProperties();
   
   // Generate property columns from propertyUuids
-  const propertyColumns = useMemo(() => {
+  const propertyColumns = useMemo<NodeTableColumn[]>(() => {
     if (!propertyUuids.length) return [];
     
     return propertyUuids
-      .map(uuid => {
+      .map((uuid: string): NodeTableColumn | null => {
         const property = allProperties.find(p => p.uuid === uuid);
         if (!property) return null;
         
@@ -322,7 +282,7 @@ export function NodeTableView({
           key: `property_${property.id}`,
           label: property.icon ? `${property.icon} ${property.name}` : property.name,
           width: '150px',
-          render: (node: Node) => {
+          render: (node: Node): ReactNode => {
             const value = node.properties?.[property.uuid];
             return (
               <PropertyCell
@@ -335,11 +295,11 @@ export function NodeTableView({
           },
         };
       })
-      .filter((col) => col !== null) as NodeTableColumn[];
+      .filter((col): col is NodeTableColumn => col !== null);
   }, [propertyUuids, allProperties, editable]);
   
   // Convert node columns to Table columns, injecting column renderers
-  const nodeColumns = useMemo(() => {
+  const nodeColumns = useMemo<NodeTableColumn[]>(() => {
     const cols = customColumns ?? getDefaultColumns();
     // Inject renderers for special columns
     const baseColumns = cols.map(col => {
@@ -353,6 +313,8 @@ export function NodeTableView({
     // Add property columns after base columns
     return [...baseColumns, ...propertyColumns];
   }, [customColumns, nameColumnRenderer, dateColumnRenderer, propertyColumns]);
+  
+  // Convert NodeTableColumn to TableColumn<Node>
   const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
   
   // Convert Set<number> to Set<string | number> for Table component
@@ -379,103 +341,22 @@ export function NodeTableView({
   }, [sortable, onReorder]);
 
   return (
-    <>
-      <Table<Node>
-        data={nodes}
-        columns={tableColumns}
-        getRowKey={(node) => node.id}
-        size="md"
-        variant="bordered"
-        selectable={selectable}
-        selectedKeys={selectedKeys}
-        onSelectionChange={handleSelectionChange}
-        onRowClick={onNodeClick}
-        onRowShiftClick={onNodeShiftClick}
-        onRowContextMenu={handleRowContextMenu}
-        expandable={expandableConfig}
-        reorderable={reorderableConfig}
-        depth={depth}
-        className={`node-table-view ${className}`}
-        getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
-      />
-      
-      {/* Context menu */}
-      {contextMenu && (() => {
-        // Multi-select context menu
-        if (contextMenu.isMultiSelect) {
-          const selectedCount = contextMenu.selectedNodes.length;
-          const menuItems: ContextMenuItem[] = [
-            {
-              id: 'open-sidebar',
-              label: `Open ${selectedCount} in Sidebar`,
-              icon: 'mdi mdi-dock-right',
-              onClick: () => {
-                const nodeIds = contextMenu.selectedNodes.map(n => n.id);
-                addSidebarCard(nodeIds[0], contextMenu.selectedNodes[0].is_page ? 'page' : 'block');
-                for (let i = 1; i < nodeIds.length; i++) {
-                  addSidebarCard(nodeIds[i], contextMenu.selectedNodes[i].is_page ? 'page' : 'block');
-                }
-                handleCloseContextMenu();
-              },
-            },
-            { id: 'sep-1', label: '', separator: true },
-            {
-              id: 'delete',
-              label: `Delete ${selectedCount} Nodes`,
-              icon: 'mdi mdi-delete',
-              danger: true,
-              onClick: () => {
-                if (confirm(`Delete ${selectedCount} selected nodes?`)) {
-                  // Import deleteNode from hooks if not already available
-                  contextMenu.selectedNodes.forEach(node => {
-                    // Will need to implement batch delete
-                    console.log('Delete node:', node.id);
-                  });
-                }
-                handleCloseContextMenu();
-              },
-            },
-          ];
-          
-          return (
-            <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: contextMenu.position.x, top: contextMenu.position.y, zIndex: 1000 }}>
-              <ContextMenu
-                items={menuItems}
-                position={{ x: 0, y: 0 }}
-                onClose={handleCloseContextMenu}
-              />
-            </div>
-          );
-        }
-        
-        // Single node context menu
-        if (customContextMenu) {
-          const CustomContextMenu = customContextMenu;
-          return (
-            <CustomContextMenu
-              node={contextMenu.node}
-              position={contextMenu.position}
-              onClose={handleCloseContextMenu}
-            />
-          );
-        } else if (contextMenu.node.is_page) {
-          return (
-            <PageContextMenu
-              node={contextMenu.node}
-              position={contextMenu.position}
-              onClose={handleCloseContextMenu}
-            />
-          );
-        } else {
-          return (
-            <BlockContextMenu
-              node={contextMenu.node}
-              position={contextMenu.position}
-              onClose={handleCloseContextMenu}
-            />
-          );
-        }
-      })()}
-    </>
+    <Table<Node>
+      data={nodes}
+      columns={tableColumns}
+      getRowKey={(node) => node.id}
+      size="md"
+      variant="bordered"
+      selectable={selectable}
+      selectedKeys={selectedKeys}
+      onSelectionChange={handleSelectionChange}
+      onRowClick={onNodeClick}
+      onRowShiftClick={onNodeShiftClick}
+      expandable={expandableConfig}
+      reorderable={reorderableConfig}
+      depth={depth}
+      className={`node-table-view ${className}`}
+      getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
+    />
   );
 }
