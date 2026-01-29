@@ -863,12 +863,16 @@ export function BlockEditor({
   const linkNames = useMemo(() => {
     const map = new Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; effectiveIcon?: string | null }>();
     if (allNodes && linkIds.length > 0) {
+      const nodeIdMap = new Map(allNodes.map(n => [n.id, n]));
+      const nodeUuidMap = new Map(allNodes.map(n => [n.uuid, n]));
+      const nodeNameMap = new Map(allNodes.map(n => [n.name, n]));
+      
       for (const linkId of linkIds) {
         // linkId could be a node ID (number as string) - find the node
         const nodeId = parseInt(linkId, 10);
         const node = !isNaN(nodeId) 
-          ? allNodes.find(n => n.id === nodeId)
-          : allNodes.find(n => n.uuid === linkId || n.name === linkId);
+          ? nodeIdMap.get(nodeId)
+          : nodeUuidMap.get(linkId) || nodeNameMap.get(linkId);
         if (node) {
           // Compute effective icon using getEffectiveIcon - considers node's own icon and class icons
           const effectiveIcon = getEffectiveIcon(node, allClasses ?? []);
@@ -888,11 +892,15 @@ export function BlockEditor({
   const typeNames = useMemo(() => {
     const map = new Map<string, { name: string; icon?: string }>();
     if (allNodes && typeIds.length > 0) {
+      const nodeIdMap = new Map(allNodes.map(n => [n.id, n]));
+      const nodeUuidMap = new Map(allNodes.map(n => [n.uuid, n]));
+      const nodeNameMap = new Map(allNodes.map(n => [n.name, n]));
+      
       for (const typeId of typeIds) {
         const nodeId = parseInt(typeId, 10);
         const node = !isNaN(nodeId) 
-          ? allNodes.find(n => n.id === nodeId)
-          : allNodes.find(n => n.uuid === typeId || n.name === typeId);
+          ? nodeIdMap.get(nodeId)
+          : nodeUuidMap.get(typeId) || nodeNameMap.get(typeId);
         if (node) {
           map.set(typeId, {
             name: node.name || 'Untitled',
