@@ -21,7 +21,7 @@ export function useHierarchicalPath(
   path: string,
   includeLeaf: boolean = true
 ): HierarchicalPathAnalysis | null {
-  const { data: allPages } = usePages();
+  const { data: allPages } = usePages({ includeChildren: true });
   
   return useMemo(() => {
     if (!path.trim() || !allPages) return null;
