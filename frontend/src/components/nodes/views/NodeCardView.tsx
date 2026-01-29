@@ -329,15 +329,24 @@ function NodeCard({
         // Invalidate node queries to refetch and show the cover
         queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
         
+        // Invalidate view queries that might contain this node
+        queryClient.invalidateQueries({ queryKey: ['node-view-query'] });
+        queryClient.invalidateQueries({ queryKey: ['pseudo-node-query'] });
+        
         // Also invalidate the parent page query so it refetches children with updated properties
         if (node.page_id) {
           queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.page_id) });
+        }
+        
+        // Invalidate the parent node if this is a child (for hierarchical views)
+        if (node.parent_id) {
+          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.parent_id) });
         }
       } catch (error) {
         console.error('Failed to set cover property:', error);
       }
     }
-  }, [coverProperty, node.id, node.page_id, setNodeProperty, queryClient]);
+  }, [coverProperty, node.id, node.page_id, node.parent_id, setNodeProperty, queryClient]);
 
   // Handle drag start from header
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
