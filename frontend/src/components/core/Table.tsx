@@ -85,6 +85,8 @@ export interface TableProps<T> {
   onRowClick?: (row: T) => void;
   /** Row shift+click handler */
   onRowShiftClick?: (row: T) => void;
+  /** Row context menu handler */
+  onRowContextMenu?: (row: T, event: React.MouseEvent) => void;
   /** Whether the table is loading */
   loading?: boolean;
   /** Empty state content */
@@ -138,6 +140,7 @@ export function Table<T>({
   onSelectionChange,
   onRowClick,
   onRowShiftClick,
+  onRowContextMenu,
   loading = false,
   emptyContent = 'No data',
   caption,
@@ -242,6 +245,13 @@ export function Table<T>({
       onRowClick?.(row);
     }
   }, [onRowClick, onRowShiftClick]);
+
+  const handleRowContextMenu = useCallback((row: T, e: React.MouseEvent) => {
+    if (onRowContextMenu) {
+      e.preventDefault();
+      onRowContextMenu(row, e);
+    }
+  }, [onRowContextMenu]);
 
   // Measure row height for drag calculation
   useEffect(() => {
@@ -393,6 +403,7 @@ export function Table<T>({
         <tr
           className={rowClasses}
           onClick={(e) => handleRowClick(row, e)}
+          onContextMenu={(e) => handleRowContextMenu(row, e)}
         >
           {/* Drag handle - positioned element to the left of row */}
           {reorderable && currentDepth === depth && (
