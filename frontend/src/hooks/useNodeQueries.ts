@@ -4,6 +4,7 @@
  * Read-only React Query hooks for fetching node data.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
 
@@ -57,7 +58,7 @@ export function useNode(
     structuralSharing: false,
     retry: (failureCount, error) => {
       // Don't retry on 404 - node has been deleted
-      if ((error as any)?.response?.status === 404) {
+      if (isAxiosError(error) && error.response?.status === 404) {
         return false;
       }
       return failureCount < 1;
@@ -66,7 +67,7 @@ export function useNode(
   
   // If we get a 404 for the currently viewed node, navigate to home
   // Note: We need to use dynamic import here to avoid circular dependency
-  if (result.error && (result.error as any)?.response?.status === 404 && id) {
+  if (result.error && isAxiosError(result.error) && result.error.response?.status === 404 && id) {
     import('@/stores').then(({ useNodesStore }) => {
       const currentNodeId = useNodesStore.getState().currentNodeId;
       if (currentNodeId === id) {

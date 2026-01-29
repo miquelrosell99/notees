@@ -224,7 +224,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
       
       <div className="calendar-days">
         {days.map((day, index) => (
-          <div key={index} className="calendar-day-cell">
+          <div key={`day-${currentYear}-${currentMonth}-${day || index}`} className="calendar-day-cell">
             {day && (
               <Button
                 variant="ghost"
