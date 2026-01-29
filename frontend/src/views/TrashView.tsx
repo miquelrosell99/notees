@@ -3,14 +3,17 @@
  * 
  * Fetches directly from the /trash endpoint instead of using query system.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
 import { TrashIcon } from '../components/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useNodesStore } from '@/stores';
-import { getTrash } from '@/api/nodes';
+import { getTrash, restoreNode, permanentDeleteNode } from '@/api/nodes';
+import { nodeKeys } from '@/hooks/useNodes';
+import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { useState } from 'react';
+import type { ContextMenuItem } from '@/components/core/ContextMenu';
+import { useState, useCallback } from 'react';
 import './TrashView.css';
 
 interface TrashViewProps {
@@ -20,12 +23,63 @@ interface TrashViewProps {
 export function TrashView({ className = '' }: TrashViewProps) {
   const { openNode } = useNodesStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const queryClient = useQueryClient();
   
   // Fetch trash directly from API
   const { data: nodes, isLoading, error } = useQuery({
     queryKey: ['trash'],
     queryFn: getTrash,
   });
+  
+  // Mutations for restore and delete
+  const restoreMutation = useMutation({
+    mutationFn: restoreNode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trash'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+    },
+  });
+  
+  const permanentDeleteMutation = useMutation({
+    mutationFn: permanentDeleteNode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trash'] });
+    },
+  });
+  
+  // Generate context menu items for trash nodes
+  const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
+    return [
+      {
+        id: 'restore',
+        label: 'Restore',
+        onClick: () => {
+          restoreMutation.mutate(node.id);
+          closeMenu();
+        },
+      },
+      {
+        id: 'copy-uuid',
+        label: 'Copy UUID',
+        onClick: () => {
+          navigator.clipboard.writeText(node.uuid);
+          closeMenu();
+        }
+      },
+      { id: 'sep-1', label: '', separator: true },
+      {
+        id: 'permanent-delete',
+        label: 'Delete Permanently',
+        danger: true,
+        onClick: () => {
+          if (confirm(`Permanently delete "${node.name || 'Untitled'}"? This cannot be undone.`)) {
+            permanentDeleteMutation.mutate(node.id);
+          }
+          closeMenu();
+        },
+      },
+    ];
+  }, [restoreMutation, permanentDeleteMutation]);
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
@@ -61,6 +115,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             editable={false}
             hideToolbar={true}
             customContextMenu={TrashNodeContextMenu}
+            customContextMenuItems={generateContextMenuItems}
             onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
           />
         )}

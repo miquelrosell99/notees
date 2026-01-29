@@ -96,6 +96,8 @@ interface BlockProps {
   isolatedState?: boolean;
   /** Suppress the block's own color styling (used when color is applied at container level, e.g., focused blocks) */
   suppressColor?: boolean;
+  /** Custom context menu items to override default menu */
+  customContextMenuItems?: ContextMenuItem[];
 }
 
 // Internal component function - use Block or MemoizedBlock exports
@@ -130,6 +132,7 @@ function BlockInternal({
   showChildren = true,
   isolatedState = false,
   suppressColor = false,
+  customContextMenuItems,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1703,7 +1706,7 @@ function BlockInternal({
             }} 
           />
           <ContextMenu
-            items={contextMenuItems}
+            items={customContextMenuItems ?? contextMenuItems}
             position={{ x: 0, y: 0 }}
             onClose={handleCloseContextMenu}
           />
