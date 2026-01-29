@@ -12,10 +12,11 @@ For node operations, use:
 """
 from pathlib import Path
 from typing import Optional, Dict, List, Any
+import shutil
 
 from .config import settings
 from .logging_config import get_logger
-from .db.connection import get_connection, DATA_DIR
+from .db.connection import get_connection, DATA_DIR, get_graph_dir
 from .db.schema.init import seed_graph
 
 logger = get_logger(__name__)
@@ -250,6 +251,7 @@ async def delete_graph(user_id: str, name: str) -> bool:
     """Delete a graph.
     
     Only the graph owner can delete it. This is a hard delete.
+    Deletes both the database record and the associated assets folder.
     
     Args:
         user_id: User ID (must be owner)
@@ -263,7 +265,18 @@ async def delete_graph(user_id: str, name: str) -> bool:
         return False
     
     async with get_connection() as conn:
-        # Only owner can delete
+        # First, get the graph UUID before deletion
+        graph_row = await conn.fetchrow(
+            "SELECT uuid FROM graph WHERE create_uid = $1 AND name = $2",
+            numeric_user_id, name
+        )
+        
+        if not graph_row:
+            return False
+        
+        graph_uuid = str(graph_row['uuid'])
+        
+        # Delete the graph from database (CASCADE will delete related data)
         result = await conn.execute(
             "DELETE FROM graph WHERE create_uid = $1 AND name = $2",
             numeric_user_id, name
@@ -271,9 +284,20 @@ async def delete_graph(user_id: str, name: str) -> bool:
         
         deleted = result.split()[-1] != '0'
         
-        # Clear from active tracking
-        if deleted and _active_graphs.get(user_id) == name:
-            del _active_graphs[user_id]
+        if deleted:
+            # Delete the graph folder (assets, exports, etc.)
+            graph_dir = get_graph_dir(graph_uuid)
+            if graph_dir.exists():
+                try:
+                    shutil.rmtree(graph_dir)
+                    logger.info(f"Deleted graph folder: {graph_dir}")
+                except Exception as e:
+                    logger.error(f"Failed to delete graph folder {graph_dir}: {e}", exc_info=True)
+                    # Continue even if folder deletion fails
+            
+            # Clear from active tracking
+            if _active_graphs.get(user_id) == name:
+                del _active_graphs[user_id]
         
         return deleted
 

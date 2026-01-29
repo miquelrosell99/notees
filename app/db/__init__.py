@@ -16,6 +16,8 @@ from .connection import (
     get_transaction,
     get_pool_stats,
     get_graph_assets_dir,
+    get_graph_uuid,
+    get_graph_dir,
     get_export_dir,
     DATA_DIR,
 )
@@ -44,6 +46,8 @@ __all__ = [
     "get_transaction",
     "get_pool_stats",
     "get_graph_assets_dir",
+    "get_graph_uuid",
+    "get_graph_dir",
     "get_export_dir",
     "DATA_DIR",
     # Schema - new graph terminology
