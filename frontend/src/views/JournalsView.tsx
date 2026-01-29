@@ -48,6 +48,9 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
   const { data: dailyPages, isLoading, error } = useExistingDailyPages();
   const [visibleCount, setVisibleCount] = useState(10);
   
+  // Debug logging
+  console.log('[JournalsView] dailyPages:', dailyPages, 'isLoading:', isLoading, 'error:', error);
+  
   // Sort daily pages in descending order (newest first)
   const sortedPages = useMemo(() => {
     if (!dailyPages) return [];
