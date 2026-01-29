@@ -117,6 +117,7 @@ interface NodesState {
   closeSidebarNode: () => void;
   /** Add a card to the sidebar (shift-click behavior) */
   addSidebarCard: (nodeId: number, cardType: SidebarCardType) => void;
+  addSidebarCards: (nodeIds: number[], cardType: SidebarCardType) => void;
   /** Remove a specific card from the sidebar */
   removeSidebarCard: (cardId: number) => void;
   /** Clear all sidebar cards */
@@ -229,6 +230,35 @@ export const useNodesStore = create<NodesState>()(persist((set, get) => ({
     };
     return { 
       sidebarCards: [newCard, ...state.sidebarCards],
+      rightSidebarOpen: true,
+      rightSidebarContent: 'node',
+    };
+  }),
+  addSidebarCards: (nodeIds, cardType) => set((state) => {
+    const baseTime = Date.now();
+    const newCards: SidebarCard[] = [];
+    const existingCards = [...state.sidebarCards];
+    
+    nodeIds.forEach((nodeId, index) => {
+      // Check if card already exists
+      const existingIndex = existingCards.findIndex(c => c.nodeId === nodeId && c.cardType === cardType);
+      if (existingIndex >= 0) {
+        // Update timestamp and move to top
+        const existing = existingCards.splice(existingIndex, 1)[0];
+        newCards.push({ ...existing, addedAt: baseTime + index });
+      } else {
+        // Create new card
+        newCards.push({
+          id: baseTime + index,
+          nodeId,
+          cardType,
+          addedAt: baseTime + index,
+        });
+      }
+    });
+    
+    return {
+      sidebarCards: [...newCards, ...existingCards],
       rightSidebarOpen: true,
       rightSidebarContent: 'node',
     };
