@@ -1,6 +1,10 @@
 """
 Migrate assets from flat structure to per-asset folders.
 
+HISTORICAL SCRIPT: This script was used for the initial folder structure migration.
+Note: As of the UUID-based graph folders update, asset paths are now:
+  graphs/{graph_uuid}/assets/{uuid}/{uuid}.{ext}
+
 This script migrates the asset storage structure from:
   graphs/{graph_id}/assets/{uuid}.{ext}
 
