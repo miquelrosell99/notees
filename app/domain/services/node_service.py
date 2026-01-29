@@ -10,6 +10,7 @@ from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
 from ..validation import validate_node_create, validate_node_update, ValidationError
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+from ...db.connection import get_graph_uuid
 from ...logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -632,9 +633,14 @@ class NodeService:
         if node.is_asset and node.uuid:
             try:
                 from ...domain.services.asset_service import AssetService
-                asset_service = AssetService(self._graph_id)
-                asset_service.delete_asset(node.uuid)
-                logger.info(f"[DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
+                # Get graph UUID for asset storage
+                graph_uuid = await get_graph_uuid(self._graph_id)
+                if graph_uuid:
+                    asset_service = AssetService(graph_uuid)
+                    asset_service.delete_asset(node.uuid)
+                    logger.info(f"[DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
+                else:
+                    logger.error(f"[DELETE] Could not get graph UUID for graph_id {self._graph_id}")
             except Exception as e:
                 logger.error(f"[DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
                 # Continue with soft-delete even if asset deletion fails

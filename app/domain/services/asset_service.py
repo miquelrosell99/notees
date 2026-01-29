@@ -61,9 +61,9 @@ class AssetService:
     Enforces atomic operations and maintains asset invariants.
     """
     
-    def __init__(self, graph_id: int):
-        self.graph_id = graph_id
-        self.assets_dir = get_graph_assets_dir(graph_id)
+    def __init__(self, graph_uuid: str):
+        self.graph_uuid = graph_uuid
+        self.assets_dir = get_graph_assets_dir(graph_uuid)
         self.assets_dir.mkdir(parents=True, exist_ok=True)
     
     def get_asset_folder(self, asset_uuid: str) -> Path:

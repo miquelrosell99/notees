@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from jose import jwt
 
-from ..db.connection import get_pool, get_graph_assets_dir
+from ..db.connection import get_pool, get_graph_assets_dir, get_graph_uuid
 from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
@@ -147,12 +147,12 @@ async def get_user_from_asset_token(asset_token: str, asset_uuid: str) -> Option
     return User(**user_data)
 
 
-def get_asset_path(graph_id: int, asset_uuid: str, extension: str) -> Path:
+def get_asset_path(graph_uuid: str, asset_uuid: str, extension: str) -> Path:
     """Get the file path for an asset in per-asset folder structure.
     
-    Structure: graphs/{graph_id}/assets/{asset_uuid}/{asset_uuid}.{extension}
+    Structure: graphs/{graph_uuid}/assets/{asset_uuid}/{asset_uuid}.{extension}
     """
-    assets_dir = get_graph_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_uuid)
     asset_folder = assets_dir / asset_uuid
     asset_folder.mkdir(parents=True, exist_ok=True)
     return asset_folder / f"{asset_uuid}{extension}"
@@ -264,11 +264,16 @@ async def upload_asset(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
+    # Get graph UUID for asset storage
+    graph_uuid = await get_graph_uuid(graph_id)
+    if not graph_uuid:
+        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    
     try:
         page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
         
         # Initialize AssetService
-        asset_service = AssetService(graph_id)
+        asset_service = AssetService(graph_uuid)
         
         # Create asset using service (ATOMIC OPERATION)
         # This creates folder + writes file before we create node
@@ -454,7 +459,12 @@ async def get_asset(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    assets_dir = get_graph_assets_dir(graph_id)
+    # Get graph UUID for asset storage
+    graph_uuid = await get_graph_uuid(graph_id)
+    if not graph_uuid:
+        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    
+    assets_dir = get_graph_assets_dir(graph_uuid)
     asset_folder = assets_dir / asset_uuid
     
     # Check if asset folder exists
@@ -522,7 +532,12 @@ async def get_asset_thumbnail(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    asset_service = AssetService(graph_id)
+    # Get graph UUID for asset storage
+    graph_uuid = await get_graph_uuid(graph_id)
+    if not graph_uuid:
+        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    
+    asset_service = AssetService(graph_uuid)
     thumbnail_path = asset_service.get_thumbnail_path(asset_uuid)
     
     if not thumbnail_path.exists():
@@ -606,12 +621,17 @@ async def delete_asset(
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
+    # Get graph UUID for asset storage
+    graph_uuid = await get_graph_uuid(graph_id)
+    if not graph_uuid:
+        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    
     # Delete the node first (references must be cleaned up)
     if node.id:
         await node_repo.delete(node.id)
     
     # Then delete the asset folder (failures logged, not raised)
-    asset_service = AssetService(graph_id)
+    asset_service = AssetService(graph_uuid)
     asset_service.delete_asset(asset_uuid)
     
     logger.info(f"Deleted asset {asset_uuid} for user {user_id}")
@@ -645,8 +665,13 @@ async def list_assets(
     end = start + page_size
     paged_nodes = nodes[start:end]
     
+    # Get graph UUID for asset storage
+    graph_uuid = await get_graph_uuid(graph_id)
+    if not graph_uuid:
+        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    
     assets = []
-    assets_dir = get_graph_assets_dir(graph_id)
+    assets_dir = get_graph_assets_dir(graph_uuid)
     
     for node in paged_nodes:
         # Find the file for this asset
