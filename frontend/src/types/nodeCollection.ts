@@ -191,6 +191,13 @@ export interface NodeCollectionProps {
   
   /** Called when property column selection changes */
   onPropertyColumnsChange?: (propertyUuids: string[]) => void;
+  
+  /** Custom context menu component to use instead of default PageContextMenu/BlockContextMenu */
+  customContextMenu?: React.ComponentType<{
+    node: Node;
+    position: { x: number; y: number };
+    onClose: () => void;
+  }>;
 }
 
 // ==================== View-Specific Props ====================
@@ -231,6 +238,13 @@ export interface NodeCollectionViewBaseProps {
   
   /** Suppress color styling on root-level nodes (used when color is applied at container level) */
   suppressRootColor?: boolean;
+  
+  /** Custom context menu component to use instead of default PageContextMenu/BlockContextMenu */
+  customContextMenu?: React.ComponentType<{
+    node: Node;
+    position: { x: number; y: number };
+    onClose: () => void;
+  }>;
 }
 
 /**

@@ -60,6 +60,11 @@ interface NodeCardProps {
   onContentChange?: (nodeId: number, content: string) => void;
   onDragStart?: (index: number) => void;
   onSelectionChange?: (nodeId: number, selected: boolean) => void;
+  customContextMenu?: React.ComponentType<{
+    node: Node;
+    position: { x: number; y: number };
+    onClose: () => void;
+  }>;
 }
 
 /**
@@ -80,6 +85,7 @@ function NodeCard({
   onNodeShiftClick,
   onDragStart,
   onSelectionChange,
+  customContextMenu,
 }: NodeCardProps) {
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
@@ -327,7 +333,7 @@ function NodeCard({
   ].filter(Boolean).join(' ');
 
   // Choose appropriate context menu based on node type
-  const ContextMenuComponent = node.is_page ? PageContextMenu : BlockContextMenu;
+  const ContextMenuComponent = customContextMenu ?? (node.is_page ? PageContextMenu : BlockContextMenu);
 
   return (
     <>
@@ -817,6 +823,7 @@ export function NodeCardView({
   onNodeShiftClick,
   onContentChange,
   onAdd,
+  customContextMenu,
   className = '',
 }: NodeCardViewProps) {
   // Get card size from store
@@ -936,6 +943,7 @@ export function NodeCardView({
           onContentChange={onContentChange}
           onDragStart={handleDragStart}
           onSelectionChange={selectable ? handleCardSelectionChange : undefined}
+          customContextMenu={customContextMenu}
         />
       ))}
       {editable && onAdd && (

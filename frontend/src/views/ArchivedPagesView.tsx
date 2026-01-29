@@ -6,6 +6,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
+import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
 import { useNodesStore } from '@/stores';
 import api from '@/api/client';
 import type { Node } from '@/types/api';
@@ -63,6 +64,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             viewMode={viewMode}
             editable={false}
             hideToolbar={true}
+            customContextMenu={ArchivedNodeContextMenu}
             onNodeClick={(node) => openNode(node.id, 'page')}
           />
         )}
