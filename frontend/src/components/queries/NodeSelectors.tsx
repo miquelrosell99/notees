@@ -46,14 +46,16 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
   }, [mode, classes, pages]);
   
   const selectedNodes = useMemo(() => {
-    return allNodes.filter(n => selectedIds.includes(n.id));
+    const selectedSet = new Set(selectedIds);
+    return allNodes.filter(n => selectedSet.has(n.id));
   }, [allNodes, selectedIds]);
   
   // Filter available (non-selected) nodes by search
   const filteredAvailable = useMemo(() => {
     const term = search.toLowerCase();
+    const selectedSet = new Set(selectedIds);
     return allNodes
-      .filter(n => !selectedIds.includes(n.id))
+      .filter(n => !selectedSet.has(n.id))
       .filter(n => (n.name || '').toLowerCase().includes(term))
       .slice(0, 10);
   }, [allNodes, selectedIds, search]);

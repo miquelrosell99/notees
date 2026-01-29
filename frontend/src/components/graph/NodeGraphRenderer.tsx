@@ -385,7 +385,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         });
       }
       
-      const orphans = childNodes.filter(n => !parentNodes.find(p => p.id === n.parentId));
+      const parentNodeIds = new Set(parentNodes.map(p => p.id));
+      
+      const orphans = childNodes.filter(n => !parentNodeIds.has(n.parentId));
       orphans.forEach((node, i) => {
         const angle = (2 * Math.PI * i) / orphans.length + Math.PI;
         node.targetX = centerX + outerRadius * Math.cos(angle);
