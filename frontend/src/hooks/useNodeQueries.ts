@@ -31,7 +31,7 @@ export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; t
     queryKey: nodeKeys.list(filters ?? {}),
     queryFn: () => nodesApi.listNodes(filters ?? undefined),
     enabled: filters !== null,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -178,7 +178,7 @@ export function useBacklinks(nodeId: number | null) {
     queryKey: nodeKeys.backlinks(nodeId ?? 0),
     queryFn: () => nodesApi.getBacklinks(nodeId!),
     enabled: !!nodeId,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -190,7 +190,7 @@ export function useLinkedReferences(nodeId: number | null) {
     queryKey: nodeKeys.linkedRefs(nodeId ?? 0),
     queryFn: () => nodesApi.getLinkedReferences(nodeId!),
     enabled: !!nodeId,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -202,7 +202,7 @@ export function usePropertyBacklinks(nodeId: number | null) {
     queryKey: nodeKeys.propertyBacklinks(nodeId ?? 0),
     queryFn: () => nodesApi.getPropertyBacklinks(nodeId!),
     enabled: !!nodeId,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -213,7 +213,7 @@ export function useExistingDailyPages() {
   return useQuery({
     queryKey: [...nodeKeys.all, 'daily-pages'],
     queryFn: () => nodesApi.listDailyPages(),
-    initialData: [],
+    placeholderData: [], // Use placeholderData instead of initialData to allow fetching
   });
 }
 
@@ -317,7 +317,7 @@ export function usePages(options?: { includeChildren?: boolean; rootOnly?: boole
       include_children: includeChildren,
       root_only: rootOnly,
     }),
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -329,7 +329,7 @@ export function useSearch(query: string) {
     queryKey: nodeKeys.search(query),
     queryFn: () => nodesApi.searchNodes(query),
     enabled: query.length > 0,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -341,7 +341,7 @@ export function useTags() {
   return useQuery({
     queryKey: nodeKeys.tags(),
     queryFn: () => nodesApi.listNodes({ pages_only: true }),
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -353,7 +353,7 @@ export function useClasses() {
   return useQuery({
     queryKey: nodeKeys.classes(),
     queryFn: () => nodesApi.listClasses(),
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -365,7 +365,7 @@ export function useSearchClasses(query: string) {
     queryKey: [...nodeKeys.classes(), 'search', query] as const,
     queryFn: () => nodesApi.searchClasses(query),
     enabled: query.length > 0,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -377,7 +377,7 @@ export function useNodesByTag(tagId: number | null) {
     queryKey: nodeKeys.list({ tag_id: tagId ?? 0 }),
     queryFn: () => nodesApi.listNodes({ tag_id: tagId! }),
     enabled: !!tagId,
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -388,7 +388,7 @@ export function useTasks(includeComplete = false) {
   return useQuery({
     queryKey: nodeKeys.tasks(includeComplete),
     queryFn: () => nodesApi.listTasks(includeComplete),
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -399,7 +399,7 @@ export function useArchivedPages() {
   return useQuery({
     queryKey: ['nodes', 'archived'],
     queryFn: () => nodesApi.getArchivedPages(),
-    initialData: [],
+    placeholderData: [],
   });
 }
 
@@ -411,7 +411,7 @@ export function useNodesWithClass(classId: number | null) {
     queryKey: ['nodes', 'by-class', classId],
     queryFn: () => nodesApi.getNodesWithClass(classId!),
     enabled: !!classId,
-    initialData: [],
+    placeholderData: [],
     select: (nodes) => nodes,  // Returns Node[]
   });
 }
