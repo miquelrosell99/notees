@@ -26,8 +26,12 @@ export interface PathSegmentInfo {
   name: string;
   /** Whether a page with this name exists at this level */
   exists: boolean;
-  /** The node if it exists */
+  /** The node if it exists (single match) */
   node?: Node;
+  /** All matching nodes if multiple exist at this level (conflict) */
+  matchingNodes?: Node[];
+  /** Whether there's a conflict (multiple pages with same name at this level) */
+  hasConflict: boolean;
 }
 
 export interface HierarchicalPathAnalysis {
@@ -35,6 +39,8 @@ export interface HierarchicalPathAnalysis {
   segments: PathSegmentInfo[];
   /** The parsed path structure */
   parsed: ParsedPath;
+  /** Whether any segment has conflicts that need resolution */
+  hasConflicts: boolean;
 }
 
 /**
@@ -208,35 +214,53 @@ export function analyzeHierarchicalPath(
   
   // Analyze parent segments
   for (const segment of parsed.parentSegments) {
-    // Look for page with this name AND parent at this level
+    // Look for all pages with this name AND parent at this level
     // This ensures hierarchy is respected (Pokemon at root ≠ Company/Pokemon)
-    const existingNode = allPages.find(
+    const matchingNodes = allPages.filter(
       page => page.name === segment && page.parent_id === currentParentId
     );
     
+    const hasConflict = matchingNodes.length > 1;
+    const singleNode = matchingNodes.length === 1 ? matchingNodes[0] : undefined;
+    
     segments.push({
       name: segment,
-      exists: !!existingNode,
-      node: existingNode,
+      exists: matchingNodes.length > 0,
+      node: singleNode,
+      matchingNodes: hasConflict ? matchingNodes : undefined,
+      hasConflict,
     });
     
-    currentParentId = existingNode?.id ?? null;
+    // If there's a conflict, we can't determine the next parent
+    // Stop here and let the caller resolve it
+    if (hasConflict) {
+      currentParentId = null;
+    } else {
+      currentParentId = singleNode?.id ?? null;
+    }
   }
   
   // Optionally add the leaf segment
   if (includeLeaf) {
     // Check if leaf exists at the current parent level
     // Again, respecting hierarchy: looks for name AND parent match
-    const leafNode = allPages.find(
+    const leafMatches = allPages.filter(
       page => page.name === parsed.leaf && page.parent_id === currentParentId
     );
     
+    const hasConflict = leafMatches.length > 1;
+    const singleNode = leafMatches.length === 1 ? leafMatches[0] : undefined;
+    
     segments.push({
       name: parsed.leaf,
-      exists: !!leafNode,
-      node: leafNode,
+      exists: leafMatches.length > 0,
+      node: singleNode,
+      matchingNodes: hasConflict ? leafMatches : undefined,
+      hasConflict,
     });
   }
   
-  return { segments, parsed };
+  const hasConflicts = segments.some(s => s.hasConflict);
+  
+  return { segments, parsed, hasConflicts };
 }

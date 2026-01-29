@@ -32,3 +32,4 @@ export * from './useLinkedReferencesCount';
 export * from './useFocusTrap';
 export * from './useProperties';
 export * from './useHierarchicalPath';
+export * from './useHierarchicalPathResolver';
