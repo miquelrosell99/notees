@@ -691,7 +691,7 @@ class NodeService:
         pool = self._node_repo.get_connection()
         row = await pool.fetchrow("""
             SELECT * FROM node 
-            WHERE id = $1 AND graph_id = $2 AND is_deleted = TRUE
+            WHERE id = $1 AND graph_id = $2 AND is_deleted = true
         """, node_id, self._graph_id)
         
         if not row:
