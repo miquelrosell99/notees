@@ -178,6 +178,7 @@ export function useBacklinks(nodeId: number | null) {
     queryKey: nodeKeys.backlinks(nodeId ?? 0),
     queryFn: () => nodesApi.getBacklinks(nodeId!),
     enabled: !!nodeId,
+    initialData: [],
   });
 }
 
@@ -189,6 +190,7 @@ export function useLinkedReferences(nodeId: number | null) {
     queryKey: nodeKeys.linkedRefs(nodeId ?? 0),
     queryFn: () => nodesApi.getLinkedReferences(nodeId!),
     enabled: !!nodeId,
+    initialData: [],
   });
 }
 
@@ -200,6 +202,7 @@ export function usePropertyBacklinks(nodeId: number | null) {
     queryKey: nodeKeys.propertyBacklinks(nodeId ?? 0),
     queryFn: () => nodesApi.getPropertyBacklinks(nodeId!),
     enabled: !!nodeId,
+    initialData: [],
   });
 }
 
@@ -326,6 +329,7 @@ export function useSearch(query: string) {
     queryKey: nodeKeys.search(query),
     queryFn: () => nodesApi.searchNodes(query),
     enabled: query.length > 0,
+    initialData: [],
   });
 }
 
@@ -361,6 +365,7 @@ export function useSearchClasses(query: string) {
     queryKey: [...nodeKeys.classes(), 'search', query] as const,
     queryFn: () => nodesApi.searchClasses(query),
     enabled: query.length > 0,
+    initialData: [],
   });
 }
 
