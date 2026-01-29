@@ -2,8 +2,10 @@
 
 Handles user registration, login, and token management.
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..models import UserCreate, UserLogin, Token, User
 from .. import auth
@@ -13,6 +15,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 security = HTTPBearer(auto_error=False)
+limiter = Limiter(key_func=get_remote_address)
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
@@ -61,7 +64,8 @@ async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = 
 
 
 @router.post("/register", response_model=Token)
-async def register(user_data: UserCreate):
+@limiter.limit("3/minute")  # 3 registrations per minute per IP
+async def register(request: Request, user_data: UserCreate):
     """Register a new user."""
     # Check if username exists
     existing = await auth.get_user_by_username(user_data.username)
@@ -77,7 +81,8 @@ async def register(user_data: UserCreate):
 
 
 @router.post("/login", response_model=Token)
-async def login(credentials: UserLogin):
+@limiter.limit("5/minute")  # 5 attempts per minute per IP
+async def login(request: Request, credentials: UserLogin):
     """Login and get access token."""
     import logging
     import sys
