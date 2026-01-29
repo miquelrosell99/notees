@@ -225,21 +225,44 @@ async def auth_client(authenticated_client: AsyncClient) -> AsyncClient:
 async def node_repository(db_pool, test_user):
     """Create a node repository for the test user's workspace."""
     from app.domain.repositories import PostgresNodeRepository
-    return PostgresNodeRepository(db_pool, test_user["workspace_id"])
+    return PostgresNodeRepository(db_pool, test_user["graph_id"])
 
 
 @pytest_asyncio.fixture(scope="function")
 async def property_repository(db_pool, test_user):
     """Create a property repository for the test user's workspace."""
     from app.domain.repositories import PostgresPropertyRepository
-    return PostgresPropertyRepository(db_pool, test_user["workspace_id"])
+    return PostgresPropertyRepository(db_pool, test_user["graph_id"])
 
 
 @pytest_asyncio.fixture(scope="function")
 async def link_repository(db_pool, test_user):
     """Create a link repository for the test user's workspace."""
     from app.domain.repositories import PostgresLinkRepository
-    return PostgresLinkRepository(db_pool, test_user["workspace_id"])
+    return PostgresLinkRepository(db_pool, test_user["graph_id"])
+
+
+@pytest_asyncio.fixture(scope="function")
+async def node_service(db_pool, test_user):
+    """Create a NodeService for the test user's workspace."""
+    from app.domain.services.node_service import NodeService
+    return NodeService(db_pool, test_user["graph_id"])
+
+
+# Alias fixtures for backward compatibility
+@pytest.fixture
+def test_graph(test_user):
+    """Alias for test_user's graph data - for backward compatibility."""
+    class GraphData:
+        def __init__(self, graph_id):
+            self.id = graph_id
+    return GraphData(test_user["graph_id"])
+
+
+@pytest.fixture
+def test_graph_id(test_user):
+    """Alias for test_user's graph_id - for backward compatibility."""
+    return test_user["graph_id"]
 
 
 # ==================== NODE FIXTURES ====================
