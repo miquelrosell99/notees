@@ -62,7 +62,7 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
       <div className="import-options-modal">
         <div className="import-options-modal__header">
           <h2 className="import-options-modal__title">Import Graph</h2>
-          <Button icon={mdiClose} iconOnly className="import-options-modal__close" onClick={onClose} size="sm" variant="ghost" />
+          <Button icon={mdiClose} iconOnly className="import-options-modal__close" onClick={onClose} size="sm" variant="ghost" aria-label="Close import dialog" />
         </div>
 
         <div className="import-options-modal__content">

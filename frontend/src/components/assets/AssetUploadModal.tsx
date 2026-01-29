@@ -260,7 +260,7 @@ export function AssetUploadModal({
       <div className="modal asset-upload-modal" onClick={e => e.stopPropagation()}>
         <div className="modal__header">
           <h2>{getModalTitle()}</h2>
-          <Button icon={mdiClose} iconOnly className="modal__close" onClick={handleClose} size="sm" variant="ghost" />
+          <Button icon={mdiClose} iconOnly className="modal__close" onClick={handleClose} size="sm" variant="ghost" aria-label="Close upload dialog" />
         </div>
 
         <div className="modal__content">

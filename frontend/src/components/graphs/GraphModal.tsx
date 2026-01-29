@@ -84,7 +84,7 @@ export function GraphModal({ isOpen, onClose, onSuccess }: GraphModalProps) {
       <div className="graph-modal">
         <div className="graph-modal__header">
           <h2 className="graph-modal__title">Create New Graph</h2>
-          <Button icon={mdiClose} iconOnly className="graph-modal__close" onClick={handleClose} size="sm" variant="ghost" />
+          <Button icon={mdiClose} iconOnly className="graph-modal__close" onClick={handleClose} size="sm" variant="ghost" aria-label="Close dialog" />
         </div>
 
         <form className="graph-modal__form" onSubmit={handleSubmit}>
