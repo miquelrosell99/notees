@@ -247,10 +247,11 @@ function buildFullPath(
   const path: string[] = [];
   let currentId: number | null = node.id;
   const visited = new Set<number>(); // Prevent infinite loops
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
   
   while (currentId !== null && !visited.has(currentId)) {
     visited.add(currentId);
-    const currentNode = nodes.find(n => n.id === currentId);
+    const currentNode = nodeMap.get(currentId);
     if (!currentNode) break;
     
     path.unshift(currentNode.name);
