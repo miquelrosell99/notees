@@ -89,6 +89,8 @@ export function RouterSync({ children }: RouterSyncProps) {
           openNode(node.id, node.is_page ? 'page' : 'block');
         } catch (err) {
           log.warn('Node not found for UUID in URL, going home', { uuid: route.nodeUuid });
+          // Clear any potentially set node ID before going home
+          useNodesStore.setState({ currentNodeId: null });
           goHome();
         }
       }
