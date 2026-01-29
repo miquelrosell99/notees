@@ -215,17 +215,23 @@ export function analyzeHierarchicalPath(
   const parsed = parseHierarchicalPath(path.trim());
   if (!parsed.isHierarchical) return null;
   
-  // Check which segments exist
+  // Build a lookup map: "name|parentId" -> Node[]
+  // Multiple pages can have the same name at the same level (conflicts)
+  const pageMap = new Map<string, Node[]>();
+  for (const page of allPages) {
+    const key = `${page.name}|${page.parent_id ?? 'null'}`;
+    const existing = pageMap.get(key) || [];
+    existing.push(page);
+    pageMap.set(key, existing);
+  }
+  
   const segments: PathSegmentInfo[] = [];
   let currentParentId: number | null = null;
   
   // Analyze parent segments
   for (const segment of parsed.parentSegments) {
-    // Look for all pages with this name AND parent at this level
-    // This ensures hierarchy is respected (Pokemon at root ≠ Company/Pokemon)
-    const matchingNodes = allPages.filter(
-      page => page.name === segment && page.parent_id === currentParentId
-    );
+    const key = `${segment}|${currentParentId ?? 'null'}`;
+    const matchingNodes = pageMap.get(key) || [];
     
     const hasConflict = matchingNodes.length > 1;
     const singleNode = matchingNodes.length === 1 ? matchingNodes[0] : undefined;
@@ -249,11 +255,8 @@ export function analyzeHierarchicalPath(
   
   // Optionally add the leaf segment
   if (includeLeaf) {
-    // Check if leaf exists at the current parent level
-    // Again, respecting hierarchy: looks for name AND parent match
-    const leafMatches = allPages.filter(
-      page => page.name === parsed.leaf && page.parent_id === currentParentId
-    );
+    const key = `${parsed.leaf}|${currentParentId ?? 'null'}`;
+    const leafMatches = pageMap.get(key) || [];
     
     const hasConflict = leafMatches.length > 1;
     const singleNode = leafMatches.length === 1 ? leafMatches[0] : undefined;
