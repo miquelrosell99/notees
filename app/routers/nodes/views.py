@@ -182,49 +182,52 @@ async def _include_properties_for_results(user: User, results: List[Dict[str, An
     """Fetch and attach properties for each node in results.
     
     This adds 'properties' to each node dict, populated with their property values.
+    Recursively processes children as well.
     """
     if not results:
         return results
     
     property_repo = await _get_property_repo(user)
     
-    # Get node IDs from results
-    node_ids = [r.get("id") for r in results if r.get("id")]
-    
-    if not node_ids:
-        return results
-    
-    # Fetch properties for each node
-    for result in results:
-        node_id = result.get("id")
-        if not node_id:
-            continue
+    async def _add_properties_recursive(nodes: List[Dict[str, Any]]):
+        """Recursively add properties to nodes and their children."""
+        for result in nodes:
+            node_id = result.get("id")
+            if not node_id:
+                continue
+                
+            # Get all property values for this node
+            all_prop_values = await property_repo.get_all_property_values(node_id)
+            props_dict = {}
             
-        # Get all property values for this node
-        all_prop_values = await property_repo.get_all_property_values(node_id)
-        props_dict = {}
-        
-        for prop_id, prop_data in all_prop_values.items():
-            prop = prop_data['property']
-            values = prop_data['values']
-            if values:
-                # Extract the actual value based on property type
-                val = values[0]  # Get first value
-                if hasattr(val, 'target_id'):
-                    # Relation type
-                    props_dict[prop.name] = val.target_id
-                elif hasattr(val, 'value_integer'):
-                    # Scalar type
-                    props_dict[prop.name] = (
-                        val.value_integer or val.value_float or 
-                        val.value_text or val.value_boolean
-                    )
-                elif hasattr(val, 'selection_line_id'):
-                    # Selection type
-                    props_dict[prop.name] = val.selection_line_id
-        
-        if props_dict:
-            result["properties"] = props_dict
+            for prop_id, prop_data in all_prop_values.items():
+                prop = prop_data['property']
+                values = prop_data['values']
+                if values:
+                    # Extract the actual value based on property type
+                    val = values[0]  # Get first value
+                    if hasattr(val, 'target_id'):
+                        # Relation type
+                        props_dict[prop.name] = val.target_id
+                    elif hasattr(val, 'value_integer'):
+                        # Scalar type
+                        props_dict[prop.name] = (
+                            val.value_integer or val.value_float or 
+                            val.value_text or val.value_boolean
+                        )
+                    elif hasattr(val, 'selection_line_id'):
+                        # Selection type
+                        props_dict[prop.name] = val.selection_line_id
+            
+            if props_dict:
+                result["properties"] = props_dict
+            
+            # Recursively process children
+            if result.get("children"):
+                await _add_properties_recursive(result["children"])
+    
+    # Process all results and their children recursively
+    await _add_properties_recursive(results)
     
     return results
 
