@@ -34,8 +34,9 @@ export async function listNodes(params?: {
   root_only?: boolean;
 }): Promise<Node[]> {
   // Use trailing slash to match FastAPI route
-  const response = await api.get<NodesResponse>(`${BASE}/`, { params });
-  return response.data.nodes ?? [];
+  // Backend returns PaginatedResponse with 'items' field, not 'nodes'
+  const response = await api.get<{ items: Node[] }>(`${BASE}/`, { params });
+  return response.data.items ?? [];
 }
 
 /**
