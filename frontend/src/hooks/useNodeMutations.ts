@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { NodeCreate, NodeUpdate, Node } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
+import { nodeViewKeys } from './useNodeViews';
 
 // ==================== Helper Functions ====================
 
@@ -321,6 +322,12 @@ export function useCreateNode() {
         if (newNode.parent_id) {
           queryClient.invalidateQueries({
             queryKey: nodeKeys.detailBase(newNode.parent_id),
+            refetchType: 'active',
+          });
+          
+          // Invalidate node view queries to update child pages sections
+          queryClient.invalidateQueries({
+            queryKey: nodeViewKeys.queryResults(),
             refetchType: 'active',
           });
         }
