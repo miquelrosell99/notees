@@ -36,6 +36,7 @@ import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { getAssetUrlAsync } from '@/api/assets';
 import type { Asset } from '@/api/assets';
 import { mdiPlus, mdiChevronRight, mdiChevronDown, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
@@ -329,9 +330,8 @@ function NodeCard({
         // Invalidate node queries to refetch and show the cover
         queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
         
-        // Invalidate view queries that might contain this node
-        queryClient.invalidateQueries({ queryKey: ['node-view-query'] });
-        queryClient.invalidateQueries({ queryKey: ['pseudo-node-query'] });
+        // Invalidate ALL view query results to refetch with updated properties
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
         
         // Also invalidate the parent page query so it refetches children with updated properties
         if (node.page_id) {
