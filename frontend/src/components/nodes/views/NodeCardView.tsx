@@ -189,14 +189,14 @@ function NodeCard({
   }, [node?.properties, node.id]);
   
   // Get the asset node for the cover image (for bullet)
-  const { data: assetNode } = useNode(coverImageId, { include_children: false });
+  const { data: assetNode, isLoading: assetNodeLoading } = useNode(coverImageId, { include_children: false });
   
   // Debug asset node
   useEffect(() => {
     if (coverImageId) {
-      console.log(`[NodeCard ${node.id}] Asset node for cover ${coverImageId}:`, assetNode);
+      console.log(`[NodeCard ${node.id}] Asset node for cover ${coverImageId}:`, assetNode, 'loading:', assetNodeLoading);
     }
-  }, [coverImageId, assetNode, node.id]);
+  }, [coverImageId, assetNode, assetNodeLoading, node.id]);
   
   // Bullet handlers for cover asset
   const handleCoverBulletClick = useCallback((e: React.MouseEvent) => {
@@ -215,20 +215,39 @@ function NodeCard({
   
   // State for the cover URL (needs to be async to get token)
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [loadingCoverUrl, setLoadingCoverUrl] = useState(false);
   
   // Get the image URL from the asset node's uuid (async with token)
   useEffect(() => {
-    if (coverImageId && assetNode?.uuid) {
-      console.log(`[NodeCard ${node.id}] Loading cover URL for asset:`, assetNode.uuid);
-      getAssetUrlAsync(assetNode.uuid).then(url => {
-        console.log(`[NodeCard ${node.id}] Cover URL loaded:`, url);
-        setCoverUrl(url);
-      });
-    } else {
+    // Reset if no cover
+    if (!coverImageId || !assetNode?.uuid) {
       console.log(`[NodeCard ${node.id}] No cover - coverImageId:`, coverImageId, 'assetNode:', assetNode);
       setCoverUrl(null);
+      setLoadingCoverUrl(false);
+      return;
     }
-  }, [coverImageId, assetNode, node.id]);
+    
+    // Don't fetch again if already loading or if URL is already set for this asset
+    if (loadingCoverUrl) {
+      return;
+    }
+    
+    console.log(`[NodeCard ${node.id}] Loading cover URL for asset:`, assetNode.uuid);
+    setLoadingCoverUrl(true);
+    
+    getAssetUrlAsync(assetNode.uuid)
+      .then(url => {
+        console.log(`[NodeCard ${node.id}] Cover URL loaded:`, url);
+        setCoverUrl(url);
+      })
+      .catch(err => {
+        console.error(`[NodeCard ${node.id}] Failed to load cover URL:`, err);
+        setCoverUrl(null);
+      })
+      .finally(() => {
+        setLoadingCoverUrl(false);
+      });
+  }, [coverImageId, assetNode?.uuid, node.id]);
   
   
   // Handle context menu
