@@ -19,6 +19,7 @@ import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
+import { useDeleteNode } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { useProperties } from '@/hooks';
 import { Table, type TableColumn, type ExpandableConfig, type ReorderableConfig } from '../../core/Table';
@@ -28,6 +29,7 @@ import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
+import { ContextMenu, type ContextMenuItem } from '../../core/ContextMenu';
 import './NodeTableView.css';
 
 // Custom column definition for node tables (external API)
@@ -121,16 +123,37 @@ export function NodeTableView({
   // Get user's date format preference
   const dateFormat = useSettingsStore((state) => state.dateFormat);
   
+  // Delete mutation for multi-select delete
+  const deleteNode = useDeleteNode();
+  
   // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ node: Node; position: { x: number; y: number } } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ 
+    node: Node; 
+    position: { x: number; y: number }; 
+    isMultiSelect: boolean;
+    selectedNodes: Node[];
+  } | null>(null);
   
   // Internal selection state (used when not controlled)
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
   
   // Handle context menu on row right-click
   const handleRowContextMenu = useCallback((node: Node, event: React.MouseEvent) => {
-    setContextMenu({ node, position: { x: event.clientX, y: event.clientY } });
-  }, []);
+    const isNodeSelected = selectedIds.has(node.id);
+    const isMultiSelect = isNodeSelected && selectedIds.size > 1;
+    
+    // Get all selected nodes if multi-select
+    const selectedNodes = isMultiSelect 
+      ? nodes.filter(n => selectedIds.has(n.id))
+      : [node];
+    
+    setContextMenu({ 
+      node, 
+      position: { x: event.clientX, y: event.clientY },
+      isMultiSelect,
+      selectedNodes,
+    });
+  }, [selectedIds, nodes]);
   
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
@@ -382,6 +405,54 @@ export function NodeTableView({
       
       {/* Context menu */}
       {contextMenu && (() => {
+        // Multi-select context menu
+        if (contextMenu.isMultiSelect) {
+          const selectedCount = contextMenu.selectedNodes.length;
+          const menuItems: ContextMenuItem[] = [
+            {
+              id: 'open-sidebar',
+              label: `Open ${selectedCount} in Sidebar`,
+              icon: 'mdi mdi-dock-right',
+              onClick: () => {
+                const nodeIds = contextMenu.selectedNodes.map(n => n.id);
+                addSidebarCard(nodeIds[0], contextMenu.selectedNodes[0].is_page ? 'page' : 'block');
+                for (let i = 1; i < nodeIds.length; i++) {
+                  addSidebarCard(nodeIds[i], contextMenu.selectedNodes[i].is_page ? 'page' : 'block');
+                }
+                handleCloseContextMenu();
+              },
+            },
+            { id: 'sep-1', label: '', separator: true },
+            {
+              id: 'delete',
+              label: `Delete ${selectedCount} Nodes`,
+              icon: 'mdi mdi-delete',
+              danger: true,
+              onClick: () => {
+                if (confirm(`Delete ${selectedCount} selected nodes? This action cannot be undone.`)) {
+                  contextMenu.selectedNodes.forEach(node => {
+                    deleteNode.mutate(node.id);
+                  });
+                  // Clear selection after delete
+                  handleSelectionChange(new Set());
+                }
+                handleCloseContextMenu();
+              },
+            },
+          ];
+          
+          return (
+            <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: contextMenu.position.x, top: contextMenu.position.y, zIndex: 1000 }}>
+              <ContextMenu
+                items={menuItems}
+                position={{ x: 0, y: 0 }}
+                onClose={handleCloseContextMenu}
+              />
+            </div>
+          );
+        }
+        
+        // Single node context menu
         if (customContextMenu) {
           const CustomContextMenu = customContextMenu;
           return (
