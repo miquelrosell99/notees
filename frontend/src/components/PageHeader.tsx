@@ -12,13 +12,14 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass, usePages } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon } from './icons';
 import { EmojiPicker } from './core/EmojiPicker';
 import { isSystemPage } from '../utils/systemPages';
+import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import './PageHeader.css';
 
 interface PageHeaderProps {
@@ -39,6 +40,7 @@ export function PageHeader({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
+  const { data: allPages } = usePages();
   const { 
     addSidebarCard, 
     openNode,
@@ -66,48 +68,166 @@ export function PageHeader({
   const isNameEditable = !isSystemPage(page);
   
   // Parse input to show child page preview (disabled for date pages)
-  const childPagePreview = useMemo(() => {
+  const renamePreview = useMemo(() => {
     // Don't show preview for date pages
     if (page.is_daily || page.is_monthly || page.is_yearly) return null;
     
     if (!inputValue.includes('/')) return null;
-    const parts = inputValue.split('/');
-    const childPageName = parts.slice(1).join('/').trim();
-    return childPageName || null;
-  }, [inputValue, page.is_daily, page.is_monthly, page.is_yearly]);
+    
+    const parsed = parseHierarchicalPath(inputValue);
+    const originalName = page.name || '';
+    
+    // Case 1: Creating child page (e.g., "Pokemon" → "Pokemon/Charizard" or "Pokemon/Gen1/Fire/Charizard")
+    if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
+      const childPath = [...parsed.parentSegments.slice(1), parsed.leaf].join('/');
+      return { type: 'create-child' as const, path: childPath };
+    }
+    
+    // Case 2: Moving to parent (e.g., "Charizard" → "Pokemon/Charizard" or "Types/Fire/Pokemon/Charizard")
+    if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
+      return { type: 'move-to-parent' as const, parent: parsed.parentSegments.join('/') };
+    }
+    
+    // Case 3: Rename and move (e.g., "Charizard" → "Fire/Dragon" or "Types/Fire/Dragon")
+    if (parsed.leaf !== originalName) {
+      return { 
+        type: 'rename-and-move' as const, 
+        newName: parsed.leaf,
+        parent: parsed.parentSegments.length > 0 ? parsed.parentSegments.join('/') : null
+      };
+    }
+    
+    return null;
+  }, [inputValue, page.name, page.is_daily, page.is_monthly, page.is_yearly]);
 
   const handleInputChange = useCallback((newValue: string) => {
     setInputValue(newValue);
   }, []);
 
-  const handleNameChange = useCallback((newName: string) => {
+  const handleNameChange = useCallback(async (newName: string) => {
     // Disable hierarchical creation for date pages (daily, monthly, yearly)
     const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
     
     // Check if the new name contains "/" and this is not a date page
-    if (newName.includes('/') && !isDatePage) {
-      const parts = newName.split('/');
-      const currentPageName = parts[0].trim();
-      const childPageName = parts.slice(1).join('/').trim();
+    if (newName.includes('/') && !isDatePage && allPages && pageClassId) {
+      const parsed = parseHierarchicalPath(newName);
+      const originalName = page.name || '';
       
-      // Update current page name (remove the "/" and everything after)
-      const data: NodeUpdate = { name: currentPageName };
-      updateNode.mutate({ id: page.id, data });
-      
-      // If there's text after the "/", create a child page
-      if (childPageName && pageClassId) {
-        createNode.mutate({
-          name: childPageName,
-          classes: [pageClassId],
-          parent_id: page.id,
-        });
+      // Case 1: User keeps original name at start and adds "/" after it 
+      // (e.g., "Pokemon" → "Pokemon/Charizard" or "Pokemon/Gen1/Fire/Charizard")
+      // Create child pages under the current page
+      if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
+        try {
+          // The child hierarchy starts after the original name
+          const childSegments = parsed.parentSegments.slice(1);
+          
+          // Resolve or create intermediate child pages
+          let currentParent = page.id;
+          for (const segment of childSegments) {
+            const existingChild = allPages.find(
+              p => p.name === segment && p.parent_id === currentParent
+            );
+            
+            if (existingChild) {
+              currentParent = existingChild.id;
+            } else {
+              const newChild = await createNode.mutateAsync({
+                name: segment,
+                classes: [pageClassId],
+                parent_id: currentParent,
+              });
+              currentParent = newChild.id;
+            }
+          }
+          
+          // Create the final leaf page
+          if (parsed.leaf) {
+            createNode.mutate({
+              name: parsed.leaf,
+              classes: [pageClassId],
+              parent_id: currentParent,
+            });
+          }
+          
+          // Reset input to original name
+          setInputValue(originalName);
+          return;
+        } catch (error) {
+          console.error('Failed to create child hierarchy:', error);
+          // Fall through to normal rename on error
+        }
       }
-    } else {
-      // Normal name change (including date pages)
-      const data: NodeUpdate = { name: newName };
-      updateNode.mutate({ id: page.id, data });
+      
+      // Case 2: User adds something before the original name 
+      // (e.g., "Charizard" → "Pokemon/Charizard" or "Types/Fire/Pokemon/Charizard")
+      // Change the parent of the current page
+      if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
+        try {
+          // Resolve or create parent pages (supports multiple levels)
+          const parentId = await resolveHierarchicalParent(
+            parsed.parentSegments,
+            allPages,
+            async (name, parent) => {
+              return await createNode.mutateAsync({
+                name,
+                parent_id: parent,
+                classes: [pageClassId],
+              });
+            }
+          );
+          
+          // Move current page under the new parent
+          updateNode.mutate({ 
+            id: page.id, 
+            data: { parent_id: parentId } 
+          });
+          // Reset input to original name
+          setInputValue(originalName);
+          return;
+        } catch (error) {
+          console.error('Failed to resolve hierarchical parent:', error);
+          // Fall through to normal rename on error
+        }
+      }
+      
+      // Case 3: Complete rename with hierarchy 
+      // (e.g., "Charizard" → "Fire/Dragon" or "Types/Fire/Dragon/Charizard")
+      // This is a different name entirely - update name and move to parent
+      if (parsed.leaf !== originalName) {
+        try {
+          // Resolve or create parent pages (supports multiple levels)
+          const parentId = await resolveHierarchicalParent(
+            parsed.parentSegments,
+            allPages,
+            async (name, parent) => {
+              return await createNode.mutateAsync({
+                name,
+                parent_id: parent,
+                classes: [pageClassId],
+              });
+            }
+          );
+          
+          // Update page with new name and parent
+          updateNode.mutate({ 
+            id: page.id, 
+            data: { 
+              name: parsed.leaf,
+              parent_id: parentId 
+            } 
+          });
+          return;
+        } catch (error) {
+          console.error('Failed to resolve hierarchical parent:', error);
+          // Fall through to normal rename on error
+        }
+      }
     }
-  }, [page.id, page.is_daily, page.is_monthly, page.is_yearly, updateNode, createNode]);
+    
+    // Normal name change (no hierarchy, date pages, or fallback on error)
+    const data: NodeUpdate = { name: newName };
+    updateNode.mutate({ id: page.id, data });
+  }, [page.id, page.name, page.is_daily, page.is_monthly, page.is_yearly, allPages, pageClassId, updateNode, createNode]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -198,9 +318,15 @@ export function PageHeader({
                   readOnly={!isNameEditable}
                   title={!isNameEditable ? 'System page names cannot be edited' : undefined}
                 />
-                {childPagePreview && (
+                {renamePreview && (
                   <span className="page-title-child-preview">
-                    → will create child page: {childPagePreview}
+                    {renamePreview.type === 'create-child' && `→ will create child: ${renamePreview.path}`}
+                    {renamePreview.type === 'move-to-parent' && `→ will move under: ${renamePreview.parent}`}
+                    {renamePreview.type === 'rename-and-move' && (
+                      renamePreview.parent 
+                        ? `→ will rename to "${renamePreview.newName}" and move under: ${renamePreview.parent}`
+                        : `→ will rename to "${renamePreview.newName}"`
+                    )}
                   </span>
                 )}
               </>
