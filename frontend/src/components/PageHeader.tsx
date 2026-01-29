@@ -77,8 +77,11 @@ export function PageHeader({
   }, []);
 
   const handleNameChange = useCallback((newName: string) => {
-    // Check if the new name contains "/"
-    if (newName.includes('/')) {
+    // Disable hierarchical creation for date pages (daily, monthly, yearly)
+    const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
+    
+    // Check if the new name contains "/" and this is not a date page
+    if (newName.includes('/') && !isDatePage) {
       const parts = newName.split('/');
       const currentPageName = parts[0].trim();
       const childPageName = parts.slice(1).join('/').trim();
@@ -96,11 +99,11 @@ export function PageHeader({
         });
       }
     } else {
-      // Normal name change
+      // Normal name change (including date pages)
       const data: NodeUpdate = { name: newName };
       updateNode.mutate({ id: page.id, data });
     }
-  }, [page.id, updateNode, createNode]);
+  }, [page.id, page.is_daily, page.is_monthly, page.is_yearly, updateNode, createNode]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
