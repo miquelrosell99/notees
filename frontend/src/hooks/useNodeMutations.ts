@@ -309,34 +309,19 @@ export function useCreateNode() {
       
       // GLOBAL: If the new node is a page, invalidate pages cache
       if (newNode.is_page) {
-        // Check if the page name contains '/' which indicates hierarchical creation
-        // In this case, multiple pages may have been created, so we need to refetch
-        const isHierarchical = variables.name?.includes('/');
+        // Update all pages queries (with and without includeChildren option)
+        // We need to invalidate ALL variations of pages queries since the cache key
+        // includes the options object ({ includeChildren: true } vs {})
+        queryClient.invalidateQueries({ 
+          queryKey: [...nodeKeys.all, 'pages'],
+          refetchType: 'active',
+        });
         
-        if (isHierarchical) {
-          // Force refetch to get all newly created parent pages
-          queryClient.invalidateQueries({ 
-            queryKey: nodeKeys.pages(),
+        // If the new node has a parent, invalidate parent's detail cache to show new child
+        if (newNode.parent_id) {
+          queryClient.invalidateQueries({
+            queryKey: nodeKeys.detailBase(newNode.parent_id),
             refetchType: 'active',
-          });
-          
-          // If the new node has a parent, invalidate parent's detail cache to show new child
-          if (newNode.parent_id) {
-            queryClient.invalidateQueries({
-              queryKey: nodeKeys.detailBase(newNode.parent_id),
-              refetchType: 'active',
-            });
-          }
-        } else {
-          // For non-hierarchical pages, just add to cache without refetching
-          queryClient.setQueryData<Node[]>(nodeKeys.pages(), (oldPages) => {
-            if (!oldPages) return [newNode];
-            if (oldPages.some(p => p.id === newNode.id)) return oldPages;
-            return [...oldPages, newNode];
-          });
-          queryClient.invalidateQueries({ 
-            queryKey: nodeKeys.pages(),
-            refetchType: 'none',
           });
         }
         

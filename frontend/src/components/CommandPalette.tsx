@@ -155,7 +155,7 @@ export function CommandPalette({
   
   // Get destination page for quick add
   const { data: todayNote } = useTodayNote();
-  const { data: allPages } = usePages();
+  const { data: allPages } = usePages({ includeChildren: true });
   const inboxPage = allPages?.find(p => p.name === 'Inbox');
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
   

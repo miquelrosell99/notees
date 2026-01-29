@@ -40,7 +40,7 @@ export function PageHeader({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
-  const { data: allPages } = usePages();
+  const { data: allPages } = usePages({ includeChildren: true });
   const { 
     addSidebarCard, 
     openNode,

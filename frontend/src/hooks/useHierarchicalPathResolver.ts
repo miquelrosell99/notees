@@ -24,7 +24,7 @@ export interface ConflictState {
  * Returns conflict state for UI to resolve, then continues resolution after user selects.
  */
 export function useHierarchicalPathResolver() {
-  const { data: allPages } = usePages();
+  const { data: allPages } = usePages({ includeChildren: true });
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
 
   /**
