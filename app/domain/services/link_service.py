@@ -13,8 +13,7 @@ Key concepts:
    - Text properties: Links appear in root block R or descendants T
    - Node-class properties: Direct references where property owner B is the linker
 
-3. System property `classes` is EXCLUDED from backlinks and path references
-   - A separate Classes Path mechanism tracks inherited classes
+3. Classes are stored in class_ids column and tracked separately via Classes Path
 
 4. Breadcrumbs include property provenance: T → property_name → B → … → page
 """
@@ -41,8 +40,8 @@ LINK_PATTERN = re.compile(r'\[\[(\d+)(?::([a-f0-9-]+))?\]\]')
 # Regex pattern for parsing inline classes - {{classId}} format
 INLINE_CLASS_PATTERN = re.compile(r'\{\{(\d+)\}\}')
 
-# System property names to exclude from backlinks
-EXCLUDED_PROPERTY_NAMES = ["classes", "extends"]
+# Properties excluded from backlinks (extends excluded for inheritance)
+EXCLUDED_PROPERTY_NAMES = ["extends"]
 
 
 def generate_link_uuid() -> str:
@@ -102,8 +101,8 @@ class LinkParsingService:
     Handles:
     - Text links: [[id]] syntax in node name field
     - Inline classes: {{id}} syntax in node name field
-    - Property links: Node-class property values (excluding system `classes` property)
-    - Classes Path: Inherited classes from ancestors for queries
+    - Property links: Node-class property values
+    - Classes Path: Inherited classes from ancestors for queries (classes stored in class_ids column)
     """
     
     def __init__(
@@ -111,13 +110,11 @@ class LinkParsingService:
         node_repository: NodeRepository,
         link_repository: LinkRepository,
         property_repository: Optional[PropertyRepository] = None,
-        classes_property_id: Optional[int] = None,
         inline_class_repository: Optional[Any] = None,
     ):
         self._node_repo = node_repository
         self._link_repo = link_repository
         self._property_repo = property_repository
-        self._classes_property_id = classes_property_id
         self._inline_class_repo = inline_class_repository
     
     def parse_links(self, content: str) -> List[Tuple[int, int, Optional[str]]]:
@@ -439,7 +436,7 @@ class LinkParsingService:
         """Update links for a node-class property.
         
         For node-class properties, the property owner B is the explicit linker.
-        System property `classes` is excluded from backlinks entirely.
+        Classes are now stored in class_ids column, not as a property.
         
         Args:
             node_id: The property owner B
@@ -449,20 +446,6 @@ class LinkParsingService:
         Returns:
             List of created NodeLink objects
         """
-        # Check if this is the system `classes` property - if so, skip entirely
-        if property_id == self._classes_property_id:
-            # Classes property is excluded from backlinks
-            # Delete any existing links for this property (cleanup)
-            await self._delete_property_links(node_id, property_id)
-            return []
-        
-        # Also check by property name if ID not set
-        if self._property_repo and self._classes_property_id is None:
-            prop = await self._property_repo.get_by_id(property_id)
-            if prop and prop.name == CLASSES_PROPERTY_NAME:
-                await self._delete_property_links(node_id, property_id)
-                return []
-        
         # Delete existing links for this property
         await self._delete_property_links(node_id, property_id)
         
@@ -500,7 +483,7 @@ class LinkParsingService:
         - Property provenance if applicable
         - Breadcrumb path to page ancestor
         
-        System property `classes` links are never included.
+        Classes are stored in class_ids column, not as property links.
         """
         if not hasattr(self._link_repo, 'get_connection'):
             return []
@@ -633,14 +616,12 @@ class LinkParsingService:
         if not ancestor_ids:
             return []
         
-        # Get all links from all ancestors in one query (excluding classes property)
+        # Get all links from all ancestors in one query
         rows = await pool.fetch("""
             SELECT DISTINCT nl.target_id
             FROM node_link nl
-            LEFT JOIN property p ON nl.property_id = p.id
             WHERE nl.source_id = ANY($1)
-              AND (p.name IS NULL OR p.name != $2)
-        """, ancestor_ids, CLASSES_PROPERTY_NAME)
+        """, ancestor_ids)
         
         return [row['target_id'] for row in rows]
     
@@ -650,7 +631,7 @@ class LinkParsingService:
         Uses the node_path closure table for efficient ancestor lookup.
         
         Classes Path = ordered list of class node IDs inherited from ancestors'
-        `classes` properties.
+        class_ids columns.
         
         This is separate from backlinks and is used for filtering/queries.
         """
@@ -660,15 +641,12 @@ class LinkParsingService:
         pool = self._link_repo.get_connection()
         classes_path = []
         
-        # Get own classes first
-        if self._classes_property_id:
-            rows = await pool.fetch("""
-                SELECT pvr.target_id
-                FROM property_value_relation pvr
-                WHERE pvr.node_id = $1 AND pvr.property_id = $2
-                ORDER BY pvr."order"
-            """, node_id, self._classes_property_id)
-            classes_path.extend(row['target_id'] for row in rows)
+        # Get own classes from class_ids column
+        node_row = await pool.fetchrow("""
+            SELECT class_ids FROM node WHERE id = $1
+        """, node_id)
+        if node_row and node_row['class_ids']:
+            classes_path.extend(node_row['class_ids'])
         
         # Get ancestor IDs using closure table (ordered from root to parent)
         try:
@@ -676,17 +654,17 @@ class LinkParsingService:
         except Exception:
             ancestor_ids = []
         
-        # Collect classes from all ancestors in one query
-        if ancestor_ids and self._classes_property_id:
+        # Collect classes from all ancestors using class_ids column
+        if ancestor_ids:
             rows = await pool.fetch("""
-                SELECT DISTINCT pvr.target_id
-                FROM property_value_relation pvr
-                WHERE pvr.node_id = ANY($1) AND pvr.property_id = $2
-            """, ancestor_ids, self._classes_property_id)
+                SELECT DISTINCT unnest(class_ids) as class_id
+                FROM node
+                WHERE id = ANY($1) AND class_ids IS NOT NULL
+            """, ancestor_ids)
             
             for row in rows:
-                if row['target_id'] not in classes_path:
-                    classes_path.append(row['target_id'])
+                if row['class_id'] not in classes_path:
+                    classes_path.append(row['class_id'])
         
         # Store classes_path
         await pool.execute(

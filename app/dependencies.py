@@ -32,24 +32,16 @@ from .domain.repositories import (
 )
 
 
-async def _get_system_ids(conn: asyncpg.Connection, graph_id: int) -> tuple[int, int]:
-    """Get system IDs for page class and classes property.
+async def _get_system_ids(conn: asyncpg.Connection, graph_id: int) -> int:
+    """Get system ID for page class.
     
-    Returns (page_class_id, classes_property_id).
+    Returns page_class_id.
     """
     row = await conn.fetchrow(
         "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
         graph_id
     )
-    page_class_id = row['id'] if row else 1
-    
-    row = await conn.fetchrow(
-        "SELECT id FROM property WHERE name = 'classes' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
-        graph_id
-    )
-    classes_property_id = row['id'] if row else 1
-    
-    return page_class_id, classes_property_id
+    return row['id'] if row else 1
 
 
 @asynccontextmanager
@@ -81,8 +73,8 @@ async def get_node_repository(
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
-        page_class_id, classes_property_id = await _get_system_ids(conn, graph_id)
-        yield PostgresNodeRepository(pool, graph_id, page_class_id, classes_property_id, user_id)
+        page_class_id = await _get_system_ids(conn, graph_id)
+        yield PostgresNodeRepository(pool, graph_id, page_class_id, user_id)
 
 
 async def get_property_repository(
@@ -144,13 +136,11 @@ class RepositoryBundle:
         pool: asyncpg.Pool,
         graph_id: int,
         page_class_id: int,
-        classes_property_id: int,
         user_id: int,
     ):
         self.pool = pool
         self.graph_id = graph_id
         self.page_class_id = page_class_id
-        self.classes_property_id = classes_property_id
         self.user_id = user_id
         self._node_repo: Optional[PostgresNodeRepository] = None
         self._property_repo: Optional[PostgresPropertyRepository] = None
@@ -161,7 +151,7 @@ class RepositoryBundle:
     def node(self) -> PostgresNodeRepository:
         if self._node_repo is None:
             self._node_repo = PostgresNodeRepository(
-                self.pool, self.graph_id, self.page_class_id, self.classes_property_id, self.user_id
+                self.pool, self.graph_id, self.page_class_id, self.user_id
             )
         return self._node_repo
     
@@ -197,5 +187,5 @@ async def get_repositories(
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
-        page_class_id, classes_property_id = await _get_system_ids(conn, graph_id)
-        yield RepositoryBundle(pool, graph_id, page_class_id, classes_property_id, user_id)
+        page_class_id = await _get_system_ids(conn, graph_id)
+        yield RepositoryBundle(pool, graph_id, page_class_id, user_id)

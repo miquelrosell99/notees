@@ -32,22 +32,15 @@ async def link_service_fixtures(db_pool, test_user):
             SYSTEM_CLASS_UUIDS['page'], graph_id
         )
         page_type_id = row['id']
-        
-        row = await conn.fetchrow(
-            "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['classes']
-        )
-        classes_property_id = row['id']
     
-    # Create repositories
-    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id, classes_property_id)
+    # Create repositories (classes now in class_ids column, no property)
+    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id)
     property_repo = PostgresPropertyRepository(db_pool, graph_id)
     link_repo = PostgresLinkRepository(db_pool, graph_id)
     
     # Create link service
     link_service = LinkParsingService(
-        node_repo, link_repo, property_repo,
-        classes_property_id=classes_property_id
+        node_repo, link_repo, property_repo
     )
     
     return {
@@ -56,9 +49,9 @@ async def link_service_fixtures(db_pool, test_user):
         'link_repo': link_repo,
         'link_service': link_service,
         'page_type_id': page_type_id,
-        'classes_property_id': classes_property_id,
         'graph_id': graph_id,
     }
+
 
 
 @pytest.mark.asyncio
@@ -117,13 +110,12 @@ async def test_text_link_creates_backlink(link_service_fixtures):
 
 
 @pytest.mark.asyncio
-async def test_classes_property_excluded_from_backlinks(link_service_fixtures):
-    """Test that the system `classes` property is excluded from backlinks."""
+async def test_classes_property_excluded_from_backlinks(db_pool, link_service_fixtures):
+    """Test that classes stored in class_ids column do not create backlinks."""
     from app.domain.entities import NodeCreateData
     
     node_repo = link_service_fixtures['node_repo']
     link_service = link_service_fixtures['link_service']
-    classes_property_id = link_service_fixtures['classes_property_id']
     
     # Create a class node
     class_node = await node_repo.create(NodeCreateData(name='Task', is_class=True))
@@ -133,24 +125,29 @@ async def test_classes_property_excluded_from_backlinks(link_service_fixtures):
     page = await node_repo.create(NodeCreateData(name='My Task', is_page=True))
     assert page.id is not None
     
-    # Add class via property link - this simulates setting classes property
-    await link_service.update_property_links(page.id, classes_property_id, [class_node.id])
+    # Add class directly to class_ids column (no longer using property links)
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            'UPDATE node SET class_ids = $1 WHERE id = $2',
+            [class_node.id], page.id
+        )
     
     # Get backlinks to the class node
     backlinks = await link_service.get_backlinks(class_node.id)
     
-    # Should have NO backlinks because classes property is excluded
-    assert len(backlinks) == 0, f'Expected 0 backlinks (classes excluded), got {len(backlinks)}'
+    # Should have NO backlinks because classes are now in class_ids column, not property links
+    assert len(backlinks) == 0, f'Expected 0 backlinks (classes in column, not property), got {len(backlinks)}'
+
 
 
 @pytest.mark.asyncio
 async def test_classes_path_inheritance(db_pool, link_service_fixtures):
     """Test that classes_path accumulates classes from ancestors."""
     from app.domain.entities import NodeCreateData
+    from datetime import datetime, timezone
     
     node_repo = link_service_fixtures['node_repo']
     link_service = link_service_fixtures['link_service']
-    classes_property_id = link_service_fixtures['classes_property_id']
     graph_id = link_service_fixtures['graph_id']
     
     # Create two class nodes
@@ -163,23 +160,11 @@ async def test_classes_path_inheritance(db_pool, link_service_fixtures):
     page = await node_repo.create(NodeCreateData(name='Parent Page', is_page=True))
     assert page.id is not None
     
-    now = datetime.now(timezone.utc)
-    
-    # Set page class via property_value_relation (simulating classes property)
+    # Set page class directly in class_ids column (no longer using property_value_relation)
     async with db_pool.acquire() as conn:
-        # Create node_property entry
-        node_property_id = await conn.fetchval(
-            '''INSERT INTO node_property (node_id, property_id, create_date, write_date)
-               VALUES ($1, $2, $3, $4) RETURNING id''',
-            page.id, classes_property_id, now, now
-        )
-        
-        # Create property_value_relation entry
         await conn.execute(
-            '''INSERT INTO property_value_relation 
-               (node_property_id, property_id, node_id, target_id, "order", create_date, write_date) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7)''',
-            node_property_id, classes_property_id, page.id, class_task.id, 0, now, now
+            'UPDATE node SET class_ids = $1 WHERE id = $2',
+            [class_task.id], page.id
         )
     
     # Create a child block
@@ -191,6 +176,7 @@ async def test_classes_path_inheritance(db_pool, link_service_fixtures):
     
     # Block should inherit Task class from parent
     assert class_task.id in classes_path, f'Expected class_task.id in classes_path: {classes_path}'
+
 
 
 @pytest.mark.asyncio

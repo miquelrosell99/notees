@@ -29,26 +29,17 @@ async def node_service(db_pool, test_user):
             SYSTEM_CLASS_UUIDS['page'], graph_id
         )
         page_type_id = row['id']
-        
-        row = await conn.fetchrow(
-            "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['classes']
-        )
-        classes_property_id = row['id']
     
-    # Create repositories
-    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id, classes_property_id)
+    # Create repositories (classes now in class_ids column, no property)
+    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id)
     property_repo = PostgresPropertyRepository(db_pool, graph_id)
     link_repo = PostgresLinkRepository(db_pool, graph_id)
     
     # Create services
-    link_service = LinkParsingService(
-        node_repo, link_repo,
-        classes_property_id=classes_property_id
-    )
+    link_service = LinkParsingService(node_repo, link_repo)
     service = NodeService(
-        node_repo, property_repo, link_service,
-        page_type_id, classes_property_id
+        node_repo, property_repo, link_service, page_type_id,
+        pool=db_pool, graph_id=graph_id
     )
     
     return service
@@ -61,19 +52,15 @@ async def system_type_ids(db_pool, test_user):
     
     async with db_pool.acquire() as conn:
         ids = {}
-        for name in ['day', 'month', 'year', 'type', 'task', 'page']:
+        for name in ['day', 'month', 'year', 'class', 'task', 'page']:
             row = await conn.fetchrow(
                 "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
                 SYSTEM_CLASS_UUIDS[name], graph_id
             )
             ids[name] = row['id'] if row else None
         
-        # Also get 'types' property ID
-        row = await conn.fetchrow(
-            "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['types']
-        )
-        ids['types_property'] = row['id'] if row else None
+        # For backward compatibility, also store class as 'type'
+        ids['type'] = ids['class']
     
     return ids
 
@@ -154,19 +141,21 @@ async def test_cannot_remove_day_type(node_service, system_type_ids):
 
 @pytest.mark.asyncio
 async def test_cannot_remove_type_from_system_type(node_service, system_type_ids):
-    """Test that removing 'type' from a system type node is rejected."""
+    """Test that removing 'class' from a system class node is rejected."""
     from app.domain.errors import SystemClassConstraintError
     
     service = node_service
     type_type_id = system_type_ids['type']
     task_type_id = system_type_ids['task']
     
-    # Try to remove 'type' from task type - should fail
+    # Try to remove 'class' from task type - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.remove_type(task_type_id, type_type_id)
     
-    assert "type" in exc_info.value.message.lower()
-    assert "system" in exc_info.value.message.lower()
+    # Message should mention 'class' (or 'type' for backward compatibility)
+    message = exc_info.value.message.lower()
+    assert "class" in message or "type" in message
+    assert "system" in message
 
 
 @pytest.mark.asyncio

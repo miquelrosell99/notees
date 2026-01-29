@@ -195,7 +195,7 @@ class QuerySQLGenerator:
             return self._generate_or_container(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.NOT_CONTAINER.value:
             return self._generate_not_container(block, runtime_params, node_alias)
-        elif block_type == QueryBlockType.TYPE.value:
+        elif block_type == QueryBlockType.CLASS.value:
             return self._generate_type_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.PROPERTY.value:
             return self._generate_property_condition(block, runtime_params, node_alias)

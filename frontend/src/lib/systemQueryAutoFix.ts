@@ -7,7 +7,7 @@
  * System sections:
  * - linked_references: MUST have reference condition
  * - child_pages: MUST have parent_uuid AND is_page conditions
- * - typed_nodes: MUST have class condition (for "Nodes classed as X" views)
+ * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
 import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, TypeCondition } from '@/types/queryAST';
@@ -118,7 +118,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
   
   // Class-specific views
   {
-    viewType: 'typed_nodes',
+    viewType: 'classed_nodes',
     requiresCondition: (_ast, context) => {
       if (!context.typeUuid) return null;
       return markAsSystemNode({
@@ -222,7 +222,7 @@ export function getAutoFixDescription(viewType: string): string | null {
   const descriptions: Record<string, string> = {
     linked_references: 'Add required reference condition',
     child_pages: 'Add required parent_uuid condition',
-    typed_nodes: 'Add required class condition',
+    classed_nodes: 'Add required class condition',
   };
   return descriptions[viewType] || null;
 }

@@ -411,13 +411,13 @@ async def get_property_backlinks(
             ))
     
     # Also check for node-class properties pointing to this node
-    # Exclude the 'classes' property - those appear in the ClassedNodes section, not as backlinks
+    # Classes are now in class_ids column, not a property
     pool = service._node_repo.get_connection()
     rows = await pool.fetch("""
         SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
         FROM property_value_relation pvr
         JOIN property p ON pvr.property_id = p.id
-        WHERE pvr.target_id = $1 AND p.type = 'node' AND p.name != 'classes'
+        WHERE pvr.target_id = $1 AND p.type = 'node'
     """, node_id)
     
     for row in rows:
