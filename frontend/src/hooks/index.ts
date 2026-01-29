@@ -31,3 +31,4 @@ export * from './useKeyboardShortcuts';
 export * from './useLinkedReferencesCount';
 export * from './useFocusTrap';
 export * from './useProperties';
+export * from './useHierarchicalPath';
