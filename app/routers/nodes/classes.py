@@ -102,25 +102,14 @@ async def get_nodes_with_class(
     
     Returns nodes that have been categorized with the given class node.
     Includes nodes that are classed with subclasses of this class (inheritance).
-    Uses batch fetching for class_ids to avoid N+1 queries.
+    Uses direct array queries with class_ids column for performance.
     """
     from ...domain.services.class_extension_service import ClassExtensionService
     from ...domain.repositories import PostgresPropertyRepository
     
     service = await _get_node_service(user)
     
-    # Get the 'classes' property ID
     async with service._pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM property WHERE name = 'classes' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
-            service._graph_id
-        )
-        
-        if not row:
-            return {"nodes": []}
-        
-        classes_property_id = row['id']
-        
         # Get all subclasses (classes that extend this class)
         property_repo = PostgresPropertyRepository(service._pool, service._graph_id or 0, int(user.id))
         extension_service = ClassExtensionService(service._pool, service._graph_id or 0, property_repo)
@@ -128,19 +117,18 @@ async def get_nodes_with_class(
         subclass_ids = await extension_service.get_all_subclasses(class_id)
         all_class_ids = [class_id] + subclass_ids
         
-        # Find all nodes that have this class or any of its subclasses (only active nodes)
-        placeholders = ', '.join(f'${i+3}' for i in range(len(all_class_ids)))
-        query = f"""
-            SELECT DISTINCT n.* FROM node n
-            JOIN property_value_relation pvr ON n.id = pvr.node_id
-            WHERE pvr.property_id = $1 AND pvr.target_id IN ({placeholders}) AND n.graph_id = $2 AND n.active = TRUE
-            ORDER BY n.write_date DESC
-        """
-        rows = await conn.fetch(query, classes_property_id, service._graph_id, *all_class_ids)
+        # Find all nodes that have this class or any of its subclasses using array overlap
+        rows = await conn.fetch("""
+            SELECT * FROM node
+            WHERE class_ids && $1::integer[]
+              AND graph_id = $2
+              AND active = TRUE
+            ORDER BY write_date DESC
+        """, all_class_ids, service._graph_id)
     
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     
-    # Batch fetch class_ids for all nodes
+    # Batch fetch class_ids for all nodes (already included in row_to_node, but fetch for consistency)
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     

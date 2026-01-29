@@ -56,8 +56,6 @@ export function ClassPropertiesEditor({
   
   // Filter available properties (exclude already added)
   const availableProperties = allProperties?.filter(prop => {
-    // Don't show system 'classes' property (identified by UUID, not name)
-    if (prop.uuid === SYSTEM_PROPERTY_UUIDS.classes) return false;
     if (classProperties?.some(cp => cp.property_id === prop.id)) return false;
     if (searchQuery && !prop.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;

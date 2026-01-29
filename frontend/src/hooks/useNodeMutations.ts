@@ -988,24 +988,9 @@ export function useAddClass() {
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
       
-      // Merge the updated node with existing cache, preserving fields not returned by backend (like properties)
-      // The backend only returns: id, uuid, name, icon, color, parent_id, classes, etc.
-      // It does NOT return: children, properties, backlinks
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(nodeId) },
-        (old) => {
-          if (!old) return updatedNode;
-          // Preserve fields that backend doesn't return
-          return {
-            ...old,
-            ...updatedNode,
-            // Explicitly preserve these fields if they exist in old but not in updatedNode
-            children: updatedNode.children ?? old.children,
-            properties: updatedNode.properties ?? old.properties,
-            backlinks: updatedNode.backlinks ?? old.backlinks,
-          };
-        }
-      );
+      // Invalidate the node query to refetch with all fields (including properties)
+      // This ensures the cover section and other property-dependent UI doesn't break
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       
       // GLOBAL: If is_page flag changed, invalidate pages cache
       if (oldNode && oldNode.is_page !== updatedNode.is_page) {

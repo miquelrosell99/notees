@@ -182,45 +182,29 @@ async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[i
 
 
 async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
-    """Efficiently fetch class_ids for multiple nodes in a single query.
+    """Efficiently fetch class_ids directly from node table.
     
     Returns a dict mapping node_id -> list of class_ids.
     """
     if not node_ids:
         return {}
     
-    # Initialize result with empty lists for all requested nodes
-    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
-    
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT 
-                pvr.node_id,
-                array_agg(pvr.target_id) as class_ids
-            FROM property_value_relation pvr
-            JOIN property p ON pvr.property_id = p.id
-            JOIN node n ON pvr.node_id = n.id
-            WHERE p.name = 'classes' 
-              AND n.graph_id = $2
-              AND pvr.node_id = ANY($1)
-              AND pvr.target_id IS NOT NULL
-            GROUP BY pvr.node_id
+            SELECT id, class_ids
+            FROM node
+            WHERE id = ANY($1) AND graph_id = $2
         """, node_ids, graph_id)
     
-        for row in rows:
-            node_id = row['node_id']
-            class_ids = row['class_ids']
-            if class_ids:
-                result[node_id] = [cid for cid in class_ids if cid is not None]
-    
-    return result
+    # Return class_ids for each node
+    return {row['id']: list(row['class_ids'] or []) for row in rows}
 
 
 async def _get_effective_class_ids_batch(pool, graph_id: int, node_ids: List[int], user_id: int) -> Dict[int, List[int]]:
     """Fetch class_ids for multiple nodes including inherited classes from extends.
     
     For each node:
-    - Gets explicit classes from the 'classes' property
+    - Gets explicit classes from the class_ids column
     - For each explicit class, gets all classes it extends (inheritance chain)
     - Returns combined list (explicit + inherited), with explicit classes first
     
@@ -350,16 +334,9 @@ async def _get_node_service(user: User) -> NodeService:
         )
         page_class_id = row['id'] if row else 1
         logger.info(f"page_class_id: {page_class_id}, row: {row}")
-        
-        row = await conn.fetchrow(
-            "SELECT id FROM property WHERE name = 'classes' AND (graph_id = $1 OR graph_id IS NULL) LIMIT 1",
-            graph_id
-        )
-        classes_property_id = row['id'] if row else 1
-        logger.info(f"classes_property_id: {classes_property_id}, row: {row}")
     
     # Create repositories with graph context
-    node_repo = PostgresNodeRepository(pool, graph_id, page_class_id, classes_property_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_class_id, user_id)
     property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
     link_repo = PostgresLinkRepository(pool, graph_id, user_id)
     inline_class_repo = PostgresInlineClassRepository(pool, graph_id, user_id)
@@ -368,12 +345,12 @@ async def _get_node_service(user: User) -> NodeService:
     link_service = LinkParsingService(node_repo, link_repo, inline_class_repository=inline_class_repo)
     node_service = NodeService(
         node_repo, property_repo, link_service,
-        page_class_id, classes_property_id
+        page_class_id,
+        pool=pool,
+        graph_id=graph_id
     )
     
-    # Store graph context for use in helper functions
-    node_service._pool = pool
-    node_service._graph_id = graph_id
+    # Store user_id for use in helper functions
     node_service._user_id = user_id
     
     return node_service

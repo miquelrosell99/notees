@@ -20,7 +20,7 @@ class QueryBlockType(str, Enum):
     NOT_CONTAINER = "NOT_CONTAINER"
     
     # Leaf blocks (conditions)
-    TYPE = "TYPE"
+    CLASS = "CLASS"
     PROPERTY = "PROPERTY"
     CONTENT = "CONTENT"
     REFERENCE = "REFERENCE"
@@ -78,8 +78,8 @@ class QueryBlock:
             return ContainerBlock.from_dict(data)
         elif block_type == QueryBlockType.NOT_CONTAINER:
             return NotBlock.from_dict(data)
-        elif block_type == QueryBlockType.TYPE:
-            return TypeBlock.from_dict(data)
+        elif block_type == QueryBlockType.CLASS:
+            return ClassBlock.from_dict(data)
         elif block_type == QueryBlockType.PROPERTY:
             return PropertyBlock.from_dict(data)
         elif block_type == QueryBlockType.CONTENT:
@@ -135,9 +135,9 @@ class NotBlock(QueryBlock):
 
 
 @dataclass
-class TypeBlock(QueryBlock):
-    """Filter by node type."""
-    type: QueryBlockType = field(default=QueryBlockType.TYPE)
+class ClassBlock(QueryBlock):
+    """Filter by node class."""
+    type: QueryBlockType = field(default=QueryBlockType.CLASS)
     value: str = ""  # Type name or ID
     type_id: Optional[int] = None  # Resolved type node ID
     
@@ -148,8 +148,8 @@ class TypeBlock(QueryBlock):
         return result
     
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "TypeBlock":
-        return TypeBlock(
+    def from_dict(data: Dict[str, Any]) -> "ClassBlock":
+        return ClassBlock(
             value=data.get("value", ""),
             type_id=data.get("type_id")
         )
@@ -354,7 +354,7 @@ class NodeView:
     node_id: int = 0  # The node this view belongs to
     name: str = ""  # Display name for the tab
     query_json: Optional[Dict[str, Any]] = None  # The query block tree JSON
-    view_type: str = ""  # e.g., child_pages, typed_nodes, linked_references
+    view_type: str = ""  # e.g., child_pages, classed_nodes, linked_references
     order_index: int = 0  # Tab order within view_type
     is_default: bool = False  # Whether this is the default tab for the view_type
     active: bool = True

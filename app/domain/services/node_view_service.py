@@ -33,20 +33,20 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                     "max_depth": 1
                 },
                 {
-                    "type": "TYPE",
+                    "type": "CLASS",
                     "value": "page"
                 }
             ]
         }
     },
-    "typed_nodes": {
-        "name": "Typed Items",
+    "classed_nodes": {
+        "name": "Classed Nodes",
         "block_tree": {
             "type": "AND_CONTAINER",
             "blocks": [
                 {
-                    "type": "REFERENCE",
-                    "target_uuid": "{current_node_uuid}",
+                    "type": "CLASS",
+                    "value": "{current_node_uuid}",
                 }
             ]
         }
@@ -84,7 +84,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "type": "AND_CONTAINER",
             "blocks": [
                 {
-                    "type": "TYPE",
+                    "type": "CLASS",
                     "value": "page"
                 },
                 {

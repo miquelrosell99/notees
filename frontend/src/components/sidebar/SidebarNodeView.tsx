@@ -207,7 +207,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     const pages: Node[] = [];
     
     for (const child of node.children) {
-      // Skip children with this node as their class (they appear in typed_nodes view)
+      // Skip children with this node as their class (they appear in classed_nodes view)
       if (child.classes?.includes(node.id)) continue;
       
       if (child.is_page) {
@@ -444,7 +444,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
               <DynamicNodeViewSection
                 nodeId={node.id}
                 nodeUuid={node.uuid}
-                viewType="typed_nodes"
+                viewType="classed_nodes"
                 title="Nodes"
                 icon={<TableIcon size="sm" />}
                 hideWhenEmpty={true}

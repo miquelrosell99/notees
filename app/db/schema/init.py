@@ -73,15 +73,6 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             raise RuntimeError(f"Failed to create node_property for node {node_id}")
         return row['id']
     
-    # Helper to assign a relation property value
-    async def assign_relation_property(node_id: int, property_id: int, target_node_id: int):
-        node_property_id = await get_or_create_node_property(node_id, property_id)
-        await conn.execute("""
-            INSERT INTO property_value_relation 
-            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-        """, generate_uuid(), node_property_id, property_id, node_id, target_node_id, now, user_id)
-    
     # Create 'class' node (renamed from 'type')
     class_uuid = SYSTEM_CLASS_UUIDS["class"]
     class_row = await conn.fetchrow("""
@@ -104,24 +95,17 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         raise RuntimeError("Failed to create 'page' node")
     page_class_id = page_row['id']
     
-    # Create 'classes' property (per-graph)
-    classes_prop_uuid = SYSTEM_PROPERTY_UUIDS["classes"]
-    classes_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'classes', 'node', TRUE, TRUE, $3, $3, $4, $4)
-        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
-        RETURNING id
-    """, classes_prop_uuid, graph_id, now, user_id)
-    if classes_row is None:
-        raise RuntimeError("Failed to create 'classes' property")
-    classes_property_id = classes_row['id']
     
-    # Set class filter for 'classes' property (class node filter)
+    # Classes are now stored in node.class_ids column (no longer a property)
+    # Assign classes to 'class' node using direct UPDATE
     await conn.execute("""
-        INSERT INTO property_class_filter (property_id, class_node_id)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-    """, classes_property_id, class_node_id)
+        UPDATE node SET class_ids = $1 WHERE id = $2
+    """, [class_node_id, page_class_id], class_node_id)
+    
+    # Assign classes to 'page' node using direct UPDATE
+    await conn.execute("""
+        UPDATE node SET class_ids = $1 WHERE id = $2
+    """, [class_node_id, page_class_id], page_class_id)
     
     # Create other system properties
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
@@ -174,14 +158,6 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         ON CONFLICT DO NOTHING
     """, extends_property_id, class_node_id)
     
-    # Assign classes to 'class' node
-    await assign_relation_property(class_node_id, classes_property_id, class_node_id)
-    await assign_relation_property(class_node_id, classes_property_id, page_class_id)
-    
-    # Assign classes to 'page' node
-    await assign_relation_property(page_class_id, classes_property_id, class_node_id)
-    await assign_relation_property(page_class_id, classes_property_id, page_class_id)
-    
     # Create remaining system classes
     asset_type_id = None
     
@@ -204,9 +180,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         if class_name == "asset":
             asset_type_id = new_class_id
         
-        # Assign 'class' and 'page' classes
-        await assign_relation_property(new_class_id, classes_property_id, class_node_id)
-        await assign_relation_property(new_class_id, classes_property_id, page_class_id)
+        # Assign 'class' and 'page' classes using direct UPDATE to class_ids column
+        await conn.execute("""
+            UPDATE node SET class_ids = $1 WHERE id = $2
+        """, [class_node_id, page_class_id], new_class_id)
     
     # Set class filter for 'cover' and 'banner' properties
     if asset_type_id:
@@ -232,8 +209,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             raise RuntimeError(f"Failed to create '{page_name}' page")
         new_page_id = row['id']
         
-        # Assign 'page' class
-        await assign_relation_property(new_page_id, classes_property_id, page_class_id)
+        # Assign 'page' class using direct UPDATE to class_ids column
+        await conn.execute("""
+            UPDATE node SET class_ids = $1 WHERE id = $2
+        """, [page_class_id], new_page_id)
     
     # Create today's daily page to avoid 404 on first graph launch
     from .constants import generate_day_uuid, generate_month_uuid, generate_year_uuid
@@ -271,8 +250,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         """, year_uuid, graph_id, str(today.year), now, user_id)
         if year_row:
             year_id = year_row['id']
-            await assign_relation_property(year_id, classes_property_id, page_class_id)
-            await assign_relation_property(year_id, classes_property_id, year_type_id)
+            # Assign classes using direct UPDATE to class_ids column
+            await conn.execute("""
+                UPDATE node SET class_ids = $1 WHERE id = $2
+            """, [page_class_id, year_type_id], year_id)
             
             # Create month node
             month_name = f"{today.year}/{today.month:02d}"
@@ -283,8 +264,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             """, month_uuid, graph_id, month_name, year_id, now, user_id)
             if month_row:
                 month_id = month_row['id']
-                await assign_relation_property(month_id, classes_property_id, page_class_id)
-                await assign_relation_property(month_id, classes_property_id, month_type_id)
+                # Assign classes using direct UPDATE to class_ids column
+                await conn.execute("""
+                    UPDATE node SET class_ids = $1 WHERE id = $2
+                """, [page_class_id, month_type_id], month_id)
                 
                 # Create today's day node
                 day_name = f"{today.year}/{today.month:02d}/{today.day:02d}"
@@ -295,8 +278,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
                 """, day_uuid, graph_id, day_name, month_id, now, user_id)
                 if day_row:
                     day_id = day_row['id']
-                    await assign_relation_property(day_id, classes_property_id, page_class_id)
-                    await assign_relation_property(day_id, classes_property_id, day_type_id)
+                    # Assign classes using direct UPDATE to class_ids column
+                    await conn.execute("""
+                        UPDATE node SET class_ids = $1 WHERE id = $2
+                    """, [page_class_id, day_type_id], day_id)
 
 
 async def create_graph_for_user(

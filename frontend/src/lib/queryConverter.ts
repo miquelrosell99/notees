@@ -10,7 +10,7 @@ import type {
   QueryBlockTree,
   ContainerBlock,
   NotBlock,
-  TypeBlock,
+  ClassBlock,
   PropertyBlock,
   ContentBlock,
   ReferenceBlock,
@@ -184,13 +184,13 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
       };
     }
     
-    case 'TYPE': {
-      const typeBlock = block as TypeBlock;
+    case 'CLASS': {
+      const classBlock = block as ClassBlock;
       return {
         type: 'condition',
         condition_type: 'type',
-        type_uuid: typeBlock.value,
-        type_id: typeBlock.type_id,
+        type_uuid: classBlock.value,
+        type_id: classBlock.type_id,
       } as TypeCondition;
     }
     

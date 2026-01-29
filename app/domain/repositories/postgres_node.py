@@ -39,7 +39,6 @@ class PostgresNodeRepository(NodeRepository):
         pool: asyncpg.Pool,
         graph_id: int,
         page_type_id: int,
-        types_property_id: int,
         user_id: Optional[int] = None
     ):
         """Initialize with connection pool and graph context.
@@ -48,13 +47,11 @@ class PostgresNodeRepository(NodeRepository):
             pool: asyncpg connection pool
             graph_id: Current graph ID for multi-tenant queries
             page_type_id: ID of the 'page' type node
-            types_property_id: ID of the 'types' property
             user_id: Current user ID for permission checks and audit
         """
         self._pool = pool
         self._graph_id = graph_id
         self._page_class_id = page_type_id
-        self._types_property_id = types_property_id
         self._user_id = user_id
         self._permissions: Optional[PermissionChecker] = None
     
@@ -86,6 +83,11 @@ class PostgresNodeRepository(NodeRepository):
                 classes_path = json.loads(classes_path)
             except (json.JSONDecodeError, TypeError):
                 classes_path = []
+        
+        # Parse class_ids array
+        class_ids = row.get('class_ids', [])
+        if class_ids is None:
+            class_ids = []
         
         # Convert timestamps to ISO strings if they're datetime objects
         create_date = row['create_date']
@@ -131,6 +133,7 @@ class PostgresNodeRepository(NodeRepository):
             create_uid=row.get('create_uid'),
             write_uid=row.get('write_uid'),
             usable_in=row.get('usable_in', 'both'),
+            class_ids=class_ids,
             classes_path=classes_path,
             version=row.get('version', 1),
         )
@@ -327,52 +330,29 @@ class PostgresNodeRepository(NodeRepository):
                 if data.parent_id is not None and data.sequence is not None:
                     await self._shift_siblings_for_insert(conn, data.parent_id, data.sequence)
                 
-                # Insert node
+                # Insert node with class_ids
                 row = await conn.fetchrow("""
                     INSERT INTO node (
                         uuid, graph_id, name, icon, color, parent_id, page_id,
                         sequence, collapsed,
                         is_class, is_page, is_day, is_month, is_year,
                         is_asset, is_template, is_comment,
+                        class_ids,
                         create_date, write_date, create_uid, write_uid
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $19, $19)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
                     RETURNING id
                 """, uuid, self._graph_id, data.name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
                     is_class, is_page, is_day,
                     is_month, is_year, is_asset,
                     is_template, is_comment,
+                    data.classes if data.classes else [],
                     now, uid)
                 
                 if row is None:
                     raise RuntimeError("Failed to create node")
                 node_id = row['id']
-                
-                # Add classes as property values
-                if data.classes:
-                    np_uuid = generate_uuid()
-                    await conn.execute("""
-                        INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
-                        VALUES ($1, $2, $3, $4, $4, $5, $5)
-                        ON CONFLICT (node_id, property_id) DO NOTHING
-                    """, np_uuid, node_id, self._types_property_id, now, uid)
-                    
-                    np_row = await conn.fetchrow(
-                        "SELECT id FROM node_property WHERE node_id = $1 AND property_id = $2",
-                        node_id, self._types_property_id
-                    )
-                    if not np_row:
-                        raise RuntimeError(f"Failed to create node_property for node {node_id}")
-                    node_property_id = np_row['id']
-                    
-                    for class_id in data.classes:
-                        pvr_uuid = generate_uuid()
-                        await conn.execute("""
-                            INSERT INTO property_value_relation 
-                            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
-                            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-                        """, pvr_uuid, node_property_id, self._types_property_id, node_id, class_id, now, uid)
         
         return Node(
             id=node_id,
@@ -392,6 +372,7 @@ class PostgresNodeRepository(NodeRepository):
             is_month=is_month,
             is_year=is_year,
             is_asset=is_asset,
+            class_ids=data.classes if data.classes else [],
             is_template=is_template,
             is_comment=is_comment,
             create_date=now.isoformat(),
@@ -706,9 +687,8 @@ class PostgresNodeRepository(NodeRepository):
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT n.* FROM node n
-                JOIN property_value_relation pvr ON n.id = pvr.node_id
-                WHERE pvr.property_id = $1 AND pvr.target_id = $2 AND n.graph_id = $3 AND n.active = TRUE AND n.is_deleted = FALSE
-            """, self._types_property_id, type_node_id, self._graph_id)
+                WHERE $1 = ANY(n.class_ids) AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+            """, type_node_id, self._graph_id)
             return [self._row_to_node(row) for row in rows]
     
     async def set_active(self, node_id: int, active: bool, user_id: Optional[int] = None) -> Optional[Node]:

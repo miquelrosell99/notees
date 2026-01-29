@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS node (
     is_comment BOOLEAN DEFAULT FALSE,
     -- Class-specific fields
     usable_in VARCHAR(10) DEFAULT 'both' CHECK (usable_in IN ('page', 'block', 'both')),
+    class_ids INTEGER[] DEFAULT '{}',
     classes_path JSONB DEFAULT '[]'::jsonb,
     open_date TIMESTAMPTZ,
     -- Full-text search
@@ -130,6 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_node_is_class ON node(is_class) WHERE is_class = 
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_deleted = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_class_ids ON node USING GIN (class_ids);
 CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
@@ -391,7 +393,7 @@ CREATE TABLE IF NOT EXISTS node_view (
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     query_json JSONB NOT NULL DEFAULT '{"type": "AND_CONTAINER", "blocks": []}'::jsonb,
-    view_type TEXT NOT NULL, -- e.g., child_pages, typed_nodes, linked_references, main_content
+    view_type TEXT NOT NULL, -- e.g., child_pages, classed_nodes, linked_references, main_content
     order_index INTEGER DEFAULT 0,
     is_default BOOLEAN DEFAULT FALSE,
     active BOOLEAN DEFAULT TRUE,
