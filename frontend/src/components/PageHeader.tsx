@@ -121,10 +121,13 @@ export function PageHeader({
           // The child hierarchy starts after the original name
           const childSegments = parsed.parentSegments.slice(1);
           
+          // Maintain local cache of pages to avoid duplicate lookups
+          const pagesCache = [...allPages];
+          
           // Resolve or create intermediate child pages
           let currentParent = page.id;
           for (const segment of childSegments) {
-            const existingChild = allPages.find(
+            const existingChild = pagesCache.find(
               p => p.name === segment && p.parent_id === currentParent
             );
             
@@ -136,6 +139,8 @@ export function PageHeader({
                 classes: [pageClassId],
                 parent_id: currentParent,
               });
+              // Add to local cache so subsequent iterations can find it
+              pagesCache.push(newChild);
               currentParent = newChild.id;
             }
           }
