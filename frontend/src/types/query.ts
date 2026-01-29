@@ -241,6 +241,7 @@ export interface QueryExecuteRequest {
   offset?: number;
   order_by?: string;
   include_children?: boolean;
+  include_properties?: boolean;
 }
 
 // ==================== Runtime Parameters ====================

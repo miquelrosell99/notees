@@ -142,6 +142,7 @@ export async function executeNodeViewQuery(
     offset?: number;
     order_by?: string;
     include_children?: boolean;
+    include_properties?: boolean;
   }
 ): Promise<Node[]> {
   const response = await api.post<QueryExecuteResponse>(

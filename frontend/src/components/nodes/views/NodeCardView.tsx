@@ -360,8 +360,8 @@ function NodeCard({
         {/* Vertical layout: cover-top or no-cover */}
         {!isHorizontalLayout && (
           <>
-            {/* Cover image or Add Cover button (vertical) - show if cover exists AND layout is not no-cover */}
-            {(coverUrl && effectiveLayout !== 'no-cover') && (
+            {/* Cover image or Add Cover button (vertical) - show if layout is not no-cover */}
+            {effectiveLayout !== 'no-cover' && (
               <div 
                 className="node-card__cover" 
                 onClick={(e) => e.stopPropagation()}
@@ -403,7 +403,7 @@ function NodeCard({
                     )}
                   </>
                 ) : (
-                  <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+                  editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
                 )}
               </div>
             )}
@@ -585,7 +585,7 @@ function NodeCard({
                   )}
                 </>
               ) : (
-                <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+                editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
               )}
             </div>
             
@@ -791,7 +791,8 @@ function NodeCard({
           isOpen={isCoverModalOpen}
           onClose={() => setIsCoverModalOpen(false)}
           src={coverUrl}
-          alt="Cover"
+          alt={assetNode?.name || 'Cover'}
+          filename={assetNode?.name}
           assetNode={assetNode}
           onBulletClick={handleCoverBulletClick}
           onBulletShiftClick={handleCoverBulletShiftClick}
