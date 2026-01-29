@@ -2,164 +2,52 @@
  * Archived Pages View
  * 
  * Displays pages that have been archived (active = false).
- * Archiving is different from deletion - archived pages are hidden from
- * normal views but can be unarchived and restored.
+ * Uses DynamicNodeViewSection with archived view type.
  */
-import { useState } from 'react';
-import { useArchivedPages, useUnarchiveNode } from '@/hooks';
-import { Button } from '../components/core/Button';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
-import Icon from '@mdi/react';
-import * as mdiIcons from '@mdi/js';
+import { useCallback } from 'react';
+import { DynamicNodeViewSection } from '../components/nodes/DynamicNodeViewSection';
+import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import './ArchivedPagesView.css';
 
-export function ArchivedPagesView() {
-  const { data: pages, isLoading } = useArchivedPages();
-  const unarchiveMutation = useUnarchiveNode();
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+interface ArchivedPagesViewProps {
+  className?: string;
+}
 
-  const pageList = pages || [];
-
-  const toggleSelection = (id: number) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
-
-  const toggleAll = () => {
-    if (selectedIds.size === pageList.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(pageList.map((p: Node) => p.id)));
-    }
-  };
-
-  const handleUnarchive = async (id: number) => {
-    await unarchiveMutation.mutateAsync(id);
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
-
-  const handleBulkUnarchive = async () => {
-    for (const id of selectedIds) {
-      await unarchiveMutation.mutateAsync(id);
-    }
-    setSelectedIds(new Set());
-  };
-
-  if (isLoading) {
-    return (
-      <div className="archived-pages-view">
-        <div className="archived-header">
-          <h1>📦 Archived Pages</h1>
-        </div>
-        <div className="archived-empty">Loading...</div>
-      </div>
-    );
-  }
-
-  if (pageList.length === 0) {
-    return (
-      <div className="archived-pages-view">
-        <div className="archived-header">
-          <h1>📦 Archived Pages</h1>
-        </div>
-        <div className="archived-empty">
-          <p>No archived pages</p>
-          <p className="archived-empty-hint">
-            Archived pages are hidden from normal views but not deleted.
-            You can archive a page from its context menu.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
+  const { openNode } = useNodesStore();
+  
+  // Special pseudo-node ID and UUID for archived view
+  const PSEUDO_NODE_ID = -2;
+  const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000002';
+  
   return (
-    <div className="archived-pages-view">
-      <div className="archived-header">
-        <h1>📦 Archived Pages</h1>
-        <div className="archived-actions">
-          {selectedIds.size > 0 && (
-            <Button 
-              onClick={handleBulkUnarchive}
-              variant="primary"
-              disabled={unarchiveMutation.isPending}
-            >
-              Unarchive {selectedIds.size} page{selectedIds.size > 1 ? 's' : ''}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="archived-list">
-        <div className="archived-list-header">
-          <label className="archived-checkbox">
-            <input
-              type="checkbox"
-              checked={selectedIds.size === pageList.length && pageList.length > 0}
-              onChange={toggleAll}
-            />
-          </label>
-          <div className="archived-list-columns">
-            <div className="archived-col-name">Name</div>
-            <div className="archived-col-archived">Archived</div>
-            <div className="archived-col-actions">Actions</div>
+    <article className={`node-view node-view--page archived-pages-view ${className}`}>
+      {/* Page Header */}
+      <div className="page-header-section">
+        <div className="page-header-section__header">
+          <div className="page-header">
+            <h1 className="page-header__title">📦 Archived Pages</h1>
           </div>
         </div>
-
-        {pageList.map((page: Node) => {
-          const icon = getEffectiveIcon(page);
-          const mdiPath = icon ? (mdiIcons as any)[icon] : null;
-
-          return (
-            <div 
-              key={page.id} 
-              className={`archived-item ${selectedIds.has(page.id) ? 'selected' : ''}`}
-            >
-              <label className="archived-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(page.id)}
-                  onChange={() => toggleSelection(page.id)}
-                />
-              </label>
-              
-              <div className="archived-item-content">
-                <div className="archived-col-name">
-                  <div className="archived-item-icon">
-                    {mdiPath && <Icon path={mdiPath} size={0.9} />}
-                  </div>
-                  <span className="archived-item-name">{page.name}</span>
-                </div>
-
-                <div className="archived-col-archived">
-                  {page.write_date ? new Date(page.write_date).toLocaleDateString() : '-'}
-                </div>
-
-                <div className="archived-col-actions">
-                  <Button
-                    onClick={() => handleUnarchive(page.id)}
-                    size="sm"
-                    variant="ghost"
-                    disabled={unarchiveMutation.isPending}
-                  >
-                    Unarchive
-                  </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <div className="page-header-section__subtitle">
+          Archived pages are hidden from normal views but not deleted
+        </div>
       </div>
-    </div>
+      
+      {/* Archived Section - use DynamicNodeViewSection with archived view type */}
+      <DynamicNodeViewSection
+        nodeId={PSEUDO_NODE_ID}
+        nodeUuid={PSEUDO_NODE_UUID}
+        viewType="archived"
+        title="Archived Pages"
+        icon={<span>📦</span>}
+        hideWhenEmpty={false}
+        defaultExpanded={true}
+        onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+      />
+    </article>
   );
 }
+
+export default ArchivedPagesView;
