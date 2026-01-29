@@ -99,12 +99,14 @@ class Node:
     # e.g., a block inside a node classed `task`, inside a node classed `meeting` -> [task_id, meeting_id]
     classes_path: List[int] = field(default_factory=list)
     
+    # Direct class assignments (replaces property-based storage)
+    class_ids: List[int] = field(default_factory=list)
+    
     # Optimistic locking
     version: int = 1
     
     # Computed (not stored)
     _display_name: Optional[str] = field(default=None, repr=False)
-    _classes: List[int] = field(default_factory=list, repr=False)  # Cached class node IDs
     
     @property
     def display_name(self) -> str:

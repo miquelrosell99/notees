@@ -38,7 +38,7 @@ export interface FilterTypeOption {
 }
 
 export const FILTER_TYPE_OPTIONS: FilterTypeOption[] = [
-  { value: 'TYPE', label: 'Classes', icon: mdiTagOutline, description: 'Filter by node class' },
+  { value: 'CLASS', label: 'Classes', icon: mdiTagOutline, description: 'Filter by node class' },
   { value: 'CONTENT', label: 'Content', icon: mdiTextBox, description: 'Filter by text content' },
   { value: 'REFERENCE', label: 'References', icon: mdiLink, description: 'Nodes that reference...' },
   { value: 'REFERENCE_PATH', label: 'Path References', icon: mdiLink, description: 'Nodes referenced by path' },
@@ -109,6 +109,7 @@ export function createDefaultBlock(type: QueryBlockType): QueryBlock {
       return { type, blocks: [] };
     case 'NOT_CONTAINER':
       return { type, block: undefined };
+    case 'CLASS':
     case 'TYPE':
       return { type, value: '' };
     case 'PROPERTY':

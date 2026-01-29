@@ -173,13 +173,6 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
         )
         page_type_id = row['id'] if row else 1
         
-        # Get classes property ID
-        row = await conn.fetchrow(
-            "SELECT id FROM property WHERE uuid = $1",
-            SYSTEM_PROPERTY_UUIDS['classes']
-        )
-        types_property_id = row['id'] if row else 1
-        
         now = datetime.now(timezone.utc)
         
         # Get or create asset class ID
@@ -204,21 +197,13 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
                 SYSTEM_CLASS_UUIDS['class'], graph_id
             )
             if type_row:
-                # Create node_property assignment first
-                np_id = await conn.fetchval("""
-                    INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
-                    VALUES ($1, $2, $3, $4, $4, $5, $5)
-                    RETURNING id
-                """, generate_uuid(), asset_type_id, types_property_id, now, user_id)
-                
-                # Add type value to property_value_relation (target_id instead of target_node_id)
+                # Update class_ids directly
                 await conn.execute("""
-                    INSERT INTO property_value_relation 
-                        (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
-                    VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-                """, generate_uuid(), np_id, types_property_id, asset_type_id, type_row['id'], now, user_id)
+                    UPDATE node SET class_ids = ARRAY[$1]::integer[], write_date = $2
+                    WHERE id = $3
+                """, type_row['id'], now, asset_type_id)
     
-    return page_type_id, types_property_id, asset_type_id
+    return page_type_id, asset_type_id
 
 
 @router.post("/upload", response_model=AssetResponse)
@@ -270,7 +255,7 @@ async def upload_asset(
         raise HTTPException(status_code=500, detail="Graph UUID not found")
     
     try:
-        page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
+        page_type_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
         
         # Initialize AssetService
         asset_service = AssetService(graph_uuid)
@@ -287,7 +272,7 @@ async def upload_asset(
         filename_without_ext = Path(file.filename).stem if file.filename else "asset"
         
         # Create repository
-        node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+        node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
         
         # If existing_node_id is provided, convert that node to an asset
         if existing_node_id:
@@ -306,19 +291,11 @@ async def upload_asset(
                 
                 # Add asset class to the node
                 if asset_type_id:
-                    # Create node_property assignment
-                    np_id = await conn.fetchval("""
-                        INSERT INTO node_property (uuid, node_id, property_id, create_date, write_date, create_uid, write_uid)
-                        VALUES ($1, $2, $3, $4, $4, $5, $5)
-                        RETURNING id
-                    """, generate_uuid(), existing_node_id, types_property_id, now, user_id)
-                    
-                    # Add class value
+                    # Update class_ids directly
                     await conn.execute("""
-                        INSERT INTO property_value_relation 
-                            (uuid, node_property_id, property_id, node_id, target_id, create_date, write_date, create_uid, write_uid)
-                        VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
-                    """, generate_uuid(), np_id, types_property_id, existing_node_id, asset_type_id, now, user_id)
+                        UPDATE node SET class_ids = class_ids || $1::integer[], write_date = $2
+                        WHERE id = $3
+                    """, [asset_type_id], now, existing_node_id)
             
             # Fetch updated node
             node = await node_repo.get(existing_node_id)
@@ -562,8 +539,8 @@ async def get_asset_info(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, types_property_id, _ = await _get_system_ids(pool, graph_id, user_id)
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+    page_type_id, _ = await _get_system_ids(pool, graph_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
     
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
@@ -613,8 +590,8 @@ async def delete_asset(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, types_property_id, _ = await _get_system_ids(pool, graph_id, user_id)
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+    page_type_id, _ = await _get_system_ids(pool, graph_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
     
     # Get the node
     node = await node_repo.get_by_uuid(asset_uuid)
@@ -652,8 +629,8 @@ async def list_assets(
     async with pool.acquire() as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, types_property_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, types_property_id, user_id)
+    page_type_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
+    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
     
     # Get nodes that have the 'asset' type
     if asset_type_id is None:

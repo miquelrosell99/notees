@@ -145,7 +145,7 @@ SYSTEM_CLASS_ICONS = {
 # System properties with fixed UUIDs
 SYSTEM_PROPERTY_UUIDS = {
     "tags": "00000000-0000-0000-0000-000000000001",
-    "classes": "00000000-0000-0000-0000-000000000002",
+    # "classes" removed - now stored directly in node.class_ids column
     "show_hierarchy": "00000000-0000-0000-0000-000000000003",
     "used_in": "00000000-0000-0000-0000-000000000004",
     "cover": "00000000-0000-0000-0000-000000000005",
@@ -156,7 +156,7 @@ SYSTEM_PROPERTY_UUIDS = {
 
 SYSTEM_PROPERTIES = [
     {"name": "tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
-    {"name": "classes", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["classes"]},
+    # "classes" removed - now stored directly in node.class_ids column
     {"name": "show_hierarchy", "type": "boolean", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"]},
     {"name": "used_in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
     {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},

@@ -67,6 +67,7 @@ export function isSystemQuery(query: QueryAST | null | undefined): boolean {
 export function createConditionFromType(blockType: string): ConditionNode {
   switch (blockType) {
     case 'node-class':
+    case 'class':
     case 'type':
       return {
         type: 'condition',

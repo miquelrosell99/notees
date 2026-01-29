@@ -64,13 +64,15 @@ class NodeService:
         property_repository: PropertyRepository,
         link_service: LinkParsingService,
         page_class_id: int,
-        classes_property_id: int,
+        pool: asyncpg.Pool = None,
+        graph_id: int = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
         self._link_service = link_service
         self._page_class_id = page_class_id
-        self._classes_property_id = classes_property_id
+        self._pool = pool
+        self._graph_id = graph_id
     
     async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
         """Compute is_* flags based on the classes assigned to a node.
@@ -875,7 +877,7 @@ class NodeService:
         return await self._node_repo.search(query, limit)
     
     async def add_class(self, node_id: int, class_node_id: int, *, _system_call: bool = False) -> bool:
-        """Add a class to a node.
+        """Add a class to a node using direct class_ids array.
         
         Validates page name uniqueness if this is a page.
         
@@ -888,11 +890,6 @@ class NodeService:
             SystemClassConstraintError: If trying to add a protected date class (day, month, year)
             DuplicateNodeError: If adding this class would violate page name uniqueness
         """
-        # Get the node
-        node = await self._node_repo.get_by_id(node_id)
-        if not node:
-            return False
-        
         # Check if the class being added is a protected date class
         class_node = await self._node_repo.get_by_id(class_node_id)
         if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS and not _system_call:
@@ -900,31 +897,45 @@ class NodeService:
                 f"Cannot manually add '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
             )
         
-        # Get current classes
-        existing_values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
-        existing_class_ids = [v.target_id for v in existing_values]
-        
-        if class_node_id in existing_class_ids:
-            return False  # Already has this class
-        
-        # Validate page name uniqueness if this is a page
-        if node.is_page:
-            new_classes = existing_class_ids + [class_node_id]
-            await self._validate_page_name_uniqueness(
-                name=node.name,
-                parent_id=node.parent_id,
-                classes=new_classes,
-                exclude_node_id=node_id,
+        # Get current node and class_ids
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id, name, is_page, parent_id, class_ids FROM node WHERE id = $1 AND graph_id = $2",
+                node_id, self._graph_id
             )
-        
-        # Add the class using set_relation_value
-        await self._property_repo.set_relation_value(
-            node_id, self._classes_property_id, class_node_id
-        )
-        
-        # Recompute all flags from the updated classes list
-        new_classes = existing_class_ids + [class_node_id]
-        await self._update_flags_from_classes(node_id, new_classes)
+            if not row:
+                return False
+            
+            # Check if trying to add 'class' class to a non-page node
+            if class_node and class_node.uuid == CLASS_CLASS_UUID:
+                if not row['is_page']:
+                    raise SystemClassConstraintError(
+                        "The 'class' class can only be assigned to pages, not blocks."
+                    )
+            
+            current_class_ids = list(row['class_ids'] or [])
+            if class_node_id in current_class_ids:
+                return False  # Already has this class
+            
+            # Validate page name uniqueness if this is a page
+            if row['is_page']:
+                new_classes = current_class_ids + [class_node_id]
+                await self._validate_page_name_uniqueness(
+                    name=row['name'],
+                    parent_id=row['parent_id'],
+                    classes=new_classes,
+                    exclude_node_id=node_id,
+                )
+            
+            # Add the class to class_ids array
+            new_class_ids = current_class_ids + [class_node_id]
+            await conn.execute(
+                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
+                new_class_ids, node_id
+            )
+            
+            # Recompute all flags from the updated classes list
+            await self._update_flags_from_classes(node_id, new_class_ids)
         
         # Apply Class properties
         class_properties = await self._property_repo.get_class_properties(class_node_id)
@@ -945,7 +956,7 @@ class NodeService:
         return await self.add_class(node_id, type_node_id, _system_call=_system_call)
     
     async def remove_class(self, node_id: int, class_node_id: int) -> bool:
-        """Remove a class from a node.
+        """Remove a class from a node using direct class_ids array.
         
         Raises:
             SystemClassConstraintError: If trying to remove a protected date class (day, month, year)
@@ -967,22 +978,30 @@ class NodeService:
                     f"Cannot remove 'class' from system class '{node.name}'. System classes must remain as classes."
                 )
         
-        # Get relation values for the classes property
-        values = await self._property_repo.get_relation_values(node_id, self._classes_property_id)
+        # Remove class from class_ids array
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT class_ids FROM node WHERE id = $1 AND graph_id = $2",
+                node_id, self._graph_id
+            )
+            if not row:
+                return False
+            
+            current_class_ids = list(row['class_ids'] or [])
+            if class_node_id not in current_class_ids:
+                return False  # Class was not assigned to this node
+            
+            # Remove the class
+            new_class_ids = [cid for cid in current_class_ids if cid != class_node_id]
+            await conn.execute(
+                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
+                new_class_ids, node_id
+            )
+            
+            # Recompute all flags from the updated classes list
+            await self._update_flags_from_classes(node_id, new_class_ids)
         
-        for val in values:
-            if val.target_id == class_node_id:
-                # Remove this specific relation value
-                if val.id is not None:
-                    await self._property_repo.remove_relation_value(val.id)
-                
-                # Recompute all flags from the updated classes list
-                remaining_class_ids = [v.target_id for v in values if v.id != val.id and v.target_id is not None]
-                await self._update_flags_from_classes(node_id, remaining_class_ids)
-                
-                return True
-        
-        return False  # Class was not assigned to this node
+        return True
     
     # Alias for backwards compatibility
     async def remove_type(self, node_id: int, type_node_id: int) -> bool:
@@ -990,20 +1009,21 @@ class NodeService:
         return await self.remove_class(node_id, type_node_id)
     
     async def get_node_classes(self, node_id: int) -> List[Node]:
-        """Get all classes applied to a node."""
-        # Get relation values directly from the classes property
-        relation_values = await self._property_repo.get_relation_values(
-            node_id, self._classes_property_id
-        )
-        
-        classes = []
-        for val in relation_values:
-            if val.target_id:
-                class_node = await self._node_repo.get_by_id(val.target_id)
-                if class_node:
-                    classes.append(class_node)
-        
-        return classes
+        """Get all classes applied to a node from class_ids array."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT class_ids FROM node WHERE id = $1 AND graph_id = $2",
+                node_id, self._graph_id
+            )
+            if not row or not row['class_ids']:
+                return []
+            
+            # Fetch all class nodes
+            rows = await conn.fetch(
+                "SELECT * FROM node WHERE id = ANY($1) AND graph_id = $2",
+                row['class_ids'], self._graph_id
+            )
+            return [self._node_repo.row_to_node(r) for r in rows]
     
     # Alias for backwards compatibility
     async def get_node_types(self, node_id: int) -> List[Node]:

@@ -7,7 +7,7 @@
 
 export const SYSTEM_PROPERTY_UUIDS = {
   tags: '00000000-0000-0000-0000-000000000001',
-  classes: '00000000-0000-0000-0000-000000000002',
+  // 'classes' removed - now stored directly in node.class_ids column
   show_hierarchy: '00000000-0000-0000-0000-000000000003',
   used_in: '00000000-0000-0000-0000-000000000004',
   cover: '00000000-0000-0000-0000-000000000005',
@@ -42,13 +42,6 @@ export const SYSTEM_CLASS_UUIDS = {
  */
 export function isSystemPropertyUuid(uuid: string): boolean {
   return Object.values(SYSTEM_PROPERTY_UUIDS).includes(uuid as typeof SYSTEM_PROPERTY_UUIDS[keyof typeof SYSTEM_PROPERTY_UUIDS]);
-}
-
-/**
- * Check if a property is the 'classes' system property
- */
-export function isClassesProperty(uuid: string): boolean {
-  return uuid === SYSTEM_PROPERTY_UUIDS.classes;
 }
 
 /**

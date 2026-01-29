@@ -246,7 +246,7 @@ export function DynamicNodeViewSection({
       'all_pages': {
         type: 'AND_CONTAINER',
         blocks: [
-          { type: 'TYPE', value: 'page' },
+          { type: 'CLASS', value: 'page' },
           // Only get root pages - children will be loaded via include_children
           { type: 'PROPERTY', property_name: 'parent_id', property_type: 'node', operator: 'is_empty', value: null },
         ],
@@ -467,7 +467,7 @@ export function DynamicNodeViewSection({
           };
           break;
         
-        case 'typed_nodes':
+        case 'classed_nodes':
           // Create a block that is a child of this class page and has the class assigned
           nodeData = {
             name: '',

@@ -106,7 +106,7 @@ class PostgresNodeViewRepository:
         Args:
             node_id: The node this view belongs to
             name: Display name for the tab
-            view_type: e.g., child_pages, typed_nodes, linked_references
+            view_type: e.g., child_pages, classed_nodes, linked_references
             query_json: The query block tree JSON
             order_index: Tab order within view_type
             is_default: Whether this is the default tab for the view_type

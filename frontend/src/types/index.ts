@@ -11,7 +11,7 @@ export {
   type BaseQueryBlock,
   type ContainerBlock,
   type NotBlock,
-  type TypeBlock,
+  type ClassBlock,
   type PropertyBlock,
   type ContentBlock,
   type ReferenceBlock,

@@ -361,7 +361,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     const pages: Node[] = [];
     
     for (const child of node.children) {
-      // Skip children with this node as their class (they appear in typed_nodes view)
+      // Skip children with this node as their class (they appear in classed_nodes view)
       if (child.classes?.includes(node.id)) continue;
       
       // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
@@ -595,7 +595,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         <DynamicNodeViewSection
           nodeId={node.id}
           nodeUuid={node.uuid}
-          viewType="typed_nodes"
+          viewType="classed_nodes"
           title="Nodes"
           icon={<TableIcon size="sm" />}
           hideWhenEmpty={false}

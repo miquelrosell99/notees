@@ -14,7 +14,7 @@ export type QueryBlockType =
   | 'AND_CONTAINER'
   | 'OR_CONTAINER'
   | 'NOT_CONTAINER'
-  | 'TYPE'
+  | 'CLASS'
   | 'PROPERTY'
   | 'CONTENT'
   | 'REFERENCE'
@@ -89,10 +89,10 @@ export interface NotBlock extends BaseQueryBlock {
 }
 
 /**
- * Type filter block
+ * Class filter block
  */
-export interface TypeBlock extends BaseQueryBlock {
-  type: 'TYPE';
+export interface ClassBlock extends BaseQueryBlock {
+  type: 'CLASS';
   value: string; // Type name or UUID
   type_id?: number; // Resolved type node ID
 }
@@ -160,7 +160,7 @@ export interface UuidBlock extends BaseQueryBlock {
 export type QueryBlock =
   | ContainerBlock
   | NotBlock
-  | TypeBlock
+  | ClassBlock
   | PropertyBlock
   | ContentBlock
   | ReferenceBlock
@@ -183,7 +183,7 @@ export interface QueryBlockTree {
  */
 export type NodeViewType =
   | 'child_pages'
-  | 'typed_nodes'
+  | 'classed_nodes'
   | 'linked_references'
   | 'main_content'
   | 'all_pages';
@@ -274,11 +274,11 @@ export function createEmptyBlockTree(): QueryBlockTree {
 }
 
 /**
- * Create a type filter block
+ * Create a class filter block
  */
-export function createTypeBlock(value: string, typeId?: number): TypeBlock {
+export function createClassBlock(value: string, classId?: number): ClassBlock {
   return {
-    type: 'TYPE',
+    type: 'CLASS',
     value,
     type_id: typeId,
   };
@@ -368,7 +368,7 @@ export function getBlockTypeLabel(type: QueryBlockType): string {
     AND_CONTAINER: 'All of (AND)',
     OR_CONTAINER: 'Any of (OR)',
     NOT_CONTAINER: 'Not',
-    TYPE: 'Type',
+    CLASS: 'Class',
     PROPERTY: 'Property',
     CONTENT: 'Content',
     REFERENCE: 'References',
