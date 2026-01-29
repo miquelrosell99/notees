@@ -480,6 +480,45 @@ export function useUpdateNode() {
         refetchType: 'none',
       });
       
+      // If parent_id was updated, invalidate and refetch parent's view queries
+      // to update child_pages sections immediately
+      if (variables.data.parent_id !== undefined) {
+        const newParentId = variables.data.parent_id;
+        
+        // Invalidate and refetch new parent's views (to show new child)
+        if (newParentId) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['nodeViews', 'queryResults'],
+            predicate: (query) => {
+              const key = query.queryKey as unknown[];
+              // Match queries that execute views for the new parent node
+              return key.length >= 4 && key[0] === 'nodeViews' && key[1] === 'queryResults';
+            },
+          });
+          queryClient.refetchQueries({ 
+            queryKey: ['nodeViews', 'queryResults'],
+            type: 'active',
+          });
+        }
+        
+        // Also get old parent from cache to invalidate its views
+        const cachedNode = queryClient.getQueryData<Node>(nodeKeys.detail(updatedNode.id));
+        const oldParentId = cachedNode?.parent_id;
+        if (oldParentId && oldParentId !== newParentId) {
+          queryClient.invalidateQueries({ 
+            queryKey: ['nodeViews', 'queryResults'],
+            predicate: (query) => {
+              const key = query.queryKey as unknown[];
+              return key.length >= 4 && key[0] === 'nodeViews' && key[1] === 'queryResults';
+            },
+          });
+          queryClient.refetchQueries({ 
+            queryKey: ['nodeViews', 'queryResults'],
+            type: 'active',
+          });
+        }
+      }
+      
       // If name/content was updated, invalidate link-related caches
       // This ensures backlink badges and linked references update in real-time
       // when block references are added/removed (e.g., [[linkId]] or ((uuid)))
