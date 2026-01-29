@@ -4,6 +4,19 @@
   margin: 0 auto;
 }
 
+.trash-view__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.trash-view__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border-primary);
+}
+
 .trash-view__loading {
   text-align: center;
   padding: 3rem;
