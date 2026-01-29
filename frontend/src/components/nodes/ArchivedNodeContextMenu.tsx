@@ -25,15 +25,26 @@ interface ArchivedNodeContextMenuProps {
  */
 export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
   const unarchiveNode = useUnarchiveNode();
   const deleteNode = useDeleteNode();
   const { addSidebarCard, openLocalGraph } = useNodesStore();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
-  const handleUnarchive = useCallback(() => {
+  const handleUnarchiveClick = useCallback(() => {
+    setShowUnarchiveModal(true);
+  }, []);
+  
+  const handleConfirmUnarchive = useCallback(() => {
     unarchiveNode.mutate(node.id);
+    setShowUnarchiveModal(false);
     onClose();
   }, [node.id, unarchiveNode, onClose]);
+  
+  const handleCancelUnarchive = useCallback(() => {
+    setShowUnarchiveModal(false);
+    onClose();
+  }, [onClose]);
   
   const handleDeleteClick = useCallback(() => {
     setShowDeleteModal(true);
@@ -54,7 +65,8 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     {
       id: 'unarchive',
       label: 'Unarchive',
-      onClick: handleUnarchive,
+      keepOpen: true,
+      onClick: handleUnarchiveClick,
     },
     {
       id: 'copy-uuid',
@@ -102,7 +114,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   
   return (
     <>
-      {!showDeleteModal && (
+      {!showDeleteModal && !showUnarchiveModal && (
         <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
           <ContextMenu
             items={menuItems}
@@ -111,6 +123,16 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
           />
         </div>
       )}
+      <ConfirmationModal
+        isOpen={showUnarchiveModal}
+        title="Unarchive Page"
+        message={`Unarchive "${node.name || 'Untitled'}"? It will be restored to normal view.`}
+        confirmLabel="Unarchive"
+        cancelLabel="Cancel"
+        variant="primary"
+        onConfirm={handleConfirmUnarchive}
+        onCancel={handleCancelUnarchive}
+      />
       <ConfirmationModal
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
