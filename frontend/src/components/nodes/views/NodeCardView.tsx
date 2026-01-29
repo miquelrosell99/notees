@@ -215,7 +215,6 @@ function NodeCard({
   
   // State for the cover URL (needs to be async to get token)
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const [loadingCoverUrl, setLoadingCoverUrl] = useState(false);
   
   // Get the image URL from the asset node's uuid (async with token)
   useEffect(() => {
@@ -223,30 +222,30 @@ function NodeCard({
     if (!coverImageId || !assetNode?.uuid) {
       console.log(`[NodeCard ${node.id}] No cover - coverImageId:`, coverImageId, 'assetNode:', assetNode);
       setCoverUrl(null);
-      setLoadingCoverUrl(false);
-      return;
-    }
-    
-    // Don't fetch again if already loading or if URL is already set for this asset
-    if (loadingCoverUrl) {
       return;
     }
     
     console.log(`[NodeCard ${node.id}] Loading cover URL for asset:`, assetNode.uuid);
-    setLoadingCoverUrl(true);
+    
+    let cancelled = false;
     
     getAssetUrlAsync(assetNode.uuid)
       .then(url => {
-        console.log(`[NodeCard ${node.id}] Cover URL loaded:`, url);
-        setCoverUrl(url);
+        if (!cancelled) {
+          console.log(`[NodeCard ${node.id}] Cover URL loaded:`, url);
+          setCoverUrl(url);
+        }
       })
       .catch(err => {
-        console.error(`[NodeCard ${node.id}] Failed to load cover URL:`, err);
-        setCoverUrl(null);
-      })
-      .finally(() => {
-        setLoadingCoverUrl(false);
+        if (!cancelled) {
+          console.error(`[NodeCard ${node.id}] Failed to load cover URL:`, err);
+          setCoverUrl(null);
+        }
       });
+    
+    return () => {
+      cancelled = true;
+    };
   }, [coverImageId, assetNode?.uuid, node.id]);
   
   
