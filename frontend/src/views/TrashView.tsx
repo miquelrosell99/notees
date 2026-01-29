@@ -41,13 +41,15 @@ export function TrashView({ className = '' }: TrashViewProps) {
       
       {/* Trash Collection */}
       <div className="trash-view__content">
-        <NodeCollectionToolbar
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          groupBy="none"
-          onGroupByChange={() => {}}
-          hiddenControls={['group', 'sort']}
-        />
+        <div className="trash-view__toolbar">
+          <NodeCollectionToolbar
+            viewMode={viewMode}
+            availableViewModes={['list', 'table', 'card']}
+            onViewModeChange={setViewMode}
+            groupBy="none"
+            onGroupByChange={() => {}}
+          />
+        </div>
         
         {isLoading && <div className="trash-view__loading">Loading...</div>}
         {error && <div className="trash-view__error">Failed to load trash</div>}
@@ -56,6 +58,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             nodes={nodes ?? []}
             viewMode={viewMode}
             editable={false}
+            hideToolbar={true}
             onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
           />
         )}

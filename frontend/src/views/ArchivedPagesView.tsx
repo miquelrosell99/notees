@@ -45,13 +45,15 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       
       {/* Archived Collection */}
       <div className="archived-pages-view__content">
-        <NodeCollectionToolbar
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          groupBy="none"
-          onGroupByChange={() => {}}
-          hiddenControls={['group', 'sort']}
-        />
+        <div className="archived-pages-view__toolbar">
+          <NodeCollectionToolbar
+            viewMode={viewMode}
+            availableViewModes={['list', 'table', 'card']}
+            onViewModeChange={setViewMode}
+            groupBy="none"
+            onGroupByChange={() => {}}
+          />
+        </div>
         
         {isLoading && <div className="archived-pages-view__loading">Loading...</div>}
         {error && <div className="archived-pages-view__error">Failed to load archived pages</div>}
@@ -60,6 +62,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             nodes={nodes ?? []}
             viewMode={viewMode}
             editable={false}
+            hideToolbar={true}
             onNodeClick={(node) => openNode(node.id, 'page')}
           />
         )}
