@@ -648,6 +648,14 @@ export function useDeleteNode() {
       // Remove the deleted node's queries (all variations)
       queryClient.removeQueries({ queryKey: nodeKeys.detailBase(deletedId) });
       
+      // Remove from favorites and recents
+      const { useFavoritesStore } = await import('@/stores');
+      const favoritesStore = useFavoritesStore.getState();
+      if (favoritesStore.isFavorite(deletedId)) {
+        favoritesStore.removeFavorite(deletedId);
+      }
+      favoritesStore.removeRecent(deletedId);
+      
       // SOFT invalidate queries to prevent race conditions with concurrent mutations
       // Use refetchType: 'none' to mark as stale without immediate refetch
       // This prevents overwriting optimistic updates from other mutations
