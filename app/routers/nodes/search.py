@@ -1,16 +1,17 @@
 """Search, list, and graph endpoints for nodes."""
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 
 from ..auth import get_current_user
-from ...models import User
+from ...models import User, PaginatedResponse
 from .helpers import (
     _get_node_service,
     _node_to_response,
     _get_class_ids_batch,
     _build_children_tree,
 )
+from .models import NodeResponse
 
 
 router = APIRouter()
@@ -195,9 +196,11 @@ async def list_nodes(
     type_filters: Optional[str] = None,  # Comma-separated type IDs to filter by
     include_children: bool = False,
     root_only: bool = False,  # Only return nodes with no parent
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
     user: User = Depends(get_current_user),
 ):
-    """List nodes with optional filters.
+    """List nodes with optional filters and pagination.
     
     Args:
         pages_only: Only return pages (no blocks)
@@ -206,8 +209,10 @@ async def list_nodes(
         type_filters: Additional comma-separated type IDs to filter by
         include_children: Include nested children for each node
         root_only: Only return root nodes (no parent_id)
+        page: Page number (1-indexed)
+        page_size: Number of items per page (1-200)
     
-    Returns nodes with type_ids populated for reliable filtering.
+    Returns paginated nodes with type_ids populated for reliable filtering.
     """
     service = await _get_node_service(user)
     
@@ -218,7 +223,7 @@ async def list_nodes(
     elif pages_only:
         nodes = await service.get_all_pages()
     else:
-        nodes = await service.search("", limit=1000)
+        nodes = await service.search("", limit=10000)  # Get all for filtering
     
     # Parse type filters if provided
     filter_type_ids: Optional[set] = None
@@ -254,4 +259,16 @@ async def list_nodes(
     if include_children and result:
         result = await _build_children_tree(service, result, class_ids_map)
     
-    return {"nodes": result}
+    # Apply pagination
+    total = len(result)
+    offset = (page - 1) * page_size
+    paginated_items = result[offset:offset + page_size]
+    
+    return PaginatedResponse[NodeResponse](
+        items=paginated_items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )

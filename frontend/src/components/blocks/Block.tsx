@@ -28,6 +28,7 @@
  */
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -1566,18 +1567,19 @@ function BlockInternal({
           />
           <div className="nested-blocks">
             {children.map((child) => (
-              <Block
-                key={child.id}
-                block={child}
-                children={child.children}
-                siblings={children}
-                depth={depth + 1}
-                parentId={block.id}
-                parentBlock={block}
-                onContentChange={onContentChange}
-                onBulletClick={onBulletClick}
-                onShiftClick={onShiftClick}
-                onAddClass={onAddClass}
+              <BlockErrorBoundary key={child.id} blockId={String(child.id)}>
+                <Block
+                  key={child.id}
+                  block={child}
+                  children={child.children}
+                  siblings={children}
+                  depth={depth + 1}
+                  parentId={block.id}
+                  parentBlock={block}
+                  onContentChange={onContentChange}
+                  onBulletClick={onBulletClick}
+                  onShiftClick={onShiftClick}
+                  onAddClass={onAddClass}
                 onAddTag={onAddTag}
                 onCreateClass={onCreateClass}
                 onCreateTag={onCreateTag}
@@ -1593,6 +1595,7 @@ function BlockInternal({
                 onTaskStateChange={onTaskStateChange}
                 onOpenBacklinks={onOpenBacklinks}
               />
+              </BlockErrorBoundary>
             ))}
           </div>
         </div>

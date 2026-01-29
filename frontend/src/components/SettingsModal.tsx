@@ -100,7 +100,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       <div className="settings-modal">
         <div className="settings-modal__header">
           <h2 className="settings-modal__title">Settings</h2>
-          <Button icon={mdiClose} iconOnly className="settings-modal__close" onClick={onClose} size="sm" variant="ghost" />
+          <Button icon={mdiClose} iconOnly className="settings-modal__close" onClick={onClose} size="sm" variant="ghost" aria-label="Close settings" />
         </div>
 
         <div className="settings-modal__body">

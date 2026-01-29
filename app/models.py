@@ -15,10 +15,11 @@ Pages reference other pages with [[Page Name]], blocks with ((block-uuid)).
 Journal pages use tags: 'day', 'month', 'year' with YYYYMMdd format names.
 """
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional, List, Generic, TypeVar
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 import uuid
+import re
 
 
 def generate_uuid() -> str:
@@ -43,6 +44,26 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """User creation model."""
     password: str
+    
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v):
+        if len(v) < 3:
+            raise ValueError('Username must be at least 3 characters')
+        if len(v) > 50:
+            raise ValueError('Username must be at most 50 characters')
+        if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            raise ValueError('Username can only contain letters, numbers, and underscores')
+        return v
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        if len(v) > 128:
+            raise ValueError('Password must be at most 128 characters')
+        return v
 
 
 class UserLogin(UserBase):
@@ -76,6 +97,20 @@ class TokenData(BaseModel):
     """Token payload data."""
     user_id: str
     username: str
+
+
+# ==================== PAGINATION ====================
+
+T = TypeVar('T')
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Generic paginated response for list endpoints."""
+    items: List[T]
+    total: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_prev: bool
 
 
 # ==================== NODE MODELS ====================
