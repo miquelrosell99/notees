@@ -20,8 +20,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNode, useProperties, useSetNodeProperty } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import { getAssetUrl } from '@/api/assets';
+import { getAssetUrlAsync, uploadAsset, type Asset } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
@@ -75,6 +76,8 @@ interface CoverImageProps {
   coverImageId: number | null;
   /** Callback to open asset picker */
   onSelectImage?: () => void;
+  /** Callback when image uploaded (for handling after drag-drop) */
+  onImageUploaded?: (asset: Asset) => void;
   /** Whether cover can be edited */
   editable?: boolean;
 }
@@ -83,11 +86,13 @@ export function CoverImage({
   pageId, 
   coverImageId, 
   onSelectImage,
+  onImageUploaded,
   editable = true,
 }: CoverImageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => getCollapsedState(pageId, !!coverImageId));
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
   const { data: assetNode, isLoading } = useNode(coverImageId, { include_children: false });
@@ -144,10 +149,78 @@ export function CoverImage({
     }
   }, [handleToggleCollapse]);
   
-  // Get the image URL from the asset node's uuid
-  const imageUrl = coverImageId && assetNode?.uuid 
-    ? getAssetUrl(assetNode.uuid)
-    : null;
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, [editable]);
+  
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+  
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (!editable || !coverProperty) return;
+    
+    try {
+      const result = await extractImageFromDragEvent(e);
+      if (result) {
+        const asset = await uploadAsset(result.file);
+        setPropertyMutation.mutate({
+          nodeId: pageId,
+          propertyId: coverProperty.id,
+          value: asset.node_id
+        });
+        if (onImageUploaded) {
+          onImageUploaded(asset);
+        }
+        // Expand if collapsed after successful drop
+        if (isCollapsed) {
+          setIsCollapsed(false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to upload dropped cover:', error);
+    }
+  }, [editable, coverProperty, pageId, setPropertyMutation, onImageUploaded, isCollapsed]);
+  
+  // State for the image URL (needs to be async to get token)
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  
+  // Get the image URL from the asset node's uuid (async with token)
+  useEffect(() => {
+    if (!coverImageId || !assetNode?.uuid) {
+      setImageUrl(null);
+      return;
+    }
+    
+    let cancelled = false;
+    
+    getAssetUrlAsync(assetNode.uuid)
+      .then(url => {
+        if (!cancelled) {
+          setImageUrl(url);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load cover image URL:', err);
+        if (!cancelled) {
+          setImageUrl(null);
+        }
+      });
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [coverImageId, assetNode?.uuid]);
   
   // Loading state
   if (coverImageId && isLoading) {
@@ -190,9 +263,12 @@ export function CoverImage({
     // Expanded empty state - show add button with collapse option
     return (
       <div 
-        className="cover-image-card cover-image-card--empty"
+        className={`cover-image-card cover-image-card--empty ${isDragging ? 'cover-image-card--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <button
           className="cover-image-card__collapse-btn cover-image-card__collapse-btn--empty-expanded"
@@ -251,9 +327,12 @@ export function CoverImage({
   // Expanded state - show full card
   return (
     <div 
-      className="cover-image-card cover-image-card--expanded"
+      className={`cover-image-card cover-image-card--expanded ${isDragging ? 'cover-image-card--dragging' : ''}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Action buttons - vertical stack on left side of image */}
       {editable && isHovered && (
@@ -293,12 +372,14 @@ export function CoverImage({
       
       <Card padding={false} radius="md" elevation="low">
         <img 
+          key={imageUrl}
           src={imageUrl} 
           alt="Cover" 
           className="cover-image-card__img"
           onClick={() => setIsModalOpen(true)}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
           title="Click to view full size"
+          draggable="false"
         />
       </Card>
       

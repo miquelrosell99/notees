@@ -20,6 +20,14 @@
   transition: width 0.25s ease, margin 0.25s ease, opacity 0.2s ease;
 }
 
+/* Dragging state */
+.cover-image-card--dragging {
+  outline: 2px dashed var(--accent-color);
+  outline-offset: -2px;
+  background-color: var(--accent-bg);
+  opacity: 0.9;
+}
+
 /* Bullet - positioned at top left of image */
 .cover-image-card__bullet {
   position: absolute;

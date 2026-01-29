@@ -37,8 +37,9 @@ import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
-import { getAssetUrlAsync } from '@/api/assets';
+import { getAssetUrlAsync, uploadAsset } from '@/api/assets';
 import type { Asset } from '@/api/assets';
+import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { mdiPlus, mdiChevronRight, mdiChevronDown, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
 import './NodeCardView.css';
 
@@ -98,6 +99,9 @@ function NodeCard({
   
   // Store actions for navigation
   const { openNode, addSidebarCard } = useNodesStore();
+  
+  // Drag state for cover replacement
+  const [isCoverDragging, setIsCoverDragging] = useState(false);
   
   // Resolve class details (excluding the implicit "page" class)
   const classDetails = useMemo(() => {
@@ -347,6 +351,57 @@ function NodeCard({
       }
     }
   }, [coverProperty, node.id, node.page_id, node.parent_id, setNodeProperty, queryClient]);
+  
+  const handleCoverDropped = useCallback(async (file: File | string) => {
+    // Upload the file or fetch from URL
+    try {
+      let asset;
+      if (typeof file === 'string') {
+        // It's a URL - fetch it first
+        const response = await fetch(file);
+        const blob = await response.blob();
+        const fileName = file.split('/').pop() || 'image.jpg';
+        const fileObj = new File([blob], fileName, { type: blob.type });
+        asset = await uploadAsset(fileObj);
+      } else {
+        // It's a File object
+        asset = await uploadAsset(file);
+      }
+      await handleCoverUploaded(asset);
+    } catch (error) {
+      console.error('Failed to upload dropped cover:', error);
+    }
+  }, [handleCoverUploaded]);
+
+  // Drag handlers for cover replacement
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCoverDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCoverDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCoverDragging(false);
+    
+    if (!editable || !coverProperty) return;
+    
+    try {
+      const result = await extractImageFromDragEvent(e);
+      if (result) {
+        await handleCoverDropped(result.file);
+      }
+    } catch (error) {
+      console.error('Failed to process dropped image:', error);
+    }
+  }, [editable, coverProperty, handleCoverDropped]);
 
   // Handle drag start from header
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -407,20 +462,25 @@ function NodeCard({
             {/* Cover image or Add Cover button (vertical) - show if layout is not no-cover */}
             {effectiveLayout !== 'no-cover' && (
               <div 
-                className="node-card__cover" 
+                className={`node-card__cover ${isCoverDragging ? 'node-card__cover--dragging' : ''}`}
                 onClick={(e) => e.stopPropagation()}
                 onMouseEnter={() => setIsCoverHovered(true)}
                 onMouseLeave={() => setIsCoverHovered(false)}
+                onDragOver={coverUrl ? handleDragOver : undefined}
+                onDragLeave={coverUrl ? handleDragLeave : undefined}
+                onDrop={coverUrl ? handleDrop : undefined}
               >
                 {coverUrl ? (
                   <>
                     <img 
+                      key={coverUrl}
                       src={coverUrl} 
                       alt="" 
                       className="node-card__cover-image"
                       onClick={() => setIsCoverModalOpen(true)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', pointerEvents: isCoverDragging ? 'none' : 'auto' }}
                       title="Click to view full size"
+                      draggable="false"
                     />
                     {editable && isCoverHovered && (
                       <FloatingButtonArray
@@ -447,7 +507,7 @@ function NodeCard({
                     )}
                   </>
                 ) : (
-                  editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+                  editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} onDrop={handleCoverDropped} size="sm" />
                 )}
               </div>
             )}
@@ -589,20 +649,25 @@ function NodeCard({
           <>
             {/* Cover image or Add Cover button (horizontal - spans 3 rows) */}
             <div 
-              className="node-card__cover" 
+              className={`node-card__cover ${isCoverDragging ? 'node-card__cover--dragging' : ''}`}
               onClick={(e) => e.stopPropagation()}
               onMouseEnter={() => setIsCoverHovered(true)}
               onMouseLeave={() => setIsCoverHovered(false)}
+              onDragOver={coverUrl ? handleDragOver : undefined}
+              onDragLeave={coverUrl ? handleDragLeave : undefined}
+              onDrop={coverUrl ? handleDrop : undefined}
             >
               {coverUrl ? (
                 <>
                   <img 
+                    key={coverUrl}
                     src={coverUrl} 
                     alt="" 
                     className="node-card__cover-image"
                     onClick={() => setIsCoverModalOpen(true)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: 'pointer', pointerEvents: isCoverDragging ? 'none' : 'auto' }}
                     title="Click to view full size"
+                    draggable="false"
                   />
                   {editable && isCoverHovered && (
                     <FloatingButtonArray
@@ -629,7 +694,7 @@ function NodeCard({
                   )}
                 </>
               ) : (
-                editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} size="sm" />
+                editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} onDrop={handleCoverDropped} size="sm" />
               )}
             </div>
             
