@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TrashIcon, RestoreIcon, DeleteIcon } from '../components/icons';
 import { nodeKeys } from '@/hooks/useNodes';
 import { Button } from '../components/core/Button';
+import { getTrash, restoreNode, permanentDeleteNode } from '@/api/nodes';
 import type { Node } from '@/types';
 import './TrashView.css';
 
@@ -22,22 +23,12 @@ export function TrashView({ className = '' }: TrashViewProps) {
   // Fetch deleted nodes
   const { data: trashData, isLoading } = useQuery({
     queryKey: ['trash'],
-    queryFn: async () => {
-      const response = await fetch('/api/nodes/trash');
-      if (!response.ok) throw new Error('Failed to fetch trash');
-      return response.json();
-    },
+    queryFn: getTrash,
   });
   
   // Restore mutation
   const restoreMutation = useMutation({
-    mutationFn: async (nodeId: number) => {
-      const response = await fetch(`/api/nodes/${nodeId}/restore`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Failed to restore node');
-      return response.json();
-    },
+    mutationFn: restoreNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -47,13 +38,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   
   // Permanent delete mutation
   const permanentDeleteMutation = useMutation({
-    mutationFn: async (nodeId: number) => {
-      const response = await fetch(`/api/nodes/${nodeId}/permanent`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('Failed to permanently delete node');
-      return response.json();
-    },
+    mutationFn: permanentDeleteNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       setSelectedNodes(new Set());

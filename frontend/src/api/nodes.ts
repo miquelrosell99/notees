@@ -570,3 +570,26 @@ export async function reorderFavorites(fromIndex: number, toIndex: number): Prom
   });
   return response.data.favorites;
 }
+
+/**
+ * Get all soft-deleted nodes (trash)
+ */
+export async function getTrash(): Promise<Node[]> {
+  const response = await api.get<Node[]>(`${BASE}/trash`);
+  return response.data;
+}
+
+/**
+ * Restore a soft-deleted node
+ */
+export async function restoreNode(nodeId: number): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeId}/restore`);
+  return response.data;
+}
+
+/**
+ * Permanently delete a node (hard delete)
+ */
+export async function permanentDeleteNode(nodeId: number): Promise<void> {
+  await api.delete(`${BASE}/${nodeId}/permanent`);
+}
