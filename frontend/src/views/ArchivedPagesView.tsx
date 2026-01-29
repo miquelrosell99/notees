@@ -2,12 +2,14 @@
  * Archived Pages View
  * 
  * Displays pages that have been archived (active = false).
- * Uses DynamicNodeViewSection with archived view type.
+ * Fetches directly from the /archived endpoint instead of using query system.
  */
-import { useCallback } from 'react';
-import { DynamicNodeViewSection } from '../components/nodes/DynamicNodeViewSection';
+import { useQuery } from '@tanstack/react-query';
+import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
 import { useNodesStore } from '@/stores';
-import type { Node } from '@/types';
+import { nodesApi } from '@/api/nodes';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import { useState } from 'react';
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -16,10 +18,18 @@ interface ArchivedPagesViewProps {
 
 export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const { openNode } = useNodesStore();
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   
-  // Special pseudo-node ID and UUID for archived view
-  const PSEUDO_NODE_ID = -2;
-  const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000002';
+  // Fetch archived pages directly from API
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['archived-pages'],
+    queryFn: async () => {
+      const response = await nodesApi.get<{ pages: any[] }>('/archived');
+      return response.data;
+    },
+  });
+  
+  const nodes = data?.pages ?? [];
   
   return (
     <article className={`node-view node-view--page archived-pages-view ${className}`}>
@@ -34,17 +44,30 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         </div>
       </div>
       
-      {/* Archived Section - use DynamicNodeViewSection with archived view type */}
-      <DynamicNodeViewSection
-        nodeId={PSEUDO_NODE_ID}
-        nodeUuid={PSEUDO_NODE_UUID}
-        viewType="archived"
-        title="Archived Pages"
-        icon={<i className="mdi mdi-archive"></i>}
-        hideWhenEmpty={false}
-        defaultExpanded={true}
-        onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-      />
+      {/* Archived Collection */}
+      <div className="archived-pages-view__content">
+        <NodeCollectionToolbar
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          groupBy="none"
+          onGroupByChange={() => {}}
+          sortBy="none"
+          onSortByChange={() => {}}
+          hiddenControls={['group', 'sort']}
+        />
+        
+        {isLoading && <div className="archived-pages-view__loading">Loading...</div>}
+        {error && <div className="archived-pages-view__error">Failed to load archived pages</div>}
+        {!isLoading && !error && (
+          <NodeCollection
+            nodes={nodes}
+            viewMode={viewMode}
+            editable={false}
+            contextMenuType="archived"
+            onNodeClick={(nodeId) => openNode(nodeId, 'page')}
+          />
+        )}
+      </div>
     </article>
   );
 }

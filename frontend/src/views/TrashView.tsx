@@ -1,13 +1,15 @@
 /**
  * Trash View - displays soft-deleted nodes that can be restored or permanently deleted
  * 
- * Uses DynamicNodeViewSection with trash view type.
+ * Fetches directly from the /trash endpoint instead of using query system.
  */
-import { useCallback } from 'react';
-import { DynamicNodeViewSection } from '../components/nodes/DynamicNodeViewSection';
+import { useQuery } from '@tanstack/react-query';
+import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
 import { TrashIcon } from '../components/icons';
 import { useNodesStore } from '@/stores';
-import type { Node } from '@/types';
+import { getTrash } from '@/api/nodes';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import { useState } from 'react';
 import './TrashView.css';
 
 interface TrashViewProps {
@@ -16,11 +18,15 @@ interface TrashViewProps {
 
 export function TrashView({ className = '' }: TrashViewProps) {
   const { openNode } = useNodesStore();
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   
-  // Special pseudo-node ID and UUID for trash view
-  const PSEUDO_NODE_ID = -1;
-  const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000001';
-
+  // Fetch trash directly from API
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['trash'],
+    queryFn: getTrash,
+  });
+  
+  const nodes = data?.nodes ?? [];
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
@@ -35,17 +41,30 @@ export function TrashView({ className = '' }: TrashViewProps) {
         </div>
       </div>
       
-      {/* Trash Section - use DynamicNodeViewSection with trash view type */}
-      <DynamicNodeViewSection
-        nodeId={PSEUDO_NODE_ID}
-        nodeUuid={PSEUDO_NODE_UUID}
-        viewType="trash"
-        title="Deleted Items"
-        icon={<TrashIcon size="sm" />}
-        hideWhenEmpty={false}
-        defaultExpanded={true}
-        onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
-      />
+      {/* Trash Collection */}
+      <div className="trash-view__content">
+        <NodeCollectionToolbar
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          groupBy="none"
+          onGroupByChange={() => {}}
+          sortBy="none"
+          onSortByChange={() => {}}
+          hiddenControls={['group', 'sort']}
+        />
+        
+        {isLoading && <div className="trash-view__loading">Loading...</div>}
+        {error && <div className="trash-view__error">Failed to load trash</div>}
+        {!isLoading && !error && (
+          <NodeCollection
+            nodes={nodes}
+            viewMode={viewMode}
+            editable={false}
+            contextMenuType="trash"
+            onNodeClick={(nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'block')}
+          />
+        )}
+      </div>
     </article>
   );
 }
