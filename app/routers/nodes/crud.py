@@ -135,6 +135,69 @@ async def get_archived_pages(
     return {"pages": result}
 
 
+@router.get("/trash", name="get_trash")
+async def get_trash(
+    user: User = Depends(get_current_user),
+):
+    """Get all soft-deleted nodes (trash) for the current graph.
+    
+    Returns nodes that have been soft-deleted (is_deleted=true) but not
+    permanently removed from the database.
+    """
+    service = await _get_node_service(user)
+    deleted_nodes = await service.get_deleted_nodes()
+    
+    # Convert to response format
+    responses = []
+    for node in deleted_nodes:
+        types = await service.get_node_types(node.id) if node.id else []
+        responses.append(_node_to_response(node, classes=[t.id for t in types if t.id]))
+    
+    return {
+        "nodes": responses,
+        "total": len(responses)
+    }
+
+
+@router.post("/{node_id}/restore", name="restore_node")
+async def restore_node(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Restore a soft-deleted node from trash.
+    
+    This undeletes the node by setting is_deleted=false and deleted_at=null.
+    Only works on nodes that are currently in trash.
+    """
+    service = await _get_node_service(user)
+    
+    node = await service.restore_node(node_id, None)
+    if not node:
+        raise HTTPException(404, "Node not found in trash")
+    
+    types = await service.get_node_types(node_id)
+    return _node_to_response(node, classes=[t.id for t in types if t.id])
+
+
+@router.delete("/{node_id}/permanent", name="permanently_delete_node")
+async def permanently_delete_node(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete a node from trash (hard delete from database).
+    
+    This is irreversible. Only works on nodes that are already soft-deleted.
+    The node and all its relationships will be removed from the database.
+    """
+    service = await _get_node_service(user)
+    
+    success = await service.permanently_delete_node(node_id)
+    if not success:
+        raise HTTPException(404, "Node not found in trash")
+    
+    return {"status": "permanently_deleted"}
+
+
 @router.get("/{node_id}")
 async def get_node(
     node_id: int = Path(..., ge=1, description="Node ID (must be a positive integer)"),
@@ -728,65 +791,3 @@ async def mark_page_opened(
     
     return {"status": "ok", "open_date": now.isoformat()}
 
-
-@router.get("/trash", name="get_trash")
-async def get_trash(
-    user: User = Depends(get_current_user),
-):
-    """Get all soft-deleted nodes (trash) for the current graph.
-    
-    Returns nodes that have been soft-deleted (is_deleted=true) but not
-    permanently removed from the database.
-    """
-    service = await _get_node_service(user)
-    deleted_nodes = await service.get_deleted_nodes()
-    
-    # Convert to response format
-    responses = []
-    for node in deleted_nodes:
-        types = await service.get_node_types(node.id) if node.id else []
-        responses.append(_node_to_response(node, classes=[t.id for t in types if t.id]))
-    
-    return {
-        "nodes": responses,
-        "total": len(responses)
-    }
-
-
-@router.post("/{node_id}/restore", name="restore_node")
-async def restore_node(
-    node_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Restore a soft-deleted node from trash.
-    
-    This undeletes the node by setting is_deleted=false and deleted_at=null.
-    Only works on nodes that are currently in trash.
-    """
-    service = await _get_node_service(user)
-    
-    node = await service.restore_node(node_id, None)
-    if not node:
-        raise HTTPException(404, "Node not found in trash")
-    
-    types = await service.get_node_types(node_id)
-    return _node_to_response(node, classes=[t.id for t in types if t.id])
-
-
-@router.delete("/{node_id}/permanent", name="permanently_delete_node")
-async def permanently_delete_node(
-    node_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Permanently delete a node from trash (hard delete from database).
-    
-    This is irreversible. Only works on nodes that are already soft-deleted.
-    The node and all its relationships will be removed from the database.
-    """
-    service = await _get_node_service(user)
-    
-    success = await service.permanently_delete_node(node_id)
-    if not success:
-        raise HTTPException(404, "Node not found in trash")
-    
-    return {"status": "permanently_deleted"}
