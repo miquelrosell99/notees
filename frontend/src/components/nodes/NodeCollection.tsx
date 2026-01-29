@@ -137,6 +137,7 @@ export function NodeCollection({
   onCardLayoutChange,
   selectedPropertyUuids: selectedPropertyUuidsProp,
   onPropertyColumnsChange,
+  customContextMenu,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -232,6 +233,7 @@ export function NodeCollection({
     className: '',
     isolatedBlockState,
     suppressRootColor,
+    customContextMenu,
   };
 
   // Empty state
