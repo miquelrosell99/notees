@@ -374,6 +374,7 @@ async def _get_node_service(user: User) -> NodeService:
     # Store graph context for use in helper functions
     node_service._pool = pool
     node_service._graph_id = graph_id
+    node_service._user_id = user_id
     
     return node_service
 

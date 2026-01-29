@@ -55,6 +55,7 @@ class NodeService:
     # Optional attributes set by routers for direct pool/graph access
     _pool: Any = None
     _graph_id: Optional[int] = None
+    _user_id: Optional[int] = None
     
     def __init__(
         self,
