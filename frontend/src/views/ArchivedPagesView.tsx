@@ -7,7 +7,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
 import { useNodesStore } from '@/stores';
-import { nodesApi } from '@/api/nodes';
+import api from '@/api/client';
+import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { useState } from 'react';
 import './ArchivedPagesView.css';
@@ -21,15 +22,13 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   
   // Fetch archived pages directly from API
-  const { data, isLoading, error } = useQuery({
+  const { data: nodes, isLoading, error } = useQuery({
     queryKey: ['archived-pages'],
     queryFn: async () => {
-      const response = await nodesApi.get<{ pages: any[] }>('/archived');
-      return response.data;
+      const response = await api.get<{ pages: Node[] }>('/nodes/archived');
+      return response.data.pages;
     },
   });
-  
-  const nodes = data?.pages ?? [];
   
   return (
     <article className={`node-view node-view--page archived-pages-view ${className}`}>
@@ -51,8 +50,6 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
           onViewModeChange={setViewMode}
           groupBy="none"
           onGroupByChange={() => {}}
-          sortBy="none"
-          onSortByChange={() => {}}
           hiddenControls={['group', 'sort']}
         />
         
@@ -60,11 +57,10 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         {error && <div className="archived-pages-view__error">Failed to load archived pages</div>}
         {!isLoading && !error && (
           <NodeCollection
-            nodes={nodes}
+            nodes={nodes ?? []}
             viewMode={viewMode}
             editable={false}
-            contextMenuType="archived"
-            onNodeClick={(nodeId) => openNode(nodeId, 'page')}
+            onNodeClick={(node) => openNode(node.id, 'page')}
           />
         )}
       </div>

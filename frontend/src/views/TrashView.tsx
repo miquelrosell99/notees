@@ -21,12 +21,10 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   
   // Fetch trash directly from API
-  const { data, isLoading, error } = useQuery({
+  const { data: nodes, isLoading, error } = useQuery({
     queryKey: ['trash'],
     queryFn: getTrash,
   });
-  
-  const nodes = data?.nodes ?? [];
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
@@ -48,8 +46,6 @@ export function TrashView({ className = '' }: TrashViewProps) {
           onViewModeChange={setViewMode}
           groupBy="none"
           onGroupByChange={() => {}}
-          sortBy="none"
-          onSortByChange={() => {}}
           hiddenControls={['group', 'sort']}
         />
         
@@ -57,11 +53,10 @@ export function TrashView({ className = '' }: TrashViewProps) {
         {error && <div className="trash-view__error">Failed to load trash</div>}
         {!isLoading && !error && (
           <NodeCollection
-            nodes={nodes}
+            nodes={nodes ?? []}
             viewMode={viewMode}
             editable={false}
-            contextMenuType="trash"
-            onNodeClick={(nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'block')}
+            onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
           />
         )}
       </div>
