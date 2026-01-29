@@ -27,6 +27,7 @@ interface TrashNodeContextMenuProps {
 export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeContextMenuProps) {
   const queryClient = useQueryClient();
   const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
   
   // Restore mutation
   const restoreMutation = useMutation({
@@ -47,9 +48,19 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
     },
   });
   
-  const handleRestore = useCallback(() => {
+  const handleRestoreClick = useCallback(() => {
+    setShowRestoreModal(true);
+  }, []);
+  
+  const handleConfirmRestore = useCallback(() => {
     restoreMutation.mutate(node.id);
+    setShowRestoreModal(false);
   }, [node.id, restoreMutation]);
+  
+  const handleCancelRestore = useCallback(() => {
+    setShowRestoreModal(false);
+    onClose();
+  }, [onClose]);
   
   const handlePermanentDeleteClick = useCallback(() => {
     setShowPermanentDeleteModal(true);
@@ -69,7 +80,8 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
     {
       id: 'restore',
       label: 'Restore',
-      onClick: handleRestore,
+      keepOpen: true,
+      onClick: handleRestoreClick,
     },
     {
       id: 'copy-uuid',
@@ -91,7 +103,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   
   return (
     <>
-      {!showPermanentDeleteModal && (
+      {!showPermanentDeleteModal && !showRestoreModal && (
         <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
           <ContextMenu
             items={menuItems}
@@ -100,6 +112,16 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
           />
         </div>
       )}
+      <ConfirmationModal
+        isOpen={showRestoreModal}
+        title="Restore Node"
+        message={`Restore "${node.name || 'Untitled'}" from trash?`}
+        confirmLabel="Restore"
+        cancelLabel="Cancel"
+        variant="primary"
+        onConfirm={handleConfirmRestore}
+        onCancel={handleCancelRestore}
+      />
       <ConfirmationModal
         isOpen={showPermanentDeleteModal}
         title="Permanently Delete"
