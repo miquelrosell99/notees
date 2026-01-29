@@ -273,6 +273,7 @@ export function PropertiesSection({
   const setPropertyMutation = useSetNodeProperty();
   const createNodeMutation = useCreateNode();
   const createPropertyMutation = useCreateProperty();
+  const { pageClassId } = usePageClass();
   
   // Get class properties for all classes the node has (with inheritance)
   // We need to fetch properties for each class
