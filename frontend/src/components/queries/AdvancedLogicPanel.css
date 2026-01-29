@@ -1,0 +1,54 @@
+/**
+ * AdvancedLogicPanel Styles
+ */
+
+.advanced-logic-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--color-background-secondary);
+  border-radius: var(--radius-md);
+}
+
+.advanced-logic-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.advanced-logic-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.advanced-logic-panel__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.advanced-logic-panel__ast,
+.advanced-logic-panel__sql {
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+  font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 0;
+}
+
+.advanced-logic-panel__note {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin: 0;
+}

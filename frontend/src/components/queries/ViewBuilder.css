@@ -1,0 +1,113 @@
+/**
+ * ViewBuilder Styles
+ * 
+ * Single-column layout with whitespace over borders
+ */
+
+.view-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xl);
+  padding: var(--spacing-lg);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Intent Section */
+.view-builder__intent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.view-builder__intent-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.view-builder__intent-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Section Labels */
+.view-builder__section-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-md) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Scope Section */
+.view-builder__scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* Conditions Section */
+.view-builder__conditions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* Result Preview */
+.view-builder__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  align-self: flex-end;
+}
+
+.view-builder__preview-indicator {
+  color: var(--color-success);
+  font-size: 0.5rem;
+}
+
+.view-builder__preview-text {
+  font-style: italic;
+}
+
+/* Advanced Section */
+.view-builder__advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-xl);
+  border-top: 1px solid var(--color-border);
+}
+
+.view-builder__advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: none;
+  border: none;
+  padding: var(--spacing-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+
+.view-builder__advanced-toggle:hover {
+  color: var(--color-text);
+}
+
+.view-builder__advanced-label {
+  font-weight: 500;
+}

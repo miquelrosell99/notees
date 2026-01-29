@@ -17,6 +17,43 @@ import type { PropertyOperator, ContentOperator, PropertyType } from './query';
 // Re-export for convenience
 export type { PropertyOperator, ContentOperator, PropertyType };
 
+// ==================== Capability Model ====================
+
+/**
+ * Capabilities define what operations are allowed on a node
+ * System queries use locked capabilities (UI-only, evaluator ignores)
+ */
+export interface NodeCapabilities {
+  /** Can the node be deleted by the user? */
+  removable: boolean;
+  /** Can the node's values be edited? */
+  editable: boolean;
+  /** Can the node be reordered via drag & drop? */
+  movable: boolean;
+  /** Should the node be visible in the UI? */
+  visible: boolean;
+}
+
+/**
+ * Default capabilities for user-created nodes
+ */
+export const DEFAULT_CAPABILITIES: NodeCapabilities = {
+  removable: true,
+  editable: true,
+  movable: true,
+  visible: true,
+};
+
+/**
+ * Locked capabilities for system-defined nodes
+ */
+export const SYSTEM_CAPABILITIES: NodeCapabilities = {
+  removable: false,
+  editable: false,
+  movable: false,
+  visible: true,
+};
+
 // ==================== AST Node Types ====================
 
 export type ASTNodeType =
@@ -70,6 +107,8 @@ export type ConditionType =
 export interface BaseConditionNode {
   type: 'condition';
   condition_type: ConditionType;
+  /** Capabilities control what operations are allowed (default: all true) */
+  capabilities?: NodeCapabilities;
 }
 
 /**
@@ -156,6 +195,8 @@ export interface GroupNode {
   type: 'group';
   logic: LogicType;
   children: (ConditionNode | GroupNode | NotNode)[];
+  /** Capabilities control what operations are allowed (default: all true) */
+  capabilities?: NodeCapabilities;
 }
 
 // ==================== Not Node ====================
@@ -166,6 +207,8 @@ export interface GroupNode {
 export interface NotNode {
   type: 'not';
   child: ConditionNode | GroupNode;
+  /** Capabilities control what operations are allowed (default: all true) */
+  capabilities?: NodeCapabilities;
 }
 
 // ==================== Query Root ====================
@@ -361,4 +404,46 @@ export function getMaxDepth(ast: QueryAST): number {
   }
   
   return getGroupDepth(ast.root_group, 1);
+}
+
+// ==================== Capability Helpers ====================
+
+/**
+ * Check if a node is a system node (locked capabilities)
+ */
+export function isSystemNode(node: ConditionNode | GroupNode | NotNode): boolean {
+  const caps = node.capabilities;
+  if (!caps) return false;
+  return !caps.removable && !caps.editable && !caps.movable && caps.visible;
+}
+
+/**
+ * Check if a node is editable
+ */
+export function isNodeEditable(node: ConditionNode | GroupNode | NotNode): boolean {
+  return node.capabilities?.editable ?? true;
+}
+
+/**
+ * Check if a node is removable
+ */
+export function isNodeRemovable(node: ConditionNode | GroupNode | NotNode): boolean {
+  return node.capabilities?.removable ?? true;
+}
+
+/**
+ * Check if a node is movable
+ */
+export function isNodeMovable(node: ConditionNode | GroupNode | NotNode): boolean {
+  return node.capabilities?.movable ?? true;
+}
+
+/**
+ * Mark a node as a system node (locked)
+ */
+export function markAsSystemNode<T extends ConditionNode | GroupNode | NotNode>(node: T): T {
+  return {
+    ...node,
+    capabilities: SYSTEM_CAPABILITIES,
+  };
 }

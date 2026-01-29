@@ -1,0 +1,122 @@
+/**
+ * ProseConditionBuilder Styles
+ * 
+ * Inline sentence-based condition UI
+ */
+
+.prose-condition-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.prose-condition-builder__empty {
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin: 0;
+  padding: var(--spacing-md);
+}
+
+/* Logic Selector */
+.prose-condition-builder__logic {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.prose-condition-builder__logic-text {
+  color: var(--color-text);
+  font-size: 0.9375rem;
+}
+
+/* Condition List */
+.prose-condition-builder__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Individual Condition Row */
+.prose-condition {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  transition: background-color 0.2s;
+}
+
+.prose-condition:hover {
+  background-color: var(--color-background-hover);
+  border-radius: var(--radius-sm);
+}
+
+.prose-condition__logic {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: lowercase;
+  min-width: 30px;
+}
+
+.prose-condition__system-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-tertiary);
+  cursor: help;
+}
+
+.prose-condition__inline {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.prose-condition__text {
+  color: var(--color-text);
+  font-size: 0.9375rem;
+}
+
+.prose-condition__token {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-primary-alpha);
+  color: var(--color-primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.prose-condition__delete {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.prose-condition:hover .prose-condition__delete {
+  opacity: 1;
+}
+
+/* Nested Groups */
+.prose-condition-builder__nested {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding-left: var(--spacing-lg);
+  border-left: 2px solid var(--color-border);
+  margin-left: var(--spacing-md);
+}
+
+.prose-condition-builder__nested-label {
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+/* Add Button */
+.prose-condition-builder__add {
+  align-self: flex-start;
+  margin-top: var(--spacing-sm);
+}
