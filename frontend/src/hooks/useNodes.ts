@@ -102,3 +102,6 @@ export {
   useTrackLinkClick,
   useResetLinkClick,
 } from './useActivity';
+
+// ==================== Helper Hooks ====================
+export { usePageClass } from './usePageClass';
