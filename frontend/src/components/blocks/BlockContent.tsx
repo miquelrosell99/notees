@@ -395,14 +395,23 @@ export function BlockContent({
   return (
     <span className={`block-content ${className}`} onClick={onClick}>
       {parts.map((part, index) => {
+        // Generate stable keys based on content
+        const key = part.type === 'text' 
+          ? `text-${part.content?.slice(0, 20) || ''}-${index}`
+          : part.type === 'inline-type'
+          ? `type-${part.id}-${index}`
+          : part.type === 'external-link'
+          ? `ext-${part.externalUrl}-${index}`
+          : `link-${part.id}-${part.linkUuid || ''}-${index}`;
+        
         if (part.type === 'text') {
-          return <span key={index}>{part.content}</span>;
+          return <span key={key}>{part.content}</span>;
         }
         
         if (part.type === 'inline-type') {
           return (
             <TypePill
-              key={index}
+              key={key}
               typeId={part.id!}
               raw={part.raw!}
               onNavigate={handleNavigate}
@@ -413,7 +422,7 @@ export function BlockContent({
         if (part.type === 'external-link') {
           return (
             <a
-              key={index}
+              key={key}
               href={part.externalUrl!}
               target="_blank"
               rel="noopener noreferrer"
@@ -427,7 +436,7 @@ export function BlockContent({
         
         return (
           <InlineLink
-            key={index}
+            key={key}
             linkId={part.id!}
             raw={part.raw!}
             linkUuid={part.linkUuid}

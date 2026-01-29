@@ -10,9 +10,23 @@
  * - typed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, TypeCondition } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/query';
+
+// ==================== Type Guards ====================
+
+function isReferenceCondition(node: ConditionNode): node is ReferenceCondition {
+  return node.condition_type === 'reference';
+}
+
+function isPropertyCondition(node: ConditionNode): node is PropertyCondition {
+  return node.condition_type === 'property';
+}
+
+function isTypeCondition(node: ConditionNode): node is TypeCondition {
+  return node.condition_type === 'type';
+}
 
 // ==================== System Section Definitions ====================
 
@@ -44,8 +58,8 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          child.condition_type === 'reference' &&
-          (child as any).target_uuid === context.nodeUuid &&
+          isReferenceCondition(child) &&
+          child.target_uuid === context.nodeUuid &&
           isSystemNode(child)
       );
     },
@@ -69,9 +83,9 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          child.condition_type === 'property' &&
-          (child as any).property_name === 'parent_uuid' &&
-          (child as any).value === context.parentUuid &&
+          isPropertyCondition(child) &&
+          child.property_name === 'parent_uuid' &&
+          child.value === context.parentUuid &&
           isSystemNode(child)
       );
     },
@@ -94,9 +108,9 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          child.condition_type === 'property' &&
-          (child as any).property_name === 'is_page' &&
-          (child as any).value === true &&
+          isPropertyCondition(child) &&
+          child.property_name === 'is_page' &&
+          child.value === true &&
           isSystemNode(child)
       );
     },
@@ -117,8 +131,8 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          child.condition_type === 'type' &&
-          (child as any).type_uuid === context.typeUuid &&
+          isTypeCondition(child) &&
+          child.type_uuid === context.typeUuid &&
           isSystemNode(child)
       );
     },

@@ -26,6 +26,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from contextlib import asynccontextmanager
 from pathlib import Path
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from . import auth
 from .backup import backup_scheduler
@@ -93,6 +96,11 @@ app = FastAPI(
     lifespan=lifespan,
     redirect_slashes=True  # Redirect /api/nodes to /api/nodes/
 )
+
+# Configure rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS if origins are specified
 if settings.cors_origins:

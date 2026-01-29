@@ -10,10 +10,11 @@
  * - Focus trapping (optional)
  * - Consistent header/footer structure
  */
-import { useEffect, useCallback, type ReactNode } from 'react';
+import { useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { mdiClose } from '@mdi/js';
 import { Card } from './Card';
 import { Button } from './Button';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -60,7 +61,15 @@ export function Modal({
   className = '',
   contentClassName = '',
 }: ModalProps) {
-  // Handle escape key
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Enable focus trap for accessibility
+  useFocusTrap(containerRef, {
+    enabled: isOpen,
+    onEscape: closeOnEscape ? onClose : undefined,
+  });
+  
+  // Handle escape key (fallback if focus trap doesn't catch it)
   useEffect(() => {
     if (!isOpen || !closeOnEscape) return;
 
@@ -81,15 +90,19 @@ export function Modal({
         onClose();
       }
     },
-    [closeOnBackdrop, onClose]
-  );
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <Card
+    [cloref={containerRef}
         className={`modal modal--${size} ${className}`}
+        elevation="high"
+        padding={false}
+        radius="lg"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? 'modal-title' : undefined}
+      >
+        {(title || showCloseButton) && (
+          <div className="modal__header">
+            {title && <h2 id="modal-title" modal--${size} ${className}`}
         elevation="high"
         padding={false}
         radius="lg"
