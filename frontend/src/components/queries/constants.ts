@@ -115,7 +115,6 @@ export function createDefaultBlock(type: QueryBlockType): QueryBlock {
     case 'NOT_CONTAINER':
       return { type, block: undefined };
     case 'CLASS':
-    case 'TYPE':
       return { type, value: '' };
     case 'PROPERTY':
       return {

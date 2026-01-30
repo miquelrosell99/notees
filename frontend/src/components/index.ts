@@ -181,7 +181,7 @@ export { NodeTableView } from './nodes/views/NodeTableView';
 export { NodeGanttView } from './nodes/views/NodeGanttView';
 
 // Query builder components
-export { QueryBuilder } from './queries';
+export { ViewBuilder } from './queries';
 export { NodeViewTabs } from './NodeViewTabs';
 export type { ViewType } from './NodeViewTabs';
 

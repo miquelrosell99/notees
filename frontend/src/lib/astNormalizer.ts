@@ -5,13 +5,41 @@
  * most canonical form. These functions run on every edit to maintain a clean AST.
  * 
  * Normalization rules:
- * 1. Flatten single-child AND/OR groups
- * 2. Remove empty groups
+ * 1. Remove empty groups (unless system-defined)
+ * 2. Flatten single-child AND/OR groups (unless system-defined)
  * 3. Ensure stable, minimal structure
+ * 4. System nodes must never be removed, merged, or reordered
+ * 5. Stable ordering of children (system nodes first, then user nodes)
+ * 
+ * These invariants are enforced:
+ * - No empty groups (unless system)
+ * - No single-child AND/OR groups (unless system)
+ * - System nodes are always protected
+ * - Deterministic output for same input
  */
 
 import type { QueryAST, GroupNode, ConditionNode, NotNode } from '@/types/queryAST';
 import { isSystemNode } from '@/types/queryAST';
+
+// ==================== Stable Ordering ====================
+
+/**
+ * Sort children to ensure stable ordering
+ * System nodes always come first, then user nodes
+ */
+function sortChildren(children: (ConditionNode | GroupNode | NotNode)[]): (ConditionNode | GroupNode | NotNode)[] {
+  return [...children].sort((a, b) => {
+    const aIsSystem = isSystemNode(a);
+    const bIsSystem = isSystemNode(b);
+    
+    // System nodes first
+    if (aIsSystem && !bIsSystem) return -1;
+    if (!aIsSystem && bIsSystem) return 1;
+    
+    // Otherwise preserve original order (stable sort)
+    return 0;
+  });
+}
 
 // ==================== Group Normalization ====================
 
@@ -61,10 +89,13 @@ function normalizeGroup(group: GroupNode): GroupNode | ConditionNode | NotNode |
     return normalizedChildren[0];
   }
   
+  // Apply stable ordering (system nodes first)
+  const orderedChildren = sortChildren(normalizedChildren);
+  
   // Otherwise, return the normalized group
   return {
     ...group,
-    children: normalizedChildren,
+    children: orderedChildren,
   };
 }
 

@@ -1,273 +1,383 @@
 /**
- * QueryAST Prose Renderer
+ * Enhanced QueryAST Prose Renderer
  * 
- * Converts QueryAST nodes into human-readable prose with inline controls.
- * This is the core of the "intent-first" UI that hides engine-level details.
+ * Unified prose grammar for rendering QueryAST nodes as natural language.
+ * Every AST node implements a consistent interface for prose rendering.
  * 
- * Each AST node type exposes:
- * - label(): string - Natural language description
- * - inlineControls(): React component - Inline editing UI
- * - canNegate: boolean
- * - canNest: boolean
+ * Design principles:
+ * - Always reads as structured natural language
+ * - Sentence fragments for conditions
+ * - No mode switching between "sentence" and "rule list"
+ * - Clear intent-first language
  */
 
 import type {
   QueryAST,
   GroupNode,
   ConditionNode,
+  NotNode,
   ScopeNode,
   TypeCondition,
   PropertyCondition,
   ContentCondition,
   ReferenceCondition,
+  ReferencePathCondition,
+  ParentCondition,
+  ParentPathCondition,
+  ChildCondition,
+  ChildPathCondition,
+  ClassPathCondition,
 } from '@/types/queryAST';
 
-// ==================== Prose Labels ====================
+// ==================== Types ====================
 
 /**
- * Generate prose label for scope
+ * A fragment of prose that can be rendered
+ */
+export interface ProseFragment {
+  /** The text content */
+  text: string;
+  /** Optional CSS class for styling */
+  className?: string;
+  /** Whether this fragment is system-defined (locked) */
+  isSystem?: boolean;
+}
+
+/**
+ * Node rendering capabilities
+ */
+export interface NodeProseCapabilities {
+  /** Can this node be negated? */
+  canNegate: boolean;
+  /** Can this node be combined with others (OR, negation)? */
+  combinable: boolean;
+  /** Can this node have nested groups? */
+  canNest: boolean;
+}
+
+// ==================== Query Label (Top-Level) ====================
+
+/**
+ * Generate the complete intent label for a query
+ * This is the primary prose summary shown in the Intent Header
+ */
+export function getQueryIntent(ast: QueryAST): string {
+  const scopePhrase = renderScopeProse(ast.scope);
+  const conditions = ast.root_group.children;
+  
+  if (conditions.length === 0) {
+    return `All nodes ${scopePhrase}`;
+  }
+  
+  const conditionPhrase = renderGroupProse(ast.root_group);
+  return `Nodes that ${conditionPhrase} ${scopePhrase}`;
+}
+
+// ==================== Scope Prose ====================
+
+/**
+ * Render scope as a prose phrase
+ * Scopes define the universe of nodes to search
+ */
+export function renderScopeProse(scope: ScopeNode): string {
+  switch (scope.scope_type) {
+    case 'entire_graph':
+      return 'in the entire graph';
+    
+    case 'current_page':
+      if (scope.include_descendants) {
+        return 'in this page and its descendants';
+      }
+      return 'in this page';
+    
+    case 'specific_pages':
+      const count = scope.page_uuids?.length || 0;
+      const pageWord = count === 1 ? 'page' : 'pages';
+      if (scope.include_descendants) {
+        return `in ${count} selected ${pageWord} and their descendants`;
+      }
+      return `in ${count} selected ${pageWord}`;
+    
+    case 'linked_refs':
+      return 'that reference this page';
+    
+    default:
+      return 'in unknown scope';
+  }
+}
+
+/**
+ * Get a short label for scope (for inline display)
  */
 export function getScopeLabel(scope: ScopeNode): string {
   switch (scope.scope_type) {
     case 'entire_graph':
       return 'Entire graph';
     case 'current_page':
-      return scope.include_descendants 
-        ? 'This page and child blocks' 
-        : 'This page';
+      return scope.include_descendants ? 'This page (with children)' : 'This page';
     case 'specific_pages':
       const count = scope.page_uuids?.length || 0;
-      return count === 1 
-        ? '1 selected page' 
-        : `${count} selected pages`;
+      return `${count} selected page${count === 1 ? '' : 's'}`;
     case 'linked_refs':
-      return 'Nodes that reference this page';
+      return 'Linked references';
     default:
       return 'Unknown scope';
   }
 }
 
-/**
- * Generate prose label for a condition
- */
-export function getConditionLabel(condition: ConditionNode): string {
-  switch (condition.condition_type) {
-    case 'type':
-      return `tagged with type "${(condition as TypeCondition).type_uuid}"`;
-    
-    case 'property': {
-      const prop = condition as PropertyCondition;
-      const opLabel = getPropertyOperatorLabel(prop.operator);
-      if (prop.operator === 'is_empty' || prop.operator === 'is_not_empty') {
-        return `property "${prop.property_name}" ${opLabel}`;
-      }
-      return `property "${prop.property_name}" ${opLabel} "${prop.value}"`;
-    }
-    
-    case 'content': {
-      const content = condition as ContentCondition;
-      const opLabel = getContentOperatorLabel(content.operator);
-      return `content ${opLabel} "${content.value}"`;
-    }
-    
-    case 'reference': {
-      const ref = condition as ReferenceCondition;
-      return `references node ${ref.target_uuid}`;
-    }
-    
-    case 'reference_path':
-      return 'references nodes matching criteria';
-    
-    case 'parent_path':
-      return 'has ancestors matching criteria';
-    
-    default:
-      return 'unknown condition';
-  }
-}
+// ==================== Group Prose ====================
 
 /**
- * Get human-readable label for property operator
+ * Render a group node as prose
+ * Returns a sentence fragment describing the condition
  */
-function getPropertyOperatorLabel(operator: string): string {
-  const labels: Record<string, string> = {
-    'equals': 'equals',
-    'not_equals': 'does not equal',
-    'greater_than': 'is greater than',
-    'less_than': 'is less than',
-    'greater_than_or_equal': 'is at least',
-    'less_than_or_equal': 'is at most',
-    'contains': 'contains',
-    'not_contains': 'does not contain',
-    'starts_with': 'starts with',
-    'ends_with': 'ends with',
-    'is_empty': 'is empty',
-    'is_not_empty': 'is not empty',
-    'in': 'is one of',
-    'not_in': 'is not one of',
-  };
-  return labels[operator] || operator;
-}
-
-/**
- * Get human-readable label for content operator
- */
-function getContentOperatorLabel(operator: string): string {
-  const labels: Record<string, string> = {
-    'contains': 'contains',
-    'not_contains': 'does not contain',
-    'starts_with': 'starts with',
-    'ends_with': 'ends with',
-    'equals': 'equals',
-    'not_equals': 'does not equal',
-    'regex': 'matches pattern',
-  };
-  return labels[operator] || operator;
-}
-
-/**
- * Generate prose label for a group
- */
-export function getGroupLabel(group: GroupNode): string {
+export function renderGroupProse(group: GroupNode): string {
   if (group.children.length === 0) {
-    return 'No conditions';
+    return 'match any node';
   }
   
   if (group.children.length === 1) {
-    const child = group.children[0];
-    if (child.type === 'condition') {
-      return getConditionLabel(child);
-    } else if (child.type === 'not') {
-      return `NOT (${getConditionLabel(child.child as ConditionNode)})`;
-    } else {
-      return getGroupLabel(child);
-    }
+    return renderChildProse(group.children[0]);
   }
   
-  const logic = group.logic === 'AND' ? 'all' : 'any';
-  return `Match ${logic} of ${group.children.length} conditions`;
+  // Multiple children - combine with logic
+  const childPhrases = group.children.map(renderChildProse);
+  
+  if (group.logic === 'AND') {
+    return `match all of these: ${childPhrases.join(', ')}`;
+  } else {
+    return `match any of these: ${childPhrases.join(', or ')}`;
+  }
 }
 
 /**
- * Generate prose label for entire query
+ * Render a child node (can be condition, group, or NOT)
  */
-export function getQueryLabel(ast: QueryAST): string {
-  const scope = getScopeLabel(ast.scope);
-  const conditions = ast.root_group.children.length;
-  
-  if (conditions === 0) {
-    return `All nodes in ${scope.toLowerCase()}`;
+function renderChildProse(node: ConditionNode | GroupNode | NotNode): string {
+  if (node.type === 'not') {
+    const childPhrase = node.child.type === 'group' 
+      ? renderGroupProse(node.child)
+      : renderConditionProse(node.child);
+    return `do not ${childPhrase}`;
   }
   
-  // Special case for single reference condition (common pattern)
-  if (conditions === 1 && ast.root_group.children[0].type === 'condition') {
-    const condition = ast.root_group.children[0] as ConditionNode;
-    if (condition.condition_type === 'reference') {
-      return 'Nodes that reference this node';
-    }
+  if (node.type === 'group') {
+    return renderGroupProse(node);
   }
   
-  // Generic case
-  const logic = ast.root_group.logic === 'AND' ? 'matching all' : 'matching any';
-  return `Nodes ${logic} conditions`;
+  return renderConditionProse(node);
 }
 
-// ==================== Condition Capabilities ====================
+// ==================== Condition Prose ====================
 
 /**
- * Check if a condition type can be negated
+ * Render a condition node as a prose fragment
+ * Returns a sentence fragment describing the filter
  */
-export function canNegateCondition(_condition: ConditionNode): boolean {
-  // All conditions can be negated
-  return true;
-}
-
-/**
- * Check if a condition type can have nested groups
- */
-export function canNestInCondition(condition: ConditionNode): boolean {
-  // Only reference_path and parent_path support nesting
-  return condition.condition_type === 'reference_path' || 
-         condition.condition_type === 'parent_path';
-}
-
-// ==================== Sentence Construction ====================
-
-/**
- * Build a complete prose sentence for a condition
- * Returns array of parts that can be mixed with React components
- */
-export interface ProsePart {
-  type: 'text' | 'dropdown' | 'input' | 'token';
-  content: string;
-  editable?: boolean;
-  options?: { value: string; label: string }[];
-}
-
-/**
- * Generate prose parts for a condition (used for inline editing)
- */
-export function getConditionProse(condition: ConditionNode): ProsePart[] {
+export function renderConditionProse(condition: ConditionNode): string {
   switch (condition.condition_type) {
     case 'type':
-      return [
-        { type: 'text', content: 'tagged with type' },
-        { type: 'token', content: (condition as TypeCondition).type_uuid, editable: true },
-      ];
-    
-    case 'property': {
-      const prop = condition as PropertyCondition;
-      return [
-        { type: 'text', content: 'property' },
-        { type: 'input', content: prop.property_name, editable: true },
-        { 
-          type: 'dropdown', 
-          content: prop.operator,
-          editable: true,
-          options: [
-            { value: 'equals', label: 'equals' },
-            { value: 'not_equals', label: '≠' },
-            { value: 'contains', label: 'contains' },
-            { value: 'is_empty', label: 'is empty' },
-            { value: 'is_not_empty', label: 'is not empty' },
-          ],
-        },
-        ...(prop.operator !== 'is_empty' && prop.operator !== 'is_not_empty'
-          ? [{ type: 'input' as const, content: String(prop.value || ''), editable: true }]
-          : []
-        ),
-      ];
-    }
-    
-    case 'content': {
-      const content = condition as ContentCondition;
-      return [
-        { type: 'text', content: 'content' },
-        {
-          type: 'dropdown',
-          content: content.operator,
-          editable: true,
-          options: [
-            { value: 'contains', label: 'contains' },
-            { value: 'starts_with', label: 'starts with' },
-            { value: 'ends_with', label: 'ends with' },
-            { value: 'equals', label: 'equals' },
-            { value: 'regex', label: 'matches pattern' },
-          ],
-        },
-        { type: 'input', content: content.value, editable: true },
-      ];
-    }
-    
-    case 'reference': {
-      const ref = condition as ReferenceCondition;
-      return [
-        { type: 'text', content: 'references' },
-        { type: 'token', content: ref.target_uuid === 'current_node_uuid' ? 'this node' : ref.target_uuid, editable: true },
-      ];
-    }
-    
+      return renderTypeProse(condition);
+    case 'property':
+      return renderPropertyProse(condition);
+    case 'content':
+      return renderContentProse(condition);
+    case 'reference':
+      return renderReferenceProse(condition);
+    case 'reference_path':
+      return renderReferencePathProse(condition);
+    case 'parent':
+      return renderParentProse(condition);
+    case 'parent_path':
+      return renderParentPathProse(condition);
+    case 'child':
+      return renderChildConditionProse(condition);
+    case 'child_path':
+      return renderChildPathProse(condition);
+    case 'class_path':
+      return renderClassPathProse(condition);
     default:
-      return [{ type: 'text', content: getConditionLabel(condition) }];
+      return 'match unknown condition';
   }
+}
+
+function renderTypeProse(condition: TypeCondition): string {
+  return `have class "${condition.type_uuid}"`;
+}
+
+function renderPropertyProse(condition: PropertyCondition): string {
+  const propName = condition.property_name || '(unnamed property)';
+  
+  switch (condition.operator) {
+    case 'is_empty':
+      return `have empty property "${propName}"`;
+    case 'is_not_empty':
+      return `have non-empty property "${propName}"`;
+    case '=':
+      return `have property "${propName}" equal to "${condition.value}"`;
+    case '!=':
+      return `have property "${propName}" not equal to "${condition.value}"`;
+    case 'contains':
+      return `have property "${propName}" containing "${condition.value}"`;
+    case '>':
+      return `have property "${propName}" greater than ${condition.value}`;
+    case '<':
+      return `have property "${propName}" less than ${condition.value}`;
+    case '>=':
+      return `have property "${propName}" at least ${condition.value}`;
+    case '<=':
+      return `have property "${propName}" at most ${condition.value}`;
+    default:
+      return `have property "${propName}"`;
+  }
+}
+
+function renderContentProse(condition: ContentCondition): string {
+  switch (condition.operator) {
+    case 'contains':
+      return `contain text "${condition.value}"`;
+    case '=':
+      return `have content equal to "${condition.value}"`;
+    case 'starts_with':
+      return `start with "${condition.value}"`;
+    case 'ends_with':
+      return `end with "${condition.value}"`;
+    case 'matches_regex':
+      return `match pattern /${condition.value}/`;
+    case 'fts':
+      return `match full-text search "${condition.value}"`;
+    default:
+      return `match content "${condition.value}"`;
+  }
+}
+
+function renderReferenceProse(condition: ReferenceCondition): string {
+  return `reference node "${condition.target_uuid}"`;
+}
+
+function renderReferencePathProse(condition: ReferencePathCondition): string {
+  if (condition.nested_group && condition.nested_group.children.length > 0) {
+    const nested = renderGroupProse(condition.nested_group);
+    return `reference nodes that ${nested}`;
+  }
+  return 'reference nodes matching criteria';
+}
+
+function renderParentProse(condition: ParentCondition): string {
+  if (condition.nested_group && condition.nested_group.children.length > 0) {
+    const nested = renderGroupProse(condition.nested_group);
+    return `have a parent that ${nested}`;
+  }
+  return 'have a parent matching criteria';
+}
+
+function renderParentPathProse(condition: ParentPathCondition): string {
+  if (condition.nested_group && condition.nested_group.children.length > 0) {
+    const nested = renderGroupProse(condition.nested_group);
+    const depthPhrase = condition.max_depth 
+      ? ` (within ${condition.max_depth} level${condition.max_depth > 1 ? 's' : ''})`
+      : '';
+    return `have an ancestor that ${nested}${depthPhrase}`;
+  }
+  return 'have ancestors matching criteria';
+}
+
+function renderChildConditionProse(condition: ChildCondition): string {
+  if (condition.nested_group && condition.nested_group.children.length > 0) {
+    const nested = renderGroupProse(condition.nested_group);
+    return `have a child that ${nested}`;
+  }
+  return 'have children matching criteria';
+}
+
+function renderChildPathProse(condition: ChildPathCondition): string {
+  if (condition.nested_group && condition.nested_group.children.length > 0) {
+    const nested = renderGroupProse(condition.nested_group);
+    const depthPhrase = condition.max_depth 
+      ? ` (within ${condition.max_depth} level${condition.max_depth > 1 ? 's' : ''})`
+      : '';
+    return `have a descendant that ${nested}${depthPhrase}`;
+  }
+  return 'have descendants matching criteria';
+}
+
+function renderClassPathProse(condition: ClassPathCondition): string {
+  if (condition.nested_group && condition.nested_group.children.length > 0) {
+    const nested = renderGroupProse(condition.nested_group);
+    return `inherit a class that ${nested}`;
+  }
+  return 'inherit classes from ancestors';
+}
+
+// ==================== Capabilities ====================
+
+/**
+ * Get prose rendering capabilities for a condition
+ */
+export function getConditionCapabilities(condition: ConditionNode): NodeProseCapabilities {
+  // Most conditions can be negated and combined
+  const defaults: NodeProseCapabilities = {
+    canNegate: true,
+    combinable: true,
+    canNest: false,
+  };
+  
+  // Conditions with nested groups can nest
+  const nestableTypes: ConditionNode['condition_type'][] = [
+    'reference_path',
+    'parent',
+    'parent_path',
+    'child',
+    'child_path',
+    'class_path',
+  ];
+  
+  if (nestableTypes.includes(condition.condition_type)) {
+    return { ...defaults, canNest: true };
+  }
+  
+  return defaults;
+}
+
+/**
+ * Get prose rendering capabilities for a group
+ */
+export function getGroupCapabilities(_group: GroupNode): NodeProseCapabilities {
+  return {
+    canNegate: true,
+    combinable: true,
+    canNest: true,
+  };
+}
+
+// ==================== Backward Compatibility ====================
+
+/**
+ * Legacy function - kept for compatibility
+ * Use getQueryIntent instead
+ */
+export function getQueryLabel(ast: QueryAST): string {
+  return getQueryIntent(ast);
+}
+
+/**
+ * Legacy function - kept for compatibility
+ * Use renderConditionProse instead
+ */
+export function getConditionLabel(condition: ConditionNode): string {
+  return renderConditionProse(condition);
+}
+
+/**
+ * Check if a condition can be negated
+ */
+export function canNegateCondition(condition: ConditionNode): boolean {
+  return getConditionCapabilities(condition).canNegate;
+}
+
+/**
+ * Check if a condition can have nested groups
+ */
+export function canNestInCondition(condition: ConditionNode): boolean {
+  return getConditionCapabilities(condition).canNest;
 }

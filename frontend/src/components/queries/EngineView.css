@@ -1,0 +1,66 @@
+/**
+ * EngineView Styles
+ * 
+ * Secondary, low-contrast section for developer-facing information
+ */
+
+.engine-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-xl) 0;
+}
+
+.engine-view__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.engine-view__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.engine-view__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary, #868e96);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.engine-view__subtitle {
+  font-size: 0.75rem;
+  color: var(--color-text-quaternary, #adb5bd);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.engine-view__action {
+  margin-left: auto;
+  color: var(--color-text-tertiary, #868e96);
+  font-size: 0.8125rem;
+}
+
+.engine-view__ast {
+  font-family: var(--font-mono, 'Monaco', 'Menlo', monospace);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  background: var(--color-surface-tertiary, #f8f9fa);
+  color: var(--color-text-secondary, #495057);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md, 6px);
+  overflow-x: auto;
+  margin: 0;
+  border: 1px solid var(--color-border-subtle, #e9ecef);
+}
+
+.engine-view__toggle,
+.engine-view__hide {
+  align-self: flex-start;
+  color: var(--color-text-tertiary, #868e96);
+  font-size: 0.875rem;
+}
