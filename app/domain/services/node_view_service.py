@@ -8,101 +8,69 @@ import json
 from typing import Optional, List, Dict, Any
 
 from ..entities import NodeView, generate_uuid
-from ..repositories import PostgresNodeViewRepository
-from ...db.schema.constants import (
-    DEFAULT_VIEW_CLASSES, 
-    DEFAULT_QUERY_BLOCK_TREE,
+from ..entities.query_ast import (
+    QueryAST, ScopeNode, ScopeType, GroupNode, LogicType,
+    ReferenceCondition, ParentPathCondition, ParentCondition, TypeCondition, FlagCondition,
+    ContentCondition, ContentOperator
 )
+from ..repositories import PostgresNodeViewRepository
+from...db.schema.constants import DEFAULT_VIEW_CLASSES
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-# Default view configurations with initial block trees
+# Default view configurations using QueryAST format
 DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
     "child_pages": {
         "name": "All Pages",
-        "block_tree": {
-            "type": "AND_CONTAINER",
-            "blocks": [
-                {
-                    "type": "PARENT",
-                    "isSystemNode": True,  # Mark as system
-                    "blocks": [
-                        {"type": "UUID", "value": "{current_node_uuid}"}
-                    ]
-                },
-                {
-                    "type": "FLAG",
-                    "value": "is_page",
-                    "operator": "is",
-                    "isSystemNode": True,  # Only show pages (is_page=true), not blocks
-                }
-            ]
-        }
+        "query_ast": QueryAST(
+            scope=ScopeNode(scope_type=ScopeType.PAGES),
+            root_group=GroupNode(
+                logic=LogicType.AND,
+                children=[
+                    ParentCondition(parent_uuid="{current_node_uuid}")
+                ]
+            ),
+            is_system=True
+        )
     },
     "classed_nodes": {
         "name": "Classed Nodes",
-        "block_tree": {
-            "type": "AND_CONTAINER",
-            "blocks": [
-                {
-                    "type": "CLASS",
-                    "value": "{current_node_uuid}",
-                    "operator": "contains",
-                    "isSystemNode": True,  # Mark as system
-                }
-            ]
-        }
+        "query_ast": QueryAST(
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            root_group=GroupNode(
+                logic=LogicType.AND,
+                children=[
+                    TypeCondition(type_uuid="{current_node_uuid}")
+                ]
+            ),
+            is_system=True
+        )
     },
     "linked_references": {
         "name": "All References",
-        "block_tree": {
-            "type": "AND_CONTAINER",
-            "blocks": [
-                {
-                    "type": "REFERENCE",
-                    "target_uuid": "{current_node_uuid}",
-                    "isSystemNode": True,  # Mark as system
-                }
-            ]
-        }
+        "query_ast": QueryAST(
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            root_group=GroupNode(
+                logic=LogicType.AND,
+                children=[
+                    ReferenceCondition(target_uuid="{current_node_uuid}")
+                ]
+            ),
+            is_system=True
+        )
     },
     "main_content": {
         "name": "Content",
-        "block_tree": {
-            "type": "AND_CONTAINER",
-            "blocks": [
-                {
-                    "type": "CHILD_PATH",
-                    "isSystemNode": True,  # Mark as system
-                    "blocks": [
-                        {"type": "UUID", "value": "{current_node_uuid}"}
-                    ],
-                    "max_depth": 1  # Direct children only
-                }
-            ]
-        }
-    },
-    "all_pages": {
-        "name": "All Pages",
-        "block_tree": {
-            "type": "AND_CONTAINER",
-            "blocks": [
-                {
-                    "type": "CLASS",
-                    "value": "page",
-                    "isSystemNode": True,  # Mark as system
-                },
-                {
-                    "type": "PROPERTY",
-                    "property_name": "parent_id",
-                    "operator": "is_empty",
-                    "value": None,
-                    "isSystemNode": True,  # Mark as system
-                }
-            ]
-        }
+        "query_ast": QueryAST(
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            root_group=GroupNode(
+                logic=LogicType.AND,
+                children=[]
+            ),
+            is_system=True
+        )
     },
 }
 
@@ -144,17 +112,21 @@ class NodeViewService:
         created_views = []
         
         for view_type in view_types:
-            config = DEFAULT_VIEW_CONFIGS.get(view_type, {
-                "name": view_type.replace("_", " ").title(),
-                "block_tree": DEFAULT_QUERY_BLOCK_TREE.copy(),
-            })
+            config = DEFAULT_VIEW_CONFIGS.get(view_type)
+            if not config:
+                logger.warning(f"No default config for view_type '{view_type}', skipping")
+                continue
             
             try:
+                # Convert QueryAST to dict for storage
+                query_ast: QueryAST = config["query_ast"]
+                query_json = query_ast.to_dict()
+                
                 view = await self._view_repo.create(
                     node_id=node_id,
                     name=config["name"],
                     view_type=view_type,
-                    query_json=config["block_tree"],
+                    query_json=query_json,
                     order_index=0,
                     is_default=True,
                 )

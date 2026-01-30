@@ -22,14 +22,6 @@ export function QueryBlockDisplay({ block, onNodeClick }: QueryBlockDisplayProps
     ? block.classes?.includes(systemClassIds.query)
     : false;
 
-  console.log('[QueryBlockDisplay]', {
-    blockId: block.id,
-    blockName: block.name,
-    classes: block.classes,
-    systemQueryClassId: systemClassIds?.query,
-    isQueryBlock
-  });
-
   if (!isQueryBlock) {
     return null;
   }
