@@ -29,7 +29,7 @@ import type {
   GroupNode,
   NotNode as ASTNotNode,
   ConditionNode,
-  TypeCondition,
+  ClassCondition,
   PropertyCondition,
   ContentCondition,
   ReferenceCondition,
@@ -196,10 +196,10 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
       const classBlock = block as ClassBlock;
       return {
         type: 'condition',
-        condition_type: 'type',
-        type_uuid: classBlock.value,
-        type_id: classBlock.type_id,
-      } as TypeCondition;
+        condition_type: 'class',
+        class_uuid: classBlock.value,
+        class_id: classBlock.type_id,
+      } as ClassCondition;
     }
     
     case 'PROPERTY': {
@@ -419,19 +419,19 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
   const condition = node as ConditionNode;
   
   switch (condition.condition_type) {
-    case 'type': {
-      const typeCond = condition as TypeCondition;
+    case 'class': {
+      const classCond = condition as ClassCondition;
       
       // For 'defined' and 'not_defined', we use a CLASS block with empty value
       // to check if ANY class is assigned (backend should interpret empty value as "any class")
       const classBlock: QueryBlock = {
         type: 'CLASS',
-        value: typeCond.operator === 'defined' || typeCond.operator === 'not_defined' ? '' : typeCond.type_uuid,
-        type_id: typeCond.operator === 'defined' || typeCond.operator === 'not_defined' ? undefined : typeCond.type_id,
+        value: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? '' : classCond.class_uuid,
+        type_id: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? undefined : classCond.class_id,
       };
       
       // If operator is negative, wrap in NOT_CONTAINER
-      if (typeCond.operator === 'is_not' || typeCond.operator === 'does_not_contain' || typeCond.operator === 'not_defined') {
+      if (classCond.operator === 'is_not' || classCond.operator === 'does_not_contain' || classCond.operator === 'not_defined') {
         return {
           type: 'NOT_CONTAINER',
           block: classBlock,

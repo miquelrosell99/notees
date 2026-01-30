@@ -98,7 +98,7 @@ export interface ScopeNode {
  * Condition types
  */
 export type ConditionType =
-  | 'type'
+  | 'class'
   | 'property'
   | 'content'
   | 'reference'
@@ -120,12 +120,12 @@ export interface BaseConditionNode {
 }
 
 /**
- * Type condition - filter by node type
+ * Class condition - filter by node class
  */
-export interface TypeCondition extends BaseConditionNode {
-  condition_type: 'type';
-  type_uuid: string;
-  type_id?: number;
+export interface ClassCondition extends BaseConditionNode {
+  condition_type: 'class';
+  class_uuid: string;
+  class_id?: number;
   operator?: 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined';  // Default: 'contains'
 }
 
@@ -219,7 +219,7 @@ export interface ClassPathCondition extends BaseConditionNode {
  * Union type for all conditions
  */
 export type ConditionNode =
-  | TypeCondition
+  | ClassCondition
   | PropertyCondition
   | ContentCondition
   | ReferenceCondition
@@ -355,14 +355,14 @@ export function createNotNode(child: ConditionNode | GroupNode): NotNode {
 }
 
 /**
- * Create a type condition
+ * Create a class condition
  */
-export function createTypeCondition(typeUuid: string, typeId?: number): TypeCondition {
+export function createClassCondition(classUuid: string, classId?: number): ClassCondition {
   return {
     type: 'condition',
-    condition_type: 'type',
-    type_uuid: typeUuid,
-    type_id: typeId,
+    condition_type: 'class',
+    class_uuid: classUuid,
+    class_id: classId,
   };
 }
 

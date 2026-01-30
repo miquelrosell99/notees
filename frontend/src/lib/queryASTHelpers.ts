@@ -9,7 +9,7 @@ import type {
   GroupNode,
   ScopeNode,
   QueryAST,
-  TypeCondition,
+  ClassCondition,
   ContentCondition,
   PropertyCondition,
   ReferenceCondition,
@@ -77,9 +77,9 @@ export function createConditionFromType(blockType: string): ConditionNode {
     case 'type':
       return {
         type: 'condition',
-        condition_type: 'type',
-        type_uuid: '', // Will be filled by user
-      } as TypeCondition;
+        condition_type: 'class',
+        class_uuid: '', // Will be filled by user
+      } as ClassCondition;
     
     case 'text':
     case 'content':

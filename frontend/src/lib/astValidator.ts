@@ -51,7 +51,7 @@ export function validateAST(ast: QueryAST): ValidationResult {
   validateGroup(ast.root_group, ['root_group'], errors);
   
   // Check for scope/condition separation
-  validateScopeConditionSeparation(ast, errors);
+  validateScopeConditionSeparation(ast);
   
   return {
     valid: errors.length === 0,
@@ -125,13 +125,13 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
   
   // Validate condition-specific requirements
   switch (condition.condition_type) {
-    case 'type':
-      if (!condition.type_uuid) {
+    case 'class':
+      if (!condition.class_uuid) {
         errors.push({
           severity: 'error',
-          message: 'Type condition requires type_uuid',
+          message: 'Class condition requires class_uuid',
           path,
-          suggestion: 'Add type_uuid value',
+          suggestion: 'Add class_uuid value',
         });
       }
       break;

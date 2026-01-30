@@ -17,7 +17,7 @@ import type {
   ConditionNode,
   NotNode,
   ScopeNode,
-  TypeCondition,
+  ClassCondition,
   PropertyCondition,
   ContentCondition,
   ReferenceCondition,
@@ -176,8 +176,8 @@ function renderChildProse(node: ConditionNode | GroupNode | NotNode): string {
  */
 export function renderConditionProse(condition: ConditionNode): string {
   switch (condition.condition_type) {
-    case 'type':
-      return renderTypeProse(condition);
+    case 'class':
+      return renderClassProse(condition);
     case 'property':
       return renderPropertyProse(condition);
     case 'content':
@@ -201,8 +201,8 @@ export function renderConditionProse(condition: ConditionNode): string {
   }
 }
 
-function renderTypeProse(condition: TypeCondition): string {
-  return `have class "${condition.type_uuid}"`;
+function renderClassProse(condition: ClassCondition): string {
+  return `have class "${condition.class_uuid}"`;
 }
 
 function renderPropertyProse(condition: PropertyCondition): string {
