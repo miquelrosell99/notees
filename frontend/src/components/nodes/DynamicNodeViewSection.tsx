@@ -351,7 +351,7 @@ export function DynamicNodeViewSection({
     ast = autoFixSystemQuery(ast, viewType, {
       nodeUuid: nodeUuid,
       parentUuid: nodeUuid,
-      typeUuid: nodeUuid, // Pass nodeUuid as typeUuid for classed_nodes views
+      // For classed_nodes, nodeUuid IS the class we're filtering by
     });
     
     // Set created_at if not already set
