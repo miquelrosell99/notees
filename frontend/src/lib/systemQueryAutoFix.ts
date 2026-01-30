@@ -126,7 +126,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
         type: 'condition',
         condition_type: 'class',
         class_uuid: context.nodeUuid, // Lock to current page
-        operator: 'is', // Lock to exact match, not editable
+        operator: 'contains', // Use contains for broader matching
       });
     },
     hasRequiredCondition: (ast, context) => {

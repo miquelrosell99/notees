@@ -202,11 +202,43 @@ export function renderConditionProse(condition: ConditionNode): string {
 }
 
 function renderClassProse(condition: ClassCondition): string {
-  return `have class "${condition.class_uuid}"`;
+  const operator = condition.operator || 'contains';
+  const classValue = condition.class_uuid || '';
+  
+  if (!classValue || classValue.trim() === '') {
+    return 'have a class defined';
+  }
+  
+  switch (operator) {
+    case 'is':
+      return `have class "${classValue}"`;
+    case 'is_not':
+      return `do not have class "${classValue}"`;
+    case 'contains':
+      return `have a class containing "${classValue}"`;
+    case 'does_not_contain':
+      return `do not have a class containing "${classValue}"`;
+    case 'defined':
+      return 'have a class defined';
+    case 'not_defined':
+      return 'have no classes defined';
+    default:
+      return `have class "${classValue}"`;
+  }
 }
 
 function renderPropertyProse(condition: PropertyCondition): string {
   const propName = condition.property_name || '(unnamed property)';
+  let value = condition.value;
+  
+  // Handle common placeholders for better display
+  if (typeof value === 'string') {
+    if (value === '{current_node_uuid}') {
+      value = 'current page UUID';
+    } else if (value.startsWith('{') && value.endsWith('}')) {
+      value = value.slice(1, -1).replace(/_/g, ' '); // Remove braces and replace underscores
+    }
+  }
   
   switch (condition.operator) {
     case 'is_empty':
@@ -214,17 +246,17 @@ function renderPropertyProse(condition: PropertyCondition): string {
     case 'is_not_empty':
       return `have non-empty property "${propName}"`;
     case '=':
-      return `have property "${propName}" equal to "${condition.value}"`;
+      return `have property "${propName}" equal to "${value}"`;
     case '!=':
-      return `have property "${propName}" not equal to "${condition.value}"`;
+      return `have property "${propName}" not equal to "${value}"`;
     case 'contains':
-      return `have property "${propName}" containing "${condition.value}"`;
+      return `have property "${propName}" containing "${value}"`;
     case '>':
-      return `have property "${propName}" greater than ${condition.value}`;
+      return `have property "${propName}" greater than ${value}`;
     case '<':
-      return `have property "${propName}" less than ${condition.value}`;
+      return `have property "${propName}" less than ${value}`;
     case '>=':
-      return `have property "${propName}" at least ${condition.value}`;
+      return `have property "${propName}" at least ${value}`;
     case '<=':
       return `have property "${propName}" at most ${condition.value}`;
     default:
