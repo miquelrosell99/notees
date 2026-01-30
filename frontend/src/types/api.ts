@@ -98,27 +98,56 @@ export function isBlock(node: Node): boolean {
 
 /**
  * Parse a date UUID to extract date info
- * Date UUIDs: YYYYMMDD (day), YYYYMM00 (month), YYYY0000 (year)
+ * Date UUIDs: 
+ * - Day: 00000000-0000-0000-00dd-YYYYMMDD0000
+ * - Month: 00000000-0000-0000-00aa-YYYYMM000000
+ * - Year: 00000000-0000-0000-00bb-YYYY00000000
  */
 export function parseDateUuid(uuid: string): DateInfo | null {
-  if (!uuid || uuid.length !== 8 || !/^\d{8}$/.test(uuid)) {
+  if (!uuid || uuid.length !== 36) {
     return null;
   }
   
-  const year = parseInt(uuid.substring(0, 4), 10);
-  const month = parseInt(uuid.substring(4, 6), 10);
-  const day = parseInt(uuid.substring(6, 8), 10);
-  
-  if (year < 1900 || year > 2200) {
-    return null;
+  // Check for day UUID pattern: 00000000-0000-0000-00dd-YYYYMMDD0000
+  if (uuid.startsWith('00000000-0000-0000-00dd-')) {
+    try {
+      const data = uuid.slice(-12); // YYYYMMDD0000
+      const year = parseInt(data.substring(0, 4), 10);
+      const month = parseInt(data.substring(4, 6), 10);
+      const day = parseInt(data.substring(6, 8), 10);
+      if (year >= 1900 && year <= 2200 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return { type: 'day', year, month, day };
+      }
+    } catch {
+      return null;
+    }
   }
   
-  if (month === 0 && day === 0) {
-    return { type: 'year', year };
-  } else if (day === 0 && month >= 1 && month <= 12) {
-    return { type: 'month', year, month };
-  } else if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-    return { type: 'day', year, month, day };
+  // Check for month UUID pattern: 00000000-0000-0000-00aa-YYYYMM000000
+  if (uuid.startsWith('00000000-0000-0000-00aa-')) {
+    try {
+      const data = uuid.slice(-12); // YYYYMM000000
+      const year = parseInt(data.substring(0, 4), 10);
+      const month = parseInt(data.substring(4, 6), 10);
+      if (year >= 1900 && year <= 2200 && month >= 1 && month <= 12) {
+        return { type: 'month', year, month };
+      }
+    } catch {
+      return null;
+    }
+  }
+  
+  // Check for year UUID pattern: 00000000-0000-0000-00bb-YYYY00000000
+  if (uuid.startsWith('00000000-0000-0000-00bb-')) {
+    try {
+      const data = uuid.slice(-12); // YYYY00000000
+      const year = parseInt(data.substring(0, 4), 10);
+      if (year >= 1900 && year <= 2200) {
+        return { type: 'year', year };
+      }
+    } catch {
+      return null;
+    }
   }
   
   return null;
@@ -426,26 +455,29 @@ export type SystemTag = typeof SystemTags[keyof typeof SystemTags];
 
 /**
  * Generate a day UUID from a Date
+ * Format: 00000000-0000-0000-00dd-YYYYMMDD0000
  */
 export function generateDayUuid(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}${month}${day}`;
+  return `00000000-0000-0000-00dd-${year}${month}${day}0000`;
 }
 
 /**
  * Generate a month UUID
+ * Format: 00000000-0000-0000-00aa-YYYYMM000000
  */
 export function generateMonthUuid(year: number, month: number): string {
-  return `${year}${String(month).padStart(2, '0')}00`;
+  return `00000000-0000-0000-00aa-${year}${String(month).padStart(2, '0')}000000`;
 }
 
 /**
  * Generate a year UUID
+ * Format: 00000000-0000-0000-00bb-YYYY00000000
  */
 export function generateYearUuid(year: number): string {
-  return `${year}0000`;
+  return `00000000-0000-0000-00bb-${year}00000000`;
 }
 
 /**
