@@ -41,6 +41,7 @@ import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { isSystemBlock } from '../queries/constants';
+import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline } from '@mdi/js';
@@ -104,6 +105,7 @@ export function DynamicNodeViewSection({
   // AST is the source of truth for editing
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [showProseModal, setShowProseModal] = useState(false);
   
   // Get persisted view mode from store
   const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
@@ -638,7 +640,19 @@ export function DynamicNodeViewSection({
           setEditingView(null);
           setEditAST(null);
           setEditViewName('');
-        }}
+        }}{
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Button
+              icon={mdiEyeOutline}
+              iconOnly
+              variant="ghost"
+              size="xs"
+              onClick={() => setShowProseModal(true)}
+              title="Show query as prose"
+            />
+            <span>Query</span>
+          </div>
+        }
         title="Edit View"
         size="xl"
         className="dynamic-section__edit-modal"
@@ -695,6 +709,25 @@ export function DynamicNodeViewSection({
         {editingView && editAST && (
           <div className="dynamic-section__edit-form">
             {/* ViewBuilder - prose-based AST editing */}
+
+      {/* Prose query preview modal */}
+      <Modal
+        isOpen={showProseModal}
+        onClose={() => setShowProseModal(false)}
+        title="Query as prose"
+        size="md"
+      >
+        {editAST && (
+          <div style={{ 
+            padding: '16px', 
+            fontSize: '15px', 
+            lineHeight: '1.6',
+            color: 'var(--color-text-primary, #212529)'
+          }}>
+            {getQueryIntent(editAST)}
+          </div>
+        )}
+      </Modal>
             <ViewBuilder
               ast={editAST}
               onChange={(updatedAST) => {
