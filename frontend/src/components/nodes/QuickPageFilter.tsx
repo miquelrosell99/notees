@@ -2,7 +2,7 @@
  * QuickPageFilter Component
  * 
  * A funnel-variant button that opens a dropdown for quick page filtering.
- * - Click on a page adds an ANCESTOR_PATH filter (nodes inside that page)
+ * - Click on a page adds a PARENT_PATH filter (nodes inside that page)
  * - Shift+click adds a negated filter (nodes NOT inside that page)
  * - Shows currently selected pages with checkboxes (dot for negated)
  */
@@ -42,10 +42,10 @@ function extractPageFilters(tree: QueryBlockTree): PageFilterState[] {
   const filters: PageFilterState[] = [];
   
   for (const block of tree.blocks) {
-    // Direct ANCESTOR_PATH block
-    if (block.type === 'ANCESTOR_PATH') {
-      const ancestorBlock = block as { blocks?: QueryBlock[] };
-      const uuidBlock = ancestorBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
+    // Direct PARENT_PATH block
+    if (block.type === 'PARENT_PATH') {
+      const parentPathBlock = block as { blocks?: QueryBlock[] };
+      const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
       if (uuidBlock?.value && !uuidBlock.value.startsWith('{')) {
         filters.push({
           uuid: uuidBlock.value,
@@ -55,12 +55,12 @@ function extractPageFilters(tree: QueryBlockTree): PageFilterState[] {
         });
       }
     }
-    // NOT_CONTAINER wrapping ANCESTOR_PATH (negated)
+    // NOT_CONTAINER wrapping PARENT_PATH (negated)
     else if (block.type === 'NOT_CONTAINER') {
       const notBlock = block as { block?: QueryBlock };
-      if (notBlock.block?.type === 'ANCESTOR_PATH') {
-        const ancestorBlock = notBlock.block as { blocks?: QueryBlock[] };
-        const uuidBlock = ancestorBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
+      if (notBlock.block?.type === 'PARENT_PATH') {
+        const parentPathBlock = notBlock.block as { blocks?: QueryBlock[] };
+        const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
         if (uuidBlock?.value && !uuidBlock.value.startsWith('{')) {
           filters.push({
             uuid: uuidBlock.value,
@@ -77,11 +77,11 @@ function extractPageFilters(tree: QueryBlockTree): PageFilterState[] {
 }
 
 /**
- * Create an ANCESTOR_PATH block for a page
+ * Create a PARENT_PATH block for a page
  */
-function createAncestorPathBlock(uuid: string): QueryBlock {
+function createParentPathBlock(uuid: string): QueryBlock {
   return {
-    type: 'ANCESTOR_PATH',
+    type: 'PARENT_PATH',
     blocks: [{ type: 'UUID', value: uuid }],
   };
 }
@@ -142,8 +142,8 @@ export function QuickPageFilter({
       if (currentFilters[existingIndex].negated !== negated) {
         // Re-add with opposite negation
         const newBlock = negated
-          ? { type: 'NOT_CONTAINER' as const, block: createAncestorPathBlock(page.uuid) }
-          : createAncestorPathBlock(page.uuid);
+          ? { type: 'NOT_CONTAINER' as const, block: createParentPathBlock(page.uuid) }
+          : createParentPathBlock(page.uuid);
         onChange({
           ...blockTree,
           blocks: [...blockTree.blocks, newBlock],
@@ -154,8 +154,8 @@ export function QuickPageFilter({
     
     // Add new filter
     const newBlock = negated
-      ? { type: 'NOT_CONTAINER' as const, block: createAncestorPathBlock(page.uuid) }
-      : createAncestorPathBlock(page.uuid);
+      ? { type: 'NOT_CONTAINER' as const, block: createParentPathBlock(page.uuid) }
+      : createParentPathBlock(page.uuid);
     
     onChange({
       ...blockTree,
@@ -168,18 +168,18 @@ export function QuickPageFilter({
   // Remove a page filter by UUID
   const handleRemovePageFilter = useCallback((uuid: string) => {
     const newBlocks = blockTree.blocks.filter(block => {
-      // Check direct ANCESTOR_PATH
-      if (block.type === 'ANCESTOR_PATH') {
-        const ancestorBlock = block as { blocks?: QueryBlock[] };
-        const uuidBlock = ancestorBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
+      // Check direct PARENT_PATH
+      if (block.type === 'PARENT_PATH') {
+        const parentPathBlock = block as { blocks?: QueryBlock[] };
+        const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
         return uuidBlock?.value !== uuid;
       }
-      // Check NOT_CONTAINER wrapping ANCESTOR_PATH
+      // Check NOT_CONTAINER wrapping PARENT_PATH
       if (block.type === 'NOT_CONTAINER') {
         const notBlock = block as { block?: QueryBlock };
-        if (notBlock.block?.type === 'ANCESTOR_PATH') {
-          const ancestorBlock = notBlock.block as { blocks?: QueryBlock[] };
-          const uuidBlock = ancestorBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
+        if (notBlock.block?.type === 'PARENT_PATH') {
+          const parentPathBlock = notBlock.block as { blocks?: QueryBlock[] };
+          const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
           return uuidBlock?.value !== uuid;
         }
       }
@@ -206,21 +206,21 @@ export function QuickPageFilter({
     // Remove existing and re-add with opposite negation
     handleRemovePageFilter(uuid);
     const newBlock = currentlyNegated
-      ? createAncestorPathBlock(uuid)
-      : { type: 'NOT_CONTAINER' as const, block: createAncestorPathBlock(uuid) };
+      ? createParentPathBlock(uuid)
+      : { type: 'NOT_CONTAINER' as const, block: createParentPathBlock(uuid) };
     
     onChange({
       ...blockTree,
       blocks: [...blockTree.blocks.filter(b => {
         // Re-filter since handleRemovePageFilter is async-ish
-        if (b.type === 'ANCESTOR_PATH') {
+        if (b.type === 'PARENT_PATH') {
           const ab = b as { blocks?: QueryBlock[] };
           const ub = ab.blocks?.find(x => x.type === 'UUID') as { value?: string } | undefined;
           return ub?.value !== uuid;
         }
         if (b.type === 'NOT_CONTAINER') {
           const nb = b as { block?: QueryBlock };
-          if (nb.block?.type === 'ANCESTOR_PATH') {
+          if (nb.block?.type === 'PARENT_PATH') {
             const ab = nb.block as { blocks?: QueryBlock[] };
             const ub = ab.blocks?.find(x => x.type === 'UUID') as { value?: string } | undefined;
             return ub?.value !== uuid;

@@ -117,7 +117,7 @@ function extractScope(blocks: QueryBlock[], isSystem?: boolean): { scope: ScopeN
       hasReferenceBlock = true;
     }
     
-    // Look for ANCESTOR_PATH blocks with UUID children (page scope)
+    // Look for PARENT_PATH blocks with UUID children (page scope)
     if (block.type === 'PARENT_PATH') {
       const parentPathBlock = block as ParentPathBlock;
       const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as UuidBlock | undefined;
