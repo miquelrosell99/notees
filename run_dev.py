@@ -16,10 +16,10 @@ FRONTEND_PORT = 5173
 BACKEND_PORT = 8000
 BACKEND_HOST = '0.0.0.0'
 POSTGRES_PORT = 5432
-POSTGRES_CONTAINER = 'notees-postgres-local'
 
 # Default PostgreSQL connection for local dev
-DEFAULT_DATABASE_URL = 'postgresql://notees:change_me_dev_password@localhost:5432/notees'
+# Uses 'postgres' superuser by default (change if you configured differently)
+DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/notees'
 
 COLORS = {
     'frontend': '\033[36m',  # Cyan
@@ -40,26 +40,56 @@ def log(message, level='info'):
     color = COLORS.get(level, COLORS['reset'])
     print(f"{color}[{level.upper()}]{COLORS['reset']} {message}")
 
+def find_postgres_bin():
+    """Find PostgreSQL bin directory on Windows."""
+    if sys.platform != 'win32':
+        # On Unix, assume PostgreSQL is in PATH
+        try:
+            result = subprocess.run(['psql', '--version'], capture_output=True, timeout=5)
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+    
+    # Common PostgreSQL installation paths on Windows
+    possible_paths = [
+        Path(os.environ.get('PROGRAMFILES', 'C:\\Program Files')) / 'PostgreSQL',
+        Path(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)')) / 'PostgreSQL',
+    ]
+    
+    for base_path in possible_paths:
+        if base_path.exists():
+            # Look for version directories (18, 17, 16, etc.)
+            for version_dir in sorted(base_path.iterdir(), reverse=True):
+                if version_dir.is_dir():
+                    bin_dir = version_dir / 'bin'
+                    if (bin_dir / 'psql.exe').exists():
+                        return str(bin_dir)
+    
+    # Check if pg_ctl is in PATH
+    try:
+        result = subprocess.run(['pg_ctl', '--version'], capture_output=True, timeout=5)
+        if result.returncode == 0:
+            return 'PATH'  # PostgreSQL is in PATH
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    
+    return None
+
 def is_port_in_use(port):
     """Check if a port is already in use."""
     # Try IPv4
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)  # Add timeout to prevent hanging
         if s.connect_ex(('127.0.0.1', port)) == 0:
             return True
     # Try IPv6 (Vite often binds to ::1)
     try:
         with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+            s.settimeout(1)  # Add timeout
             if s.connect_ex(('::1', port)) == 0:
                 return True
-    except OSError:
+    except (OSError, socket.timeout):
         pass
-    # Try localhost (let OS resolve)
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            if s.connect_ex(('localhost', port)) == 0:
-                return True
-        except OSError:
-            pass
     return False
 
 def wait_for_http(port, timeout=30):
@@ -101,80 +131,135 @@ def check_prerequisites():
     if is_port_in_use(BACKEND_PORT):
         errors.append(f"Port {BACKEND_PORT} is already in use (backend)")
     
-    # Check Docker is available for PostgreSQL
-    try:
-        result = subprocess.run(['docker', '--version'], capture_output=True, timeout=5)
-        if result.returncode != 0:
-            errors.append("Docker is required for PostgreSQL. Install Docker Desktop.")
-    except FileNotFoundError:
-        errors.append("Docker is required for PostgreSQL. Install Docker Desktop.")
-    except subprocess.TimeoutExpired:
-        errors.append("Docker check timed out. Is Docker running?")
+    # Check PostgreSQL is installed
+    pg_bin = find_postgres_bin()
+    if not pg_bin:
+        errors.append("PostgreSQL not found. Install with: winget install PostgreSQL.PostgreSQL.18")
     
     return errors
 
 
-def start_postgres():
-    """Start PostgreSQL container if not running."""
-    # Check if container exists and is running
-    result = subprocess.run(
-        ['docker', 'ps', '-q', '-f', f'name={POSTGRES_CONTAINER}'],
-        capture_output=True, text=True
-    )
+def get_pg_command(command):
+    """Get full path to PostgreSQL command."""
+    pg_bin = find_postgres_bin()
+    if not pg_bin:
+        return None
     
-    if result.stdout.strip():
-        log(f"PostgreSQL container '{POSTGRES_CONTAINER}' is already running", 'postgres')
+    if pg_bin == 'PATH':
+        return command
+    
+    if sys.platform == 'win32':
+        return str(Path(pg_bin) / f'{command}.exe')
+    return str(Path(pg_bin) / command)
+
+def check_postgres_running():
+    """Check if PostgreSQL is running."""
+    # On Windows, check the service
+    if sys.platform == 'win32':
+        try:
+            result = subprocess.run(
+                ['sc', 'query', 'postgresql-x64-18'],
+                capture_output=True,
+                timeout=5
+            )
+            return b'RUNNING' in result.stdout
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+    
+    # On Unix, try psql
+    psql = get_pg_command('psql')
+    if not psql:
+        return False
+    
+    try:
+        result = subprocess.run(
+            [psql, '-U', 'postgres', '-d', 'postgres', '-c', 'SELECT 1;'],
+            capture_output=True,
+            timeout=5,
+            env={**os.environ, 'PGPASSWORD': 'postgres'},
+            input=b'\n'  # Send newline in case of password prompt
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+def ensure_database_exists():
+    """Ensure the 'notees' database exists."""
+    # Since database is already created, just verify service is running
+    # We'll let the backend handle schema initialization
+    if sys.platform == 'win32':
+        log("Database 'notees' should exist (create manually if needed)", 'postgres')
         return True
     
-    # Check if container exists but is stopped
-    result = subprocess.run(
-        ['docker', 'ps', '-aq', '-f', f'name={POSTGRES_CONTAINER}'],
-        capture_output=True, text=True
-    )
+    psql = get_pg_command('psql')
+    if not psql:
+        return False
     
-    if result.stdout.strip():
-        log(f"Starting existing PostgreSQL container '{POSTGRES_CONTAINER}'...", 'postgres')
-        result = subprocess.run(['docker', 'start', POSTGRES_CONTAINER], capture_output=True)
-        if result.returncode != 0:
-            log(f"Failed to start PostgreSQL container: {result.stderr.decode()}", 'error')
-            return False
-    else:
-        # Create new container
-        log(f"Creating PostgreSQL container '{POSTGRES_CONTAINER}'...", 'postgres')
-        result = subprocess.run([
-            'docker', 'run', '-d',
-            '--name', POSTGRES_CONTAINER,
-            '-e', 'POSTGRES_USER=notees',
-            '-e', 'POSTGRES_PASSWORD=change_me_dev_password',
-            '-e', 'POSTGRES_DB=notees',
-            '-p', f'{POSTGRES_PORT}:5432',
-            'postgres:16-alpine'
-        ], capture_output=True)
+    try:
+        # Check if database exists
+        result = subprocess.run(
+            [psql, '-U', 'postgres', '-d', 'postgres', '-tAc', "SELECT 1 FROM pg_database WHERE datname='notees'"],
+            capture_output=True,
+            timeout=5,
+            env={**os.environ, 'PGPASSWORD': 'postgres'},
+            input=b'\n'
+        )
         
-        if result.returncode != 0:
-            log(f"Failed to create PostgreSQL container: {result.stderr.decode()}", 'error')
-            return False
-    
-    # Wait for PostgreSQL to be ready
-    log("Waiting for PostgreSQL to be ready...", 'postgres')
-    for i in range(30):
-        time.sleep(1)
-        result = subprocess.run([
-            'docker', 'exec', POSTGRES_CONTAINER,
-            'pg_isready', '-U', 'notees', '-d', 'notees'
-        ], capture_output=True)
-        if result.returncode == 0:
-            log("PostgreSQL is ready", 'postgres')
+        if result.returncode == 0 and b'1' in result.stdout:
+            log("Database 'notees' already exists", 'postgres')
             return True
+        
+        # Create database
+        log("Creating database 'notees'...", 'postgres')
+        result = subprocess.run(
+            [psql, '-U', 'postgres', '-d', 'postgres', '-c', 'CREATE DATABASE notees;'],
+            capture_output=True,
+            timeout=5,
+            env={**os.environ, 'PGPASSWORD': 'postgres'},
+            input=b'\n'
+        )
+        
+        if result.returncode == 0:
+            log("Database 'notees' created successfully", 'postgres')
+            return True
+        else:
+            log(f"Failed to create database: {result.stderr.decode()}", 'error')
+            return False
+            
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        log(f"Error checking/creating database: {e}", 'error')
+        return False
+
+def start_postgres():
+    """Ensure PostgreSQL service is running and database exists."""
+    # Check if PostgreSQL is already running
+    if check_postgres_running():
+        log("PostgreSQL is already running", 'postgres')
+        return ensure_database_exists()
     
-    log("PostgreSQL failed to start within timeout", 'error')
-    return False
-
-
-def stop_postgres():
-    """Stop PostgreSQL container."""
-    log(f"Stopping PostgreSQL container '{POSTGRES_CONTAINER}'...", 'postgres')
-    subprocess.run(['docker', 'stop', POSTGRES_CONTAINER], capture_output=True)
+    # On Windows, try to start the service
+    if sys.platform == 'win32':
+        log("Starting PostgreSQL service...", 'postgres')
+        result = subprocess.run(
+            ['sc', 'start', 'postgresql-x64-18'],  # Standard service name for PostgreSQL 18
+            capture_output=True,
+            timeout=30
+        )
+        
+        # Wait for service to be ready
+        log("Waiting for PostgreSQL to be ready...", 'postgres')
+        for i in range(30):
+            time.sleep(1)
+            if check_postgres_running():
+                log("PostgreSQL is ready", 'postgres')
+                return ensure_database_exists()
+        
+        log("PostgreSQL service started but not accepting connections", 'warn')
+        log("Try running 'sc start postgresql-x64-18' manually or check Services", 'warn')
+        return False
+    else:
+        log("Please start PostgreSQL manually on your system", 'warn')
+        return False
 
 def kill_process_tree(proc):
     """Kill a process and all its children."""
@@ -231,7 +316,7 @@ def stream_output(process, name, prefix_color, stop_event):
     for t in threads:
         t.join()
 
-def start_process(cmd, cwd=None, use_shell=False):
+def start_process(cmd, cwd=None, use_shell=False, env=None):
     """Start a process with proper process group handling."""
     if sys.platform == 'win32':
         return subprocess.Popen(
@@ -240,6 +325,7 @@ def start_process(cmd, cwd=None, use_shell=False):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=use_shell,
+            env=env,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
         )
     else:
@@ -248,6 +334,7 @@ def start_process(cmd, cwd=None, use_shell=False):
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
             preexec_fn=os.setsid
         )
 
@@ -290,6 +377,20 @@ def main():
     # Set DATABASE_URL environment variable for backend
     os.environ['DATABASE_URL'] = DEFAULT_DATABASE_URL
 
+    # Check if we have a virtual environment and use it
+    venv_python = None
+    if Path('.venv').exists():
+        if sys.platform == 'win32':
+            venv_python = Path('.venv/Scripts/python.exe')
+        else:
+            venv_python = Path('.venv/bin/python')
+        if venv_python.exists():
+            log(f"Using virtual environment at {venv_python}", 'info')
+        else:
+            venv_python = None
+    
+    python_exe = str(venv_python) if venv_python else 'python'
+
     processes = []
 
     try:
@@ -311,13 +412,17 @@ def main():
 
         # --- Backend ---
         log(f"Starting backend on port {BACKEND_PORT}...")
+        # Create environment with DATABASE_URL
+        backend_env = os.environ.copy()
+        backend_env['DATABASE_URL'] = DEFAULT_DATABASE_URL
+        
         backend = start_process([
-            'python', '-m', 'uvicorn',
+            python_exe, '-m', 'uvicorn',
             'app.main:app',
             '--reload',
             '--host', BACKEND_HOST,
             '--port', str(BACKEND_PORT)
-        ])
+        ], env=backend_env)
         backend_stop = Event()
         backend_thread = Thread(
             target=stream_output,
@@ -368,10 +473,10 @@ def main():
             kill_process_tree(proc)
             thread.join(timeout=3)
 
-        # Note: PostgreSQL container is left running for faster restarts
-        # To stop it, run: docker stop notees-postgres-local
+        # Note: PostgreSQL service is left running for faster restarts
         log("Development environment stopped (PostgreSQL still running)", 'info')
-        log(f"To stop PostgreSQL: docker stop {POSTGRES_CONTAINER}", 'info')
+        if sys.platform == 'win32':
+            log("To stop PostgreSQL: sc stop postgresql-x64-18", 'info')
         sys.exit(0)
 
 if __name__ == "__main__":
