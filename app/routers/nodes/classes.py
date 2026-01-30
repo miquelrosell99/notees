@@ -156,6 +156,9 @@ async def add_node_class(
 ):
     """Add a class to a node."""
     from ...domain.errors import SystemClassConstraintError
+    from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+    from ...domain.services.node_view_service import NodeViewService
+    from ...domain.repositories import PostgresNodeViewRepository
     
     service = await _get_node_service(user)
     
@@ -165,6 +168,26 @@ async def add_node_class(
             raise HTTPException(400, "Class already present or node not found")
     except SystemClassConstraintError as e:
         raise HTTPException(400, e.message)
+    
+    # Special handling for query class: create a main_content NodeView
+    added_class_node = await service.get_node(request.class_node_id)
+    if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
+        if service._graph_id:
+            view_repo = PostgresNodeViewRepository(
+                service._pool, service._graph_id, str(user.id)
+            )
+            # Check if main_content view already exists for this node
+            existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
+            if not existing_views:
+                # Create a non-system main_content view with empty query
+                await view_repo.create(
+                    node_id=node_id,
+                    name="Query",
+                    view_type="main_content",
+                    query_json={"type": "AND_CONTAINER", "blocks": []},
+                    order_index=0,
+                    is_default=True,
+                )
     
     node = await service.get_node(node_id)
     if not node:
@@ -192,8 +215,22 @@ async def remove_node_class_endpoint(
 ):
     """Remove a class from a node."""
     from ...domain.errors import SystemClassConstraintError
+    from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+    from ...domain.repositories import PostgresNodeViewRepository
     
     service = await _get_node_service(user)
+    
+    # Special handling for query class: delete the main_content NodeView before removing the class
+    removed_class_node = await service.get_node(class_id)
+    if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
+        if service._graph_id:
+            view_repo = PostgresNodeViewRepository(
+                service._pool, service._graph_id, str(user.id)
+            )
+            # Delete all main_content views for this node
+            existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
+            for view in existing_views:
+                await view_repo.delete(view.id)
     
     try:
         success = await service.remove_class(node_id, class_id)

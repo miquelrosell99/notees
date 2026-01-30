@@ -1,0 +1,22 @@
+/**
+ * QueryBlockDisplay Component Styles
+ * 
+ * Styles for blocks that display query results with tabs
+ */
+
+.query-block-display {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Ensure the query results section doesn't add extra padding */
+.query-block-display .node-view-section {
+  padding: 0;
+}
+
+/* Compact the section header if present */
+.query-block-display .node-view-section__header {
+  padding: 0.25rem 0;
+  margin-bottom: 0.5rem;
+}
