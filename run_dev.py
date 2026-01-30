@@ -5,6 +5,8 @@ import time
 import signal
 import socket
 import webbrowser
+import json
+import psutil
 from threading import Thread, Event
 from pathlib import Path
 
@@ -16,6 +18,10 @@ FRONTEND_PORT = 5173
 BACKEND_PORT = 8000
 BACKEND_HOST = '0.0.0.0'
 POSTGRES_PORT = 5432
+
+# Unique identifier for this dev environment
+DEV_ENV_MARKER = "NOTEES_DEV_ENVIRONMENT"
+PID_FILE = Path(".dev_pids.json")
 
 # Default PostgreSQL connection for local dev
 # Uses 'postgres' superuser by default (change if you configured differently)
@@ -79,83 +85,91 @@ def is_port_in_use(port):
     """Check if a port is already in use."""
     # Try IPv4
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(1)  # Add timeout to prevent hanging
+        s.settimeout(1)
         if s.connect_ex(('127.0.0.1', port)) == 0:
             return True
     # Try IPv6 (Vite often binds to ::1)
     try:
         with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
-            s.settimeout(1)  # Add timeout
+            s.settimeout(1)
             if s.connect_ex(('::1', port)) == 0:
                 return True
     except (OSError, socket.timeout):
         pass
     return False
 
-def kill_process_on_port(port):
-    """Kill any process using the specified port."""
-    if sys.platform == 'win32':
+def read_pid_file():
+    """Read PIDs from the PID file."""
+    if not PID_FILE.exists():
+        return None
+    try:
+        with open(PID_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
+
+def write_pid_file(frontend_pid, backend_pid):
+    """Write PIDs to the PID file."""
+    try:
+        with open(PID_FILE, 'w') as f:
+            json.dump({
+                'frontend': frontend_pid,
+                'backend': backend_pid,
+                'marker': DEV_ENV_MARKER
+            }, f)
+    except IOError as e:
+        log(f"Failed to write PID file: {e}", 'warn')
+
+def cleanup_pid_file():
+    """Remove the PID file."""
+    try:
+        if PID_FILE.exists():
+            PID_FILE.unlink()
+    except IOError:
+        pass
+
+def is_notees_dev_process(pid):
+    """Check if a PID is a Notees dev environment process."""
+    try:
+        proc = psutil.Process(pid)
+        # Check if process exists and has our marker in environment
+        env = proc.environ()
+        return env.get(DEV_ENV_MARKER) == "1"
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        return False
+
+def kill_previous_instance():
+    """Kill any previous instance of the dev environment."""
+    pid_data = read_pid_file()
+    if not pid_data:
+        return
+    
+    killed_any = False
+    for name, pid in [('Frontend', pid_data.get('frontend')), ('Backend', pid_data.get('backend'))]:
+        if not pid:
+            continue
+        
         try:
-            # Find PIDs using the port
-            result = subprocess.run(
-                ['netstat', '-ano'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            pids = set()
-            for line in result.stdout.splitlines():
-                if f':{port}' in line and 'LISTENING' in line:
-                    # Extract PID (last column)
-                    parts = line.split()
-                    if parts:
-                        try:
-                            pid = int(parts[-1])
-                            if pid != 0:  # Skip system process
-                                pids.add(pid)
-                        except (ValueError, IndexError):
-                            pass
-            
-            # Kill each process
-            for pid in pids:
+            proc = psutil.Process(pid)
+            if is_notees_dev_process(pid):
+                log(f"Found previous {name} instance (PID {pid}), terminating...", 'warn')
+                proc.terminate()
                 try:
-                    log(f"Killing process {pid} on port {port}...", 'warn')
-                    subprocess.run(
-                        ['taskkill', '/F', '/T', '/PID', str(pid)],
-                        capture_output=True,
-                        timeout=5
-                    )
-                    time.sleep(0.5)  # Give it time to die
-                except subprocess.TimeoutExpired:
-                    log(f"Failed to kill process {pid}", 'error')
-            
-            return len(pids) > 0
-        except Exception as e:
-            log(f"Error killing process on port {port}: {e}", 'error')
-            return False
-    else:
-        # Unix-like systems
-        try:
-            result = subprocess.run(
-                ['lsof', '-ti', f':{port}'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            pids = result.stdout.strip().split('\n')
-            for pid in pids:
-                if pid:
-                    try:
-                        log(f"Killing process {pid} on port {port}...", 'warn')
-                        os.kill(int(pid), signal.SIGTERM)
-                        time.sleep(0.5)
-                    except (ValueError, ProcessLookupError):
-                        pass
-            return len(pids) > 0
-        except Exception as e:
-            log(f"Error killing process on port {port}: {e}", 'error')
-            return False
+                    proc.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    log(f"Force killing {name} (PID {pid})", 'warn')
+                    proc.kill()
+                killed_any = True
+            else:
+                log(f"PID {pid} exists but is not a Notees dev process, skipping", 'info')
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    
+    if killed_any:
+        time.sleep(1)  # Give processes time to fully terminate
+        log("Previous instance terminated", 'info')
+    
+    cleanup_pid_file()
 
 def wait_for_http(port, timeout=30):
     """Wait for an HTTP server to respond on the port."""
@@ -190,28 +204,15 @@ def check_prerequisites():
     if not Path('frontend/node_modules').exists():
         errors.append("frontend/node_modules not found - run 'npm install' in frontend/")
     
-    # Check and kill processes on required ports
+    # Kill any previous instance
+    kill_previous_instance()
+    
+    # Check if ports are still in use (by non-Notees processes)
     if is_port_in_use(FRONTEND_PORT):
-        log(f"Port {FRONTEND_PORT} is in use, attempting to free it...", 'warn')
-        if kill_process_on_port(FRONTEND_PORT):
-            log(f"Port {FRONTEND_PORT} freed successfully", 'info')
-            # Verify it's actually free
-            time.sleep(1)
-            if is_port_in_use(FRONTEND_PORT):
-                errors.append(f"Port {FRONTEND_PORT} is still in use after cleanup (frontend)")
-        else:
-            errors.append(f"Port {FRONTEND_PORT} is already in use (frontend)")
+        errors.append(f"Port {FRONTEND_PORT} is in use by another application. Please free it manually.")
     
     if is_port_in_use(BACKEND_PORT):
-        log(f"Port {BACKEND_PORT} is in use, attempting to free it...", 'warn')
-        if kill_process_on_port(BACKEND_PORT):
-            log(f"Port {BACKEND_PORT} freed successfully", 'info')
-            # Verify it's actually free
-            time.sleep(1)
-            if is_port_in_use(BACKEND_PORT):
-                errors.append(f"Port {BACKEND_PORT} is still in use after cleanup (backend)")
-        else:
-            errors.append(f"Port {BACKEND_PORT} is already in use (backend)")
+        errors.append(f"Port {BACKEND_PORT} is in use by another application. Please free it manually.")
     
     # Check PostgreSQL is installed
     pg_bin = find_postgres_bin()
@@ -349,27 +350,36 @@ def kill_process_tree(proc):
         return  # already stopped
 
     try:
-        if sys.platform == 'win32':
-            # Use taskkill to kill the entire process tree on Windows
-            subprocess.run(
-                ['taskkill', '/F', '/T', '/PID', str(proc.pid)],
-                capture_output=True
-            )
-        else:
-            # Unix: terminate the whole process group
-            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-    except Exception as e:
-        log(f"Error sending termination signal: {e}", 'warn')
-
-    # Wait a bit, then force kill if still running
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        log(f"Process didn't stop gracefully, forcing kill...", 'warn')
-        proc.kill()
+        # Use psutil for cross-platform process tree killing
+        parent = psutil.Process(proc.pid)
+        children = parent.children(recursive=True)
+        
+        # Terminate children first
+        for child in children:
+            try:
+                child.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        # Terminate parent
+        parent.terminate()
+        
+        # Wait for termination
+        gone, alive = psutil.wait_procs([parent] + children, timeout=5)
+        
+        # Force kill any that didn't terminate
+        for p in alive:
+            try:
+                p.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+                
+    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+        log(f"Error terminating process tree: {e}", 'warn')
+        # Fallback to basic kill
         try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
+            proc.kill()
+        except:
             pass
 
 def stream_output(process, name, prefix_color, stop_event):
@@ -399,7 +409,14 @@ def stream_output(process, name, prefix_color, stop_event):
         t.join()
 
 def start_process(cmd, cwd=None, use_shell=False, env=None):
-    """Start a process with proper process group handling."""
+    """Start a process with proper process group handling and environment marker."""
+    # Add our unique marker to the environment
+    if env is None:
+        env = os.environ.copy()
+    else:
+        env = env.copy()
+    env[DEV_ENV_MARKER] = "1"
+    
     if sys.platform == 'win32':
         return subprocess.Popen(
             cmd,
@@ -514,6 +531,10 @@ def main():
         backend_thread.start()
         processes.append((backend, backend_stop, backend_thread, 'Backend'))
 
+        # Write PID file for instance tracking
+        write_pid_file(frontend.pid, backend.pid)
+        log(f"Instance marker written (Frontend PID: {frontend.pid}, Backend PID: {backend.pid})", 'info')
+
         # Wait for services to be ready
         log("Waiting for services to start...")
         backend_ready = wait_for_http(BACKEND_PORT, timeout=30)
@@ -555,6 +576,9 @@ def main():
             kill_process_tree(proc)
             thread.join(timeout=3)
 
+        # Clean up PID file
+        cleanup_pid_file()
+        
         # Note: PostgreSQL service is left running for faster restarts
         log("Development environment stopped (PostgreSQL still running)", 'info')
         if sys.platform == 'win32':
