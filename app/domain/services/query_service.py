@@ -196,7 +196,7 @@ class QuerySQLGenerator:
         elif block_type == QueryBlockType.NOT_CONTAINER.value:
             return self._generate_not_container(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.CLASS.value:
-            return self._generate_type_condition(block, runtime_params, node_alias)
+            return self._generate_class_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.PROPERTY.value:
             return self._generate_property_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.CONTENT.value:
@@ -279,13 +279,13 @@ class QuerySQLGenerator:
             return f"NOT ({inner_clause})"
         return "TRUE"
     
-    def _generate_type_condition(
+    def _generate_class_condition(
         self,
         block: Dict[str, Any],
         runtime_params: Dict[str, Any],
         node_alias: str,
     ) -> str:
-        """Generate type filter condition.
+        """Generate class filter condition.
         
         Checks if node has the specified class. For system classes with flags
         (page, class, day, month, year, asset, template, comment), uses the 
