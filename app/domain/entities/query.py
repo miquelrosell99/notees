@@ -279,17 +279,39 @@ class ReferencePathBlock(QueryBlock):
 
 
 @dataclass
-class AncestorPathBlock(QueryBlock):
-    """Filter nodes by their ancestor hierarchy.
+class ParentBlock(QueryBlock):
+    """Filter by direct parent nodes.
+    
+    This finds nodes whose parent matches the nested filter criteria.
+    For example: Find all blocks whose parent is a specific page.
+    """
+    type: QueryBlockType = field(default=QueryBlockType.PARENT)
+    # Nested filters for what the parent should match
+    blocks: List[QueryBlock] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.type.value,
+            "blocks": [b.to_dict() for b in self.blocks],
+        }
+    
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "ParentBlock":
+        blocks = [QueryBlock.from_dict(b) for b in data.get("blocks", [])]
+        return ParentBlock(blocks=blocks)
+
+
+@dataclass
+class ParentPathBlock(QueryBlock):
+    """Filter by ancestor nodes (parent hierarchy).
     
     This finds nodes that have ancestors matching the nested filter criteria.
-    For example: Find all blocks inside a page of type "project".
+    For example: Find all blocks that are descendants of a specific page.
     """
-    type: QueryBlockType = field(default=QueryBlockType.ANCESTOR_PATH)
-    # Nested filters for what ancestors should match
+    type: QueryBlockType = field(default=QueryBlockType.PARENT_PATH)
+    # Nested filters for what the ancestors should match
     blocks: List[QueryBlock] = field(default_factory=list)
-    # How deep to search (None = unlimited)
-    max_depth: Optional[int] = None
+    max_depth: Optional[int] = None  # Optional depth limit
     
     def to_dict(self) -> Dict[str, Any]:
         result = {
@@ -301,12 +323,61 @@ class AncestorPathBlock(QueryBlock):
         return result
     
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "AncestorPathBlock":
+    def from_dict(data: Dict[str, Any]) -> "ParentPathBlock":
         blocks = [QueryBlock.from_dict(b) for b in data.get("blocks", [])]
-        return AncestorPathBlock(
-            blocks=blocks,
-            max_depth=data.get("max_depth"),
-        )
+        max_depth = data.get("max_depth")
+        return ParentPathBlock(blocks=blocks, max_depth=max_depth)
+
+
+@dataclass
+class ChildBlock(QueryBlock):
+    """Filter by direct children nodes.
+    
+    This finds nodes that have children matching the nested filter criteria.
+    For example: Find all pages that have TODO blocks as direct children.
+    """
+    type: QueryBlockType = field(default=QueryBlockType.CHILD)
+    # Nested filters for what the children should match
+    blocks: List[QueryBlock] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.type.value,
+            "blocks": [b.to_dict() for b in self.blocks],
+        }
+    
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "ChildBlock":
+        blocks = [QueryBlock.from_dict(b) for b in data.get("blocks", [])]
+        return ChildBlock(blocks=blocks)
+
+
+@dataclass
+class ChildPathBlock(QueryBlock):
+    """Filter by descendant nodes (child hierarchy).
+    
+    This finds nodes that have descendants matching the nested filter criteria.
+    For example: Find all pages that contain TODO blocks anywhere in their hierarchy.
+    """
+    type: QueryBlockType = field(default=QueryBlockType.CHILD_PATH)
+    # Nested filters for what the descendants should match
+    blocks: List[QueryBlock] = field(default_factory=list)
+    max_depth: Optional[int] = None  # Optional depth limit
+    
+    def to_dict(self) -> Dict[str, Any]:
+        result = {
+            "type": self.type.value,
+            "blocks": [b.to_dict() for b in self.blocks],
+        }
+        if self.max_depth is not None:
+            result["max_depth"] = self.max_depth
+        return result
+    
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "ChildPathBlock":
+        blocks = [QueryBlock.from_dict(b) for b in data.get("blocks", [])]
+        max_depth = data.get("max_depth")
+        return ChildPathBlock(blocks=blocks, max_depth=max_depth)
 
 
 @dataclass
@@ -324,6 +395,29 @@ class UuidBlock(QueryBlock):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "UuidBlock":
         return UuidBlock(value=data.get("value", ""))
+
+
+@dataclass
+class ClassPathBlock(QueryBlock):
+    """Filter nodes by inherited classes from ancestors.
+    
+    This finds nodes that have a specific class assigned to them
+    or inherited from any ancestor in their hierarchy (via classes_path).
+    For example: Find all nodes that have the "Meeting" class,
+    either directly or inherited from a parent page.
+    """
+    type: QueryBlockType = field(default=QueryBlockType.CLASS_PATH)
+    value: str = ""  # UUID of the class node
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.type.value,
+            "value": self.value,
+        }
+    
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "ClassPathBlock":
+        return ClassPathBlock(value=data.get("value", ""))
 
 
 @dataclass
