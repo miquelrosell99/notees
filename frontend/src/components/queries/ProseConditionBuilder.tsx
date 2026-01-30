@@ -131,16 +131,18 @@ function ProseConditionRow({
       case 'type': {
         const { data: selectedClass } = useNode(condition.type_id);
         const classNodes = selectedClass ? [selectedClass] : [];
-        const operator = condition.operator || 'is';
+        const operator = condition.operator || 'contains';
         
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__word">class</span>
             <Dropdown
               value={operator}
-              onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' })}
+              onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' | 'contains' | 'does_not_contain' })}
               disabled={effectiveReadOnly}
               options={[
+                { value: 'contains', label: 'contains' },
+                { value: 'does_not_contain', label: 'does not contain' },
                 { value: 'is', label: 'is' },
                 { value: 'is_not', label: 'is not' },
               ]}
