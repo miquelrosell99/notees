@@ -1,22 +1,22 @@
 /**
- * ProseScopeSelector Styles (Redesigned)
+ * ProseScopeSelector Styles
  * 
- * Inline, minimal styling
+ * Inline, prose-style scope selector
  */
 
 .prose-scope-selector {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-md);
   flex-wrap: wrap;
 }
 
-.prose-scope-selector__select {
+.prose-scope-selector__dropdown {
   font-weight: 500;
 }
 
-.prose-scope-selector__option {
-  display: flex;
+.prose-scope-selector__checkbox {
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
   font-size: 0.875rem;
@@ -24,11 +24,11 @@
   cursor: pointer;
 }
 
-.prose-scope-selector__option input[type="checkbox"] {
+.prose-scope-selector__checkbox input[type="checkbox"] {
   margin: 0;
 }
 
-.prose-scope-selector__note {
+.prose-scope-selector__count {
   font-size: 0.875rem;
   color: var(--color-text-tertiary, #868e96);
   font-style: italic;
