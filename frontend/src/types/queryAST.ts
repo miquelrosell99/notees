@@ -258,7 +258,7 @@ export interface GroupNode {
  */
 export interface NotNode {
   type: 'not';
-  child: ConditionNode | GroupNode;
+  child: ConditionNode | GroupNode | NotNode;
   /** Capabilities control what operations are allowed (default: all true) */
   capabilities?: NodeCapabilities;
 }

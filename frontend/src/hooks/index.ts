@@ -5,7 +5,7 @@
  * - Data fetching: useNodes, useNodeViews, usePrefetch
  * - Selection/interaction: useBlockSelection, useSearchableList, useFocusedView
  * - Block operations: useBlockOperation, useStructuralHistory, useDebouncedSave
- * - UI utilities: useNodeIcon, useNodeCollection, useDragPreview, useVirtualizedNodes
+ * - UI utilities: useNodeIcon, useNodeCollection, useVirtualizedNodes
  * - Keyboard/focus: useKeyboardShortcuts, useFocusTrap
  * - Routing: useRouter, RouterSync
  */
@@ -19,7 +19,6 @@ export * from './useNodeIcon';
 export * from './useNodeSearch';
 export * from './useQuickAdd';
 export * from './useNodeCollection';
-export * from './useDragPreview';
 export * from './useVirtualizedNodes';
 export * from './usePrefetch';
 export * from './useFocusedView';

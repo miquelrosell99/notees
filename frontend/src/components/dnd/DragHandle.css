@@ -1,0 +1,41 @@
+/**
+ * DragHandle Component Styles
+ */
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+  user-select: none;
+  touch-action: none;
+}
+
+.drag-handle--visible {
+  opacity: 1;
+}
+
+.drag-handle:hover {
+  color: var(--text);
+  background-color: var(--background-hover);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background-color: var(--background-active);
+}
+
+/* Focus styles for accessibility */
+.drag-handle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Parent hover reveals handle */
+*:hover > .drag-handle,
+*:focus-within > .drag-handle {
+  opacity: 1;
+}

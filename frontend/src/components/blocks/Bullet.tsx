@@ -42,10 +42,10 @@ export interface BulletProps {
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
   /** Collapse toggle handler */
   onCollapseToggle?: (e: React.MouseEvent) => void;
-  /** Drag start handler */
-  onDragStart?: (e: React.DragEvent) => void;
-  /** Whether the element is draggable */
-  draggable?: boolean;
+  /** @dnd-kit activator ref for drag handle */
+  activatorRef?: (element: HTMLElement | null) => void;
+  /** @dnd-kit activator listeners for drag handle */
+  activatorListeners?: Record<string, any>;
   /** Whether currently dragging */
   isDragging?: boolean;
   /** Custom class name */
@@ -69,8 +69,8 @@ export function Bullet({
   onShiftClick,
   onContextMenu,
   onCollapseToggle,
-  onDragStart,
-  draggable = false,
+  activatorRef,
+  activatorListeners,
   isDragging = false,
   className = '',
   title,
@@ -114,12 +114,6 @@ export function Bullet({
     onCollapseToggle(e);
   }, [onCollapseToggle]);
   
-  // Handle drag start
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    if (!interactive || !onDragStart) return;
-    onDragStart(e);
-  }, [interactive, onDragStart]);
-  
   // Compute class names
   const classNames = useMemo(() => {
     const classes = ['bullet-wrapper', `bullet-${size}`];
@@ -156,14 +150,16 @@ export function Bullet({
   
   return (
     <div
-      ref={bulletRef}
+      ref={(el) => {
+        bulletRef.current = el;
+        if (activatorRef) activatorRef(el);
+      }}
       className={classNames}
       onClick={interactive ? handleClick : undefined}
       onContextMenu={interactive ? handleContextMenu : undefined}
-      onDragStart={interactive ? handleDragStart : undefined}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      draggable={draggable}
+      {...(activatorListeners || {})}
       title={computedTitle}
       role={interactive ? 'button' : 'presentation'}
       tabIndex={interactive ? 0 : -1}
