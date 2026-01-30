@@ -285,6 +285,7 @@ export function ProseConditionBuilder({
             { value: 'property', label: 'Property' },
             { value: 'type', label: 'Class' },
             { value: 'reference', label: 'References node' },
+            { value: 'reference_path', label: 'Referenced by nodes that...' },
             { value: 'parent', label: 'Has parent' },
             { value: 'parent_path', label: 'Has ancestor' },
             { value: 'child', label: 'Has child' },
