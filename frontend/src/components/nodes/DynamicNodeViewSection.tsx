@@ -163,6 +163,7 @@ export function DynamicNodeViewSection({
   const { 
     data: views = [], 
     isLoading: viewsLoading,
+    refetch: refetchViews,
   } = useNodeViews(nodeId, { 
     viewType, 
     includeQueryBlockTree: true,
@@ -401,6 +402,9 @@ export function DynamicNodeViewSection({
         blockTree,
       });
       
+      // Refetch views to get updated query data
+      await refetchViews();
+      
       setEditingView(null);
       setEditAST(null);
       setValidation(null);
@@ -409,7 +413,7 @@ export function DynamicNodeViewSection({
     } catch (error) {
       console.error('Failed to save view:', error);
     }
-  }, [editingView, editAST, validation, editViewName, viewType, nodeUuid, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
+  }, [editingView, editAST, validation, editViewName, viewType, nodeUuid, updateBlockTreeMutation, updateViewMutation, refetchQuery, refetchViews]);
 
   // Handle deleting view
   const handleDeleteView = useCallback(async () => {
@@ -744,6 +748,7 @@ export function DynamicNodeViewSection({
               }}
               resultCount={previewResults?.length}
               isLoading={previewLoading}
+              hideFooter={true}
             />
           </div>
         )}
