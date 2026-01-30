@@ -161,7 +161,7 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
     case 'reference_path':
       return `references_matching(...)`;
       
-    case 'ancestor_path':
+    case 'parent_path':
       return `inside_page(...)`;
       
     default:

@@ -48,7 +48,7 @@ class ScopeNode:
     scope_type: ScopeType = ScopeType.ENTIRE_GRAPH
     # For specific_pages scope type
     page_uuids: Optional[List[str]] = None
-    # For ancestor_path filtering (nodes inside specific pages)
+    # For parent_path filtering (nodes inside specific pages)
     include_descendants: Optional[bool] = None
     # For negated scope filters
     excluded_page_uuids: Optional[List[str]] = None
@@ -87,7 +87,7 @@ class ConditionType(str, Enum):
     CONTENT = "content"
     REFERENCE = "reference"
     REFERENCE_PATH = "reference_path"
-    ANCESTOR_PATH = "ancestor_path"
+    PARENT_PATH = "parent_path"
 
 
 class PropertyOperator(str, Enum):
@@ -181,9 +181,9 @@ class ReferencePathCondition(BaseConditionNode):
 
 
 @dataclass
-class AncestorPathCondition(BaseConditionNode):
-    """Ancestor path condition - filter by nodes with ancestors matching criteria."""
-    condition_type: Literal[ConditionType.ANCESTOR_PATH] = ConditionType.ANCESTOR_PATH
+class ParentPathCondition(BaseConditionNode):
+    """Parent path condition - filter by nodes with ancestors matching criteria."""
+    condition_type: Literal[ConditionType.PARENT_PATH] = ConditionType.PARENT_PATH
     nested_group: Optional["GroupNode"] = None
     max_depth: Optional[int] = None
 
@@ -195,7 +195,7 @@ ConditionNode = Union[
     ContentCondition,
     ReferenceCondition,
     ReferencePathCondition,
-    AncestorPathCondition,
+    ParentPathCondition,
 ]
 
 
@@ -363,11 +363,11 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         if "nested_group" in data and data["nested_group"]:
             nested_group = GroupNode.from_dict(data["nested_group"])
         return ReferencePathCondition(nested_group=nested_group)
-    elif condition_type == ConditionType.ANCESTOR_PATH:
+    elif condition_type == ConditionType.PARENT_PATH:
         nested_group = None
         if "nested_group" in data and data["nested_group"]:
             nested_group = GroupNode.from_dict(data["nested_group"])
-        return AncestorPathCondition(
+        return ParentPathCondition(
             nested_group=nested_group,
             max_depth=data.get("max_depth"),
         )

@@ -464,7 +464,7 @@ export function getBlockTypeLabel(type: QueryBlockType): string {
     CONTENT: 'Content',
     REFERENCE: 'References',
     REFERENCE_PATH: 'References Matching',
-    ANCESTOR_PATH: 'Inside',
+    PARENT_PATH: 'Inside',
     UUID: 'UUID',
   };
   return labels[type] || type;
