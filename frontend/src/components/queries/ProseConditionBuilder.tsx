@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useState } from 'react';
-import { mdiClose, mdiMousePointer, mdiTextBoxMultiple } from '@mdi/js';
+import { mdiClose, mdiCursorPointer, mdiTextBoxMultipleOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
@@ -180,8 +180,8 @@ function ProseConditionRow({
                     }
                   }}
                   options={[
-                    { value: 'static', label: 'Static' },
-                    { value: 'dynamic', label: 'Dynamic' },
+                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
                   ]}
                   size="sm"
                   disabled={effectiveReadOnly}
@@ -282,8 +282,8 @@ function ProseConditionRow({
                     }
                   }}
                   options={[
-                    { value: 'static', label: 'Static' },
-                    { value: 'dynamic', label: 'Dynamic' },
+                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
                   ]}
                   size="sm"
                   disabled={effectiveReadOnly}
