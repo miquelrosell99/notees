@@ -295,6 +295,7 @@ class QuerySQLGenerator:
         """
         class_value = block.get("value", "")
         class_id = block.get("type_id")
+        class_uuids = block.get("class_uuids", [])  # Support for multiple UUIDs in dynamic mode
         operator = block.get("operator", "contains")  # Default to 'contains' for backward compatibility
         
         # Map of system class names to their corresponding node flags
@@ -324,6 +325,37 @@ class QuerySQLGenerator:
                     WHERE ci.node_id = {node_alias}.id
                 )
             """.strip()
+        
+        # Handle multiple UUIDs from dynamic mode
+        if class_uuids:
+            uuid_conditions = []
+            for uuid in class_uuids:
+                if not uuid.strip():
+                    continue
+                param = self._next_param(uuid.strip())
+                graph_param = self._next_param(self._graph_id)
+                condition = f"""
+                    EXISTS (
+                        SELECT 1 FROM class_inline ci
+                        JOIN node class_node ON class_node.id = ci.class_id
+                        WHERE ci.node_id = {node_alias}.id
+                          AND class_node.uuid::text = {param}
+                          AND class_node.graph_id = {graph_param}
+                    )
+                """.strip()
+                uuid_conditions.append(condition)
+            
+            if not uuid_conditions:
+                return "TRUE"
+            
+            # Join conditions with OR (node has any of these classes)
+            base_condition = "(" + " OR ".join(uuid_conditions) + ")"
+            
+            # Apply negation for 'is_not' and 'does_not_contain'
+            if operator == "is_not" or operator == "does_not_contain":
+                return f"NOT {base_condition}"
+            
+            return base_condition
         
         # For other operators, we need a class value or id
         if not class_id and not class_value:
@@ -735,9 +767,33 @@ class QuerySQLGenerator:
         """
         target_uuid = block.get("target_uuid", "")
         target_id = block.get("target_id")
+        target_uuids = block.get("target_uuids", [])  # Support for multiple UUIDs in dynamic mode
         nested_blocks = block.get("blocks", [])
         
         target_uuid = self._resolve_placeholder(target_uuid, runtime_params)
+        
+        # Handle multiple UUIDs from dynamic mode
+        if target_uuids:
+            uuid_conditions = []
+            for uuid in target_uuids:
+                if not uuid.strip():
+                    continue
+                param = self._next_param(uuid.strip())
+                condition = f"""
+                    EXISTS (
+                        SELECT 1 FROM node_link nl
+                        JOIN node target ON target.id = nl.target_id
+                        WHERE nl.source_id = {node_alias}.id
+                          AND target.uuid::text = {param}
+                    )
+                """.strip()
+                uuid_conditions.append(condition)
+            
+            if not uuid_conditions:
+                return "TRUE"
+            
+            # Join conditions with OR (node references any of these targets)
+            return "(" + " OR ".join(uuid_conditions) + ")"
         
         if not target_uuid and not target_id:
             return "TRUE"
