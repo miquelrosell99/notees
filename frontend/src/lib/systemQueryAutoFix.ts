@@ -120,11 +120,13 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
   {
     viewType: 'classed_nodes',
     requiresCondition: (_ast, context) => {
-      if (!context.typeUuid) return null;
+      // For classed_nodes views, lock to the current page as the class
+      if (!context.nodeUuid) return null;
       return markAsSystemNode({
         type: 'condition',
         condition_type: 'class',
-        class_uuid: context.typeUuid,
+        class_uuid: context.nodeUuid, // Lock to current page
+        operator: 'is', // Lock to exact match, not editable
       });
     },
     hasRequiredCondition: (ast, context) => {
@@ -132,7 +134,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
         (child) =>
           child.type === 'condition' &&
           isClassCondition(child) &&
-          child.class_uuid === context.typeUuid &&
+          child.class_uuid === context.nodeUuid &&
           isSystemNode(child)
       );
     },
