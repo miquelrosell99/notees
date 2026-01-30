@@ -29,6 +29,7 @@ import { Card } from '../core/Card';
 import { DragHandle } from '../dnd/DragHandle';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
+import { isSystemNode } from '@/types/queryAST';
 import './QueryBlockList.css';
 
 // ==================== Types ====================
@@ -73,6 +74,10 @@ function SortableBlockItem({
   isDraggedOver,
   dropPosition,
 }: SortableBlockItemProps) {
+  // Check if this block is a system block (should not be dragged/deleted)
+  const isSystem = isSystemNode(block);
+  const effectiveReadOnly = readOnly || isSystem;
+  
   const {
     attributes,
     listeners,
@@ -83,6 +88,7 @@ function SortableBlockItem({
     isDragging,
   } = useSortable({
     id: `block-${index}`,
+    disabled: isSystem, // Disable dragging for system blocks
     data: {
       type: 'query-block',
       block,
@@ -119,8 +125,8 @@ function SortableBlockItem({
         padding={false}
         radius="md"
       >
-        {/* Drag handle */}
-        {!readOnly && (
+        {/* Drag handle - hide for system blocks */}
+        {!effectiveReadOnly && (
           <div
             ref={setActivatorNodeRef}
             className="query-block-list__drag-handle"
@@ -132,17 +138,17 @@ function SortableBlockItem({
         )}
 
         {/* Block content */}
-        <div className={`query-block-list__content ${readOnly ? 'query-block-list__content--readonly' : ''}`}>
+        <div className={`query-block-list__content ${effectiveReadOnly ? 'query-block-list__content--readonly' : ''}`}>
           <QueryBlockBuilder
             block={block}
             onChange={onUpdate}
             onRemove={onRemove}
-            readOnly={readOnly}
+            readOnly={effectiveReadOnly}
           />
         </div>
 
-        {/* Delete button (hover only) */}
-        {!readOnly && (
+        {/* Delete button (hover only) - hide for system blocks */}
+        {!effectiveReadOnly && (
           <button
             className="query-block-list__delete"
             onClick={onRemove}
