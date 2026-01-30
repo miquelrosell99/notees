@@ -82,20 +82,54 @@ def find_postgres_bin():
     return None
 
 def is_port_in_use(port):
-    """Check if a port is already in use."""
-    # Try IPv4
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(1)
-        if s.connect_ex(('127.0.0.1', port)) == 0:
-            return True
-    # Try IPv6 (Vite often binds to ::1)
+    """Check if a port is actively listening (not just TIME_WAIT)."""
+    # On Windows, check netstat for LISTENING state
+    if sys.platform == 'win32':
+        try:
+            result = subprocess.run(
+                ['netstat', '-ano'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            for line in result.stdout.splitlines():
+                if f':{port}' in line and 'LISTENING' in line:
+                    # Extract PID
+                    parts = line.split()
+                    if parts:
+                        try:
+                            pid = int(parts[-1])
+                            if pid != 0:  # Skip system process
+                                # Check if process exists
+                                try:
+                                    psutil.Process(pid)
+                                    return True
+                                except psutil.NoSuchProcess:
+                                    pass
+                        except (ValueError, IndexError):
+                            pass
+            return False
+        except Exception:
+            pass
+    
+    # Fallback to socket-based check
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            if s.connect_ex(('127.0.0.1', port)) == 0:
+                return True
+    except:
+        pass
+    
+    # Try IPv6
     try:
         with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
             s.settimeout(1)
             if s.connect_ex(('::1', port)) == 0:
                 return True
-    except (OSError, socket.timeout):
+    except:
         pass
+    
     return False
 
 def read_pid_file():
@@ -140,36 +174,52 @@ def is_notees_dev_process(pid):
 
 def kill_previous_instance():
     """Kill any previous instance of the dev environment."""
+    # First, try to use PID file
     pid_data = read_pid_file()
-    if not pid_data:
-        return
+    killed_from_pid_file = False
     
-    killed_any = False
-    for name, pid in [('Frontend', pid_data.get('frontend')), ('Backend', pid_data.get('backend'))]:
-        if not pid:
-            continue
+    if pid_data:
+        for name, pid in [('Frontend', pid_data.get('frontend')), ('Backend', pid_data.get('backend'))]:
+            if not pid:
+                continue
+            
+            try:
+                proc = psutil.Process(pid)
+                if is_notees_dev_process(pid):
+                    log(f"Found previous {name} instance (PID {pid}), terminating...", 'warn')
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except psutil.TimeoutExpired:
+                        log(f"Force killing {name} (PID {pid})", 'warn')
+                        proc.kill()
+                    killed_from_pid_file = True
+                else:
+                    log(f"PID {pid} exists but is not a Notees dev process, skipping", 'info')
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
         
+        cleanup_pid_file()
+    
+    # Also scan for any orphaned processes with our marker
+    killed_orphans = False
+    for proc in psutil.process_iter(['pid', 'name']):
         try:
-            proc = psutil.Process(pid)
-            if is_notees_dev_process(pid):
-                log(f"Found previous {name} instance (PID {pid}), terminating...", 'warn')
+            if is_notees_dev_process(proc.pid):
+                log(f"Found orphaned Notees dev process: {proc.info['name']} (PID {proc.pid}), terminating...", 'warn')
                 proc.terminate()
                 try:
                     proc.wait(timeout=5)
                 except psutil.TimeoutExpired:
-                    log(f"Force killing {name} (PID {pid})", 'warn')
+                    log(f"Force killing orphaned process (PID {proc.pid})", 'warn')
                     proc.kill()
-                killed_any = True
-            else:
-                log(f"PID {pid} exists but is not a Notees dev process, skipping", 'info')
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                killed_orphans = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
     
-    if killed_any:
-        time.sleep(1)  # Give processes time to fully terminate
-        log("Previous instance terminated", 'info')
-    
-    cleanup_pid_file()
+    if killed_from_pid_file or killed_orphans:
+        time.sleep(2)  # Give processes time to fully terminate and release ports
+        log("Previous instance(s) terminated", 'info')
 
 def wait_for_http(port, timeout=30):
     """Wait for an HTTP server to respond on the port."""
