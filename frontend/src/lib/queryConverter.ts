@@ -328,6 +328,20 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
       } as ClassPathCondition;
     }
     
+    case 'UUID': {
+      const uuidBlock = block as UuidBlock;
+      // UUID blocks are used for exact node matching, typically with placeholders like {current_node_uuid}
+      // We'll convert them to property conditions on uuid field
+      return {
+        type: 'condition',
+        condition_type: 'property',
+        property_name: 'uuid',
+        property_type: 'text',
+        operator: '=',
+        value: uuidBlock.value,
+      } as PropertyCondition;
+    }
+    
     default:
       throw new Error(`Unknown block type: ${(block as QueryBlock).type}`);
   }
