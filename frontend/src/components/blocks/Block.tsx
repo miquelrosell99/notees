@@ -28,6 +28,9 @@
  */
 import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
@@ -285,144 +288,35 @@ function BlockInternal({
     return () => document.removeEventListener('mousedown', handleClickOutside, true);
   }, [block.id, blockState, setBlockState]);
   
-  // Handle drag start
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    if (!canMove) return;
-    
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(block.id));
-    
-    // Create custom drag image
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const dragImage = containerRef.current.cloneNode(true) as HTMLElement;
-      dragImage.style.width = `${rect.width}px`;
-      dragImage.style.position = 'absolute';
-      dragImage.style.top = '-9999px';
-      dragImage.style.opacity = '0.8';
-      dragImage.classList.add('dragging-preview');
-      document.body.appendChild(dragImage);
-      e.dataTransfer.setDragImage(dragImage, 20, 20);
-      
-      // Clean up drag image after a short delay
-      setTimeout(() => {
-        document.body.removeChild(dragImage);
-      }, 0);
-    }
-    
-    startDrag(block.id);
-  }, [block.id, canMove, startDrag]);
+  // @dnd-kit sortable integration (only if canMove is true)
+  const sortable = useSortable({
+    id: `block-${block.id}`,
+    data: {
+      type: 'block',
+      blockId: block.id,
+      parentId,
+      sequence: block.sequence,
+    },
+    disabled: !canMove || isolatedState,
+  });
   
-  // Handle drag over
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (!canMove || isBeingDragged) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const x = e.clientX - rect.left;
-    const height = rect.height;
-    
-    // Calculate indent level based on X position (24px per indent level)
-    const indentLevel = Math.max(0, Math.floor(x / 24));
-    
-    // Determine drop position based on mouse position and indent
-    let position: 'before' | 'after' | 'inside';
-    
-    // If indented, prefer 'inside' (child) placement
-    if (indentLevel > 0) {
-      position = 'inside';
-    } else if (y < height * 0.3) {
-      position = 'before';
-    } else if (y > height * 0.7) {
-      position = 'after';
-    } else {
-      // Middle zone - prefer inside if block can have children
-      position = 'inside';
-    }
-    
-    setIsDragOver(true);
-    setDropPosition(position);
-    updateDragTarget(block.id, position);
-  }, [block.id, isBeingDragged, canMove, updateDragTarget]);
+  // Extract sortable values
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = sortable;
   
-  // Handle drag leave
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear if we're actually leaving this element
-    const relatedTarget = e.relatedTarget as HTMLElement;
-    if (containerRef.current && !containerRef.current.contains(relatedTarget)) {
-      setIsDragOver(false);
-      setDropPosition(null);
-    }
-  }, []);
-  
-  // Handle drop
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Capture the current drop position before clearing state
-    const currentDropPosition = dropPosition;
-    const targetParentId = parentId;
-    const targetSequence = block.sequence;
-    
-    // Always clear local state first
-    setIsDragOver(false);
-    setDropPosition(null);
-    
-    if (!canMove || isBeingDragged) {
-      endDrag();
-      return;
-    }
-    
-    const draggedBlockId = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    if (isNaN(draggedBlockId) || draggedBlockId === block.id) {
-      endDrag();
-      return;
-    }
-    
-    // Don't allow dropping onto self or descendants
-    if (!currentDropPosition) {
-      endDrag();
-      return;
-    }
-    
-    // End drag state before mutation to avoid stale UI
-    endDrag();
-    
-    // Perform the move based on drop position
-    if (currentDropPosition === 'inside') {
-      // Move as first child of target block
-      moveNode.mutate({
-        id: draggedBlockId,
-        parentId: block.id,
-        position: 0,
-      });
-    } else if (currentDropPosition === 'before') {
-      // Move before target block (same parent as target)
-      moveNode.mutate({
-        id: draggedBlockId,
-        parentId: targetParentId,
-        position: targetSequence,
-      });
-    } else if (currentDropPosition === 'after') {
-      // Move after target block (same parent as target)
-      moveNode.mutate({
-        id: draggedBlockId,
-        parentId: targetParentId,
-        position: targetSequence + 1,
-      });
-    }
-  }, [block.id, block.sequence, dropPosition, endDrag, isBeingDragged, moveNode, parentId, canMove]);
-  
-  // Handle drag end
-  const handleDragEnd = useCallback(() => {
-    setIsDragOver(false);
-    setDropPosition(null);
-    endDrag();
-  }, [endDrag]);
+  // Apply transform and transition from @dnd-kit
+  const sortableStyle = canMove ? {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.5 : 1,
+  } : {};
   
   // Handle block click (for selection)
   const handleBlockClick = useCallback((e: React.MouseEvent) => {
@@ -1406,13 +1300,12 @@ function BlockInternal({
   
   return (
     <div
-      ref={containerRef}
+      ref={(el) => {
+        containerRef.current = el;
+        if (canMove) setNodeRef(el);
+      }}
       className={classNames}
-      style={blockStyle}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onDragEnd={handleDragEnd}
+      style={{ ...blockStyle, ...sortableStyle }}
       onClick={handleBlockClick}
       onKeyDown={handleKeyDown}
       data-block-id={block.id}
@@ -1434,8 +1327,8 @@ function BlockInternal({
             interactive={canMove || canSelect || !!onBulletClick}
             hasChildren={hasChildren}
             collapsed={isCollapsed}
-            onDragStart={handleDragStart}
-            draggable={canMove && blockState !== 'edit'}
+            activatorRef={canMove ? setActivatorNodeRef : undefined}
+            activatorListeners={canMove ? { ...attributes, ...listeners } : undefined}
             onClick={handleBulletClickInternal}
             onContextMenu={handleBulletContextMenu}
             onCollapseToggle={handleCollapseToggle}
@@ -1565,39 +1458,44 @@ function BlockInternal({
             onMouseLeave={() => setIsLineHovered(false)}
             title="Click to collapse children"
           />
-          <div className="nested-blocks">
-            {children.map((child) => (
-              <BlockErrorBoundary key={child.id} blockId={String(child.id)}>
-                <Block
-                  key={child.id}
-                  block={child}
-                  children={child.children}
-                  siblings={children}
-                  depth={depth + 1}
-                  parentId={block.id}
-                  parentBlock={block}
-                  onContentChange={onContentChange}
-                  onBulletClick={onBulletClick}
-                  onShiftClick={onShiftClick}
-                  onAddClass={onAddClass}
-                onAddTag={onAddTag}
-                onCreateClass={onCreateClass}
-                onCreateTag={onCreateTag}
-                onLinkPage={onLinkPage}
-                onCreatePageLink={onCreatePageLink}
-                onOpenComments={onOpenComments}
-                onAssetUpload={onAssetUpload}
-                commentCount={child.comment_count}
-                backlinkCount={child.backlink_count}
-                canMove={canMove}
-                canEdit={canEdit}
-                canSelect={canSelect}
-                onTaskStateChange={onTaskStateChange}
-                onOpenBacklinks={onOpenBacklinks}
-              />
-              </BlockErrorBoundary>
-            ))}
-          </div>
+          <SortableContext 
+            items={children.map(child => `block-${child.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="nested-blocks">
+              {children.map((child) => (
+                <BlockErrorBoundary key={child.id} blockId={String(child.id)}>
+                  <Block
+                    key={child.id}
+                    block={child}
+                    children={child.children}
+                    siblings={children}
+                    depth={depth + 1}
+                    parentId={block.id}
+                    parentBlock={block}
+                    onContentChange={onContentChange}
+                    onBulletClick={onBulletClick}
+                    onShiftClick={onShiftClick}
+                    onAddClass={onAddClass}
+                  onAddTag={onAddTag}
+                  onCreateClass={onCreateClass}
+                  onCreateTag={onCreateTag}
+                  onLinkPage={onLinkPage}
+                  onCreatePageLink={onCreatePageLink}
+                  onOpenComments={onOpenComments}
+                  onAssetUpload={onAssetUpload}
+                  commentCount={child.comment_count}
+                  backlinkCount={child.backlink_count}
+                  canMove={canMove}
+                  canEdit={canEdit}
+                  canSelect={canSelect}
+                  onTaskStateChange={onTaskStateChange}
+                  onOpenBacklinks={onOpenBacklinks}
+                />
+                </BlockErrorBoundary>
+              ))}
+            </div>
+          </SortableContext>
         </div>
       )}
       

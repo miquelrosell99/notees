@@ -9,7 +9,7 @@
  * - Light indentation for hierarchy
  */
 
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { mdiClose, mdiCursorPointer, mdiTextBoxMultipleOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
@@ -20,18 +20,49 @@ import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
 import { useNode } from '@/hooks';
 import { renderConditionProse } from '@/lib/astProseRenderer';
-import { createConditionFromType } from '@/lib/queryASTHelpers';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
-import type { GroupNode, ConditionNode, ContentOperator, PropertyOperator } from '@/types/queryAST';
+import type { ConditionNode, ContentOperator, PropertyOperator } from '@/types/queryAST';
 import './ProseConditionBuilder.css';
 
 // ==================== Types ====================
 
 interface ProseConditionBuilderProps {
-  group: GroupNode;
-  onUpdate: (group: GroupNode) => void;
+  /** Single condition block to render */
+  block: ConditionNode;
+  /** Callback when condition changes */
+  onChange: (condition: ConditionNode) => void;
+  /** Callback when condition should be removed */
+  onRemove: () => void;
+  /** Whether this condition is read-only */
   readOnly?: boolean;
-  depth?: number;
+}
+
+// ==================== Main Component ====================
+
+/**
+ * ProseConditionBuilder - Renders a single condition with inline editing
+ */
+export function ProseConditionBuilder({
+  block,
+  onChange,
+  onRemove,
+  readOnly = false,
+}: ProseConditionBuilderProps) {
+  
+  const condition = block;
+  const isSystem = isSystemNode(condition);
+  const isEditable = !readOnly && isNodeEditable(condition);
+  const isRemovable = !readOnly && isNodeRemovable(condition);
+  
+  return (
+    <ProseConditionRow
+      condition={condition}
+      onUpdate={onChange}
+      onDelete={onRemove}
+      readOnly={!isEditable}
+      canDelete={isRemovable}
+    />
+  );
 }
 
 // ==================== Prose Condition Row ====================
@@ -41,8 +72,7 @@ interface ProseConditionRowProps {
   onUpdate: (condition: ConditionNode) => void;
   onDelete: () => void;
   readOnly?: boolean;
-  logic?: string; // "and" | "or" | null
-  isFirst?: boolean;
+  canDelete?: boolean;
 }
 
 function ProseConditionRow({
@@ -50,8 +80,7 @@ function ProseConditionRow({
   onUpdate,
   onDelete,
   readOnly = false,
-  logic,
-  isFirst = false,
+  canDelete = true,
 }: ProseConditionRowProps) {
   
   const isSystem = isSystemNode(condition);
@@ -340,11 +369,6 @@ function ProseConditionRow({
   
   return (
     <div className={`prose-condition ${isSystem ? 'prose-condition--system' : ''}`}>
-      {/* Logic connector */}
-      {!isFirst && logic && (
-        <span className="prose-condition__connector">{logic}</span>
-      )}
-      
       {/* System lock icon */}
       {isSystem && (
         <span 
@@ -359,7 +383,7 @@ function ProseConditionRow({
       {renderCondition()}
       
       {/* Delete button */}
-      {!readOnly && isRemovable && (
+      {!readOnly && isRemovable && canDelete && (
         <Button
           icon={mdiClose}
           iconOnly
@@ -367,121 +391,6 @@ function ProseConditionRow({
           size="xs"
           onClick={onDelete}
           className="prose-condition__delete"
-        />
-      )}
-    </div>
-  );
-}
-
-// ==================== Main Component ====================
-
-export function ProseConditionBuilder({
-  group,
-  onUpdate,
-  readOnly = false,
-  depth = 0,
-}: ProseConditionBuilderProps) {
-  
-  // Handle adding a condition
-  const handleAdd = useCallback((conditionType: string) => {
-    const newCondition = createConditionFromType(conditionType);
-    onUpdate({
-      ...group,
-      children: [...group.children, newCondition],
-    });
-  }, [group, onUpdate]);
-  
-  // Handle updating a child
-  const handleUpdateChild = useCallback((index: number, condition: ConditionNode) => {
-    const newChildren = [...group.children];
-    newChildren[index] = condition;
-    onUpdate({
-      ...group,
-      children: newChildren,
-    });
-  }, [group, onUpdate]);
-  
-  // Handle deleting a child
-  const handleDeleteChild = useCallback((index: number) => {
-    const newChildren = group.children.filter((_, i) => i !== index);
-    onUpdate({
-      ...group,
-      children: newChildren,
-    });
-  }, [group, onUpdate]);
-  
-  // Determine logic word
-  const logic = group.logic === 'OR' ? 'or' : 'and';
-  const isEmpty = group.children.length === 0;
-  
-  return (
-    <div className="prose-condition-builder" style={{ paddingLeft: depth > 0 ? `${depth * 16}px` : undefined }}>
-      {/* Empty state */}
-      {isEmpty && (
-        <p className="prose-condition-builder__empty">
-          No filters — all nodes will be shown
-        </p>
-      )}
-      
-      {/* Conditions */}
-      {!isEmpty && (
-        <div className="prose-condition-builder__list">
-          {group.children.map((child, index) => {
-            if (child.type === 'condition') {
-              return (
-                <ProseConditionRow
-                  key={index}
-                  condition={child}
-                  onUpdate={(updated) => handleUpdateChild(index, updated)}
-                  onDelete={() => handleDeleteChild(index)}
-                  readOnly={readOnly}
-                  logic={index > 0 ? logic : undefined}
-                  isFirst={index === 0}
-                />
-              );
-            } else if (child.type === 'group') {
-              // Nested group
-              return (
-                <div key={index} className="prose-condition-builder__nested">
-                  {index > 0 && <span className="prose-condition__connector">{logic}</span>}
-                  <ProseConditionBuilder
-                    group={child}
-                    onUpdate={(updated) => {
-                      const newChildren = [...group.children];
-                      newChildren[index] = updated;
-                      onUpdate({ ...group, children: newChildren });
-                    }}
-                    readOnly={readOnly}
-                    depth={depth + 1}
-                  />
-                </div>
-              );
-            }
-            return null;
-          })}
-        </div>
-      )}
-      
-      {/* Add filter dropdown */}
-      {!readOnly && (
-        <Dropdown
-          value=""
-          onChange={(value) => handleAdd(value)}
-          placeholder="+ Add filter"
-          options={[
-            { value: 'content', label: 'Content' },
-            { value: 'property', label: 'Property' },
-            { value: 'type', label: 'Class' },
-            { value: 'reference', label: 'References node' },
-            { value: 'reference_path', label: 'Referenced by nodes that...' },
-            { value: 'parent', label: 'Has parent' },
-            { value: 'parent_path', label: 'Has ancestor' },
-            { value: 'child', label: 'Has child' },
-            { value: 'child_path', label: 'Has descendant' },
-            { value: 'class_path', label: 'Has class in hierarchy' },
-          ]}
-          size="sm"
-          className="prose-condition-builder__add-dropdown"
         />
       )}
     </div>

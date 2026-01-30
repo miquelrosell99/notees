@@ -1,0 +1,32 @@
+/* QueryBlockBuilder styles */
+
+.query-block-builder {
+  display: flex;
+  flex-direction: column;
+}
+
+.query-block-builder--group,
+.query-block-builder--not {
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  background: var(--bg-secondary);
+}
+
+.query-block-builder__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.query-block-builder__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.query-block-builder__body {
+  padding: 0.75rem;
+}
