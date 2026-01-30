@@ -159,6 +159,12 @@ function BlockInternal({
   const removeClass = useRemoveClass();
   const { data: allClasses } = useClasses();
   
+  // Get query class ID from system classes
+  const queryClass = useMemo(() => {
+    if (!allClasses) return null;
+    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query) ?? null;
+  }, [allClasses]);
+  
   // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
   const openNode = useOpenNodeAction();
   
@@ -1358,6 +1364,7 @@ function BlockInternal({
               onChange={(content) => onContentChange?.(block.id, content)}
               editorRef={editorRef}
               onAddClass={onAddClass}
+              queryClassId={queryClass?.id ?? null}
               onAddTag={onAddTag}
               onCreateClass={onCreateClass}
               onCreateTag={onCreateTag}
