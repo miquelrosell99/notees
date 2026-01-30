@@ -49,6 +49,7 @@ import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
+import { QueryBlockDisplay } from './QueryBlockDisplay';
 import './Block.css';
 import './InlineLink.css';
 
