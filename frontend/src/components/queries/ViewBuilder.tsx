@@ -73,16 +73,6 @@ export function ViewBuilder({
   
   return (
     <div className={`view-builder ${className}`}>
-
-      {/* Scope Selector - Always visible */}
-      <div className="view-builder__scope-section">
-        <span className="view-builder__scope-prefix">Search in:</span>
-        <ProseScopeSelector
-          scope={ast.scope}
-          onChange={handleScopeChange}
-          readOnly={readOnly}
-        />
-      </div>
       
       {/* Filters Section */}
       <div className="view-builder__filters-section">
@@ -93,19 +83,33 @@ export function ViewBuilder({
         />
       </div>
       
-      {/* Result Preview - Bottom right, de-emphasized */}
-      {resultCount !== undefined && (
-        <div className="view-builder__result-preview">
-          {isLoading ? (
-            <span className="view-builder__result-loading">Calculating…</span>
-          ) : (
-            <span className="view-builder__result-count">
-              <span className="view-builder__result-dot">●</span>
-              {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
-            </span>
+      {/* Footer with scope selector and result preview */}
+      <div className="view-builder__footer">
+        {/* Scope Selector - Left side, button only */}
+        <div className="view-builder__footer-left">
+          <ProseScopeSelector
+            scope={ast.scope}
+            onChange={handleScopeChange}
+            readOnly={readOnly}
+          />
+        </div>
+        
+        {/* Result Preview - Right side */}
+        <div className="view-builder__footer-right">
+          {resultCount !== undefined && (
+            <div className="view-builder__result-preview">
+              {isLoading ? (
+                <span className="view-builder__result-loading">Calculating…</span>
+              ) : (
+                <span className="view-builder__result-count">
+                  <span className="view-builder__result-dot">●</span>
+                  {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
+                </span>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
