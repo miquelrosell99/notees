@@ -351,7 +351,7 @@ export function DynamicNodeViewSection({
     ast = autoFixSystemQuery(ast, viewType, {
       nodeUuid: nodeUuid,
       parentUuid: nodeUuid,
-      typeUuid: undefined, // Could be passed in for type-specific views
+      typeUuid: nodeUuid, // Pass nodeUuid as typeUuid for classed_nodes views
     });
     
     // Set created_at if not already set
@@ -364,10 +364,7 @@ export function DynamicNodeViewSection({
     // Validate immediately
     const validationResult = validateQueryAST(ast);
     setValidation(validationResult);
-    
-    setEditMode('blocks');
-    setEditSqlQuery('');
-  }, []);
+  }, [viewType, nodeUuid]);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editingView || !editAST) return;
