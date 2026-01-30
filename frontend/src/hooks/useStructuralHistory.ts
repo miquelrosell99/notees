@@ -36,6 +36,7 @@ import {
 import { useEditorSelectionActions } from '@/stores/selectors';
 import { useBlockSelectionStore } from '@/stores';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { updateNode, createNode, deleteNode } from '@/api/nodes';
 import type { Node } from '@/types';
 
 /**
@@ -166,12 +167,48 @@ export function useStructuralHistory() {
     if (!entry) return false;
     
     try {
-      // TODO: Implement actual state restoration
-      // This requires API calls to update nodes back to before state
-      // For now, we'll just invalidate queries and restore selection
+      // Restore nodes to their "before" state
+      // 1. Delete any nodes that were created during the operation
+      if (entry.after.createdNodeIds && entry.after.createdNodeIds.length > 0) {
+        for (const nodeId of entry.after.createdNodeIds) {
+          try {
+            await deleteNode(nodeId);
+          } catch (error) {
+            console.error(`[History] Failed to delete created node ${nodeId}:`, error);
+          }
+        }
+      }
       
-      console.log('[History] Undoing:', entry.type, entry.description);
-      console.log('[History] Restore nodes:', entry.before.nodes);
+      // 2. Recreate any nodes that were deleted during the operation
+      if (entry.after.deletedNodeSnapshots && entry.after.deletedNodeSnapshots.length > 0) {
+        for (const snapshot of entry.after.deletedNodeSnapshots) {
+          try {
+            await createNode({
+              name: snapshot.name,
+              parent_id: snapshot.parent_id,
+              sequence: snapshot.order_index,
+            });
+          } catch (error) {
+            console.error(`[History] Failed to recreate deleted node:`, error);
+          }
+        }
+      }
+      
+      // 3. Restore modified nodes to their before state
+      for (const snapshot of entry.before.nodes) {
+        try {
+          await updateNode({
+            id: snapshot.id,
+            data: {
+              name: snapshot.name,
+              parent_id: snapshot.parent_id,
+              sequence: snapshot.order_index,
+            },
+          });
+        } catch (error) {
+          console.error(`[History] Failed to restore node ${snapshot.id}:`, error);
+        }
+      }
       
       // Invalidate affected nodes to refetch
       for (const snapshot of entry.before.nodes) {
@@ -205,12 +242,57 @@ export function useStructuralHistory() {
     if (!entry) return false;
     
     try {
-      // TODO: Implement actual state restoration
-      // This requires API calls to replay the operation
-      // For now, we'll just invalidate queries and restore selection
+      // Replay the operation: restore to "after" state
+      // 1. Recreate any nodes that were created during the original operation
+      if (entry.after.createdNodeIds && entry.after.createdNodeIds.length > 0) {
+        for (const nodeId of entry.after.createdNodeIds) {
+          // Find the snapshot for this created node
+          const snapshot = entry.after.nodes.find(n => n.id === nodeId);
+          if (snapshot) {
+            try {
+              await createNode({
+                name: snapshot.name,
+                parent_id: snapshot.parent_id,
+                sequence: snapshot.order_index,
+              });
+            } catch (error) {
+              console.error(`[History] Failed to recreate node ${nodeId}:`, error);
+            }
+          }
+        }
+      }
       
-      console.log('[History] Redoing:', entry.type, entry.description);
-      console.log('[History] Apply nodes:', entry.after.nodes);
+      // 2. Delete any nodes that were deleted during the original operation
+      if (entry.after.deletedNodeSnapshots && entry.after.deletedNodeSnapshots.length > 0) {
+        for (const snapshot of entry.after.deletedNodeSnapshots) {
+          try {
+            await deleteNode(snapshot.id);
+          } catch (error) {
+            console.error(`[History] Failed to delete node ${snapshot.id}:`, error);
+          }
+        }
+      }
+      
+      // 3. Restore modified nodes to their after state
+      for (const snapshot of entry.after.nodes) {
+        // Skip nodes that were created (already handled above)
+        if (entry.after.createdNodeIds?.includes(snapshot.id)) {
+          continue;
+        }
+        
+        try {
+          await updateNode({
+            id: snapshot.id,
+            data: {
+              name: snapshot.name,
+              parent_id: snapshot.parent_id,
+              sequence: snapshot.order_index,
+            },
+          });
+        } catch (error) {
+          console.error(`[History] Failed to restore node ${snapshot.id}:`, error);
+        }
+      }
       
       // Invalidate affected nodes to refetch
       for (const snapshot of entry.after.nodes) {

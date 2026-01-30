@@ -12,7 +12,6 @@ For node operations, use:
 """
 from pathlib import Path
 from typing import Optional, Dict, List, Any
-import shutil
 
 from .config import settings
 from .logging_config import get_logger
