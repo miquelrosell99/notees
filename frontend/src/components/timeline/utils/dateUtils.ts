@@ -7,9 +7,9 @@ export function formatDateUuid(date: Date, type: 'day' | 'month' | 'year'): stri
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   
-  if (type === 'day') return `${year}${month}${day}`;
-  if (type === 'month') return `${year}${month}00`;
-  return `${year}0000`;
+  if (type === 'day') return `00000000-0000-0000-00dd-${year}${month}${day}0000`;
+  if (type === 'month') return `00000000-0000-0000-00aa-${year}${month}000000`;
+  return `00000000-0000-0000-00bb-${year}00000000`;
 }
 
 export function getDateRange(dates: Date[], padding: number = 0.1): { start: Date; end: Date } {

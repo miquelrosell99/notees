@@ -29,11 +29,13 @@ export function isDatePage(node: Node): boolean {
   if (node.is_daily) return true;
   
   // Check UUID format for date pages
-  // Date UUIDs: YYYYMMDD (day), YYYYMM00 (month), YYYY0000 (year)
+  // Date UUIDs: 00000000-0000-0000-00dd-YYYYMMDD0000 (day), etc.
   const uuid = node.uuid;
-  if (uuid && /^\d{8}$/.test(uuid)) {
-    const year = parseInt(uuid.substring(0, 4), 10);
-    if (year >= 1900 && year <= 2200) {
+  if (uuid && uuid.length === 36) {
+    // Check for date UUID prefixes
+    if (uuid.startsWith('00000000-0000-0000-00dd-') ||
+        uuid.startsWith('00000000-0000-0000-00aa-') ||
+        uuid.startsWith('00000000-0000-0000-00bb-')) {
       return true;
     }
   }

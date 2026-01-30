@@ -16,7 +16,7 @@ export interface DatePropertyConfig {
 
 export interface TimeEvent {
   id: string;                 // Unique identifier
-  timePeriod: string;         // Day/month identifier (YYYYMMDD or YYYYMM00)
+  timePeriod: string;         // Day/month identifier (full UUID format)
   timePeriodDate: Date;       // Start date of time period
   property: string;           // Date property name (create_date, write_date, etc.)
   propertyLabel: string;      // Display label
