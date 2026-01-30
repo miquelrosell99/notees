@@ -10,7 +10,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, TypeCondition } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, ClassCondition } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/query';
 
@@ -24,8 +24,8 @@ function isPropertyCondition(node: ConditionNode): node is PropertyCondition {
   return node.condition_type === 'property';
 }
 
-function isTypeCondition(node: ConditionNode): node is TypeCondition {
-  return node.condition_type === 'type';
+function isClassCondition(node: ConditionNode): node is ClassCondition {
+  return node.condition_type === 'class';
 }
 
 // ==================== System Section Definitions ====================
@@ -123,16 +123,16 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       if (!context.typeUuid) return null;
       return markAsSystemNode({
         type: 'condition',
-        condition_type: 'type',
-        type_uuid: context.typeUuid,
+        condition_type: 'class',
+        class_uuid: context.typeUuid,
       });
     },
     hasRequiredCondition: (ast, context) => {
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          isTypeCondition(child) &&
-          child.type_uuid === context.typeUuid &&
+          isClassCondition(child) &&
+          child.class_uuid === context.typeUuid &&
           isSystemNode(child)
       );
     },

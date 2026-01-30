@@ -5,7 +5,7 @@
  * These queries are used for features like linked references, child pages, etc.
  */
 
-import type { QueryAST, ReferenceCondition, TypeCondition, PropertyCondition, ContentCondition } from '@/types/queryAST';
+import type { QueryAST, ReferenceCondition, ClassCondition, PropertyCondition, ContentCondition } from '@/types/queryAST';
 import { markAsSystemNode } from '@/types/queryAST';
 
 /**
@@ -74,10 +74,10 @@ export function createChildPagesQuery(parentPageUuid: string): QueryAST {
  * Shows all pages tagged with a specific type.
  */
 export function createClassedNodesQuery(typeUuid: string, typeName?: string): QueryAST {
-  const condition: TypeCondition = markAsSystemNode({
+  const condition: ClassCondition = markAsSystemNode({
     type: 'condition',
-    condition_type: 'type',
-    type_uuid: typeUuid,
+    condition_type: 'class',
+    class_uuid: typeUuid,
   });
 
   return {
@@ -210,10 +210,10 @@ export function createClassedNodesQueryWithUserFilters(
   typeName?: string
 ): QueryAST {
   // System condition (locked)
-  const systemCondition: TypeCondition = markAsSystemNode({
+  const systemCondition: ClassCondition = markAsSystemNode({
     type: 'condition',
-    condition_type: 'type',
-    type_uuid: typeUuid,
+    condition_type: 'class',
+    class_uuid: typeUuid,
   });
 
   return {
