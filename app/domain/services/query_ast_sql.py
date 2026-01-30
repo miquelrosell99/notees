@@ -427,14 +427,12 @@ class QueryASTToSQL:
         if not nested_sql:
             return None
         
-        # Replace references to 'n' in nested SQL with 'parent_n' to refer to parent node
-        parent_sql = nested_sql.replace(" n.", " parent_n.")
+        # Replace all references to 'n.' in nested SQL with 'parent_n.' to refer to parent node
+        # Need to handle various patterns: " n.", "(n.", "=n.", etc.
+        import re
+        parent_sql = re.sub(r'\bn\.', 'parent_n.', nested_sql)
         
         return f"""n.parent_id IN (
-            SELECT parent_n.id FROM node parent_n
-            WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
-            AND ({parent_sql})
-        ) AND n.id != (
             SELECT parent_n.id FROM node parent_n
             WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
             AND ({parent_sql})
