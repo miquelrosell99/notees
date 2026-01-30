@@ -160,6 +160,7 @@ export function DynamicNodeViewSection({
   const isInitializing = !hasInitialized;
 
   // Fetch views for this node and view type
+  // Wait for initialization to complete before enabling the query
   const { 
     data: views = [], 
     isLoading: viewsLoading,
@@ -167,7 +168,7 @@ export function DynamicNodeViewSection({
   } = useNodeViews(nodeId, { 
     viewType, 
     includeQueryBlockTree: true,
-    enabled: nodeId > 0,
+    enabled: nodeId > 0 && hasInitialized,
   });
 
   // Mutations
