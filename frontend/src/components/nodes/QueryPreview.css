@@ -43,20 +43,6 @@
   max-height: 300px;
 }
 
-.query-preview__sql-toggle {
-  background: none;
-  border: none;
-  padding: var(--spacing-xs) 0;
-  font-size: 0.8125rem;
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.query-preview__sql-toggle:hover {
-  color: var(--color-text-secondary);
-}
-
 .query-preview__sql-header {
   display: flex;
   align-items: center;
