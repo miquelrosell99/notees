@@ -4,6 +4,8 @@ Provides automated PostgreSQL backups using pg_dump.
 Backups are stored as custom-format .dump files for efficient compression and restore.
 """
 import asyncio
+import os
+import sys
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +16,30 @@ from .db.connection import get_database_url
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def find_pg_dump() -> Optional[str]:
+    """Find pg_dump executable on Windows."""
+    if sys.platform != 'win32':
+        return 'pg_dump'  # Assume it's in PATH on Unix
+    
+    # Common PostgreSQL installation paths on Windows
+    possible_paths = [
+        Path(os.environ.get('PROGRAMFILES', 'C:\\Program Files')) / 'PostgreSQL',
+        Path(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)')) / 'PostgreSQL',
+    ]
+    
+    for base_path in possible_paths:
+        if base_path.exists():
+            # Look for version directories (18, 17, 16, etc.)
+            for version_dir in sorted(base_path.iterdir(), reverse=True):
+                if version_dir.is_dir():
+                    bin_dir = version_dir / 'bin'
+                    pg_dump_path = bin_dir / 'pg_dump.exe'
+                    if pg_dump_path.exists():
+                        return str(pg_dump_path)
+    
+    return 'pg_dump'  # Fallback to PATH
 
 
 class BackupScheduler:
@@ -72,12 +98,15 @@ class BackupScheduler:
         # Get database URL
         db_url = get_database_url()
         
+        # Find pg_dump executable
+        pg_dump = find_pg_dump()
+        
         logger.info(f"Creating backup: {backup_file.name}")
         
         try:
             # Run pg_dump with custom format for better compression
             process = await asyncio.create_subprocess_exec(
-                "pg_dump",
+                pg_dump,
                 db_url,
                 "--file", str(backup_file),
                 "--format", "custom",
