@@ -1,17 +1,21 @@
 /**
- * ProseConditionBuilder Component
+ * ProseConditionBuilder (Redesigned)
  * 
- * Inline sentence-based condition builder that replaces boxed UI.
- * Renders conditions as natural language with inline controls.
+ * Clean, sentence-based condition builder with:
+ * - Light indentation for hierarchy
+ * - Inline dropdowns styled as text-first
+ * - Muted system constraints with 🔒 icon
+ * - No boxes or borders
+ * - Plain language operators (and, or)
  */
 
 import { useCallback } from 'react';
-import { mdiClose, mdiPlusBox, mdiLock } from '@mdi/js';
+import { mdiClose, mdiPlus, mdiLock } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
-import { getConditionLabel } from '@/lib/astProseRenderer';
+import { renderConditionProse } from '@/lib/astProseRenderer';
 import { createConditionFromType } from '@/lib/queryASTHelpers';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, ContentOperator, PropertyOperator } from '@/types/queryAST';
@@ -33,7 +37,8 @@ interface ProseConditionRowProps {
   onUpdate: (condition: ConditionNode) => void;
   onDelete: () => void;
   readOnly?: boolean;
-  showLogic?: string; // "and" | "or" | null
+  logic?: string; // "and" | "or" | null
+  isFirst?: boolean;
 }
 
 function ProseConditionRow({
@@ -41,7 +46,8 @@ function ProseConditionRow({
   onUpdate,
   onDelete,
   readOnly = false,
-  showLogic,
+  logic,
+  isFirst = false,
 }: ProseConditionRowProps) {
   
   const isSystem = isSystemNode(condition);
@@ -52,27 +58,10 @@ function ProseConditionRow({
   // Render based on condition type
   const renderCondition = () => {
     switch (condition.condition_type) {
-      case 'reference':
-        return (
-          <div className="prose-condition__inline">
-            <Dropdown
-              value="references"
-              onChange={() => {}}
-              disabled={effectiveReadOnly}
-              options={[
-                { value: 'references', label: 'references' },
-                { value: 'referenced_by', label: 'is referenced by' },
-              ]}
-              size="sm"
-            />
-            <span className="prose-condition__token">this node</span>
-          </div>
-        );
-      
       case 'content':
         return (
           <div className="prose-condition__inline">
-            <span className="prose-condition__text">content</span>
+            <span className="prose-condition__word">content</span>
             <Dropdown
               value={condition.operator}
               onChange={(value) => onUpdate({ ...condition, operator: value as ContentOperator })}
@@ -81,8 +70,8 @@ function ProseConditionRow({
                 { value: 'contains', label: 'contains' },
                 { value: 'starts_with', label: 'starts with' },
                 { value: 'ends_with', label: 'ends with' },
-                { value: 'equals', label: 'equals' },
-                { value: 'regex', label: 'matches pattern' },
+                { value: '=', label: 'equals' },
+                { value: 'matches_regex', label: 'matches' },
               ]}
               size="sm"
             />
@@ -92,41 +81,45 @@ function ProseConditionRow({
               placeholder="text..."
               disabled={effectiveReadOnly}
               size="sm"
+              className="prose-condition__input"
             />
           </div>
         );
       
       case 'property':
+        const showValue = condition.operator !== 'is_empty' && condition.operator !== 'is_not_empty';
         return (
           <div className="prose-condition__inline">
-            <span className="prose-condition__text">property</span>
+            <span className="prose-condition__word">property</span>
             <TextField
               value={condition.property_name}
               onChange={(e) => onUpdate({ ...condition, property_name: e.target.value })}
               placeholder="name"
               disabled={effectiveReadOnly}
               size="sm"
+              className="prose-condition__input"
             />
             <Dropdown
               value={condition.operator}
               onChange={(value) => onUpdate({ ...condition, operator: value as PropertyOperator })}
               disabled={effectiveReadOnly}
               options={[
-                { value: 'equals', label: 'equals' },
-                { value: 'not_equals', label: '≠' },
+                { value: '=', label: 'equals' },
+                { value: '!=', label: '≠' },
                 { value: 'contains', label: 'contains' },
                 { value: 'is_empty', label: 'is empty' },
-                { value: 'is_not_empty', label: 'is not empty' },
+                { value: 'is_not_empty', label: 'has value' },
               ]}
               size="sm"
             />
-            {condition.operator !== 'is_empty' && condition.operator !== 'is_not_empty' && (
+            {showValue && (
               <TextField
                 value={String(condition.value || '')}
                 onChange={(e) => onUpdate({ ...condition, value: e.target.value })}
                 placeholder="value"
                 disabled={effectiveReadOnly}
                 size="sm"
+                className="prose-condition__input"
               />
             )}
           </div>
@@ -135,31 +128,49 @@ function ProseConditionRow({
       case 'type':
         return (
           <div className="prose-condition__inline">
-            <span className="prose-condition__text">tagged with</span>
-            <span className="prose-condition__token">{condition.type_uuid}</span>
+            <span className="prose-condition__word">class is</span>
+            <span className="prose-condition__value">{condition.type_uuid}</span>
+          </div>
+        );
+      
+      case 'reference':
+        return (
+          <div className="prose-condition__inline">
+            <span className="prose-condition__word">references</span>
+            <span className="prose-condition__value">{condition.target_uuid}</span>
           </div>
         );
       
       default:
         return (
           <div className="prose-condition__inline">
-            <span className="prose-condition__text">{getConditionLabel(condition)}</span>
+            <span className="prose-condition__text">{renderConditionProse(condition)}</span>
           </div>
         );
     }
   };
   
   return (
-    <div className="prose-condition">
-      {showLogic && (
-        <span className="prose-condition__logic">{showLogic}</span>
+    <div className={`prose-condition ${isSystem ? 'prose-condition--system' : ''}`}>
+      {/* Logic connector */}
+      {!isFirst && logic && (
+        <span className="prose-condition__connector">{logic}</span>
       )}
+      
+      {/* System lock icon */}
       {isSystem && (
-        <span className="prose-condition__system-icon" title="This condition is required for this view">
-          <Icon path={mdiLock} size={0.6} />
+        <span 
+          className="prose-condition__lock" 
+          title="This filter is required for this view type"
+        >
+          🔒
         </span>
       )}
+      
+      {/* Condition content */}
       {renderCondition()}
+      
+      {/* Delete button */}
       {!readOnly && isRemovable && (
         <Button
           icon={mdiClose}
@@ -185,7 +196,7 @@ export function ProseConditionBuilder({
   
   // Handle adding a condition
   const handleAdd = useCallback(() => {
-    const newCondition = createConditionFromType('reference');
+    const newCondition = createConditionFromType('content');
     onUpdate({
       ...group,
       children: [...group.children, newCondition],
@@ -204,111 +215,65 @@ export function ProseConditionBuilder({
   
   // Handle deleting a child
   const handleDeleteChild = useCallback((index: number) => {
+    const newChildren = group.children.filter((_, i) => i !== index);
     onUpdate({
       ...group,
-      children: group.children.filter((_, i) => i !== index),
+      children: newChildren,
     });
   }, [group, onUpdate]);
   
-  // Handle logic change
-  const handleLogicChange = useCallback((logic: 'AND' | 'OR') => {
-    onUpdate({
-      ...group,
-      logic,
-    });
-  }, [group, onUpdate]);
-  
-  const isEmpty = group.children.length === 0;
-  const logicLabel = group.logic === 'AND' ? 'and' : 'or';
+  // Determine logic word
+  const logic = group.logic === 'OR' ? 'or' : 'and';
   
   return (
-    <div className="prose-condition-builder">
-      {isEmpty ? (
-        <p className="prose-condition-builder__empty">
-          No conditions — all nodes will be shown
-        </p>
-      ) : (
-        <>
-          {/* Logic selector for multiple conditions */}
-          {group.children.length > 1 && (
-            <div className="prose-condition-builder__logic">
-              <span className="prose-condition-builder__logic-text">Match</span>
-              <Dropdown
-                value={group.logic}
-                onChange={(value) => handleLogicChange(value as 'AND' | 'OR')}
-                disabled={readOnly}
-                options={[
-                  { value: 'AND', label: 'all' },
-                  { value: 'OR', label: 'any' },
-                ]}
-                size="sm"
+    <div className="prose-condition-builder" style={{ paddingLeft: `${depth * 20}px` }}>
+      {/* Conditions */}
+      <div className="prose-condition-builder__list">
+        {group.children.map((child, index) => {
+          if (child.type === 'condition') {
+            return (
+              <ProseConditionRow
+                key={index}
+                condition={child}
+                onUpdate={(updated) => handleUpdateChild(index, updated)}
+                onDelete={() => handleDeleteChild(index)}
+                readOnly={readOnly}
+                logic={index > 0 ? logic : undefined}
+                isFirst={index === 0}
               />
-              <span className="prose-condition-builder__logic-text">of the following:</span>
-            </div>
-          )}
-          
-          {/* Render conditions */}
-          <div className="prose-condition-builder__list">
-            {group.children.map((child, index) => {
-              if (child.type === 'condition') {
-                return (
-                  <ProseConditionRow
-                    key={index}
-                    condition={child}
-                    onUpdate={(updated) => handleUpdateChild(index, updated)}
-                    onDelete={() => handleDeleteChild(index)}
-                    readOnly={readOnly}
-                    showLogic={index > 0 ? logicLabel : undefined}
-                  />
-                );
-              } else if (child.type === 'group') {
-                // Nested group - render with indentation
-                return (
-                  <div key={index} className="prose-condition-builder__nested">
-                    {index > 0 && (
-                      <span className="prose-condition__logic">{logicLabel}</span>
-                    )}
-                    <span className="prose-condition-builder__nested-label">(</span>
-                    <ProseConditionBuilder
-                      group={child}
-                      onUpdate={(updated) => {
-                        const newChildren = [...group.children];
-                        newChildren[index] = updated;
-                        onUpdate({ ...group, children: newChildren });
-                      }}
-                      readOnly={readOnly}
-                      depth={depth + 1}
-                    />
-                    <span className="prose-condition-builder__nested-label">)</span>
-                    {!readOnly && (
-                      <Button
-                        icon={mdiClose}
-                        iconOnly
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => handleDeleteChild(index)}
-                        className="prose-condition__delete"
-                      />
-                    )}
-                  </div>
-                );
-              }
-              return null;
-            })}
-          </div>
-        </>
-      )}
+            );
+          } else if (child.type === 'group') {
+            // Nested group
+            return (
+              <div key={index} className="prose-condition-builder__nested">
+                {index > 0 && <span className="prose-condition__connector">{logic}</span>}
+                <ProseConditionBuilder
+                  group={child}
+                  onUpdate={(updated) => {
+                    const newChildren = [...group.children];
+                    newChildren[index] = updated;
+                    onUpdate({ ...group, children: newChildren });
+                  }}
+                  readOnly={readOnly}
+                  depth={depth + 1}
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
       
-      {/* Add condition button */}
+      {/* Add button */}
       {!readOnly && (
         <Button
-          icon={mdiPlusBox}
-          onClick={handleAdd}
+          icon={mdiPlus}
           variant="ghost"
           size="sm"
+          onClick={handleAdd}
           className="prose-condition-builder__add"
         >
-          Add condition
+          Add filter
         </Button>
       )}
     </div>

@@ -30,6 +30,8 @@ export interface NodeCapabilities {
   editable: boolean;
   /** Can the node be reordered via drag & drop? */
   movable: boolean;
+  /** Can the node participate in OR combinations or negation? */
+  combinable: boolean;
   /** Should the node be visible in the UI? */
   visible: boolean;
 }
@@ -41,6 +43,7 @@ export const DEFAULT_CAPABILITIES: NodeCapabilities = {
   removable: true,
   editable: true,
   movable: true,
+  combinable: true,
   visible: true,
 };
 
@@ -51,6 +54,7 @@ export const SYSTEM_CAPABILITIES: NodeCapabilities = {
   removable: false,
   editable: false,
   movable: false,
+  combinable: false,
   visible: true,
 };
 
