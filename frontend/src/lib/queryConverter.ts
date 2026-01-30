@@ -291,7 +291,7 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
     
     case 'PARENT': {
       const parentBlock = block as ParentBlock;
-      return {
+      const condition: ParentCondition = {
         type: 'condition',
         condition_type: 'parent',
         nested_group: {
@@ -299,7 +299,12 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
           logic: 'AND',
           children: parentBlock.blocks.map(b => convertBlockToASTNode(b)),
         },
-      } as ParentCondition;
+      };
+      // Preserve isSystemNode flag
+      if (parentBlock.isSystemNode) {
+        (condition as any).__isSystemNode = true;
+      }
+      return condition;
     }
     
     case 'PARENT_PATH': {
@@ -331,7 +336,7 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
     
     case 'CHILD_PATH': {
       const childPathBlock = block as ChildPathBlock;
-      return {
+      const condition: ChildPathCondition = {
         type: 'condition',
         condition_type: 'child_path',
         nested_group: {
@@ -340,7 +345,12 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
           children: childPathBlock.blocks.map(b => convertBlockToASTNode(b)),
         },
         max_depth: childPathBlock.max_depth,
-      } as ChildPathCondition;
+      };
+      // Preserve isSystemNode flag
+      if (childPathBlock.isSystemNode) {
+        (condition as any).__isSystemNode = true;
+      }
+      return condition;
     }
     
     case 'CLASS_PATH': {

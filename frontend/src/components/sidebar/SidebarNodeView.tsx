@@ -38,7 +38,7 @@ import { DynamicNodeViewSection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
 import { TextField } from '../core/TextField';
-import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
+import { SYSTEM_CLASS_UUIDS, isSystemClassUuid, isBlockOnlyClass } from '@/constants';
 import './SidebarNodeView.css';
 
 interface SidebarNodeViewProps {
@@ -390,6 +390,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                 onAdd={handleAddPageClass}
                 onCreateNew={handleCreatePageClass}
                 canRemove={(n) => !isSystemClassUuid(n.uuid)}
+                canAdd={(n) => !isBlockOnlyClass(n.uuid)}
               />
             </div>
             
