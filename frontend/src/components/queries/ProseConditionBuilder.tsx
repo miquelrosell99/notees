@@ -283,12 +283,13 @@ export function ProseConditionBuilder({
           options={[
             { value: 'content', label: 'Content' },
             { value: 'property', label: 'Property' },
-            { value: 'type', label: 'Type' },
-            { value: 'tag', label: 'Tag' },
-            { value: 'linked_reference', label: 'Linked reference' },
-            { value: 'page', label: 'Is page' },
-            { value: 'created_at', label: 'Created date' },
-            { value: 'updated_at', label: 'Updated date' },
+            { value: 'type', label: 'Class' },
+            { value: 'reference', label: 'References node' },
+            { value: 'parent', label: 'Has parent' },
+            { value: 'parent_path', label: 'Has ancestor' },
+            { value: 'child', label: 'Has child' },
+            { value: 'child_path', label: 'Has descendant' },
+            { value: 'class_path', label: 'Has class in hierarchy' },
           ]}
           size="sm"
           className="prose-condition-builder__add-dropdown"
