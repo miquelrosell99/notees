@@ -73,10 +73,9 @@ export type ASTNodeType =
  * Scope types define the universe of nodes to query
  */
 export type ScopeType =
-  | 'entire_graph'      // All nodes in the graph
-  | 'current_page'      // Current page being viewed
-  | 'specific_pages'    // Explicitly selected pages
-  | 'linked_refs';      // Nodes that reference the current page
+  | 'all'               // All nodes in the graph
+  | 'pages'             // All pages only (is_page=true)
+  | 'current';          // Descendants of current node (PARENT_PATH)
 
 /**
  * Scope node - defines the starting point for query execution

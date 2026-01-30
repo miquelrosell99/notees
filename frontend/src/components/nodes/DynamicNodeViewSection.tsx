@@ -254,10 +254,12 @@ export function DynamicNodeViewSection({
       'all_pages': {
         type: 'AND_CONTAINER',
         blocks: [
-          { type: 'CLASS', value: 'page' },
-          // Only get root pages - children will be loaded via include_children
+          // No filters needed - scope handles page filtering
           { type: 'PROPERTY', property_name: 'parent_id', property_type: 'node', operator: 'is_empty', value: null },
         ],
+        scope: {
+          scope_type: 'pages',  // Use pages scope instead of class filter
+        },
       },
     };
     
@@ -395,6 +397,10 @@ export function DynamicNodeViewSection({
       
       // Convert AST back to BlockTree for backend
       const blockTree = astToBlockTree(fixedAST);
+      
+      // Debug: Log scope and blockTree to verify
+      console.log('[Save] Scope being saved:', fixedAST.scope);
+      console.log('[Save] BlockTree blocks:', blockTree.blocks.map(b => b.type));
       
       // Save block tree
       await updateBlockTreeMutation.mutateAsync({
@@ -661,7 +667,7 @@ export function DynamicNodeViewSection({
             {/* Scope Selector - Left side */}
             <div className="view-builder__footer-left">
               <ProseScopeSelector
-                scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
+                scope={editAST?.scope || { type: 'scope', scope_type: 'current' }}
                 onChange={(newScope) => {
                   if (editAST) {
                     setEditAST({
@@ -670,7 +676,7 @@ export function DynamicNodeViewSection({
                     });
                   }
                 }}
-                readOnly={false}
+                readOnly={['linked_references', 'child_pages', 'classed_nodes'].includes(viewType)}
               />
             </div>
             

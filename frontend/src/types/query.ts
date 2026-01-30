@@ -215,6 +215,10 @@ export type QueryBlock =
 export interface QueryBlockTree {
   type: 'AND_CONTAINER' | 'OR_CONTAINER';
   blocks: QueryBlock[];
+  // Scope is stored separately, not encoded in blocks
+  scope?: {
+    scope_type: 'all' | 'pages' | 'current';
+  };
 }
 
 // ==================== NodeView Types ====================
