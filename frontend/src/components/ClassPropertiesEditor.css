@@ -18,6 +18,20 @@
   color: var(--color-on-surface);
 }
 
+.class-properties-section-title {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-2) 0;
+}
+
+.class-properties-description {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
+  margin: 0 0 var(--spacing-3) 0;
+  line-height: 1.4;
+}
+
 .class-properties-list {
   display: flex;
   flex-direction: column;
