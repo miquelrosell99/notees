@@ -7,7 +7,7 @@
 
 import { useCallback } from 'react';
 import { SelectionButton } from '../core/SelectionButton';
-import { mdiWeb, mdiFileDocumentOutline } from '@mdi/js';
+import { mdiWeb, mdiFileDocumentOutline, mdiFileMultiple } from '@mdi/js';
 import type { ScopeNode, ScopeType } from '@/types/queryAST';
 import './ProseScopeSelector.css';
 
@@ -30,14 +30,10 @@ export function ProseScopeSelector({
   // Handle scope type change
   const handleScopeTypeChange = useCallback((scopeType: string) => {
     onChange({
-      ...scope,
+      type: 'scope',
       scope_type: scopeType as ScopeType,
-      // Reset scope-specific fields when changing type
-      page_uuids: undefined,
-      include_descendants: undefined,
-      excluded_page_uuids: undefined,
     });
-  }, [scope, onChange]);
+  }, [onChange]);
   
   return (
     <span className="prose-scope-selector">
@@ -46,8 +42,9 @@ export function ProseScopeSelector({
         onChange={handleScopeTypeChange}
         disabled={readOnly}
         options={[
-          { value: 'entire_graph', icon: mdiWeb, label: 'Entire graph' },
-          { value: 'current_page', icon: mdiFileDocumentOutline, label: 'This page' },
+          { value: 'all', icon: mdiWeb, label: 'All nodes' },
+          { value: 'pages', icon: mdiFileMultiple, label: 'All pages' },
+          { value: 'current', icon: mdiFileDocumentOutline, label: 'Current node' },
         ]}
         size="sm"
       />

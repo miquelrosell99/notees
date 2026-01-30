@@ -54,7 +54,7 @@ function createEmptyQueryAST(): QueryAST {
 function createScopeNode(): ScopeNode {
   return {
     type: 'scope',
-    scope_type: 'entire_graph',
+    scope_type: 'all',
   };
 }
 
@@ -87,15 +87,25 @@ export function blockTreeToAST(blockTree: QueryBlockTree, queryId?: string, isSy
     ast.is_system = true;
   }
   
-  // Extract scope from blocks (look for PARENT_PATH, UUID blocks)
-  const { scope, filteredBlocks } = extractScope(blockTree.blocks, isSystem);
-  ast.scope = scope;
+  // Load scope from metadata (defaults to entire_graph, not current_page)
+  if (blockTree.scope) {
+    ast.scope = {
+      type: 'scope',
+      scope_type: blockTree.scope.scope_type,
+    };
+  } else {
+    // Default to all for backward compatibility
+    ast.scope = {
+      type: 'scope',
+      scope_type: 'all',
+    };
+  }
   
-  // Convert remaining blocks to conditions
+  // Convert blocks to conditions (no scope extraction needed)
   ast.root_group = {
     type: 'group',
     logic: blockTree.type === 'AND_CONTAINER' ? 'AND' : 'OR',
-    children: filteredBlocks.map(block => convertBlockToASTNode(block)),
+    children: blockTree.blocks.map(block => convertBlockToASTNode(block)),
   };
   
   return ast;
@@ -150,10 +160,9 @@ function extractScope(blocks: QueryBlock[], isSystem?: boolean): { scope: ScopeN
   
   if (pageUuids.length > 0) {
     scopeType = 'specific_pages';
-  } else if (hasReferenceBlock || isSystem) {
-    // REFERENCE blocks (linked_references) search the entire graph
-    scopeType = 'entire_graph';
   }
+  // Note: We no longer force entire_graph based on REFERENCE blocks
+  // The scope should be independently configurable regardless of conditions
   
   const scope: ScopeNode = {
     type: 'scope',
@@ -359,19 +368,16 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
  * This maintains backward compatibility with the backend.
  */
 export function astToBlockTree(ast: QueryAST): QueryBlockTree {
-  const blocks: QueryBlock[] = [];
-  
-  // Convert scope to blocks (PARENT_PATH, NOT_CONTAINER, etc.)
-  const scopeBlocks = scopeToBlocks(ast.scope);
-  blocks.push(...scopeBlocks);
-  
-  // Convert root group children to blocks
+  // Convert root group children to blocks (scope is stored separately)
   const conditionBlocks = ast.root_group.children.map(child => convertASTNodeToBlock(child));
-  blocks.push(...conditionBlocks);
   
   return {
     type: ast.root_group.logic === 'AND' ? 'AND_CONTAINER' : 'OR_CONTAINER',
-    blocks,
+    blocks: conditionBlocks,
+    // Store scope separately in metadata
+    scope: {
+      scope_type: ast.scope.scope_type,
+    },
   };
 }
 
