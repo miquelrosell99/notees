@@ -12,7 +12,6 @@ from ...domain.services.query_service import QueryExecutor
 from ...domain.entities.query_ast import QueryAST, create_default_query_ast
 from ...domain.services.query_ast_validation import validate_query_ast, can_save_query
 from ...domain.services.query_ast_sql import generate_sql_from_ast
-from ...db.schema.constants import DEFAULT_QUERY_BLOCK_TREE
 from ..auth import get_current_user
 from ...models import User
 from ...logging_config import get_logger
@@ -613,12 +612,12 @@ async def execute_node_view_query(
     request = request or QueryExecuteRequest()
     
     # Use request block_tree if provided, otherwise use view's query_json
-    effective_block_tree = request.block_tree if request.block_tree else view.query_json
-    if not effective_block_tree:
-        effective_block_tree = DEFAULT_QUERY_BLOCK_TREE.copy()
+    effective_query = request.block_tree if request.block_tree else view.query_json
+    if not effective_query:
+        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
     results = await executor.execute_query(
-        block_tree=effective_block_tree,
+        query=effective_query,
         runtime_params=request.runtime_params,
         limit=request.limit,
         offset=request.offset,
@@ -641,21 +640,22 @@ async def execute_query(
     request: QueryExecuteRequest,
     user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Execute a query block tree directly (without saving).
+    """Execute a query directly (without saving).
     
     Args:
-        request: Query execution request with block_tree and optional params
+        request: Query execution request with block_tree/query_ast and optional params
         
     Returns:
         Dict with 'nodes' list of matching nodes
     """
     executor = await _get_query_executor(user)
     
-    if not request.block_tree:
-        request.block_tree = DEFAULT_QUERY_BLOCK_TREE.copy()
+    effective_query = request.block_tree
+    if not effective_query:
+        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
     results = await executor.execute_query(
-        block_tree=request.block_tree,
+        query=effective_query,
         runtime_params=request.runtime_params,
         limit=request.limit,
         offset=request.offset,
@@ -681,18 +681,19 @@ async def count_query_results(
     """Count results for a query without fetching all data.
     
     Args:
-        request: Query execution request with block_tree
+        request: Query execution request with query
         
     Returns:
         Dict with 'count' of matching nodes
     """
     executor = await _get_query_executor(user)
     
-    if not request.block_tree:
-        request.block_tree = DEFAULT_QUERY_BLOCK_TREE.copy()
+    effective_query = request.block_tree
+    if not effective_query:
+        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
     count = await executor.count_query_results(
-        block_tree=request.block_tree,
+        query=effective_query,
         runtime_params=request.runtime_params,
     )
     
