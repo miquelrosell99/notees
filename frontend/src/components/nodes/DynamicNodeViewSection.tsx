@@ -340,18 +340,6 @@ export function DynamicNodeViewSection({
 
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
-    // System views (default views for certain types) cannot be edited
-    const isSystemView = view.is_default && (
-      view.view_type === 'linked_references' ||
-      view.view_type === 'child_pages' ||
-      view.view_type === 'main_content'
-    );
-    
-    if (isSystemView) {
-      console.info('Cannot edit system-generated queries');
-      return;
-    }
-    
     setEditingView(view);
     setEditViewName(view.name);
     
@@ -360,7 +348,7 @@ export function DynamicNodeViewSection({
     const queryId = `view-${view.id}-${view.uuid}`;
     let ast = blockTreeToAST(blockTree, queryId, false); // false = not system
     
-    // Auto-fix: Restore missing system conditions
+    // Auto-fix: Restore missing system conditions (marks them with isSystemNode)
     ast = autoFixSystemQuery(ast, viewType, {
       nodeUuid: nodeUuid,
       parentUuid: nodeUuid,
