@@ -31,6 +31,13 @@ PROTECTED_DATE_CLASS_UUIDS = {
     SYSTEM_CLASS_UUIDS["day"],
 }
 
+# Block-only classes that cannot be assigned to pages
+BLOCK_ONLY_CLASS_UUIDS = {
+    SYSTEM_CLASS_UUIDS["query"],
+    SYSTEM_CLASS_UUIDS["comment"],
+    SYSTEM_CLASS_UUIDS["quote"],
+}
+
 # Set of all system class UUIDs for quick lookup
 ALL_SYSTEM_CLASS_UUIDS = set(SYSTEM_CLASS_UUIDS.values())
 
@@ -911,6 +918,13 @@ class NodeService:
                 if not row['is_page']:
                     raise SystemClassConstraintError(
                         "The 'class' class can only be assigned to pages, not blocks."
+                    )
+            
+            # Check if trying to add block-only classes to a page
+            if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS:
+                if row['is_page']:
+                    raise SystemClassConstraintError(
+                        f"The '{class_node.name}' class can only be assigned to blocks, not pages."
                     )
             
             current_class_ids = list(row['class_ids'] or [])

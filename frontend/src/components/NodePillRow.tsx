@@ -38,6 +38,8 @@ interface NodePillRowProps {
   onCreateNew?: (name: string) => void;
   /** Function to determine if a node can be removed (default: all can be removed) */
   canRemove?: (node: Node) => boolean;
+  /** Function to determine if a node can be added (filters search results) */
+  canAdd?: (node: Node) => boolean;
   /** Whether pills are read-only (hides remove button) */
   readOnly?: boolean;
   /** Additional CSS class */
@@ -55,6 +57,7 @@ export function NodePillRow({
   onAdd,
   onCreateNew,
   canRemove,
+  canAdd,
   readOnly = false,
   className = '',
 }: NodePillRowProps) {
@@ -70,14 +73,15 @@ export function NodePillRow({
     maxResults: 10,
   });
 
-  // Filter out already assigned nodes
+  // Filter out already assigned nodes and nodes that cannot be added
   const assignedIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
   
   const filteredResults = useMemo(() => {
     return pageResults
       .filter(item => !assignedIds.has(item.node.id))
+      .filter(item => !canAdd || canAdd(item.node))
       .map(item => item.node);
-  }, [pageResults, assignedIds]);
+  }, [pageResults, assignedIds, canAdd]);
 
   // Only show create option if onCreate is provided and there's a query
   const showCreateOption = onCreateNew && searchShowCreate && searchQuery.trim().length > 0;

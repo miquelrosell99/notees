@@ -59,13 +59,12 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       });
     },
     hasRequiredCondition: (ast, context) => {
-      // Check for existing reference condition - don't require system marker
-      // This prevents duplicates when backend-created conditions aren't marked
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
           isReferenceCondition(child) &&
-          child.target_uuid === context.nodeUuid
+          child.target_uuid === context.nodeUuid &&
+          isSystemNode(child)
       );
     },
   },
@@ -95,14 +94,12 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       });
     },
     hasRequiredCondition: (ast, context) => {
-      // Check for existing parent condition - don't require system marker
-      // This prevents duplicates when backend-created conditions aren't marked
       return ast.root_group.children.some(
         (child) => {
-          if (child.type !== 'condition') return false;
+          if (child.type !== 'condition' || !isSystemNode(child)) return false;
           const parentCond = child as any;
           if (parentCond.condition_type !== 'parent') return false;
-          // Check if nested group has UUID condition matching context (or placeholder)
+          // Check if nested group has UUID condition matching context
           const nestedChildren = parentCond.nested_group?.children || [];
           return nestedChildren.some(
             (nested: any) =>
@@ -129,13 +126,12 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       });
     },
     hasRequiredCondition: (ast, context) => {
-      // Check for existing class condition - don't require system marker
-      // This prevents duplicates when backend-created conditions aren't marked
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
           isClassCondition(child) &&
-          (child.class_uuid === context.nodeUuid || child.class_uuid === '{current_node_uuid}')
+          (child.class_uuid === context.nodeUuid || child.class_uuid === '{current_node_uuid}') &&
+          isSystemNode(child)
       );
     },
   },
@@ -153,8 +149,8 @@ export function isSystemSection(viewType: string): boolean {
 /**
  * Auto-fix: Restore missing system conditions for a query
  * 
- * This function ensures system views have the required condition and marks it as a system node.
- * It will mark existing conditions as system if they match, or add a new one if missing.
+ * This function ensures system views have the required system-marked condition.
+ * It removes any existing system-marked conditions and adds the correct one.
  * 
  * @param ast The QueryAST to fix
  * @param viewType The view type (e.g., 'linked_references')
@@ -186,53 +182,14 @@ export function autoFixSystemQuery(
   
   // Check if required condition already exists
   if (section.hasRequiredCondition(ast, context)) {
-    // Condition exists - mark it as system if not already marked
-    const updatedChildren = ast.root_group.children.map((child) => {
-      // Check if this is the system condition we need
-      if (viewType === 'linked_references' && 
-          child.type === 'condition' && 
-          isReferenceCondition(child as ConditionNode) && 
-          (child as any).target_uuid === context.nodeUuid) {
-        return markAsSystemNode(child);
-      }
-      
-      if (viewType === 'child_pages' && 
-          child.type === 'condition' && 
-          (child as any).condition_type === 'parent') {
-        const parentCond = child as any;
-        const nestedChildren = parentCond.nested_group?.children || [];
-        const hasMatchingUuid = nestedChildren.some(
-          (nested: any) =>
-            nested.condition_type === 'property' &&
-            nested.property_name === 'uuid' &&
-            (nested.value === context.nodeUuid || nested.value === '{current_node_uuid}')
-        );
-        if (hasMatchingUuid) {
-          return markAsSystemNode(child);
-        }
-      }
-      
-      if (viewType === 'classed_nodes' && 
-          child.type === 'condition' && 
-          isClassCondition(child as ConditionNode) && 
-          ((child as any).class_uuid === context.nodeUuid || (child as any).class_uuid === '{current_node_uuid}')) {
-        return markAsSystemNode(child);
-      }
-      
-      return child;
-    });
-    
+    // Condition already exists and is marked as system, just ensure scope is correct
     return {
       ...ast,
       scope: correctScope,
-      root_group: {
-        ...ast.root_group,
-        children: updatedChildren,
-      },
     };
   }
   
-  // Condition doesn't exist - add it
+  // Condition doesn't exist or isn't marked - add it
   const requiredCondition = section.requiresCondition(ast, context);
   if (!requiredCondition) {
     // Can't generate condition without context

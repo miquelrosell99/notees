@@ -27,6 +27,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "blocks": [
                 {
                     "type": "PARENT",
+                    "isSystemNode": True,  # Mark as system
                     "blocks": [
                         {"type": "UUID", "value": "{current_node_uuid}"}
                     ]
@@ -43,6 +44,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                     "type": "CLASS",
                     "value": "{current_node_uuid}",
                     "operator": "contains",
+                    "isSystemNode": True,  # Mark as system
                 }
             ]
         }
@@ -55,6 +57,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                 {
                     "type": "REFERENCE",
                     "target_uuid": "{current_node_uuid}",
+                    "isSystemNode": True,  # Mark as system
                 }
             ]
         }
@@ -66,6 +69,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "blocks": [
                 {
                     "type": "CHILD_PATH",
+                    "isSystemNode": True,  # Mark as system
                     "blocks": [
                         {"type": "UUID", "value": "{current_node_uuid}"}
                     ],
@@ -81,13 +85,15 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "blocks": [
                 {
                     "type": "CLASS",
-                    "value": "page"
+                    "value": "page",
+                    "isSystemNode": True,  # Mark as system
                 },
                 {
                     "type": "PROPERTY",
                     "property_name": "parent_id",
                     "operator": "is_empty",
-                    "value": None
+                    "value": None,
+                    "isSystemNode": True,  # Mark as system
                 }
             ]
         }
