@@ -126,7 +126,7 @@ export interface TypeCondition extends BaseConditionNode {
   condition_type: 'type';
   type_uuid: string;
   type_id?: number;
-  operator?: 'is' | 'is_not';  // Default: 'is'
+  operator?: 'is' | 'is_not' | 'contains' | 'does_not_contain';  // Default: 'contains'
 }
 
 /**
