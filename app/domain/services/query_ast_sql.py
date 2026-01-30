@@ -18,6 +18,8 @@ from app.domain.entities.query_ast import (
     ReferenceCondition,
     ReferencePathCondition,
     ParentPathCondition,
+    ParentCondition,
+    FlagCondition,
     LogicType,
     ScopeType,
 )
@@ -87,6 +89,10 @@ class QueryASTToSQL:
         if scope.scope_type == ScopeType.ENTIRE_GRAPH:
             # No additional filtering needed
             return None
+        
+        elif scope.scope_type == ScopeType.PAGES:
+            # Only pages (is_page = true)
+            return "n.is_page = TRUE"
         
         elif scope.scope_type == ScopeType.CURRENT_PAGE:
             if not self.current_node_uuid:
@@ -179,6 +185,10 @@ class QueryASTToSQL:
             return self._generate_reference_path_condition(condition)
         elif isinstance(condition, ParentPathCondition):
             return self._generate_parent_path_condition(condition)
+        elif isinstance(condition, ParentCondition):
+            return self._generate_parent_condition(condition)
+        elif isinstance(condition, FlagCondition):
+            return self._generate_flag_condition(condition)
         
         return None
     
@@ -323,6 +333,25 @@ class QueryASTToSQL:
             ))"""
         
         return None
+    
+    def _generate_flag_condition(self, condition: FlagCondition) -> Optional[str]:
+        """Generate SQL for flag condition (is_page, is_day, etc)."""
+        if not condition.flag_name:
+            return None
+        
+        # Direct boolean column check
+        if condition.value:
+            return f"n.{condition.flag_name} = TRUE"
+        else:
+            return f"(n.{condition.flag_name} = FALSE OR n.{condition.flag_name} IS NULL)"
+    
+    def _generate_parent_condition(self, condition: ParentCondition) -> Optional[str]:
+        """Generate SQL for parent condition - direct parent match."""
+        if not condition.parent_uuid:
+            return None
+        
+        param_name = self._add_param(condition.parent_uuid)
+        return f"n.parent_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
     
     def _add_param(self, value: Any) -> str:
         """Add a parameter and return its name."""

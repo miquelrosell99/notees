@@ -36,6 +36,7 @@ class ASTNodeType(str, Enum):
 class ScopeType(str, Enum):
     """Scope types define the universe of nodes to query."""
     ENTIRE_GRAPH = "entire_graph"      # All nodes in the graph
+    PAGES = "pages"                    # All pages in the graph (is_page=true)
     CURRENT_PAGE = "current_page"      # Current page being viewed
     SPECIFIC_PAGES = "specific_pages"  # Explicitly selected pages
     LINKED_REFS = "linked_refs"        # Nodes that reference the current page
@@ -88,6 +89,8 @@ class ConditionType(str, Enum):
     REFERENCE = "reference"
     REFERENCE_PATH = "reference_path"
     PARENT_PATH = "parent_path"
+    PARENT = "parent"
+    FLAG = "flag"
 
 
 class PropertyOperator(str, Enum):
@@ -188,6 +191,28 @@ class ParentPathCondition(BaseConditionNode):
     max_depth: Optional[int] = None
 
 
+@dataclass
+class ParentCondition(BaseConditionNode):
+    """Parent condition - filter by direct parent node."""
+    condition_type: Literal[ConditionType.PARENT] = ConditionType.PARENT
+    parent_uuid: str = ""  # UUID of the parent node
+
+
+@dataclass
+class FlagCondition(BaseConditionNode):
+    """Flag condition - filter by boolean flags (is_page, is_day, etc)."""
+    condition_type: Literal[ConditionType.FLAG] = ConditionType.FLAG
+    flag_name: str = ""  # e.g., "is_page", "is_day", "is_favorite"
+    value: bool = True  # True to match, False to exclude
+
+
+@dataclass
+class ParentCondition(BaseConditionNode):
+    """Parent condition - filter by direct parent."""
+    condition_type: Literal[ConditionType.PARENT_PATH] = ConditionType.PARENT_PATH
+    parent_uuid: str = ""  # UUID of the parent node
+
+
 # Union type for all conditions
 ConditionNode = Union[
     TypeCondition,
@@ -196,6 +221,8 @@ ConditionNode = Union[
     ReferenceCondition,
     ReferencePathCondition,
     ParentPathCondition,
+    ParentCondition,
+    FlagCondition,
 ]
 
 
@@ -370,6 +397,15 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         return ParentPathCondition(
             nested_group=nested_group,
             max_depth=data.get("max_depth"),
+        )
+    elif condition_type == ConditionType.PARENT:
+        return ParentCondition(
+            parent_uuid=data.get("parent_uuid", ""),
+        )
+    elif condition_type == ConditionType.FLAG:
+        return FlagCondition(
+            flag_name=data.get("flag_name", ""),
+            value=data.get("value", True),
         )
     else:
         # Default to content condition

@@ -1,7 +1,7 @@
 """Query SQL generation service.
 
-Dynamically generates SQL from query block trees.
-Supports nested AND/OR, NOT, REFERENCE, REFERENCE PATH, ANCESTOR PATH blocks.
+Dynamically generates SQL from QueryAST (new format).
+Supports scope, nested groups, and all condition types.
 """
 from __future__ import annotations
 
@@ -10,11 +10,9 @@ import re
 from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any, Tuple, Union
 
-from ..entities.query import (
-    QueryBlockType,
-    QueryBlockTree,
-    QUERY_PLACEHOLDERS,
-)
+from ..entities.query import QUERY_PLACEHOLDERS
+from ..entities.query_ast import QueryAST
+from .query_ast_sql import QueryASTToSQL
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -1073,9 +1071,63 @@ class QueryExecutor:
         self._graph_id = graph_id
         self._user_id = user_id
     
+    def _substitute_params(self, query_ast: QueryAST, runtime_params: Dict[str, Any]) -> QueryAST:
+        """Substitute runtime parameters in QueryAST.
+        
+        Replaces placeholders like {current_node_uuid} with actual values.
+        """
+        import copy
+        query_ast = copy.deepcopy(query_ast)
+        
+        # Substitute in scope
+        if query_ast.scope.page_uuids:
+            query_ast.scope.page_uuids = [
+                self._resolve_placeholder(uuid, runtime_params)
+                for uuid in query_ast.scope.page_uuids
+            ]
+        
+        # Substitute in conditions recursively
+        self._substitute_in_group(query_ast.root_group, runtime_params)
+        
+        return query_ast
+    
+    def _substitute_in_group(self, group, runtime_params: Dict[str, Any]):
+        """Recursively substitute parameters in a group."""
+        from ..entities.query_ast import GroupNode, TypeCondition, ReferenceCondition, NotNode
+        
+        for child in group.children:
+            if isinstance(child, GroupNode):
+                self._substitute_in_group(child, runtime_params)
+            elif isinstance(child, NotNode):
+                if isinstance(child.child, GroupNode):
+                    self._substitute_in_group(child.child, runtime_params)
+                elif isinstance(child.child, TypeCondition):
+                    child.child.type_uuid = self._resolve_placeholder(child.child.type_uuid, runtime_params)
+                elif isinstance(child.child, ReferenceCondition):
+                    child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
+            elif isinstance(child, TypeCondition):
+                child.type_uuid = self._resolve_placeholder(child.type_uuid, runtime_params)
+            elif isinstance(child, ReferenceCondition):
+                child.target_uuid = self._resolve_placeholder(child.target_uuid, runtime_params)
+    
+    def _resolve_placeholder(self, value: str, runtime_params: Dict[str, Any]) -> str:
+        """Resolve a single placeholder value."""
+        if not isinstance(value, str) or not value.startswith('{'):
+            return value
+        
+        # Replace known placeholders
+        if '{current_node_uuid}' in value:
+            return value.replace('{current_node_uuid}', runtime_params.get('current_node_uuid', ''))
+        elif '{current_node_id}' in value:
+            return value.replace('{current_node_id}', str(runtime_params.get('current_node_id', '')))
+        elif '{current_user_id}' in value:
+            return value.replace('{current_user_id}', str(runtime_params.get('current_user_id', self._user_id or '')))
+        
+        return value
+    
     async def execute_query(
         self,
-        block_tree: Union[Dict[str, Any], QueryBlockTree],
+        query: Union[Dict[str, Any], QueryAST],
         runtime_params: Optional[Dict[str, Any]] = None,
         limit: Optional[int] = 100,
         offset: Optional[int] = None,
@@ -1084,7 +1136,7 @@ class QueryExecutor:
         """Execute a query and return results.
         
         Args:
-            block_tree: The query block tree
+            query: The QueryAST (as object or dict)
             runtime_params: Runtime parameter values
             limit: Maximum results to return
             offset: Offset for pagination
@@ -1093,14 +1145,29 @@ class QueryExecutor:
         Returns:
             List of node dictionaries
         """
-        generator = QuerySQLGenerator(self._graph_id, self._user_id)
-        sql, params = generator.generate_sql(
-            block_tree,
-            runtime_params=runtime_params,
-            limit=limit,
-            offset=offset,
-            order_by=order_by,
-        )
+        # Convert dict to QueryAST if needed
+        if isinstance(query, dict):
+            query_ast = QueryAST.from_dict(query)
+        else:
+            query_ast = query
+        
+        # Substitute runtime parameters
+        query_ast = self._substitute_params(query_ast, runtime_params or {})
+        
+        # Generate SQL using new QueryASTToSQL
+        generator = QueryASTToSQL(self._graph_id, query_ast.scope.page_uuids[0] if query_ast.scope.page_uuids else None)
+        sql, params_dict = generator.generate(query_ast)
+        
+        # Convert named params to positional
+        params = list(params_dict.values())
+        
+        # Add limit/offset
+        if limit:
+            sql += f" LIMIT ${len(params) + 1}"
+            params.append(limit)
+        if offset:
+            sql += f" OFFSET ${len(params) + 1}"
+            params.append(offset)
         
         logger.debug(f"Executing query SQL: {sql}")
         logger.debug(f"Query params: {params}")
@@ -1131,23 +1198,33 @@ class QueryExecutor:
     
     async def count_query_results(
         self,
-        block_tree: Union[Dict[str, Any], QueryBlockTree],
+        query: Union[Dict[str, Any], QueryAST],
         runtime_params: Optional[Dict[str, Any]] = None,
     ) -> int:
         """Count results for a query without fetching all data.
         
         Args:
-            block_tree: The query block tree
+            query: The QueryAST (as object or dict)
             runtime_params: Runtime parameter values
             
         Returns:
             Count of matching nodes
         """
-        generator = QuerySQLGenerator(self._graph_id, self._user_id)
-        sql, params = generator.generate_sql(
-            block_tree,
-            runtime_params=runtime_params,
-        )
+        # Convert dict to QueryAST if needed
+        if isinstance(query, dict):
+            query_ast = QueryAST.from_dict(query)
+        else:
+            query_ast = query
+        
+        # Substitute runtime parameters
+        query_ast = self._substitute_params(query_ast, runtime_params or {})
+        
+        # Generate SQL using new QueryASTToSQL
+        generator = QueryASTToSQL(self._graph_id, query_ast.scope.page_uuids[0] if query_ast.scope.page_uuids else None)
+        sql, params_dict = generator.generate(query_ast)
+        
+        # Convert named params to positional
+        params = list(params_dict.values())
         
         # Wrap in COUNT query
         count_sql = f"SELECT COUNT(*) as count FROM ({sql}) subq"
