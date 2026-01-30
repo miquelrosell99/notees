@@ -6,7 +6,7 @@
  * 
  * System sections:
  * - linked_references: MUST have reference condition
- * - child_pages: MUST have parent_uuid AND is_page conditions
+ * - child_pages: MUST have parent_uuid condition (scope handles page filtering)
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
@@ -91,31 +91,6 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
     },
   },
   
-  // Child Pages section - requires page class condition
-  {
-    viewType: 'child_pages',
-    requiresCondition: (_ast, _context) => {
-      return markAsSystemNode({
-        type: 'condition',
-        condition_type: 'property',
-        property_name: 'is_page',
-        property_type: 'boolean',
-        operator: '=',
-        value: true,
-      });
-    },
-    hasRequiredCondition: (ast, _context) => {
-      return ast.root_group.children.some(
-        (child) =>
-          child.type === 'condition' &&
-          isPropertyCondition(child) &&
-          child.property_name === 'is_page' &&
-          child.value === true &&
-          isSystemNode(child)
-      );
-    },
-  },
-  
   // Class-specific views
   {
     viewType: 'classed_nodes',
@@ -172,6 +147,18 @@ export function autoFixSystemQuery(
     return ast;
   }
   
+  // Auto-fix scope for system views
+  const defaultScopes: Record<string, ScopeNode['scope_type']> = {
+    'linked_references': 'all',
+    'child_pages': 'pages',
+    'classed_nodes': 'all',
+  };
+  
+  const correctScope: ScopeNode = {
+    type: 'scope',
+    scope_type: defaultScopes[viewType] || 'all',
+  };
+  
   // Step 1: Remove ALL existing system conditions (marked with isSystemNode)
   const nonSystemChildren = ast.root_group.children.filter(
     (child) => !isSystemNode(child)
@@ -183,7 +170,8 @@ export function autoFixSystemQuery(
     // Can't generate condition without context, just remove old system conditions
     console.warn(`Cannot auto-fix ${viewType}: missing context data`);
     return {
-      ...ast,
+      ...ast, // Preserve all AST properties (scope, id, metadata, etc.)
+      scope: correctScope,
       root_group: {
         ...ast.root_group,
         children: nonSystemChildren,
@@ -193,7 +181,8 @@ export function autoFixSystemQuery(
   
   // Step 3: Add the new system condition(s) at the beginning
   return {
-    ...ast,
+    ...ast, // Preserve all AST properties (scope, id, metadata, etc.)
+    scope: correctScope,
     root_group: {
       ...ast.root_group,
       children: [requiredCondition, ...nonSystemChildren],
