@@ -1,8 +1,9 @@
 /**
- * ProseScopeSelector (Redesigned)
+ * ProseScopeSelector Component
  * 
- * Inline sentence-style scope selector with minimal UI chrome
- * Renders as: "Search in: [Entire graph ▼]"
+ * Inline sentence-style scope selector.
+ * Renders as prose: "[Entire graph ▼]" with optional checkbox.
+ * Hidden entirely when scope = default ("Entire graph").
  */
 
 import { useCallback } from 'react';
@@ -32,7 +33,7 @@ export function ProseScopeSelector({
     onChange({
       ...scope,
       scope_type: scopeType as ScopeType,
-      // Reset scope-specific fields
+      // Reset scope-specific fields when changing type
       page_uuids: undefined,
       include_descendants: undefined,
       excluded_page_uuids: undefined,
@@ -40,7 +41,7 @@ export function ProseScopeSelector({
   }, [scope, onChange]);
   
   return (
-    <div className="prose-scope-selector">
+    <span className="prose-scope-selector">
       <Dropdown
         value={scope.scope_type}
         onChange={handleScopeTypeChange}
@@ -52,12 +53,12 @@ export function ProseScopeSelector({
           { value: 'linked_refs', label: 'Linked references' },
         ]}
         size="sm"
-        className="prose-scope-selector__select"
+        className="prose-scope-selector__dropdown"
       />
       
-      {/* Additional controls for specific scope types */}
+      {/* Include descendants checkbox for current_page */}
       {scope.scope_type === 'current_page' && (
-        <label className="prose-scope-selector__option">
+        <label className="prose-scope-selector__checkbox">
           <input
             type="checkbox"
             checked={scope.include_descendants || false}
@@ -68,12 +69,13 @@ export function ProseScopeSelector({
         </label>
       )}
       
+      {/* Page count indicator for specific_pages */}
       {scope.scope_type === 'specific_pages' && (
-        <span className="prose-scope-selector__note">
+        <span className="prose-scope-selector__count">
           ({scope.page_uuids?.length || 0} page{(scope.page_uuids?.length || 0) === 1 ? '' : 's'} selected)
         </span>
       )}
-    </div>
+    </span>
   );
 }
 

@@ -1,10 +1,9 @@
 /**
- * EngineView Component (Renamed from AdvancedLogicPanel)
+ * EngineView Component
  * 
  * Low-contrast, secondary section showing:
- * - AST viewer (prominent, monospace with generous spacing)
+ * - AST viewer (prominent, first)
  * - SQL preview (subordinate, behind explicit toggle)
- * - No warnings or redundancy messages
  * 
  * Design:
  * - Collapsed by default (triggered from ViewBuilder)
@@ -14,7 +13,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { mdiCodeBraces, mdiContentCopy } from '@mdi/js';
+import { mdiContentCopy } from '@mdi/js';
 import { Button } from '../core/Button';
 import { QuerySQLPreview } from './QuerySQLPreview';
 import type { QueryAST } from '@/types/queryAST';
@@ -39,18 +38,18 @@ export function EngineView({ ast }: EngineViewProps) {
   
   return (
     <div className="engine-view">
-      {/* AST Section */}
+      {/* AST Section - Primary */}
       <div className="engine-view__section">
         <div className="engine-view__header">
-          <h4 className="engine-view__title">Query Structure</h4>
+          <h4 className="engine-view__title">Query structure</h4>
           <Button
             icon={mdiContentCopy}
             onClick={handleCopyAST}
             variant="ghost"
             size="xs"
-            className="engine-view__action"
+            className="engine-view__copy"
           >
-            Copy JSON
+            Copy
           </Button>
         </div>
         <pre className="engine-view__ast">
@@ -61,30 +60,27 @@ export function EngineView({ ast }: EngineViewProps) {
       {/* SQL Section - Behind toggle */}
       <div className="engine-view__section">
         {!showSQL ? (
-          <Button
-            icon={mdiCodeBraces}
+          <button
+            type="button"
             onClick={() => setShowSQL(true)}
-            variant="ghost"
-            size="sm"
-            className="engine-view__toggle"
+            className="engine-view__show-sql"
           >
-            Show execution preview
-          </Button>
+            Show execution preview…
+          </button>
         ) : (
           <>
             <div className="engine-view__header">
-              <h4 className="engine-view__title">Execution Preview</h4>
-              <span className="engine-view__subtitle">(informational only)</span>
+              <h4 className="engine-view__title">Execution preview</h4>
+              <span className="engine-view__note">(informational only)</span>
             </div>
             <QuerySQLPreview ast={ast} />
-            <Button
-              variant="ghost"
-              size="xs"
+            <button
+              type="button"
               onClick={() => setShowSQL(false)}
-              className="engine-view__hide"
+              className="engine-view__hide-sql"
             >
               Hide
-            </Button>
+            </button>
           </>
         )}
       </div>
