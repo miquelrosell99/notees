@@ -1093,7 +1093,10 @@ class QueryExecutor:
     
     def _substitute_in_group(self, group, runtime_params: Dict[str, Any]):
         """Recursively substitute parameters in a group."""
-        from ..entities.query_ast import GroupNode, TypeCondition, ReferenceCondition, NotNode
+        from ..entities.query_ast import (
+            GroupNode, TypeCondition, ReferenceCondition, NotNode, 
+            PropertyCondition, ParentCondition
+        )
         
         for child in group.children:
             if isinstance(child, GroupNode):
@@ -1105,10 +1108,18 @@ class QueryExecutor:
                     child.child.type_uuid = self._resolve_placeholder(child.child.type_uuid, runtime_params)
                 elif isinstance(child.child, ReferenceCondition):
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
+                elif isinstance(child.child, PropertyCondition):
+                    child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
             elif isinstance(child, TypeCondition):
                 child.type_uuid = self._resolve_placeholder(child.type_uuid, runtime_params)
             elif isinstance(child, ReferenceCondition):
                 child.target_uuid = self._resolve_placeholder(child.target_uuid, runtime_params)
+            elif isinstance(child, PropertyCondition):
+                child.value = self._resolve_placeholder(child.value, runtime_params)
+            elif isinstance(child, ParentCondition):
+                # ParentCondition has nested_group that needs substitution
+                if child.nested_group:
+                    self._substitute_in_group(child.nested_group, runtime_params)
     
     def _resolve_placeholder(self, value: str, runtime_params: Dict[str, Any]) -> str:
         """Resolve a single placeholder value."""
@@ -1158,8 +1169,16 @@ class QueryExecutor:
         generator = QueryASTToSQL(self._graph_id, query_ast.scope.page_uuids[0] if query_ast.scope.page_uuids else None)
         sql, params_dict = generator.generate(query_ast)
         
-        # Convert named params to positional
-        params = list(params_dict.values())
+        # Convert named params to positional for asyncpg
+        params = []
+        param_map = {}  # Maps param names to their positional index
+        for i, (name, value) in enumerate(params_dict.items(), start=1):
+            params.append(value)
+            param_map[name] = i
+        
+        # Replace named placeholders with positional $1, $2, etc.
+        for param_name, param_index in param_map.items():
+            sql = sql.replace(f"%({param_name})s", f"${param_index}")
         
         # Add limit/offset
         if limit:

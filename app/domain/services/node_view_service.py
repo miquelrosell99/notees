@@ -11,6 +11,7 @@ from ..entities import NodeView, generate_uuid
 from ..entities.query_ast import (
     QueryAST, ScopeNode, ScopeType, GroupNode, LogicType,
     ReferenceCondition, ParentPathCondition, ParentCondition, TypeCondition, FlagCondition,
+    PropertyCondition, PropertyOperator,
     ContentCondition, ContentOperator
 )
 from ..repositories import PostgresNodeViewRepository
@@ -29,7 +30,19 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
-                    ParentCondition(parent_uuid="{current_node_uuid}")
+                    ParentCondition(
+                        nested_group=GroupNode(
+                            logic=LogicType.AND,
+                            children=[
+                                PropertyCondition(
+                                    property_name="uuid",
+                                    property_type="text",
+                                    operator=PropertyOperator.EQUALS,
+                                    value="{current_node_uuid}"
+                                )
+                            ]
+                        )
+                    )
                 ]
             ),
             is_system=True

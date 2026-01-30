@@ -207,38 +207,110 @@ class QueryASTToSQL:
         ))"""
     
     def _generate_property_condition(self, condition: PropertyCondition) -> Optional[str]:
-        """Generate SQL for property condition."""
+        """Generate SQL for property condition.
+        
+        Handles both:
+        - Built-in node columns (uuid, name, id, etc.)
+        - Custom properties stored in property_value_* tables
+        """
         if not condition.property_name:
             return None
         
-        prop_param = self._add_param(condition.property_name)
+        # Built-in node columns that should be queried directly
+        BUILTIN_COLUMNS = {'uuid', 'name', 'id', 'parent_id', 'is_page', 'is_favorite'}
         
-        if condition.operator == 'is_empty':
-            return f"NOT EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+        # Check if this is a built-in column
+        if condition.property_name in BUILTIN_COLUMNS:
+            # For IS_EMPTY/IS_NOT_EMPTY on built-in columns
+            if condition.operator == 'is_empty':
+                return f"n.{condition.property_name} IS NULL"
+            elif condition.operator == 'is_not_empty':
+                return f"n.{condition.property_name} IS NOT NULL"
+            
+            # For value-based operators
+            if condition.value is None:
+                return None
+            
+            # Don't add property name as parameter for built-in columns
+            value_param = self._add_param(str(condition.value))
+            column_name = condition.property_name
+            
+            # Special handling for UUID columns
+            if column_name == 'uuid':
+                if condition.operator == 'equals':
+                    return f"n.{column_name}::text = %({value_param})s"
+                elif condition.operator == 'not_equals':
+                    return f"n.{column_name}::text != %({value_param})s"
+            
+            # Standard text comparison for other columns
+            if condition.operator == 'equals':
+                return f"n.{column_name}::text = %({value_param})s"
+            elif condition.operator == 'not_equals':
+                return f"n.{column_name}::text != %({value_param})s"
+            elif condition.operator == 'contains':
+                return f"n.{column_name}::text ILIKE '%%' || %({value_param})s || '%%'"
+            elif condition.operator == 'greater_than':
+                return f"n.{column_name}::numeric > %({value_param})s::numeric"
+            elif condition.operator == 'less_than':
+                return f"n.{column_name}::numeric < %({value_param})s::numeric"
         
-        elif condition.operator == 'is_not_empty':
-            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
-        
-        # For value-based operators
-        if condition.value is None:
-            return None
-        
-        value_param = self._add_param(condition.value)
-        
-        if condition.operator == 'equals':
-            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND value::text = %({value_param})s::text)"
-        
-        elif condition.operator == 'not_equals':
-            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND value::text != %({value_param})s::text)"
-        
-        elif condition.operator == 'contains':
-            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND value::text ILIKE '%%' || %({value_param})s || '%%')"
-        
-        elif condition.operator == 'greater_than':
-            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND (value::text)::numeric > %({value_param})s::numeric)"
-        
-        elif condition.operator == 'less_than':
-            return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s AND (value::text)::numeric < %({value_param})s::numeric)"
+        # Custom property - query property_value_scalar table
+        else:
+            # Add property name as parameter for custom properties
+            prop_param = self._add_param(condition.property_name)
+            
+            if condition.operator == 'is_empty':
+                return f"NOT EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+            
+            elif condition.operator == 'is_not_empty':
+                return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+            
+            # For value-based operators
+            if condition.value is None:
+                return None
+            
+            value_param = self._add_param(condition.value)
+            
+            if condition.operator == 'equals':
+                # Check in property_value_scalar table
+                return f"""EXISTS (
+                    SELECT 1 FROM node_property np
+                    JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                    WHERE np.node_id = n.id 
+                    AND pvs.value_text = %({value_param})s
+                )"""
+            
+            elif condition.operator == 'not_equals':
+                return f"""EXISTS (
+                    SELECT 1 FROM node_property np
+                    JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                    WHERE np.node_id = n.id 
+                    AND pvs.value_text != %({value_param})s
+                )"""
+            
+            elif condition.operator == 'contains':
+                return f"""EXISTS (
+                    SELECT 1 FROM node_property np
+                    JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                    WHERE np.node_id = n.id 
+                    AND pvs.value_text ILIKE '%%' || %({value_param})s || '%%'
+                )"""
+            
+            elif condition.operator == 'greater_than':
+                return f"""EXISTS (
+                    SELECT 1 FROM node_property np
+                    JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                    WHERE np.node_id = n.id 
+                    AND pvs.value_float > %({value_param})s::numeric
+                )"""
+            
+            elif condition.operator == 'less_than':
+                return f"""EXISTS (
+                    SELECT 1 FROM node_property np
+                    JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                    WHERE np.node_id = n.id 
+                    AND pvs.value_float < %({value_param})s::numeric
+                )"""
         
         return None
     
@@ -346,12 +418,27 @@ class QueryASTToSQL:
             return f"(n.{condition.flag_name} = FALSE OR n.{condition.flag_name} IS NULL)"
     
     def _generate_parent_condition(self, condition: ParentCondition) -> Optional[str]:
-        """Generate SQL for parent condition - direct parent match."""
-        if not condition.parent_uuid:
+        """Generate SQL for parent condition - direct parent match with nested filter."""
+        if not condition.nested_group:
             return None
         
-        param_name = self._add_param(condition.parent_uuid)
-        return f"n.parent_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
+        # Generate SQL for the nested group that filters parent nodes
+        nested_sql = self._generate_group_sql(condition.nested_group)
+        if not nested_sql:
+            return None
+        
+        # Replace references to 'n' in nested SQL with 'parent_n' to refer to parent node
+        parent_sql = nested_sql.replace(" n.", " parent_n.")
+        
+        return f"""n.parent_id IN (
+            SELECT parent_n.id FROM node parent_n
+            WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
+            AND ({parent_sql})
+        ) AND n.id != (
+            SELECT parent_n.id FROM node parent_n
+            WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
+            AND ({parent_sql})
+        )"""
     
     def _add_param(self, value: Any) -> str:
         """Add a parameter and return its name."""
