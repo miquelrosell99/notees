@@ -26,7 +26,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "type": "AND_CONTAINER",
             "blocks": [
                 {
-                    "type": "PARENT_PATH",
+                    "type": "CHILD_PATH",
                     "blocks": [
                         {"type": "UUID", "value": "{current_node_uuid}"}
                     ],
@@ -69,7 +69,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             "type": "AND_CONTAINER",
             "blocks": [
                 {
-                    "type": "PARENT_PATH",
+                    "type": "CHILD_PATH",
                     "blocks": [
                         {"type": "UUID", "value": "{current_node_uuid}"}
                     ],
