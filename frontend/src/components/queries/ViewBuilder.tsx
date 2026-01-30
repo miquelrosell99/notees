@@ -12,12 +12,11 @@
  * - No validation noise or warnings (empty queries are valid)
  */
 
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { assertValidAST } from '@/lib/astValidator';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { ProseScopeSelector } from './ProseScopeSelector';
-import { EngineView } from './EngineView';
 import type { QueryAST } from '@/types/queryAST';
 import './ViewBuilder.css';
 
@@ -48,8 +47,6 @@ export function ViewBuilder({
   readOnly = false,
   className = '',
 }: ViewBuilderProps) {
-  
-  const [showEngine, setShowEngine] = useState(false);
   
   // Auto-normalize and validate AST on every change (validation is console-only)
   const handleChange = useCallback((updatedAST: QueryAST) => {
@@ -106,23 +103,6 @@ export function ViewBuilder({
               <span className="view-builder__result-dot">●</span>
               {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
             </span>
-          )}
-        </div>
-      )}
-      
-      {/* Advanced Logic - Collapsed by default, demoted */}
-      {!readOnly && (
-        <div className="view-builder__advanced-section">
-          <button
-            type="button"
-            onClick={() => setShowEngine(!showEngine)}
-            className="view-builder__advanced-toggle"
-          >
-            {showEngine ? '▲' : '▼'} Advanced logic
-          </button>
-          
-          {showEngine && (
-            <EngineView ast={ast} />
           )}
         </div>
       )}
