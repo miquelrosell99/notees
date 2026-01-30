@@ -123,7 +123,53 @@ export function QueryBlockBuilder({
     );
   }
   
-  // Regular condition - use ProseConditionBuilder
+  // Regular condition
+  const condition = block as ConditionNode;
+  
+  // Check if this condition has a nested group (parent, child, reference_path, etc.)
+  const hasNestedGroup = 'nested_group' in condition && condition.nested_group;
+  
+  if (hasNestedGroup) {
+    // Conditions with nested groups: render the prose + nested QueryBlockList
+    const handleNestedChange = useCallback((children: Array<ConditionNode | GroupNode | ASTNotNode>) => {
+      const typedCondition = condition as any;
+      onChange({
+        ...typedCondition,
+        nested_group: {
+          ...typedCondition.nested_group,
+          children,
+        },
+      } as ConditionNode);
+    }, [condition, onChange]);
+    
+    return (
+      <div className="query-block-builder query-block-builder--nested">
+        {/* Condition header with prose description */}
+        <div className="query-block-builder__nested-header">
+          <ProseConditionBuilder
+            block={condition}
+            onChange={onChange as (block: ConditionNode) => void}
+            onRemove={onRemove}
+            readOnly={isReadOnly}
+          />
+        </div>
+        
+        {/* Nested group */}
+        {condition.nested_group && (
+          <div className="query-block-builder__nested-body">
+            <QueryBlockList
+              blocks={condition.nested_group.children}
+              parentLogic={condition.nested_group.logic}
+              onChange={handleNestedChange}
+              readOnly={isReadOnly}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Simple condition without nesting
   return (
     <div className="query-block-builder query-block-builder--condition">
       <ProseConditionBuilder

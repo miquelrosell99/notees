@@ -438,6 +438,7 @@ class QuerySQLGenerator:
         
         # Handle built-in node columns as properties
         BUILTIN_COLUMNS = {
+            'uuid': 'text',
             'parent_id': 'integer',
             'page_id': 'integer',
             'name': 'text',
@@ -458,6 +459,10 @@ class QuerySQLGenerator:
         if property_name in BUILTIN_COLUMNS:
             col_type = BUILTIN_COLUMNS[property_name]
             col_name = f"{node_alias}.{property_name}"
+            
+            # UUID needs to be cast to text for comparison
+            if property_name == "uuid":
+                col_name = f"{node_alias}.uuid::text"
             
             if operator == "is_empty":
                 return f"{col_name} IS NULL"

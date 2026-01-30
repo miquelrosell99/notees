@@ -30,3 +30,19 @@
 .query-block-builder__body {
   padding: 0.75rem;
 }
+/* Nested condition styles */
+.query-block-builder--nested {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.query-block-builder__nested-header {
+  /* Header shows the prose condition */
+}
+
+.query-block-builder__nested-body {
+  padding-left: 1.5rem;
+  margin-left: 0.5rem;
+  border-left: 2px solid var(--border-color);
+}

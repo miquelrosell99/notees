@@ -1389,6 +1389,14 @@ function BlockInternal({
                 onClick={() => {}}
               />
               
+              {/* Query block display - shows query results if block is classed as query */}
+              <QueryBlockDisplay
+                block={block}
+                onNodeClick={(nodeId, isPage) => {
+                  openNode(nodeId, isPage ? 'page' : 'sidebar');
+                }}
+              />
+              
               {/* Comment count badge */}
               {commentCount > 0 && (
                 <Button
