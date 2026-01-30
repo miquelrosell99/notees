@@ -427,14 +427,15 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
         type_id: typeCond.type_id,
       };
       
-      // If operator is 'is_not', wrap in NOT_CONTAINER
-      if (typeCond.operator === 'is_not') {
+      // If operator is 'is_not' or 'does_not_contain', wrap in NOT_CONTAINER
+      if (typeCond.operator === 'is_not' || typeCond.operator === 'does_not_contain') {
         return {
           type: 'NOT_CONTAINER',
           block: classBlock,
         } as NotBlock;
       }
       
+      // For 'is' and 'contains' (or default), return CLASS block directly
       return classBlock;
     }
     
