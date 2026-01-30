@@ -158,6 +158,7 @@ export interface ReferenceCondition extends BaseConditionNode {
   condition_type: 'reference';
   target_uuid: string;
   target_id?: number;
+  operator?: 'references' | 'does_not_reference' | 'has_references' | 'has_no_references';  // Default: 'references'
   // Optional nested group for filtering the referencing nodes
   nested_group?: GroupNode;
 }
@@ -176,6 +177,7 @@ export interface ReferencePathCondition extends BaseConditionNode {
 export interface ParentCondition extends BaseConditionNode {
   condition_type: 'parent';
   nested_group: GroupNode;
+  operator?: 'has_parent' | 'has_no_parent';  // Default: 'has_parent'
 }
 
 /**
@@ -192,6 +194,7 @@ export interface ParentPathCondition extends BaseConditionNode {
  */
 export interface ChildCondition extends BaseConditionNode {
   condition_type: 'child';
+  operator?: 'has_child' | 'has_no_child';  // Default: 'has_child'
   nested_group: GroupNode;
 }
 
