@@ -216,7 +216,7 @@ function validateCondition(condition: ConditionNode, path: string[], issues: Val
       validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
       break;
       
-    case 'ancestor_path':
+    case 'parent_path':
       validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
       
       if (condition.max_depth !== undefined && condition.max_depth < 1) {

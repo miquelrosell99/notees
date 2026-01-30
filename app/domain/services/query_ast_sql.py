@@ -17,7 +17,7 @@ from app.domain.entities.query_ast import (
     ContentCondition,
     ReferenceCondition,
     ReferencePathCondition,
-    AncestorPathCondition,
+    ParentPathCondition,
     LogicType,
     ScopeType,
 )
@@ -177,8 +177,8 @@ class QueryASTToSQL:
             return self._generate_reference_condition(condition)
         elif isinstance(condition, ReferencePathCondition):
             return self._generate_reference_path_condition(condition)
-        elif isinstance(condition, AncestorPathCondition):
-            return self._generate_ancestor_path_condition(condition)
+        elif isinstance(condition, ParentPathCondition):
+            return self._generate_parent_path_condition(condition)
         
         return None
     
@@ -289,8 +289,8 @@ class QueryASTToSQL:
         # Simplified for now
         return None
     
-    def _generate_ancestor_path_condition(self, condition: AncestorPathCondition) -> Optional[str]:
-        """Generate SQL for ancestor path condition.
+    def _generate_parent_path_condition(self, condition: ParentPathCondition) -> Optional[str]:
+        """Generate SQL for parent path condition.
         
         This finds nodes that are descendants of nodes matching the nested group.
         For child_pages view: finds direct children (max_depth=1) of the current node.

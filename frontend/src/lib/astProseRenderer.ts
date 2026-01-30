@@ -78,7 +78,7 @@ export function getConditionLabel(condition: ConditionNode): string {
     case 'reference_path':
       return 'references nodes matching criteria';
     
-    case 'ancestor_path':
+    case 'parent_path':
       return 'has ancestors matching criteria';
     
     default:
@@ -186,9 +186,9 @@ export function canNegateCondition(_condition: ConditionNode): boolean {
  * Check if a condition type can have nested groups
  */
 export function canNestInCondition(condition: ConditionNode): boolean {
-  // Only reference_path and ancestor_path support nesting
+  // Only reference_path and parent_path support nesting
   return condition.condition_type === 'reference_path' || 
-         condition.condition_type === 'ancestor_path';
+         condition.condition_type === 'parent_path';
 }
 
 // ==================== Sentence Construction ====================

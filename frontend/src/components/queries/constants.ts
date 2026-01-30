@@ -162,10 +162,10 @@ export function isSystemBlock(block: QueryBlock): boolean {
     const uuidBlock = block as { value?: string };
     return uuidBlock.value?.startsWith('{') ?? false;
   }
-  if (block.type === 'ANCESTOR_PATH') {
-    const ancestorBlock = block as { blocks?: QueryBlock[] };
+  if (block.type === 'PARENT_PATH') {
+    const parentPathBlock = block as { blocks?: QueryBlock[] };
     // Check if any nested block is a system block
-    return ancestorBlock.blocks?.some(b => isSystemBlock(b)) ?? false;
+    return parentPathBlock.blocks?.some(b => isSystemBlock(b)) ?? false;
   }
   // Container blocks are system blocks if ALL their children are system blocks
   if (block.type === 'AND_CONTAINER' || block.type === 'OR_CONTAINER') {
