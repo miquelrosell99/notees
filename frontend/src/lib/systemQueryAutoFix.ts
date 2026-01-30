@@ -69,7 +69,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
   {
     viewType: 'child_pages',
     requiresCondition: (_ast, context) => {
-      if (!context.nodeUuid) return null;
+      // Always use placeholder - don't need context check since placeholder resolves at runtime
       return markAsSystemNode({
         type: 'condition',
         condition_type: 'parent',
@@ -83,7 +83,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
               property_name: 'uuid',
               property_type: 'text',
               operator: '=',
-              value: context.nodeUuid,
+              value: '{current_node_uuid}',
             },
           ],
         },
