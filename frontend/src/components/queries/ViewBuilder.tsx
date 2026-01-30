@@ -15,9 +15,9 @@
 import { useCallback, useMemo } from 'react';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { assertValidAST } from '@/lib/astValidator';
-import { ProseConditionBuilder } from './ProseConditionBuilder';
+import { QueryBlockList } from './QueryBlockList';
 import { ProseScopeSelector } from './ProseScopeSelector';
-import type { QueryAST } from '@/types/queryAST';
+import type { QueryAST, GroupNode, ConditionNode, NotNode } from '@/types/queryAST';
 import './ViewBuilder.css';
 
 // ==================== Types ====================
@@ -64,11 +64,14 @@ export function ViewBuilder({
     });
   }, [ast, handleChange]);
   
-  // Handle root group changes
-  const handleRootGroupChange = useCallback((rootGroup: typeof ast.root_group) => {
+  // Handle root group children changes
+  const handleChildrenChange = useCallback((children: Array<ConditionNode | GroupNode | NotNode>) => {
     handleChange({
       ...ast,
-      root_group: rootGroup,
+      root_group: {
+        ...ast.root_group,
+        children,
+      },
     });
   }, [ast, handleChange]);
   
@@ -77,9 +80,10 @@ export function ViewBuilder({
       
       {/* Filters Section */}
       <div className="view-builder__filters-section">
-        <ProseConditionBuilder
-          group={ast.root_group}
-          onUpdate={handleRootGroupChange}
+        <QueryBlockList
+          blocks={ast.root_group.children}
+          parentLogic={ast.root_group.logic}
+          onChange={handleChildrenChange}
           readOnly={readOnly}
         />
       </div>
