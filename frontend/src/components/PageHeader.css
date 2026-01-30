@@ -118,6 +118,8 @@
 .page-title-input.readonly {
   cursor: default;
   color: var(--color-on-surface);
+  pointer-events: none;
+  user-select: none;
 }
 
 .page-title-input.readonly:focus {
