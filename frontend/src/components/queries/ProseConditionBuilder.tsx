@@ -15,6 +15,7 @@ import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
+import { SingleNodeSelector } from './NodeSelectors';
 import { renderConditionProse } from '@/lib/astProseRenderer';
 import { createConditionFromType } from '@/lib/queryASTHelpers';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
@@ -129,7 +130,19 @@ function ProseConditionRow({
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__word">class is</span>
-            <span className="prose-condition__value">{condition.type_uuid}</span>
+            <SingleNodeSelector
+              mode="classes"
+              selectedId={condition.type_id ?? null}
+              onChange={(nodeId, node) => {
+                onUpdate({
+                  ...condition,
+                  type_id: nodeId ?? undefined,
+                  type_uuid: node?.uuid ?? '',
+                });
+              }}
+              placeholder="Select class..."
+              readOnly={effectiveReadOnly}
+            />
           </div>
         );
       
@@ -137,7 +150,19 @@ function ProseConditionRow({
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__word">references</span>
-            <span className="prose-condition__value">{condition.target_uuid}</span>
+            <SingleNodeSelector
+              mode="pages"
+              selectedId={condition.target_id ?? null}
+              onChange={(nodeId, node) => {
+                onUpdate({
+                  ...condition,
+                  target_id: nodeId ?? undefined,
+                  target_uuid: node?.uuid ?? '',
+                });
+              }}
+              placeholder="Select node..."
+              readOnly={effectiveReadOnly}
+            />
           </div>
         );
       
