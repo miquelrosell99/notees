@@ -1,12 +1,13 @@
 /**
  * QueryBlockDisplay Component
  * 
- * Renders a DynamicNodeViewSection for blocks that are classed as "query".
- * Executes the query stored in the block's _query_block_tree property.
+ * Renders query views with tabs for blocks that are classed as "query".
+ * Displays the DynamicNodeViewSection which handles view tabs and editing.
  */
 import { DynamicNodeViewSection } from '../nodes/DynamicNodeViewSection';
 import type { Node } from '@/types/api';
 import { useSystemClasses } from '@/hooks/useNodes';
+import './QueryBlockDisplay.css';
 
 export interface QueryBlockDisplayProps {
   block: Node;
@@ -31,7 +32,7 @@ export function QueryBlockDisplay({ block, onNodeClick }: QueryBlockDisplayProps
         nodeId={block.id}
         nodeUuid={block.uuid}
         viewType="main_content"
-        title="Query Results"
+        title=""
         hideWhenEmpty={false}
         defaultExpanded={true}
         onNodeClick={onNodeClick}
