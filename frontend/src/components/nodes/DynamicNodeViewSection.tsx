@@ -34,6 +34,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { TextField } from '../core/TextField';
 import { ViewBuilder } from '../queries';
+import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
 import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
@@ -44,7 +45,7 @@ import { isSystemBlock } from '../queries/constants';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
-import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline } from '@mdi/js';
+import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline, mdiClose, mdiContentCopy } from '@mdi/js';
 import './DynamicNodeViewSection.css';
 
 // ==================== Types ====================
@@ -106,6 +107,15 @@ export function DynamicNodeViewSection({
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showProseModal, setShowProseModal] = useState(false);
+  const [showSQL, setShowSQL] = useState(false);
+
+  // Handle copying AST to clipboard
+  const handleCopyAST = useCallback(() => {
+    if (editAST) {
+      const astJson = JSON.stringify(editAST, null, 2);
+      navigator.clipboard.writeText(astJson);
+    }
+  }, [editAST]);
   
   // Get persisted view mode from store
   const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
@@ -709,25 +719,6 @@ export function DynamicNodeViewSection({
         {editingView && editAST && (
           <div className="dynamic-section__edit-form">
             {/* ViewBuilder - prose-based AST editing */}
-
-      {/* Prose query preview modal */}
-      <Modal
-        isOpen={showProseModal}
-        onClose={() => setShowProseModal(false)}
-        title="Query as prose"
-        size="md"
-      >
-        {editAST && (
-          <div style={{ 
-            padding: '16px', 
-            fontSize: '15px', 
-            lineHeight: '1.6',
-            color: 'var(--color-text-primary, #212529)'
-          }}>
-            {getQueryIntent(editAST)}
-          </div>
-        )}
-      </Modal>
             <ViewBuilder
               ast={editAST}
               onChange={(updatedAST) => {
@@ -737,6 +728,163 @@ export function DynamicNodeViewSection({
               resultCount={previewResults?.length}
               isLoading={previewLoading}
             />
+          </div>
+        )}
+      </Modal>
+
+      {/* Prose query preview modal */}
+      <Modal
+        isOpen={showProseModal}
+        onClose={() => {
+          setShowProseModal(false);
+          setShowSQL(false);
+        }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <span>Query Preview</span>
+            <Button
+              icon={mdiClose}
+              iconOnly
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setShowProseModal(false);
+                setShowSQL(false);
+              }}
+              title="Close"
+            />
+          </div>
+        }
+        size="lg"
+      >
+        {editAST && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Prose description */}
+            <div>
+              <h4 style={{ 
+                fontSize: '13px', 
+                fontWeight: 600, 
+                color: 'var(--color-text-secondary, #6c757d)',
+                marginBottom: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Natural Language
+              </h4>
+              <div style={{ 
+                padding: '16px', 
+                fontSize: '15px', 
+                lineHeight: '1.6',
+                color: 'var(--color-text-primary, #212529)',
+                backgroundColor: 'var(--color-surface-secondary, #f8f9fa)',
+                borderRadius: '4px'
+              }}>
+                {getQueryIntent(editAST)}
+              </div>
+            </div>
+
+            {/* AST Section */}
+            <div>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                marginBottom: '12px'
+              }}>
+                <h4 style={{ 
+                  fontSize: '13px', 
+                  fontWeight: 600, 
+                  color: 'var(--color-text-secondary, #6c757d)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  Query Structure
+                </h4>
+                <Button
+                  icon={mdiContentCopy}
+                  onClick={handleCopyAST}
+                  variant="ghost"
+                  size="xs"
+                >
+                  Copy
+                </Button>
+              </div>
+              <pre style={{
+                padding: '16px',
+                fontSize: '13px',
+                lineHeight: '1.5',
+                backgroundColor: 'var(--color-surface-tertiary, #f1f3f5)',
+                borderRadius: '4px',
+                overflow: 'auto',
+                maxHeight: '300px'
+              }}>
+                {JSON.stringify(editAST, null, 2)}
+              </pre>
+            </div>
+
+            {/* SQL Section */}
+            <div>
+              {!showSQL ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSQL(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '8px 0',
+                    fontSize: '13px',
+                    color: 'var(--color-text-tertiary, #868e96)',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Show execution preview…
+                </button>
+              ) : (
+                <>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    marginBottom: '12px'
+                  }}>
+                    <h4 style={{ 
+                      fontSize: '13px', 
+                      fontWeight: 600, 
+                      color: 'var(--color-text-secondary, #6c757d)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Execution Preview
+                    </h4>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--color-text-quaternary, #adb5bd)',
+                      fontStyle: 'italic'
+                    }}>
+                      (informational only)
+                    </span>
+                  </div>
+                  <QuerySQLPreview ast={editAST} />
+                  <button
+                    type="button"
+                    onClick={() => setShowSQL(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '8px 0',
+                      marginTop: '8px',
+                      fontSize: '13px',
+                      color: 'var(--color-text-tertiary, #868e96)',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    Hide
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </Modal>
