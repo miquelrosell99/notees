@@ -49,6 +49,12 @@ export function ProseConditionBuilder({
   readOnly = false,
 }: ProseConditionBuilderProps) {
   
+  // Safety check - if block is undefined, render nothing
+  if (!block) {
+    console.error('ProseConditionBuilder: block is undefined');
+    return null;
+  }
+  
   const condition = block;
   const isSystem = isSystemNode(condition);
   const isEditable = !readOnly && isNodeEditable(condition);

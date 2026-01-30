@@ -464,6 +464,7 @@ export function getMaxDepth(ast: QueryAST): number {
  * Check if a node is a system node (locked capabilities)
  */
 export function isSystemNode(node: ConditionNode | GroupNode | NotNode): boolean {
+  if (!node) return false;
   const caps = node.capabilities;
   if (!caps) return false;
   return !caps.removable && !caps.editable && !caps.movable && caps.visible;
@@ -473,6 +474,7 @@ export function isSystemNode(node: ConditionNode | GroupNode | NotNode): boolean
  * Check if a node is editable
  */
 export function isNodeEditable(node: ConditionNode | GroupNode | NotNode): boolean {
+  if (!node) return false;
   return node.capabilities?.editable ?? true;
 }
 
@@ -480,6 +482,7 @@ export function isNodeEditable(node: ConditionNode | GroupNode | NotNode): boole
  * Check if a node is removable
  */
 export function isNodeRemovable(node: ConditionNode | GroupNode | NotNode): boolean {
+  if (!node) return false;
   return node.capabilities?.removable ?? true;
 }
 
