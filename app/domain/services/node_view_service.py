@@ -31,6 +31,12 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                     "blocks": [
                         {"type": "UUID", "value": "{current_node_uuid}"}
                     ]
+                },
+                {
+                    "type": "FLAG",
+                    "value": "is_page",
+                    "operator": "is",
+                    "isSystemNode": True,  # Only show pages (is_page=true), not blocks
                 }
             ]
         }
