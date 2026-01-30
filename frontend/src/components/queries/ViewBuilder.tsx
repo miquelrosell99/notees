@@ -46,6 +46,7 @@ export function ViewBuilder({
   isLoading = false,
   readOnly = false,
   className = '',
+  hideFooter = false,
 }: ViewBuilderProps) {
   
   // Auto-normalize and validate AST on every change (validation is console-only)
@@ -84,32 +85,34 @@ export function ViewBuilder({
       </div>
       
       {/* Footer with scope selector and result preview */}
-      <div className="view-builder__footer">
-        {/* Scope Selector - Left side, button only */}
-        <div className="view-builder__footer-left">
-          <ProseScopeSelector
-            scope={ast.scope}
-            onChange={handleScopeChange}
-            readOnly={readOnly}
-          />
+      {!hideFooter && (
+        <div className="view-builder__footer">
+          {/* Scope Selector - Left side, button only */}
+          <div className="view-builder__footer-left">
+            <ProseScopeSelector
+              scope={ast.scope}
+              onChange={handleScopeChange}
+              readOnly={readOnly}
+            />
+          </div>
+          
+          {/* Result Preview - Right side */}
+          <div className="view-builder__footer-right">
+            {resultCount !== undefined && (
+              <div className="view-builder__result-preview">
+                {isLoading ? (
+                  <span className="view-builder__result-loading">Calculating…</span>
+                ) : (
+                  <span className="view-builder__result-count">
+                    <span className="view-builder__result-dot">●</span>
+                    {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        
-        {/* Result Preview - Right side */}
-        <div className="view-builder__footer-right">
-          {resultCount !== undefined && (
-            <div className="view-builder__result-preview">
-              {isLoading ? (
-                <span className="view-builder__result-loading">Calculating…</span>
-              ) : (
-                <span className="view-builder__result-count">
-                  <span className="view-builder__result-dot">●</span>
-                  {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
