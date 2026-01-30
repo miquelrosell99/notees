@@ -194,11 +194,13 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
     
     case 'CLASS': {
       const classBlock = block as ClassBlock;
+      // Handle legacy type_id field for backward compatibility
+      const classId = classBlock.type_id ?? (block as any).type_id;
       return {
         type: 'condition',
         condition_type: 'class',
         class_uuid: classBlock.value,
-        class_id: classBlock.type_id,
+        class_id: classId,
       } as ClassCondition;
     }
     
