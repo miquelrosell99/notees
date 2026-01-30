@@ -178,25 +178,42 @@ function ProseConditionRow({
         );
       }
       
-      case 'reference':
+      case 'reference': {
+        const operator = condition.operator || 'references';
+        const needsSelection = operator !== 'has_references' && operator !== 'has_no_references';
+        
         return (
           <div className="prose-condition__inline">
-            <span className="prose-condition__word">references</span>
-            <SingleNodeSelector
-              mode="pages"
-              selectedId={condition.target_id ?? null}
-              onChange={(nodeId, node) => {
-                onUpdate({
-                  ...condition,
-                  target_id: nodeId ?? undefined,
-                  target_uuid: node?.uuid ?? '',
-                });
-              }}
-              placeholder="Select node..."
-              readOnly={effectiveReadOnly}
+            <Dropdown
+              value={operator}
+              onChange={(value) => onUpdate({ ...condition, operator: value as 'references' | 'does_not_reference' | 'has_references' | 'has_no_references' })}
+              disabled={effectiveReadOnly}
+              options={[
+                { value: 'references', label: 'references' },
+                { value: 'does_not_reference', label: 'does not reference' },
+                { value: 'has_references', label: 'has any references' },
+                { value: 'has_no_references', label: 'has no references' },
+              ]}
+              size="sm"
             />
+            {needsSelection && (
+              <SingleNodeSelector
+                mode="pages"
+                selectedId={condition.target_id ?? null}
+                onChange={(nodeId, node) => {
+                  onUpdate({
+                    ...condition,
+                    target_id: nodeId ?? undefined,
+                    target_uuid: node?.uuid ?? '',
+                  });
+                }}
+                placeholder="Select node..."
+                readOnly={effectiveReadOnly}
+              />
+            )}
           </div>
         );
+      }
       
       default:
         return (
