@@ -15,7 +15,10 @@ import type {
   ContentBlock,
   ReferenceBlock,
   ReferencePathBlock,
-  AncestorPathBlock,
+  ParentBlock,
+  ParentPathBlock,
+  ChildBlock,
+  ChildPathBlock,
   ClassPathBlock,
   UuidBlock,
 } from '@/types/query';
@@ -31,7 +34,10 @@ import type {
   ContentCondition,
   ReferenceCondition,
   ReferencePathCondition,
-  AncestorPathCondition,
+  ParentCondition,
+  ParentPathCondition,
+  ChildCondition,
+  ChildPathCondition,
   ClassPathCondition,
 } from '@/types/queryAST';
 
@@ -81,7 +87,7 @@ export function blockTreeToAST(blockTree: QueryBlockTree, queryId?: string, isSy
     ast.is_system = true;
   }
   
-  // Extract scope from blocks (look for ANCESTOR_PATH, UUID blocks)
+  // Extract scope from blocks (look for PARENT_PATH, UUID blocks)
   const { scope, filteredBlocks } = extractScope(blockTree.blocks, isSystem);
   ast.scope = scope;
   
@@ -112,21 +118,21 @@ function extractScope(blocks: QueryBlock[], isSystem?: boolean): { scope: ScopeN
     }
     
     // Look for ANCESTOR_PATH blocks with UUID children (page scope)
-    if (block.type === 'ANCESTOR_PATH') {
-      const ancestorBlock = block as AncestorPathBlock;
-      const uuidBlock = ancestorBlock.blocks?.find(b => b.type === 'UUID') as UuidBlock | undefined;
+    if (block.type === 'PARENT_PATH') {
+      const parentPathBlock = block as ParentPathBlock;
+      const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as UuidBlock | undefined;
       
       if (uuidBlock?.value && !uuidBlock.value.startsWith('{')) {
         pageUuids.push(uuidBlock.value);
         continue; // Don't include in filtered blocks
       }
     }
-    // Look for NOT(ANCESTOR_PATH) blocks (excluded pages)
+    // Look for NOT(PARENT_PATH) blocks (excluded pages)
     else if (block.type === 'NOT_CONTAINER') {
       const notBlock = block as NotBlock;
-      if (notBlock.block?.type === 'ANCESTOR_PATH') {
-        const ancestorBlock = notBlock.block as AncestorPathBlock;
-        const uuidBlock = ancestorBlock.blocks?.find(b => b.type === 'UUID') as UuidBlock | undefined;
+      if (notBlock.block?.type === 'PARENT_PATH') {
+        const parentPathBlock = notBlock.block as ParentPathBlock;
+        const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as UuidBlock | undefined;
         
         if (uuidBlock?.value && !uuidBlock.value.startsWith('{')) {
           excludedPageUuids.push(uuidBlock.value);
@@ -253,18 +259,58 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
       } as ReferencePathCondition;
     }
     
-    case 'ANCESTOR_PATH': {
-      const ancestorBlock = block as AncestorPathBlock;
+    case 'PARENT': {
+      const parentBlock = block as ParentBlock;
       return {
         type: 'condition',
-        condition_type: 'ancestor_path',
+        condition_type: 'parent',
         nested_group: {
           type: 'group',
           logic: 'AND',
-          children: ancestorBlock.blocks.map(b => convertBlockToASTNode(b)),
+          children: parentBlock.blocks.map(b => convertBlockToASTNode(b)),
         },
-        max_depth: ancestorBlock.max_depth,
-      } as AncestorPathCondition;
+      } as ParentCondition;
+    }
+    
+    case 'PARENT_PATH': {
+      const parentPathBlock = block as ParentPathBlock;
+      return {
+        type: 'condition',
+        condition_type: 'parent_path',
+        nested_group: {
+          type: 'group',
+          logic: 'AND',
+          children: parentPathBlock.blocks.map(b => convertBlockToASTNode(b)),
+        },
+        max_depth: parentPathBlock.max_depth,
+      } as ParentPathCondition;
+    }
+    
+    case 'CHILD': {
+      const childBlock = block as ChildBlock;
+      return {
+        type: 'condition',
+        condition_type: 'child',
+        nested_group: {
+          type: 'group',
+          logic: 'AND',
+          children: childBlock.blocks.map(b => convertBlockToASTNode(b)),
+        },
+      } as ChildCondition;
+    }
+    
+    case 'CHILD_PATH': {
+      const childPathBlock = block as ChildPathBlock;
+      return {
+        type: 'condition',
+        condition_type: 'child_path',
+        nested_group: {
+          type: 'group',
+          logic: 'AND',
+          children: childPathBlock.blocks.map(b => convertBlockToASTNode(b)),
+        },
+        max_depth: childPathBlock.max_depth,
+      } as ChildPathCondition;
     }
     
     case 'CLASS_PATH': {
@@ -295,7 +341,7 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
 export function astToBlockTree(ast: QueryAST): QueryBlockTree {
   const blocks: QueryBlock[] = [];
   
-  // Convert scope to blocks (ANCESTOR_PATH, NOT_CONTAINER, etc.)
+  // Convert scope to blocks (PARENT_PATH, NOT_CONTAINER, etc.)
   const scopeBlocks = scopeToBlocks(ast.scope);
   blocks.push(...scopeBlocks);
   
@@ -315,25 +361,25 @@ export function astToBlockTree(ast: QueryAST): QueryBlockTree {
 function scopeToBlocks(scope: ScopeNode): QueryBlock[] {
   const blocks: QueryBlock[] = [];
   
-  // Add included pages as ANCESTOR_PATH blocks
+  // Add included pages as PARENT_PATH blocks
   if (scope.page_uuids && scope.page_uuids.length > 0) {
     for (const uuid of scope.page_uuids) {
       blocks.push({
-        type: 'ANCESTOR_PATH',
+        type: 'PARENT_PATH',
         blocks: [{ type: 'UUID', value: uuid }],
-      } as AncestorPathBlock);
+      } as ParentPathBlock);
     }
   }
   
-  // Add excluded pages as NOT(ANCESTOR_PATH) blocks
+  // Add excluded pages as NOT(PARENT_PATH) blocks
   if (scope.excluded_page_uuids && scope.excluded_page_uuids.length > 0) {
     for (const uuid of scope.excluded_page_uuids) {
       blocks.push({
         type: 'NOT_CONTAINER',
         block: {
-          type: 'ANCESTOR_PATH',
+          type: 'PARENT_PATH',
           blocks: [{ type: 'UUID', value: uuid }],
-        } as AncestorPathBlock,
+        } as ParentPathBlock,
       } as NotBlock);
     }
   }
@@ -419,13 +465,38 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
       } as ReferencePathBlock;
     }
     
-    case 'ancestor_path': {
-      const ancestorCond = condition as AncestorPathCondition;
+    case 'parent': {
+      const parentCond = condition as ParentCondition;
       return {
-        type: 'ANCESTOR_PATH',
-        blocks: ancestorCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
-        max_depth: ancestorCond.max_depth,
-      } as AncestorPathBlock;
+        type: 'PARENT',
+        blocks: parentCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
+      } as ParentBlock;
+    }
+    
+    case 'parent_path': {
+      const parentPathCond = condition as ParentPathCondition;
+      return {
+        type: 'PARENT_PATH',
+        blocks: parentPathCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
+        max_depth: parentPathCond.max_depth,
+      } as ParentPathBlock;
+    }
+    
+    case 'child': {
+      const childCond = condition as ChildCondition;
+      return {
+        type: 'CHILD',
+        blocks: childCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
+      } as ChildBlock;
+    }
+    
+    case 'child_path': {
+      const childPathCond = condition as ChildPathCondition;
+      return {
+        type: 'CHILD_PATH',
+        blocks: childPathCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
+        max_depth: childPathCond.max_depth,
+      } as ChildPathBlock;
     }
     
     case 'class_path': {
