@@ -654,6 +654,38 @@ export function DynamicNodeViewSection({
         className="dynamic-section__edit-modal"
         footer={editingView && (
           <div className="dynamic-section__modal-footer">
+            {/* Scope Selector - Left side */}
+            <div className="view-builder__footer-left">
+              <ProseScopeSelector
+                scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
+                onChange={(newScope) => {
+                  if (editAST) {
+                    setEditAST({
+                      ...editAST,
+                      scope: newScope,
+                    });
+                  }
+                }}
+                readOnly={false}
+              />
+            </div>
+            
+            {/* Result count */}
+            {previewResults && (
+              <div className="view-builder__result-preview">
+                {previewLoading ? (
+                  <span className="view-builder__result-loading">Calculating…</span>
+                ) : (
+                  <span className="view-builder__result-count">
+                    <span className="view-builder__result-dot">●</span>
+                    {previewResults.length} node{previewResults.length !== 1 ? 's' : ''} found
+                  </span>
+                )}
+              </div>
+            )}
+            
+            <div className="dynamic-section__footer-spacer" />
+            
             {/* Only show delete button if there are multiple views of this type */}
             {views.filter(v => v.view_type === editingView.view_type).length > 1 && (
               <InlineConfirmButton
@@ -667,7 +699,6 @@ export function DynamicNodeViewSection({
                 <DeleteIcon size="sm" />
               </InlineConfirmButton>
             )}
-            <div className="dynamic-section__footer-spacer" />
             <TextField
               id="view-name"
               value={editViewName}
@@ -724,39 +755,6 @@ export function DynamicNodeViewSection({
         onClose={() => setShowProseModal(false)}
         title="Query Preview"
         size="lg"
-        footer={editAST && (
-          <div className="view-builder__footer">
-            {/* Scope Selector - Left side, button only */}
-            <div className="view-builder__footer-left">
-              <ProseScopeSelector
-                scope={editAST.scope}
-                onChange={(newScope) => {
-                  setEditAST({
-                    ...editAST,
-                    scope: newScope,
-                  });
-                }}
-                readOnly={false}
-              />
-            </div>
-            
-            {/* Result Preview - Right side */}
-            <div className="view-builder__footer-right">
-              {previewResults && (
-                <div className="view-builder__result-preview">
-                  {previewLoading ? (
-                    <span className="view-builder__result-loading">Calculating…</span>
-                  ) : (
-                    <span className="view-builder__result-count">
-                      <span className="view-builder__result-dot">●</span>
-                      {previewResults.length} node{previewResults.length !== 1 ? 's' : ''} found
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       >
         {editAST && (
           <div className="query-preview">
