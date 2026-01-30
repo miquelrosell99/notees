@@ -295,6 +295,36 @@ export function DynamicNodeViewSection({
   const isQueryLoading = isPseudoNode ? pseudoQueryLoading : queryLoading;
   const handleRefetchQuery = isPseudoNode ? refetchPseudoQuery : refetchQuery;
 
+  // Preview query for edit modal - execute editAST in real-time
+  const editASTBlockTree = useMemo(() => {
+    if (!editAST) return null;
+    try {
+      return astToBlockTree(editAST);
+    } catch (error) {
+      console.warn('Failed to convert editAST to block tree:', error);
+      return null;
+    }
+  }, [editAST]);
+
+  const {
+    data: previewResults,
+    isLoading: previewLoading,
+  } = useQuery_(
+    {
+      block_tree: editASTBlockTree ?? undefined,
+      runtime_params: {
+        current_node_uuid: nodeUuid,
+        current_node_id: nodeId,
+      },
+      include_children: viewType === 'all_pages',
+      include_properties: true,
+    },
+    {
+      enabled: !!editAST && !!editASTBlockTree,
+      queryKey: ['preview-query', nodeId, editAST],
+    }
+  );
+
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
     // System views (default views for certain types) cannot be edited
@@ -671,8 +701,8 @@ export function DynamicNodeViewSection({
                 setEditAST(updatedAST);
                 setValidation(validateQueryAST(updatedAST));
               }}
-              resultCount={resultNodes.length}
-              isLoading={isQueryLoading}
+              resultCount={previewResults?.length}
+              isLoading={previewLoading}
             />
           </div>
         )}
