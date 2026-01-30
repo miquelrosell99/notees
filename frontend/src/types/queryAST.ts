@@ -82,7 +82,7 @@ export interface ScopeNode {
   scope_type: ScopeType;
   // For specific_pages scope type
   page_uuids?: string[];
-  // For ancestor_path filtering (nodes inside specific pages)
+  // For parent_path filtering (nodes inside specific pages)
   include_descendants?: boolean;
   // For negated scope filters
   excluded_page_uuids?: string[];
@@ -99,7 +99,11 @@ export type ConditionType =
   | 'content'
   | 'reference'
   | 'reference_path'
-  | 'ancestor_path';
+  | 'parent'
+  | 'parent_path'
+  | 'child'
+  | 'child_path'
+  | 'class_path';
 
 /**
  * Base condition node
@@ -162,10 +166,35 @@ export interface ReferencePathCondition extends BaseConditionNode {
 }
 
 /**
- * Ancestor path condition - filter by nodes with ancestors matching criteria
+ * Parent condition - filter by direct parent
  */
-export interface AncestorPathCondition extends BaseConditionNode {
-  condition_type: 'ancestor_path';
+export interface ParentCondition extends BaseConditionNode {
+  condition_type: 'parent';
+  nested_group: GroupNode;
+}
+
+/**
+ * Parent path condition - filter by nodes with ancestors matching criteria
+ */
+export interface ParentPathCondition extends BaseConditionNode {
+  condition_type: 'parent_path';
+  nested_group: GroupNode;
+  max_depth?: number;
+}
+
+/**
+ * Child condition - filter by direct children
+ */
+export interface ChildCondition extends BaseConditionNode {
+  condition_type: 'child';
+  nested_group: GroupNode;
+}
+
+/**
+ * Child path condition - filter by descendants
+ */
+export interface ChildPathCondition extends BaseConditionNode {
+  condition_type: 'child_path';
   nested_group: GroupNode;
   max_depth?: number;
 }
@@ -187,7 +216,10 @@ export type ConditionNode =
   | ContentCondition
   | ReferenceCondition
   | ReferencePathCondition
-  | AncestorPathCondition
+  | ParentCondition
+  | ParentPathCondition
+  | ChildCondition
+  | ChildPathCondition
   | ClassPathCondition;
 
 // ==================== Group Node ====================

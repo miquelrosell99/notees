@@ -19,7 +19,10 @@ export type QueryBlockType =
   | 'CONTENT'
   | 'REFERENCE'
   | 'REFERENCE_PATH'
-  | 'ANCESTOR_PATH'
+  | 'PARENT'
+  | 'PARENT_PATH'
+  | 'CHILD'
+  | 'CHILD_PATH'
   | 'CLASS_PATH'
   | 'UUID';
 
@@ -139,11 +142,36 @@ export interface ReferencePathBlock extends BaseQueryBlock {
 }
 
 /**
- * Ancestor path filter block - nodes with ancestors matching criteria
+ * Parent filter block - nodes with direct parent matching criteria
  */
-export interface AncestorPathBlock extends BaseQueryBlock {
-  type: 'ANCESTOR_PATH';
+export interface ParentBlock extends BaseQueryBlock {
+  type: 'PARENT';
+  blocks: QueryBlock[]; // Filters for what the parent should match
+}
+
+/**
+ * Parent path filter block - nodes with ancestors matching criteria
+ */
+export interface ParentPathBlock extends BaseQueryBlock {
+  type: 'PARENT_PATH';
   blocks: QueryBlock[]; // Filters for what ancestors should match
+  max_depth?: number;
+}
+
+/**
+ * Child filter block - nodes with direct children matching criteria
+ */
+export interface ChildBlock extends BaseQueryBlock {
+  type: 'CHILD';
+  blocks: QueryBlock[]; // Filters for what children should match
+}
+
+/**
+ * Child path filter block - nodes with descendants matching criteria
+ */
+export interface ChildPathBlock extends BaseQueryBlock {
+  type: 'CHILD_PATH';
+  blocks: QueryBlock[]; // Filters for what descendants should match
   max_depth?: number;
 }
 
@@ -174,7 +202,10 @@ export type QueryBlock =
   | ContentBlock
   | ReferenceBlock
   | ReferencePathBlock
-  | AncestorPathBlock
+  | ParentBlock
+  | ParentPathBlock
+  | ChildBlock
+  | ChildPathBlock
   | ClassPathBlock
   | UuidBlock;
 
@@ -343,14 +374,52 @@ export function createReferenceBlock(
 }
 
 /**
- * Create an ancestor path filter block
+ * Create a parent filter block
  */
-export function createAncestorPathBlock(
+export function createParentBlock(
+  nestedBlocks: QueryBlock[],
+): ParentBlock {
+  return {
+    type: 'PARENT',
+    blocks: nestedBlocks,
+  };
+}
+
+/**
+ * Create a parent path filter block
+ */
+export function createParentPathBlock(
   nestedBlocks: QueryBlock[],
   maxDepth?: number,
-): AncestorPathBlock {
+): ParentPathBlock {
   return {
-    type: 'ANCESTOR_PATH',
+    type: 'PARENT_PATH',
+    blocks: nestedBlocks,
+    max_depth: maxDepth,
+  };
+}
+
+/**
+ * Create a child filter block
+ */
+export function createChildBlock(
+  nestedBlocks: QueryBlock[],
+): ChildBlock {
+  return {
+    type: 'CHILD',
+    blocks: nestedBlocks,
+  };
+}
+
+/**
+ * Create a child path filter block
+ */
+export function createChildPathBlock(
+  nestedBlocks: QueryBlock[],
+  maxDepth?: number,
+): ChildPathBlock {
+  return {
+    type: 'CHILD_PATH',
     blocks: nestedBlocks,
     max_depth: maxDepth,
   };

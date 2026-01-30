@@ -10,6 +10,7 @@ import {
   mdiTextBox,
   mdiLink,
   mdiArrowUp,
+  mdiArrowDown,
   mdiCodeBraces,
   mdiCancel,
   mdiFormatListBulleted,
@@ -42,7 +43,10 @@ export const FILTER_TYPE_OPTIONS: FilterTypeOption[] = [
   { value: 'CONTENT', label: 'Content', icon: mdiTextBox, description: 'Filter by text content' },
   { value: 'REFERENCE', label: 'References', icon: mdiLink, description: 'Nodes that reference...' },
   { value: 'REFERENCE_PATH', label: 'Path References', icon: mdiLink, description: 'Nodes referenced by path' },
-  { value: 'ANCESTOR_PATH', label: 'Inside page', icon: mdiArrowUp, description: 'Descendant of page' },
+  { value: 'PARENT', label: 'Direct parent', icon: mdiArrowUp, description: 'Has specific parent' },
+  { value: 'PARENT_PATH', label: 'Inside page', icon: mdiArrowUp, description: 'Descendant of page' },
+  { value: 'CHILD', label: 'Direct child', icon: mdiArrowDown, description: 'Has specific child' },
+  { value: 'CHILD_PATH', label: 'Contains', icon: mdiArrowDown, description: 'Has descendant' },
   { value: 'CLASS_PATH', label: 'Inherited class', icon: mdiTagOutline, description: 'Has class from ancestors' },
   { value: 'PROPERTY', label: 'Property', icon: mdiCodeBraces, description: 'Filter by property value' },
   { value: 'AND_CONTAINER', label: 'All of (AND)', icon: mdiSetAll, description: 'Match all nested conditions' },
@@ -127,7 +131,13 @@ export function createDefaultBlock(type: QueryBlockType): QueryBlock {
       return { type, target_uuid: '' };
     case 'REFERENCE_PATH':
       return { type, blocks: [] };
-    case 'ANCESTOR_PATH':
+    case 'PARENT':
+      return { type, blocks: [] };
+    case 'PARENT_PATH':
+      return { type, blocks: [] };
+    case 'CHILD':
+      return { type, blocks: [] };
+    case 'CHILD_PATH':
       return { type, blocks: [] };
     case 'CLASS_PATH':
       return { type, blocks: [] };

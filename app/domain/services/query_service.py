@@ -205,8 +205,14 @@ class QuerySQLGenerator:
             return self._generate_reference_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.REFERENCE_PATH.value:
             return self._generate_reference_path_condition(block, runtime_params, node_alias)
-        elif block_type == QueryBlockType.ANCESTOR_PATH.value:
-            return self._generate_ancestor_path_condition(block, runtime_params, node_alias)
+        elif block_type == QueryBlockType.PARENT.value:
+            return self._generate_parent_condition(block, runtime_params, node_alias)
+        elif block_type == QueryBlockType.PARENT_PATH.value:
+            return self._generate_parent_path_condition(block, runtime_params, node_alias)
+        elif block_type == QueryBlockType.CHILD.value:
+            return self._generate_child_condition(block, runtime_params, node_alias)
+        elif block_type == QueryBlockType.CHILD_PATH.value:
+            return self._generate_child_path_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.CLASS_PATH.value:
             return self._generate_class_path_condition(block, runtime_params, node_alias)
         elif block_type == QueryBlockType.UUID.value:
@@ -757,7 +763,37 @@ class QuerySQLGenerator:
             )
         """.strip()
     
-    def _generate_ancestor_path_condition(
+    def _generate_parent_condition(
+        self,
+        block: Dict[str, Any],
+        runtime_params: Dict[str, Any],
+        node_alias: str,
+    ) -> str:
+        """Generate direct parent filter condition.
+        
+        Finds nodes whose immediate parent matches the nested criteria.
+        """
+        nested_blocks = block.get("blocks", [])
+        
+        if not nested_blocks:
+            return "TRUE"
+        
+        # Build subquery for matching parent node
+        parent_alias = self._next_alias("parent")
+        nested_tree = {"type": "AND_CONTAINER", "blocks": nested_blocks}
+        nested_clause = self._generate_where_clause(nested_tree, runtime_params, parent_alias)
+        
+        return f"""
+            EXISTS (
+                SELECT 1 FROM node {parent_alias}
+                WHERE {parent_alias}.id = {node_alias}.parent_id
+                  AND {parent_alias}.graph_id = {self._next_param(self._graph_id)}
+                  AND {parent_alias}.active = TRUE
+                  AND ({nested_clause})
+            )
+        """.strip()
+    
+    def _generate_parent_path_condition(
         self,
         block: Dict[str, Any],
         runtime_params: Dict[str, Any],
@@ -793,6 +829,76 @@ class QuerySQLGenerator:
                   {depth_condition}
                   AND {ancestor_alias}.graph_id = {self._next_param(self._graph_id)}
                   AND {ancestor_alias}.active = TRUE
+                  AND ({nested_clause})
+            )
+        """.strip()
+    
+    def _generate_child_condition(
+        self,
+        block: Dict[str, Any],
+        runtime_params: Dict[str, Any],
+        node_alias: str,
+    ) -> str:
+        """Generate direct child filter condition.
+        
+        Finds nodes that have at least one immediate child matching the criteria.
+        """
+        nested_blocks = block.get("blocks", [])
+        
+        if not nested_blocks:
+            return "TRUE"
+        
+        # Build subquery for matching child nodes
+        child_alias = self._next_alias("child")
+        nested_tree = {"type": "AND_CONTAINER", "blocks": nested_blocks}
+        nested_clause = self._generate_where_clause(nested_tree, runtime_params, child_alias)
+        
+        return f"""
+            EXISTS (
+                SELECT 1 FROM node {child_alias}
+                WHERE {child_alias}.parent_id = {node_alias}.id
+                  AND {child_alias}.graph_id = {self._next_param(self._graph_id)}
+                  AND {child_alias}.active = TRUE
+                  AND ({nested_clause})
+            )
+        """.strip()
+    
+    def _generate_child_path_condition(
+        self,
+        block: Dict[str, Any],
+        runtime_params: Dict[str, Any],
+        node_alias: str,
+    ) -> str:
+        """Generate descendant path filter condition.
+        
+        Finds nodes that have descendants matching the nested criteria.
+        Uses the node_path closure table for efficient descendant lookup.
+        """
+        nested_blocks = block.get("blocks", [])
+        max_depth = block.get("max_depth")
+        
+        if not nested_blocks:
+            return "TRUE"
+        
+        # Build subquery for matching descendant nodes
+        descendant_alias = self._next_alias("descendant")
+        nested_tree = {"type": "AND_CONTAINER", "blocks": nested_blocks}
+        nested_clause = self._generate_where_clause(nested_tree, runtime_params, descendant_alias)
+        
+        depth_condition = ""
+        if max_depth is not None:
+            depth_param = self._next_param(max_depth)
+            depth_condition = f"AND np.depth <= {depth_param}"
+        
+        return f"""
+            EXISTS (
+                SELECT 1 FROM node_path np
+                JOIN node {descendant_alias} ON {descendant_alias}.id = np.descendant_id
+                WHERE np.ancestor_id = {node_alias}.id
+                  AND np.depth > 0
+                  {depth_condition}
+                  AND {descendant_alias}.graph_id = {self._next_param(self._graph_id)}
+                  AND {descendant_alias}.active = TRUE
                   AND ({nested_clause})
             )
         """.strip()
