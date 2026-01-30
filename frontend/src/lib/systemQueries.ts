@@ -78,6 +78,7 @@ export function createClassedNodesQuery(typeUuid: string, typeName?: string): Qu
     type: 'condition',
     condition_type: 'class',
     class_uuid: typeUuid,
+    operator: 'contains',
   });
 
   return {
