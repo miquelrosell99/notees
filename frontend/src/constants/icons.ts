@@ -33,6 +33,7 @@ export {
   mdiFolderOpenOutline,
   mdiNotebookOutline,
   mdiBookOpenPageVariant,
+  mdiWeb,
   
   // Actions
   mdiContentCopy,
