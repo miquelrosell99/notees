@@ -10,7 +10,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, ClassCondition } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, ClassCondition, ParentCondition } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/query';
 
@@ -65,28 +65,45 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
     },
   },
   
-  // Child Pages section - requires parent_uuid condition
+  // Child Pages section - requires parent condition with UUID filter
   {
     viewType: 'child_pages',
     requiresCondition: (_ast, context) => {
-      if (!context.parentUuid) return null;
+      if (!context.nodeUuid) return null;
       return markAsSystemNode({
         type: 'condition',
-        condition_type: 'property',
-        property_name: 'parent_uuid',
-        property_type: 'text',
-        operator: '=',
-        value: context.parentUuid,
+        condition_type: 'parent',
+        nested_group: {
+          type: 'group',
+          logic: 'AND',
+          children: [
+            {
+              type: 'condition',
+              condition_type: 'property',
+              property_name: 'uuid',
+              property_type: 'text',
+              operator: '=',
+              value: context.nodeUuid,
+            },
+          ],
+        },
       });
     },
     hasRequiredCondition: (ast, context) => {
       return ast.root_group.children.some(
-        (child) =>
-          child.type === 'condition' &&
-          isPropertyCondition(child) &&
-          child.property_name === 'parent_uuid' &&
-          child.value === context.parentUuid &&
-          isSystemNode(child)
+        (child) => {
+          if (child.type !== 'condition' || !isSystemNode(child)) return false;
+          const parentCond = child as any;
+          if (parentCond.condition_type !== 'parent') return false;
+          // Check if nested group has UUID condition matching context
+          const nestedChildren = parentCond.nested_group?.children || [];
+          return nestedChildren.some(
+            (nested: any) =>
+              nested.condition_type === 'property' &&
+              nested.property_name === 'uuid' &&
+              nested.value === context.nodeUuid
+          );
+        }
       );
     },
   },
@@ -220,7 +237,7 @@ export function needsAutoFix(
 export function getAutoFixDescription(viewType: string): string | null {
   const descriptions: Record<string, string> = {
     linked_references: 'Add required reference condition',
-    child_pages: 'Add required parent_uuid condition',
+    child_pages: 'Add required parent condition',
     classed_nodes: 'Add required class condition',
   };
   return descriptions[viewType] || null;
