@@ -34,6 +34,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { TextField } from '../core/TextField';
 import { ViewBuilder } from '../queries';
+import { ProseScopeSelector } from '../queries/ProseScopeSelector';
 import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
@@ -723,6 +724,39 @@ export function DynamicNodeViewSection({
         onClose={() => setShowProseModal(false)}
         title="Query Preview"
         size="lg"
+        footer={editAST && (
+          <div className="view-builder__footer">
+            {/* Scope Selector - Left side, button only */}
+            <div className="view-builder__footer-left">
+              <ProseScopeSelector
+                scope={editAST.scope}
+                onChange={(newScope) => {
+                  setEditAST({
+                    ...editAST,
+                    scope: newScope,
+                  });
+                }}
+                readOnly={false}
+              />
+            </div>
+            
+            {/* Result Preview - Right side */}
+            <div className="view-builder__footer-right">
+              {previewResults && (
+                <div className="view-builder__result-preview">
+                  {previewLoading ? (
+                    <span className="view-builder__result-loading">Calculating…</span>
+                  ) : (
+                    <span className="view-builder__result-count">
+                      <span className="view-builder__result-dot">●</span>
+                      {previewResults.length} node{previewResults.length !== 1 ? 's' : ''} found
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       >
         {editAST && (
           <div className="query-preview">
