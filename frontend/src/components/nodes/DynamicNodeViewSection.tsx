@@ -47,6 +47,7 @@ import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/node
 import { useNodesStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiRefresh, mdiEyeOutline, mdiClose, mdiContentCopy } from '@mdi/js';
 import './DynamicNodeViewSection.css';
+import './QueryPreview.css';
 
 // ==================== Types ====================
 
@@ -739,67 +740,23 @@ export function DynamicNodeViewSection({
           setShowProseModal(false);
           setShowSQL(false);
         }}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <span>Query Preview</span>
-            <Button
-              icon={mdiClose}
-              iconOnly
-              variant="ghost"
-              size="xs"
-              onClick={() => {
-                setShowProseModal(false);
-                setShowSQL(false);
-              }}
-              title="Close"
-            />
-          </div>
-        }
+        title="Query Preview"
         size="lg"
       >
         {editAST && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="query-preview">
             {/* Prose description */}
             <div>
-              <h4 style={{ 
-                fontSize: '13px', 
-                fontWeight: 600, 
-                color: 'var(--color-text-secondary, #6c757d)',
-                marginBottom: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Natural Language
-              </h4>
-              <div style={{ 
-                padding: '16px', 
-                fontSize: '15px', 
-                lineHeight: '1.6',
-                color: 'var(--color-text-primary, #212529)',
-                backgroundColor: 'var(--color-surface-secondary, #f8f9fa)',
-                borderRadius: '4px'
-              }}>
+              <h4 className="query-preview__section-header">Natural Language</h4>
+              <div className="query-preview__prose">
                 {getQueryIntent(editAST)}
               </div>
             </div>
 
             {/* AST Section */}
             <div>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                marginBottom: '12px'
-              }}>
-                <h4 style={{ 
-                  fontSize: '13px', 
-                  fontWeight: 600, 
-                  color: 'var(--color-text-secondary, #6c757d)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Query Structure
-                </h4>
+              <div className="query-preview__ast-header">
+                <h4 className="query-preview__section-header">Query Structure</h4>
                 <Button
                   icon={mdiContentCopy}
                   onClick={handleCopyAST}
@@ -809,15 +766,7 @@ export function DynamicNodeViewSection({
                   Copy
                 </Button>
               </div>
-              <pre style={{
-                padding: '16px',
-                fontSize: '13px',
-                lineHeight: '1.5',
-                backgroundColor: 'var(--color-surface-tertiary, #f1f3f5)',
-                borderRadius: '4px',
-                overflow: 'auto',
-                maxHeight: '300px'
-              }}>
+              <pre className="query-preview__ast">
                 {JSON.stringify(editAST, null, 2)}
               </pre>
             </div>
@@ -828,57 +777,21 @@ export function DynamicNodeViewSection({
                 <button
                   type="button"
                   onClick={() => setShowSQL(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '8px 0',
-                    fontSize: '13px',
-                    color: 'var(--color-text-tertiary, #868e96)',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
-                  }}
+                  className="query-preview__sql-toggle"
                 >
                   Show execution preview…
                 </button>
               ) : (
                 <>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    marginBottom: '12px'
-                  }}>
-                    <h4 style={{ 
-                      fontSize: '13px', 
-                      fontWeight: 600, 
-                      color: 'var(--color-text-secondary, #6c757d)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px'
-                    }}>
-                      Execution Preview
-                    </h4>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      color: 'var(--color-text-quaternary, #adb5bd)',
-                      fontStyle: 'italic'
-                    }}>
-                      (informational only)
-                    </span>
+                  <div className="query-preview__sql-header">
+                    <h4 className="query-preview__section-header">Execution Preview</h4>
+                    <span className="query-preview__sql-note">(informational only)</span>
                   </div>
                   <QuerySQLPreview ast={editAST} />
                   <button
                     type="button"
                     onClick={() => setShowSQL(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: '8px 0',
-                      marginTop: '8px',
-                      fontSize: '13px',
-                      color: 'var(--color-text-tertiary, #868e96)',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
+                    className="query-preview__sql-toggle"
                   >
                     Hide
                   </button>
