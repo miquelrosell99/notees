@@ -68,6 +68,21 @@ function groupBlocksByPage(
     }
   }
   
+  // Build a combined page map from pageMap and pageNodes
+  const combinedPageMap = new Map<number, Node>();
+  
+  // Add from provided pageMap
+  if (pageMap) {
+    for (const [id, page] of pageMap.entries()) {
+      combinedPageMap.set(id, page);
+    }
+  }
+  
+  // Add pages from the nodes array (overwrite if already exists)
+  for (const page of pageNodes) {
+    combinedPageMap.set(page.id, page);
+  }
+  
   // Group blocks by page_id
   const groupMap = new Map<number | null, Node[]>();
   for (const block of blockNodes) {
@@ -83,10 +98,10 @@ function groupBlocksByPage(
   // Convert to array with page nodes and sort
   const groups: { page: Node | null; blocks: Node[] }[] = [];
   for (const [pageId, blocks] of groupMap.entries()) {
-    // Try to get page from pageMap first
-    let page: Node | null = pageId !== null && pageMap ? pageMap.get(pageId) ?? null : null;
+    // Try to get page from combined map first
+    let page: Node | null = pageId !== null ? combinedPageMap.get(pageId) ?? null : null;
     
-    // If no pageMap or page not found, construct a minimal page object from the first block's page_name
+    // If still not found, construct a minimal page object from the first block's page_name
     if (!page && pageId !== null && blocks.length > 0) {
       const firstBlock = blocks[0];
       if (firstBlock.page_name) {
@@ -346,6 +361,7 @@ function NodeListItem({
  */
 interface GroupHeaderProps {
   page: Node | null;
+  pageId: number | null;
   blocks: Node[];
   editable: boolean;
   maxDepth: number;
@@ -364,6 +380,7 @@ interface GroupHeaderProps {
 
 function GroupHeader({
   page,
+  pageId,
   blocks,
   editable,
   maxDepth,
@@ -412,7 +429,9 @@ function GroupHeader({
             className="node-list-group__page-header"
           />
         ) : (
-          <span className="node-list-group__no-page-label">Unknown Page</span>
+          <span className="node-list-group__no-page-label">
+            {pageId !== null ? `Page #${pageId} (unavailable)` : 'Unknown Page'}
+          </span>
         )}
       </div>
       
@@ -547,6 +566,7 @@ export function NodeListView({
           <GroupHeader
             key={page?.id ?? 'no-page'}
             page={page}
+            pageId={blocks[0]?.page_id ?? null}
             blocks={blocks}
             editable={editable}
             maxDepth={maxDepth}
