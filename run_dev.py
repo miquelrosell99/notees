@@ -92,6 +92,71 @@ def is_port_in_use(port):
         pass
     return False
 
+def kill_process_on_port(port):
+    """Kill any process using the specified port."""
+    if sys.platform == 'win32':
+        try:
+            # Find PIDs using the port
+            result = subprocess.run(
+                ['netstat', '-ano'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            pids = set()
+            for line in result.stdout.splitlines():
+                if f':{port}' in line and 'LISTENING' in line:
+                    # Extract PID (last column)
+                    parts = line.split()
+                    if parts:
+                        try:
+                            pid = int(parts[-1])
+                            if pid != 0:  # Skip system process
+                                pids.add(pid)
+                        except (ValueError, IndexError):
+                            pass
+            
+            # Kill each process
+            for pid in pids:
+                try:
+                    log(f"Killing process {pid} on port {port}...", 'warn')
+                    subprocess.run(
+                        ['taskkill', '/F', '/T', '/PID', str(pid)],
+                        capture_output=True,
+                        timeout=5
+                    )
+                    time.sleep(0.5)  # Give it time to die
+                except subprocess.TimeoutExpired:
+                    log(f"Failed to kill process {pid}", 'error')
+            
+            return len(pids) > 0
+        except Exception as e:
+            log(f"Error killing process on port {port}: {e}", 'error')
+            return False
+    else:
+        # Unix-like systems
+        try:
+            result = subprocess.run(
+                ['lsof', '-ti', f':{port}'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            pids = result.stdout.strip().split('\n')
+            for pid in pids:
+                if pid:
+                    try:
+                        log(f"Killing process {pid} on port {port}...", 'warn')
+                        os.kill(int(pid), signal.SIGTERM)
+                        time.sleep(0.5)
+                    except (ValueError, ProcessLookupError):
+                        pass
+            return len(pids) > 0
+        except Exception as e:
+            log(f"Error killing process on port {port}: {e}", 'error')
+            return False
+
 def wait_for_http(port, timeout=30):
     """Wait for an HTTP server to respond on the port."""
     import urllib.request
@@ -125,11 +190,28 @@ def check_prerequisites():
     if not Path('frontend/node_modules').exists():
         errors.append("frontend/node_modules not found - run 'npm install' in frontend/")
     
-    # Check ports are available (excluding postgres, we'll start it)
+    # Check and kill processes on required ports
     if is_port_in_use(FRONTEND_PORT):
-        errors.append(f"Port {FRONTEND_PORT} is already in use (frontend)")
+        log(f"Port {FRONTEND_PORT} is in use, attempting to free it...", 'warn')
+        if kill_process_on_port(FRONTEND_PORT):
+            log(f"Port {FRONTEND_PORT} freed successfully", 'info')
+            # Verify it's actually free
+            time.sleep(1)
+            if is_port_in_use(FRONTEND_PORT):
+                errors.append(f"Port {FRONTEND_PORT} is still in use after cleanup (frontend)")
+        else:
+            errors.append(f"Port {FRONTEND_PORT} is already in use (frontend)")
+    
     if is_port_in_use(BACKEND_PORT):
-        errors.append(f"Port {BACKEND_PORT} is already in use (backend)")
+        log(f"Port {BACKEND_PORT} is in use, attempting to free it...", 'warn')
+        if kill_process_on_port(BACKEND_PORT):
+            log(f"Port {BACKEND_PORT} freed successfully", 'info')
+            # Verify it's actually free
+            time.sleep(1)
+            if is_port_in_use(BACKEND_PORT):
+                errors.append(f"Port {BACKEND_PORT} is still in use after cleanup (backend)")
+        else:
+            errors.append(f"Port {BACKEND_PORT} is already in use (backend)")
     
     # Check PostgreSQL is installed
     pg_bin = find_postgres_bin()
