@@ -784,14 +784,8 @@ async def mark_page_opened(
             now, node_id
         )
     
-    # Ensure default NodeViews exist for this page (lazy initialization)
-    try:
-        if user.id is not None and service._graph_id is not None:
-            view_service = NodeViewService(service._pool, service._graph_id, user.id)
-            await view_service.ensure_default_views(node_id)
-    except Exception as e:
-        # Log but don't fail the open operation if view creation fails
-        logger.warning(f"Failed to ensure default views for node {node_id}: {e}")
+    # Note: Default views are now lazily created by the frontend via ensure-defaults endpoint
+    # This keeps all query structure logic in one place
     
     return {"status": "ok", "open_date": now.isoformat()}
 
