@@ -6,10 +6,67 @@
  * Supports drag-and-drop reordering of selected properties.
  */
 import { useState, useMemo } from 'react';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '../core/Checkbox';
 import { SearchIcon } from '../icons';
+import type { Property } from '@/types';
 import './PropertyColumnSelector.css';
+
+// ==================== SortablePropertyItem ====================
+
+interface SortablePropertyItemProps {
+  property: Property;
+  onToggle: (uuid: string) => void;
+}
+
+function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: property.uuid });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <label
+      ref={setNodeRef}
+      style={style}
+      className="property-column-selector__item property-column-selector__item--draggable"
+      {...attributes}
+    >
+      <span className="property-column-selector__drag-handle" {...listeners}>⋮⋮</span>
+      <Checkbox
+        checked={true}
+        onChange={() => onToggle(property.uuid)}
+      />
+      <span className="property-column-selector__item-content">
+        {property.icon && (
+          <span className="property-column-selector__item-icon">
+            {property.icon}
+          </span>
+        )}
+        <span className="property-column-selector__item-name">
+          {property.name}
+        </span>
+        <span className="property-column-selector__item-type">
+          {property.type}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+// ==================== Main Component ====================
 
 export interface PropertyColumnSelectorProps {
   /** Currently selected property UUIDs */
@@ -28,7 +85,6 @@ export function PropertyColumnSelector({
   onSelectionChange,
 }: PropertyColumnSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const { data: properties = [], isLoading } = useProperties();
 
   // Filter properties based on search
@@ -66,28 +122,6 @@ export function PropertyColumnSelector({
 
   const handleDeselectAll = () => {
     onSelectionChange([]);
-  };
-  
-  // Drag and drop handlers for reordering
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-  
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-    
-    // Reorder the array
-    const newUuids = [...selectedPropertyUuids];
-    const [removed] = newUuids.splice(draggedIndex, 1);
-    newUuids.splice(index, 0, removed);
-    
-    onSelectionChange(newUuids);
-    setDraggedIndex(index);
-  };
-  
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
   };
 
   if (isLoading) {
@@ -138,37 +172,15 @@ export function PropertyColumnSelector({
         {selectedProperties.length > 0 && (
           <div className="property-column-selector__selected-group">
             <div className="property-column-selector__group-header">Selected ({selectedProperties.length})</div>
-            {selectedProperties.map((property, index) => (
-              <label
-                key={property.uuid}
-                className={`property-column-selector__item property-column-selector__item--draggable ${
-                  draggedIndex === index ? 'property-column-selector__item--dragging' : ''
-                }`}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-              >
-                <span className="property-column-selector__drag-handle">⋮⋮</span>
-                <Checkbox
-                  checked={true}
-                  onChange={() => handleToggle(property.uuid)}
+            <SortableContext items={selectedPropertyUuids} strategy={verticalListSortingStrategy}>
+              {selectedProperties.map((property) => (
+                <SortablePropertyItem
+                  key={property.uuid}
+                  property={property}
+                  onToggle={handleToggle}
                 />
-                <span className="property-column-selector__item-content">
-                  {property.icon && (
-                    <span className="property-column-selector__item-icon">
-                      {property.icon}
-                    </span>
-                  )}
-                  <span className="property-column-selector__item-name">
-                    {property.name}
-                  </span>
-                  <span className="property-column-selector__item-type">
-                    {property.type}
-                  </span>
-                </span>
-              </label>
-            ))}
+              ))}
+            </SortableContext>
           </div>
         )}
         

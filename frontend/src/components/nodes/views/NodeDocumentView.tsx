@@ -14,6 +14,7 @@
  * - Recursive children handling
  */
 import { useCallback } from 'react';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import { Block } from '../../blocks/Block';
@@ -145,20 +146,25 @@ export function NodeDocumentView({
 }: NodeDocumentViewProps) {
   return (
     <div className={`node-document-view ${className}`}>
-      {nodes.map((node) => (
-        <DocumentNode
-          key={node.id}
-          node={node}
-          depth={depth}
-          editable={editable}
-          maxDepth={maxDepth}
-          siblings={nodes}
-          parentBlock={null}
-          onNodeClick={onNodeClick}
-          onNodeShiftClick={onNodeShiftClick}
-          onContentChange={onContentChange}
-        />
-      ))}
+      <SortableContext 
+        items={nodes.map(node => `block-${node.id}`)}
+        strategy={verticalListSortingStrategy}
+      >
+        {nodes.map((node) => (
+          <DocumentNode
+            key={node.id}
+            node={node}
+            depth={depth}
+            editable={editable}
+            maxDepth={maxDepth}
+            siblings={nodes}
+            parentBlock={null}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            onContentChange={onContentChange}
+          />
+        ))}
+      </SortableContext>
     </div>
   );
 }

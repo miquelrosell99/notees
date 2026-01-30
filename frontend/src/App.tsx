@@ -16,6 +16,7 @@ import { GraphManagementView } from './views/GraphManagementView';
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
+import { DndProvider } from './providers/DndProvider';
 import { listDatabases } from './api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
@@ -201,9 +202,11 @@ function App() {
       </a>
       <QueryClientProvider client={queryClient}>
         <KeyboardShortcutsProvider>
-          <GlobalKeyboardHandler />
-          <AppContent />
-          <NotificationToast />
+          <DndProvider>
+            <GlobalKeyboardHandler />
+            <AppContent />
+            <NotificationToast />
+          </DndProvider>
         </KeyboardShortcutsProvider>
       </QueryClientProvider>
     </>
