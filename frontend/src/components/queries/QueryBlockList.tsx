@@ -5,7 +5,7 @@
  * Uses @dnd-kit for drag-and-drop with support for nesting into groups.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -24,6 +24,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { mdiChevronDown } from '@mdi/js';
+import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { DragHandle } from '../dnd/DragHandle';
@@ -175,6 +177,8 @@ export function QueryBlockList({
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('before');
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -182,8 +186,22 @@ export function QueryBlockList({
     })
   );
 
-  // Handle adding a new condition
-  const handleAddBlock = useCallback(() => {
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!showAddMenu) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAddMenu]);
+
+  // Add different block types
+  const handleAddProperty = useCallback(() => {
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'property',
@@ -193,6 +211,64 @@ export function QueryBlockList({
       value: '',
     };
     onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddContent = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'content',
+      operator: 'contains',
+      value: '',
+      case_sensitive: false,
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddClass = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'class',
+      class_uuid: '',
+      operator: 'contains',
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddReference = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'reference',
+      target_uuid: '',
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddParent = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'parent',
+      nested_group: {
+        type: 'group',
+        logic: 'AND',
+        children: [],
+      },
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddGroup = useCallback(() => {
+    const newGroup: GroupNode = {
+      type: 'group',
+      logic: 'AND',
+      children: [],
+    };
+    onChange([...blocks, newGroup]);
+    setShowAddMenu(false);
   }, [blocks, onChange]);
 
   // Handle updating a specific block
@@ -304,9 +380,38 @@ export function QueryBlockList({
       {blocks.length === 0 && (
         <div className="query-block-list__empty">
           {!readOnly ? (
-            <Button variant="ghost" size="sm" onClick={handleAddBlock}>
-              + Add block
-            </Button>
+            <div className="query-block-list__add-menu" ref={addMenuRef}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowAddMenu(!showAddMenu)}
+              >
+                + Add block
+                <Icon path={mdiChevronDown} size={0.7} />
+              </Button>
+              {showAddMenu && (
+                <Card className="query-block-list__add-menu-dropdown" elevation="high">
+                  <div className="query-block-list__add-menu-item" onClick={handleAddProperty}>
+                    Property
+                  </div>
+                  <div className="query-block-list__add-menu-item" onClick={handleAddContent}>
+                    Content
+                  </div>
+                  <div className="query-block-list__add-menu-item" onClick={handleAddClass}>
+                    Class
+                  </div>
+                  <div className="query-block-list__add-menu-item" onClick={handleAddReference}>
+                    Reference
+                  </div>
+                  <div className="query-block-list__add-menu-item" onClick={handleAddParent}>
+                    Parent
+                  </div>
+                  <div className="query-block-list__add-menu-item" onClick={handleAddGroup}>
+                    Group
+                  </div>
+                </Card>
+              )}
+            </div>
           ) : (
             <p className="query-block-list__empty-message">
               No filters — all nodes will be shown
@@ -385,10 +490,37 @@ export function QueryBlockList({
 
       {/* Add filter button */}
       {!readOnly && blocks.length > 0 && (
-        <div className="query-block-list__add">
-          <Button variant="ghost" size="sm" onClick={handleAddBlock}>
+        <div className="query-block-list__add" ref={addMenuRef}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowAddMenu(!showAddMenu)}
+          >
             + Add filter
+            <Icon path={mdiChevronDown} size={0.7} />
           </Button>
+          {showAddMenu && (
+            <Card className="query-block-list__add-menu-dropdown" elevation="high">
+              <div className="query-block-list__add-menu-item" onClick={handleAddProperty}>
+                Property
+              </div>
+              <div className="query-block-list__add-menu-item" onClick={handleAddContent}>
+                Content
+              </div>
+              <div className="query-block-list__add-menu-item" onClick={handleAddClass}>
+                Class
+              </div>
+              <div className="query-block-list__add-menu-item" onClick={handleAddReference}>
+                Reference
+              </div>
+              <div className="query-block-list__add-menu-item" onClick={handleAddParent}>
+                Parent
+              </div>
+              <div className="query-block-list__add-menu-item" onClick={handleAddGroup}>
+                Group
+              </div>
+            </Card>
+          )}
         </div>
       )}
     </div>
