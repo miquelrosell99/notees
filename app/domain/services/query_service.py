@@ -291,8 +291,8 @@ class QuerySQLGenerator:
         (page, class, day, month, year, asset, template, comment), uses the 
         is_* flag directly. For other classes, checks class_inline table.
         """
-        type_value = block.get("value", "")
-        type_id = block.get("type_id")
+        class_value = block.get("value", "")
+        class_id = block.get("type_id")
         
         # Map of system class names to their corresponding node flags
         SYSTEM_CLASS_FLAGS = {
@@ -306,9 +306,9 @@ class QuerySQLGenerator:
             'comment': 'is_comment',
         }
         
-        if type_id:
-            # Use resolved type_id - check class_inline
-            param = self._next_param(type_id)
+        if class_id:
+            # Use resolved class_id - check class_inline
+            param = self._next_param(class_id)
             return f"""
                 EXISTS (
                     SELECT 1 FROM class_inline ci
@@ -316,9 +316,9 @@ class QuerySQLGenerator:
                       AND ci.class_id = {param}
                 )
             """.strip()
-        elif type_value:
+        elif class_value:
             # Resolve placeholder if needed
-            resolved_value = self._resolve_placeholder(type_value, runtime_params)
+            resolved_value = self._resolve_placeholder(class_value, runtime_params)
             
             # Check if this is a system class with a flag
             if resolved_value.lower() in SYSTEM_CLASS_FLAGS:
