@@ -153,6 +153,9 @@ export function isSystemSection(viewType: string): boolean {
 /**
  * Auto-fix: Restore missing system conditions for a query
  * 
+ * This function removes ALL existing system conditions and adds the correct ones.
+ * This ensures legacy queries are properly updated to use the current system condition logic.
+ * 
  * @param ast The QueryAST to fix
  * @param viewType The view type (e.g., 'linked_references')
  * @param context Context data (nodeUuid, typeUuid, etc.)
@@ -169,26 +172,31 @@ export function autoFixSystemQuery(
     return ast;
   }
   
-  // Check if required condition exists
-  if (section.hasRequiredCondition(ast, context)) {
-    // Already has the condition, no fix needed
-    return ast;
-  }
+  // Step 1: Remove ALL existing system conditions (marked with isSystemNode)
+  const nonSystemChildren = ast.root_group.children.filter(
+    (child) => !isSystemNode(child)
+  );
   
-  // Generate the required condition
+  // Step 2: Generate the required condition(s)
   const requiredCondition = section.requiresCondition(ast, context);
   if (!requiredCondition) {
-    // Can't generate condition without context
+    // Can't generate condition without context, just remove old system conditions
     console.warn(`Cannot auto-fix ${viewType}: missing context data`);
-    return ast;
+    return {
+      ...ast,
+      root_group: {
+        ...ast.root_group,
+        children: nonSystemChildren,
+      },
+    };
   }
   
-  // Add the system condition at the beginning
+  // Step 3: Add the new system condition(s) at the beginning
   return {
     ...ast,
     root_group: {
       ...ast.root_group,
-      children: [requiredCondition, ...ast.root_group.children],
+      children: [requiredCondition, ...nonSystemChildren],
     },
   };
 }
