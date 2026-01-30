@@ -189,19 +189,11 @@ function NodeCard({
   // Get cover image ID from properties
   const coverImageId = useMemo(() => {
     const coverValue = node?.properties?.cover;
-    console.log(`[NodeCard ${node.id}] coverValue:`, coverValue, 'properties:', node?.properties);
     return typeof coverValue === 'number' ? coverValue : null;
   }, [node?.properties, node.id]);
   
   // Get the asset node for the cover image (for bullet)
   const { data: assetNode, isLoading: assetNodeLoading } = useNode(coverImageId, { include_children: false });
-  
-  // Debug asset node
-  useEffect(() => {
-    if (coverImageId) {
-      console.log(`[NodeCard ${node.id}] Asset node for cover ${coverImageId}:`, assetNode, 'loading:', assetNodeLoading);
-    }
-  }, [coverImageId, assetNode, assetNodeLoading, node.id]);
   
   // Bullet handlers for cover asset
   const handleCoverBulletClick = useCallback((e: React.MouseEvent) => {
@@ -225,19 +217,15 @@ function NodeCard({
   useEffect(() => {
     // Reset if no cover
     if (!coverImageId || !assetNode?.uuid) {
-      console.log(`[NodeCard ${node.id}] No cover - coverImageId:`, coverImageId, 'assetNode:', assetNode);
       setCoverUrl(null);
       return;
     }
-    
-    console.log(`[NodeCard ${node.id}] Loading cover URL for asset:`, assetNode.uuid);
     
     let cancelled = false;
     
     getAssetUrlAsync(assetNode.uuid)
       .then(url => {
         if (!cancelled) {
-          console.log(`[NodeCard ${node.id}] Cover URL loaded:`, url);
           setCoverUrl(url);
         }
       })

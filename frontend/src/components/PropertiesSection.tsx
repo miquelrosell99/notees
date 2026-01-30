@@ -23,6 +23,7 @@ import {
   usePageClass,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { getNodeByUuid } from '@/api/nodes';
 import type { Property, Node, ClassProperty } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
@@ -224,13 +225,17 @@ function PropertyValue({
               variant="ghost"
               size="xs"
               className="property-value-date-link"
-              onClick={() => {
+              onClick={async () => {
                 // Navigate to day page via UUID (YYYYMMDD format)
                 const dateParts = dateValue.split('-');
                 if (dateParts.length === 3) {
                   const uuid = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
-                  // TODO: Find node by UUID and navigate
-                  void uuid; // Silence unused variable warning
+                  try {
+                    const dayNode = await getNodeByUuid(uuid);
+                    openNode(dayNode.id, 'page');
+                  } catch (error) {
+                    console.error('Failed to find day page:', error);
+                  }
                 }
               }}
               title="Go to day page"
