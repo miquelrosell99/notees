@@ -41,7 +41,7 @@ export function createLinkedReferencesQuery(pageUuid: string): QueryAST {
  * Create a system query for child pages of a specific page.
  * Shows all direct children of the current page.
  */
-export function createChildPagesQuery(parentPageUuid: string): QueryAST {
+export function createChildPagesQuery(parentPageUuid: string = '{current_node_uuid}'): QueryAST {
   const condition: ParentCondition = markAsSystemNode({
     type: 'condition',
     condition_type: 'parent',
