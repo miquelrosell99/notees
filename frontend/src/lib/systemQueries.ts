@@ -5,7 +5,7 @@
  * These queries are used for features like linked references, child pages, etc.
  */
 
-import type { QueryAST, ReferenceCondition, ClassCondition, PropertyCondition, ContentCondition } from '@/types/queryAST';
+import type { QueryAST, ReferenceCondition, ClassCondition, PropertyCondition, ContentCondition, ParentCondition } from '@/types/queryAST';
 import { markAsSystemNode } from '@/types/queryAST';
 
 /**
@@ -42,13 +42,23 @@ export function createLinkedReferencesQuery(pageUuid: string): QueryAST {
  * Shows all direct children of the current page.
  */
 export function createChildPagesQuery(parentPageUuid: string): QueryAST {
-  const condition: PropertyCondition = markAsSystemNode({
+  const condition: ParentCondition = markAsSystemNode({
     type: 'condition',
-    condition_type: 'property',
-    property_name: 'parent_uuid',
-    property_type: 'text',
-    operator: '=',
-    value: parentPageUuid,
+    condition_type: 'parent',
+    nested_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        {
+          type: 'condition',
+          condition_type: 'property',
+          property_name: 'uuid',
+          property_type: 'text',
+          operator: '=',
+          value: parentPageUuid,
+        },
+      ],
+    },
   });
 
   return {
