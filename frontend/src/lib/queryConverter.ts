@@ -421,11 +421,21 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
   switch (condition.condition_type) {
     case 'type': {
       const typeCond = condition as TypeCondition;
-      return {
-        type: 'TYPE',
+      const classBlock: QueryBlock = {
+        type: 'CLASS',
         value: typeCond.type_uuid,
         type_id: typeCond.type_id,
-      } as TypeBlock;
+      };
+      
+      // If operator is 'is_not', wrap in NOT_CONTAINER
+      if (typeCond.operator === 'is_not') {
+        return {
+          type: 'NOT_CONTAINER',
+          block: classBlock,
+        } as NotBlock;
+      }
+      
+      return classBlock;
     }
     
     case 'property': {
