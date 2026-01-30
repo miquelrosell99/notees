@@ -15,7 +15,9 @@ import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
+import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
+import { useNode } from '@/hooks';
 import { renderConditionProse } from '@/lib/astProseRenderer';
 import { createConditionFromType } from '@/lib/queryASTHelpers';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
@@ -126,25 +128,37 @@ function ProseConditionRow({
           </div>
         );
       
-      case 'type':
+      case 'type': {
+        const { data: selectedClass } = useNode(condition.type_id);
+        const classNodes = selectedClass ? [selectedClass] : [];
+        
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__word">class is</span>
-            <SingleNodeSelector
-              mode="classes"
-              selectedId={condition.type_id ?? null}
-              onChange={(nodeId, node) => {
+            <NodePillRow
+              nodes={classNodes}
+              searchMode="classes"
+              emptyText="Select class"
+              searchPlaceholder="Search classes..."
+              onAdd={(node) => {
                 onUpdate({
                   ...condition,
-                  type_id: nodeId ?? undefined,
-                  type_uuid: node?.uuid ?? '',
+                  type_id: node.id,
+                  type_uuid: node.uuid,
                 });
               }}
-              placeholder="Select class..."
+              onRemove={() => {
+                onUpdate({
+                  ...condition,
+                  type_id: undefined,
+                  type_uuid: '',
+                });
+              }}
               readOnly={effectiveReadOnly}
             />
           </div>
         );
+      }
       
       case 'reference':
         return (
