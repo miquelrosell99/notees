@@ -31,13 +31,15 @@ async def reset_system_views():
     """Reset all system views to default conditions."""
     
     # Default query structures for each view type
+    # Note: All blocks are marked as system blocks (isSystemNode: true)
     default_queries = {
         'linked_references': {
             'type': 'AND_CONTAINER',
             'blocks': [
                 {
                     'type': 'REFERENCE',
-                    'value': '{current_node_uuid}'
+                    'value': '{current_node_uuid}',
+                    'isSystemNode': True
                 }
             ],
             'scope': {
@@ -52,7 +54,8 @@ async def reset_system_views():
                     'property_name': 'parent_uuid',
                     'property_type': 'text',
                     'operator': '=',
-                    'value': '{current_node_uuid}'
+                    'value': '{current_node_uuid}',
+                    'isSystemNode': True
                 }
             ],
             'scope': {
@@ -65,7 +68,8 @@ async def reset_system_views():
                 {
                     'type': 'CLASS',
                     'value': '{current_node_uuid}',
-                    'operator': 'contains'
+                    'operator': 'contains',
+                    'isSystemNode': True
                 }
             ],
             'scope': {
