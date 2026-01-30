@@ -108,7 +108,6 @@ export function DynamicNodeViewSection({
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showProseModal, setShowProseModal] = useState(false);
-  const [showSQL, setShowSQL] = useState(false);
 
   // Handle copying AST to clipboard
   const handleCopyAST = useCallback(() => {
@@ -724,10 +723,7 @@ export function DynamicNodeViewSection({
       {/* Prose query preview modal */}
       <Modal
         isOpen={showProseModal}
-        onClose={() => {
-          setShowProseModal(false);
-          setShowSQL(false);
-        }}
+        onClose={() => setShowProseModal(false)}
         title="Query Preview"
         size="lg"
       >
@@ -761,30 +757,11 @@ export function DynamicNodeViewSection({
 
             {/* SQL Section */}
             <div>
-              {!showSQL ? (
-                <button
-                  type="button"
-                  onClick={() => setShowSQL(true)}
-                  className="query-preview__sql-toggle"
-                >
-                  Show execution preview…
-                </button>
-              ) : (
-                <>
-                  <div className="query-preview__sql-header">
-                    <h4 className="query-preview__section-header">Execution Preview</h4>
-                    <span className="query-preview__sql-note">(informational only)</span>
-                  </div>
-                  <QuerySQLPreview ast={editAST} />
-                  <button
-                    type="button"
-                    onClick={() => setShowSQL(false)}
-                    className="query-preview__sql-toggle"
-                  >
-                    Hide
-                  </button>
-                </>
-              )}
+              <div className="query-preview__sql-header">
+                <h4 className="query-preview__section-header">Execution Preview</h4>
+                <span className="query-preview__sql-note">(informational only)</span>
+              </div>
+              <QuerySQLPreview ast={editAST} />
             </div>
           </div>
         )}
