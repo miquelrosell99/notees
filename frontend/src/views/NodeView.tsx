@@ -495,6 +495,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 onAdd={handleAddClass}
                 onCreateNew={handleCreateClass}
                 canRemove={(n) => !isSystemClassUuid(n.uuid)}
+                canAdd={(n) => !isBlockOnlyClass(n.uuid)}
               />
             </div>
             

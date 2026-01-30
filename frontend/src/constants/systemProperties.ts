@@ -59,6 +59,22 @@ export function isCoverProperty(uuid: string): boolean {
 }
 
 /**
+ * Block-only classes - cannot be assigned to pages
+ */
+export const BLOCK_ONLY_CLASS_UUIDS = [
+  SYSTEM_CLASS_UUIDS.query,
+  SYSTEM_CLASS_UUIDS.comment,
+  SYSTEM_CLASS_UUIDS.quote,
+] as const;
+
+/**
+ * Check if a class UUID is block-only (cannot be assigned to pages)
+ */
+export function isBlockOnlyClass(uuid: string): boolean {
+  return BLOCK_ONLY_CLASS_UUIDS.includes(uuid as typeof BLOCK_ONLY_CLASS_UUIDS[number]);
+}
+
+/**
  * Check if a property is the 'banner' system property
  */
 export function isBannerProperty(uuid: string): boolean {
