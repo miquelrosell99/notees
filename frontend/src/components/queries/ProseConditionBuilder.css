@@ -62,12 +62,6 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--color-text-primary, #212529);
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
-}
-
-.prose-condition:hover {
-  background-color: var(--color-surface-secondary, #f8f9fa);
 }
 
 .prose-condition--system {
@@ -127,9 +121,4 @@
 
 .prose-condition__delete:hover {
   opacity: 1 !important;
-}
-
-.prose-condition .dropdown__trigger:hover {
-  background: var(--color-surface-tertiary, #f1f3f5);
-  text-decoration-style: solid;
 }
