@@ -195,8 +195,8 @@ export function ProseConditionBuilder({
 }: ProseConditionBuilderProps) {
   
   // Handle adding a condition
-  const handleAdd = useCallback(() => {
-    const newCondition = createConditionFromType('content');
+  const handleAdd = useCallback((conditionType: string) => {
+    const newCondition = createConditionFromType(conditionType);
     onUpdate({
       ...group,
       children: [...group.children, newCondition],
@@ -274,15 +274,25 @@ export function ProseConditionBuilder({
         </div>
       )}
       
-      {/* Add filter button */}
+      {/* Add filter dropdown */}
       {!readOnly && (
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="prose-condition-builder__add"
-        >
-          + Add filter
-        </button>
+        <Dropdown
+          value=""
+          onChange={(value) => handleAdd(value)}
+          placeholder="+ Add filter"
+          options={[
+            { value: 'content', label: 'Content' },
+            { value: 'property', label: 'Property' },
+            { value: 'type', label: 'Type' },
+            { value: 'tag', label: 'Tag' },
+            { value: 'linked_reference', label: 'Linked reference' },
+            { value: 'page', label: 'Is page' },
+            { value: 'created_at', label: 'Created date' },
+            { value: 'updated_at', label: 'Updated date' },
+          ]}
+          size="sm"
+          className="prose-condition-builder__add-dropdown"
+        />
       )}
     </div>
   );

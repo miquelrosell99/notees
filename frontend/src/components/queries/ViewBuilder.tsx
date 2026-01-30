@@ -78,9 +78,6 @@ export function ViewBuilder({
   // Generate intent label (live-updating)
   const intentLabel = useMemo(() => getQueryIntent(ast), [ast]);
   
-  // Check if scope is non-default
-  const isDefaultScope = ast.scope.scope_type === 'entire_graph';
-  
   return (
     <div className={`view-builder ${className}`}>
       {/* Intent Header - Primary Visual Anchor */}
@@ -89,17 +86,15 @@ export function ViewBuilder({
         <p className="view-builder__intent-text">{intentLabel}</p>
       </div>
       
-      {/* Scope Selector - Inline prose, hidden when default */}
-      {!isDefaultScope && (
-        <div className="view-builder__scope-section">
-          <span className="view-builder__scope-prefix">Search in:</span>
-          <ProseScopeSelector
-            scope={ast.scope}
-            onChange={handleScopeChange}
-            readOnly={readOnly}
-          />
-        </div>
-      )}
+      {/* Scope Selector - Always visible */}
+      <div className="view-builder__scope-section">
+        <span className="view-builder__scope-prefix">Search in:</span>
+        <ProseScopeSelector
+          scope={ast.scope}
+          onChange={handleScopeChange}
+          readOnly={readOnly}
+        />
+      </div>
       
       {/* Filters Section */}
       <div className="view-builder__filters-section">
