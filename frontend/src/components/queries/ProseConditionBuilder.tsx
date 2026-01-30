@@ -128,8 +128,8 @@ function ProseConditionRow({
           </div>
         );
       
-      case 'type': {
-        const { data: selectedClass } = useNode(condition.type_id);
+      case 'class': {
+        const { data: selectedClass } = useNode(condition.class_id);
         const classNodes = selectedClass ? [selectedClass] : [];
         const operator = condition.operator || 'contains';
         const needsClassSelection = operator !== 'defined' && operator !== 'not_defined';
@@ -160,15 +160,15 @@ function ProseConditionRow({
                 onAdd={(node) => {
                   onUpdate({
                     ...condition,
-                    type_id: node.id,
-                    type_uuid: node.uuid,
+                    class_id: node.id,
+                    class_uuid: node.uuid,
                   });
                 }}
                 onRemove={() => {
                   onUpdate({
                     ...condition,
-                    type_id: undefined,
-                    type_uuid: '',
+                    class_id: undefined,
+                    class_uuid: '',
                   });
                 }}
                 readOnly={effectiveReadOnly}

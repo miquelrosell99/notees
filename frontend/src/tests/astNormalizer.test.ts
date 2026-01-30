@@ -12,11 +12,14 @@ import type { QueryAST, GroupNode } from '../types/queryAST';
 // Helper to create test AST
 function createTestAST(rootGroup: GroupNode): QueryAST {
   return {
+    type: 'query',
+    version: '1.0',
     scope: {
       type: 'scope',
       scope_type: 'entire_graph',
     },
     root_group: rootGroup,
+    created_at: new Date().toISOString(),
   };
 }
 

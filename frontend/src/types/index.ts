@@ -40,7 +40,7 @@ export type {
   ScopeNode,
   GroupNode,
   ConditionNode,
-  TypeCondition,
+  ClassCondition,
   ContentCondition,
   PropertyCondition,
   ReferenceCondition,
