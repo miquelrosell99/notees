@@ -15,7 +15,6 @@
 import { useCallback, useState, useMemo } from 'react';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { assertValidAST } from '@/lib/astValidator';
-import { getQueryIntent } from '@/lib/astProseRenderer';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { ProseScopeSelector } from './ProseScopeSelector';
 import { EngineView } from './EngineView';
@@ -75,17 +74,9 @@ export function ViewBuilder({
     });
   }, [ast, handleChange]);
   
-  // Generate intent label (live-updating)
-  const intentLabel = useMemo(() => getQueryIntent(ast), [ast]);
-  
   return (
     <div className={`view-builder ${className}`}>
-      {/* Intent Header - Primary Visual Anchor */}
-      <div className="view-builder__intent-header">
-        <span className="view-builder__intent-label">This view shows</span>
-        <p className="view-builder__intent-text">{intentLabel}</p>
-      </div>
-      
+
       {/* Scope Selector - Always visible */}
       <div className="view-builder__scope-section">
         <span className="view-builder__scope-prefix">Search in:</span>
