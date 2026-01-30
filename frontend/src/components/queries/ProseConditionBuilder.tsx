@@ -132,43 +132,48 @@ function ProseConditionRow({
         const { data: selectedClass } = useNode(condition.type_id);
         const classNodes = selectedClass ? [selectedClass] : [];
         const operator = condition.operator || 'contains';
+        const needsClassSelection = operator !== 'defined' && operator !== 'not_defined';
         
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__word">class</span>
             <Dropdown
               value={operator}
-              onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' | 'contains' | 'does_not_contain' })}
+              onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined' })}
               disabled={effectiveReadOnly}
               options={[
                 { value: 'contains', label: 'contains' },
                 { value: 'does_not_contain', label: 'does not contain' },
                 { value: 'is', label: 'is' },
                 { value: 'is_not', label: 'is not' },
+                { value: 'defined', label: 'is defined' },
+                { value: 'not_defined', label: 'is not defined' },
               ]}
               size="sm"
             />
-            <NodePillRow
-              nodes={classNodes}
-              searchMode="classes"
-              emptyText="Select class"
-              searchPlaceholder="Search classes..."
-              onAdd={(node) => {
-                onUpdate({
-                  ...condition,
-                  type_id: node.id,
-                  type_uuid: node.uuid,
-                });
-              }}
-              onRemove={() => {
-                onUpdate({
-                  ...condition,
-                  type_id: undefined,
-                  type_uuid: '',
-                });
-              }}
-              readOnly={effectiveReadOnly}
-            />
+            {needsClassSelection && (
+              <NodePillRow
+                nodes={classNodes}
+                searchMode="classes"
+                emptyText="Select class"
+                searchPlaceholder="Search classes..."
+                onAdd={(node) => {
+                  onUpdate({
+                    ...condition,
+                    type_id: node.id,
+                    type_uuid: node.uuid,
+                  });
+                }}
+                onRemove={() => {
+                  onUpdate({
+                    ...condition,
+                    type_id: undefined,
+                    type_uuid: '',
+                  });
+                }}
+                readOnly={effectiveReadOnly}
+              />
+            )}
           </div>
         );
       }

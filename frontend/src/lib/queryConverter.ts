@@ -421,21 +421,24 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
   switch (condition.condition_type) {
     case 'type': {
       const typeCond = condition as TypeCondition;
+      
+      // For 'defined' and 'not_defined', we use a CLASS block with empty value
+      // to check if ANY class is assigned (backend should interpret empty value as "any class")
       const classBlock: QueryBlock = {
         type: 'CLASS',
-        value: typeCond.type_uuid,
-        type_id: typeCond.type_id,
+        value: typeCond.operator === 'defined' || typeCond.operator === 'not_defined' ? '' : typeCond.type_uuid,
+        type_id: typeCond.operator === 'defined' || typeCond.operator === 'not_defined' ? undefined : typeCond.type_id,
       };
       
-      // If operator is 'is_not' or 'does_not_contain', wrap in NOT_CONTAINER
-      if (typeCond.operator === 'is_not' || typeCond.operator === 'does_not_contain') {
+      // If operator is negative, wrap in NOT_CONTAINER
+      if (typeCond.operator === 'is_not' || typeCond.operator === 'does_not_contain' || typeCond.operator === 'not_defined') {
         return {
           type: 'NOT_CONTAINER',
           block: classBlock,
         } as NotBlock;
       }
       
-      // For 'is' and 'contains' (or default), return CLASS block directly
+      // For 'is', 'contains', 'defined' (or default), return CLASS block directly
       return classBlock;
     }
     
