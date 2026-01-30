@@ -290,9 +290,12 @@ class QuerySQLGenerator:
         Checks if node has the specified class. For system classes with flags
         (page, class, day, month, year, asset, template, comment), uses the 
         is_* flag directly. For other classes, checks class_inline table.
+        
+        Supports operators: is, is_not, contains, does_not_contain, defined, not_defined
         """
         class_value = block.get("value", "")
         class_id = block.get("type_id")
+        operator = block.get("operator", "contains")  # Default to 'contains' for backward compatibility
         
         # Map of system class names to their corresponding node flags
         SYSTEM_CLASS_FLAGS = {
@@ -306,10 +309,31 @@ class QuerySQLGenerator:
             'comment': 'is_comment',
         }
         
+        # Handle 'defined' and 'not_defined' - check if node has ANY class
+        if operator == "defined":
+            return f"""
+                EXISTS (
+                    SELECT 1 FROM class_inline ci
+                    WHERE ci.node_id = {node_alias}.id
+                )
+            """.strip()
+        elif operator == "not_defined":
+            return f"""
+                NOT EXISTS (
+                    SELECT 1 FROM class_inline ci
+                    WHERE ci.node_id = {node_alias}.id
+                )
+            """.strip()
+        
+        # For other operators, we need a class value or id
+        if not class_id and not class_value:
+            return "TRUE"
+        
+        # Build the base condition based on class_id or class_value
         if class_id:
             # Use resolved class_id - check class_inline
             param = self._next_param(class_id)
-            return f"""
+            base_condition = f"""
                 EXISTS (
                     SELECT 1 FROM class_inline ci
                     WHERE ci.node_id = {node_alias}.id
@@ -323,22 +347,42 @@ class QuerySQLGenerator:
             # Check if this is a system class with a flag
             if resolved_value.lower() in SYSTEM_CLASS_FLAGS:
                 flag_name = SYSTEM_CLASS_FLAGS[resolved_value.lower()]
-                return f"{node_alias}.{flag_name} = TRUE"
-            
-            # For custom classes, check class_inline
-            param = self._next_param(resolved_value)
-            graph_param = self._next_param(self._graph_id)
-            return f"""
-                EXISTS (
-                    SELECT 1 FROM class_inline ci
-                    JOIN node class_node ON class_node.id = ci.class_id
-                    WHERE ci.node_id = {node_alias}.id
-                      AND (class_node.name = {param} OR class_node.uuid::text = {param})
-                      AND class_node.graph_id = {graph_param}
-                )
-            """.strip()
-        else:
-            return "TRUE"
+                base_condition = f"{node_alias}.{flag_name} = TRUE"
+            else:
+                # For custom classes, check class_inline with name matching
+                # Use ILIKE for 'contains' operator, exact match for 'is'
+                if operator == "contains" or operator == "does_not_contain":
+                    # Match if class name contains the value (case-insensitive)
+                    param = self._next_param(f"%{resolved_value}%")
+                    graph_param = self._next_param(self._graph_id)
+                    base_condition = f"""
+                        EXISTS (
+                            SELECT 1 FROM class_inline ci
+                            JOIN node class_node ON class_node.id = ci.class_id
+                            WHERE ci.node_id = {node_alias}.id
+                              AND class_node.name ILIKE {param}
+                              AND class_node.graph_id = {graph_param}
+                        )
+                    """.strip()
+                else:
+                    # Exact match for 'is' and 'is_not'
+                    param = self._next_param(resolved_value)
+                    graph_param = self._next_param(self._graph_id)
+                    base_condition = f"""
+                        EXISTS (
+                            SELECT 1 FROM class_inline ci
+                            JOIN node class_node ON class_node.id = ci.class_id
+                            WHERE ci.node_id = {node_alias}.id
+                              AND (class_node.name = {param} OR class_node.uuid::text = {param})
+                              AND class_node.graph_id = {graph_param}
+                        )
+                    """.strip()
+        
+        # Apply negation for 'is_not' and 'does_not_contain'
+        if operator == "is_not" or operator == "does_not_contain":
+            return f"NOT ({base_condition})"
+        
+        return base_condition
     
     def _generate_property_condition(
         self,
