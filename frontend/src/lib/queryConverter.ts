@@ -361,6 +361,14 @@ export function astToBlockTree(ast: QueryAST): QueryBlockTree {
 function scopeToBlocks(scope: ScopeNode): QueryBlock[] {
   const blocks: QueryBlock[] = [];
   
+  // Handle current_page scope with runtime parameter
+  if (scope.scope_type === 'current_page') {
+    blocks.push({
+      type: 'PARENT_PATH',
+      blocks: [{ type: 'UUID', value: '{current_node_uuid}' }],
+    } as ParentPathBlock);
+  }
+  
   // Add included pages as PARENT_PATH blocks
   if (scope.page_uuids && scope.page_uuids.length > 0) {
     for (const uuid of scope.page_uuids) {
