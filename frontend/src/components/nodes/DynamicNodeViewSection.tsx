@@ -650,7 +650,8 @@ export function DynamicNodeViewSection({
           setEditingView(null);
           setEditAST(null);
           setEditViewName('');
-        }}{
+        }}
+        title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Button
               icon={mdiEyeOutline}
@@ -663,7 +664,6 @@ export function DynamicNodeViewSection({
             <span>Query</span>
           </div>
         }
-        title="Edit View"
         size="xl"
         className="dynamic-section__edit-modal"
         footer={editingView && (
