@@ -9,12 +9,13 @@
  * - Light indentation for hierarchy
  */
 
-import { useCallback } from 'react';
-import { mdiClose } from '@mdi/js';
+import { useCallback, useState } from 'react';
+import { mdiClose, mdiMousePointer, mdiTextBoxMultiple } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
+import { SelectionButton } from '../core/SelectionButton';
 import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
 import { useNode } from '@/hooks';
@@ -129,10 +130,14 @@ function ProseConditionRow({
         );
       
       case 'class': {
-        const { data: selectedClass } = useNode(condition.class_id);
+        const { data: selectedClass } = useNode(condition.class_id || null);
         const classNodes = selectedClass ? [selectedClass] : [];
         const operator = condition.operator || 'contains';
         const needsClassSelection = operator !== 'defined' && operator !== 'not_defined';
+        
+        // Determine if using dynamic mode (comma-separated UUIDs)
+        const isDynamicMode = condition.class_uuids && condition.class_uuids.length > 0;
+        const [selectionMode, setSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
         
         return (
           <div className="prose-condition__inline">
@@ -152,27 +157,80 @@ function ProseConditionRow({
               size="sm"
             />
             {needsClassSelection && (
-              <NodePillRow
-                nodes={classNodes}
-                searchMode="classes"
-                emptyText="Select class"
-                searchPlaceholder="Search classes..."
-                onAdd={(node) => {
-                  onUpdate({
-                    ...condition,
-                    class_id: node.id,
-                    class_uuid: node.uuid,
-                  });
-                }}
-                onRemove={() => {
-                  onUpdate({
-                    ...condition,
-                    class_id: undefined,
-                    class_uuid: '',
-                  });
-                }}
-                readOnly={effectiveReadOnly}
-              />
+              <>
+                <SelectionButton
+                  value={selectionMode}
+                  onChange={(mode) => {
+                    setSelectionMode(mode);
+                    if (mode === 'static') {
+                      // Clear dynamic data, keep current static selection
+                      onUpdate({
+                        ...condition,
+                        class_uuids: undefined,
+                      });
+                    } else {
+                      // Clear static data, initialize dynamic with current selection
+                      const initialUuids = condition.class_uuid ? [condition.class_uuid] : [];
+                      onUpdate({
+                        ...condition,
+                        class_id: undefined,
+                        class_uuid: initialUuids.length > 0 ? initialUuids[0] : '',
+                        class_uuids: initialUuids,
+                      });
+                    }
+                  }}
+                  options={[
+                    { value: 'static', label: 'Static' },
+                    { value: 'dynamic', label: 'Dynamic' },
+                  ]}
+                  size="sm"
+                  disabled={effectiveReadOnly}
+                />
+                {selectionMode === 'static' ? (
+                  <NodePillRow
+                    nodes={classNodes}
+                    searchMode="classes"
+                    emptyText="Select class"
+                    searchPlaceholder="Search classes..."
+                    onAdd={(node) => {
+                      onUpdate({
+                        ...condition,
+                        class_id: node.id,
+                        class_uuid: node.uuid,
+                        class_uuids: undefined,
+                      });
+                    }}
+                    onRemove={() => {
+                      onUpdate({
+                        ...condition,
+                        class_id: undefined,
+                        class_uuid: '',
+                        class_uuids: undefined,
+                      });
+                    }}
+                    readOnly={effectiveReadOnly}
+                  />
+                ) : (
+                  <TextField
+                    value={(condition.class_uuids || []).join(', ')}
+                    onChange={(value) => {
+                      const uuids = (value as string)
+                        .split(',')
+                        .map((s: string) => s.trim())
+                        .filter((s: string) => s.length > 0);
+                      onUpdate({
+                        ...condition,
+                        class_id: undefined,
+                        class_uuid: uuids[0] || '',
+                        class_uuids: uuids,
+                      });
+                    }}
+                    placeholder="Enter class UUIDs separated by commas"
+                    size="sm"
+                    readOnly={effectiveReadOnly}
+                  />
+                )}
+              </>
             )}
           </div>
         );
@@ -181,6 +239,10 @@ function ProseConditionRow({
       case 'reference': {
         const operator = condition.operator || 'references';
         const needsSelection = operator !== 'has_references' && operator !== 'has_no_references';
+        
+        // Determine if using dynamic mode (comma-separated UUIDs)
+        const isDynamicMode = condition.target_uuids && condition.target_uuids.length > 0;
+        const [selectionMode, setSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
         
         return (
           <div className="prose-condition__inline">
@@ -197,19 +259,71 @@ function ProseConditionRow({
               size="sm"
             />
             {needsSelection && (
-              <SingleNodeSelector
-                mode="pages"
-                selectedId={condition.target_id ?? null}
-                onChange={(nodeId, node) => {
-                  onUpdate({
-                    ...condition,
-                    target_id: nodeId ?? undefined,
-                    target_uuid: node?.uuid ?? '',
-                  });
-                }}
-                placeholder="Select node..."
-                readOnly={effectiveReadOnly}
-              />
+              <>
+                <SelectionButton
+                  value={selectionMode}
+                  onChange={(mode) => {
+                    setSelectionMode(mode);
+                    if (mode === 'static') {
+                      // Clear dynamic data, keep current static selection
+                      onUpdate({
+                        ...condition,
+                        target_uuids: undefined,
+                      });
+                    } else {
+                      // Clear static data, initialize dynamic with current selection
+                      const initialUuids = condition.target_uuid ? [condition.target_uuid] : [];
+                      onUpdate({
+                        ...condition,
+                        target_id: undefined,
+                        target_uuid: initialUuids.length > 0 ? initialUuids[0] : '',
+                        target_uuids: initialUuids,
+                      });
+                    }
+                  }}
+                  options={[
+                    { value: 'static', label: 'Static' },
+                    { value: 'dynamic', label: 'Dynamic' },
+                  ]}
+                  size="sm"
+                  disabled={effectiveReadOnly}
+                />
+                {selectionMode === 'static' ? (
+                  <SingleNodeSelector
+                    mode="pages"
+                    selectedId={condition.target_id ?? null}
+                    onChange={(nodeId, node) => {
+                      onUpdate({
+                        ...condition,
+                        target_id: nodeId ?? undefined,
+                        target_uuid: node?.uuid ?? '',
+                        target_uuids: undefined,
+                      });
+                    }}
+                    placeholder="Select node..."
+                    readOnly={effectiveReadOnly}
+                  />
+                ) : (
+                  <TextField
+                    value={(condition.target_uuids || []).join(', ')}
+                    onChange={(value) => {
+                      const uuids = (value as string)
+                        .split(',')
+                        .map((s: string) => s.trim())
+                        .filter((s: string) => s.length > 0);
+                      onUpdate({
+                        ...condition,
+                        target_id: undefined,
+                        target_uuid: uuids[0] || '',
+                        target_uuids: uuids,
+                      });
+                    }}
+                    placeholder="Enter node UUIDs separated by commas"
+                    size="sm"
+                    readOnly={effectiveReadOnly}
+                  />
+                )}
+              </>
             )}
           </div>
         );
