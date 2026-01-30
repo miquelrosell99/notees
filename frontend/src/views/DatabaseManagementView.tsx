@@ -3,40 +3,30 @@
  * 
  * Fullscreen view for managing graphs. Shown when user has no graphs
  * or accessed through settings. Allows creating, importing, and managing graphs.
+ * 
+ * Note: Create, rename, and import functionality requires implementing modal components.
  */
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack:react-query';
 import { 
   listDatabases, 
   switchDatabase,
   deleteDatabase,
-  // TODO: Uncomment when implementing create/rename/import modals
-  // renameDatabase,
-  // importDatabase,
   getDatabaseExportUrl,
   type DatabaseInfo,
 } from '@/api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore } from '@/stores';
-// TODO: Database modal components not yet implemented
-// import { DatabaseModal } from '../components/databases/DatabaseModal';
-// import { ImportOptionsModal } from '../components/databases/ImportOptionsModal';
-// import { DatabaseNameModal } from '../components/databases/DatabaseNameModal';
 import { 
   ArrowRightIcon,
   CheckIcon, 
   CloseIcon, 
   DeleteIcon,
-  // TODO: Uncomment when rename modal is implemented
-  // EditIcon,
 } from '../components/icons';
 import Icon from '@mdi/react';
 import { mdiExport } from '@mdi/js';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import './DatabaseManagementView.css';
-
-// TODO: Uncomment when implementing import modal
-// type ImportType = 'sqlite' | 'zip';
 
 /** Format a date string for display */
 function formatDate(dateStr: string | undefined): string {
@@ -88,21 +78,7 @@ export function DatabaseManagementView({
   showClose = false,
   onClose,
 }: DatabaseManagementViewProps) {
-  // TODO: Database modal state - commented out until modals are implemented
-  // const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  // const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
-  // const [importNameModalState, setImportNameModalState] = useState<{
-  //   isOpen: boolean;
-  //   file: File | null;
-  //   type: ImportType | null;
-  // }>({ isOpen: false, file: null, type: null });
-  // const [importError, setImportError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  // const [renameModalState, setRenameModalState] = useState<{
-  //   isOpen: boolean;
-  //   dbName: string | null;
-  // }>({ isOpen: false, dbName: null });
-  // const [renameError, setRenameError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
 
@@ -162,89 +138,6 @@ export function DatabaseManagementView({
     },
   });
 
-  // TODO: Rename mutation - commented out until modals are implemented
-  /*
-  const renameMutation = useMutation({
-    mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) => 
-      renameDatabase(oldName, newName),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
-      setRenameModalState({ isOpen: false, dbName: null });
-      setRenameError(null);
-    },
-    onError: (err: Error) => {
-      setRenameError(err.message || 'Failed to rename database');
-    },
-  });
-  */
-
-  // TODO: Import mutation - commented out until modals are implemented
-  /*
-  const importMutation = useMutation({
-    mutationFn: ({ name, file }: { name: string; file: File }) => importDatabase(name, file),
-    onSuccess: async (newDb) => {
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
-      setImportNameModalState({ isOpen: false, file: null, type: null });
-      setImportError(null);
-      // Auto-switch to the new database
-      await switchMutation.mutateAsync(newDb.name);
-      onDatabaseSelected?.();
-    },
-    onError: (err: Error) => {
-      setImportError(err.message || 'Failed to import database');
-    },
-  });
-  */
-
-  // TODO: Handler functions for database modals - commented out until modals are implemented
-  /*
-  const handleDatabaseCreated = async (newDb: DatabaseInfo) => {
-    // Auto-switch to the new database
-    await switchMutation.mutateAsync(newDb.name);
-    setIsCreateModalOpen(false);
-    onDatabaseSelected?.();
-  };
-
-  const handleImportOptionSelected = (type: ImportType, file: File) => {
-    setIsImportOptionsOpen(false);
-    setImportError(null);
-    setImportNameModalState({ isOpen: true, file, type });
-  };
-
-  const handleImportNameSubmit = (name: string) => {
-    if (importNameModalState.file) {
-      importMutation.mutate({ name, file: importNameModalState.file });
-    }
-  };
-
-  const handleImportNameModalClose = () => {
-    setImportNameModalState({ isOpen: false, file: null, type: null });
-    setImportError(null);
-  };
-  */
-
-  // TODO: Rename handler - commented out until modal is implemented
-  /*
-  const handleOpenRename = (dbName: string) => {
-    // setRenameError(null);
-    setRenameModalState({ isOpen: true, dbName });
-  };
-  */
-
-  // TODO: Rename handlers - commented out until modal is implemented
-  /*
-  const handleRenameSubmit = (newName: string) => {
-    if (renameModalState.dbName) {
-      renameMutation.mutate({ oldName: renameModalState.dbName, newName });
-    }
-  };
-
-  const handleRenameModalClose = () => {
-    setRenameModalState({ isOpen: false, dbName: null });
-    setRenameError(null);
-  };
-  */
-
   const handleSelectDatabase = (db: DatabaseInfo) => {
     if (db.name !== data?.active) {
       switchMutation.mutate(db.name);
@@ -300,29 +193,6 @@ export function DatabaseManagementView({
             </p>
           </div>
 
-          {/* Action buttons */}
-          <div className="db-management__actions">
-            {/* TODO: Buttons disabled until modals are implemented */}
-            {/*
-            <Button 
-              className="db-management__action-btn"
-              variant="primary"
-              size="md"
-              onClick={() => setIsCreateModalOpen(true)}
-            >
-              Create New Graph
-            </Button>
-            <Button 
-              className="db-management__action-btn"
-              variant="default"
-              size="md"
-              onClick={() => setIsImportOptionsOpen(true)}
-            >
-              Import Graph
-            </Button>
-            */}
-          </div>
-
           {/* Database list */}
           {isLoading ? (
             <div className="db-management__loading">
@@ -348,17 +218,6 @@ export function DatabaseManagementView({
                       )}
                     </div>
                     <div className="db-management__card-actions">
-                      {/* TODO: Uncomment when rename modal is implemented */}
-                      {/*
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenRename(db.name)}
-                        title="Rename"
-                      >
-                        <EditIcon size="sm" />
-                      </Button>
-                      */}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -424,42 +283,6 @@ export function DatabaseManagementView({
           <p>Notees — Your personal knowledge graph</p>
         </footer>
       </div>
-
-      {/* TODO: Database modal components not yet implemented */}
-      {/* <DatabaseModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleDatabaseCreated}
-      /> */}
-
-      {/* <ImportOptionsModal
-        isOpen={isImportOptionsOpen}
-        onClose={() => setIsImportOptionsOpen(false)}
-        onSelectOption={handleImportOptionSelected}
-      /> */}
-
-      {/* <DatabaseNameModal
-        isOpen={importNameModalState.isOpen}
-        onClose={handleImportNameModalClose}
-        onSubmit={handleImportNameSubmit}
-        title={importNameModalState.type === 'zip' 
-          ? 'Name Your Imported Graph' 
-          : 'Name Your Imported Graph'
-        }
-        submitLabel="Import Graph"
-        isLoading={importMutation.isPending}
-        error={importError}
-      /> */}
-
-      {/* <DatabaseNameModal
-        isOpen={renameModalState.isOpen}
-        onClose={handleRenameModalClose}
-        onSubmit={handleRenameSubmit}
-        title={`Rename "${renameModalState.dbName}"`}
-        submitLabel="Rename Graph"
-        isLoading={renameMutation.isPending}
-        error={renameError}
-      /> */}
     </div>
   );
 }

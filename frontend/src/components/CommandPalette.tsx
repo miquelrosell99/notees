@@ -226,7 +226,6 @@ export function CommandPalette({
         
       case 'add-page':
         // Create new page with hierarchical path support (e.g., "Pokemon/Charizard")
-        console.log('[CommandPalette] Creating page with name:', query.trim());
         try {
           if (!pageClassId) {
             console.error('[CommandPalette] Page class not found');
@@ -259,7 +258,6 @@ export function CommandPalette({
             parent_id: parentId,
             classes: [pageClassId],
           });
-          console.log('[CommandPalette] Page created successfully:', newNode);
           onClose();
           openNode(newNode.id, 'page');
         } catch (error) {
@@ -273,18 +271,11 @@ export function CommandPalette({
           console.error('[CommandPalette] No destination page for quick add');
           break;
         }
-        console.log('[CommandPalette] Quick adding block:', {
-          name: query.trim(),
-          parent_id: destinationPage.id,
-          destination: quickAddDestination,
-          destinationPage: { id: destinationPage.id, name: destinationPage.name },
-        });
         try {
           const newNode = await createNodeMutation.mutateAsync({
             name: query.trim(),
             parent_id: destinationPage.id,
           });
-          console.log('[CommandPalette] Quick add block created:', newNode);
         } catch (error) {
           console.error('Failed to quick add:', error);
         }

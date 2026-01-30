@@ -445,7 +445,6 @@ function getCursorPosition(element: HTMLElement): number {
  * targetPosition is in plain text coordinates (ZWS excluded)
  */
 function setCursorPosition(element: HTMLElement, targetPosition: number): void {
-  console.log('[setCursorPosition] targetPosition:', targetPosition, 'element:', element.textContent?.substring(0, 30));
   let currentPosition = 0;
   
   const walker = document.createTreeWalker(
@@ -480,7 +479,6 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
           actualOffset = 1;
         }
         
-        console.log('[setCursorPosition] Found text node, actualOffset:', actualOffset, 'text:', textContent.substring(0, 20));
         range.setStart(node, Math.min(actualOffset, textContent.length));
         range.collapse(true);
         const selection = window.getSelection();
@@ -492,7 +490,6 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
     } else if (isPillElement(node as HTMLElement)) {
       const length = getPillRawLength(node as HTMLElement);
       if (currentPosition + length >= targetPosition) {
-        console.log('[setCursorPosition] Found pill, positioning after it');
         // Position cursor after this pill - find the next text node
         const range = document.createRange();
         const nextSibling = node.nextSibling;
@@ -521,7 +518,6 @@ function setCursorPosition(element: HTMLElement, targetPosition: number): void {
     }
   }
   
-  console.log('[setCursorPosition] Target past content, positioning at end');
   // Position at end if target is past content
   const range = document.createRange();
   range.selectNodeContents(element);

@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
-from ..validation import validate_node_create, validate_node_update, ValidationError
+from ..validation import validate_node_create, validate_node_update
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...db.connection import get_graph_uuid
 from ...logging_config import get_logger
@@ -318,17 +318,63 @@ class NodeService:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
         
-        # Apply Class properties if any classes have associated properties
-        # TODO: Implement property value setting based on ClassProperty defaults
-        # This requires determining the property class and using the appropriate
-        # set_scalar_value, set_relation_value, or set_selection_value method
-        # if node.id is not None:
-        #     for class_id in data.classes:
-        #         class_properties = await self._property_repo.get_class_properties(class_id)
-        #         for tp in class_properties:
-        #             default_value = (...)
-        #             if default_value is not None:
-        #                 await self._property_repo.set_*_value(...)
+        # Apply Class properties if any classes have associated properties with defaults
+        if node.id is not None and data.classes:
+            from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
+            
+            for class_id in data.classes:
+                class_properties = await self._property_repo.get_class_properties(class_id)
+                for cp in class_properties:
+                    # Get the property to determine its type
+                    prop = await self._property_repo.get_by_id(cp.property_id)
+                    if not prop:
+                        continue
+                    
+                    # Skip if already has a value from property_values
+                    if data.property_values and cp.property_id in data.property_values:
+                        continue
+                    
+                    # Set default value based on property type
+                    try:
+                        if prop.type in SCALAR_TYPES:
+                            # Integer, Float, Boolean
+                            default = None
+                            if prop.type == PropertyType.INTEGER and cp.default_integer is not None:
+                                default = cp.default_integer
+                            elif prop.type == PropertyType.FLOAT and cp.default_float is not None:
+                                default = cp.default_float
+                            elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
+                                default = cp.default_boolean
+                            
+                            if default is not None:
+                                await self._property_repo.set_scalar_value(node.id, cp.property_id, default)
+                        
+                        elif prop.type in RELATION_TYPES:
+                            # Node, Text, Image, Date
+                            default = None
+                            if prop.type == PropertyType.NODE and cp.default_node_id is not None:
+                                default = cp.default_node_id
+                            elif prop.type == PropertyType.TEXT and cp.default_text is not None:
+                                default = cp.default_text
+                            # Image and Date don't have simple defaults
+                            
+                            if default is not None:
+                                if prop.type == PropertyType.NODE:
+                                    await self._property_repo.set_relation_value(node.id, cp.property_id, default)
+                                else:
+                                    # For TEXT, IMAGE, DATE - create a text node with the default value
+                                    text_node = await self._node_repo.create(
+                                        NodeCreateData(name=str(default), parent_id=node.id),
+                                        user_id
+                                    )
+                                    await self._property_repo.set_relation_value(node.id, cp.property_id, text_node.id)
+                        
+                        elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
+                            await self._property_repo.set_selection_value(node.id, cp.property_id, cp.default_selection_id)
+                    
+                    except Exception as e:
+                        # Log but don't fail node creation if default value setting fails
+                        logger.warning(f"Failed to set default value for property {cp.property_id} on node {node.id}: {e}")
         
         return node
     
@@ -795,13 +841,27 @@ class NodeService:
         """Remove a node from any class/tag property values where it's referenced.
         
         When a node used as a class or tag is deleted, remove it from all nodes
-        that reference it. The inline text (if any) remains.
+        that reference it via property values (especially NODE type properties).
+        The inline text references {{nodeId}} are handled separately.
         """
-        # Find all property values that reference this node
-        # This would require scanning all nodes with class/tag properties
-        # For now, we'll rely on the database to handle this via foreign key cascades
-        # TODO: Implement proper cleanup of class/tag references
-        pass
+        if self._pool is None:
+            return
+        
+        async with self._pool.acquire() as conn:
+            # Remove from property_value_relation where this node is the target
+            # This handles NODE-type properties that reference this node
+            deleted_count = await conn.fetchval("""
+                DELETE FROM property_value_relation 
+                WHERE target_id = $1
+                RETURNING COUNT(*)
+            """, node_id)
+            
+            if deleted_count and deleted_count > 0:
+                logger.info(f"[DELETE] Removed node {node_id} from {deleted_count} property value relations")
+            
+            # Note: Scalar and selection values don't reference other nodes directly,
+            # so no cleanup needed for those tables. The ON DELETE CASCADE in the schema
+            # will handle cleanup when the node itself is deleted.
     
     async def _count_active_day_descendants(self, node_id: int) -> int:
         """Count active day pages that are descendants of this node.
@@ -951,16 +1011,59 @@ class NodeService:
             # Recompute all flags from the updated classes list
             await self._update_flags_from_classes(node_id, new_class_ids)
         
-        # Apply Class properties
+        # Apply Class properties with default values
+        from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
+        
         class_properties = await self._property_repo.get_class_properties(class_node_id)
         for cp in class_properties:
-            default_value = (
-                cp.default_integer or cp.default_float or cp.default_text or
-                cp.default_boolean or cp.default_node_id or cp.default_selection_id
-            )
-            if default_value is not None:
-                # TODO: Set property values based on class
-                pass
+            # Get the property to determine its type
+            prop = await self._property_repo.get_by_id(cp.property_id)
+            if not prop:
+                continue
+            
+            # Check if property already has a value - don't override existing values
+            existing_values = await self._property_repo.get_all_property_values(node_id)
+            if cp.property_id in existing_values and existing_values[cp.property_id]:
+                continue
+            
+            # Set default value based on property type
+            try:
+                if prop.type in SCALAR_TYPES:
+                    default = None
+                    if prop.type == PropertyType.INTEGER and cp.default_integer is not None:
+                        default = cp.default_integer
+                    elif prop.type == PropertyType.FLOAT and cp.default_float is not None:
+                        default = cp.default_float
+                    elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
+                        default = cp.default_boolean
+                    
+                    if default is not None:
+                        await self._property_repo.set_scalar_value(node_id, cp.property_id, default)
+                
+                elif prop.type in RELATION_TYPES:
+                    default = None
+                    if prop.type == PropertyType.NODE and cp.default_node_id is not None:
+                        default = cp.default_node_id
+                    elif prop.type == PropertyType.TEXT and cp.default_text is not None:
+                        default = cp.default_text
+                    
+                    if default is not None:
+                        if prop.type == PropertyType.NODE:
+                            await self._property_repo.set_relation_value(node_id, cp.property_id, default)
+                        else:
+                            # For TEXT - create a text node with the default value
+                            text_node = await self._node_repo.create(
+                                NodeCreateData(name=str(default), parent_id=node_id),
+                                None  # user_id
+                            )
+                            await self._property_repo.set_relation_value(node_id, cp.property_id, text_node.id)
+                
+                elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
+                    await self._property_repo.set_selection_value(node_id, cp.property_id, cp.default_selection_id)
+            
+            except Exception as e:
+                # Log but don't fail if default value setting fails
+                logger.warning(f"Failed to set default value for property {cp.property_id} on node {node_id}: {e}")
         
         return True
     

@@ -9,7 +9,6 @@ from ...db.schema import SYSTEM_CLASS_UUIDS
 from ...db.connection import get_graph_assets_dir, get_graph_uuid
 from ..auth import get_current_user
 from ...models import User
-from ...logging_config import get_logger
 from .models import (
     NodeResponse,
     NodeCreateRequest,
@@ -26,7 +25,6 @@ from .helpers import (
     _get_tag_ids,
     _get_tag_ids_batch,
     _get_class_ids_batch,
-    logger,
 )
 
 
@@ -53,7 +51,7 @@ async def create_node(
         property_values=request.properties,
     )
     
-    node = await service.create_node(data, user_id=None)  # TODO: user_id from JWT
+    node = await service.create_node(data, user_id=int(user.id))
     return _node_to_response(node, classes=list(request.classes))
 
 
