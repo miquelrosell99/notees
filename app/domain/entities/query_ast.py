@@ -136,6 +136,30 @@ class BaseConditionNode:
     """Base for all condition nodes."""
     type: Literal["condition"] = "condition"
     condition_type: ConditionType = ConditionType.CONTENT
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "type": self.type,
+            "condition_type": self.condition_type.value,
+        }
+        # Add all non-None fields from the dataclass
+        for key, value in asdict(self).items():
+            if key in ("type", "condition_type"):
+                continue  # Already added above
+            if value is None:
+                continue  # Skip None values
+            
+            # Handle nested GroupNode
+            if isinstance(value, GroupNode):
+                result[key] = value.to_dict()
+            # Handle enum values
+            elif isinstance(value, Enum):
+                result[key] = value.value
+            else:
+                result[key] = value
+        
+        return result
 
 
 @dataclass
@@ -193,9 +217,10 @@ class ParentPathCondition(BaseConditionNode):
 
 @dataclass
 class ParentCondition(BaseConditionNode):
-    """Parent condition - filter by direct parent node."""
+    """Parent condition - filter by direct parent node matching criteria."""
     condition_type: Literal[ConditionType.PARENT] = ConditionType.PARENT
-    parent_uuid: str = ""  # UUID of the parent node
+    # Optional nested group for filtering the parent node
+    nested_group: Optional["GroupNode"] = None
 
 
 @dataclass
@@ -204,13 +229,6 @@ class FlagCondition(BaseConditionNode):
     condition_type: Literal[ConditionType.FLAG] = ConditionType.FLAG
     flag_name: str = ""  # e.g., "is_page", "is_day", "is_favorite"
     value: bool = True  # True to match, False to exclude
-
-
-@dataclass
-class ParentCondition(BaseConditionNode):
-    """Parent condition - filter by direct parent."""
-    condition_type: Literal[ConditionType.PARENT_PATH] = ConditionType.PARENT_PATH
-    parent_uuid: str = ""  # UUID of the parent node
 
 
 # Union type for all conditions
@@ -399,8 +417,11 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
             max_depth=data.get("max_depth"),
         )
     elif condition_type == ConditionType.PARENT:
+        nested_group = None
+        if "nested_group" in data and data["nested_group"]:
+            nested_group = GroupNode.from_dict(data["nested_group"])
         return ParentCondition(
-            parent_uuid=data.get("parent_uuid", ""),
+            nested_group=nested_group,
         )
     elif condition_type == ConditionType.FLAG:
         return FlagCondition(
