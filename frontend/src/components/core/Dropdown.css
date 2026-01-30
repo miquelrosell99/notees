@@ -114,9 +114,11 @@
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
   z-index: 1100;
   margin-top: var(--spacing-1, 4px);
+  min-width: 100%;
+  width: max-content;
+  max-width: 400px;
   max-height: 300px;
   overflow: hidden;
   display: flex;
