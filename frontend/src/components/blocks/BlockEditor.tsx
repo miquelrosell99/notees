@@ -49,6 +49,8 @@ interface BlockEditorProps {
   content: string;
   onChange: (content: string) => void;
   onAddClass?: (classNodeId: number, keepInline: boolean, className: string) => void;
+  /** Query class ID for converting block to query */
+  queryClassId?: number | null;
   onAddTag?: (tagNodeId: number, keepInline: boolean, tagName: string) => void;
   onCreateClass?: (name: string, keepInline: boolean) => void;
   onCreateTag?: (name: string, keepInline: boolean) => void;
@@ -721,13 +723,14 @@ function getCaretX(): number | undefined {
   return rect.left || rect.right;
 }
 
-export function BlockEditor({ 
+export function BlockEditor({
   nodeId,
   isPage,
   nodeUuid,
-  content, 
+  content,
   onChange,
   onAddClass,
+  queryClassId,
   onAddTag,
   onCreateClass,
   onCreateTag,
@@ -1656,6 +1659,28 @@ export function BlockEditor({
           checkTriggers(newContent);
         }
       }, 0);
+      return;
+    }
+    
+    // For query command, assign the query class
+    if (command === 'query') {
+      if (onAddClass && queryClassId) {
+        // Remove the slash and query from content
+        const newContent = textBeforeTrigger + textAfterCursor.trimStart();
+        isInternalChange.current = true;
+        lastContentRef.current = newContent;
+        onChange(newContent);
+        
+        // Update HTML
+        const html = contentToHtml(newContent, linkNames, typeNames);
+        editorRef.current.innerHTML = html || '<br>';
+        
+        // Assign the query class
+        onAddClass(queryClassId, false, 'query');
+      }
+      
+      setSlashCommand(prev => ({ ...prev, isOpen: false }));
+      setTimeout(() => editorRef.current?.focus(), 0);
       return;
     }
     

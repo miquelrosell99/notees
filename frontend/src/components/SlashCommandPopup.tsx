@@ -6,7 +6,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SlashCommandPopup.css';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon } from './icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon } from './icons';
 
 export interface SlashCommand {
   id: string;
@@ -33,6 +33,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     label: 'Add Tag',
     description: 'Add a tag to this block #',
     icon: <TagIcon size="sm" />,
+  },
+  {
+    id: 'query',
+    label: 'Convert to Query',
+    description: 'Assign query class to this block',
+    icon: <DatabaseIcon size="sm" />,
   },
   {
     id: 'comment',
