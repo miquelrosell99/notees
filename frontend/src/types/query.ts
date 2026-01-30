@@ -74,6 +74,8 @@ export type PropertyType =
  */
 export interface BaseQueryBlock {
   type: QueryBlockType;
+  // Mark blocks as system-managed (used by auto-fix to detect system conditions)
+  isSystemNode?: boolean;
 }
 
 /**

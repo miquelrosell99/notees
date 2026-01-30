@@ -205,19 +205,24 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
       const classBlock = block as ClassBlock;
       // Handle legacy type_id field for backward compatibility
       const classId = classBlock.type_id ?? (block as any).type_id;
-      return {
+      const condition: ClassCondition = {
         type: 'condition',
         condition_type: 'class',
         class_uuid: classBlock.value,
         class_id: classId,
         class_uuids: (classBlock as any).class_uuids, // Support dynamic mode
         operator: (classBlock as any).operator,
-      } as ClassCondition;
+      };
+      // Preserve isSystemNode flag
+      if (classBlock.isSystemNode) {
+        (condition as any).__isSystemNode = true;
+      }
+      return condition;
     }
     
     case 'PROPERTY': {
       const propBlock = block as PropertyBlock;
-      return {
+      const condition: PropertyCondition = {
         type: 'condition',
         condition_type: 'property',
         property_name: propBlock.property_name,
@@ -225,7 +230,12 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
         property_type: propBlock.property_type,
         operator: propBlock.operator,
         value: propBlock.value,
-      } as PropertyCondition;
+      };
+      // Preserve isSystemNode flag
+      if (propBlock.isSystemNode) {
+        (condition as any).__isSystemNode = true;
+      }
+      return condition;
     }
     
     case 'CONTENT': {
@@ -249,6 +259,11 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
         target_uuids: (refBlock as any).target_uuids, // Support dynamic mode
         operator: (refBlock as any).operator,
       };
+      
+      // Preserve isSystemNode flag
+      if (refBlock.isSystemNode) {
+        (condition as any).__isSystemNode = true;
+      }
       
       if (refBlock.blocks && refBlock.blocks.length > 0) {
         condition.nested_group = {
