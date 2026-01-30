@@ -1,134 +1,75 @@
 /**
  * ViewBuilder Styles
  * 
- * Calm, intent-first design with:
- * - Generous whitespace
- * - Strong typographic hierarchy
- * - Neutral colors only (no alert colors)
- * - Single visual anchor (intent header)
- * - Document-like appearance
+ * Minimal, calm design matching the rest of the app.
+ * Single-column layout with clear visual hierarchy.
  */
 
 .view-builder {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: var(--spacing-xl) var(--spacing-lg);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-lg);
 }
 
-/* ==================== Intent Header - Primary Visual Anchor ==================== */
+/* ==================== Intent Header ==================== */
 
 .view-builder__intent-header {
-  background: var(--color-surface-secondary, #f8f9fa);
-  border-radius: var(--radius-lg, 12px);
-  padding: var(--spacing-xl) var(--spacing-2xl);
   text-align: center;
+  padding: var(--spacing-lg) var(--spacing-md);
 }
 
 .view-builder__intent-label {
-  font-size: 0.75rem;
+  display: block;
+  font-size: 0.6875rem;
   font-weight: 600;
-  color: var(--color-text-tertiary, #868e96);
+  color: var(--color-text-quaternary, #adb5bd);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin: 0 0 var(--spacing-sm) 0;
+  letter-spacing: 0.15em;
+  margin-bottom: var(--spacing-xs);
 }
 
 .view-builder__intent-text {
-  font-size: 1.375rem;
+  font-size: 1.125rem;
   font-weight: 400;
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--color-text-primary, #212529);
   margin: 0;
 }
 
-/* ==================== Scope Section - Inline Prose ==================== */
+/* ==================== Scope Section ==================== */
 
 .view-builder__scope-section {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   color: var(--color-text-secondary, #6c757d);
   flex-wrap: wrap;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border-subtle, #e9ecef);
 }
 
 .view-builder__scope-prefix {
-  font-weight: 500;
   color: var(--color-text-tertiary, #868e96);
 }
 
-.view-builder__show-scope {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.875rem;
-  color: var(--color-text-tertiary, #868e96);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
+/* ==================== Filters Section ==================== */
+
+.view-builder__filters-section {
+  padding: var(--spacing-sm) 0;
 }
 
-.view-builder__show-scope:hover {
-  color: var(--color-text-secondary, #6c757d);
-  text-decoration-style: solid;
-}
-
-/* ==================== Conditions Section ==================== */
-
-.view-builder__conditions-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-/* Empty State - Calm and intentional */
-.view-builder__empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-lg) 0;
-}
-
-.view-builder__empty-text {
-  font-size: 0.9375rem;
-  font-style: italic;
-  color: var(--color-text-tertiary, #868e96);
-  margin: 0;
-}
-
-.view-builder__add-filter-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.875rem;
-  color: var(--color-text-tertiary, #868e96);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-
-.view-builder__add-filter-link:hover {
-  color: var(--color-text-secondary, #6c757d);
-  text-decoration-style: solid;
-}
-
-/* ==================== Result Preview - De-emphasized ==================== */
+/* ==================== Result Preview ==================== */
 
 .view-builder__result-preview {
   display: flex;
   justify-content: flex-end;
-  padding-top: var(--spacing-md);
+  padding-top: var(--spacing-sm);
 }
 
 .view-builder__result-count,
 .view-builder__result-loading {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--color-text-tertiary, #868e96);
 }
 
@@ -141,13 +82,13 @@
   font-style: italic;
 }
 
-/* ==================== Advanced Section - Demoted ==================== */
+/* ==================== Advanced Section ==================== */
 
 .view-builder__advanced-section {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
-  padding-top: var(--spacing-xl);
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-md);
   border-top: 1px solid var(--color-border-subtle, #e9ecef);
 }
 
@@ -155,32 +96,12 @@
   align-self: flex-start;
   background: none;
   border: none;
-  padding: var(--spacing-xs) 0;
-  font-size: 0.8125rem;
+  padding: 0;
+  font-size: 0.75rem;
   color: var(--color-text-quaternary, #adb5bd);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
 }
 
 .view-builder__advanced-toggle:hover {
   color: var(--color-text-tertiary, #868e96);
-}
-
-/* ==================== Responsive ==================== */
-
-@media (max-width: 768px) {
-  .view-builder {
-    padding: var(--spacing-lg) var(--spacing-md);
-    gap: var(--spacing-lg);
-  }
-  
-  .view-builder__intent-header {
-    padding: var(--spacing-lg);
-  }
-  
-  .view-builder__intent-text {
-    font-size: 1.125rem;
-  }
 }
