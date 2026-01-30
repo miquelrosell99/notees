@@ -131,10 +131,21 @@ function ProseConditionRow({
       case 'type': {
         const { data: selectedClass } = useNode(condition.type_id);
         const classNodes = selectedClass ? [selectedClass] : [];
+        const operator = condition.operator || 'is';
         
         return (
           <div className="prose-condition__inline">
-            <span className="prose-condition__word">class is</span>
+            <span className="prose-condition__word">class</span>
+            <Dropdown
+              value={operator}
+              onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' })}
+              disabled={effectiveReadOnly}
+              options={[
+                { value: 'is', label: 'is' },
+                { value: 'is_not', label: 'is not' },
+              ]}
+              size="sm"
+            />
             <NodePillRow
               nodes={classNodes}
               searchMode="classes"
