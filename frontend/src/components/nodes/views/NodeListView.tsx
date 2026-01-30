@@ -359,6 +359,7 @@ interface GroupHeaderProps {
   onNodeShiftClick?: (node: Node) => void;
   onContentChange?: (nodeId: number, content: string) => void;
   isolatedBlockState?: boolean;
+  customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
 }
 
 function GroupHeader({
@@ -375,6 +376,7 @@ function GroupHeader({
   onNodeShiftClick,
   onContentChange,
   isolatedBlockState = false,
+  customContextMenuItems,
 }: GroupHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -558,6 +560,7 @@ export function NodeListView({
             onNodeShiftClick={onNodeShiftClick}
             onContentChange={onContentChange}
             isolatedBlockState={isolatedBlockState}
+            customContextMenuItems={customContextMenuItems}
           />
         ))}
       </div>
