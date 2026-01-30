@@ -398,10 +398,6 @@ export function DynamicNodeViewSection({
       // Convert AST back to BlockTree for backend
       const blockTree = astToBlockTree(fixedAST);
       
-      // Debug: Log scope and blockTree to verify
-      console.log('[Save] Scope being saved:', fixedAST.scope);
-      console.log('[Save] BlockTree blocks:', blockTree.blocks.map(b => b.type));
-      
       // Save block tree
       await updateBlockTreeMutation.mutateAsync({
         viewId: editingView.id,
@@ -518,22 +514,11 @@ export function DynamicNodeViewSection({
 
   // Loading state - wait for views to load AND ensure defaults to complete
   if (viewsLoading || isInitializing) {
-    console.log(`[DynamicNodeViewSection] ${viewType} still loading/initializing:`, { viewsLoading, isInitializing, nodeId, hasInitialized });
     return null; // Don't render section while loading
   }
 
   // Calculate values for UI logic
   const resultCount = resultNodes.length;
-  
-  console.log(`[DynamicNodeViewSection] ${viewType} render:`, { 
-    nodeId, 
-    resultCount, 
-    hideWhenEmpty, 
-    activeViewId: activeView?.id,
-    queryLoading: isQueryLoading,
-    isPseudoNode,
-    views: views.length 
-  });
 
   // Header actions - view selector and toolbar
   const headerActions = (
