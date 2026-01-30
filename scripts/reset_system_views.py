@@ -20,9 +20,13 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load .env file if it exists
+from dotenv import load_dotenv
+load_dotenv()
+
 # Set DATABASE_URL if not already set (for running outside Docker)
 if not os.getenv('DATABASE_URL'):
-    os.environ['DATABASE_URL'] = 'postgresql://notees:change_me_dev_password@localhost:5433/notees'
+    os.environ['DATABASE_URL'] = 'postgresql://notees:change_me_dev_password@localhost:5432/notees'
 
 from app.db.connection import get_connection
 
