@@ -1,0 +1,71 @@
+/**
+ * Query Preview Modal Styles
+ */
+
+.query-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.query-preview__section-header {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.query-preview__prose {
+  padding: var(--spacing-md);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+.query-preview__ast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-sm);
+}
+
+.query-preview__ast {
+  padding: var(--spacing-md);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background-color: var(--color-surface-tertiary);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  max-height: 300px;
+}
+
+.query-preview__sql-toggle {
+  background: none;
+  border: none;
+  padding: var(--spacing-xs) 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.query-preview__sql-toggle:hover {
+  color: var(--color-text-secondary);
+}
+
+.query-preview__sql-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.query-preview__sql-note {
+  font-size: 0.75rem;
+  color: var(--color-text-quaternary);
+  font-style: italic;
+}
