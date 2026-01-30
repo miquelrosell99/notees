@@ -126,6 +126,8 @@ export interface ClassCondition extends BaseConditionNode {
   condition_type: 'class';
   class_uuid: string;
   class_id?: number;
+  // For dynamic mode: comma-separated UUIDs
+  class_uuids?: string[];
   operator?: 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined';  // Default: 'contains'
 }
 
@@ -158,6 +160,8 @@ export interface ReferenceCondition extends BaseConditionNode {
   condition_type: 'reference';
   target_uuid: string;
   target_id?: number;
+  // For dynamic mode: comma-separated UUIDs
+  target_uuids?: string[];
   operator?: 'references' | 'does_not_reference' | 'has_references' | 'has_no_references';  // Default: 'references'
   // Optional nested group for filtering the referencing nodes
   nested_group?: GroupNode;

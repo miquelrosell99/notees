@@ -201,6 +201,8 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
         condition_type: 'class',
         class_uuid: classBlock.value,
         class_id: classId,
+        class_uuids: (classBlock as any).class_uuids, // Support dynamic mode
+        operator: (classBlock as any).operator,
       } as ClassCondition;
     }
     
@@ -235,6 +237,8 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
         condition_type: 'reference',
         target_uuid: refBlock.target_uuid,
         target_id: refBlock.target_id,
+        target_uuids: (refBlock as any).target_uuids, // Support dynamic mode
+        operator: (refBlock as any).operator,
       };
       
       if (refBlock.blocks && refBlock.blocks.length > 0) {
@@ -440,10 +444,12 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
       
       // For 'defined' and 'not_defined', we use a CLASS block with empty value
       // to check if ANY class is assigned (backend should interpret empty value as "any class")
-      const classBlock: QueryBlock = {
+      const classBlock: any = {
         type: 'CLASS',
         value: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? '' : classCond.class_uuid,
         type_id: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? undefined : classCond.class_id,
+        operator: classCond.operator,
+        class_uuids: classCond.class_uuids, // Support dynamic mode
       };
       
       // If operator is negative, wrap in NOT_CONTAINER
@@ -484,10 +490,12 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
       const refCond = condition as ReferenceCondition;
       const operator = refCond.operator || 'references';
       
-      const refBlock: ReferenceBlock = {
+      const refBlock: any = {
         type: 'REFERENCE',
         target_uuid: operator === 'has_references' || operator === 'has_no_references' ? '' : refCond.target_uuid,
         target_id: operator === 'has_references' || operator === 'has_no_references' ? undefined : refCond.target_id,
+        operator: refCond.operator,
+        target_uuids: refCond.target_uuids, // Support dynamic mode
       };
       
       if (refCond.nested_group) {
