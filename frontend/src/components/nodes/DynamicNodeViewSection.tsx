@@ -31,12 +31,9 @@ import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { Badge } from '../core/Badge';
 import { SelectionButton } from '../core/SelectionButton';
-import { ToggleSwitch } from '../core/ToggleSwitch';
-import { ConfirmationModal } from '../core/ConfirmationModal';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { TextField } from '../core/TextField';
 import { ViewBuilder } from '../queries';
-import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
 import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
@@ -107,9 +104,6 @@ export function DynamicNodeViewSection({
   // AST is the source of truth for editing
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [editMode, setEditMode] = useState<'blocks' | 'sql'>('blocks');
-  const [editSqlQuery, setEditSqlQuery] = useState('');
-  const [showSqlResetConfirm, setShowSqlResetConfirm] = useState(false);
   
   // Get persisted view mode from store
   const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
@@ -388,26 +382,6 @@ export function DynamicNodeViewSection({
       console.error('Failed to save view:', error);
     }
   }, [editingView, editAST, validation, editViewName, viewType, nodeUuid, updateBlockTreeMutation, updateViewMutation, refetchQuery]);
-
-  // Handle switching from SQL to blocks mode (requires confirmation)
-  const handleModeSwitch = useCallback((toSql: boolean) => {
-    if (toSql) {
-      // Switching to SQL mode is safe
-      setEditMode('sql');
-    } else {
-      // Switching back to blocks will reset the query - confirm first
-      setShowSqlResetConfirm(true);
-    }
-  }, []);
-
-  const confirmSqlReset = useCallback(() => {
-    const emptyAST = createEmptyQueryAST();
-    setEditAST(emptyAST);
-    setValidation(validateQueryAST(emptyAST));
-    setEditSqlQuery('');
-    setEditMode('blocks');
-    setShowSqlResetConfirm(false);
-  }, []);
 
   // Handle deleting view
   const handleDeleteView = useCallback(async () => {
@@ -690,65 +664,19 @@ export function DynamicNodeViewSection({
       >
         {editingView && editAST && (
           <div className="dynamic-section__edit-form">
-            {/* Mode toggle: Builder vs Advanced SQL */}
-            <div className="dynamic-section__mode-toggle-section">
-              <ToggleSwitch
-                leftLabel="View definition"
-                rightLabel="Advanced logic"
-                checked={editMode === 'sql'}
-                onChange={handleModeSwitch}
-                size="sm"
-              />
-              {editMode === 'sql' && (
-                <span className="dynamic-section__mode-warning">
-                  Switching to SQL disables the visual builder.
-                </span>
-              )}
-            </div>
-
-            {/* Query editor - blocks or SQL */}
-            {editMode === 'blocks' ? (
-              <div className="dynamic-section__builder-mode">
-                {/* ViewBuilder - prose-based AST editing */}
-                <ViewBuilder
-                  ast={editAST}
-                  onChange={(updatedAST) => {
-                    setEditAST(updatedAST);
-                    setValidation(validateQueryAST(updatedAST));
-                  }}
-                  resultCount={resultNodes.length}
-                  isLoading={isQueryLoading}
-                />
-              </div>
-            ) : (
-              <div className="dynamic-section__sql-editor">
-                <textarea
-                  className="dynamic-section__sql-textarea"
-                  value={editSqlQuery}
-                  onChange={(e) => setEditSqlQuery(e.target.value)}
-                  placeholder="Enter raw SQL query..."
-                  spellCheck={false}
-                />
-                <p className="dynamic-section__sql-hint">
-                  SQL mode is not yet connected to the backend. This is a placeholder for future functionality.
-                </p>
-              </div>
-            )}
+            {/* ViewBuilder - prose-based AST editing */}
+            <ViewBuilder
+              ast={editAST}
+              onChange={(updatedAST) => {
+                setEditAST(updatedAST);
+                setValidation(validateQueryAST(updatedAST));
+              }}
+              resultCount={resultNodes.length}
+              isLoading={isQueryLoading}
+            />
           </div>
         )}
       </Modal>
-
-      {/* Confirmation modal for SQL to blocks switch */}
-      <ConfirmationModal
-        isOpen={showSqlResetConfirm}
-        title="Switch to Block Editor?"
-        message="Switching from SQL to block mode will reset the query. Any custom SQL will be lost. Are you sure?"
-        confirmLabel="Reset Query"
-        cancelLabel="Keep SQL"
-        variant="danger"
-        onConfirm={confirmSqlReset}
-        onCancel={() => setShowSqlResetConfirm(false)}
-      />
     </>
   );
 }

@@ -10,7 +10,7 @@
  */
 
 import { useCallback } from 'react';
-import { mdiClose, mdiPlus } from '@mdi/js';
+import { mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
@@ -224,57 +224,65 @@ export function ProseConditionBuilder({
   
   // Determine logic word
   const logic = group.logic === 'OR' ? 'or' : 'and';
+  const isEmpty = group.children.length === 0;
   
   return (
-    <div className="prose-condition-builder" style={{ paddingLeft: `${depth * 20}px` }}>
-      {/* Conditions */}
-      <div className="prose-condition-builder__list">
-        {group.children.map((child, index) => {
-          if (child.type === 'condition') {
-            return (
-              <ProseConditionRow
-                key={index}
-                condition={child}
-                onUpdate={(updated) => handleUpdateChild(index, updated)}
-                onDelete={() => handleDeleteChild(index)}
-                readOnly={readOnly}
-                logic={index > 0 ? logic : undefined}
-                isFirst={index === 0}
-              />
-            );
-          } else if (child.type === 'group') {
-            // Nested group
-            return (
-              <div key={index} className="prose-condition-builder__nested">
-                {index > 0 && <span className="prose-condition__connector">{logic}</span>}
-                <ProseConditionBuilder
-                  group={child}
-                  onUpdate={(updated) => {
-                    const newChildren = [...group.children];
-                    newChildren[index] = updated;
-                    onUpdate({ ...group, children: newChildren });
-                  }}
-                  readOnly={readOnly}
-                  depth={depth + 1}
-                />
-              </div>
-            );
-          }
-          return null;
-        })}
-      </div>
+    <div className="prose-condition-builder" style={{ paddingLeft: depth > 0 ? `${depth * 16}px` : undefined }}>
+      {/* Empty state */}
+      {isEmpty && (
+        <p className="prose-condition-builder__empty">
+          No filters — all nodes will be shown
+        </p>
+      )}
       
-      {/* Add button */}
+      {/* Conditions */}
+      {!isEmpty && (
+        <div className="prose-condition-builder__list">
+          {group.children.map((child, index) => {
+            if (child.type === 'condition') {
+              return (
+                <ProseConditionRow
+                  key={index}
+                  condition={child}
+                  onUpdate={(updated) => handleUpdateChild(index, updated)}
+                  onDelete={() => handleDeleteChild(index)}
+                  readOnly={readOnly}
+                  logic={index > 0 ? logic : undefined}
+                  isFirst={index === 0}
+                />
+              );
+            } else if (child.type === 'group') {
+              // Nested group
+              return (
+                <div key={index} className="prose-condition-builder__nested">
+                  {index > 0 && <span className="prose-condition__connector">{logic}</span>}
+                  <ProseConditionBuilder
+                    group={child}
+                    onUpdate={(updated) => {
+                      const newChildren = [...group.children];
+                      newChildren[index] = updated;
+                      onUpdate({ ...group, children: newChildren });
+                    }}
+                    readOnly={readOnly}
+                    depth={depth + 1}
+                  />
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      )}
+      
+      {/* Add filter button */}
       {!readOnly && (
-        <Button
-          icon={mdiPlus}
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
           onClick={handleAdd}
           className="prose-condition-builder__add"
         >
-          Add filter
-        </Button>
+          + Add filter
+        </button>
       )}
     </div>
   );

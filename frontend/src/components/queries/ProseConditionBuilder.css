@@ -1,12 +1,7 @@
 /**
  * ProseConditionBuilder Styles
  * 
- * Calm, minimal styling with:
- * - Light indentation for hierarchy
- * - Generous line spacing
- * - Muted colors for system constraints
- * - No borders or boxes
- * - Document-like appearance
+ * Minimal styling matching the app's design language.
  */
 
 .prose-condition-builder {
@@ -15,23 +10,38 @@
   gap: var(--spacing-xs);
 }
 
+.prose-condition-builder__empty {
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary, #868e96);
+  font-style: italic;
+  margin: 0;
+}
+
 .prose-condition-builder__list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: 0;
 }
 
 .prose-condition-builder__nested {
-  padding-left: var(--spacing-lg);
-  margin-left: var(--spacing-sm);
-  border-left: 2px solid var(--color-border-subtle, #e9ecef);
+  padding-left: var(--spacing-md);
+  margin-left: var(--spacing-xs);
+  border-left: 1px solid var(--color-border-subtle, #e9ecef);
 }
 
 .prose-condition-builder__add {
   align-self: flex-start;
-  margin-top: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
   color: var(--color-text-tertiary, #868e96);
-  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.prose-condition-builder__add:hover {
+  color: var(--color-text-secondary, #6c757d);
 }
 
 /* ==================== Condition Row ==================== */
@@ -41,7 +51,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-xs) 0;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: var(--color-text-primary, #212529);
 }
@@ -51,16 +61,14 @@
 }
 
 .prose-condition__connector {
-  font-weight: 500;
   color: var(--color-text-tertiary, #868e96);
-  margin-right: var(--spacing-xs);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-style: italic;
 }
 
 .prose-condition__lock {
-  font-size: 0.75rem;
-  opacity: 0.6;
+  font-size: 0.6875rem;
+  opacity: 0.5;
   cursor: help;
 }
 
@@ -75,57 +83,31 @@
   color: var(--color-text-secondary, #6c757d);
 }
 
-.prose-condition__text {
-  font-weight: 400;
-}
-
 .prose-condition__value {
-  font-weight: 500;
-  font-family: var(--font-mono, 'Monaco', 'Menlo', monospace);
-  font-size: 0.875em;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
   background: var(--color-surface-tertiary, #f1f3f5);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm, 3px);
+  padding: 1px 4px;
+  border-radius: 2px;
 }
 
 .prose-condition__input {
-  min-width: 100px;
-  max-width: 180px;
+  min-width: 80px;
+  max-width: 160px;
 }
 
 .prose-condition__delete {
   margin-left: auto;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.1s;
 }
 
 .prose-condition:hover .prose-condition__delete {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .prose-condition__delete:hover {
   opacity: 1;
-}
-
-/* ==================== Inline Dropdown Styling ==================== */
-
-.prose-condition .dropdown {
-  font-weight: 500;
-}
-
-.prose-condition .dropdown__trigger {
-  background: transparent;
-  border: none;
-  padding: 2px 4px;
-  border-radius: var(--radius-sm, 3px);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-
-.prose-condition .dropdown__trigger:hover {
-  background: var(--color-surface-tertiary, #f1f3f5);
-  text-decoration-style: solid;
 }
 
 .prose-condition .dropdown__trigger:hover {

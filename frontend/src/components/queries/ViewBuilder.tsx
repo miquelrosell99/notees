@@ -51,7 +51,6 @@ export function ViewBuilder({
 }: ViewBuilderProps) {
   
   const [showEngine, setShowEngine] = useState(false);
-  const [showScope, setShowScope] = useState(false);
   
   // Auto-normalize and validate AST on every change (validation is console-only)
   const handleChange = useCallback((updatedAST: QueryAST) => {
@@ -79,11 +78,8 @@ export function ViewBuilder({
   // Generate intent label (live-updating)
   const intentLabel = useMemo(() => getQueryIntent(ast), [ast]);
   
-  // Check if scope is default (hide scope UI when default)
+  // Check if scope is non-default
   const isDefaultScope = ast.scope.scope_type === 'entire_graph';
-  
-  // Check if query has user-defined conditions
-  const hasConditions = ast.root_group.children.length > 0;
   
   return (
     <div className={`view-builder ${className}`}>
@@ -93,8 +89,8 @@ export function ViewBuilder({
         <p className="view-builder__intent-text">{intentLabel}</p>
       </div>
       
-      {/* Scope Selector - Hidden by default when "Entire graph" */}
-      {!isDefaultScope || showScope ? (
+      {/* Scope Selector - Inline prose, hidden when default */}
+      {!isDefaultScope && (
         <div className="view-builder__scope-section">
           <span className="view-builder__scope-prefix">Search in:</span>
           <ProseScopeSelector
@@ -103,50 +99,15 @@ export function ViewBuilder({
             readOnly={readOnly}
           />
         </div>
-      ) : (
-        !readOnly && (
-          <button
-            type="button"
-            onClick={() => setShowScope(true)}
-            className="view-builder__show-scope"
-          >
-            Change search scope…
-          </button>
-        )
       )}
       
-      {/* Conditions Section */}
-      <div className="view-builder__conditions-section">
-        {hasConditions ? (
-          <ProseConditionBuilder
-            group={ast.root_group}
-            onUpdate={handleRootGroupChange}
-            readOnly={readOnly}
-          />
-        ) : (
-          <div className="view-builder__empty-state">
-            <p className="view-builder__empty-text">
-              No additional filters — all nodes in scope will be shown
-            </p>
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => handleRootGroupChange({
-                  ...ast.root_group,
-                  children: [...ast.root_group.children, {
-                    type: 'condition',
-                    condition_type: 'content',
-                    operator: 'contains',
-                    value: '',
-                  }],
-                })}
-                className="view-builder__add-filter-link"
-              >
-                Add a filter…
-              </button>
-            )}
-          </div>
-        )}
+      {/* Filters Section */}
+      <div className="view-builder__filters-section">
+        <ProseConditionBuilder
+          group={ast.root_group}
+          onUpdate={handleRootGroupChange}
+          readOnly={readOnly}
+        />
       </div>
       
       {/* Result Preview - Bottom right, de-emphasized */}
