@@ -47,6 +47,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                 {
                     "type": "CLASS",
                     "value": "{current_node_uuid}",
+                    "operator": "contains",
                 }
             ]
         }
