@@ -1,7 +1,7 @@
 /**
- * ViewBuilder Component (Redesigned)
+ * ViewBuilder Component
  * 
- * Clean, modern, intent-first UI for defining views.
+ * Calm, intent-first, prose-based query editor.
  * Single-column layout with generous whitespace and typographic hierarchy.
  * 
  * Design principles:
@@ -9,18 +9,16 @@
  * - Whitespace and hierarchy over boxes and borders
  * - Intent-first with live-updating prose
  * - Progressive disclosure (basic → advanced)
- * - No validation noise or warnings
+ * - No validation noise or warnings (empty queries are valid)
  */
 
 import { useCallback, useState, useMemo } from 'react';
-import { mdiChevronDown, mdiChevronUp } from '@mdi/js';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { assertValidAST } from '@/lib/astValidator';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { ProseScopeSelector } from './ProseScopeSelector';
 import { EngineView } from './EngineView';
-import { Button } from '../core/Button';
 import type { QueryAST } from '@/types/queryAST';
 import './ViewBuilder.css';
 
@@ -55,10 +53,10 @@ export function ViewBuilder({
   const [showEngine, setShowEngine] = useState(false);
   const [showScope, setShowScope] = useState(false);
   
-  // Auto-normalize and validate AST on every change
+  // Auto-normalize and validate AST on every change (validation is console-only)
   const handleChange = useCallback((updatedAST: QueryAST) => {
     const normalized = normalizeAST(updatedAST);
-    assertValidAST(normalized); // Log validation errors in development
+    assertValidAST(normalized); // Developer-only: log validation issues
     onChange(normalized);
   }, [onChange]);
   
@@ -81,21 +79,21 @@ export function ViewBuilder({
   // Generate intent label (live-updating)
   const intentLabel = useMemo(() => getQueryIntent(ast), [ast]);
   
-  // Check if scope is default
+  // Check if scope is default (hide scope UI when default)
   const isDefaultScope = ast.scope.scope_type === 'entire_graph';
   
-  // Check if query has conditions
+  // Check if query has user-defined conditions
   const hasConditions = ast.root_group.children.length > 0;
   
   return (
     <div className={`view-builder ${className}`}>
-      {/* Intent Header - Visual Anchor */}
+      {/* Intent Header - Primary Visual Anchor */}
       <div className="view-builder__intent-header">
-        <h2 className="view-builder__intent-label">This view shows</h2>
+        <span className="view-builder__intent-label">This view shows</span>
         <p className="view-builder__intent-text">{intentLabel}</p>
       </div>
       
-      {/* Scope Selector - Hidden by default, inline when shown */}
+      {/* Scope Selector - Hidden by default when "Entire graph" */}
       {!isDefaultScope || showScope ? (
         <div className="view-builder__scope-section">
           <span className="view-builder__scope-prefix">Search in:</span>
@@ -107,60 +105,74 @@ export function ViewBuilder({
         </div>
       ) : (
         !readOnly && (
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setShowScope(true)}
             className="view-builder__show-scope"
           >
-            Change search scope
-          </Button>
+            Change search scope…
+          </button>
         )
       )}
       
       {/* Conditions Section */}
       <div className="view-builder__conditions-section">
         {hasConditions ? (
-          <>
-            <h3 className="view-builder__conditions-label">Filters</h3>
-            <ProseConditionBuilder
-              group={ast.root_group}
-              onUpdate={handleRootGroupChange}
-              readOnly={readOnly}
-            />
-          </>
+          <ProseConditionBuilder
+            group={ast.root_group}
+            onUpdate={handleRootGroupChange}
+            readOnly={readOnly}
+          />
         ) : (
           <div className="view-builder__empty-state">
-            {!readOnly && <p>No additional filters — all nodes in scope will be shown</p>}
+            <p className="view-builder__empty-text">
+              No additional filters — all nodes in scope will be shown
+            </p>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => handleRootGroupChange({
+                  ...ast.root_group,
+                  children: [...ast.root_group.children, {
+                    type: 'condition',
+                    condition_type: 'content',
+                    operator: 'contains',
+                    value: '',
+                  }],
+                })}
+                className="view-builder__add-filter-link"
+              >
+                Add a filter…
+              </button>
+            )}
           </div>
         )}
       </div>
       
-      {/* Result Preview - Bottom right */}
+      {/* Result Preview - Bottom right, de-emphasized */}
       {resultCount !== undefined && (
         <div className="view-builder__result-preview">
           {isLoading ? (
-            <span className="view-builder__result-loading">Calculating...</span>
+            <span className="view-builder__result-loading">Calculating…</span>
           ) : (
             <span className="view-builder__result-count">
-              ● {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
+              <span className="view-builder__result-dot">●</span>
+              {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
             </span>
           )}
         </div>
       )}
       
-      {/* Engine View - Collapsed by default */}
+      {/* Advanced Logic - Collapsed by default, demoted */}
       {!readOnly && (
-        <div className="view-builder__engine-section">
-          <Button
-            variant="ghost"
-            size="sm"
+        <div className="view-builder__advanced-section">
+          <button
+            type="button"
             onClick={() => setShowEngine(!showEngine)}
-            icon={showEngine ? mdiChevronUp : mdiChevronDown}
-            className="view-builder__engine-toggle"
+            className="view-builder__advanced-toggle"
           >
-            {showEngine ? 'Hide' : 'Show'} engine view
-          </Button>
+            {showEngine ? '▲' : '▼'} Advanced logic
+          </button>
           
           {showEngine && (
             <EngineView ast={ast} />

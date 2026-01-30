@@ -690,23 +690,6 @@ export function DynamicNodeViewSection({
       >
         {editingView && editAST && (
           <div className="dynamic-section__edit-form">
-            {/* Validation messages */}
-            {validation && validation.issues.length > 0 && (
-              <div className="dynamic-section__validation">
-                {validation.issues.map((issue, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`dynamic-section__validation-issue dynamic-section__validation-issue--${issue.severity}`}
-                  >
-                    <span className="dynamic-section__validation-message">{issue.message}</span>
-                    {issue.suggestion && (
-                      <span className="dynamic-section__validation-suggestion">{issue.suggestion}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Mode toggle: Builder vs Advanced SQL */}
             <div className="dynamic-section__mode-toggle-section">
               <ToggleSwitch

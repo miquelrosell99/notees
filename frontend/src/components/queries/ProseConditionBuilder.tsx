@@ -1,16 +1,16 @@
 /**
- * ProseConditionBuilder (Redesigned)
+ * ProseConditionBuilder Component
  * 
- * Clean, sentence-based condition builder with:
- * - Light indentation for hierarchy
- * - Inline dropdowns styled as text-first
+ * Sentence-based condition builder with:
+ * - Inline dropdowns styled as text
  * - Muted system constraints with 🔒 icon
  * - No boxes or borders
  * - Plain language operators (and, or)
+ * - Light indentation for hierarchy
  */
 
 import { useCallback } from 'react';
-import { mdiClose, mdiPlus, mdiLock } from '@mdi/js';
+import { mdiClose, mdiPlus } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
