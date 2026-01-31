@@ -140,6 +140,8 @@ export interface PropertyCondition extends BaseConditionNode {
   property_type: PropertyType;
   operator: PropertyOperator;
   value?: unknown;
+  // Optional nested group for filtering node values (when property_type is 'node')
+  nested_group?: GroupNode;
 }
 
 /**
