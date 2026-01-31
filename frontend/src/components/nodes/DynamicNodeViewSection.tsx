@@ -347,17 +347,35 @@ export function DynamicNodeViewSection({
     setEditingView(view);
     setEditViewName(view.name);
     
-    // Convert QueryBlockTree to AST with query identity
-    const blockTree = view.query_block_tree ?? createEmptyBlockTree();
     const queryId = `view-${view.id}-${view.uuid}`;
-    let ast = blockTreeToAST(blockTree, queryId, false); // false = not system
+    let ast: QueryAST;
+    let isFromBackendAST = false;
+    
+    // Check if query_block_tree is actually a QueryAST (backend stores AST in query_json)
+    const data = view.query_block_tree;
+    if (data && typeof data === 'object' && 'type' in data && data.type === 'query' && 'root_group' in data) {
+      // It's already a QueryAST, use it directly
+      ast = data as QueryAST;
+      // Ensure it has an ID
+      if (!ast.id) {
+        ast.id = queryId;
+      }
+      isFromBackendAST = true;
+    } else {
+      // It's a QueryBlockTree (or null/empty), convert it
+      const blockTree = data ?? createEmptyBlockTree();
+      ast = blockTreeToAST(blockTree, queryId, false); // false = not system
+    }
     
     // Auto-fix: Restore missing system conditions (marks them with isSystemNode)
-    ast = autoFixSystemQuery(ast, viewType, {
-      nodeUuid: nodeUuid,
-      parentUuid: nodeUuid,
-      // For classed_nodes, nodeUuid IS the class we're filtering by
-    });
+    // Skip for default views that already have proper AST from backend
+    if (!isFromBackendAST || !view.is_default) {
+      ast = autoFixSystemQuery(ast, viewType, {
+        nodeUuid: nodeUuid,
+        parentUuid: nodeUuid,
+        // For classed_nodes, nodeUuid IS the class we're filtering by
+      });
+    }
     
     // Set created_at if not already set
     if (!ast.created_at) {

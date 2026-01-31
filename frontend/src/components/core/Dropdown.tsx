@@ -4,6 +4,7 @@
  * A dropdown selection component with search and multi-select support.
  */
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@mdi/react';
 import { mdiChevronDown, mdiClose, mdiCheck } from '@mdi/js';
 import { Card } from './Card';
@@ -87,8 +88,23 @@ export function Dropdown<T = string>({
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Update menu position when opened
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY + 4, // 4px gap
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    } else {
+      setMenuPosition(null);
+    }
+  }, [isOpen]);
 
   // Close on click outside
   useEffect(() => {
@@ -230,9 +246,19 @@ export function Dropdown<T = string>({
         </button>
       )}
 
-      {/* Dropdown menu */}
-      {isOpen && (
-        <Card className="dropdown-menu" elevation="high" padding={false}>
+      {/* Dropdown menu - rendered in portal */}
+      {isOpen && menuPosition && createPortal(
+        <Card 
+          className="dropdown-menu dropdown-menu--portal" 
+          elevation="high" 
+          padding={false}
+          style={{
+            position: 'absolute',
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+            minWidth: `${menuPosition.width}px`,
+          }}
+        >
           {searchable && (
             <div className="dropdown-search">
               <input
@@ -299,7 +325,8 @@ export function Dropdown<T = string>({
               ))
             )}
           </div>
-        </Card>
+        </Card>,
+        document.body
       )}
 
       {/* Error message */}

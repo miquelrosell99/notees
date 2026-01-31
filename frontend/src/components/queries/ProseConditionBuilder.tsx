@@ -18,7 +18,7 @@ import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
-import { useNode } from '@/hooks';
+import { useNode, useProperties } from '@/hooks';
 import { renderConditionProse } from '@/lib/astProseRenderer';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
 import type { ConditionNode, ContentOperator, PropertyOperator } from '@/types/queryAST';
@@ -127,13 +127,43 @@ function ProseConditionRow({
       
       case 'property':
         const showValue = condition.operator !== 'is_empty' && condition.operator !== 'is_not_empty';
+        const { data: allProperties = [] } = useProperties();
+        
+        // Built-in properties that are always available
+        const builtInProperties = [
+          { value: 'uuid', label: 'uuid' },
+          { value: 'name', label: 'name' },
+          { value: 'id', label: 'id' },
+          { value: 'parent_id', label: 'parent_id' },
+          { value: 'is_page', label: 'is_page' },
+          { value: 'is_favorite', label: 'is_favorite' },
+        ];
+        
+        // Custom properties from the database
+        const customProperties = allProperties.map(prop => ({
+          value: prop.name,
+          label: prop.name,
+        }));
+        
+        // Combine built-in and custom properties
+        const propertyOptions = [...builtInProperties, ...customProperties];
+        
+        // Check if this property is of type 'node' (for static/dynamic selection)
+        const selectedProperty = allProperties.find(p => p.name === condition.property_name);
+        const isNodeProperty = selectedProperty?.type === 'node';
+        
+        // For node properties, support static/dynamic mode
+        const isDynamicMode = condition.value_uuids && condition.value_uuids.length > 0;
+        const [propSelectionMode, setPropSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
+        
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__word">property</span>
-            <TextField
+            <Dropdown
               value={condition.property_name}
-              onChange={(e) => onUpdate({ ...condition, property_name: e.target.value })}
-              placeholder="name"
+              onChange={(value) => onUpdate({ ...condition, property_name: value })}
+              options={propertyOptions}
+              placeholder="Select property"
               disabled={effectiveReadOnly}
               size="sm"
               className="prose-condition__input"
@@ -151,7 +181,70 @@ function ProseConditionRow({
               ]}
               size="sm"
             />
-            {showValue && (
+            {showValue && isNodeProperty && (
+              <>
+                <SelectionButton
+                  value={propSelectionMode}
+                  onChange={(mode) => {
+                    setPropSelectionMode(mode);
+                    if (mode === 'static') {
+                      onUpdate({
+                        ...condition,
+                        value_uuids: undefined,
+                      });
+                    } else {
+                      const initialUuids = condition.value ? [String(condition.value)] : [];
+                      onUpdate({
+                        ...condition,
+                        value: initialUuids[0] || '',
+                        value_uuids: initialUuids,
+                      });
+                    }
+                  }}
+                  options={[
+                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
+                  ]}
+                  size="sm"
+                  disabled={effectiveReadOnly}
+                />
+                {propSelectionMode === 'static' ? (
+                  <SingleNodeSelector
+                    mode="all"
+                    selectedId={null}
+                    onChange={(nodeId, node) => {
+                      onUpdate({
+                        ...condition,
+                        value: node?.uuid ?? '',
+                        value_uuids: undefined,
+                      });
+                    }}
+                    placeholder="Select node..."
+                    readOnly={effectiveReadOnly}
+                  />
+                ) : (
+                  <TextField
+                    value={(condition.value_uuids || []).join(', ')}
+                    onChange={(e) => {
+                      const uuids = (e.target.value as string)
+                        .split(',')
+                        .map((s: string) => s.trim())
+                        .filter((s: string) => s.length > 0);
+                      onUpdate({
+                        ...condition,
+                        value: uuids[0] || '',
+                        value_uuids: uuids,
+                      });
+                    }}
+                    placeholder="Enter node UUIDs separated by commas"
+                    disabled={effectiveReadOnly}
+                    size="sm"
+                    className="prose-condition__input"
+                  />
+                )}
+              </>
+            )}
+            {showValue && !isNodeProperty && (
               <TextField
                 value={String(condition.value || '')}
                 onChange={(e) => onUpdate({ ...condition, value: e.target.value })}
@@ -360,6 +453,21 @@ function ProseConditionRow({
                 )}
               </>
             )}
+          </div>
+        );
+      }
+
+      case 'parent':
+      case 'parent_path':
+      case 'child':
+      case 'child_path':
+      case 'reference_path':
+      case 'class_path': {
+        // All these types have nested_group and can potentially support dynamic selection in the future
+        // For now, show as prose (they use nested groups rather than direct node selection)
+        return (
+          <div className="prose-condition__inline">
+            <span className="prose-condition__text">{renderConditionProse(condition)}</span>
           </div>
         );
       }
