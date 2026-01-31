@@ -111,6 +111,19 @@ function ProseConditionRow({
   const isRemovable = isNodeRemovable(condition);
   const effectiveReadOnly = readOnly || !isEditable;
   
+  // HOOKS - Must be called unconditionally at the top level
+  const { data: allProperties = [] } = useProperties();
+  const { data: selectedClassNode } = useNode(condition.condition_type === 'class' ? condition.class_id || null : null);
+  
+  // State for selection modes - always initialize
+  const isDynamicModeProperty = condition.condition_type === 'property' && condition.nested_group !== undefined;
+  const isDynamicModeClass = condition.condition_type === 'class' && condition.nested_group !== undefined;
+  const isDynamicModeReference = condition.condition_type === 'reference' && condition.nested_group !== undefined;
+  
+  const [propSelectionMode, setPropSelectionMode] = useState(isDynamicModeProperty ? 'dynamic' : 'static');
+  const [classSelectionMode, setClassSelectionMode] = useState(isDynamicModeClass ? 'dynamic' : 'static');
+  const [refSelectionMode, setRefSelectionMode] = useState(isDynamicModeReference ? 'dynamic' : 'static');
+  
   // Render based on condition type
   const renderCondition = () => {
     switch (condition.condition_type) {
@@ -144,7 +157,6 @@ function ProseConditionRow({
       
       case 'property':
         const showValue = condition.operator !== 'is_empty' && condition.operator !== 'is_not_empty';
-        const { data: allProperties = [] } = useProperties();
         
         // Built-in properties that are always available
         const builtInProperties = [
@@ -169,220 +181,217 @@ function ProseConditionRow({
         const selectedProperty = allProperties.find(p => p.name === condition.property_name);
         const isNodeProperty = selectedProperty?.type === 'node';
         
-        // For node properties, support static/dynamic mode
-        const isDynamicMode = condition.nested_group !== undefined;
-        const [propSelectionMode, setPropSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
-        
         return (
-          <div className="prose-condition__inline">
-            <span className="prose-condition__word">property</span>
-            <Dropdown
-              value={condition.property_name}
-              onChange={(value) => onUpdate({ ...condition, property_name: value })}
-              options={propertyOptions}
-              placeholder="Select property"
-              disabled={effectiveReadOnly}
-              size="sm"
-              className="prose-condition__input"
-            />
-            <Dropdown
-              value={condition.operator}
-              onChange={(value) => onUpdate({ ...condition, operator: value as PropertyOperator })}
-              disabled={effectiveReadOnly}
-              options={[
-                { value: '=', label: 'equals' },
-                { value: '!=', label: '≠' },
-                { value: 'contains', label: 'contains' },
-                { value: 'is_empty', label: 'is empty' },
-                { value: 'is_not_empty', label: 'has value' },
-              ]}
-              size="sm"
-            />
-            {showValue && isNodeProperty && (
-              <>
-                <SelectionButton
-                  value={propSelectionMode}
-                  onChange={(mode) => {
-                    setPropSelectionMode(mode);
-                    if (mode === 'static') {
-                      onUpdate({
-                        ...condition,
-                        nested_group: undefined,
-                      });
-                    } else {
-                      onUpdate({
-                        ...condition,
-                        value: '',
-                        nested_group: {
-                          logic: 'AND',
-                          conditions: [],
-                        },
-                      });
-                    }
-                  }}
-                  options={[
-                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
-                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
-                  ]}
-                  size="sm"
-                  disabled={effectiveReadOnly}
-                />
-                {propSelectionMode === 'static' ? (
-                  <SingleNodeSelector
-                    mode="all"
-                    selectedId={null}
-                    onChange={(nodeId, node) => {
-                      onUpdate({
-                        ...condition,
-                        value: node?.uuid ?? '',
-                        nested_group: undefined,
-                      });
-                    }}
-                    placeholder="Select node..."
-                    readOnly={effectiveReadOnly}
-                  />
-                ) : (
-                  <div className="prose-condition__nested">
-                    <span className="prose-condition__word-muted">where</span>
-                    <QueryBlockList
-                      blocks={condition.nested_group?.conditions || []}
-                      parentLogic={condition.nested_group?.logic || 'AND'}
-                      onChange={(blocks) => {
-                        onUpdate({
-                          ...condition,
-                          value: '',
-                          nested_group: {
-                            logic: condition.nested_group?.logic || 'AND',
-                            conditions: blocks,
-                          },
-                        });
-                      }}
-                      readOnly={effectiveReadOnly}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-            {showValue && !isNodeProperty && (
-              <TextField
-                value={String(condition.value || '')}
-                onChange={(e) => onUpdate({ ...condition, value: e.target.value })}
-                placeholder="value"
+          <>
+            <div className="prose-condition__inline">
+              <span className="prose-condition__word">property</span>
+              <Dropdown
+                value={condition.property_name}
+                onChange={(value) => onUpdate({ ...condition, property_name: value })}
+                options={propertyOptions}
+                placeholder="Select property"
                 disabled={effectiveReadOnly}
                 size="sm"
                 className="prose-condition__input"
               />
+              <Dropdown
+                value={condition.operator}
+                onChange={(value) => onUpdate({ ...condition, operator: value as PropertyOperator })}
+                disabled={effectiveReadOnly}
+                options={[
+                  { value: '=', label: 'equals' },
+                  { value: '!=', label: '≠' },
+                  { value: 'contains', label: 'contains' },
+                  { value: 'is_empty', label: 'is empty' },
+                  { value: 'is_not_empty', label: 'has value' },
+                ]}
+                size="sm"
+              />
+              {showValue && isNodeProperty && (
+                <>
+                  <SelectionButton
+                    value={propSelectionMode}
+                    onChange={(mode) => {
+                      setPropSelectionMode(mode);
+                      if (mode === 'static') {
+                        onUpdate({
+                          ...condition,
+                          nested_group: undefined,
+                        });
+                      } else {
+                        onUpdate({
+                          ...condition,
+                          value: '',
+                          nested_group: {
+                            logic: 'AND',
+                            children: [],
+                          },
+                        });
+                      }
+                    }}
+                    options={[
+                      { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                      { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
+                    ]}
+                    size="sm"
+                    disabled={effectiveReadOnly}
+                  />
+                  {propSelectionMode === 'static' && (
+                    <SingleNodeSelector
+                      mode="all"
+                      selectedId={null}
+                      onChange={(nodeId, node) => {
+                        onUpdate({
+                          ...condition,
+                          value: node?.uuid ?? '',
+                          nested_group: undefined,
+                        });
+                      }}
+                      placeholder="Select node..."
+                      readOnly={effectiveReadOnly}
+                    />
+                  )}
+                </>
+              )}
+              {showValue && !isNodeProperty && (
+                <TextField
+                  value={String(condition.value || '')}
+                  onChange={(e) => onUpdate({ ...condition, value: e.target.value })}
+                  placeholder="value"
+                  disabled={effectiveReadOnly}
+                  size="sm"
+                  className="prose-condition__input"
+                />
+              )}
+            </div>
+            {showValue && isNodeProperty && propSelectionMode === 'dynamic' && (
+              <div className="prose-condition__nested">
+                <span className="prose-condition__word-muted">where</span>
+                <QueryBlockList
+                  blocks={condition.nested_group?.children || []}
+                  parentLogic={condition.nested_group?.logic || 'AND'}
+                  onChange={(blocks) => {
+                    onUpdate({
+                      ...condition,
+                      value: '',
+                      nested_group: {
+                        logic: condition.nested_group?.logic || 'AND',
+                        children: blocks,
+                      },
+                    });
+                  }}
+                  readOnly={effectiveReadOnly}
+                />
+              </div>
             )}
-          </div>
+          </>
         );
       
       case 'class': {
-        const { data: selectedClass } = useNode(condition.class_id || null);
-        const classNodes = selectedClass ? [selectedClass] : [];
+        const classNodes = selectedClassNode ? [selectedClassNode] : [];
         const operator = condition.operator || 'contains';
         const needsClassSelection = operator !== 'defined' && operator !== 'not_defined';
         
-        // Determine if using dynamic mode (nested group)
-        const isDynamicMode = condition.nested_group !== undefined;
-        const [selectionMode, setSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
-        
         return (
-          <div className="prose-condition__inline">
-            <span className="prose-condition__word">class</span>
-            <Dropdown
-              value={operator}
-              onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined' })}
-              disabled={effectiveReadOnly}
-              options={[
-                { value: 'contains', label: 'contains' },
-                { value: 'does_not_contain', label: 'does not contain' },
-                { value: 'is', label: 'is' },
-                { value: 'is_not', label: 'is not' },
-                { value: 'defined', label: 'is defined' },
-                { value: 'not_defined', label: 'is not defined' },
-              ]}
-              size="sm"
-            />
-            {needsClassSelection && (
-              <>
-                <SelectionButton
-                  value={selectionMode}
-                  onChange={(mode) => {
-                    setSelectionMode(mode);
-                    if (mode === 'static') {
-                      // Clear dynamic data, keep current static selection
-                      onUpdate({
-                        ...condition,
-                        nested_group: undefined,
-                      });
-                    } else {
-                      // Clear static data, initialize empty nested group
-                      onUpdate({
-                        ...condition,
-                        class_id: undefined,
-                        class_uuid: '',
-                        nested_group: {
-                          logic: 'AND',
-                          conditions: [],
-                        },
-                      });
-                    }
-                  }}
-                  options={[
-                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
-                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
-                  ]}
-                  size="sm"
-                  disabled={effectiveReadOnly}
-                />
-                {selectionMode === 'static' ? (
-                  <NodePillRow
-                    nodes={classNodes}
-                    searchMode="classes"
-                    emptyText="Select class"
-                    searchPlaceholder="Search classes..."
-                    onAdd={(node) => {
-                      onUpdate({
-                        ...condition,
-                        class_id: node.id,
-                        class_uuid: node.uuid,
-                        nested_group: undefined,
-                      });
-                    }}
-                    onRemove={() => {
-                      onUpdate({
-                        ...condition,
-                        class_id: undefined,
-                        class_uuid: '',
-                        nested_group: undefined,
-                      });
-                    }}
-                    readOnly={effectiveReadOnly}
-                  />
-                ) : (
-                  <div className="prose-condition__nested">
-                    <span className="prose-condition__word-muted">where</span>
-                    <QueryBlockList
-                      blocks={condition.nested_group?.conditions || []}
-                      parentLogic={condition.nested_group?.logic || 'AND'}
-                      onChange={(blocks) => {
+          <>
+            <div className="prose-condition__inline">
+              <span className="prose-condition__word">class</span>
+              <Dropdown
+                value={operator}
+                onChange={(value) => onUpdate({ ...condition, operator: value as 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined' })}
+                disabled={effectiveReadOnly}
+                options={[
+                  { value: 'contains', label: 'contains' },
+                  { value: 'does_not_contain', label: 'does not contain' },
+                  { value: 'is', label: 'is' },
+                  { value: 'is_not', label: 'is not' },
+                  { value: 'defined', label: 'is defined' },
+                  { value: 'not_defined', label: 'is not defined' },
+                ]}
+                size="sm"
+              />
+              {needsClassSelection && (
+                <>
+                  <SelectionButton
+                    value={classSelectionMode}
+                    onChange={(mode) => {
+                      setClassSelectionMode(mode);
+                      if (mode === 'static') {
+                        // Clear dynamic data, keep current static selection
+                        onUpdate({
+                          ...condition,
+                          nested_group: undefined,
+                        });
+                      } else {
+                        // Clear static data, initialize empty nested group
                         onUpdate({
                           ...condition,
                           class_id: undefined,
                           class_uuid: '',
                           nested_group: {
-                            logic: condition.nested_group?.logic || 'AND',
-                            conditions: blocks,
+                            logic: 'AND',
+                            children: [],
                           },
+                        });
+                      }
+                    }}
+                    options={[
+                      { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                      { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
+                    ]}
+                    size="sm"
+                    disabled={effectiveReadOnly}
+                  />
+                  {classSelectionMode === 'static' && (
+                    <NodePillRow
+                      nodes={classNodes}
+                      searchMode="classes"
+                      emptyText="Select class"
+                      searchPlaceholder="Search classes..."
+                      onAdd={(node) => {
+                        onUpdate({
+                          ...condition,
+                          class_id: node.id,
+                          class_uuid: node.uuid,
+                          nested_group: undefined,
+                        });
+                      }}
+                      onRemove={() => {
+                        onUpdate({
+                          ...condition,
+                          class_id: undefined,
+                          class_uuid: '',
+                          nested_group: undefined,
                         });
                       }}
                       readOnly={effectiveReadOnly}
                     />
-                  </div>
-                )}
-              </>
+                  )}
+                </>
+              )}
+            </div>
+            {needsClassSelection && classSelectionMode === 'dynamic' && (
+              <div className="prose-condition__nested">
+                <span className="prose-condition__word-muted">where</span>
+                <QueryBlockList
+                  blocks={condition.nested_group?.children || []}
+                  parentLogic={condition.nested_group?.logic || 'AND'}
+                  onChange={(blocks) => {
+                    onUpdate({
+                      ...condition,
+                      class_id: undefined,
+                      class_uuid: '',
+                      nested_group: {
+                        logic: condition.nested_group?.logic || 'AND',
+                        children: blocks,
+                      },
+                    });
+                  }}
+                  readOnly={effectiveReadOnly}
+                />
+              </div>
             )}
-          </div>
+          </>
         );
       }
       
@@ -390,95 +399,94 @@ function ProseConditionRow({
         const operator = condition.operator || 'references';
         const needsSelection = operator !== 'has_references' && operator !== 'has_no_references';
         
-        // Determine if using dynamic mode (nested group)
-        const isDynamicMode = condition.nested_group !== undefined;
-        const [selectionMode, setSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
-        
         return (
-          <div className="prose-condition__inline">
-            <Dropdown
-              value={operator}
-              onChange={(value) => onUpdate({ ...condition, operator: value as 'references' | 'does_not_reference' | 'has_references' | 'has_no_references' })}
-              disabled={effectiveReadOnly}
-              options={[
-                { value: 'references', label: 'references' },
-                { value: 'does_not_reference', label: 'does not reference' },
-                { value: 'has_references', label: 'has any references' },
-                { value: 'has_no_references', label: 'has no references' },
-              ]}
-              size="sm"
-            />
-            {needsSelection && (
-              <>
-                <SelectionButton
-                  value={selectionMode}
-                  onChange={(mode) => {
-                    setSelectionMode(mode);
-                    if (mode === 'static') {
-                      // Clear dynamic data, keep current static selection
-                      onUpdate({
-                        ...condition,
-                        nested_group: undefined,
-                      });
-                    } else {
-                      // Clear static data, initialize empty nested group
-                      onUpdate({
-                        ...condition,
-                        target_id: undefined,
-                        target_uuid: '',
-                        nested_group: {
-                          logic: 'AND',
-                          conditions: [],
-                        },
-                      });
-                    }
-                  }}
-                  options={[
-                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
-                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
-                  ]}
-                  size="sm"
-                  disabled={effectiveReadOnly}
-                />
-                {selectionMode === 'static' ? (
-                  <SingleNodeSelector
-                    mode="pages"
-                    selectedId={condition.target_id ?? null}
-                    onChange={(nodeId, node) => {
-                      onUpdate({
-                        ...condition,
-                        target_id: nodeId ?? undefined,
-                        target_uuid: node?.uuid ?? '',
-                        nested_group: undefined,
-                      });
-                    }}
-                    placeholder="Select node..."
-                    readOnly={effectiveReadOnly}
-                  />
-                ) : (
-                  <div className="prose-condition__nested">
-                    <span className="prose-condition__word-muted">where</span>
-                    <QueryBlockList
-                      blocks={condition.nested_group?.conditions || []}
-                      parentLogic={condition.nested_group?.logic || 'AND'}
-                      onChange={(blocks) => {
+          <>
+            <div className="prose-condition__inline">
+              <Dropdown
+                value={operator}
+                onChange={(value) => onUpdate({ ...condition, operator: value as 'references' | 'does_not_reference' | 'has_references' | 'has_no_references' })}
+                disabled={effectiveReadOnly}
+                options={[
+                  { value: 'references', label: 'references' },
+                  { value: 'does_not_reference', label: 'does not reference' },
+                  { value: 'has_references', label: 'has any references' },
+                  { value: 'has_no_references', label: 'has no references' },
+                ]}
+                size="sm"
+              />
+              {needsSelection && (
+                <>
+                  <SelectionButton
+                    value={refSelectionMode}
+                    onChange={(mode) => {
+                      setRefSelectionMode(mode);
+                      if (mode === 'static') {
+                        // Clear dynamic data, keep current static selection
+                        onUpdate({
+                          ...condition,
+                          nested_group: undefined,
+                        });
+                      } else {
+                        // Clear static data, initialize empty nested group
                         onUpdate({
                           ...condition,
                           target_id: undefined,
                           target_uuid: '',
                           nested_group: {
-                            logic: condition.nested_group?.logic || 'AND',
-                            conditions: blocks,
+                            logic: 'AND',
+                            children: [],
                           },
                         });
+                      }
+                    }}
+                    options={[
+                      { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                      { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
+                    ]}
+                    size="sm"
+                    disabled={effectiveReadOnly}
+                  />
+                  {refSelectionMode === 'static' && (
+                    <SingleNodeSelector
+                      mode="pages"
+                      selectedId={condition.target_id ?? null}
+                      onChange={(nodeId, node) => {
+                        onUpdate({
+                          ...condition,
+                          target_id: nodeId ?? undefined,
+                          target_uuid: node?.uuid ?? '',
+                          nested_group: undefined,
+                        });
                       }}
+                      placeholder="Select node..."
                       readOnly={effectiveReadOnly}
                     />
-                  </div>
-                )}
-              </>
+                  )}
+                </>
+              )}
+            </div>
+            {needsSelection && refSelectionMode === 'dynamic' && (
+              <div className="prose-condition__nested">
+                <span className="prose-condition__word-muted">where</span>
+                <QueryBlockList
+                  blocks={condition.nested_group?.children || []}
+                  parentLogic={condition.nested_group?.logic || 'AND'}
+                  onChange={(blocks) => {
+                    onUpdate({
+                      ...condition,
+                      target_id: undefined,
+                      target_uuid: '',
+                      nested_group: {
+                        logic: condition.nested_group?.logic || 'AND',
+                        children: blocks,
+                      },
+                    });
+                  }}
+                  readOnly={effectiveReadOnly}
+                />
+              </div>
             )}
-          </div>
+          </>
         );
       }
 
