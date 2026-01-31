@@ -107,6 +107,20 @@
   max-width: 200px;
 }
 
+/* Selection button (Static/Dynamic) positioned in top-right, left of delete button */
+.prose-condition__selection-button {
+  position: absolute;
+  top: 12px; /* Align with delete button */
+  right: 52px; /* To the left of delete button */
+  z-index: 1;
+  opacity: 0.8;
+  transition: opacity var(--motion-duration-medium);
+}
+
+.query-block-list__card:hover .prose-condition__selection-button {
+  opacity: 1;
+}
+
 .prose-condition__delete {
   margin-left: auto;
   opacity: 0;

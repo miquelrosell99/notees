@@ -91,31 +91,19 @@
 /* Delete button (top right, hover only) */
 .query-block-list__delete {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface-variant);
-  border-radius: var(--shape-extra-small);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
+  top: 12px;
+  right: 12px;
   opacity: 0;
-  transition: opacity var(--motion-duration-medium), background-color var(--motion-duration-medium), color var(--motion-duration-medium);
+  transition: opacity var(--motion-duration-medium);
+  flex-shrink: 0;
 }
 
 .query-block-list__card:hover .query-block-list__delete {
-  opacity: 1;
+  opacity: 0.6;
 }
 
 .query-block-list__delete:hover {
-  background-color: var(--color-error);
-  color: var(--color-on-error);
+  opacity: 1 !important;
 }
 
 /* Dragging state */
