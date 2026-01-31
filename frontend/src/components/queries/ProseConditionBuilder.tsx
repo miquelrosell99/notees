@@ -18,6 +18,7 @@ import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
+import { QueryBlockList } from './QueryBlockList';
 import { useNode, useProperties } from '@/hooks';
 import { renderConditionProse } from '@/lib/astProseRenderer';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
@@ -169,7 +170,7 @@ function ProseConditionRow({
         const isNodeProperty = selectedProperty?.type === 'node';
         
         // For node properties, support static/dynamic mode
-        const isDynamicMode = condition.value_uuids && condition.value_uuids.length > 0;
+        const isDynamicMode = condition.nested_group !== undefined;
         const [propSelectionMode, setPropSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
         
         return (
@@ -206,14 +207,16 @@ function ProseConditionRow({
                     if (mode === 'static') {
                       onUpdate({
                         ...condition,
-                        value_uuids: undefined,
+                        nested_group: undefined,
                       });
                     } else {
-                      const initialUuids = condition.value ? [String(condition.value)] : [];
                       onUpdate({
                         ...condition,
-                        value: initialUuids[0] || '',
-                        value_uuids: initialUuids,
+                        value: '',
+                        nested_group: {
+                          logic: 'AND',
+                          conditions: [],
+                        },
                       });
                     }
                   }}
@@ -232,31 +235,31 @@ function ProseConditionRow({
                       onUpdate({
                         ...condition,
                         value: node?.uuid ?? '',
-                        value_uuids: undefined,
+                        nested_group: undefined,
                       });
                     }}
                     placeholder="Select node..."
                     readOnly={effectiveReadOnly}
                   />
                 ) : (
-                  <TextField
-                    value={(condition.value_uuids || []).join(', ')}
-                    onChange={(e) => {
-                      const uuids = (e.target.value as string)
-                        .split(',')
-                        .map((s: string) => s.trim())
-                        .filter((s: string) => s.length > 0);
-                      onUpdate({
-                        ...condition,
-                        value: uuids[0] || '',
-                        value_uuids: uuids,
-                      });
-                    }}
-                    placeholder="Enter node UUIDs separated by commas"
-                    disabled={effectiveReadOnly}
-                    size="sm"
-                    className="prose-condition__input"
-                  />
+                  <div className="prose-condition__nested">
+                    <span className="prose-condition__word-muted">where</span>
+                    <QueryBlockList
+                      blocks={condition.nested_group?.conditions || []}
+                      parentLogic={condition.nested_group?.logic || 'AND'}
+                      onChange={(blocks) => {
+                        onUpdate({
+                          ...condition,
+                          value: '',
+                          nested_group: {
+                            logic: condition.nested_group?.logic || 'AND',
+                            conditions: blocks,
+                          },
+                        });
+                      }}
+                      readOnly={effectiveReadOnly}
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -279,8 +282,8 @@ function ProseConditionRow({
         const operator = condition.operator || 'contains';
         const needsClassSelection = operator !== 'defined' && operator !== 'not_defined';
         
-        // Determine if using dynamic mode (comma-separated UUIDs)
-        const isDynamicMode = condition.class_uuids && condition.class_uuids.length > 0;
+        // Determine if using dynamic mode (nested group)
+        const isDynamicMode = condition.nested_group !== undefined;
         const [selectionMode, setSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
         
         return (
@@ -310,16 +313,18 @@ function ProseConditionRow({
                       // Clear dynamic data, keep current static selection
                       onUpdate({
                         ...condition,
-                        class_uuids: undefined,
+                        nested_group: undefined,
                       });
                     } else {
-                      // Clear static data, initialize dynamic with current selection
-                      const initialUuids = condition.class_uuid ? [condition.class_uuid] : [];
+                      // Clear static data, initialize empty nested group
                       onUpdate({
                         ...condition,
                         class_id: undefined,
-                        class_uuid: initialUuids.length > 0 ? initialUuids[0] : '',
-                        class_uuids: initialUuids,
+                        class_uuid: '',
+                        nested_group: {
+                          logic: 'AND',
+                          conditions: [],
+                        },
                       });
                     }
                   }}
@@ -341,7 +346,7 @@ function ProseConditionRow({
                         ...condition,
                         class_id: node.id,
                         class_uuid: node.uuid,
-                        class_uuids: undefined,
+                        nested_group: undefined,
                       });
                     }}
                     onRemove={() => {
@@ -349,30 +354,31 @@ function ProseConditionRow({
                         ...condition,
                         class_id: undefined,
                         class_uuid: '',
-                        class_uuids: undefined,
+                        nested_group: undefined,
                       });
                     }}
                     readOnly={effectiveReadOnly}
                   />
                 ) : (
-                  <TextField
-                    value={(condition.class_uuids || []).join(', ')}
-                    onChange={(value) => {
-                      const uuids = (value as string)
-                        .split(',')
-                        .map((s: string) => s.trim())
-                        .filter((s: string) => s.length > 0);
-                      onUpdate({
-                        ...condition,
-                        class_id: undefined,
-                        class_uuid: uuids[0] || '',
-                        class_uuids: uuids,
-                      });
-                    }}
-                    placeholder="Enter class UUIDs separated by commas"
-                    size="sm"
-                    readOnly={effectiveReadOnly}
-                  />
+                  <div className="prose-condition__nested">
+                    <span className="prose-condition__word-muted">where</span>
+                    <QueryBlockList
+                      blocks={condition.nested_group?.conditions || []}
+                      parentLogic={condition.nested_group?.logic || 'AND'}
+                      onChange={(blocks) => {
+                        onUpdate({
+                          ...condition,
+                          class_id: undefined,
+                          class_uuid: '',
+                          nested_group: {
+                            logic: condition.nested_group?.logic || 'AND',
+                            conditions: blocks,
+                          },
+                        });
+                      }}
+                      readOnly={effectiveReadOnly}
+                    />
+                  </div>
                 )}
               </>
             )}
@@ -384,8 +390,8 @@ function ProseConditionRow({
         const operator = condition.operator || 'references';
         const needsSelection = operator !== 'has_references' && operator !== 'has_no_references';
         
-        // Determine if using dynamic mode (comma-separated UUIDs)
-        const isDynamicMode = condition.target_uuids && condition.target_uuids.length > 0;
+        // Determine if using dynamic mode (nested group)
+        const isDynamicMode = condition.nested_group !== undefined;
         const [selectionMode, setSelectionMode] = useState(isDynamicMode ? 'dynamic' : 'static');
         
         return (
@@ -412,16 +418,18 @@ function ProseConditionRow({
                       // Clear dynamic data, keep current static selection
                       onUpdate({
                         ...condition,
-                        target_uuids: undefined,
+                        nested_group: undefined,
                       });
                     } else {
-                      // Clear static data, initialize dynamic with current selection
-                      const initialUuids = condition.target_uuid ? [condition.target_uuid] : [];
+                      // Clear static data, initialize empty nested group
                       onUpdate({
                         ...condition,
                         target_id: undefined,
-                        target_uuid: initialUuids.length > 0 ? initialUuids[0] : '',
-                        target_uuids: initialUuids,
+                        target_uuid: '',
+                        nested_group: {
+                          logic: 'AND',
+                          conditions: [],
+                        },
                       });
                     }
                   }}
@@ -441,31 +449,32 @@ function ProseConditionRow({
                         ...condition,
                         target_id: nodeId ?? undefined,
                         target_uuid: node?.uuid ?? '',
-                        target_uuids: undefined,
+                        nested_group: undefined,
                       });
                     }}
                     placeholder="Select node..."
                     readOnly={effectiveReadOnly}
                   />
                 ) : (
-                  <TextField
-                    value={(condition.target_uuids || []).join(', ')}
-                    onChange={(value) => {
-                      const uuids = (value as string)
-                        .split(',')
-                        .map((s: string) => s.trim())
-                        .filter((s: string) => s.length > 0);
-                      onUpdate({
-                        ...condition,
-                        target_id: undefined,
-                        target_uuid: uuids[0] || '',
-                        target_uuids: uuids,
-                      });
-                    }}
-                    placeholder="Enter node UUIDs separated by commas"
-                    size="sm"
-                    readOnly={effectiveReadOnly}
-                  />
+                  <div className="prose-condition__nested">
+                    <span className="prose-condition__word-muted">where</span>
+                    <QueryBlockList
+                      blocks={condition.nested_group?.conditions || []}
+                      parentLogic={condition.nested_group?.logic || 'AND'}
+                      onChange={(blocks) => {
+                        onUpdate({
+                          ...condition,
+                          target_id: undefined,
+                          target_uuid: '',
+                          nested_group: {
+                            logic: condition.nested_group?.logic || 'AND',
+                            conditions: blocks,
+                          },
+                        });
+                      }}
+                      readOnly={effectiveReadOnly}
+                    />
+                  </div>
                 )}
               </>
             )}
