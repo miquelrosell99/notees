@@ -24,6 +24,22 @@ import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST'
 import type { ConditionNode, ContentOperator, PropertyOperator } from '@/types/queryAST';
 import './ProseConditionBuilder.css';
 
+// ==================== Helpers ====================
+
+/**
+ * Check if a condition type handles node selection
+ */
+function handlesNodeSelection(conditionType: string): boolean {
+  return ['class', 'reference'].includes(conditionType);
+}
+
+/**
+ * Check if a condition type uses nested groups for filtering
+ */
+function usesNestedGroup(conditionType: string): boolean {
+  return ['parent', 'parent_path', 'child', 'child_path', 'reference_path', 'class_path'].includes(conditionType);
+}
+
 // ==================== Types ====================
 
 interface ProseConditionBuilderProps {
@@ -457,27 +473,23 @@ function ProseConditionRow({
         );
       }
 
-      case 'parent':
-      case 'parent_path':
-      case 'child':
-      case 'child_path':
-      case 'reference_path':
-      case 'class_path': {
-        // All these types have nested_group and can potentially support dynamic selection in the future
-        // For now, show as prose (they use nested groups rather than direct node selection)
+      default: {
+        // Handle nested group conditions (parent, child, reference_path, etc.)
+        if (usesNestedGroup(condition.condition_type)) {
+          return (
+            <div className="prose-condition__inline">
+              <span className="prose-condition__text">{renderConditionProse(condition)}</span>
+            </div>
+          );
+        }
+        
+        // Fallback for unknown condition types
         return (
           <div className="prose-condition__inline">
             <span className="prose-condition__text">{renderConditionProse(condition)}</span>
           </div>
         );
       }
-      
-      default:
-        return (
-          <div className="prose-condition__inline">
-            <span className="prose-condition__text">{renderConditionProse(condition)}</span>
-          </div>
-        );
     }
   };
   
