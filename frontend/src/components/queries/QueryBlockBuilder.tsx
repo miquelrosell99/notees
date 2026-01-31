@@ -60,6 +60,20 @@ export function QueryBlockBuilder({
     }
   }, [block, onChange]);
   
+  // Handle nested group changes (for conditions with nested groups)
+  const handleNestedChange = useCallback((children: Array<ConditionNode | GroupNode | ASTNotNode>) => {
+    if ('nested_group' in block) {
+      const typedCondition = block as any;
+      onChange({
+        ...typedCondition,
+        nested_group: {
+          ...typedCondition.nested_group,
+          children,
+        },
+      } as ConditionNode);
+    }
+  }, [block, onChange]);
+  
   // Render based on block type
   if (block.type === 'group') {
     const groupBlock = block as GroupNode;
@@ -131,17 +145,6 @@ export function QueryBlockBuilder({
   
   if (hasNestedGroup) {
     // Conditions with nested groups: render the prose + nested QueryBlockList
-    const handleNestedChange = useCallback((children: Array<ConditionNode | GroupNode | ASTNotNode>) => {
-      const typedCondition = condition as any;
-      onChange({
-        ...typedCondition,
-        nested_group: {
-          ...typedCondition.nested_group,
-          children,
-        },
-      } as ConditionNode);
-    }, [condition, onChange]);
-    
     return (
       <div className="query-block-builder query-block-builder--nested">
         {/* Condition header with prose description */}

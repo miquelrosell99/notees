@@ -22,7 +22,16 @@ import { QueryBlockList } from './QueryBlockList';
 import { useNode, useProperties } from '@/hooks';
 import { renderConditionProse } from '@/lib/astProseRenderer';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
-import type { ConditionNode, ContentOperator, PropertyOperator } from '@/types/queryAST';
+import type { 
+  ConditionNode, 
+  ContentOperator, 
+  PropertyOperator, 
+  ReferenceCondition, 
+  ReferencePathCondition,
+  ClassCondition,
+  ClassPathCondition,
+  PropertyCondition
+} from '@/types/queryAST';
 import './ProseConditionBuilder.css';
 
 // ==================== Helpers ====================
@@ -317,22 +326,25 @@ function ProseConditionRow({
                     onChange={(mode) => {
                       setClassSelectionMode(mode);
                       if (mode === 'static') {
-                        // Clear dynamic data, keep current static selection
+                        // Switch back to class type, clear dynamic data
+                        const classUuid = 'class_uuid' in condition ? condition.class_uuid : '';
+                        const classId = 'class_id' in condition ? condition.class_id : undefined;
                         onUpdate({
-                          ...condition,
-                          nested_group: undefined,
-                        });
+                          condition_type: 'class',
+                          operator: condition.operator,
+                          class_uuid: classUuid,
+                          class_id: classId,
+                        } as ClassCondition);
                       } else {
-                        // Clear static data, initialize empty nested group
+                        // Switch to class_path type for dynamic mode
                         onUpdate({
-                          ...condition,
-                          class_id: undefined,
-                          class_uuid: '',
+                          condition_type: 'class_path',
+                          operator: condition.operator,
                           nested_group: {
                             logic: 'AND',
                             children: [],
                           },
-                        });
+                        } as ClassPathCondition);
                       }
                     }}
                     options={[
@@ -421,22 +433,25 @@ function ProseConditionRow({
                     onChange={(mode) => {
                       setRefSelectionMode(mode);
                       if (mode === 'static') {
-                        // Clear dynamic data, keep current static selection
+                        // Switch back to reference type, preserve existing target if any
+                        const targetUuid = 'target_uuid' in condition ? condition.target_uuid : '';
+                        const targetId = 'target_id' in condition ? condition.target_id : undefined;
                         onUpdate({
-                          ...condition,
-                          nested_group: undefined,
-                        });
+                          condition_type: 'reference',
+                          operator: condition.operator,
+                          target_uuid: targetUuid,
+                          target_id: targetId,
+                        } as ReferenceCondition);
                       } else {
-                        // Clear static data, initialize empty nested group
+                        // Switch to reference_path type for dynamic mode
                         onUpdate({
-                          ...condition,
-                          target_id: undefined,
-                          target_uuid: '',
+                          condition_type: 'reference_path',
+                          operator: condition.operator,
                           nested_group: {
                             logic: 'AND',
                             children: [],
                           },
-                        });
+                        } as ReferencePathCondition);
                       }
                     }}
                     options={[
