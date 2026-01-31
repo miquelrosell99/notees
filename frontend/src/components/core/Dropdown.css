@@ -111,12 +111,8 @@
 
 /* Menu */
 .dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 1100;
-  margin-top: var(--spacing-1, 4px);
-  min-width: 100%;
+  z-index: 9999;
+  min-width: 200px;
   width: max-content;
   max-width: 400px;
   max-height: 300px;
@@ -128,6 +124,11 @@
   border: 1px solid var(--color-outline-variant, var(--border-color));
   border-radius: var(--shape-medium, 6px);
   box-shadow: var(--elevation-3, 0 4px 12px rgba(0, 0, 0, 0.15));
+}
+
+/* Portal version (rendered at body level) */
+.dropdown-menu--portal {
+  position: absolute;
 }
 
 /* Override Card styles when used in dropdown */

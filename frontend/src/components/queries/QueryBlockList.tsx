@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
   closestCenter,
@@ -178,7 +179,9 @@ export function QueryBlockList({
   const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('before');
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -186,12 +189,29 @@ export function QueryBlockList({
     })
   );
 
+  // Update menu position when opened
+  useEffect(() => {
+    if (showAddMenu && addMenuRef.current) {
+      const rect = addMenuRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY + 4, // 4px gap
+        left: rect.left + window.scrollX,
+      });
+    } else {
+      setMenuPosition(null);
+    }
+  }, [showAddMenu]);
+
   // Close menu when clicking outside
   useEffect(() => {
     if (!showAddMenu) return;
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedButton = addMenuRef.current && addMenuRef.current.contains(target);
+      const clickedMenu = menuRef.current && menuRef.current.contains(target);
+      
+      if (!clickedButton && !clickedMenu) {
         setShowAddMenu(false);
       }
     };
@@ -499,8 +519,17 @@ export function QueryBlockList({
             + Add filter
             <Icon path={mdiChevronDown} size={0.7} />
           </Button>
-          {showAddMenu && (
-            <Card className="query-block-list__add-menu-dropdown" elevation="high">
+          {showAddMenu && menuPosition && createPortal(
+            <Card 
+              ref={menuRef}
+              className="query-block-list__add-menu-dropdown query-block-list__add-menu-dropdown--portal" 
+              elevation="high"
+              style={{
+                position: 'absolute',
+                top: `${menuPosition.top}px`,
+                left: `${menuPosition.left}px`,
+              }}
+            >
               <div className="query-block-list__add-menu-item" onClick={handleAddProperty}>
                 Property
               </div>
@@ -519,7 +548,8 @@ export function QueryBlockList({
               <div className="query-block-list__add-menu-item" onClick={handleAddGroup}>
                 Group
               </div>
-            </Card>
+            </Card>,
+            document.body
           )}
         </div>
       )}
