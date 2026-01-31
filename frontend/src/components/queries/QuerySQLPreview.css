@@ -5,24 +5,24 @@
 .query-sql-preview {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  margin-top: var(--spacing-md);
-  padding-top: var(--spacing-md);
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
   border-top: 1px solid var(--color-outline-variant);
 }
 
 .query-sql-preview__toggle {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   background: transparent;
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   color: var(--color-on-surface-variant);
   font-size: 0.8125rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
   width: fit-content;
 }
 
@@ -41,10 +41,10 @@
 
 .query-sql-preview__code {
   margin: 0;
-  padding: var(--spacing-md);
+  padding: var(--spacing-3);
   background: var(--color-surface-variant);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
   font-family: var(--font-family-mono);
   font-size: 0.8125rem;
   line-height: 1.6;

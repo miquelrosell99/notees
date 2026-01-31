@@ -7,7 +7,7 @@
 .prose-scope-selector {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-3);
   flex-wrap: wrap;
 }
 
@@ -18,9 +18,9 @@
 .prose-scope-selector__checkbox {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--spacing-2);
   font-size: 0.875rem;
-  color: var(--color-text-secondary, #6c757d);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
 }
 
@@ -30,6 +30,6 @@
 
 .prose-scope-selector__count {
   font-size: 0.875rem;
-  color: var(--color-text-tertiary, #868e96);
+  color: var(--color-on-surface-variant);
   font-style: italic;
 }
