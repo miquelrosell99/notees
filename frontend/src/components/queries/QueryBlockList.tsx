@@ -28,6 +28,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { mdiChevronDown } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
+import { DeleteIcon } from '../icons';
 import { Card } from '../core/Card';
 import { DragHandle } from '../dnd/DragHandle';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
@@ -152,14 +153,15 @@ function SortableBlockItem({
 
         {/* Delete button (hover only) - hide for system blocks */}
         {!effectiveReadOnly && (
-          <button
-            className="query-block-list__delete"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={onRemove}
             title="Delete block and all children"
-            type="button"
+            className="query-block-list__delete"
           >
-            ×
-          </button>
+            <DeleteIcon size="sm" />
+          </Button>
         )}
       </Card>
     </div>

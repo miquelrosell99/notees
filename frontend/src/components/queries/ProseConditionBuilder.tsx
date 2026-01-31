@@ -11,9 +11,6 @@
 
 import { useState } from 'react';
 import { mdiCursorPointer, mdiTextBoxMultipleOutline } from '@mdi/js';
-import Icon from '@mdi/react';
-import { Button } from '../core/Button';
-import { DeleteIcon } from '../icons';
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
@@ -22,27 +19,17 @@ import { SingleNodeSelector } from './NodeSelectors';
 import { QueryBlockList } from './QueryBlockList';
 import { useNode, useProperties } from '@/hooks';
 import { renderConditionProse } from '@/lib/astProseRenderer';
-import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
+import { isSystemNode, isNodeEditable } from '@/types/queryAST';
 import type { 
   ConditionNode, 
   ContentOperator, 
   PropertyOperator, 
-  ReferenceCondition, 
-  ReferencePathCondition,
-  ClassCondition,
-  ClassPathCondition,
-  PropertyCondition
+  ReferenceCondition,
+  ClassCondition
 } from '@/types/queryAST';
 import './ProseConditionBuilder.css';
 
 // ==================== Helpers ====================
-
-/**
- * Check if a condition type handles node selection
- */
-function handlesNodeSelection(conditionType: string): boolean {
-  return ['class', 'reference'].includes(conditionType);
-}
 
 /**
  * Check if a condition type uses nested groups for filtering
@@ -72,7 +59,6 @@ interface ProseConditionBuilderProps {
 export function ProseConditionBuilder({
   block,
   onChange,
-  onRemove,
   readOnly = false,
 }: ProseConditionBuilderProps) {
   
@@ -83,17 +69,13 @@ export function ProseConditionBuilder({
   }
   
   const condition = block;
-  const isSystem = isSystemNode(condition);
   const isEditable = !readOnly && isNodeEditable(condition);
-  const isRemovable = !readOnly && isNodeRemovable(condition);
   
   return (
     <ProseConditionRow
       condition={condition}
       onUpdate={onChange}
-      onDelete={onRemove}
       readOnly={!isEditable}
-      canDelete={isRemovable}
     />
   );
 }
@@ -103,22 +85,17 @@ export function ProseConditionBuilder({
 interface ProseConditionRowProps {
   condition: ConditionNode;
   onUpdate: (condition: ConditionNode) => void;
-  onDelete: () => void;
   readOnly?: boolean;
-  canDelete?: boolean;
 }
 
 function ProseConditionRow({
   condition,
   onUpdate,
-  onDelete,
   readOnly = false,
-  canDelete = true,
 }: ProseConditionRowProps) {
   
   const isSystem = isSystemNode(condition);
   const isEditable = isNodeEditable(condition);
-  const isRemovable = isNodeRemovable(condition);
   const effectiveReadOnly = readOnly || !isEditable;
   
   // HOOKS - Must be called unconditionally at the top level
@@ -127,11 +104,10 @@ function ProseConditionRow({
   
   // State for selection modes - always initialize
   const isDynamicModeProperty = condition.condition_type === 'property' && condition.nested_group !== undefined;
-  const isDynamicModeClass = condition.condition_type === 'class' && condition.nested_group !== undefined;
   const isDynamicModeReference = condition.condition_type === 'reference' && condition.nested_group !== undefined;
   
   const [propSelectionMode, setPropSelectionMode] = useState(isDynamicModeProperty ? 'dynamic' : 'static');
-  const [classSelectionMode, setClassSelectionMode] = useState(isDynamicModeClass ? 'dynamic' : 'static');
+  const [classSelectionMode, setClassSelectionMode] = useState('static');
   const [refSelectionMode, setRefSelectionMode] = useState(isDynamicModeReference ? 'dynamic' : 'static');
   
   // Render based on condition type
@@ -197,7 +173,7 @@ function ProseConditionRow({
               <span className="prose-condition__word">property</span>
               <Dropdown
                 value={condition.property_name}
-                onChange={(value) => onUpdate({ ...condition, property_name: value })}
+                onChange={(value) => onUpdate({ ...condition, property_name: value || '' })}
                 options={propertyOptions}
                 placeholder="Select property"
                 disabled={effectiveReadOnly}
@@ -219,11 +195,10 @@ function ProseConditionRow({
               />
             </div>
             {showValue && isNodeProperty && (
-              <div className="prose-condition__inline">
-                <SelectionButton
-                  value={propSelectionMode}
-                  onChange={(mode) => {
-                    setPropSelectionMode(mode);
+              <SelectionButton
+                value={propSelectionMode}
+                onChange={(mode) => {
+                  setPropSelectionMode(mode);
                     if (mode === 'static') {
                       onUpdate({
                         ...condition,
@@ -234,6 +209,7 @@ function ProseConditionRow({
                         ...condition,
                         value: '',
                         nested_group: {
+                          type: 'group',
                           logic: 'AND',
                           children: [],
                         },
@@ -244,24 +220,26 @@ function ProseConditionRow({
                     { value: 'static', label: 'Static', icon: mdiCursorPointer },
                     { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
                   ]}
-                  size="sm"
+                size="sm"
                   disabled={effectiveReadOnly}
+                  className="prose-condition__selection-button"
                 />
-                {propSelectionMode === 'static' && (
-                  <SingleNodeSelector
-                    mode="all"
-                    selectedId={null}
-                    onChange={(nodeId, node) => {
-                      onUpdate({
-                        ...condition,
-                        value: node?.uuid ?? '',
-                        nested_group: undefined,
-                      });
-                    }}
-                    placeholder="Select node..."
-                    readOnly={effectiveReadOnly}
-                  />
-                )}
+            )}
+            {showValue && isNodeProperty && propSelectionMode === 'static' && (
+              <div className="prose-condition__inline">
+                <SingleNodeSelector
+                  mode="pages"
+                  selectedId={null}
+                  onChange={(_, node) => {
+                    onUpdate({
+                      ...condition,
+                      value: node?.uuid ?? '',
+                      nested_group: undefined,
+                    });
+                  }}
+                  placeholder="Select node..."
+                  readOnly={effectiveReadOnly}
+                />
               </div>
             )}
             {showValue && !isNodeProperty && (
@@ -287,6 +265,7 @@ function ProseConditionRow({
                       ...condition,
                       value: '',
                       nested_group: {
+                        type: 'group',
                         logic: condition.nested_group?.logic || 'AND',
                         children: blocks,
                       },
@@ -324,11 +303,10 @@ function ProseConditionRow({
               />
             </div>
             {needsClassSelection && (
-              <div className="prose-condition__inline">
-                <SelectionButton
-                  value={classSelectionMode}
-                  onChange={(mode) => {
-                    setClassSelectionMode(mode);
+              <SelectionButton
+                value={classSelectionMode}
+                onChange={(mode) => {
+                  setClassSelectionMode(mode);
                     if (mode === 'static') {
                       // Switch back to class type, clear dynamic data
                       const classUuid = 'class_uuid' in condition ? condition.class_uuid : '';
@@ -344,11 +322,10 @@ function ProseConditionRow({
                       onUpdate({
                         condition_type: 'class_path',
                         operator: condition.operator,
-                        nested_group: {
-                          logic: 'AND',
+                        nested_group: {                            type: 'group',                          logic: 'AND',
                           children: [],
                         },
-                      } as ClassPathCondition);
+                      } as any);
                     }
                   }}
                   options={[
@@ -357,50 +334,53 @@ function ProseConditionRow({
                   ]}
                   size="sm"
                   disabled={effectiveReadOnly}
+                  className="prose-condition__selection-button"
                 />
-                {classSelectionMode === 'static' && (
-                  <NodePillRow
-                    nodes={classNodes}
-                    searchMode="classes"
-                    emptyText="Select class"
-                    searchPlaceholder="Search classes..."
-                    onAdd={(node) => {
-                      onUpdate({
-                        ...condition,
-                        class_id: node.id,
-                        class_uuid: node.uuid,
-                        nested_group: undefined,
-                      });
-                    }}
-                    onRemove={() => {
-                      onUpdate({
-                        ...condition,
-                        class_id: undefined,
-                        class_uuid: '',
-                        nested_group: undefined,
-                      });
-                    }}
-                    readOnly={effectiveReadOnly}
-                  />
-                )}
+            )}
+            {needsClassSelection && classSelectionMode === 'static' && (
+              <div className="prose-condition__inline">
+                <NodePillRow
+                  nodes={classNodes}
+                  searchMode="classes"
+                  emptyText="Select class"
+                  searchPlaceholder="Search classes..."
+                  onAdd={(node) => {
+                    onUpdate({
+                      ...condition,
+                      class_id: node.id,
+                      class_uuid: node.uuid,
+                      nested_group: undefined,
+                    } as any);
+                  }}
+                  onRemove={() => {
+                    onUpdate({
+                      ...condition,
+                      class_id: undefined,
+                      class_uuid: '',
+                      nested_group: undefined,
+                    } as any);
+                  }}
+                  readOnly={effectiveReadOnly}
+                />
               </div>
             )}
             {needsClassSelection && classSelectionMode === 'dynamic' && (
               <div className="prose-condition__nested">
                 <span className="prose-condition__word-muted">where</span>
                 <QueryBlockList
-                  blocks={condition.nested_group?.children || []}
-                  parentLogic={condition.nested_group?.logic || 'AND'}
+                  blocks={(condition as any).nested_group?.children || []}
+                  parentLogic={(condition as any).nested_group?.logic || 'AND'}
                   onChange={(blocks) => {
                     onUpdate({
                       ...condition,
                       class_id: undefined,
                       class_uuid: '',
                       nested_group: {
-                        logic: condition.nested_group?.logic || 'AND',
+                        type: 'group',
+                        logic: (condition as any).nested_group?.logic || 'AND',
                         children: blocks,
                       },
-                    });
+                    } as any);
                   }}
                   readOnly={effectiveReadOnly}
                 />
@@ -431,11 +411,10 @@ function ProseConditionRow({
               />
             </div>
             {needsSelection && (
-              <div className="prose-condition__inline">
-                <SelectionButton
-                  value={refSelectionMode}
-                  onChange={(mode) => {
-                    setRefSelectionMode(mode);
+              <SelectionButton
+                value={refSelectionMode}
+                onChange={(mode) => {
+                  setRefSelectionMode(mode);
                     if (mode === 'static') {
                       // Switch back to reference type, preserve existing target if any
                       const targetUuid = 'target_uuid' in condition ? condition.target_uuid : '';
@@ -451,11 +430,10 @@ function ProseConditionRow({
                       onUpdate({
                         condition_type: 'reference_path',
                         operator: condition.operator,
-                        nested_group: {
-                          logic: 'AND',
+                        nested_group: {                            type: 'group',                          logic: 'AND',
                           children: [],
                         },
-                      } as ReferencePathCondition);
+                      } as any);
                     }
                   }}
                   options={[
@@ -464,23 +442,25 @@ function ProseConditionRow({
                   ]}
                   size="sm"
                   disabled={effectiveReadOnly}
+                  className="prose-condition__selection-button"
                 />
-                {refSelectionMode === 'static' && (
-                  <SingleNodeSelector
-                    mode="pages"
-                    selectedId={condition.target_id ?? null}
-                    onChange={(nodeId, node) => {
-                      onUpdate({
-                        ...condition,
-                        target_id: nodeId ?? undefined,
-                        target_uuid: node?.uuid ?? '',
-                        nested_group: undefined,
-                      });
-                    }}
-                    placeholder="Select node..."
-                    readOnly={effectiveReadOnly}
-                  />
-                )}
+            )}
+            {needsSelection && refSelectionMode === 'static' && (
+              <div className="prose-condition__inline">
+                <SingleNodeSelector
+                  mode="pages"
+                  selectedId={condition.target_id ?? null}
+                  onChange={(nodeId, node) => {
+                    onUpdate({
+                      ...condition,
+                      target_id: nodeId ?? undefined,
+                      target_uuid: node?.uuid ?? '',
+                      nested_group: undefined,
+                    });
+                  }}
+                  placeholder="Select node..."
+                  readOnly={effectiveReadOnly}
+                />
               </div>
             )}
             {needsSelection && refSelectionMode === 'dynamic' && (
@@ -495,10 +475,11 @@ function ProseConditionRow({
                       target_id: undefined,
                       target_uuid: '',
                       nested_group: {
+                        type: 'group',
                         logic: condition.nested_group?.logic || 'AND',
                         children: blocks,
                       },
-                    });
+                    } as any);
                   }}
                   readOnly={effectiveReadOnly}
                 />
@@ -542,18 +523,6 @@ function ProseConditionRow({
       
       {/* Condition content */}
       {renderCondition()}
-      
-      {/* Delete button */}
-      {!readOnly && isRemovable && canDelete && (
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={onDelete}
-          className="prose-condition__delete"
-        >
-          <DeleteIcon size="sm" />
-        </Button>
-      )}
     </div>
   );
 }
