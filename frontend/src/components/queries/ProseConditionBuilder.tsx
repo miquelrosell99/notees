@@ -442,7 +442,9 @@ function ProseConditionRow({
                       onUpdate({
                         condition_type: 'reference_path',
                         operator: condition.operator,
-                        nested_group: {                            type: 'group',                          logic: 'AND',
+                        nested_group: {
+                          type: 'group',
+                          logic: 'AND',
                           children: [],
                         },
                       } as any);
@@ -534,12 +536,17 @@ function ProseConditionRow({
                         operator: condition.operator,
                         parent_uuid: parentUuid,
                         parent_id: parentId,
+                        // Remove nested_group when switching to static
+                        nested_group: undefined,
                       } as any);
                     } else {
                       // Switch to dynamic mode with nested_group
                       onUpdate({
                         condition_type: 'parent',
                         operator: condition.operator,
+                        // Remove static fields when switching to dynamic
+                        parent_uuid: undefined,
+                        parent_id: undefined,
                         nested_group: {
                           type: 'group',
                           logic: 'AND',

@@ -611,10 +611,14 @@ async def execute_node_view_query(
     # Execute the query with optional overrides from request
     request = request or QueryExecuteRequest()
     
+    logger.info(f"[execute_node_view_query] view_id={view_id}, runtime_params={request.runtime_params}")
+    
     # Use request block_tree if provided, otherwise use view's query_json
     effective_query = request.block_tree if request.block_tree else view.query_json
     if not effective_query:
         effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
+    
+    logger.info(f"[execute_node_view_query] effective_query scope={effective_query.get('scope')}, root_group={effective_query.get('root_group')}")
     
     results = await executor.execute_query(
         query=effective_query,
