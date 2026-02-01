@@ -1110,6 +1110,11 @@ class QueryExecutor:
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
                 elif isinstance(child.child, PropertyCondition):
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
+                elif isinstance(child.child, ParentCondition):
+                    if child.child.parent_uuid:
+                        child.child.parent_uuid = self._resolve_placeholder(child.child.parent_uuid, runtime_params)
+                    if child.child.nested_group:
+                        self._substitute_in_group(child.child.nested_group, runtime_params)
             elif isinstance(child, TypeCondition):
                 child.type_uuid = self._resolve_placeholder(child.type_uuid, runtime_params)
             elif isinstance(child, ReferenceCondition):
@@ -1117,7 +1122,9 @@ class QueryExecutor:
             elif isinstance(child, PropertyCondition):
                 child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ParentCondition):
-                # ParentCondition has nested_group that needs substitution
+                # ParentCondition can have parent_uuid (static) or nested_group (dynamic)
+                if child.parent_uuid:
+                    child.parent_uuid = self._resolve_placeholder(child.parent_uuid, runtime_params)
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
     

@@ -111,7 +111,7 @@
 .prose-condition__selection-button {
   position: absolute;
   top: 12px; /* Align with delete button */
-  right: 52px; /* To the left of delete button */
+  right: 56px; /* Space for delete button + gap */
   z-index: 1;
   opacity: 0.8;
   transition: opacity var(--motion-duration-medium);

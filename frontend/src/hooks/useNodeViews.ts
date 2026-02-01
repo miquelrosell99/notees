@@ -18,6 +18,7 @@ import {
   countQueryResults,
   getNodeViewsByType,
   ensureDefaultViews,
+  resetNodeViews,
 } from '@/api/nodeViews';
 import type {
   NodeViewCreate,
@@ -282,6 +283,41 @@ export function useDeleteNodeView() {
       // Invalidate all list queries (we don't know the nodeId here)
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.lists(),
+      });
+    },
+  });
+}
+
+/**
+ * Reset all views for a node to defaults
+ */
+export function useResetNodeViews() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (nodeId: number) => resetNodeViews(nodeId),
+    onSuccess: async (newViews, nodeId) => {
+      // First, remove all old view details and query results to prevent stale queries
+      queryClient.removeQueries({
+        queryKey: nodeViewKeys.details(),
+      });
+      queryClient.removeQueries({
+        queryKey: nodeViewKeys.queryResults(),
+      });
+      
+      // Then invalidate and wait for refetch of view lists
+      await queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.lists(),
+        refetchType: 'all',
+      });
+      await queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.byType(nodeId),
+        refetchType: 'all',
+      });
+      
+      // Set the new views in cache
+      newViews.forEach((view) => {
+        queryClient.setQueryData(nodeViewKeys.detail(view.id), view);
       });
     },
   });

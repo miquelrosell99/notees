@@ -25,7 +25,8 @@ import type {
   ContentOperator, 
   PropertyOperator, 
   ReferenceCondition,
-  ClassCondition
+  ClassCondition,
+  ParentCondition
 } from '@/types/queryAST';
 import './ProseConditionBuilder.css';
 
@@ -105,10 +106,12 @@ function ProseConditionRow({
   // State for selection modes - always initialize
   const isDynamicModeProperty = condition.condition_type === 'property' && condition.nested_group !== undefined;
   const isDynamicModeReference = condition.condition_type === 'reference' && condition.nested_group !== undefined;
+  const isDynamicModeParent = condition.condition_type === 'parent' && condition.nested_group !== undefined;
   
   const [propSelectionMode, setPropSelectionMode] = useState(isDynamicModeProperty ? 'dynamic' : 'static');
   const [classSelectionMode, setClassSelectionMode] = useState('static');
   const [refSelectionMode, setRefSelectionMode] = useState(isDynamicModeReference ? 'dynamic' : 'static');
+  const [parentSelectionMode, setParentSelectionMode] = useState(isDynamicModeParent ? 'dynamic' : 'static');
   
   // Render based on condition type
   const renderCondition = () => {
@@ -145,13 +148,10 @@ function ProseConditionRow({
         const showValue = condition.operator !== 'is_empty' && condition.operator !== 'is_not_empty';
         
         // Built-in properties that are always available
+        // Note: parent_id, is_page, name, is_favorite removed - they have dedicated query block types
         const builtInProperties = [
           { value: 'uuid', label: 'uuid' },
-          { value: 'name', label: 'name' },
           { value: 'id', label: 'id' },
-          { value: 'parent_id', label: 'parent_id' },
-          { value: 'is_page', label: 'is_page' },
-          { value: 'is_favorite', label: 'is_favorite' },
         ];
         
         // Custom properties from the database
@@ -229,13 +229,25 @@ function ProseConditionRow({
               <div className="prose-condition__inline">
                 <SingleNodeSelector
                   mode="pages"
-                  selectedId={null}
-                  onChange={(_, node) => {
-                    onUpdate({
-                      ...condition,
-                      value: node?.uuid ?? '',
-                      nested_group: undefined,
-                    });
+                  selectedId={
+                    condition.value === '{current_node_id}' ? -1 : 
+                    null
+                  }
+                  onChange={(nodeId, node) => {
+                    if (nodeId === -1) {
+                      // Current Page selected
+                      onUpdate({
+                        ...condition,
+                        value: '{current_node_id}',
+                        nested_group: undefined,
+                      });
+                    } else {
+                      onUpdate({
+                        ...condition,
+                        value: node?.uuid ?? '',
+                        nested_group: undefined,
+                      });
+                    }
                   }}
                   placeholder="Select node..."
                   readOnly={effectiveReadOnly}
@@ -477,6 +489,120 @@ function ProseConditionRow({
                       nested_group: {
                         type: 'group',
                         logic: condition.nested_group?.logic || 'AND',
+                        children: blocks,
+                      },
+                    } as any);
+                  }}
+                  readOnly={effectiveReadOnly}
+                />
+              </div>
+            )}
+          </>
+        );
+      }
+
+      case 'parent': {
+        const operator = condition.operator || 'has_parent';
+        const needsSelection = operator === 'has_parent';
+        
+        return (
+          <>
+            <div className="prose-condition__inline">
+              <span className="prose-condition__word">parent</span>
+              <Dropdown
+                value={operator}
+                onChange={(value) => onUpdate({ ...condition, operator: value as 'has_parent' | 'has_no_parent' })}
+                disabled={effectiveReadOnly}
+                options={[
+                  { value: 'has_parent', label: 'is' },
+                  { value: 'has_no_parent', label: 'is not set' },
+                ]}
+                size="sm"
+              />
+            </div>
+            {needsSelection && (
+              <SelectionButton
+                value={parentSelectionMode}
+                onChange={(mode) => {
+                  setParentSelectionMode(mode);
+                    if (mode === 'static') {
+                      // Switch to static mode with parent_uuid
+                      const parentUuid = 'parent_uuid' in condition ? condition.parent_uuid : '';
+                      const parentId = 'parent_id' in condition ? condition.parent_id : undefined;
+                      onUpdate({
+                        condition_type: 'parent',
+                        operator: condition.operator,
+                        parent_uuid: parentUuid,
+                        parent_id: parentId,
+                      } as any);
+                    } else {
+                      // Switch to dynamic mode with nested_group
+                      onUpdate({
+                        condition_type: 'parent',
+                        operator: condition.operator,
+                        nested_group: {
+                          type: 'group',
+                          logic: 'AND',
+                          children: [],
+                        },
+                      } as any);
+                    }
+                  }}
+                  options={[
+                    { value: 'static', label: 'Static', icon: mdiCursorPointer },
+                    { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
+                  ]
+                }
+                size="sm"
+                  disabled={effectiveReadOnly}
+                  className="prose-condition__selection-button"
+                />
+            )}
+            {needsSelection && parentSelectionMode === 'static' && (
+              <div className="prose-condition__inline">
+                <SingleNodeSelector
+                  mode="pages"
+                  selectedId={
+                    condition.parent_uuid === '{current_node_uuid}' ? -1 : 
+                    condition.parent_id ?? null
+                  }
+                  onChange={(nodeId, node) => {
+                    if (nodeId === -1) {
+                      // Current Page selected
+                      onUpdate({
+                        ...condition,
+                        parent_uuid: '{current_node_uuid}',
+                        parent_id: undefined,
+                        nested_group: undefined,
+                      } as any);
+                    } else {
+                      onUpdate({
+                        ...condition,
+                        parent_uuid: node?.uuid ?? '',
+                        parent_id: nodeId ?? undefined,
+                        nested_group: undefined,
+                      } as any);
+                    }
+                  }}
+                  placeholder="Select parent..."
+                  readOnly={effectiveReadOnly}
+                />
+              </div>
+            )}
+            {needsSelection && parentSelectionMode === 'dynamic' && (
+              <div className="prose-condition__nested">
+                <span className="prose-condition__word-muted">where</span>
+                <QueryBlockList
+                  blocks={(condition as any).nested_group?.children || []}
+                  parentLogic={(condition as any).nested_group?.logic || 'AND'}
+                  onChange={(blocks) => {
+                    onUpdate({
+                      ...condition,
+                      parent_id: undefined,
+                      parent_uuid: '',
+                      nested_group: {
+                        type: 'group',
+                        logic: (condition as any).nested_group?.logic || 'AND',
                         children: blocks,
                       },
                     } as any);

@@ -21,6 +21,7 @@ import {
   useUpdateQueryBlockTree,
   useUpdateNodeView,
   useDeleteNodeView,
+  useResetNodeViews,
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
 import type { NodeView, QueryBlockTree, NodeViewType } from '@/types/query';
@@ -176,6 +177,7 @@ export function DynamicNodeViewSection({
   const updateBlockTreeMutation = useUpdateQueryBlockTree();
   const updateViewMutation = useUpdateNodeView();
   const deleteViewMutation = useDeleteNodeView();
+  const resetViewsMutation = useResetNodeViews();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode } = useNodesStore();
@@ -453,6 +455,24 @@ export function DynamicNodeViewSection({
       console.error('Failed to delete view:', error);
     }
   }, [editingView, deleteViewMutation, activeViewId]);
+  
+  // Handle resetting all views to defaults
+  const handleResetViews = useCallback(async () => {
+    if (!nodeId || nodeId <= 0) return;
+    
+    try {
+      await resetViewsMutation.mutateAsync(nodeId);
+      // Reset active view selection to let default view take over
+      setActiveViewId(null);
+      // The mutation onSuccess already invalidates queries, which will trigger refetch
+      // But we can also explicitly refetch the query to ensure data is fresh
+      setTimeout(() => {
+        refetchQuery();
+      }, 100);
+    } catch (error) {
+      console.error('Failed to reset views:', error);
+    }
+  }, [nodeId, resetViewsMutation, refetchQuery]);
 
   const handleAddView = useCallback(async () => {
     try {
@@ -593,6 +613,7 @@ export function DynamicNodeViewSection({
         onPropertyColumnsChange={handlePropertyColumnsChange}
         showAddButton={viewType !== 'linked_references'}
         onAdd={handleAddNode}
+        onResetViews={nodeId > 0 ? handleResetViews : undefined}
       />
       
       {/* Refresh button */}

@@ -246,9 +246,11 @@ interface SingleNodeSelectorProps {
   onChange: (nodeId: number | null, node?: AppNode) => void;
   placeholder?: string;
   readOnly?: boolean;
+  /** Show "Current Page" option as first item */
+  showCurrentPageOption?: boolean;
 }
 
-export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, readOnly }: SingleNodeSelectorProps) {
+export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, readOnly, showCurrentPageOption = false }: SingleNodeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
@@ -256,7 +258,8 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
   
   const { data: classes } = useClasses();
   const { data: pages } = usePages();
-  const { data: selectedNode } = useNode(selectedId);
+  // Don't fetch node if selectedId is -1 (Current Page special value)
+  const { data: selectedNode } = useNode(selectedId && selectedId !== -1 ? selectedId : null);
   
   const allNodes = useMemo(() => {
     if (mode === 'classes') return classes ?? [];
@@ -269,6 +272,9 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
       .filter(n => (n.name || '').toLowerCase().includes(term))
       .slice(0, 10);
   }, [allNodes, search]);
+  
+  // Check if "Current Page" is selected (special value -1)
+  const isCurrentPageSelected = selectedId === -1;
   
   useEffect(() => {
     if (!isOpen) return;
@@ -294,13 +300,36 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
     setIsOpen(false);
   }, [onChange]);
   
+  const handleSelectCurrentPage = useCallback(() => {
+    // Use -1 as a special ID for "Current Page"
+    onChange(-1);
+    setSearch('');
+    setIsOpen(false);
+  }, [onChange]);
+  
   const handleClear = useCallback(() => {
     onChange(null);
   }, [onChange]);
   
   return (
     <div className="single-node-selector" ref={menuRef}>
-      {selectedNode ? (
+      {isCurrentPageSelected ? (
+        <div className="single-node-selector__selected">
+          <div className="node-class-pill node-class-pill--readonly">
+            <span className="node-class-pill__content">Current Page</span>
+            {!readOnly && (
+              <button
+                type="button"
+                className="node-class-pill__remove"
+                onClick={handleClear}
+                aria-label="Remove"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
+      ) : selectedNode ? (
         <div className="single-node-selector__selected">
           <NodeClassPill
             classNode={selectedNode}
@@ -341,6 +370,16 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
             />
           </div>
           <div className="single-node-selector__list">
+            {showCurrentPageOption && (
+              <button
+                type="button"
+                className="single-node-selector__item single-node-selector__item--special"
+                onClick={handleSelectCurrentPage}
+              >
+                <Icon path={mdiPageNextOutline} size={0.6} />
+                <span>Current Page</span>
+              </button>
+            )}
             {filteredNodes.length === 0 ? (
               <div className="single-node-selector__empty">No {mode} found</div>
             ) : (

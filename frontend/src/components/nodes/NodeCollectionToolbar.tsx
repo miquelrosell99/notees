@@ -24,6 +24,7 @@ import {
   mdiNumeric4,
   mdiNumeric5,
   mdiTableColumn,
+  mdiRestore,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
@@ -75,6 +76,8 @@ export interface NodeCollectionToolbarProps {
   selectedPropertyUuids?: string[];
   /** Callback when property column selection changes */
   onPropertyColumnsChange?: (propertyUuids: string[]) => void;
+  /** Callback when reset views button is clicked */
+  onResetViews?: () => void;
   /** Additional CSS class */
   className?: string;
 }
@@ -97,6 +100,7 @@ export function NodeCollectionToolbar({
   onCardLayoutChange,
   selectedPropertyUuids = [],
   onPropertyColumnsChange,
+  onResetViews,
   className = '',
 }: NodeCollectionToolbarProps) {
   // Use store for card layout if not controlled
@@ -261,6 +265,19 @@ export function NodeCollectionToolbar({
           onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
           size="sm"
           className="node-collection-toolbar__view-switcher"
+        />
+      )}
+      
+      {/* Reset Views Button */}
+      {onResetViews && (
+        <Button
+          icon={mdiRestore}
+          iconOnly
+          variant="ghost"
+          size="sm"
+          onClick={onResetViews}
+          title="Reset all views to defaults"
+          className="node-collection-toolbar__reset-views"
         />
       )}
     </div>
