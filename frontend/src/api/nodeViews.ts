@@ -212,3 +212,14 @@ export async function ensureDefaultViews(
   );
   return response.data.views;
 }
+
+/**
+ * Reset all views for a node to defaults
+ * Deletes all existing views and creates new default views
+ */
+export async function resetNodeViews(nodeId: number): Promise<NodeView[]> {
+  const response = await api.post<{ views: NodeView[] }>(
+    `${BASE}/reset/${nodeId}`
+  );
+  return response.data.views;
+}

@@ -155,12 +155,12 @@ function SortableBlockItem({
         {!effectiveReadOnly && (
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             onClick={onRemove}
             title="Delete block and all children"
             className="query-block-list__delete"
           >
-            <DeleteIcon size="sm" />
+            <DeleteIcon size="md" />
           </Button>
         )}
       </Card>

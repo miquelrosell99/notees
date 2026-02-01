@@ -31,17 +31,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                 logic=LogicType.AND,
                 children=[
                     ParentCondition(
-                        nested_group=GroupNode(
-                            logic=LogicType.AND,
-                            children=[
-                                PropertyCondition(
-                                    property_name="uuid",
-                                    property_type="text",
-                                    operator=PropertyOperator.EQUALS,
-                                    value="{current_node_uuid}"
-                                )
-                            ]
-                        )
+                        parent_uuid="{current_node_uuid}"
                     )
                 ]
             ),

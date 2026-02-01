@@ -748,3 +748,57 @@ async def ensure_default_views(
     ]
     
     return {"views": responses}
+
+
+@router.post("/reset/{node_id}")
+async def reset_node_views(
+    node_id: int,
+    user: User = Depends(get_current_user),
+) -> Dict[str, List[NodeViewResponse]]:
+    """Reset all views for a node to defaults.
+    
+    Deletes all existing views (both custom and default) and recreates 
+    a single default "all" view with default filters for each view type.
+    
+    Args:
+        node_id: The node ID to reset views for
+        
+    Returns:
+        Dict with 'views' list of newly created default views
+    """
+    from ...domain.services.node_view_service import NodeViewService
+    
+    service = await _get_node_service(user)
+    if service._graph_id is None:
+        raise HTTPException(status_code=500, detail="Graph ID not set")
+    
+    repo = await _get_node_view_repo(user)
+    
+    # Get ALL existing views including inactive ones (soft-deleted)
+    # We need include_inactive=True to also delete soft-deleted views,
+    # otherwise they'll conflict with ON CONFLICT when creating new defaults
+    existing_views = await repo.list_by_node(node_id, include_inactive=True)
+    
+    # Hard delete all existing views (soft delete would conflict with ON CONFLICT constraint)
+    for view in existing_views:
+        await repo.hard_delete(view.id)
+    
+    logger.info(f"Deleted {len(existing_views)} views for node {node_id}")
+    
+    # Create new default views for all standard view types
+    from ...db.schema.constants import DEFAULT_VIEW_CLASSES
+    logger.info(f"service._graph_id={service._graph_id}, user.id={user.id}")
+    view_service = NodeViewService(service._pool, service._graph_id, user.id)
+    logger.info(f"Creating default views for node {node_id}, types: {DEFAULT_VIEW_CLASSES}")
+    created_views = await view_service.create_default_views(node_id, DEFAULT_VIEW_CLASSES)
+    logger.info(f"create_default_views returned {len(created_views)} views")
+    
+    # Convert the created views directly to responses (don't re-query)
+    responses = [
+        await _node_view_to_response(v, include_query_block_tree=True, user=user)
+        for v in created_views
+    ]
+    
+    logger.info(f"Created {len(created_views)} default views for node {node_id}, returning {len(responses)} responses")
+    
+    return {"views": responses}
