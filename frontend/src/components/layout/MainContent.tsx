@@ -7,8 +7,9 @@
 import { useMemo, useEffect, useState } from 'react';
 import { useNodesStore, type CardLayoutMode } from '@/stores';
 import { useNode } from '@/hooks';
+import { useResetNodeViews } from '@/hooks/useNodeViews';
 import { getNodeColorStyles } from '@/utils/color';
-import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
+import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiRestore } from '@mdi/js';
 import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
@@ -26,6 +27,9 @@ export function MainContent() {
   
   // Fetch current node to get color (for pages and focused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);
+  
+  // Reset views mutation
+  const resetViewsMutation = useResetNodeViews();
   
   // Track dark mode for color styling
   const [isDarkMode, setIsDarkMode] = useState(() => 
@@ -220,6 +224,25 @@ export function MainContent() {
                 title="Show local graph for this node"
                 className="toolbar-btn"
               />
+              
+              {/* Reset all views button */}
+              {mainViewType === 'node' && currentNodeId && (
+                <Button
+                  icon={mdiRestore}
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await resetViewsMutation.mutateAsync(currentNodeId);
+                    } catch (error) {
+                      console.error('Failed to reset views:', error);
+                    }
+                  }}
+                  aria-label="Reset all views"
+                  title="Reset all views to defaults"
+                  className="toolbar-btn"
+                />
+              )}
             </div>
           </div>
         </div>

@@ -123,7 +123,10 @@ class PostgresNodeViewRepository:
         
         async with self._pool.acquire() as conn:
             # Use ON CONFLICT to handle the unique constraint on default views
-            # If a default view already exists for this node+view_type, return the existing one
+            # If a default view already exists for this node+view_type, update it fully
+            # (including reactivating it if it was soft-deleted)
+            logger.info(f"[create] Creating view: node_id={node_id}, view_type={view_type}, is_default={is_default}, graph_id={self._graph_id}")
+            
             if is_default:
                 row = await conn.fetchrow("""
                     INSERT INTO node_view (
@@ -133,7 +136,13 @@ class PostgresNodeViewRepository:
                     )
                     VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE, $8, $8, $9, $9)
                     ON CONFLICT (node_id, view_type) WHERE is_default = TRUE
-                    DO UPDATE SET write_date = EXCLUDED.write_date
+                    DO UPDATE SET 
+                        name = EXCLUDED.name,
+                        query_json = EXCLUDED.query_json,
+                        order_index = EXCLUDED.order_index,
+                        active = TRUE,
+                        write_date = EXCLUDED.write_date,
+                        write_uid = EXCLUDED.write_uid
                     RETURNING *
                 """, uuid, node_id, name, json.dumps(query_json), view_type,
                     order_index, is_default, now, self._user_id)
@@ -152,7 +161,10 @@ class PostgresNodeViewRepository:
             if not row:
                 raise RuntimeError(f"Failed to create NodeView for node {node_id}")
             
-            return self._row_to_node_view(row)
+            result = self._row_to_node_view(row)
+            logger.info(f"[create] Created view id={result.id}, active={result.active}")
+            
+            return result
     
     async def get_by_id(self, view_id: int) -> Optional[NodeView]:
         """Get a NodeView by ID."""
@@ -211,12 +223,19 @@ class PostgresNodeViewRepository:
             
             where_sql = " AND ".join(where_clauses)
             
-            rows = await conn.fetch(f"""
+            sql = f"""
                 SELECT nv.* FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
                 WHERE {where_sql}
                 ORDER BY nv.view_type, nv.order_index, nv.create_date
-            """, *params)
+            """
+            
+            logger.info(f"[list_by_node] SQL: {sql}")
+            logger.info(f"[list_by_node] Params: {params}")
+            
+            rows = await conn.fetch(sql, *params)
+            
+            logger.info(f"[list_by_node] Found {len(rows)} views")
             
             return [self._row_to_node_view(row) for row in rows]
     
@@ -451,13 +470,18 @@ class PostgresNodeViewRepository:
             True if deleted, False if not found
         """
         async with self._pool.acquire() as conn:
+            logger.info(f"[hard_delete] Deleting view id={view_id}, graph_id={self._graph_id}")
+            
             result = await conn.execute("""
                 DELETE FROM node_view nv
                 USING node n
                 WHERE nv.id = $1 AND n.id = nv.node_id AND n.graph_id = $2
             """, view_id, self._graph_id)
             
-            return "DELETE 1" in result
+            success = "DELETE 1" in result
+            logger.info(f"[hard_delete] Result: {result}, success={success}")
+            
+            return success
     
     async def reorder(
         self,

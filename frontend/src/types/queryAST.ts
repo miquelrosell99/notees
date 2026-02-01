@@ -181,7 +181,11 @@ export interface ReferencePathCondition extends BaseConditionNode {
  */
 export interface ParentCondition extends BaseConditionNode {
   condition_type: 'parent';
-  nested_group: GroupNode;
+  // Static mode: specific parent
+  parent_uuid?: string;
+  parent_id?: number;
+  // Dynamic mode: parent matching criteria
+  nested_group?: GroupNode;
   operator?: 'has_parent' | 'has_no_parent';  // Default: 'has_parent'
 }
 

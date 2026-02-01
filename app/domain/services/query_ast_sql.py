@@ -418,7 +418,18 @@ class QueryASTToSQL:
             return f"(n.{condition.flag_name} = FALSE OR n.{condition.flag_name} IS NULL)"
     
     def _generate_parent_condition(self, condition: ParentCondition) -> Optional[str]:
-        """Generate SQL for parent condition - direct parent match with nested filter."""
+        """Generate SQL for parent condition - direct parent match.
+        
+        Supports two modes:
+        - Static: parent_uuid specified directly
+        - Dynamic: nested_group filters parent nodes
+        """
+        # Static mode: direct parent UUID/ID
+        if condition.parent_uuid:
+            param_name = self._add_param(condition.parent_uuid)
+            return f"n.parent_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
+        
+        # Dynamic mode: nested group filters
         if not condition.nested_group:
             return None
         

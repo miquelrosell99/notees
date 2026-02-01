@@ -219,8 +219,12 @@ class ParentPathCondition(BaseConditionNode):
 class ParentCondition(BaseConditionNode):
     """Parent condition - filter by direct parent node matching criteria."""
     condition_type: Literal[ConditionType.PARENT] = ConditionType.PARENT
-    # Optional nested group for filtering the parent node
+    # Static mode: specific parent
+    parent_uuid: Optional[str] = None
+    parent_id: Optional[int] = None
+    # Dynamic mode: parent matching criteria
     nested_group: Optional["GroupNode"] = None
+    operator: Optional[str] = None  # 'has_parent' | 'has_no_parent'
 
 
 @dataclass
