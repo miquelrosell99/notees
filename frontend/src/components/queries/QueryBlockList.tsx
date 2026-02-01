@@ -394,12 +394,14 @@ export function QueryBlockList({
     setOverId(null);
   }, []);
 
-  const itemIds = blocks.map((_, index) => `block-${index}`);
+  // Safety check for blocks array
+  const safeBlocks = Array.isArray(blocks) ? blocks : [];
+  const itemIds = safeBlocks.map((_, index) => `block-${index}`);
 
   return (
     <div className={`query-block-list ${className}`}>
       {/* Empty state */}
-      {blocks.length === 0 && (
+      {safeBlocks.length === 0 && (
         <div className="query-block-list__empty">
           {!readOnly ? (
             <div className="query-block-list__add-menu" ref={addMenuRef}>
@@ -443,7 +445,7 @@ export function QueryBlockList({
       )}
 
       {/* Sortable blocks */}
-      {blocks.length > 0 && !readOnly && (
+      {safeBlocks.length > 0 && !readOnly && (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -453,7 +455,7 @@ export function QueryBlockList({
           onDragCancel={handleDragCancel}
         >
           <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-            {blocks.map((block, index) => (
+            {safeBlocks.map((block, index) => (
               <SortableBlockItem
                 key={`block-${index}`}
                 block={block}
@@ -480,9 +482,9 @@ export function QueryBlockList({
       )}
 
       {/* Read-only blocks */}
-      {blocks.length > 0 && readOnly && (
+      {safeBlocks.length > 0 && readOnly && (
         <>
-          {blocks.map((block, index) => (
+          {safeBlocks.map((block, index) => (
             <div key={index} className="query-block-list__item">
               {index > 0 && (
                 <span className="query-block-list__connector">
@@ -511,7 +513,7 @@ export function QueryBlockList({
       )}
 
       {/* Add filter button */}
-      {!readOnly && blocks.length > 0 && (
+      {!readOnly && safeBlocks.length > 0 && (
         <div className="query-block-list__add" ref={addMenuRef}>
           <Button 
             variant="ghost" 

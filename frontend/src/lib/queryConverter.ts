@@ -394,7 +394,9 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
  */
 export function astToBlockTree(ast: QueryAST): QueryBlockTree {
   // Convert root group children to blocks (scope is stored separately)
-  const conditionBlocks = ast.root_group.children.map(child => convertASTNodeToBlock(child));
+  // Safety check for children array
+  const children = Array.isArray(ast.root_group.children) ? ast.root_group.children : [];
+  const conditionBlocks = children.map(child => convertASTNodeToBlock(child));
   
   return {
     type: ast.root_group.logic === 'AND' ? 'AND_CONTAINER' : 'OR_CONTAINER',
@@ -556,20 +558,50 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
       const parentCond = condition as ParentCondition;
       const operator = parentCond.operator || 'has_parent';
       
-      const parentBlock: ParentBlock = {
-        type: 'PARENT',
-        blocks: parentCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
-      };
-      
-      // Wrap in NOT_CONTAINER for negative operator
-      if (operator === 'has_no_parent') {
-        return {
-          type: 'NOT_CONTAINER',
-          block: parentBlock,
-        } as NotBlock;
+      // Static mode: parent_uuid is set directly
+      if (parentCond.parent_uuid) {
+        const parentBlock: ParentBlock = {
+          type: 'PARENT',
+          blocks: [{
+            type: 'NODE_REFERENCE',
+            uuid: parentCond.parent_uuid,
+          } as NodeReferenceBlock],
+        };
+        
+        // Wrap in NOT_CONTAINER for negative operator
+        if (operator === 'has_no_parent') {
+          return {
+            type: 'NOT_CONTAINER',
+            block: parentBlock,
+          } as NotBlock;
+        }
+        
+        return parentBlock;
       }
       
-      return parentBlock;
+      // Dynamic mode: nested_group is set
+      if (parentCond.nested_group) {
+        const parentBlock: ParentBlock = {
+          type: 'PARENT',
+          blocks: parentCond.nested_group.children.map(child => convertASTNodeToBlock(child)),
+        };
+        
+        // Wrap in NOT_CONTAINER for negative operator
+        if (operator === 'has_no_parent') {
+          return {
+            type: 'NOT_CONTAINER',
+            block: parentBlock,
+          } as NotBlock;
+        }
+        
+        return parentBlock;
+      }
+      
+      // Fallback: empty parent block
+      return {
+        type: 'PARENT',
+        blocks: [],
+      } as ParentBlock;
     }
     
     case 'parent_path': {

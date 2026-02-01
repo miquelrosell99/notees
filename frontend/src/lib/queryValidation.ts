@@ -27,8 +27,9 @@ export function validateQueryAST(ast: QueryAST): ValidationResult {
   // Validate root group
   validateGroup(ast.root_group, ['root_group'], issues);
   
-  // Check for empty query
-  if (ast.root_group.children.length === 0) {
+  // Check for empty query (with safety check)
+  const hasChildren = Array.isArray(ast.root_group.children) && ast.root_group.children.length > 0;
+  if (!hasChildren) {
     issues.push({
       severity: 'warning',
       message: 'Query has no conditions',
@@ -95,6 +96,17 @@ function validateScope(ast: QueryAST, issues: ValidationIssue[]): void {
  * Validate a group node
  */
 function validateGroup(group: GroupNode, path: string[], issues: ValidationIssue[]): void {
+  // Safety check for children array
+  if (!Array.isArray(group.children)) {
+    issues.push({
+      severity: 'error',
+      message: 'Group must have a children array',
+      path,
+      suggestion: 'Ensure the group has a valid children array',
+    });
+    return;
+  }
+  
   // Empty group warning
   if (group.children.length === 0) {
     issues.push({
