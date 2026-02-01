@@ -63,7 +63,8 @@ export interface NodeProseCapabilities {
  */
 export function getQueryIntent(ast: QueryAST): string {
   const scopePhrase = renderScopeProse(ast.scope);
-  const conditions = ast.root_group.children;
+  // Safety check for children array
+  const conditions = Array.isArray(ast.root_group.children) ? ast.root_group.children : [];
   
   if (conditions.length === 0) {
     return `All nodes ${scopePhrase}`;

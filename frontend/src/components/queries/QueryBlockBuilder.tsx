@@ -141,7 +141,28 @@ export function QueryBlockBuilder({
   const condition = block as ConditionNode;
   
   // Check if this condition has a nested group (parent, child, reference_path, etc.)
-  const hasNestedGroup = 'nested_group' in condition && condition.nested_group;
+  // For conditions that support both static and dynamic modes (like parent),
+  // only show nested group UI if dynamic mode is actually being used
+  const hasNestedGroup = (() => {
+    if (!('nested_group' in condition) || !condition.nested_group) {
+      return false;
+    }
+    
+    // For parent condition: only show nested group if static mode (parent_uuid) is NOT set
+    if (condition.condition_type === 'parent') {
+      const parentCond = condition as any;
+      return !parentCond.parent_uuid && !parentCond.parent_id;
+    }
+    
+    // For reference condition: only show nested group if static mode (target_uuid) is NOT set
+    if (condition.condition_type === 'reference') {
+      const refCond = condition as any;
+      return !refCond.target_uuid && !refCond.target_id;
+    }
+    
+    // For other conditions (reference_path, parent_path, child_path), always show nested group
+    return true;
+  })();
   
   if (hasNestedGroup) {
     // Conditions with nested groups: render the prose + nested QueryBlockList

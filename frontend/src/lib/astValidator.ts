@@ -100,6 +100,16 @@ function validateGroup(group: GroupNode, path: string[], errors: ValidationError
     validateSystemNodeCapabilities(group, path, errors);
   }
   
+  // Validate children array exists
+  if (!Array.isArray(group.children)) {
+    errors.push({
+      path: path.join('.'),
+      message: 'Group must have a children array',
+      severity: 'error',
+    });
+    return;
+  }
+  
   // Validate children
   group.children.forEach((child, index) => {
     const childPath = [...path, `child[${index}]`];
@@ -267,6 +277,11 @@ function validateSystemNodeCapabilities(
 function validateScopeConditionSeparation(ast: QueryAST): void {
   // Check that parent_path conditions with current_node_uuid are not duplicating scope
   function checkGroup(group: GroupNode, path: string[]): void {
+    // Safety check for children array
+    if (!Array.isArray(group.children)) {
+      return;
+    }
+    
     group.children.forEach((child, index) => {
       const childPath = [...path, `child[${index}]`];
       
@@ -276,7 +291,7 @@ function validateScopeConditionSeparation(ast: QueryAST): void {
         // Check for parent_path with {current_node_uuid} - this might duplicate scope
         if (child.condition_type === 'parent_path') {
           const nested = child.nested_group;
-          if (nested && nested.children.length > 0) {
+          if (nested && nested.children && nested.children.length > 0) {
             // This is actually OK - it's filtering by parent matching criteria
             // Not a scope violation
           }
