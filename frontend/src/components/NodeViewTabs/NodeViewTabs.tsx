@@ -24,7 +24,7 @@ import {
 import type { NodeView, QueryBlockTree } from '@/types/query';
 import { createEmptyBlockTree } from '@/types/query';
 import { ViewBuilder } from '../queries/ViewBuilder';
-import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
+import { blockTreeToAST } from '@/lib/queryConverter';
 import type { QueryAST } from '@/types/queryAST';
 import './NodeViewTabs.css';
 
@@ -96,7 +96,7 @@ export function NodeViewTabs({
   
   // Mutations
   const createMutation = useCreateNodeView();
-  const updateBlockTreeMutation = useUpdateQueryBlockTree();
+  const updateQueryMutation = useUpdateQueryAST();
   const deleteMutation = useDeleteNodeView();
 
   // Get active view
@@ -157,18 +157,17 @@ export function NodeViewTabs({
     if (!editingView || !editedAST) return;
 
     try {
-      // Convert QueryAST back to QueryBlockTree for backend
-      const blockTree = astToBlockTree(editedAST);
-      await updateBlockTreeMutation.mutateAsync({
+      // Save QueryAST directly (no BlockTree conversion needed)
+      await updateQueryMutation.mutateAsync({
         viewId: editingView.id,
-        blockTree,
+        queryAST: editedAST,
       });
       setEditingView(null);
       setEditedAST(null);
     } catch (error) {
       console.error('Failed to save query:', error);
     }
-  }, [editingView, editedAST, updateBlockTreeMutation]);
+  }, [editingView, editedAST, updateQueryMutation]);
 
   const handleDeleteView = useCallback(async (view: NodeView) => {
     try {
@@ -309,9 +308,9 @@ export function NodeViewTabs({
               <Button
                 variant="primary"
                 onClick={handleSaveEdit}
-                disabled={updateBlockTreeMutation.isPending}
+                disabled={updateQueryMutation.isPending}
               >
-                {updateBlockTreeMutation.isPending ? 'Saving...' : 'Save'}
+                {updateQueryMutation.isPending ? 'Saving...' : 'Save'}
               </Button>
             </div>
           </div>

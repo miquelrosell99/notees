@@ -194,16 +194,14 @@ export function QueryBlockBuilder({
     );
   }
   
-  // Simple condition without nesting
+  // Simple condition without nesting - no wrapper, ProseConditionBuilder is the card
   return (
-    <div className="query-block-builder query-block-builder--condition">
-      <ProseConditionBuilder
-        block={block}
-        onChange={onChange as (block: ConditionNode) => void}
-        onRemove={onRemove}
-        readOnly={isReadOnly}
-      />
-    </div>
+    <ProseConditionBuilder
+      block={block}
+      onChange={onChange as (block: ConditionNode) => void}
+      onRemove={onRemove}
+      readOnly={isReadOnly}
+    />
   );
 }
 

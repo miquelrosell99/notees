@@ -30,6 +30,7 @@
 .query-block-builder__body {
   padding: var(--spacing-3);
 }
+
 /* Nested condition styles */
 .query-block-builder--nested {
   display: flex;
