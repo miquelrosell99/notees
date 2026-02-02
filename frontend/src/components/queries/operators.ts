@@ -86,16 +86,40 @@ export const REFERENCE_OPERATORS: OperatorDefinition[] = [
  * Operators for parent hierarchy conditions
  */
 export const PARENT_OPERATORS: OperatorDefinition[] = [
-  { value: 'has_parent', label: 'is' },
+  { value: 'has_parent', label: 'is any of' },
+  { value: 'not_has_parent', label: 'is not any of' },
   { value: 'has_no_parent', label: 'is not set' },
+  { value: 'has_any_parent', label: 'is set' },
 ];
 
 /**
  * Operators for child hierarchy conditions
  */
 export const CHILD_OPERATORS: OperatorDefinition[] = [
-  { value: 'has_child', label: 'has child' },
-  { value: 'has_no_child', label: 'has no child' },
+  { value: 'has_child', label: 'contains any of' },
+  { value: 'not_has_child', label: 'does not contain any of' },
+  { value: 'has_no_child', label: 'contains none' },
+  { value: 'has_any_child', label: 'contains any' },
+];
+
+/**
+ * Operators for parent path (ancestor) conditions
+ */
+export const PARENT_PATH_OPERATORS: OperatorDefinition[] = [
+  { value: 'has_ancestor', label: 'is inside' },
+  { value: 'not_has_ancestor', label: 'is not inside' },
+  { value: 'has_no_ancestor', label: 'is not inside any' },
+  { value: 'has_any_ancestor', label: 'is inside any' },
+];
+
+/**
+ * Operators for child path (descendant) conditions
+ */
+export const CHILD_PATH_OPERATORS: OperatorDefinition[] = [
+  { value: 'has_descendant', label: 'contains' },
+  { value: 'not_has_descendant', label: 'does not contain' },
+  { value: 'has_no_descendant', label: 'contains no' },
+  { value: 'has_any_descendant', label: 'contains any' },
 ];
 
 // ==================== Flag Operators ====================

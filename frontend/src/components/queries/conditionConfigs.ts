@@ -12,6 +12,8 @@ import {
   REFERENCE_OPERATORS,
   PARENT_OPERATORS,
   CHILD_OPERATORS,
+  PARENT_PATH_OPERATORS,
+  CHILD_PATH_OPERATORS,
   FLAG_OPERATORS,
   type OperatorDefinition,
 } from './operators';
@@ -30,6 +32,8 @@ export interface StaticModeConfig {
   placeholder: string;
   /** Whether this input requires a value to be valid */
   required?: boolean;
+  /** Whether multiple nodes can be selected (for node-selector) */
+  allowMultiple?: boolean;
 }
 
 export interface DynamicModeConfig {
@@ -135,19 +139,20 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
     hasStaticDynamicToggle: true,
     staticMode: {
       inputType: 'node-selector',
-      placeholder: 'Select parent...',
+      placeholder: 'Select parents...',
       required: true,
+      allowMultiple: true,
     },
     dynamicMode: {
       whereLabel: 'where',
       defaultLogic: 'AND',
     },
-    noValueOperators: ['has_no_parent'],
+    noValueOperators: ['has_no_parent', 'has_any_parent'],
   },
   
   parent_path: {
     label: 'inside',
-    operators: [{ value: 'has_ancestor', label: 'page' }],
+    operators: PARENT_PATH_OPERATORS,
     defaultOperator: 'has_ancestor',
     hasStaticDynamicToggle: false,
     staticMode: {
@@ -158,27 +163,30 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
       whereLabel: 'matching',
       defaultLogic: 'AND',
     },
+    noValueOperators: ['has_no_ancestor', 'has_any_ancestor'],
   },
   
   child: {
     label: 'child',
     operators: CHILD_OPERATORS,
     defaultOperator: 'has_child',
-    hasStaticDynamicToggle: false,
+    hasStaticDynamicToggle: true,
     staticMode: {
-      inputType: 'none',
-      placeholder: '',
+      inputType: 'node-selector',
+      placeholder: 'Select children...',
+      required: true,
+      allowMultiple: true,
     },
     dynamicMode: {
       whereLabel: 'matching',
       defaultLogic: 'AND',
     },
-    noValueOperators: ['has_no_child'],
+    noValueOperators: ['has_no_child', 'has_any_child'],
   },
   
   child_path: {
     label: 'contains descendant',
-    operators: [{ value: 'has_descendant', label: 'matching' }],
+    operators: CHILD_PATH_OPERATORS,
     defaultOperator: 'has_descendant',
     hasStaticDynamicToggle: false,
     staticMode: {
@@ -189,6 +197,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
       whereLabel: 'where',
       defaultLogic: 'AND',
     },
+    noValueOperators: ['has_no_descendant', 'has_any_descendant'],
   },
   
   reference_path: {
