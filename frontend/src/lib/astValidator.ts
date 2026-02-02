@@ -13,6 +13,7 @@
  */
 
 import type { QueryAST, GroupNode, ConditionNode, NotNode, ScopeNode } from '@/types/queryAST';
+import { getConditionConfig } from '@/components/queries/conditionConfigs';
 import { isSystemNode, SYSTEM_CAPABILITIES } from '@/types/queryAST';
 
 // ==================== Types ====================
@@ -165,22 +166,56 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
       }
       break;
     
-    // Nested conditions need groups
+    // Nested conditions need groups (unless using noValueOperator)
     case 'reference_path':
     case 'parent':
     case 'parent_path':
     case 'child':
     case 'child_path':
-    case 'class_path':
+    case 'class_path': {
+      const operator = (condition as any).operator;
+      const config = getConditionConfig(condition.condition_type);
+      const needsValue = !config?.noValueOperators?.includes(operator);
+      
+      // Skip validation if operator doesn't need a value
+      if (!needsValue) {
+        break;
+      }
+      
+      // For parent/child in static mode, check for UUIDs
+      if (condition.condition_type === 'parent') {
+        const parentCond = condition as any;
+        if (parentCond.parent_uuid || parentCond.parent_uuids) {
+          break; // Has static value, OK
+        }
+      }
+      
+      if (condition.condition_type === 'child') {
+        const childCond = condition as any;
+        if (childCond.child_uuids) {
+          break; // Has static value, OK
+        }
+      }
+      
+      // For reference in static mode, check for target_uuid
+      if (condition.condition_type === 'reference_path') {
+        const refCond = condition as any;
+        if (refCond.target_uuid || refCond.target_uuids) {
+          break; // Has static value, OK
+        }
+      }
+      
+      // Otherwise, require nested_group
       if (!condition.nested_group) {
         errors.push({
           severity: 'error',
-          message: `${condition.condition_type} condition requires nested_group`,
+          message: `${condition.condition_type} condition requires nested_group or static value`,
           path,
-          suggestion: 'Add nested_group with conditions',
+          suggestion: 'Add nested_group with conditions or select a specific node',
         });
       }
       break;
+    }
   }
 }
 

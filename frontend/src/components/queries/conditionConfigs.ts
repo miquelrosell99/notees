@@ -154,10 +154,12 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
     label: 'inside',
     operators: PARENT_PATH_OPERATORS,
     defaultOperator: 'has_ancestor',
-    hasStaticDynamicToggle: false,
+    hasStaticDynamicToggle: true,
     staticMode: {
-      inputType: 'none',
-      placeholder: '',
+      inputType: 'node-selector',
+      placeholder: 'Select ancestors...',
+      required: true,
+      allowMultiple: true,
     },
     dynamicMode: {
       whereLabel: 'matching',
@@ -188,10 +190,12 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
     label: 'contains descendant',
     operators: CHILD_PATH_OPERATORS,
     defaultOperator: 'has_descendant',
-    hasStaticDynamicToggle: false,
+    hasStaticDynamicToggle: true,
     staticMode: {
-      inputType: 'none',
-      placeholder: '',
+      inputType: 'node-selector',
+      placeholder: 'Select descendants...',
+      required: true,
+      allowMultiple: true,
     },
     dynamicMode: {
       whereLabel: 'where',
@@ -204,10 +208,12 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
     label: 'references nodes',
     operators: [{ value: 'references_matching', label: 'matching' }],
     defaultOperator: 'references_matching',
-    hasStaticDynamicToggle: false,
+    hasStaticDynamicToggle: true,
     staticMode: {
-      inputType: 'none',
-      placeholder: '',
+      inputType: 'node-selector',
+      placeholder: 'Select nodes...',
+      required: true,
+      allowMultiple: true,
     },
     dynamicMode: {
       whereLabel: 'where',
@@ -219,10 +225,12 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
     label: 'inherited class',
     operators: [{ value: 'has_inherited_class', label: 'from ancestors' }],
     defaultOperator: 'has_inherited_class',
-    hasStaticDynamicToggle: false,
+    hasStaticDynamicToggle: true,
     staticMode: {
-      inputType: 'none',
-      placeholder: '',
+      inputType: 'class-selector',
+      placeholder: 'Select classes...',
+      required: true,
+      allowMultiple: true,
     },
     dynamicMode: {
       whereLabel: 'where class',
@@ -266,5 +274,6 @@ export function operatorNeedsValue(conditionType: string, operator: string): boo
  * Check if a condition type always uses nested groups
  */
 export function alwaysUsesNestedGroup(conditionType: string): boolean {
-  return ['parent_path', 'child', 'child_path', 'reference_path', 'class_path'].includes(conditionType);
+  // All conditions now support both static and dynamic modes
+  return false;
 }
