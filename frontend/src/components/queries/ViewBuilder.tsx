@@ -83,19 +83,6 @@ export function ViewBuilder({
   return (
     <div className={`view-builder ${className}`}>
       
-      {/* Scope Section - Prominent at top */}
-      <div className="view-builder__scope-section">
-        <div className="view-builder__scope-label">
-          <span className="view-builder__scope-icon">🔍</span>
-          <span className="view-builder__scope-text">Search in:</span>
-        </div>
-        <ProseScopeSelector
-          scope={ast.scope}
-          onChange={handleScopeChange}
-          readOnly={readOnly}
-        />
-      </div>
-      
       {/* Validation Feedback - Show errors/warnings if any */}
       {!readOnly && validationResult.issues.length > 0 && (
         <ValidationFeedback validationResult={validationResult} />
