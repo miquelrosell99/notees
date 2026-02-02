@@ -13,7 +13,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { DeleteIcon } from '../icons';
 import { isSystemNode, isNodeRemovable, isNodeEditable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode, LogicType } from '@/types/queryAST';
-import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline } from '@mdi/js';
+import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline, mdiClose } from '@mdi/js';
 import './QueryBlockBuilder.css';
 
 // ==================== Types ====================
@@ -125,10 +125,21 @@ export function QueryBlockBuilder({
     ];
     
     return (
-      <div className="query-block-builder query-block-builder--group">
-        <div className="query-block-builder__header">
+      <>
+        {/* Group header using same structure as condition blocks */}
+        <div className="prose-condition-card">
+          <div className="prose-condition-card__drag">
+            <span className="prose-condition-card__drag-handle">⋮⋮</span>
+          </div>
+          
+          <div className="prose-condition-card__content">
+            <span className="prose-condition-card__label">{groupBlock.logic}</span>
+          </div>
+          
+          {/* SelectionButton on the right */}
           {!isReadOnly && (
             <SelectionButton
+              className="prose-condition__selection-button"
               options={logicOptions}
               value={groupBlock.logic}
               onChange={handleLogicChange}
@@ -136,32 +147,35 @@ export function QueryBlockBuilder({
               disabled={readOnly}
             />
           )}
-          <span className="query-block-builder__label">
-            {groupBlock.logic}
-          </span>
+          
+          {/* Delete button in corner */}
           {canRemove && !readOnly && (
             <Button
               variant="ghost"
               size="xs"
               onClick={onRemove}
               title="Remove group"
-            >
-              <DeleteIcon size="sm" />
-            </Button>
+              className="prose-condition-card__corner-button"
+              icon={mdiClose}
+              iconOnly
+            />
           )}
         </div>
         
-        <div className="query-block-builder__body">
-          <QueryBlockList
-            blocks={groupBlock.children}
-            parentLogic={groupBlock.logic}
-            onChange={handleGroupChange}
-            readOnly={isReadOnly}
-            showAddButton={false}
-            showEmptyMessage={false}
-          />
-        </div>
-      </div>
+        {/* Children rendered below with vertical line */}
+        {groupBlock.children.length > 0 && (
+          <div className="query-block-builder__nested-body">
+            <QueryBlockList
+              blocks={groupBlock.children}
+              parentLogic={groupBlock.logic}
+              onChange={handleGroupChange}
+              readOnly={isReadOnly}
+              showAddButton={false}
+              showEmptyMessage={false}
+            />
+          </div>
+        )}
+      </>
     );
   }
   
@@ -176,10 +190,21 @@ export function QueryBlockBuilder({
     ];
     
     return (
-      <div className="query-block-builder query-block-builder--not">
-        <div className="query-block-builder__header">
+      <>
+        {/* NOT header using same structure as condition blocks */}
+        <div className="prose-condition-card">
+          <div className="prose-condition-card__drag">
+            <span className="prose-condition-card__drag-handle">⋮⋮</span>
+          </div>
+          
+          <div className="prose-condition-card__content">
+            <span className="prose-condition-card__label">NOT</span>
+          </div>
+          
+          {/* SelectionButton on the right */}
           {!isReadOnly && isGroupChild && (
             <SelectionButton
+              className="prose-condition__selection-button"
               options={logicOptions}
               value="NOT"
               onChange={handleNotLogicChange}
@@ -187,21 +212,24 @@ export function QueryBlockBuilder({
               disabled={readOnly}
             />
           )}
-          <span className="query-block-builder__label">NOT</span>
+          
+          {/* Delete button in corner */}
           {canRemove && !readOnly && (
             <Button
               variant="ghost"
               size="xs"
               onClick={onRemove}
               title="Remove NOT"
-            >
-              <DeleteIcon size="sm" />
-            </Button>
+              className="prose-condition-card__corner-button"
+              icon={mdiClose}
+              iconOnly
+            />
           )}
         </div>
         
-        <div className="query-block-builder__body">
-          {isGroupChild ? (
+        {/* Children rendered below with vertical line */}
+        {isGroupChild && (notBlock.child as GroupNode).children.length > 0 ? (
+          <div className="query-block-builder__nested-body">
             <QueryBlockList
               blocks={(notBlock.child as GroupNode).children}
               parentLogic={(notBlock.child as GroupNode).logic}
@@ -213,16 +241,18 @@ export function QueryBlockBuilder({
               showAddButton={false}
               showEmptyMessage={false}
             />
-          ) : (
+          </div>
+        ) : !isGroupChild ? (
+          <div className="query-block-builder__nested-body">
             <QueryBlockBuilder
               block={notBlock.child}
               onChange={handleNotChildChange}
               onRemove={() => {}}
               readOnly={isReadOnly}
             />
-          )}
-        </div>
-      </div>
+          </div>
+        ) : null}
+      </>
     );
   }
   
