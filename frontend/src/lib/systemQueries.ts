@@ -24,7 +24,7 @@ export function createLinkedReferencesQuery(pageUuid: string): QueryAST {
     version: '1.0',
     scope: {
       type: 'scope',
-      scope_type: 'all',
+      scope_type: 'entire_graph',
     },
     root_group: {
       type: 'group',
@@ -84,7 +84,7 @@ export function createClassedNodesQuery(typeUuid: string, typeName?: string): Qu
     version: '1.0',
     scope: {
       type: 'scope',
-      scope_type: 'all',
+      scope_type: 'entire_graph',
     },
     root_group: {
       type: 'group',
@@ -149,7 +149,7 @@ export function createRecentChangesQuery(daysBack: number = 7): QueryAST {
     version: '1.0',
     scope: {
       type: 'scope',
-      scope_type: 'all',
+      scope_type: 'entire_graph',
     },
     root_group: {
       type: 'group',
@@ -220,7 +220,7 @@ export function createClassedNodesQueryWithUserFilters(
     version: '1.0',
     scope: {
       type: 'scope',
-      scope_type: 'all',
+      scope_type: 'entire_graph',
     },
     root_group: {
       type: 'group',

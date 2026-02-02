@@ -548,6 +548,8 @@
   gap: 0.25rem;
   margin-left: 0.5rem;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1001; /* Above modal backdrop to ensure add menu is clickable */
 }
 
 /* Hide controls when block is collapsed, but reserve space */

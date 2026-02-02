@@ -26,7 +26,7 @@ import {
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
 import type { NodeView, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
-import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
+import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
 import { NodeViewSection } from './NodeViewSection';
 import { Button } from '../core/Button';
@@ -71,8 +71,10 @@ export interface DynamicNodeViewSectionProps {
   onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
-  /** When true, returns {controls, results} instead of JSX for custom layout */
+  /** When true, calls children with {controls, results} for custom layout */
   split?: boolean;
+  /** Render prop for split mode - receives {controls, results} */
+  children?: (result: { controls: React.ReactNode; results: React.ReactNode } | null) => React.ReactNode;
 }
 
 // ==================== Main Component ====================
@@ -90,6 +92,7 @@ export function DynamicNodeViewSection({
   className = '',
   headless = false,
   split = false,
+  children,
 }: DynamicNodeViewSectionProps): React.JSX.Element | { controls: React.ReactNode; results: React.ReactNode } | null {
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
@@ -311,7 +314,10 @@ export function DynamicNodeViewSection({
   );
 
   // Use appropriate results based on node type
-  const resultNodes = isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []);
+  // If query is empty (no conditions), return empty array instead of all nodes
+  const rawResults = isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []);
+  const activeAST = isPseudoNode ? pseudoNodeAST : activeView?.query_ast;
+  const resultNodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
   const isQueryLoading = isPseudoNode ? pseudoQueryLoading : queryLoading;
   const handleRefetchQuery = isPseudoNode ? refetchPseudoQuery : refetchQuery;
 
@@ -634,12 +640,176 @@ export function DynamicNodeViewSection({
     />
   );
 
-  // Split mode: return controls and results separately for custom layout
-  if (split) {
-    return {
+  // Split mode: return controls + results separately for external layout
+  // Modals are rendered here, then result passed to children render prop
+  if (split && children) {
+    const splitResult = {
       controls: headerActions,
       results: content,
     };
+    
+    return (
+      <>
+        {/* Modals must be rendered in React tree for portals/context */}
+        <Modal
+          isOpen={!!editingView}
+          onClose={() => {
+            setEditingView(null);
+            setEditAST(null);
+            setEditViewName('');
+          }}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Button
+                icon={mdiEyeOutline}
+                iconOnly
+                variant="ghost"
+                size="xs"
+                onClick={() => setShowProseModal(true)}
+                title="Show query as prose"
+              />
+              <span>Query</span>
+            </div>
+          }
+          size="xl"
+          className="dynamic-section__edit-modal"
+          footer={editingView && (
+            <div className="dynamic-section__modal-footer">
+              {/* Scope Selector - Left side */}
+              <div className="view-builder__footer-left">
+                <ProseScopeSelector
+                  scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
+                  onChange={(newScope) => {
+                    if (editAST) {
+                      setEditAST({
+                        ...editAST,
+                        scope: newScope,
+                      });
+                    }
+                  }}
+                  readOnly={['linked_references', 'child_pages', 'classed_nodes'].includes(viewType)}
+                />
+              </div>
+              
+              {/* Result count */}
+              {previewResults && (
+                <div className="view-builder__result-preview">
+                  {previewLoading ? (
+                    <span className="view-builder__result-loading">Calculating…</span>
+                  ) : (
+                    <span className="view-builder__result-count">
+                      <span className="view-builder__result-dot">●</span>
+                      {previewResults.length} node{previewResults.length !== 1 ? 's' : ''} found
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              <div className="dynamic-section__footer-spacer" />
+              
+              {/* Delete button - only for non-default views */}
+              {!editingView?.is_default && (
+                <InlineConfirmButton
+                  buttonProps={{
+                    variant: 'ghost',
+                    size: 'sm',
+                    icon: <DeleteIcon size="sm" />,
+                    iconOnly: true,
+                    title: 'Delete view',
+                    className: 'dynamic-section__delete-btn',
+                  }}
+                  confirmText="Delete view?"
+                  onConfirm={handleDeleteView}
+                />
+              )}
+              
+              {/* Save button */}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveEdit}
+                disabled={validation ? !canSaveQuery(validation) : false}
+              >
+                Save
+              </Button>
+            </div>
+          )}
+        >
+          {editingView && editAST && (
+            <div className="dynamic-section__edit-content">
+              {/* View name editor */}
+              <div className="dynamic-section__view-name">
+                <TextField
+                  value={editViewName}
+                  onChange={(e) => setEditViewName(e.target.value)}
+                  placeholder="View name"
+                  size="sm"
+                />
+              </div>
+              
+              {/* Query builder with inline validation */}
+              <ViewBuilder
+                ast={editAST}
+                onChange={handleASTChange}
+                resultCount={previewResults?.length ?? 0}
+                isLoading={previewLoading}
+                hideFooter={true}
+              />
+            </div>
+          )}
+        </Modal>
+
+        {/* Prose query preview modal */}
+        <Modal
+          isOpen={showProseModal}
+          onClose={() => setShowProseModal(false)}
+          title="Query Preview"
+          size="lg"
+        >
+          {editAST && (
+            <div className="query-preview">
+              {/* Prose description */}
+              <div>
+                <h4 className="query-preview__section-header">Natural Language</h4>
+                <div className="query-preview__prose">
+                  {getQueryIntent(editAST)}
+                </div>
+              </div>
+
+              {/* AST Section */}
+              <div>
+                <div className="query-preview__ast-header">
+                  <h4 className="query-preview__section-header">Query Structure</h4>
+                  <Button
+                    icon={mdiContentCopy}
+                    onClick={handleCopyAST}
+                    variant="ghost"
+                    size="xs"
+                  >
+                    Copy
+                  </Button>
+                </div>
+                <pre className="query-preview__ast">
+                  {JSON.stringify(editAST, null, 2)}
+                </pre>
+              </div>
+
+              {/* SQL Section */}
+              <div>
+                <div className="query-preview__sql-header">
+                  <h4 className="query-preview__section-header">Execution Preview</h4>
+                  <span className="query-preview__sql-note">(informational only)</span>
+                </div>
+                <QuerySQLPreview ast={editAST} />
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* Call children render prop with split result */}
+        {children(splitResult)}
+      </>
+    );
   }
 
   // Headless mode: render just controls and content without section wrapper
@@ -682,7 +852,7 @@ export function DynamicNodeViewSection({
               {/* Scope Selector - Left side */}
               <div className="view-builder__footer-left">
                 <ProseScopeSelector
-                  scope={editAST?.scope || { type: 'scope', scope_type: 'current' }}
+                  scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
                   onChange={(newScope) => {
                     if (editAST) {
                       setEditAST({
@@ -843,7 +1013,7 @@ export function DynamicNodeViewSection({
             {/* Scope Selector - Left side */}
             <div className="view-builder__footer-left">
               <ProseScopeSelector
-                scope={editAST?.scope || { type: 'scope', scope_type: 'current' }}
+                scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
                 onChange={(newScope) => {
                   if (editAST) {
                     setEditAST({
