@@ -54,7 +54,7 @@ export function createChildPagesQuery(parentPageUuid: string = '{current_node_uu
           condition_type: 'property',
           property_name: 'uuid',
           property_type: 'text',
-          operator: '=',
+          operator: 'equals',
           value: parentPageUuid,
         },
       ],
@@ -152,7 +152,7 @@ export function createRecentChangesQuery(daysBack: number = 7): QueryAST {
     condition_type: 'property',
     property_name: 'updated_at',
     property_type: 'date',
-    operator: '>',
+    operator: 'greater_than',
     value: dateThreshold.toISOString(),
   };
 

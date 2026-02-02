@@ -1,11 +1,31 @@
 /**
  * Re-export all types from the types directory
- * Note: PropertyType is exported from both api.ts and query.ts, so we exclude it from query.ts
+ * Note: PropertyType is exported from both api.ts and queryAST.ts
  */
 export * from './api';
 export * from './views';
 export * from './nodeCollection';
 export * from './viewModes';
+
+// Export QueryAST types (primary)
+export type {
+  PropertyOperator,
+  ContentOperator,
+  PropertyType,
+  ASTNodeType,
+  QueryAST,
+  ScopeNode,
+  GroupNode,
+  ConditionNode,
+  ClassCondition,
+  ContentCondition,
+  PropertyCondition,
+  ReferenceCondition,
+  ReferencePathCondition,
+  BaseConditionNode,
+} from './queryAST';
+
+// Export legacy QueryBlockTree types (backward compatibility)
 export { 
   type QueryBlockType,
   type BaseQueryBlock,
@@ -31,19 +51,3 @@ export {
   type QueryExecuteRequest,
 } from './query';
 
-// Export QueryAST types (excluding PropertyType which comes from api.ts)
-export type {
-  PropertyOperator,
-  ContentOperator,
-  ASTNodeType,
-  QueryAST,
-  ScopeNode,
-  GroupNode,
-  ConditionNode,
-  ClassCondition,
-  ContentCondition,
-  PropertyCondition,
-  ReferenceCondition,
-  ReferencePathCondition,
-  BaseConditionNode,
-} from './queryAST';

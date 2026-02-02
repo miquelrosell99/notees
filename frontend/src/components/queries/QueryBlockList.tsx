@@ -231,7 +231,7 @@ export function QueryBlockList({
       condition_type: 'property',
       property_name: '',
       property_type: 'text',
-      operator: '=',
+      operator: 'equals',
       value: '',
     };
     onChange([...blocks, newCondition]);
