@@ -10,7 +10,7 @@ import { QueryBlockList } from './QueryBlockList';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { Button } from '../core/Button';
 import { DeleteIcon } from '../icons';
-import { isSystemNode } from '@/types/queryAST';
+import { isSystemNode, isNodeRemovable, isNodeEditable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
 import './QueryBlockBuilder.css';
 
@@ -36,9 +36,10 @@ export function QueryBlockBuilder({
   readOnly = false,
 }: QueryBlockBuilderProps) {
   
-  // Check if this is a system block (locked)
-  const isSystem = isSystemNode(block);
-  const isReadOnly = readOnly || isSystem;
+  // Check if this block is removable/editable
+  const canRemove = isNodeRemovable(block);
+  const canEdit = isNodeEditable(block);
+  const isReadOnly = readOnly || !canEdit;
   
   // Handle group changes
   const handleGroupChange = useCallback((children: Array<ConditionNode | GroupNode | ASTNotNode>) => {
@@ -83,7 +84,7 @@ export function QueryBlockBuilder({
           <span className="query-block-builder__label">
             {groupBlock.logic} Group
           </span>
-          {!isReadOnly && (
+          {canRemove && !readOnly && (
             <Button
               variant="ghost"
               size="xs"
@@ -113,7 +114,7 @@ export function QueryBlockBuilder({
       <div className="query-block-builder query-block-builder--not">
         <div className="query-block-builder__header">
           <span className="query-block-builder__label">NOT</span>
-          {!isReadOnly && (
+          {canRemove && !readOnly && (
             <Button
               variant="ghost"
               size="xs"
