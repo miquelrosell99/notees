@@ -45,7 +45,6 @@ export function AddFilterMenu({ categories, className = '', style }: AddFilterMe
         <div key={category.title} className="add-filter-menu__category">
           {/* Category header */}
           <div className="add-filter-menu__category-header">
-            <span className="add-filter-menu__category-icon">{category.icon}</span>
             <span className="add-filter-menu__category-title">{category.title}</span>
           </div>
           

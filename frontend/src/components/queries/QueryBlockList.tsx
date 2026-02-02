@@ -6,7 +6,6 @@
  */
 
 import { useCallback, useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   DndContext,
   closestCenter,
@@ -26,8 +25,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { mdiChevronDown } from '@mdi/js';
-import Icon from '@mdi/react';
 import { Button } from '../core/Button';
+import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { DeleteIcon } from '../icons';
 import { Card } from '../core/Card';
 import { DragHandle } from '../dnd/DragHandle';
@@ -150,9 +149,6 @@ export function QueryBlockList({
   const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('before');
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const addMenuRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -160,36 +156,7 @@ export function QueryBlockList({
     })
   );
 
-  // Update menu position when opened
-  useEffect(() => {
-    if (showAddMenu && addMenuRef.current) {
-      const rect = addMenuRef.current.getBoundingClientRect();
-      setMenuPosition({
-        top: rect.bottom + window.scrollY + 4, // 4px gap
-        left: rect.left + window.scrollX,
-      });
-    } else {
-      setMenuPosition(null);
-    }
-  }, [showAddMenu]);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!showAddMenu) return;
-    
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const clickedButton = addMenuRef.current && addMenuRef.current.contains(target);
-      const clickedMenu = menuRef.current && menuRef.current.contains(target);
-      
-      if (!clickedButton && !clickedMenu) {
-        setShowAddMenu(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showAddMenu]);
 
   // Add different block types
   const handleAddProperty = useCallback(() => {
@@ -347,7 +314,7 @@ export function QueryBlockList({
   const menuCategories: FilterMenuCategory[] = [
     {
       title: 'Content',
-      icon: '📝',
+      icon: '',
       items: [
         {
           id: 'content',
@@ -365,7 +332,7 @@ export function QueryBlockList({
     },
     {
       title: 'Classification',
-      icon: '🏷️',
+      icon: '',
       items: [
         {
           id: 'class',
@@ -383,7 +350,7 @@ export function QueryBlockList({
     },
     {
       title: 'References',
-      icon: '🔗',
+      icon: '',
       items: [
         {
           id: 'reference',
@@ -401,7 +368,7 @@ export function QueryBlockList({
     },
     {
       title: 'Hierarchy',
-      icon: '📁',
+      icon: '',
       items: [
         {
           id: 'parent',
@@ -431,7 +398,7 @@ export function QueryBlockList({
     },
     {
       title: 'Advanced',
-      icon: '⚙️',
+      icon: '',
       items: [
         {
           id: 'flag',
@@ -564,18 +531,29 @@ export function QueryBlockList({
       {safeBlocks.length === 0 && (
         <div className="query-block-list__empty">
           {!readOnly ? (
-            <div className="query-block-list__add-menu" ref={addMenuRef}>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setShowAddMenu(!showAddMenu)}
+            <div className="query-block-list__add-menu">
+              <ButtonWithPanel
+                buttonText="+ Add block"
+                variant="ghost"
+                size="sm"
+                panelPosition="bottom"
+                panelAlignment="start"
+                panelWidth={280}
+                panelMaxHeight={400}
+                open={showAddMenu}
+                onOpenChange={setShowAddMenu}
+                closeOnClickOutside={true}
+                closeOnEscape={true}
+                showCloseButton={false}
+                usePortal={true}
+                buttonProps={{
+                  icon: mdiChevronDown,
+                  iconPosition: 'right',
+                }}
+                panelClassName="query-block-list__add-menu-panel"
               >
-                + Add block
-                <Icon path={mdiChevronDown} size={0.7} />
-              </Button>
-              {showAddMenu && (
                 <AddFilterMenu categories={menuCategories} />
-              )}
+              </ButtonWithPanel>
             </div>
           ) : (
             <p className="query-block-list__empty-message">
@@ -668,27 +646,29 @@ export function QueryBlockList({
 
       {/* Add filter button */}
       {!readOnly && safeBlocks.length > 0 && (
-        <div className="query-block-list__add" ref={addMenuRef}>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowAddMenu(!showAddMenu)}
+        <div className="query-block-list__add">
+          <ButtonWithPanel
+            buttonText="+ Add filter"
+            variant="ghost"
+            size="sm"
+            panelPosition="bottom"
+            panelAlignment="start"
+            panelWidth={280}
+            panelMaxHeight={400}
+            open={showAddMenu}
+            onOpenChange={setShowAddMenu}
+            closeOnClickOutside={true}
+            closeOnEscape={true}
+            showCloseButton={false}
+            usePortal={true}
+            buttonProps={{
+              icon: mdiChevronDown,
+              iconPosition: 'right',
+            }}
+            panelClassName="query-block-list__add-menu-panel"
           >
-            + Add filter
-            <Icon path={mdiChevronDown} size={0.7} />
-          </Button>
-          {showAddMenu && menuPosition && createPortal(
-            <AddFilterMenu 
-              categories={menuCategories} 
-              className="query-block-list__add-menu-dropdown--portal"
-              style={{
-                position: 'absolute',
-                top: `${menuPosition.top}px`,
-                left: `${menuPosition.left}px`,
-              }}
-            />,
-            document.body
-          )}
+            <AddFilterMenu categories={menuCategories} />
+          </ButtonWithPanel>
         </div>
       )}
     </div>

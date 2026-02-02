@@ -14,6 +14,7 @@ import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
 import { QueryBlockList } from './QueryBlockList';
 import { useNode, useProperties } from '@/hooks';
+import { useCurrentNodeUuid } from '@/hooks/useRouter';
 import type { ConditionNode, GroupNode } from '@/types/queryAST';
 import { 
   getConditionConfig, 
@@ -38,6 +39,7 @@ export function GenericConditionRenderer({
 }: GenericConditionRendererProps) {
   
   const config = getConditionConfig(condition.condition_type);
+  const currentNodeUuid = useCurrentNodeUuid();
   
   if (!config) {
     // Fallback for unknown condition types
@@ -54,16 +56,20 @@ export function GenericConditionRenderer({
   const hasDynamicMode = config.hasStaticDynamicToggle || alwaysUsesNestedGroup(condition.condition_type);
   const inDynamicMode = 'nested_group' in condition && condition.nested_group !== undefined;
   
-  // Check if using current node placeholder
+  // Check if using current node placeholder or if UUID matches current node
   const hasCurrentNodePlaceholder = (() => {
     if (condition.condition_type === 'parent') {
-      return (condition as any).parent_uuid === '{current_node_uuid}';
+      const uuid = (condition as any).parent_uuid;
+      return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
     } else if (condition.condition_type === 'reference') {
-      return (condition as any).target_uuid === '{current_node_uuid}';
+      const uuid = (condition as any).target_uuid;
+      return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
     } else if (condition.condition_type === 'property') {
-      return (condition as any).value === '{current_node_uuid}';
+      const value = (condition as any).value;
+      return value === '{current_node_uuid}' || (currentNodeUuid && value === currentNodeUuid);
     } else if (condition.condition_type === 'class') {
-      return (condition as any).class_uuid === '{current_node_uuid}';
+      const uuid = (condition as any).class_uuid;
+      return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
     }
     return false;
   })();
@@ -87,13 +93,17 @@ export function GenericConditionRenderer({
     const hasNested = 'nested_group' in condition && condition.nested_group !== undefined;
     const hasCurrent = (() => {
       if (condition.condition_type === 'parent') {
-        return (condition as any).parent_uuid === '{current_node_uuid}';
+        const uuid = (condition as any).parent_uuid;
+        return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
       } else if (condition.condition_type === 'reference') {
-        return (condition as any).target_uuid === '{current_node_uuid}';
+        const uuid = (condition as any).target_uuid;
+        return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
       } else if (condition.condition_type === 'property') {
-        return (condition as any).value === '{current_node_uuid}';
+        const value = (condition as any).value;
+        return value === '{current_node_uuid}' || (currentNodeUuid && value === currentNodeUuid);
       } else if (condition.condition_type === 'class') {
-        return (condition as any).class_uuid === '{current_node_uuid}';
+        const uuid = (condition as any).class_uuid;
+        return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
       }
       return false;
     })();
@@ -102,7 +112,7 @@ export function GenericConditionRenderer({
     if (selectionMode !== expectedMode) {
       setSelectionMode(expectedMode);
     }
-  }, [condition, selectionMode]);
+  }, [condition, selectionMode, currentNodeUuid]);
   
   // Handler for operator change
   const handleOperatorChange = (newOperator: string | null) => {
@@ -135,20 +145,23 @@ export function GenericConditionRenderer({
       
       onUpdate(updated);
     } else if (mode === 'current') {
-      // Switch to current node mode - remove nested_group and set placeholder
+      // Switch to current node mode - remove nested_group and set to current node UUID
       const updated = { ...condition };
       delete (updated as any).nested_group;
       
+      // Use actual UUID if available, otherwise use placeholder
+      const targetUuid = currentNodeUuid || '{current_node_uuid}';
+      
       if (condition.condition_type === 'parent') {
-        (updated as any).parent_uuid = '{current_node_uuid}';
+        (updated as any).parent_uuid = targetUuid;
         delete (updated as any).parent_id;
       } else if (condition.condition_type === 'reference') {
-        (updated as any).target_uuid = '{current_node_uuid}';
+        (updated as any).target_uuid = targetUuid;
         delete (updated as any).target_id;
       } else if (condition.condition_type === 'property') {
-        (updated as any).value = '{current_node_uuid}';
+        (updated as any).value = targetUuid;
       } else if (condition.condition_type === 'class') {
-        (updated as any).class_uuid = '{current_node_uuid}';
+        (updated as any).class_uuid = targetUuid;
         delete (updated as any).class_id;
       }
       
@@ -246,11 +259,11 @@ export function GenericConditionRenderer({
   const renderStaticInput = () => {
     if (!needsValue || selectionMode === 'dynamic') return null;
     
-    // Show "Current Node" indicator when in current mode
+    // Show "Current Page" indicator when in current mode
     if (selectionMode === 'current') {
       return (
         <span className="prose-condition__current-node">
-          Current Node
+          Current Page
         </span>
       );
     }

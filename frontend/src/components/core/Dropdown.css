@@ -111,7 +111,7 @@
 
 /* Menu */
 .dropdown-menu {
-  z-index: 9999;
+  z-index: 10000;
   min-width: 200px;
   width: max-content;
   max-width: 400px;
