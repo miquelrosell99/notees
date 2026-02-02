@@ -45,20 +45,8 @@ export function createChildPagesQuery(parentPageUuid: string = '{current_node_uu
   const condition: ParentCondition = markAsSystemNode({
     type: 'condition',
     condition_type: 'parent',
-    nested_group: {
-      type: 'group',
-      logic: 'AND',
-      children: [
-        {
-          type: 'condition',
-          condition_type: 'property',
-          property_name: 'uuid',
-          property_type: 'text',
-          operator: 'equals',
-          value: parentPageUuid,
-        },
-      ],
-    },
+    parent_uuid: parentPageUuid,
+    operator: 'has_parent',
   });
 
   return {
