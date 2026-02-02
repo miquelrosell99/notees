@@ -651,7 +651,7 @@ export function QueryBlockList({
       {!readOnly && showAddButton && (
         <div className="query-block-list__add">
           <ButtonWithPanel
-            buttonText="+ Add filter"
+            buttonText=""
             variant="ghost"
             size="sm"
             panelPosition="bottom"
@@ -663,8 +663,8 @@ export function QueryBlockList({
             showCloseButton={false}
             usePortal={true}
             buttonProps={{
-              icon: mdiChevronDown,
-              iconPosition: 'right',
+              icon: mdiPlus,
+              iconOnly: true,
             }}
             panelClassName="query-block-list__add-menu-panel"
           >

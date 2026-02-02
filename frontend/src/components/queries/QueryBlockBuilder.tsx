@@ -115,8 +115,54 @@ export function QueryBlockBuilder({
   }, [block, onChange]);
   
   // Render based on block type
-  if (block.type === 'group') {
-    const groupBlock = block as GroupNode;
+  if (block.type === 'group' || block.type === 'not') {
+    // Handle both group and NOT blocks with unified logic
+    const isNotBlock = block.type === 'not';
+    const notBlock = isNotBlock ? (block as ASTNotNode) : null;
+    const groupBlock = isNotBlock 
+      ? (notBlock?.child.type === 'group' ? (notBlock.child as GroupNode) : null)
+      : (block as GroupNode);
+    
+    // If NOT doesn't contain a group, fall through to regular rendering
+    if (isNotBlock && !groupBlock) {
+      const notBlockFallback = block as ASTNotNode;
+      return (
+        <>
+          <div className="prose-condition-card">
+            <div className="prose-condition-card__drag">
+              <span className="prose-condition-card__drag-handle">⋮⋮</span>
+            </div>
+            
+            <div className="prose-condition-card__content">
+              <span className="prose-condition-card__label">NOT</span>
+            </div>
+            
+            {canRemove && !readOnly && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={onRemove}
+                title="Remove NOT"
+                className="prose-condition-card__corner-button"
+                icon={mdiClose}
+                iconOnly
+              />
+            )}
+          </div>
+          
+          <div className="query-block-builder__nested-body">
+            <QueryBlockBuilder
+              block={notBlockFallback.child}
+              onChange={handleNotChildChange}
+              onRemove={() => {}}
+              readOnly={isReadOnly}
+            />
+          </div>
+        </>
+      );
+    }
+    
+    if (!groupBlock) return null;
     
     const logicOptions = [
       { value: 'AND', icon: mdiSetAll, label: 'All conditions must match (AND)' },
@@ -124,16 +170,56 @@ export function QueryBlockBuilder({
       { value: 'NOT', icon: mdiCloseCircleOutline, label: 'Exclude matches (NOT)' },
     ];
     
+    const currentLogic = isNotBlock ? 'NOT' : groupBlock.logic;
+    
+    const handleUnifiedLogicChange = (newLogic: string) => {
+      if (isNotBlock) {
+        // NOT block changing logic
+        if (newLogic === 'NOT') return; // Already NOT
+        // Unwrap to plain group
+        onChange({
+          ...groupBlock,
+          logic: newLogic as LogicType,
+        });
+      } else {
+        // Group changing logic
+        if (newLogic === 'NOT') {
+          // Wrap in NOT
+          onChange({
+            type: 'not',
+            child: groupBlock,
+          });
+        } else {
+          // Just change logic
+          onChange({
+            ...groupBlock,
+            logic: newLogic as LogicType,
+          });
+        }
+      }
+    };
+    
+    const handleUnifiedChildrenChange = (children: Array<ConditionNode | GroupNode | ASTNotNode>) => {
+      if (isNotBlock && notBlock) {
+        handleNotChildChange({
+          ...groupBlock,
+          children,
+        });
+      } else {
+        handleGroupChange(children);
+      }
+    };
+    
     return (
       <>
-        {/* Group header using same structure as condition blocks */}
+        {/* Unified header for AND/OR/NOT */}
         <div className="prose-condition-card">
           <div className="prose-condition-card__drag">
             <span className="prose-condition-card__drag-handle">⋮⋮</span>
           </div>
           
           <div className="prose-condition-card__content">
-            <span className="prose-condition-card__label">{groupBlock.logic}</span>
+            <span className="prose-condition-card__label">{currentLogic}</span>
           </div>
           
           {/* SelectionButton on the right */}
@@ -141,8 +227,8 @@ export function QueryBlockBuilder({
             <SelectionButton
               className="prose-condition__selection-button"
               options={logicOptions}
-              value={groupBlock.logic}
-              onChange={handleLogicChange}
+              value={currentLogic}
+              onChange={handleUnifiedLogicChange}
               size="sm"
               disabled={readOnly}
             />
@@ -154,7 +240,7 @@ export function QueryBlockBuilder({
               variant="ghost"
               size="xs"
               onClick={onRemove}
-              title="Remove group"
+              title={`Remove ${currentLogic}`}
               className="prose-condition-card__corner-button"
               icon={mdiClose}
               iconOnly
@@ -168,7 +254,7 @@ export function QueryBlockBuilder({
             <QueryBlockList
               blocks={groupBlock.children}
               parentLogic={groupBlock.logic}
-              onChange={handleGroupChange}
+              onChange={handleUnifiedChildrenChange}
               readOnly={isReadOnly}
               showAddButton={true}
               showEmptyMessage={false}
@@ -181,104 +267,13 @@ export function QueryBlockBuilder({
             <QueryBlockList
               blocks={[]}
               parentLogic={groupBlock.logic}
-              onChange={handleGroupChange}
+              onChange={handleUnifiedChildrenChange}
               readOnly={isReadOnly}
               showAddButton={true}
               showEmptyMessage={false}
             />
           </div>
         )}
-      </>
-    );
-  }
-  
-  if (block.type === 'not') {
-    const notBlock = block as ASTNotNode;
-    const isGroupChild = notBlock.child.type === 'group';
-    
-    const logicOptions = [
-      { value: 'AND', icon: mdiSetAll, label: 'All conditions must match (AND)' },
-      { value: 'OR', icon: mdiSetNone, label: 'Any condition can match (OR)' },
-      { value: 'NOT', icon: mdiCloseCircleOutline, label: 'Exclude matches (NOT)' },
-    ];
-    
-    return (
-      <>
-        {/* NOT header using same structure as condition blocks */}
-        <div className="prose-condition-card">
-          <div className="prose-condition-card__drag">
-            <span className="prose-condition-card__drag-handle">⋮⋮</span>
-          </div>
-          
-          <div className="prose-condition-card__content">
-            <span className="prose-condition-card__label">NOT</span>
-          </div>
-          
-          {/* SelectionButton on the right */}
-          {!isReadOnly && isGroupChild && (
-            <SelectionButton
-              className="prose-condition__selection-button"
-              options={logicOptions}
-              value="NOT"
-              onChange={handleNotLogicChange}
-              size="sm"
-              disabled={readOnly}
-            />
-          )}
-          
-          {/* Delete button in corner */}
-          {canRemove && !readOnly && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={onRemove}
-              title="Remove NOT"
-              className="prose-condition-card__corner-button"
-              icon={mdiClose}
-              iconOnly
-            />
-          )}
-        </div>
-        
-        {/* Children rendered below with vertical line */}
-        {isGroupChild && (notBlock.child as GroupNode).children.length > 0 ? (
-          <div className="query-block-builder__nested-body">
-            <QueryBlockList
-              blocks={(notBlock.child as GroupNode).children}
-              parentLogic={(notBlock.child as GroupNode).logic}
-              onChange={(children) => handleNotChildChange({
-                ...(notBlock.child as GroupNode),
-                children,
-              })}
-              readOnly={isReadOnly}
-              showAddButton={true}
-              showEmptyMessage={false}
-            />
-          </div>
-        ) : isGroupChild && (notBlock.child as GroupNode).children.length === 0 && !isReadOnly ? (
-          <div className="query-block-builder__nested-body">
-            <QueryBlockList
-              blocks={[]}
-              parentLogic={(notBlock.child as GroupNode).logic}
-              onChange={(children) => handleNotChildChange({
-                ...(notBlock.child as GroupNode),
-                children,
-              })}
-              readOnly={isReadOnly}
-              showAddButton={true}
-              showEmptyMessage={false}
-            />
-          </div>
-        ) : !isGroupChild ? (
-          <div className="query-block-builder__nested-body">
-            <QueryBlockBuilder
-              block={notBlock.child}
-              onChange={handleNotChildChange}
-              onRemove={() => {}}
-              readOnly={isReadOnly}
-            />
-          </div>
-        ) : null}
       </>
     );
   }
