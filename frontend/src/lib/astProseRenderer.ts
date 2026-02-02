@@ -28,6 +28,7 @@ import type {
   ChildPathCondition,
   ClassPathCondition,
 } from '@/types/queryAST';
+import type { Node } from '@/types/api';
 
 // ==================== Types ====================
 
@@ -61,7 +62,7 @@ export interface NodeProseCapabilities {
  * Generate the complete intent label for a query
  * This is the primary prose summary shown in the Intent Header
  */
-export function getQueryIntent(ast: QueryAST): string {
+export function getQueryIntent(ast: QueryAST, nodesMap?: Map<string, Node>): string {
   const scopePhrase = renderScopeProse(ast.scope);
   // Safety check for children array
   const conditions = Array.isArray(ast.root_group.children) ? ast.root_group.children : [];
@@ -70,7 +71,7 @@ export function getQueryIntent(ast: QueryAST): string {
     return `All nodes ${scopePhrase}`;
   }
   
-  const conditionPhrase = renderGroupProse(ast.root_group);
+  const conditionPhrase = renderGroupProse(ast.root_group, nodesMap);
   return `Nodes that ${conditionPhrase} ${scopePhrase}`;
 }
 
@@ -124,17 +125,17 @@ export function getScopeLabel(scope: ScopeNode): string {
  * Render a group node as prose
  * Returns a sentence fragment describing the condition
  */
-export function renderGroupProse(group: GroupNode): string {
+export function renderGroupProse(group: GroupNode, nodesMap?: Map<string, Node>): string {
   if (group.children.length === 0) {
     return 'match any node';
   }
   
   if (group.children.length === 1) {
-    return renderChildProse(group.children[0]);
+    return renderChildProse(group.children[0], nodesMap);
   }
   
   // Multiple children - combine with logic
-  const childPhrases = group.children.map(renderChildProse);
+  const childPhrases = group.children.map(child => renderChildProse(child, nodesMap));
   
   if (group.logic === 'AND') {
     return `match all of these: ${childPhrases.join(', ')}`;
@@ -146,19 +147,19 @@ export function renderGroupProse(group: GroupNode): string {
 /**
  * Render a child node (can be condition, group, or NOT)
  */
-function renderChildProse(node: ConditionNode | GroupNode | NotNode): string {
+function renderChildProse(node: ConditionNode | GroupNode | NotNode, nodesMap?: Map<string, Node>): string {
   if (node.type === 'not') {
     const childPhrase = node.child.type === 'group' 
-      ? renderGroupProse(node.child)
-      : renderConditionProse(node.child);
+      ? renderGroupProse(node.child, nodesMap)
+      : renderConditionProse(node.child, nodesMap);
     return `do not ${childPhrase}`;
   }
   
   if (node.type === 'group') {
-    return renderGroupProse(node);
+    return renderGroupProse(node, nodesMap);
   }
   
-  return renderConditionProse(node);
+  return renderConditionProse(node, nodesMap);
 }
 
 // ==================== Condition Prose ====================
@@ -167,34 +168,34 @@ function renderChildProse(node: ConditionNode | GroupNode | NotNode): string {
  * Render a condition node as a prose fragment
  * Returns a sentence fragment describing the filter
  */
-export function renderConditionProse(condition: ConditionNode): string {
+export function renderConditionProse(condition: ConditionNode, nodesMap?: Map<string, Node>): string {
   switch (condition.condition_type) {
     case 'class':
-      return renderClassProse(condition);
+      return renderClassProse(condition, nodesMap);
     case 'property':
       return renderPropertyProse(condition);
     case 'content':
       return renderContentProse(condition);
     case 'reference':
-      return renderReferenceProse(condition);
+      return renderReferenceProse(condition, nodesMap);
     case 'reference_path':
-      return renderReferencePathProse(condition);
+      return renderReferencePathProse(condition, nodesMap);
     case 'parent':
-      return renderParentProse(condition);
+      return renderParentProse(condition, nodesMap);
     case 'parent_path':
-      return renderParentPathProse(condition);
+      return renderParentPathProse(condition, nodesMap);
     case 'child':
-      return renderChildConditionProse(condition);
+      return renderChildConditionProse(condition, nodesMap);
     case 'child_path':
-      return renderChildPathProse(condition);
+      return renderChildPathProse(condition, nodesMap);
     case 'class_path':
-      return renderClassPathProse(condition);
+      return renderClassPathProse(condition, nodesMap);
     default:
       return 'match unknown condition';
   }
 }
 
-function renderClassProse(condition: ClassCondition): string {
+function renderClassProse(condition: ClassCondition, nodesMap?: Map<string, Node>): string {
   const operator = condition.operator || 'contains';
   const classValue = condition.class_uuid || '';
   
@@ -202,21 +203,24 @@ function renderClassProse(condition: ClassCondition): string {
     return 'have a class defined';
   }
   
+  // Convert UUID to markdown link if possible
+  const displayValue = formatNodeReference(classValue, nodesMap);
+  
   switch (operator) {
     case 'is':
-      return `have class "${classValue}"`;
+      return `have class ${displayValue}`;
     case 'is_not':
-      return `do not have class "${classValue}"`;
+      return `do not have class ${displayValue}`;
     case 'contains':
-      return `have a class containing "${classValue}"`;
+      return `have a class containing ${displayValue}`;
     case 'does_not_contain':
-      return `do not have a class containing "${classValue}"`;
+      return `do not have a class containing ${displayValue}`;
     case 'defined':
       return 'have a class defined';
     case 'not_defined':
       return 'have no classes defined';
     default:
-      return `have class "${classValue}"`;
+      return `have class ${displayValue}`;
   }
 }
 
@@ -276,29 +280,30 @@ function renderContentProse(condition: ContentCondition): string {
   }
 }
 
-function renderReferenceProse(condition: ReferenceCondition): string {
-  return `reference node "${condition.target_uuid}"`;
+function renderReferenceProse(condition: ReferenceCondition, nodesMap?: Map<string, Node>): string {
+  const displayValue = formatNodeReference(condition.target_uuid, nodesMap);
+  return `reference node ${displayValue}`;
 }
 
-function renderReferencePathProse(condition: ReferencePathCondition): string {
+function renderReferencePathProse(condition: ReferencePathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group);
+    const nested = renderGroupProse(condition.nested_group, nodesMap);
     return `reference nodes that ${nested}`;
   }
   return 'reference nodes matching criteria';
 }
 
-function renderParentProse(condition: ParentCondition): string {
+function renderParentProse(condition: ParentCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group);
+    const nested = renderGroupProse(condition.nested_group, nodesMap);
     return `have a parent that ${nested}`;
   }
   return 'have a parent matching criteria';
 }
 
-function renderParentPathProse(condition: ParentPathCondition): string {
+function renderParentPathProse(condition: ParentPathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group);
+    const nested = renderGroupProse(condition.nested_group, nodesMap);
     const depthPhrase = condition.max_depth 
       ? ` (within ${condition.max_depth} level${condition.max_depth > 1 ? 's' : ''})`
       : '';
@@ -307,17 +312,17 @@ function renderParentPathProse(condition: ParentPathCondition): string {
   return 'have ancestors matching criteria';
 }
 
-function renderChildConditionProse(condition: ChildCondition): string {
+function renderChildConditionProse(condition: ChildCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group);
+    const nested = renderGroupProse(condition.nested_group, nodesMap);
     return `have a child that ${nested}`;
   }
   return 'have children matching criteria';
 }
 
-function renderChildPathProse(condition: ChildPathCondition): string {
+function renderChildPathProse(condition: ChildPathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group);
+    const nested = renderGroupProse(condition.nested_group, nodesMap);
     const depthPhrase = condition.max_depth 
       ? ` (within ${condition.max_depth} level${condition.max_depth > 1 ? 's' : ''})`
       : '';
@@ -326,12 +331,31 @@ function renderChildPathProse(condition: ChildPathCondition): string {
   return 'have descendants matching criteria';
 }
 
-function renderClassPathProse(condition: ClassPathCondition): string {
+function renderClassPathProse(condition: ClassPathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group);
+    const nested = renderGroupProse(condition.nested_group, nodesMap);
     return `inherit a class that ${nested}`;
   }
   return 'inherit classes from ancestors';
+}
+
+// ==================== Helper Functions ====================
+
+/**
+ * Format a node UUID as a markdown link if the node is found, otherwise return quoted UUID
+ */
+function formatNodeReference(uuid: string, nodesMap?: Map<string, Node>): string {
+  if (!nodesMap) {
+    return `"${uuid}"`;
+  }
+  
+  const node = nodesMap.get(uuid);
+  if (!node) {
+    return `"${uuid}"`;
+  }
+  
+  // Return markdown link format: [node name](uuid)
+  return `[${node.name}](${uuid})`;
 }
 
 // ==================== Capabilities ====================
