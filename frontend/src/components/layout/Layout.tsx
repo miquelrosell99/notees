@@ -14,8 +14,9 @@
  */
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useNodesStore, useSettingsStore, useFavoritesStore } from '@/stores';
-import { useTodayNote, RouterSync } from '@/hooks';
+import { useTodayNote, RouterSync, useCreateNode } from '@/hooks';
 import { markPageOpened } from '@/api/nodes';
+import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -23,6 +24,7 @@ import { RightSidebarCards } from '../sidebar/RightSidebarCards';
 import { GraphViewAllCard } from '../graph';
 import { CommandPalette } from '../CommandPalette';
 import { CommentsSidebar } from '../sidebar/CommentsSidebar';
+import { ImportDataModal } from '../ImportDataModal';
 import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -37,6 +39,8 @@ export function Layout() {
     mainViewType,
     isCommandPaletteOpen,
     setCommandPaletteOpen,
+    isImportDataModalOpen,
+    setImportDataModalOpen,
     isMinimapOpen,
     setMinimapOpen,
     commentsSidebarOpen,
@@ -45,6 +49,7 @@ export function Layout() {
   } = useNodesStore();
   
   const { defaultView } = useSettingsStore();
+  const createNodeMutation = useCreateNode();
   const hasAppliedDefaultView = useRef(false);
   
   // Sidebar resize state
@@ -120,7 +125,12 @@ export function Layout() {
       e.preventDefault();
       setCommandPaletteOpen(true);
     }
-  }, [setCommandPaletteOpen]);
+    // Ctrl/Cmd + Shift + I to open import data modal
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'I') {
+      e.preventDefault();
+      setImportDataModalOpen(true);
+    }
+  }, [setCommandPaletteOpen, setImportDataModalOpen]);
 
   // Register global keyboard shortcuts
   useEffect(() => {
@@ -238,6 +248,36 @@ export function Layout() {
         <CommandPalette
           isOpen={isCommandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
+        />
+        
+        {/* Import Data Modal (Ctrl+Shift+I) */}
+        <ImportDataModal
+          isOpen={isImportDataModalOpen}
+          onClose={() => setImportDataModalOpen(false)}
+          onImport={async (blocks: BlockData[]) => {
+            // Import blocks as children of current node
+            if (!currentNodeId) return;
+            
+            // Create blocks recursively
+            const createBlocksRecursively = async (
+              blockDataList: BlockData[],
+              parentId: number
+            ) => {
+              for (const blockData of blockDataList) {
+                const newNode = await createNodeMutation.mutateAsync({
+                  name: blockData.content,
+                  parent_id: parentId,
+                });
+                
+                // Recursively create children
+                if (blockData.children && blockData.children.length > 0) {
+                  await createBlocksRecursively(blockData.children, newNode.id);
+                }
+              }
+            };
+            
+            await createBlocksRecursively(blocks, currentNodeId);
+          }}
         />
         
         {/* Floating Graph Minimap */}

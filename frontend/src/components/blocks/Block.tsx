@@ -33,10 +33,10 @@ import { CSS } from '@dnd-kit/utilities';
 import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
-import { BlockEditor, type TaskState } from './BlockEditor';
+import { BlockEditor, type TaskState, type PastedBlock, type PastedTable } from './BlockEditor';
 import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -720,6 +720,136 @@ function BlockInternal({
     }
   }, [block.id, block.name, block.parent_id, block.sequence, hasChildren, parentId, updateNode, createNode, setBlockState, setPendingCaret]);
   
+  // Handle multi-line paste - update current block and create siblings
+  const handlePasteBlocks = useCallback(async (currentBlockText: string, newBlocks: Array<{ content: string; depth: number }>) => {
+    // Don't operate on optimistic blocks (negative IDs)
+    if (block.id < 0) {
+      console.warn('handlePasteBlocks: Cannot operate on optimistic block');
+      return;
+    }
+    
+    try {
+      // Update current block with new content
+      if (currentBlockText !== block.name) {
+        await updateNode.mutateAsync({
+          id: block.id,
+          data: { name: currentBlockText }
+        });
+      }
+      
+      // Determine base parent and sequence for new blocks
+      const baseParentId = parentId ?? block.parent_id ?? null;
+      let currentSequence = (block.sequence ?? 0) + 1;
+      
+      // Track parent stack for handling indentation depths
+      // depth 0 = sibling, depth 1+ = child of previous block at that level
+      const parentStack: Array<{ id: number; sequence: number }> = [
+        { id: baseParentId as number, sequence: currentSequence }
+      ];
+      let lastCreatedBlockId = block.id;
+      
+      // Create blocks sequentially to maintain order
+      for (const newBlock of newBlocks) {
+        let targetParentId: number | null;
+        let targetSequence: number;
+        
+        if (newBlock.depth === 0) {
+          // Sibling - same parent as current block
+          targetParentId = baseParentId;
+          targetSequence = currentSequence++;
+          // Reset parent stack
+          parentStack.length = 1;
+          parentStack[0].sequence = currentSequence;
+        } else {
+          // Nested block - child of previous block at depth-1
+          // Ensure we have a parent at the right level
+          while (parentStack.length > newBlock.depth) {
+            parentStack.pop();
+          }
+          
+          if (parentStack.length < newBlock.depth) {
+            // Need to use the last created block as parent
+            parentStack.push({ id: lastCreatedBlockId, sequence: 0 });
+          }
+          
+          const parent = parentStack[parentStack.length - 1];
+          targetParentId = parent.id;
+          targetSequence = parent.sequence++;
+        }
+        
+        const newNode = await createNode.mutateAsync({
+          name: newBlock.content,
+          parent_id: targetParentId,
+          sequence: targetSequence,
+        });
+        
+        lastCreatedBlockId = newNode.id;
+      }
+      
+      // Set cursor to end of current block
+      setPendingCaret(block.id, currentBlockText.length);
+    } catch (error) {
+      console.error('handlePasteBlocks: Error during paste', error);
+    }
+  }, [block.id, block.name, block.parent_id, block.sequence, parentId, updateNode, createNode, setPendingCaret]);
+  
+  // Handle HTML table paste - create table class block with column/row structure
+  const handlePasteTable = useCallback(async (table: PastedTable) => {
+    // Don't operate on optimistic blocks (negative IDs)
+    if (block.id < 0) {
+      console.warn('handlePasteTable: Cannot operate on optimistic block');
+      return;
+    }
+    
+    // Get the table class
+    const tableClass = allClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
+    if (!tableClass) {
+      console.warn('handlePasteTable: Table class not found');
+      return;
+    }
+    
+    try {
+      const baseParentId = parentId ?? block.parent_id ?? null;
+      const baseSequence = (block.sequence ?? 0) + 1;
+      
+      // Create the table block with table class
+      const tableNode = await createNode.mutateAsync({
+        name: table.name || 'Table',
+        parent_id: baseParentId,
+        sequence: baseSequence,
+        classes: [tableClass.id],
+      });
+      
+      // Create column blocks as children of the table
+      const columnNodes: Node[] = [];
+      for (let colIndex = 0; colIndex < table.headers.length; colIndex++) {
+        const columnNode = await createNode.mutateAsync({
+          name: table.headers[colIndex] || `Column ${colIndex + 1}`,
+          parent_id: tableNode.id,
+          sequence: colIndex,
+        });
+        columnNodes.push(columnNode);
+      }
+      
+      // Create cell blocks as children of each column
+      for (let rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
+        const row = table.rows[rowIndex];
+        for (let colIndex = 0; colIndex < columnNodes.length; colIndex++) {
+          await createNode.mutateAsync({
+            name: row[colIndex] ?? '',
+            parent_id: columnNodes[colIndex].id,
+            sequence: rowIndex,
+          });
+        }
+      }
+      
+      // Set cursor to current block
+      setPendingCaret(block.id, (block.name || '').length);
+    } catch (error) {
+      console.error('handlePasteTable: Error during paste', error);
+    }
+  }, [block.id, block.name, block.parent_id, block.sequence, parentId, allClasses, createNode, setPendingCaret]);
+  
   // Handle Backspace at start of block - delete block and merge text with visual block above
   // Rules:
   // - Don't merge if current block has children
@@ -1391,6 +1521,8 @@ function BlockInternal({
               onDeleteAtEnd={handleDeleteAtEnd}
               onIndent={handleIndent}
               onOutdent={handleOutdent}
+              onPasteBlocks={handlePasteBlocks}
+              onPasteTable={handlePasteTable}
               onNavigateUp={handleNavigateUp}
               onNavigateDown={handleNavigateDown}
             />
