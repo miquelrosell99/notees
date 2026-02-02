@@ -82,6 +82,7 @@ interface NodesState {
   isCalendarOpen: boolean;
   isQuickAddOpen: boolean;
   isCommandPaletteOpen: boolean;
+  isImportDataModalOpen: boolean;
   showDbManagement: boolean;
   isMinimapOpen: boolean;
   
@@ -113,6 +114,7 @@ interface NodesState {
   toggleQuickAdd: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
+  setImportDataModalOpen: (open: boolean) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
   /** Add a card to the sidebar (shift-click behavior) */
@@ -168,6 +170,7 @@ export const useNodesStore = create<NodesState>()(persist((set, get) => ({
   isCalendarOpen: false,
   isQuickAddOpen: false,
   isCommandPaletteOpen: false,
+  isImportDataModalOpen: false,
   showDbManagement: false,
   isMinimapOpen: false,
   // New features state
@@ -198,6 +201,7 @@ export const useNodesStore = create<NodesState>()(persist((set, get) => ({
   toggleQuickAdd: () => set((state) => ({ isQuickAddOpen: !state.isQuickAddOpen })),
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
   toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
+  setImportDataModalOpen: (open) => set({ isImportDataModalOpen: open }),
   openNodeInSidebar: (nodeId, nodeType) => set({ 
     rightSidebarOpen: true, 
     rightSidebarContent: 'node',

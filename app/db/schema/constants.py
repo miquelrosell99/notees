@@ -101,6 +101,7 @@ SYSTEM_CLASSES = [
     "task",
     "template",
     "comment",
+    "table",
 ]
 
 # Default pages created on initialization
@@ -125,6 +126,7 @@ SYSTEM_CLASS_UUIDS = {
     "task": "00000000-0000-0000-0001-000000000012",
     "template": "00000000-0000-0000-0001-000000000013",
     "comment": "00000000-0000-0000-0001-000000000014",
+    "table": "00000000-0000-0000-0001-000000000015",
 }
 
 # Default icons for system classes (MDI icon names)
@@ -140,6 +142,7 @@ SYSTEM_CLASS_ICONS = {
     "card": "card-outline",
     "template": "file-document-outline",
     "comment": "comment-outline",
+    "table": "table",
 }
 
 # System properties with fixed UUIDs

@@ -72,6 +72,10 @@ export { QuickAddPanel } from './quickadd/QuickAddPanel';
 export { SidebarCard } from './sidebar/SidebarCard';
 export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
+export { ImportDataModal } from './ImportDataModal';
+
+// Table block component
+export { TableBlock } from './blocks/TableBlock';
 
 // New core components
 export { Separator } from './core/Separator';
