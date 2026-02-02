@@ -3,7 +3,7 @@
 Defines the structure for query block trees used by query nodes.
 Query block trees are stored as JSON:
 - For NodeViews: directly in the query_json column of node_view table
-- For Query blocks: in the _query_block_tree property of query nodes
+- For Query blocks: in the _query_ast property of query nodes
 """
 from __future__ import annotations
 
@@ -421,7 +421,7 @@ class ClassPathBlock(QueryBlock):
 
 
 @dataclass
-class QueryBlockTree:
+class QueryAST:
     """Root of a query block tree.
     
     Always starts with a container block (AND or OR).
@@ -436,12 +436,12 @@ class QueryBlockTree:
         return self.root.to_dict()
     
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> "QueryBlockTree":
-        """Create a QueryBlockTree from dictionary."""
+    def from_dict(data: Dict[str, Any]) -> "QueryAST":
+        """Create a QueryAST from dictionary."""
         if not data:
-            return QueryBlockTree()
+            return QueryAST()
         root = ContainerBlock.from_dict(data)
-        return QueryBlockTree(root=root)
+        return QueryAST(root=root)
     
     def is_empty(self) -> bool:
         """Check if the query has no conditions."""

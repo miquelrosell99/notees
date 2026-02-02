@@ -96,7 +96,7 @@ class QuerySQLGenerator:
     
     def generate_sql(
         self,
-        block_tree: Union[Dict[str, Any], QueryBlockTree],
+        query: Union[Dict[str, Any], QueryAST],
         runtime_params: Optional[Dict[str, Any]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
@@ -105,7 +105,7 @@ class QuerySQLGenerator:
         """Generate SQL from a query block tree.
         
         Args:
-            block_tree: The query block tree (dict or QueryBlockTree)
+            query: The query block tree (dict or QueryAST)
             runtime_params: Runtime parameter values for placeholders
             limit: Optional limit for results
             offset: Optional offset for pagination
@@ -122,14 +122,14 @@ class QuerySQLGenerator:
         runtime_params = runtime_params or {}
         
         # Convert to dict if needed
-        if isinstance(block_tree, QueryBlockTree):
-            block_tree = block_tree.to_dict()
+        if isinstance(query, QueryAST):
+            query = query.to_dict()
         
-        if not block_tree:
-            block_tree = {"type": "AND_CONTAINER", "blocks": []}
+        if not query:
+            query = {"type": "AND_CONTAINER", "blocks": []}
         
         # Build the WHERE clause
-        where_clause = self._generate_where_clause(block_tree, runtime_params, "n")
+        where_clause = self._generate_where_clause(query, runtime_params, "n")
         
         # Build the full query - include page_name for grouping purposes
         sql = f"""

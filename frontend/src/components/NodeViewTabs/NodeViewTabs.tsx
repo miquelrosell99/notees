@@ -17,15 +17,14 @@ import { DeleteIcon } from '../icons';
 import {
   useNodeViews,
   useCreateNodeView,
-  useUpdateQueryBlockTree,
+  useUpdateQueryAST,
   useDeleteNodeView,
   useNodeViewQuery,
 } from '@/hooks/useNodeViews';
-import type { NodeView, QueryBlockTree } from '@/types/query';
-import { createEmptyBlockTree } from '@/types/query';
-import { ViewBuilder } from '../queries/ViewBuilder';
-import { blockTreeToAST } from '@/lib/queryConverter';
+import type { NodeView } from '@/types/query';
 import type { QueryAST } from '@/types/queryAST';
+import { createEmptyQueryAST } from '@/types/queryAST';
+import { ViewBuilder } from '../queries/ViewBuilder';
 import './NodeViewTabs.css';
 
 // ==================== Types ====================
@@ -147,9 +146,12 @@ export function NodeViewTabs({
 
   const handleEditView = useCallback((view: NodeView) => {
     setEditingView(view);
-    // Convert QueryBlockTree to QueryAST for editing
-    const blockTree = view.query_block_tree ?? createEmptyBlockTree();
-    const ast = blockTreeToAST(blockTree, view.uuid, false);
+    // Use QueryAST directly from view, or create empty one
+    const ast = view.query_ast ?? createEmptyQueryAST();
+    // Ensure it has an ID
+    if (!ast.id) {
+      ast.id = view.uuid;
+    }
     setEditedAST(ast);
   }, []);
 
@@ -157,7 +159,6 @@ export function NodeViewTabs({
     if (!editingView || !editedAST) return;
 
     try {
-      // Save QueryAST directly (no BlockTree conversion needed)
       await updateQueryMutation.mutateAsync({
         viewId: editingView.id,
         queryAST: editedAST,

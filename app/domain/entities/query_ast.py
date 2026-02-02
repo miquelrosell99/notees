@@ -1,14 +1,14 @@
 """Query AST domain entities.
 
 Abstract Syntax Tree representation for queries.
-This is the new canonical format that replaces QueryBlockTree.
+This is the new canonical format that replaces QueryAST.
 
 Design principles:
 - AST is serializable (JSON/JSONB)
 - AST is validatable
 - AST is the source of truth (UI and SQL are projections)
 - AST is forward-compatible and extensible
-- AST maintains some backward compatibility with QueryBlockTree for migration
+- AST maintains some backward compatibility with QueryAST for migration
 
 Version: 1.0
 """
