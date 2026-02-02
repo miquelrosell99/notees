@@ -1449,8 +1449,8 @@ function BlockInternal({
         )}
         
         {/* Query controls - inline with block content (right side) */}
-        {queryDisplay?.controls && !isCollapsed && (
-          <div className="block-query-controls">
+        {queryDisplay?.controls && (
+          <div className={`block-query-controls ${isCollapsed ? 'collapsed' : ''}`}>
             {queryDisplay.controls}
           </div>
         )}

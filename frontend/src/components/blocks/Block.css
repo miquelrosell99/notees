@@ -549,6 +549,11 @@
   flex-shrink: 0;
 }
 
+/* Hide controls when block is collapsed, but reserve space */
+.block-query-controls.collapsed {
+  visibility: hidden;
+}
+
 /* Query results - below block, before children */
 /* Align with block content (after bullet + gap) */
 .block-query-results {
