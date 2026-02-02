@@ -32,6 +32,7 @@
   overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  position: relative;
 }
 
 .table-block__table {
@@ -232,4 +233,101 @@ tr:hover .table-block__delete-row-btn {
 
 .table-block__add-column-btn:hover {
   background: var(--color-primary-hover);
+}
+
+/* Selection checkbox column */
+.table-block__select-col {
+  width: 36px;
+  min-width: 36px;
+  padding: 8px;
+  text-align: center;
+  background: var(--color-surface-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table-block__select-cell {
+  width: 36px;
+  min-width: 36px;
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table-block__select-col input[type="checkbox"],
+.table-block__select-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* Selected row styles */
+.table-block__row--selected {
+  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
+}
+
+.table-block__row--selected .table-block__cell {
+  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
+}
+
+.table-block__cell--selected {
+  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
+}
+
+/* Single cell focused state */
+.table-block__cell--focused {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
+}
+
+/* Box selection overlay */
+.table-block__selection-box {
+  position: absolute;
+  background: var(--color-selection-bg, rgba(59, 130, 246, 0.2));
+  border: 1px solid var(--color-primary);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Selection toolbar */
+.table-block__selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.table-block__selection-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.table-block__selection-action {
+  padding: 4px 12px;
+  font-size: var(--font-size-sm);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.table-block__selection-action:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-muted);
+}
+
+.table-block__selection-action:first-of-type {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.table-block__selection-action:first-of-type:hover {
+  background: var(--color-error-bg);
 }
