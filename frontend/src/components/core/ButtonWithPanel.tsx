@@ -153,6 +153,25 @@ export function ButtonWithPanel({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeOnEscape, closePanel]);
 
+  // Lock body scroll when panel is open (especially important in modals)
+  useEffect(() => {
+    if (isOpen && usePortal) {
+      const scrollY = window.scrollY;
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isOpen, usePortal]);
+
   // Calculate portal position when panel opens with viewport-aware positioning
   useEffect(() => {
     if (!usePortal || !isOpen || !containerRef.current) return;

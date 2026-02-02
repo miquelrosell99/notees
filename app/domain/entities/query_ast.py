@@ -65,8 +65,14 @@ class ScopeNode:
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> ScopeNode:
         """Create from dictionary."""
+        scope_type_value = data.get("scope_type", "entire_graph")
+        
+        # Handle legacy 'all' value (backwards compatibility)
+        if scope_type_value == "all":
+            scope_type_value = "entire_graph"
+        
         return ScopeNode(
-            scope_type=ScopeType(data.get("scope_type", "entire_graph")),
+            scope_type=ScopeType(scope_type_value),
             include_descendants=data.get("include_descendants"),
             excluded_page_uuids=data.get("excluded_page_uuids"),
         )
@@ -161,6 +167,7 @@ class ClassCondition(BaseConditionNode):
     condition_type: Literal[ConditionType.CLASS] = ConditionType.CLASS
     class_uuid: str = ""
     class_id: Optional[int] = None
+    operator: Optional[str] = None  # 'contains' | 'does_not_contain' | 'is' | 'is_not' | 'defined' | 'not_defined'
 
 
 @dataclass
