@@ -51,7 +51,8 @@ export function AddFilterMenu({ categories, className = '', style, onItemClick }
           <div
             key={item.id}
             className="add-filter-menu__item"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               item.onClick();
               onItemClick?.();
             }}

@@ -163,7 +163,7 @@
 .prose-condition__inline {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
   flex-wrap: nowrap;
   white-space: nowrap;
 }
@@ -171,6 +171,8 @@
 .prose-condition__word {
   color: var(--color-on-surface-variant);
   font-weight: 500;
+  margin-right: var(--spacing-1);
+  text-transform: uppercase;
 }
 
 .prose-condition__value {
