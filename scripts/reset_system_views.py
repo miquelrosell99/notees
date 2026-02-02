@@ -34,51 +34,73 @@ from app.db.connection import get_connection
 async def reset_system_views():
     """Reset all system views to default conditions."""
     
-    # Default query structures for each view type
-    # Note: All blocks are marked as system blocks (isSystemNode: true)
+    # Default query structures for each view type using QueryAST format
+    # Note: All conditions are marked as system nodes (is_system: true)
     default_queries = {
         'linked_references': {
-            'type': 'AND_CONTAINER',
-            'blocks': [
-                {
-                    'type': 'REFERENCE',
-                    'value': '{current_node_uuid}',
-                    'isSystemNode': True
-                }
-            ],
+            'type': 'query',
+            'version': '1.0',
             'scope': {
-                'scope_type': 'all'
-            }
+                'type': 'scope',
+                'scope_type': 'entire_graph'
+            },
+            'root_group': {
+                'type': 'group',
+                'logic': 'AND',
+                'children': [
+                    {
+                        'type': 'condition',
+                        'condition_type': 'reference',
+                        'target_uuid': '{current_node_uuid}',
+                        'is_system': True
+                    }
+                ]
+            },
+            'is_system': True
         },
         'child_pages': {
-            'type': 'AND_CONTAINER',
-            'blocks': [
-                {
-                    'type': 'PROPERTY',
-                    'property_name': 'parent_uuid',
-                    'property_type': 'text',
-                    'operator': '=',
-                    'value': '{current_node_uuid}',
-                    'isSystemNode': True
-                }
-            ],
+            'type': 'query',
+            'version': '1.0',
             'scope': {
+                'type': 'scope',
                 'scope_type': 'pages'
-            }
+            },
+            'root_group': {
+                'type': 'group',
+                'logic': 'AND',
+                'children': [
+                    {
+                        'type': 'condition',
+                        'condition_type': 'parent',
+                        'parent_uuid': '{current_node_uuid}',
+                        'operator': 'has_parent',
+                        'is_system': True
+                    }
+                ]
+            },
+            'is_system': True
         },
         'classed_nodes': {
-            'type': 'AND_CONTAINER',
-            'blocks': [
-                {
-                    'type': 'CLASS',
-                    'value': '{current_node_uuid}',
-                    'operator': 'contains',
-                    'isSystemNode': True
-                }
-            ],
+            'type': 'query',
+            'version': '1.0',
             'scope': {
-                'scope_type': 'all'
-            }
+                'type': 'scope',
+                'scope_type': 'entire_graph'
+            },
+            'root_group': {
+                'type': 'group',
+                'logic': 'AND',
+                'children': [
+                    {
+                        'type': 'condition',
+                        'condition_type': 'class',
+                        'class_uuid': '{current_node_uuid}',
+                        'operator': 'contains',
+                        'is_system': True
+                    }
+                ]
+            },
+            'is_system': True
         }
     }
     
