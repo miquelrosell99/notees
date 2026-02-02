@@ -13,7 +13,6 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import { normalizeAST } from '@/lib/astNormalizer';
 import { assertValidAST } from '@/lib/astValidator';
 import { validateQueryAST } from '@/lib/queryValidation';
 import { QueryBlockList } from './QueryBlockList';
@@ -54,11 +53,10 @@ export function ViewBuilder({
   // Validate AST and get validation results
   const validationResult = useMemo(() => validateQueryAST(ast), [ast]);
   
-  // Auto-normalize and validate AST on every change (validation is console-only)
+  // Pass through changes without normalization - normalization happens on save
   const handleChange = useCallback((updatedAST: QueryAST) => {
-    const normalized = normalizeAST(updatedAST);
-    assertValidAST(normalized); // Developer-only: log validation issues
-    onChange(normalized);
+    assertValidAST(updatedAST); // Developer-only: log validation issues
+    onChange(updatedAST);
   }, [onChange]);
   
   // Handle scope changes
