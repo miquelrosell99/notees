@@ -39,6 +39,9 @@ class QueryASTToSQL:
         self.graph_id = graph_id
         self.current_node_uuid = current_node_uuid
         self.params: Dict[str, Any] = {'graph_id': graph_id}
+        # Add current_uuid to params if provided
+        if current_node_uuid:
+            self.params['current_uuid'] = current_node_uuid
         self.param_counter = 0
     
     def generate(self, ast: QueryAST) -> Tuple[str, Dict[str, Any]]:

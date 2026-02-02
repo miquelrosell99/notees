@@ -214,25 +214,15 @@ function BlockInternal({
     return null;
   }, [block.icon, blockClassDetails]);
   
-  // Check if this is a query block and get controls/results (must be after openNode)
-  const queryDisplay = useMemo(() => {
-    if (!openNode) return null;
-    return QueryBlockDisplay({ 
-      block, 
-      onNodeClick: (nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar') 
-    });
-  }, [block, openNode]);
-  
-  if (queryDisplay) {
-    console.log('[Block] Query display for block', block.id, ':', queryDisplay);
-  }
+  // Check if block has query class (for collapse arrow) - reuse queryClass from above
+  const hasQueryClass = queryClass && block.classes?.includes(queryClass.id);
   
   // Determine if block has children
   const hasChildren = children && children.length > 0;
   const isCollapsed = block.collapsed ?? false;
   
   // Check if block has query results (for showing collapse arrow)
-  const hasQueryResults = !!queryDisplay?.results;
+  const hasQueryResults = hasQueryClass; // Show collapse arrow for query blocks
   
   // PERFORMANCE: Only subscribe to actions and non-per-block state
   // Per-block state (selection, editing) comes from optimized selectors above
@@ -1451,11 +1441,23 @@ function BlockInternal({
           </div>
         )}
         
-        {/* Query controls - inline with block content (right side) */}
-        {queryDisplay?.controls && (
-          <div className={`block-query-controls ${isCollapsed ? 'collapsed' : ''}`}>
-            {queryDisplay.controls}
-          </div>
+        {/* Query controls and results using render prop pattern */}
+        {openNode && (
+          <QueryBlockDisplay 
+            block={block} 
+            onNodeClick={(nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar')}
+          >
+            {(queryDisplay) => (
+              <>
+                {/* Query controls - inline with block content (right side) */}
+                {queryDisplay?.controls && (
+                  <div className={`block-query-controls ${isCollapsed ? 'collapsed' : ''}`}>
+                    {queryDisplay.controls}
+                  </div>
+                )}
+              </>
+            )}
+          </QueryBlockDisplay>
         )}
         
         {/* Backlink count badge - right-aligned */}
@@ -1481,10 +1483,19 @@ function BlockInternal({
       )}
       
       {/* Query results - positioned like node-view-section content */}
-      {queryDisplay?.results && !isCollapsed && (
-        <div className="block-query-results">
-          {queryDisplay.results}
-        </div>
+      {openNode && (
+        <QueryBlockDisplay 
+          block={block} 
+          onNodeClick={(nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar')}
+        >
+          {(queryDisplay) => (
+            queryDisplay?.results && !isCollapsed ? (
+              <div className="block-query-results">
+                {queryDisplay.results}
+              </div>
+            ) : null
+          )}
+        </QueryBlockDisplay>
       )}
       
       {/* Children blocks with vertical collapse line */}
