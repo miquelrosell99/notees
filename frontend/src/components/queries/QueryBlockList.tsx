@@ -125,49 +125,13 @@ function SortableBlockItem({
         </span>
       )}
 
-      {/* Block Card */}
-      <Card
-        className="query-block-list__card"
-        elevation="low"
-        variant="outlined"
-        padding={false}
-        radius="md"
-      >
-        {/* Drag handle - hide for read-only blocks */}
-        {!effectiveReadOnly && (
-          <div
-            ref={setActivatorNodeRef}
-            className="query-block-list__drag-handle"
-            {...attributes}
-            {...listeners}
-          >
-            <DragHandle visible />
-          </div>
-        )}
-
-        {/* Block content */}
-        <div className={`query-block-list__content ${effectiveReadOnly ? 'query-block-list__content--readonly' : ''}`}>
-          <QueryBlockBuilder
-            block={block}
-            onChange={onUpdate}
-            onRemove={onRemove}
-            readOnly={effectiveReadOnly}
-          />
-        </div>
-
-        {/* Delete button (hover only) - hide if not removable */}
-        {canRemove && !readOnly && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            title="Delete block and all children"
-            className="query-block-list__delete"
-          >
-            <DeleteIcon size="md" />
-          </Button>
-        )}
-      </Card>
+      {/* Block content - QueryBlockBuilder renders its own card */}
+      <QueryBlockBuilder
+        block={block}
+        onChange={onUpdate}
+        onRemove={onRemove}
+        readOnly={effectiveReadOnly}
+      />
     </div>
   );
 }

@@ -18,7 +18,7 @@ import {
   useNodeViewQuery,
   useQuery_,
   useCreateNodeView,
-  useUpdateQueryBlockTree,
+  useUpdateQueryAST,
   useUpdateNodeView,
   useDeleteNodeView,
   useResetNodeViews,
@@ -40,7 +40,7 @@ import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
 import { createEmptyBlockTree } from '@/types/query';
 import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
-import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
+import { blockTreeToAST } from '@/lib/queryConverter';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { isSystemBlock } from '../queries/constants';
@@ -174,7 +174,7 @@ export function DynamicNodeViewSection({
 
   // Mutations
   const createViewMutation = useCreateNodeView();
-  const updateBlockTreeMutation = useUpdateQueryBlockTree();
+  const updateQueryMutation = useUpdateQueryAST();
   const updateViewMutation = useUpdateNodeView();
   const deleteViewMutation = useDeleteNodeView();
   const resetViewsMutation = useResetNodeViews();
@@ -315,22 +315,12 @@ export function DynamicNodeViewSection({
   const handleRefetchQuery = isPseudoNode ? refetchPseudoQuery : refetchQuery;
 
   // Preview query for edit modal - execute editAST in real-time
-  const editASTBlockTree = useMemo(() => {
-    if (!editAST) return null;
-    try {
-      return astToBlockTree(editAST);
-    } catch (error) {
-      console.warn('Failed to convert editAST to block tree:', error);
-      return null;
-    }
-  }, [editAST]);
-
   const {
     data: previewResults,
     isLoading: previewLoading,
   } = useQuery_(
     {
-      block_tree: editASTBlockTree ?? undefined,
+      query_ast: editAST ?? undefined,
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
@@ -339,7 +329,7 @@ export function DynamicNodeViewSection({
       include_properties: true,
     },
     {
-      enabled: !!editAST && !!editASTBlockTree,
+      enabled: !!editAST,
       queryKey: ['preview-query', nodeId, editAST],
     }
   );
@@ -414,13 +404,10 @@ export function DynamicNodeViewSection({
         });
       }
       
-      // Convert AST back to BlockTree for backend
-      const blockTree = astToBlockTree(fixedAST);
-      
-      // Save block tree
-      await updateBlockTreeMutation.mutateAsync({
+      // Save QueryAST directly (no BlockTree conversion needed)
+      await updateQueryMutation.mutateAsync({
         viewId: editingView.id,
-        blockTree,
+        queryAST: fixedAST,
       });
       
       // Refetch views to get updated query data
@@ -434,7 +421,7 @@ export function DynamicNodeViewSection({
     } catch (error) {
       console.error('Failed to save view:', error);
     }
-  }, [editingView, editAST, validation, editViewName, viewType, nodeUuid, updateBlockTreeMutation, updateViewMutation, refetchQuery, refetchViews]);
+  }, [editingView, editAST, validation, editViewName, viewType, nodeUuid, updateQueryMutation, updateViewMutation, refetchQuery, refetchViews]);
 
   // Handle deleting view
   const handleDeleteView = useCallback(async () => {
@@ -755,13 +742,13 @@ export function DynamicNodeViewSection({
               variant="primary"
               onClick={handleSaveEdit}
               disabled={
-                updateBlockTreeMutation.isPending || 
+                updateQueryMutation.isPending || 
                 updateViewMutation.isPending || 
                 (validation ? !canSaveQuery(validation) : false)
               }
               title={validation && !canSaveQuery(validation) ? getValidationSummary(validation) : undefined}
             >
-              {(updateBlockTreeMutation.isPending || updateViewMutation.isPending) ? 'Saving...' : 'Save'}
+              {(updateQueryMutation.isPending || updateViewMutation.isPending) ? 'Saving...' : 'Save'}
             </Button>
           </div>
         )}
@@ -775,7 +762,7 @@ export function DynamicNodeViewSection({
                 setEditAST(updatedAST);
                 setValidation(validateQueryAST(updatedAST));
               }}
-              resultCount={previewResults?.length}
+              resultCount={!previewLoading ? previewResults?.length : undefined}
               isLoading={previewLoading}
               hideFooter={true}
             />

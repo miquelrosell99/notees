@@ -97,13 +97,24 @@ export async function updateNodeView(
 }
 
 /**
- * Update the query block tree for a NodeView
+ * Update the query block tree for a NodeView (legacy)
  */
 export async function updateQueryBlockTree(
   viewId: number,
   blockTree: QueryBlockTree
 ): Promise<NodeView> {
   const response = await api.put<NodeView>(`${BASE}/${viewId}/query`, blockTree);
+  return response.data;
+}
+
+/**
+ * Update the query AST for a NodeView (preferred)
+ */
+export async function updateQueryAST(
+  viewId: number,
+  queryAST: Record<string, any>
+): Promise<NodeView> {
+  const response = await api.put<NodeView>(`${BASE}/${viewId}/query-ast`, { query_ast: queryAST });
   return response.data;
 }
 
