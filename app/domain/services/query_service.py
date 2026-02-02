@@ -1079,11 +1079,12 @@ class QueryExecutor:
         import copy
         query_ast = copy.deepcopy(query_ast)
         
-        # Substitute in scope
-        if query_ast.scope.page_uuids:
-            query_ast.scope.page_uuids = [
+        # Substitute in scope (page_uuids is no longer part of ScopeNode)
+        # ScopeNode uses scope_type and excluded_page_uuids instead
+        if hasattr(query_ast.scope, 'excluded_page_uuids') and query_ast.scope.excluded_page_uuids:
+            query_ast.scope.excluded_page_uuids = [
                 self._resolve_placeholder(uuid, runtime_params)
-                for uuid in query_ast.scope.page_uuids
+                for uuid in query_ast.scope.excluded_page_uuids
             ]
         
         # Substitute in conditions recursively
