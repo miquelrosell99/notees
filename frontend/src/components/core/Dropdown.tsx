@@ -88,18 +88,40 @@ export function Dropdown<T = string>({
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Update menu position when opened
   useEffect(() => {
     if (isOpen && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const maxDropdownHeight = 300; // Match CSS default
+      const gap = 4;
+      
+      // Determine if dropdown should open above or below
+      let top: number;
+      let maxHeight: number;
+      
+      if (spaceBelow >= maxDropdownHeight || spaceBelow > spaceAbove) {
+        // Open below
+        top = rect.bottom + window.scrollY + gap;
+        maxHeight = Math.min(maxDropdownHeight, spaceBelow - gap * 2);
+      } else {
+        // Open above
+        maxHeight = Math.min(maxDropdownHeight, spaceAbove - gap * 2);
+        top = rect.top + window.scrollY - maxHeight - gap;
+      }
+      
       setMenuPosition({
-        top: rect.bottom + window.scrollY + 4, // 4px gap
+        top,
         left: rect.left + window.scrollX,
         width: rect.width,
+        maxHeight,
       });
     } else {
       setMenuPosition(null);
@@ -111,7 +133,14 @@ export function Dropdown<T = string>({
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      // Check if click is outside both the container AND the portaled menu
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(target) &&
+        menuRef.current &&
+        !menuRef.current.contains(target)
+      ) {
         setIsOpen(false);
         setSearchQuery('');
       }
@@ -248,7 +277,8 @@ export function Dropdown<T = string>({
 
       {/* Dropdown menu - rendered in portal */}
       {isOpen && menuPosition && createPortal(
-        <Card 
+        <Card
+          ref={menuRef}
           className="dropdown-menu dropdown-menu--portal" 
           elevation="high" 
           padding={false}
@@ -257,6 +287,7 @@ export function Dropdown<T = string>({
             top: `${menuPosition.top}px`,
             left: `${menuPosition.left}px`,
             minWidth: `${menuPosition.width}px`,
+            maxHeight: `${menuPosition.maxHeight}px`,
           }}
         >
           {searchable && (

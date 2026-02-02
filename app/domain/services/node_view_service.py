@@ -45,7 +45,10 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
-                    ClassCondition(class_uuid="{current_node_uuid}")
+                    ClassCondition(
+                        class_uuid="{current_node_uuid}",
+                        operator="contains"
+                    )
                 ]
             ),
             is_system=True
