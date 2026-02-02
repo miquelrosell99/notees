@@ -2,20 +2,14 @@
  * Node Selector Components
  * 
  * Components for selecting nodes (types, pages) in the query builder.
- * Uses checkbox-based multi-select with selected items at the top.
+ * Uses the standard SearchBox component for consistent UX.
  */
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import {
-  mdiPlus,
-  mdiChevronDown,
-  mdiTagOutline,
-  mdiPageNextOutline,
-} from '@mdi/js';
+import { useState, useCallback, useMemo } from 'react';
+import { mdiTagOutline, mdiPageNextOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Button } from '../core/Button';
-import { Card } from '../core/Card';
-import { Checkbox } from '../core/Checkbox';
 import { NodeClassPill } from '../NodeClassPill';
+import { SearchBox } from '../SearchBox';
 import { useClasses, usePages, useNode } from '@/hooks';
 import type { Node as AppNode } from '@/types';
 
@@ -31,12 +25,6 @@ interface NodeSelectorProps {
 }
 
 export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, readOnly }: NodeSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  
   const { data: classes } = useClasses();
   const { data: pages } = usePages();
   
@@ -50,189 +38,59 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
     return allNodes.filter(n => selectedSet.has(n.id));
   }, [allNodes, selectedIds]);
   
-  // Filter available (non-selected) nodes by search
-  const filteredAvailable = useMemo(() => {
-    const term = search.toLowerCase();
+  const handleSelect = useCallback((node: AppNode) => {
+    if (!selectedIds.includes(node.id)) {
+      onAdd(node);
+    }
+  }, [selectedIds, onAdd]);
+  
+  const handleRemove = useCallback((nodeId: number) => {
+    onRemove(nodeId);
+  }, [onRemove]);
+  
+  // Custom search function that filters out already selected nodes
+  const searchFn = useCallback(async (query: string) => {
+    const term = query.toLowerCase();
     const selectedSet = new Set(selectedIds);
     return allNodes
       .filter(n => !selectedSet.has(n.id))
       .filter(n => (n.name || '').toLowerCase().includes(term))
       .slice(0, 10);
-  }, [allNodes, selectedIds, search]);
-  
-  // Total items for keyboard navigation (selected + available)
-  const totalItems = selectedNodes.length + filteredAvailable.length;
-  
-  // Reset selection when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filteredAvailable.length, search]);
-  
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as globalThis.Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-  
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isOpen]);
-  
-  const handleToggle = useCallback((node: AppNode) => {
-    if (selectedIds.includes(node.id)) {
-      onRemove(node.id);
-    } else {
-      onAdd(node);
-    }
-  }, [selectedIds, onAdd, onRemove]);
-  
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(i => Math.max(i - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (selectedIndex < selectedNodes.length) {
-          // Toggle off a selected item
-          onRemove(selectedNodes[selectedIndex].id);
-        } else {
-          // Add an available item
-          const availableIndex = selectedIndex - selectedNodes.length;
-          if (availableIndex < filteredAvailable.length) {
-            onAdd(filteredAvailable[availableIndex]);
-          }
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setIsOpen(false);
-        setSearch('');
-        break;
-    }
-  }, [totalItems, selectedIndex, selectedNodes, filteredAvailable, onAdd, onRemove]);
+  }, [allNodes, selectedIds]);
   
   return (
-    <div className="node-selector" ref={menuRef}>
-      {/* Selected pills */}
-      <div className="node-selector__pills">
-        {selectedNodes.map(node => (
-          <NodeClassPill
-            key={node.id}
-            classNode={node}
-            onRemove={readOnly ? undefined : () => onRemove(node.id)}
-            readOnly={readOnly}
-          />
-        ))}
-        
-        {/* Add button / dropdown trigger */}
-        {!readOnly && (
-          <Button
-            variant="ghost"
-            size="xs"
-            icon={mdiPlus}
-            onClick={() => setIsOpen(!isOpen)}
-            className="node-selector__add-btn"
-          >
-            {selectedIds.length === 0 ? (placeholder || 'Select...') : undefined}
-          </Button>
-        )}
-      </div>
-      
-      {/* Dropdown with checkboxes */}
-      {isOpen && (
-        <Card
-          variant="filled"
-          padding={false}
-          radius="md"
-          elevation="high"
-          className="node-selector__dropdown"
-        >
-          <div className="node-selector__search">
-            <input
-              ref={inputRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={`Search ${mode}...`}
-              className="node-selector__input"
+    <div className="node-selector">
+      {/* Selected items */}
+      {selectedNodes.length > 0 && (
+        <div className="node-selector__selected">
+          {selectedNodes.map(node => (
+            <NodeClassPill
+              key={node.id}
+              classNode={node}
+              onRemove={readOnly ? undefined : () => handleRemove(node.id)}
+              readOnly={readOnly}
             />
-          </div>
-          <div className="node-selector__list">
-            {/* Selected items section */}
-            {selectedNodes.length > 0 && (
-              <div className="node-selector__section node-selector__section--selected">
-                <div className="node-selector__section-header">Selected</div>
-                {selectedNodes.map((node, index) => (
-                  <button
-                    key={node.id}
-                    type="button"
-                    className={`node-selector__item ${index === selectedIndex ? 'node-selector__item--highlighted' : ''}`}
-                    onClick={() => handleToggle(node)}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                  >
-                    <Checkbox checked={true} size="sm" readOnly className="node-selector__checkbox" />
-                    <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
-                    <span>{node.name || 'Untitled'}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            
-            {/* Available items section */}
-            {filteredAvailable.length > 0 && (
-              <div className="node-selector__section">
-                {selectedNodes.length > 0 && (
-                  <div className="node-selector__section-header">Available</div>
-                )}
-                {filteredAvailable.map((node, index) => {
-                  const globalIndex = selectedNodes.length + index;
-                  return (
-                    <button
-                      key={node.id}
-                      type="button"
-                      className={`node-selector__item ${globalIndex === selectedIndex ? 'node-selector__item--highlighted' : ''}`}
-                      onClick={() => handleToggle(node)}
-                      onMouseEnter={() => setSelectedIndex(globalIndex)}
-                    >
-                      <Checkbox checked={false} size="sm" readOnly className="node-selector__checkbox" />
-                      <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
-                      <span>{node.name || 'Untitled'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            
-            {/* Empty state */}
-            {filteredAvailable.length === 0 && selectedNodes.length === 0 && (
-              <div className="node-selector__empty">No {mode} found</div>
-            )}
-            {filteredAvailable.length === 0 && selectedNodes.length > 0 && search && (
-              <div className="node-selector__section">
-                <div className="node-selector__empty">No more {mode} found</div>
-              </div>
-            )}
-          </div>
-          <div className="node-selector__footer">
-            <span className="node-selector__hint">Click to select/deselect</span>
-          </div>
-        </Card>
+          ))}
+        </div>
+      )}
+      
+      {/* Search box */}
+      {!readOnly && (
+        <SearchBox
+          placeholder={placeholder || `Search ${mode}...`}
+          searchFn={searchFn}
+          onSelect={handleSelect}
+          renderItem={(node) => (
+            <>
+              <span className="result-icon">
+                <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
+              </span>
+              <span className="result-title">
+                {node.name || 'Untitled'}
+              </span>
+            </>
+          )}
+        />
       )}
     </div>
   );
@@ -246,16 +104,10 @@ interface SingleNodeSelectorProps {
   onChange: (nodeId: number | null, node?: AppNode) => void;
   placeholder?: string;
   readOnly?: boolean;
-  /** Show "Current Page" option as first item */
   showCurrentPageOption?: boolean;
 }
 
 export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, readOnly, showCurrentPageOption = false }: SingleNodeSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  
   const { data: classes } = useClasses();
   const { data: pages } = usePages();
   // Don't fetch node if selectedId is -1 (Current Page special value)
@@ -266,53 +118,67 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
     return pages ?? [];
   }, [mode, classes, pages]);
   
-  const filteredNodes = useMemo(() => {
-    const term = search.toLowerCase();
-    return allNodes
-      .filter(n => (n.name || '').toLowerCase().includes(term))
-      .slice(0, 10);
-  }, [allNodes, search]);
-  
   // Check if "Current Page" is selected (special value -1)
   const isCurrentPageSelected = selectedId === -1;
   
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as globalThis.Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-  
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+  const handleSelect = useCallback((node: AppNode | 'current-page') => {
+    if (node === 'current-page') {
+      onChange(-1);
+    } else {
+      onChange(node.id, node);
     }
-  }, [isOpen]);
-  
-  const handleSelect = useCallback((node: AppNode) => {
-    onChange(node.id, node);
-    setSearch('');
-    setIsOpen(false);
-  }, [onChange]);
-  
-  const handleSelectCurrentPage = useCallback(() => {
-    // Use -1 as a special ID for "Current Page"
-    onChange(-1);
-    setSearch('');
-    setIsOpen(false);
   }, [onChange]);
   
   const handleClear = useCallback(() => {
     onChange(null);
   }, [onChange]);
   
+  // Custom search function
+  const searchFn = useCallback(async (query: string) => {
+    const term = query.toLowerCase();
+    return allNodes
+      .filter(n => (n.name || '').toLowerCase().includes(term))
+      .slice(0, 10);
+  }, [allNodes]);
+  
+  // Build sections array with "Current Page" option if enabled
+  const sections = useMemo(() => {
+    const sectionsList = [];
+    
+    if (showCurrentPageOption) {
+      sectionsList.push({
+        title: 'Special',
+        searchFn: async () => [{ id: -1, name: 'Current Page', is_page: true } as AppNode],
+        renderItem: (node: AppNode) => (
+          <>
+            <span className="result-icon">
+              <Icon path={mdiPageNextOutline} size={0.6} />
+            </span>
+            <span className="result-title">Current Page</span>
+          </>
+        ),
+      });
+    }
+    
+    sectionsList.push({
+      searchFn,
+      renderItem: (node: AppNode) => (
+        <>
+          <span className="result-icon">
+            <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
+          </span>
+          <span className="result-title">
+            {node.name || 'Untitled'}
+          </span>
+        </>
+      ),
+    });
+    
+    return sectionsList;
+  }, [showCurrentPageOption, searchFn, mode]);
+  
   return (
-    <div className="single-node-selector" ref={menuRef}>
+    <div className="single-node-selector">
       {isCurrentPageSelected ? (
         <div className="single-node-selector__selected">
           <div className="node-class-pill node-class-pill--readonly">
@@ -337,67 +203,18 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
             readOnly={readOnly}
           />
         </div>
+      ) : !readOnly ? (
+        <SearchBox
+          placeholder={placeholder || 'Select...'}
+          sections={sections}
+          onSelect={(node) => handleSelect(node === 'current-page' ? 'current-page' : node)}
+        />
       ) : (
-        <Button
-          variant="ghost"
-          size="xs"
-          icon={mdiChevronDown}
-          iconPosition="right"
-          onClick={() => !readOnly && setIsOpen(!isOpen)}
-          disabled={readOnly}
-          className="single-node-selector__trigger"
-        >
-          {placeholder || 'Select...'}
-        </Button>
-      )}
-      
-      {isOpen && (
-        <Card
-          variant="filled"
-          padding={false}
-          radius="md"
-          elevation="high"
-          className="single-node-selector__dropdown"
-        >
-          <div className="single-node-selector__search">
-            <input
-              ref={inputRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${mode}...`}
-              className="single-node-selector__input"
-            />
-          </div>
-          <div className="single-node-selector__list">
-            {showCurrentPageOption && (
-              <button
-                type="button"
-                className="single-node-selector__item single-node-selector__item--special"
-                onClick={handleSelectCurrentPage}
-              >
-                <Icon path={mdiPageNextOutline} size={0.6} />
-                <span>Current Page</span>
-              </button>
-            )}
-            {filteredNodes.length === 0 ? (
-              <div className="single-node-selector__empty">No {mode} found</div>
-            ) : (
-              filteredNodes.map(node => (
-                <button
-                  key={node.id}
-                  type="button"
-                  className="single-node-selector__item"
-                  onClick={() => handleSelect(node)}
-                >
-                  <Icon path={mode === 'classes' ? mdiTagOutline : mdiPageNextOutline} size={0.6} />
-                  <span>{node.name || 'Untitled'}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </Card>
+        <div className="single-node-selector__empty">
+          {placeholder || 'None selected'}
+        </div>
       )}
     </div>
   );
 }
+
