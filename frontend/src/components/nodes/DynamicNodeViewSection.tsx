@@ -369,15 +369,13 @@ export function DynamicNodeViewSection({
       ast = blockTreeToAST(blockTree, queryId, false); // false = not system
     }
     
-    // Auto-fix: Restore missing system conditions (marks them with isSystemNode)
-    // Skip for default views that already have proper AST from backend
-    if (!isFromBackendAST || !view.is_default) {
-      ast = autoFixSystemQuery(ast, viewType, {
-        nodeUuid: nodeUuid,
-        parentUuid: nodeUuid,
-        // For classed_nodes, nodeUuid IS the class we're filtering by
-      });
-    }
+    // Auto-fix: Restore missing system conditions and ensure capabilities are set
+    // Always run this to ensure system nodes have proper capabilities
+    ast = autoFixSystemQuery(ast, viewType, {
+      nodeUuid: nodeUuid,
+      parentUuid: nodeUuid,
+      // For classed_nodes, nodeUuid IS the class we're filtering by
+    });
     
     // Set created_at if not already set
     if (!ast.created_at) {
