@@ -53,15 +53,17 @@ export function useNodeViews(
   options?: {
     viewType?: string;
     enabled?: boolean;
+    includeQueryAST?: boolean;
   }
 ) {
-  const { viewType, enabled = true } = options ?? {};
+  const { viewType, enabled = true, includeQueryAST = true } = options ?? {};
 
   return useQuery({
     queryKey: nodeViewKeys.list(nodeId, viewType),
     queryFn: () =>
       listNodeViews(nodeId, {
         view_type: viewType,
+        include_query_ast: includeQueryAST,
       }),
     enabled: enabled && nodeId > 0,
   });
