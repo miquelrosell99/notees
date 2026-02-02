@@ -171,10 +171,10 @@
   --z-dropdown: 100;
   --z-sticky: 200;
   --z-fixed: 300;
-  --z-modal-backdrop: 400;
-  --z-modal: 500;
   --z-popover: 600;
-  --z-tooltip: 700;
+  --z-modal-backdrop: 10000;
+  --z-modal: 10001;
+  --z-tooltip: 10002;
 
   /* ==================== Layout ==================== */
   --sidebar-width: 240px;
