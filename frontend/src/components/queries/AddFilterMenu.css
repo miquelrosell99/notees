@@ -1,0 +1,58 @@
+/**
+ * AddFilterMenu Styles
+ */
+
+.add-filter-menu {
+  min-width: 240px;
+  max-width: 300px;
+  padding: 0.5rem 0;
+}
+
+.add-filter-menu__category {
+  /* Category spacing */
+}
+
+.add-filter-menu__category-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.add-filter-menu__category-icon {
+  font-size: 0.875rem;
+}
+
+.add-filter-menu__category-title {
+  /* Title styling */
+}
+
+.add-filter-menu__items {
+  /* Items container */
+}
+
+.add-filter-menu__item {
+  padding: 0.5rem 0.75rem 0.5rem 2rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  font-size: 0.875rem;
+}
+
+.add-filter-menu__item:hover {
+  background-color: var(--bg-hover);
+}
+
+.add-filter-menu__item:active {
+  background-color: var(--bg-active);
+}
+
+.add-filter-menu__divider {
+  height: 1px;
+  background-color: var(--border-light);
+  margin: 0.5rem 0;
+}

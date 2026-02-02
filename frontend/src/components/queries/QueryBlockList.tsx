@@ -32,6 +32,7 @@ import { DeleteIcon } from '../icons';
 import { Card } from '../core/Card';
 import { DragHandle } from '../dnd/DragHandle';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
+import { AddFilterMenu, type FilterMenuCategory } from './AddFilterMenu';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
 import { isSystemNode } from '@/types/queryAST';
 import './QueryBlockList.css';
@@ -178,6 +179,7 @@ export function QueryBlockList({
   className = '',
 }: QueryBlockListProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const [activeBlock, setActiveBlock] = useState<QueryBlock | null>(null);
   const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('before');
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -293,6 +295,193 @@ export function QueryBlockList({
     setShowAddMenu(false);
   }, [blocks, onChange]);
 
+  const handleAddChild = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'child',
+      nested_group: {
+        type: 'group',
+        logic: 'AND',
+        children: [],
+      },
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddChildPath = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'child_path',
+      nested_group: {
+        type: 'group',
+        logic: 'AND',
+        children: [],
+      },
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddParentPath = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'parent_path',
+      nested_group: {
+        type: 'group',
+        logic: 'AND',
+        children: [],
+      },
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddClassPath = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'class_path',
+      nested_group: {
+        type: 'group',
+        logic: 'AND',
+        children: [],
+      },
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddReferencePath = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'reference_path',
+      nested_group: {
+        type: 'group',
+        logic: 'AND',
+        children: [],
+      },
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  const handleAddFlag = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'flag',
+      flag_name: 'is_page',
+      operator: 'is_true',
+    };
+    onChange([...blocks, newCondition]);
+    setShowAddMenu(false);
+  }, [blocks, onChange]);
+
+  // Build menu categories
+  const menuCategories: FilterMenuCategory[] = [
+    {
+      title: 'Content',
+      icon: '📝',
+      items: [
+        {
+          id: 'content',
+          label: 'Content',
+          description: 'Filter by node name or text',
+          onClick: handleAddContent,
+        },
+        {
+          id: 'property',
+          label: 'Property',
+          description: 'Filter by property values',
+          onClick: handleAddProperty,
+        },
+      ],
+    },
+    {
+      title: 'Classification',
+      icon: '🏷️',
+      items: [
+        {
+          id: 'class',
+          label: 'Class',
+          description: 'Filter by direct class/type',
+          onClick: handleAddClass,
+        },
+        {
+          id: 'class_path',
+          label: 'Class path',
+          description: 'Filter by inherited class/type',
+          onClick: handleAddClassPath,
+        },
+      ],
+    },
+    {
+      title: 'References',
+      icon: '🔗',
+      items: [
+        {
+          id: 'reference',
+          label: 'References',
+          description: 'Filter by direct references',
+          onClick: handleAddReference,
+        },
+        {
+          id: 'reference_path',
+          label: 'Reference path',
+          description: 'Filter by transitive references',
+          onClick: handleAddReferencePath,
+        },
+      ],
+    },
+    {
+      title: 'Hierarchy',
+      icon: '📁',
+      items: [
+        {
+          id: 'parent',
+          label: 'Parent',
+          description: 'Filter by direct parent',
+          onClick: handleAddParent,
+        },
+        {
+          id: 'parent_path',
+          label: 'Parent path',
+          description: 'Filter by ancestors',
+          onClick: handleAddParentPath,
+        },
+        {
+          id: 'child',
+          label: 'Child',
+          description: 'Filter by direct children',
+          onClick: handleAddChild,
+        },
+        {
+          id: 'child_path',
+          label: 'Child path',
+          description: 'Filter by descendants',
+          onClick: handleAddChildPath,
+        },
+      ],
+    },
+    {
+      title: 'Advanced',
+      icon: '⚙️',
+      items: [
+        {
+          id: 'flag',
+          label: 'Flag',
+          description: 'Filter by node flags (is_page, is_day, etc.)',
+          onClick: handleAddFlag,
+        },
+        {
+          id: 'group',
+          label: 'Group (AND/OR)',
+          description: 'Add a logic group',
+          onClick: handleAddGroup,
+        },
+      ],
+    },
+  ];
+
   // Handle updating a specific block
   const handleUpdateBlock = useCallback(
     (index: number, updatedBlock: QueryBlock) => {
@@ -313,8 +502,11 @@ export function QueryBlockList({
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveId(event.active.id);
-  }, []);
+    const id = event.active.id as string;
+    const index = parseInt(id.split('-')[1]);
+    setActiveId(id);
+    setActiveBlock(blocks[index] || null);
+  }, [blocks]);
 
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
@@ -391,6 +583,7 @@ export function QueryBlockList({
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null);
+    setActiveBlock(null);
     setOverId(null);
   }, []);
 
@@ -414,26 +607,7 @@ export function QueryBlockList({
                 <Icon path={mdiChevronDown} size={0.7} />
               </Button>
               {showAddMenu && (
-                <Card className="query-block-list__add-menu-dropdown" elevation="high">
-                  <div className="query-block-list__add-menu-item" onClick={handleAddProperty}>
-                    Property
-                  </div>
-                  <div className="query-block-list__add-menu-item" onClick={handleAddContent}>
-                    Content
-                  </div>
-                  <div className="query-block-list__add-menu-item" onClick={handleAddClass}>
-                    Class
-                  </div>
-                  <div className="query-block-list__add-menu-item" onClick={handleAddReference}>
-                    Reference
-                  </div>
-                  <div className="query-block-list__add-menu-item" onClick={handleAddParent}>
-                    Parent
-                  </div>
-                  <div className="query-block-list__add-menu-item" onClick={handleAddGroup}>
-                    Group
-                  </div>
-                </Card>
+                <AddFilterMenu categories={menuCategories} />
               )}
             </div>
           ) : (
@@ -472,10 +646,23 @@ export function QueryBlockList({
           </SortableContext>
 
           <DragOverlay>
-            {activeId ? (
-              <div className="query-block-list__drag-overlay">
-                Dragging block...
-              </div>
+            {activeBlock ? (
+              <Card 
+                className="query-block-list__drag-overlay" 
+                elevation="high"
+                variant="outlined"
+                padding={false}
+                radius="md"
+              >
+                <div className="query-block-list__drag-overlay-content">
+                  <QueryBlockBuilder
+                    block={activeBlock}
+                    onChange={() => {}}
+                    onRemove={() => {}}
+                    readOnly
+                  />
+                </div>
+              </Card>
             ) : null}
           </DragOverlay>
         </DndContext>
@@ -524,35 +711,15 @@ export function QueryBlockList({
             <Icon path={mdiChevronDown} size={0.7} />
           </Button>
           {showAddMenu && menuPosition && createPortal(
-            <Card 
-              ref={menuRef}
-              className="query-block-list__add-menu-dropdown query-block-list__add-menu-dropdown--portal" 
-              elevation="high"
+            <AddFilterMenu 
+              categories={menuCategories} 
+              className="query-block-list__add-menu-dropdown--portal"
               style={{
                 position: 'absolute',
                 top: `${menuPosition.top}px`,
                 left: `${menuPosition.left}px`,
               }}
-            >
-              <div className="query-block-list__add-menu-item" onClick={handleAddProperty}>
-                Property
-              </div>
-              <div className="query-block-list__add-menu-item" onClick={handleAddContent}>
-                Content
-              </div>
-              <div className="query-block-list__add-menu-item" onClick={handleAddClass}>
-                Class
-              </div>
-              <div className="query-block-list__add-menu-item" onClick={handleAddReference}>
-                Reference
-              </div>
-              <div className="query-block-list__add-menu-item" onClick={handleAddParent}>
-                Parent
-              </div>
-              <div className="query-block-list__add-menu-item" onClick={handleAddGroup}>
-                Group
-              </div>
-            </Card>,
+            />,
             document.body
           )}
         </div>

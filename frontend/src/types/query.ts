@@ -1,6 +1,10 @@
 /**
  * Query Block Types
  * 
+ * @deprecated This is the legacy query block tree system.
+ * Use QueryAST from '@/types/queryAST' instead for new code.
+ * This file is maintained for backward compatibility only.
+ * 
  * TypeScript types for the query block tree system.
  * Used by NodeViews to define dynamic queries for node collections.
  */
@@ -96,11 +100,15 @@ export interface NotBlock extends BaseQueryBlock {
 
 /**
  * Class filter block
+ * @deprecated Use ClassCondition from QueryAST instead
  */
 export interface ClassBlock extends BaseQueryBlock {
   type: 'CLASS';
-  value: string; // Type name or UUID
+  value: string; // Type name or UUID (use class_uuid in new code)
+  /** @deprecated Use class_uuid instead */
   type_id?: number; // Resolved type node ID
+  class_id?: number; // Resolved class node ID (preferred)
+  class_uuid?: string; // Class UUID (preferred)
 }
 
 /**
@@ -213,6 +221,7 @@ export type QueryBlock =
 
 /**
  * Root of a query block tree - always a container
+ * @deprecated Use QueryAST from '@/types/queryAST' instead
  */
 export interface QueryBlockTree {
   type: 'AND_CONTAINER' | 'OR_CONTAINER';
@@ -322,12 +331,14 @@ export function createEmptyBlockTree(): QueryBlockTree {
 
 /**
  * Create a class filter block
+ * @deprecated Use createClassCondition from QueryAST helpers instead
  */
 export function createClassBlock(value: string, classId?: number): ClassBlock {
   return {
     type: 'CLASS',
     value,
-    type_id: typeId,
+    class_id: classId,
+    class_uuid: value,
   };
 }
 

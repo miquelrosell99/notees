@@ -71,11 +71,12 @@ export type ASTNodeType =
 
 /**
  * Scope types define the universe of nodes to query
+ * Must match backend ScopeType enum exactly
  */
 export type ScopeType =
-  | 'all'               // All nodes in the graph
+  | 'entire_graph'      // All nodes in the graph
   | 'pages'             // All pages only (is_page=true)
-  | 'current';          // Descendants of current node (PARENT_PATH)
+  | 'current_page';     // Current page being viewed
 
 /**
  * Scope node - defines the starting point for query execution
@@ -83,8 +84,6 @@ export type ScopeType =
 export interface ScopeNode {
   type: 'scope';
   scope_type: ScopeType;
-  // For specific_pages scope type
-  page_uuids?: string[];
   // For parent_path filtering (nodes inside specific pages)
   include_descendants?: boolean;
   // For negated scope filters
