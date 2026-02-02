@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
-  z-index: var(--z-modal, 1000);
+  z-index: var(--z-modal-backdrop, 10000);
   animation: backdropFadeIn var(--motion-duration-short) var(--motion-easing-standard);
 }
 
