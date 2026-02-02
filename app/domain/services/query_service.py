@@ -1198,15 +1198,14 @@ class QueryExecutor:
         sql, params_dict = generator.generate(query_ast)
         
         # Convert named params to positional for asyncpg
+        # Build ordered list of params and replace placeholders
         params = []
-        param_map = {}  # Maps param names to their positional index
-        for i, (name, value) in enumerate(params_dict.items(), start=1):
+        for param_name, value in params_dict.items():
             params.append(value)
-            param_map[name] = i
-        
-        # Replace named placeholders with positional $1, $2, etc.
-        for param_name, param_index in param_map.items():
-            sql = sql.replace(f"%({param_name})s", f"${param_index}")
+            # Replace ALL occurrences of this named placeholder with positional
+            placeholder = f"%({param_name})s"
+            positional = f"${len(params)}"
+            sql = sql.replace(placeholder, positional)
         
         # Add limit/offset
         if limit:
