@@ -46,43 +46,10 @@
   transition: opacity 0.2s, box-shadow 0.2s;
 }
 
-/* Drag handle (left border) */
-.query-block-list__drag-handle {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  color: var(--color-on-surface-variant);
-  background: transparent;
-  border-right: 1px solid var(--color-outline-variant);
-  opacity: 0;
-  transition: opacity var(--motion-duration-medium), background-color var(--motion-duration-medium);
-}
-
-.query-block-list__card:hover .query-block-list__drag-handle {
-  opacity: 1;
-}
-
-.query-block-list__drag-handle:hover {
-  background-color: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
-.query-block-list__drag-handle:active {
-  cursor: grabbing;
-  background-color: var(--color-pressed-overlay);
-}
-
-/* Block content (offset for drag handle) */
+/* Block content */
 .query-block-list__content {
   flex: 1;
   padding: 0.75rem;
-  padding-left: 40px; /* Space for drag handle */
   min-height: 48px;
   display: flex;
   align-items: center;
@@ -104,39 +71,6 @@
 
 .query-block-list__delete:hover {
   opacity: 1 !important;
-}
-
-/* Dragging state */
-.query-block-list__item--dragging .query-block-list__card {
-  opacity: 0.5;
-}
-
-/* Drag over states */
-.query-block-list__item--drag-over {
-  position: relative;
-}
-
-.query-block-list__item--drag-over::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: var(--color-primary);
-  z-index: 10;
-}
-
-.query-block-list__item--drag-before::before {
-  top: -0.375rem;
-}
-
-.query-block-list__item--drag-after::before {
-  bottom: -0.375rem;
-}
-
-.query-block-list__item--drag-inside .query-block-list__card {
-  box-shadow: inset 0 0 0 2px var(--color-primary);
-  background-color: var(--color-primary-container);
 }
 
 /* Add button */
@@ -214,25 +148,6 @@
 }
 
 /* Read-only mode */
-.query-block-list--readonly .query-block-list__drag-handle,
 .query-block-list--readonly .query-block-list__delete {
   display: none;
-}
-
-.query-block-list--readonly .query-block-list__content {
-  padding-left: 0.75rem;
-}
-
-/* Drag overlay preview */
-.query-block-list__drag-overlay {
-  opacity: 0.95;
-  cursor: grabbing;
-  transform: rotate(2deg);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15),
-              0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.query-block-list__drag-overlay-content {
-  padding: 0.75rem;
-  pointer-events: none;
 }

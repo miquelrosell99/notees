@@ -129,10 +129,6 @@ export function QueryBlockBuilder({
       return (
         <>
           <div className="prose-condition-card">
-            <div className="prose-condition-card__drag">
-              <span className="prose-condition-card__drag-handle">⋮⋮</span>
-            </div>
-            
             <div className="prose-condition-card__content">
               <span className="prose-condition-card__label">NOT</span>
             </div>
@@ -214,10 +210,6 @@ export function QueryBlockBuilder({
       <>
         {/* Unified header for AND/OR/NOT */}
         <div className="prose-condition-card">
-          <div className="prose-condition-card__drag">
-            <span className="prose-condition-card__drag-handle">⋮⋮</span>
-          </div>
-          
           <div className="prose-condition-card__content">
             <span className="prose-condition-card__label">{currentLogic}</span>
           </div>
