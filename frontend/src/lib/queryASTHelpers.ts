@@ -23,6 +23,7 @@ import type {
   PropertyOperator,
   PropertyType,
 } from '@/types/queryAST';
+import { createGroupNode } from '@/types/queryAST';
 
 // ==================== Factory Functions ====================
 
@@ -107,45 +108,51 @@ export function createConditionFromType(blockType: string): ConditionNode {
       } as ReferenceCondition;
     
     case 'reference_path':
+      // Default to static mode
       return {
         type: 'condition',
         condition_type: 'reference_path',
-        nested_group: createGroupNode(),
+        target_uuids: [],
       } as ReferencePathCondition;
     
     case 'parent':
+      // Default to static mode (no nested_group)
       return {
         type: 'condition',
         condition_type: 'parent',
-        nested_group: createGroupNode(),
+        parent_uuid: '', // Will be filled by user
       } as ParentCondition;
     
     case 'parent_path':
+      // Default to static mode
       return {
         type: 'condition',
         condition_type: 'parent_path',
-        nested_group: createGroupNode(),
+        ancestor_uuids: [],
       } as ParentPathCondition;
     
     case 'child':
+      // Default to static mode (no nested_group)
       return {
         type: 'condition',
         condition_type: 'child',
-        nested_group: createGroupNode(),
+        child_uuids: [], // Will be filled by user
       } as ChildCondition;
     
     case 'child_path':
+      // Default to static mode
       return {
         type: 'condition',
         condition_type: 'child_path',
-        nested_group: createGroupNode(),
+        descendant_uuids: [],
       } as ChildPathCondition;
     
     case 'class_path':
+      // Default to static mode
       return {
         type: 'condition',
         condition_type: 'class_path',
-        nested_group: createGroupNode(),
+        class_uuids: [],
       } as ClassPathCondition;
     
     default:

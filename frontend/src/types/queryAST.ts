@@ -212,7 +212,11 @@ export interface ReferenceCondition extends BaseConditionNode {
  */
 export interface ReferencePathCondition extends BaseConditionNode {
   condition_type: 'reference_path';
-  nested_group: GroupNode;
+  // Static mode: specific target node(s) being referenced
+  target_uuids?: string[];
+  target_ids?: number[];
+  // Dynamic mode: target nodes matching criteria
+  nested_group?: GroupNode;
 }
 
 /**
@@ -235,7 +239,11 @@ export interface ParentCondition extends BaseConditionNode {
  */
 export interface ParentPathCondition extends BaseConditionNode {
   condition_type: 'parent_path';
-  nested_group: GroupNode;
+  // Static mode: specific ancestor(s)
+  ancestor_uuids?: string[];
+  ancestor_ids?: number[];
+  // Dynamic mode: ancestors matching criteria
+  nested_group?: GroupNode;
   max_depth?: number;
   operator?: 'has_ancestor' | 'not_has_ancestor' | 'has_no_ancestor' | 'has_any_ancestor';  // Default: 'has_ancestor'
 }
@@ -258,9 +266,13 @@ export interface ChildCondition extends BaseConditionNode {
  */
 export interface ChildPathCondition extends BaseConditionNode {
   condition_type: 'child_path';
-  operator?: 'has_descendant' | 'not_has_descendant' | 'has_no_descendant' | 'has_any_descendant';  // Default: 'has_descendant'
-  nested_group: GroupNode;
+  // Static mode: specific descendant(s)
+  descendant_uuids?: string[];
+  descendant_ids?: number[];
+  // Dynamic mode: descendants matching criteria
+  nested_group?: GroupNode;
   max_depth?: number;
+  operator?: 'has_descendant' | 'not_has_descendant' | 'has_no_descendant' | 'has_any_descendant';  // Default: 'has_descendant'
 }
 
 /**
@@ -268,7 +280,11 @@ export interface ChildPathCondition extends BaseConditionNode {
  */
 export interface ClassPathCondition extends BaseConditionNode {
   condition_type: 'class_path';
-  nested_group: GroupNode;
+  // Static mode: specific class(es) to find in ancestor chain
+  class_uuids?: string[];
+  class_ids?: number[];
+  // Dynamic mode: classes matching criteria
+  nested_group?: GroupNode;
 }
 
 /**

@@ -25,9 +25,9 @@ export interface OperatorDefinition {
  */
 export const CONTENT_OPERATORS: OperatorDefinition[] = [
   { value: 'contains', label: 'contains' },
+  { value: 'equals', label: 'equals', symbol: '=' },
   { value: 'starts_with', label: 'starts with' },
   { value: 'ends_with', label: 'ends with' },
-  { value: 'equals', label: 'equals', symbol: '=' },
   { value: 'regex', label: 'matches regex' },
   { value: 'fts', label: 'full-text search' },
 ];
@@ -48,10 +48,10 @@ export const PROPERTY_OPERATORS: OperatorDefinition[] = [
   { value: 'gte', label: 'greater than or equals', symbol: '≥' },
   { value: 'less_than', label: 'less than', symbol: '<' },
   { value: 'lte', label: 'less than or equals', symbol: '≤' },
-  { value: 'is_empty', label: 'is empty' },
-  { value: 'is_not_empty', label: 'has value' },
   { value: 'in', label: 'in' },
   { value: 'not_in', label: 'not in' },
+  { value: 'is_not_empty', label: 'has value' },
+  { value: 'is_empty', label: 'is empty' },
 ];
 
 // ==================== Class Operators ====================
@@ -60,10 +60,10 @@ export const PROPERTY_OPERATORS: OperatorDefinition[] = [
  * Operators for class conditions
  */
 export const CLASS_OPERATORS: OperatorDefinition[] = [
-  { value: 'contains', label: 'contains' },
-  { value: 'does_not_contain', label: 'does not contain' },
   { value: 'is', label: 'is' },
   { value: 'is_not', label: 'is not' },
+  { value: 'contains', label: 'contains' },
+  { value: 'does_not_contain', label: 'does not contain' },
   { value: 'defined', label: 'is defined' },
   { value: 'not_defined', label: 'is not defined' },
 ];
@@ -76,8 +76,8 @@ export const CLASS_OPERATORS: OperatorDefinition[] = [
 export const REFERENCE_OPERATORS: OperatorDefinition[] = [
   { value: 'references', label: 'references' },
   { value: 'does_not_reference', label: 'does not reference' },
-  { value: 'has_references', label: 'has any references' },
-  { value: 'has_no_references', label: 'has no references' },
+  { value: 'has_references', label: 'is set' },
+  { value: 'has_no_references', label: 'is not set' },
 ];
 
 // ==================== Parent/Hierarchy Operators ====================
@@ -88,8 +88,8 @@ export const REFERENCE_OPERATORS: OperatorDefinition[] = [
 export const PARENT_OPERATORS: OperatorDefinition[] = [
   { value: 'has_parent', label: 'is any of' },
   { value: 'not_has_parent', label: 'is not any of' },
-  { value: 'has_no_parent', label: 'is not set' },
   { value: 'has_any_parent', label: 'is set' },
+  { value: 'has_no_parent', label: 'is not set' },
 ];
 
 /**
@@ -98,8 +98,8 @@ export const PARENT_OPERATORS: OperatorDefinition[] = [
 export const CHILD_OPERATORS: OperatorDefinition[] = [
   { value: 'has_child', label: 'contains any of' },
   { value: 'not_has_child', label: 'does not contain any of' },
-  { value: 'has_no_child', label: 'contains none' },
-  { value: 'has_any_child', label: 'contains any' },
+  { value: 'has_any_child', label: 'is set' },
+  { value: 'has_no_child', label: 'is not set' },
 ];
 
 /**
@@ -108,8 +108,8 @@ export const CHILD_OPERATORS: OperatorDefinition[] = [
 export const PARENT_PATH_OPERATORS: OperatorDefinition[] = [
   { value: 'has_ancestor', label: 'is inside' },
   { value: 'not_has_ancestor', label: 'is not inside' },
-  { value: 'has_no_ancestor', label: 'is not inside any' },
-  { value: 'has_any_ancestor', label: 'is inside any' },
+  { value: 'has_any_ancestor', label: 'is set' },
+  { value: 'has_no_ancestor', label: 'is not set' },
 ];
 
 /**
@@ -118,8 +118,8 @@ export const PARENT_PATH_OPERATORS: OperatorDefinition[] = [
 export const CHILD_PATH_OPERATORS: OperatorDefinition[] = [
   { value: 'has_descendant', label: 'contains' },
   { value: 'not_has_descendant', label: 'does not contain' },
-  { value: 'has_no_descendant', label: 'contains no' },
-  { value: 'has_any_descendant', label: 'contains any' },
+  { value: 'has_any_descendant', label: 'is set' },
+  { value: 'has_no_descendant', label: 'is not set' },
 ];
 
 // ==================== Flag Operators ====================

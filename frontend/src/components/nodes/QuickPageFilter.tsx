@@ -10,7 +10,6 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNodeSearch, usePages } from '@/hooks';
 import type { Node } from '@/types/api';
 import type { QueryAST, ConditionNode, GroupNode, NotNode, ParentPathCondition } from '@/types/queryAST';
-import { createGroupNode } from '@/types/queryAST';
 import { Button } from '../core/Button';
 import { Badge } from '../core/Badge';
 import { Checkbox } from '../core/Checkbox';

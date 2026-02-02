@@ -116,10 +116,32 @@ export function GenericConditionRenderer({
   // Handler for operator change
   const handleOperatorChange = (newOperator: string | null) => {
     if (!newOperator) return;
-    onUpdate({
+    
+    const updated: any = {
       ...condition,
       operator: newOperator,
-    } as any);
+    };
+    
+    // If switching to a noValueOperator, clear nested_group and static values
+    if (!operatorNeedsValue(condition.condition_type, newOperator)) {
+      delete updated.nested_group;
+      
+      // Clear static mode values
+      if (condition.condition_type === 'parent') {
+        delete updated.parent_uuid;
+        delete updated.parent_uuids;
+        delete updated.parent_id;
+        delete updated.parent_ids;
+      } else if (condition.condition_type === 'child') {
+        delete updated.child_uuids;
+        delete updated.child_ids;
+      }
+      
+      // Reset to static mode
+      setSelectionMode('static');
+    }
+    
+    onUpdate(updated);
   };
   
   // Handler for static/dynamic/current toggle
@@ -222,6 +244,7 @@ export function GenericConditionRenderer({
   
   // Render static/dynamic/current toggle
   const renderModeToggle = () => {
+    // Hide toggle if operator doesn't need a value
     if (!hasDynamicMode || !needsValue) return null;
     
     return (
