@@ -1,7 +1,7 @@
 /**
  * TypeColorsPanel Component
  * 
- * Shared panel for managing type/class colors.
+ * Shared panel for managing class colors.
  * Used by both GraphView and TimelineView.
  * 
  * Features:

@@ -125,13 +125,13 @@ function validateNot(node: ASTNotNode, path: string[], issues: ValidationIssue[]
  */
 function validateCondition(condition: ConditionNode, path: string[], issues: ValidationIssue[]): void {
   switch (condition.condition_type) {
-    case 'type':
-      if (!condition.type_uuid || condition.type_uuid.trim() === '') {
+    case 'class':
+      if (!condition.class_uuid || condition.class_uuid.trim() === '') {
         issues.push({
           severity: 'error',
-          message: 'Type condition requires a type selection',
+          message: 'Class condition requires a class selection',
           path,
-          suggestion: 'Select a type from the dropdown',
+          suggestion: 'Select a class from the dropdown',
         });
       }
       break;

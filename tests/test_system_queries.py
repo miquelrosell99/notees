@@ -8,7 +8,7 @@ are properly protected from modification.
 import pytest
 from app.domain.entities.query_ast import (
     QueryAST, ScopeNode, GroupNode,
-    TypeCondition, PropertyCondition, ContentCondition, ReferenceCondition,
+    ClassCondition, PropertyCondition, ContentCondition, ReferenceCondition,
     ConditionType, ScopeType, LogicType, PropertyType, PropertyOperator, ContentOperator
 )
 from app.domain.services.query_ast_validation import validate_query_ast, can_save_query
@@ -55,8 +55,8 @@ def test_system_query_validation_allows_with_flag():
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
-                TypeCondition(
-                    type_uuid="type-123"
+                ClassCondition(
+                    class_uuid="type-123"
                 )
             ]
         ),
@@ -245,8 +245,8 @@ def test_empty_system_query_warning():
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
-                TypeCondition(
-                    type_uuid="type-789"
+                ClassCondition(
+                    class_uuid="type-789"
                 )
             ]
         ),
