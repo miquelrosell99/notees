@@ -102,6 +102,8 @@ export function QueryBlockBuilder({
             parentLogic={groupBlock.logic}
             onChange={handleGroupChange}
             readOnly={isReadOnly}
+            showAddButton={false}
+            showEmptyMessage={false}
           />
         </div>
       </div>
@@ -187,6 +189,8 @@ export function QueryBlockBuilder({
               parentLogic={condition.nested_group.logic}
               onChange={handleNestedChange}
               readOnly={isReadOnly}
+              showAddButton={false}
+              showEmptyMessage={false}
             />
           </div>
         )}

@@ -30,44 +30,39 @@ interface AddFilterMenuProps {
   className?: string;
   /** Inline styles for positioning */
   style?: React.CSSProperties;
+  /** Callback when an item is clicked */
+  onItemClick?: () => void;
 }
 
 // ==================== Component ====================
 
-export function AddFilterMenu({ categories, className = '', style }: AddFilterMenuProps) {
+export function AddFilterMenu({ categories, className = '', style, onItemClick }: AddFilterMenuProps) {
+  // Flatten all items from all categories into a single list
+  const allItems = categories.flatMap(category => category.items);
+  
   return (
     <Card 
       className={`add-filter-menu ${className}`} 
       elevation="high"
       style={style}
     >
-      {categories.map((category, categoryIndex) => (
-        <div key={category.title} className="add-filter-menu__category">
-          {/* Category header */}
-          <div className="add-filter-menu__category-header">
-            <span className="add-filter-menu__category-title">{category.title}</span>
+      <div className="add-filter-menu__items">
+        {allItems.map((item, index) => (
+          <div
+            key={item.id}
+            className="add-filter-menu__item"
+            onClick={() => {
+              item.onClick();
+              onItemClick?.();
+            }}
+            title={item.description}
+            data-menu-item
+            data-index={index}
+          >
+            {item.label}
           </div>
-          
-          {/* Category items */}
-          <div className="add-filter-menu__items">
-            {category.items.map((item) => (
-              <div
-                key={item.id}
-                className="add-filter-menu__item"
-                onClick={item.onClick}
-                title={item.description}
-              >
-                {item.label}
-              </div>
-            ))}
-          </div>
-          
-          {/* Divider between categories (except last) */}
-          {categoryIndex < categories.length - 1 && (
-            <div className="add-filter-menu__divider" />
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </Card>
   );
 }

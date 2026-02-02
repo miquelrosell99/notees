@@ -157,9 +157,9 @@ export function autoFixSystemQuery(
   
   // Auto-fix scope for system views
   const defaultScopes: Record<string, ScopeNode['scope_type']> = {
-    'linked_references': 'all',
+    'linked_references': 'entire_graph',
     'child_pages': 'pages',
-    'classed_nodes': 'all',
+    'classed_nodes': 'entire_graph',
   };
   
   const correctScope: ScopeNode = {

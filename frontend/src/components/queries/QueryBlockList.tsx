@@ -49,6 +49,10 @@ interface QueryBlockListProps {
   onChange: (blocks: QueryBlock[]) => void;
   /** Whether this list is read-only */
   readOnly?: boolean;
+  /** Whether to show the add filter button (default: true for top-level, false for nested) */
+  showAddButton?: boolean;
+  /** Whether to show empty state message (default: true) */
+  showEmptyMessage?: boolean;
   /** Additional CSS class */
   className?: string;
 }
@@ -142,13 +146,14 @@ export function QueryBlockList({
   parentLogic = 'AND',
   onChange,
   readOnly = false,
+  showAddButton = true,
+  showEmptyMessage = true,
   className = '',
 }: QueryBlockListProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [activeBlock, setActiveBlock] = useState<QueryBlock | null>(null);
   const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('before');
-  const [showAddMenu, setShowAddMenu] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -169,7 +174,7 @@ export function QueryBlockList({
       value: '',
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddContent = useCallback(() => {
@@ -181,7 +186,7 @@ export function QueryBlockList({
       case_sensitive: false,
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddClass = useCallback(() => {
@@ -189,10 +194,9 @@ export function QueryBlockList({
       type: 'condition',
       condition_type: 'class',
       class_uuid: '',
-      operator: 'contains',
+      operator: 'static',
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
   }, [blocks, onChange]);
 
   const handleAddReference = useCallback(() => {
@@ -202,7 +206,7 @@ export function QueryBlockList({
       target_uuid: '',
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddParent = useCallback(() => {
@@ -216,7 +220,7 @@ export function QueryBlockList({
       },
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddGroup = useCallback(() => {
@@ -226,7 +230,7 @@ export function QueryBlockList({
       children: [],
     };
     onChange([...blocks, newGroup]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddChild = useCallback(() => {
@@ -240,7 +244,7 @@ export function QueryBlockList({
       },
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddChildPath = useCallback(() => {
@@ -254,7 +258,7 @@ export function QueryBlockList({
       },
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddParentPath = useCallback(() => {
@@ -268,7 +272,7 @@ export function QueryBlockList({
       },
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddClassPath = useCallback(() => {
@@ -282,7 +286,7 @@ export function QueryBlockList({
       },
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddReferencePath = useCallback(() => {
@@ -296,7 +300,7 @@ export function QueryBlockList({
       },
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   const handleAddFlag = useCallback(() => {
@@ -307,7 +311,7 @@ export function QueryBlockList({
       operator: 'is_true',
     };
     onChange([...blocks, newCondition]);
-    setShowAddMenu(false);
+    
   }, [blocks, onChange]);
 
   // Build menu categories
@@ -527,39 +531,12 @@ export function QueryBlockList({
 
   return (
     <div className={`query-block-list ${className}`}>
-      {/* Empty state */}
-      {safeBlocks.length === 0 && (
+      {/* Empty state - only when no blocks, showing add button, and showEmptyMessage is true */}
+      {safeBlocks.length === 0 && showAddButton && showEmptyMessage && (
         <div className="query-block-list__empty">
-          {!readOnly ? (
-            <div className="query-block-list__add-menu">
-              <ButtonWithPanel
-                buttonText="+ Add block"
-                variant="ghost"
-                size="sm"
-                panelPosition="bottom"
-                panelAlignment="start"
-                panelWidth={280}
-                panelMaxHeight={400}
-                open={showAddMenu}
-                onOpenChange={setShowAddMenu}
-                closeOnClickOutside={true}
-                closeOnEscape={true}
-                showCloseButton={false}
-                usePortal={true}
-                buttonProps={{
-                  icon: mdiChevronDown,
-                  iconPosition: 'right',
-                }}
-                panelClassName="query-block-list__add-menu-panel"
-              >
-                <AddFilterMenu categories={menuCategories} />
-              </ButtonWithPanel>
-            </div>
-          ) : (
-            <p className="query-block-list__empty-message">
-              No filters — all nodes will be shown
-            </p>
-          )}
+          <p className="query-block-list__empty-message">
+            {readOnly ? 'No filters — all nodes will be shown' : 'Click "+ Add filter" to add conditions'}
+          </p>
         </div>
       )}
 
@@ -645,7 +622,7 @@ export function QueryBlockList({
       )}
 
       {/* Add filter button */}
-      {!readOnly && safeBlocks.length > 0 && (
+      {!readOnly && showAddButton && (
         <div className="query-block-list__add">
           <ButtonWithPanel
             buttonText="+ Add filter"
@@ -655,8 +632,6 @@ export function QueryBlockList({
             panelAlignment="start"
             panelWidth={280}
             panelMaxHeight={400}
-            open={showAddMenu}
-            onOpenChange={setShowAddMenu}
             closeOnClickOutside={true}
             closeOnEscape={true}
             showCloseButton={false}
@@ -667,7 +642,7 @@ export function QueryBlockList({
             }}
             panelClassName="query-block-list__add-menu-panel"
           >
-            <AddFilterMenu categories={menuCategories} />
+            {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
           </ButtonWithPanel>
         </div>
       )}
