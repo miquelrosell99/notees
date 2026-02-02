@@ -239,6 +239,7 @@ export function GenericConditionRenderer({
       disabled={readOnly}
       options={config.operators}
       size="sm"
+      className="prose-condition__operator"
     />
   );
   
