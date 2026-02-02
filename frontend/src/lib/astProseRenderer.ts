@@ -354,8 +354,8 @@ function formatNodeReference(uuid: string, nodesMap?: Map<string, Node>): string
     return `"${uuid}"`;
   }
   
-  // Return markdown link format: [node name](uuid)
-  return `[${node.name}](${uuid})`;
+  // Return markdown link format with quotes: "[node name](uuid)"
+  return `"[${node.name}](${uuid})"`;
 }
 
 // ==================== Capabilities ====================
