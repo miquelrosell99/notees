@@ -39,9 +39,7 @@ class QueryASTToSQL:
         self.graph_id = graph_id
         self.current_node_uuid = current_node_uuid
         self.params: Dict[str, Any] = {'graph_id': graph_id}
-        # Add current_uuid to params if provided
-        if current_node_uuid:
-            self.params['current_uuid'] = current_node_uuid
+        # Note: current_uuid is added to params only when actually used in SQL
         self.param_counter = 0
     
     def generate(self, ast: QueryAST) -> Tuple[str, Dict[str, Any]]:
@@ -101,6 +99,9 @@ class QueryASTToSQL:
             if not self.current_node_uuid:
                 return None
             
+            # Add current_uuid to params when actually used
+            self.params['current_uuid'] = self.current_node_uuid
+            
             # Filter to current page or its descendants
             if scope.include_descendants:
                 # Get all nodes under current page
@@ -126,6 +127,9 @@ class QueryASTToSQL:
         elif scope.scope_type == ScopeType.LINKED_REFS:
             if not self.current_node_uuid:
                 return None
+            
+            # Add current_uuid to params when actually used
+            self.params['current_uuid'] = self.current_node_uuid
             
             # Nodes that link to current node
             return """(n.id IN (
