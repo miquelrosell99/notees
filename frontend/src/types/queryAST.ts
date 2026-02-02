@@ -478,7 +478,7 @@ export function createContentCondition(
  * Check if a query AST is empty (no conditions)
  */
 export function isEmptyQuery(ast: QueryAST): boolean {
-  return ast.root_group.children.length === 0;
+  return !ast.root_group || ast.root_group.children.length === 0;
 }
 
 /**

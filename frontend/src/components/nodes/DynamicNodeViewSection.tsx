@@ -113,6 +113,13 @@ export function DynamicNodeViewSection({
       navigator.clipboard.writeText(astJson);
     }
   }, [editAST]);
+
+  // Handle AST changes during editing
+  const handleASTChange = useCallback((newAST: QueryAST) => {
+    setEditAST(newAST);
+    const validationResult = validateQueryAST(newAST);
+    setValidation(validationResult);
+  }, []);
   
   // Get persisted view mode from store
   const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
