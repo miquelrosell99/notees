@@ -71,6 +71,8 @@ export interface DynamicNodeViewSectionProps {
   onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
+  /** When true, renders without the NodeViewSection wrapper - just controls and content inline */
+  headless?: boolean;
 }
 
 // ==================== Main Component ====================
@@ -86,6 +88,7 @@ export function DynamicNodeViewSection({
   onNodeClick,
   onBlockCreated,
   className = '',
+  headless = false,
 }: DynamicNodeViewSectionProps): React.JSX.Element | null {
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
@@ -606,6 +609,189 @@ export function DynamicNodeViewSection({
     </div>
   );
 
+  // Shared content component
+  const content = isQueryLoading ? (
+    <div className="dynamic-section__loading">Loading...</div>
+  ) : (
+    <NodeCollection
+      nodes={resultNodes}
+      viewId={activeView?.id}
+      view={activeView}
+      viewMode={collectionViewMode}
+      availableViewModes={['list', 'table', 'card']}
+      onViewModeChange={handleViewModeChange}
+      editable={true}
+      hideToolbar={true}
+      showGroupBy={collectionViewMode === 'list'}
+      groupBy={groupBy}
+      onGroupByChange={setGroupBy}
+      pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
+      selectedPropertyUuids={selectedPropertyUuids}
+      onPropertyColumnsChange={handlePropertyColumnsChange}
+      onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+      emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
+    />
+  );
+
+  // Headless mode: render just controls and content without section wrapper
+  if (headless) {
+    return (
+      <>
+        <div className={`dynamic-node-view-section--headless ${className}`}>
+          {/* Controls toolbar */}
+          <div className="dynamic-section__controls">{headerActions}</div>
+          
+          {/* Results content */}
+          <div className="dynamic-section__content">{content}</div>
+        </div>
+
+        {/* Edit modal is still needed */}
+        <Modal
+          isOpen={!!editingView}
+          onClose={() => {
+            setEditingView(null);
+            setEditAST(null);
+            setEditViewName('');
+          }}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Button
+                icon={mdiEyeOutline}
+                iconOnly
+                variant="ghost"
+                size="xs"
+                onClick={() => setShowProseModal(true)}
+                title="Show query as prose"
+              />
+              <span>Query</span>
+            </div>
+          }
+          size="xl"
+          className="dynamic-section__edit-modal"
+          footer={editingView && (
+            <div className="dynamic-section__modal-footer">
+              {/* Scope Selector - Left side */}
+              <div className="view-builder__footer-left">
+                <ProseScopeSelector
+                  scope={editAST?.scope || { type: 'scope', scope_type: 'current' }}
+                  onChange={(newScope) => {
+                    if (editAST) {
+                      setEditAST({
+                        ...editAST,
+                        scope: newScope,
+                      });
+                    }
+                  }}
+                  readOnly={['linked_references', 'child_pages', 'classed_nodes'].includes(viewType)}
+                />
+              </div>
+              
+              {/* Result count */}
+              {previewResults && (
+                <div className="view-builder__result-preview">
+                  {previewLoading ? (
+                    <span className="view-builder__result-loading">Calculating…</span>
+                  ) : (
+                    <span className="view-builder__result-count">
+                      <span className="view-builder__result-dot">●</span>
+                      {previewResults.length} node{previewResults.length !== 1 ? 's' : ''} found
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              <div className="dynamic-section__footer-spacer" />
+              
+              {/* Delete button - only for non-default views */}
+              {!editingView?.is_default && (
+                <InlineConfirmButton
+                  buttonProps={{
+                    variant: 'ghost',
+                    size: 'sm',
+                    icon: <DeleteIcon size="sm" />,
+                    iconOnly: true,
+                    title: 'Delete view',
+                    className: 'dynamic-section__delete-btn',
+                  }}
+                  confirmText="Delete view?"
+                  onConfirm={handleDeleteView}
+                />
+              )}
+              
+              {/* Save button */}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveEdit}
+                disabled={validation ? !canSaveQuery(validation) : false}
+              >
+                Save
+              </Button>
+            </div>
+          )}
+        >
+          {editingView && editAST && (
+            <div className="dynamic-section__edit-content">
+              {/* View name editor */}
+              <div className="dynamic-section__view-name">
+                <TextField
+                  value={editViewName}
+                  onChange={(e) => setEditViewName(e.target.value)}
+                  placeholder="View name"
+                  size="sm"
+                />
+              </div>
+              
+              {/* Query builder with inline validation */}
+              <ViewBuilder
+                ast={editAST}
+                onChange={handleASTChange}
+                resultCount={previewResults?.length ?? 0}
+                isLoading={previewLoading}
+                hideFooter={true}
+              />
+              
+              {/* SQL Preview */}
+              <QuerySQLPreview 
+                ast={editAST}
+                runtime_params={{
+                  current_node_uuid: nodeUuid,
+                  current_node_id: nodeId,
+                }}
+              />
+            </div>
+          )}
+        </Modal>
+        
+        {/* Query preview popover */}
+        <Modal
+          isOpen={showProseModal}
+          onClose={() => setShowProseModal(false)}
+          title="Query Preview"
+          size="sm"
+        >
+          {editAST && (
+            <div className="query-preview__content">
+              <div className="query-preview__intent">
+                {getQueryIntent(editAST, viewType, nodeUuid)}
+              </div>
+              <div className="query-preview__actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={mdiContentCopy}
+                  onClick={handleCopyAST}
+                >
+                  Copy AST
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      </>
+    );
+  }
+
   return (
     <>
       <NodeViewSection
@@ -617,28 +803,7 @@ export function DynamicNodeViewSection({
         headerActions={headerActions}
         className={`dynamic-node-view-section ${className}`}
       >
-        {isQueryLoading ? (
-          <div className="dynamic-section__loading">Loading...</div>
-        ) : (
-          <NodeCollection
-            nodes={resultNodes}
-            viewId={activeView?.id}
-            view={activeView}
-            viewMode={collectionViewMode}
-            availableViewModes={['list', 'table', 'card']}
-            onViewModeChange={handleViewModeChange}
-            editable={true}
-            hideToolbar={true}
-            showGroupBy={collectionViewMode === 'list'}
-            groupBy={groupBy}
-            onGroupByChange={setGroupBy}
-            pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
-            selectedPropertyUuids={selectedPropertyUuids}
-            onPropertyColumnsChange={handlePropertyColumnsChange}
-            onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
-            emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
-          />
-        )}
+        {content}
       </NodeViewSection>
 
       {/* Unified Edit view modal */}

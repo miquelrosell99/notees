@@ -247,3 +247,21 @@
   overflow-x: hidden;
 }
 
+/* Headless mode - renders without section wrapper */
+.dynamic-node-view-section--headless {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.dynamic-node-view-section--headless .dynamic-section__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
+  flex-wrap: wrap;
+}
+
+.dynamic-node-view-section--headless .dynamic-section__content {
+  /* Results inherit spacing from NodeCollection */
+}
