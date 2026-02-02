@@ -434,6 +434,9 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         if "nested_group" in data and data["nested_group"]:
             nested_group = GroupNode.from_dict(data["nested_group"])
         return ParentCondition(
+            parent_uuid=data.get("parent_uuid"),
+            parent_id=data.get("parent_id"),
+            operator=data.get("operator", "has_parent"),
             nested_group=nested_group,
         )
     elif condition_type == ConditionType.FLAG:

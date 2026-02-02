@@ -424,13 +424,39 @@ class QueryASTToSQL:
         - Static: parent_uuid specified directly
         - Dynamic: nested_group filters parent nodes
         """
+        from app.logging_config import get_logger
+        logger = get_logger(__name__)
+        
+        # Handle operator - default to 'has_parent' if not specified
+        operator = getattr(condition, 'operator', 'has_parent')
+        
         # Static mode: direct parent UUID/ID
         if condition.parent_uuid:
+            # Skip if parent_uuid is empty string (failed placeholder resolution)
+            if condition.parent_uuid.strip() == '':
+                logger.warning("Parent condition has empty parent_uuid after placeholder resolution")
+                return None
+            
+            # Check for unresolved placeholder - this should have been resolved before SQL generation
+            if '{' in condition.parent_uuid and '}' in condition.parent_uuid:
+                logger.error(f"Unresolved placeholder in parent_uuid: {condition.parent_uuid}")
+                # Don't generate SQL with unresolved placeholder - it will match nothing
+                return None
+            
             param_name = self._add_param(condition.parent_uuid)
-            return f"n.parent_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
+            logger.debug(f"Generating parent condition SQL with uuid={condition.parent_uuid}, operator={operator}")
+            if operator == 'has_no_parent':
+                # Negate the condition
+                return f"n.parent_id != (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
+            else:  # has_parent (default)
+                return f"n.parent_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
         
         # Dynamic mode: nested group filters
         if not condition.nested_group:
+            # If no parent_uuid and no nested_group, handle based on operator
+            if operator == 'has_no_parent':
+                return "n.parent_id IS NULL"
+            # For has_parent without specification, this is invalid - return None
             return None
         
         # Generate SQL for the nested group that filters parent nodes
@@ -443,11 +469,19 @@ class QueryASTToSQL:
         import re
         parent_sql = re.sub(r'\bn\.', 'parent_n.', nested_sql)
         
-        return f"""n.parent_id IN (
-            SELECT parent_n.id FROM node parent_n
-            WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
-            AND ({parent_sql})
-        )"""
+        if operator == 'has_no_parent':
+            # Negate: node must NOT have a parent matching the criteria
+            return f"""n.parent_id NOT IN (
+                SELECT parent_n.id FROM node parent_n
+                WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
+                AND ({parent_sql})
+            )"""
+        else:  # has_parent (default)
+            return f"""n.parent_id IN (
+                SELECT parent_n.id FROM node parent_n
+                WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
+                AND ({parent_sql})
+            )"""
     
     def _add_param(self, value: Any) -> str:
         """Add a parameter and return its name."""
