@@ -1,0 +1,97 @@
+/**
+ * QueryBlockCard Styles
+ * 
+ * Unified card styling for query blocks (conditions and groups).
+ * Extracted from ProseConditionBuilder.css for reuse.
+ */
+
+/* ==================== Card Base ==================== */
+
+.query-block-card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: calc(36px + 12px); /* Selection button height (36px) + margins */
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  overflow: visible;
+  margin-bottom: var(--spacing-2);
+}
+
+.query-block-card--system {
+  background: var(--color-surface-variant);
+  border-color: var(--color-outline);
+}
+
+/* ==================== Content Area ==================== */
+
+.query-block-card__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+
+/* Label styling for groups (AND/OR/NOT) */
+.query-block-card__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.05em;
+}
+
+/* ==================== Action Button Area ==================== */
+
+.query-block-card__action {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  right: 6px;
+  margin: auto 0;
+  height: fit-content;
+  z-index: 1;
+  opacity: 0.8;
+  transition: opacity var(--motion-duration-medium);
+}
+
+.query-block-card:hover .query-block-card__action {
+  opacity: 1;
+}
+
+/* ==================== Corner Button ==================== */
+
+.query-block-card__corner-button {
+  position: absolute !important;
+  top: -6px;
+  right: -6px;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short), transform var(--motion-duration-short);
+  z-index: 2;
+}
+
+.query-block-card__corner-button:hover {
+  transform: scale(1.05);
+  opacity: 1 !important;
+}
+
+.query-block-card:hover .query-block-card__corner-button {
+  opacity: 0.7;
+}
+
+/* System lock icon - always visible but subtle */
+.query-block-card__corner-button--system {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 50%;
+  opacity: 0.5;
+  cursor: default;
+}

@@ -12,10 +12,9 @@ import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { NodePillRow } from '../NodePillRow';
 import { SingleNodeSelector } from './NodeSelectors';
-import { QueryBlockList } from './QueryBlockList';
 import { useNode, useProperties } from '@/hooks';
 import { useCurrentNodeUuid } from '@/hooks/useRouter';
-import type { ConditionNode, GroupNode } from '@/types/queryAST';
+import type { ConditionNode } from '@/types/queryAST';
 import { 
   getConditionConfig, 
   operatorNeedsValue, 
@@ -210,20 +209,6 @@ export function GenericConditionRenderer({
     } as any);
   };
   
-  // Handler for nested group changes
-  const handleNestedGroupChange = (children: Array<ConditionNode | GroupNode | any>) => {
-    const nestedGroup = (condition as any).nested_group;
-    if (nestedGroup) {
-      onUpdate({
-        ...condition,
-        nested_group: {
-          ...nestedGroup,
-          children,
-        },
-      } as any);
-    }
-  };
-  
   // Render operator dropdown
   const renderOperator = () => (
     <Dropdown
@@ -342,31 +327,6 @@ export function GenericConditionRenderer({
       default:
         return null;
     }
-  };
-  
-  // Render dynamic nested group
-  const renderNestedGroup = () => {
-    if ((selectionMode === 'static' || selectionMode === 'current') && !alwaysUsesNestedGroup(condition.condition_type)) {
-      return null;
-    }
-    
-    const nestedGroup = (condition as any).nested_group;
-    if (!nestedGroup) return null;
-    
-    return (
-      <div className="prose-condition__nested">
-        <span className="prose-condition__word-muted">
-          {config.dynamicMode?.whereLabel || 'where'}
-        </span>
-        <QueryBlockList
-          blocks={nestedGroup.children}
-          parentLogic={nestedGroup.logic}
-          onChange={handleNestedGroupChange}
-          readOnly={readOnly}
-          showEmptyMessage={false}
-        />
-      </div>
-    );
   };
   
   // Main render

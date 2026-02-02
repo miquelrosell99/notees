@@ -92,7 +92,6 @@ export function ViewBuilder({
       <div className="view-builder__filters-section">
         <QueryBlockList
           blocks={ast.root_group.children}
-          parentLogic={ast.root_group.logic}
           onChange={handleChildrenChange}
           readOnly={readOnly}
         />

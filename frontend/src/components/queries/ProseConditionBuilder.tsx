@@ -11,13 +11,10 @@
  * Now uses config-driven GenericConditionRenderer to eliminate repetitive code.
  */
 
-import { mdiLock, mdiClose } from '@mdi/js';
-import Icon from '@mdi/react';
 import { GenericConditionRenderer } from './GenericConditionRenderer';
+import { QueryBlockCard } from './QueryBlockCard';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
 import type { ConditionNode } from '@/types/queryAST';
-import { Button } from '../core/Button';
-import { DeleteIcon } from '../icons';
 import './ProseConditionBuilder.css';
 
 // ==================== Types ====================
@@ -86,36 +83,18 @@ function ProseConditionRow({
   const effectiveReadOnly = readOnly || !isEditable;
   
   return (
-    <div className={`prose-condition-card ${isSystem ? 'prose-condition-card--system' : ''}`}>
-      {/* Condition content - type, operator, and target */}
-      <div className="prose-condition-card__content">
-        <GenericConditionRenderer
-          condition={condition}
-          onUpdate={onUpdate}
-          readOnly={effectiveReadOnly}
-        />
-      </div>
-      
-      {/* Delete/Lock button - top right corner */}
-      {isSystem ? (
-        <div 
-          className="prose-condition-card__corner-button prose-condition-card__corner-button--system" 
-          title="This filter is required for this view type"
-        >
-          <Icon path={mdiLock} size={0.55} />
-        </div>
-      ) : canRemove && !readOnly ? (
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={onRemove}
-          title="Remove condition"
-          className="prose-condition-card__corner-button"
-          icon={mdiClose}
-          iconOnly
-        />
-      ) : null}
-    </div>
+    <QueryBlockCard
+      isSystem={isSystem}
+      canRemove={canRemove}
+      readOnly={readOnly}
+      onRemove={onRemove}
+    >
+      <GenericConditionRenderer
+        condition={condition}
+        onUpdate={onUpdate}
+        readOnly={effectiveReadOnly}
+      />
+    </QueryBlockCard>
   );
 }
 
