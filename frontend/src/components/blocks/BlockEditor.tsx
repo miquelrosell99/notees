@@ -32,12 +32,43 @@ import { useNodes, useTextLinks, useClasses } from '@/hooks';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { stripHtml } from '@/utils/sanitize';
+import { 
+  analyzeClipboard, 
+  regenerateLinkUuids,
+  generateLinkUuid,
+  flattenBlocks,
+  type ParsedBlock,
+} from '@/utils/clipboardManager';
 import { mdiTag } from '@mdi/js';
 import type { Node } from '@/types';
 
 // Task states for cycling with Shift+Enter
 export const TASK_STATES = ['todo', 'doing', 'done', 'cancelled'] as const;
 export type TaskState = typeof TASK_STATES[number];
+
+/**
+ * Parsed block for multi-line paste operations
+ */
+export interface PastedBlock {
+  /** Block content/name */
+  content: string;
+  /** Nesting depth (0 = sibling, 1+ = child levels) */
+  depth: number;
+  /** Nested children */
+  children?: PastedBlock[];
+}
+
+/**
+ * Table structure for pasting HTML tables
+ */
+export interface PastedTable {
+  /** Table name/title */
+  name?: string;
+  /** Column headers */
+  headers: string[];
+  /** Rows of cell values */
+  rows: string[][];
+}
 
 interface BlockEditorProps {
   /** Node ID for filtering self from link suggestions */
@@ -84,6 +115,10 @@ interface BlockEditorProps {
   onIndent?: () => void;
   /** Called when Shift+Tab is pressed - outdent block (move to parent's level) */
   onOutdent?: () => void;
+  /** Called when multi-line content is pasted. Receives current block text + new blocks to create. */
+  onPasteBlocks?: (currentBlockText: string, newBlocks: PastedBlock[]) => void;
+  /** Called when an HTML table is pasted. Receives table structure to create as table class block. */
+  onPasteTable?: (table: PastedTable) => void;
   /** Ref to expose the editor element for external focus management */
   editorRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -104,14 +139,7 @@ interface LinkInfo {
   raw: string;
 }
 
-/**
- * Generate a UUID v4 for link instances
- */
 import { sanitizeContent } from '@/utils/linkSanitization';
-
-function generateLinkUuid(): string {
-  return crypto.randomUUID();
-}
 
 /**
  * Parse content to find all links - [[targetId]] or [[targetId:linkUuid]] format
@@ -747,6 +775,8 @@ export function BlockEditor({
   onDeleteAtEnd,
   onIndent,
   onOutdent,
+  onPasteBlocks,
+  onPasteTable,
   editorRef: externalEditorRef,
 }: BlockEditorProps) {
   const internalEditorRef = useRef<HTMLDivElement>(null);
@@ -1710,45 +1740,118 @@ export function BlockEditor({
     setSlashCommand(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-  // Handle paste events
+  // Handle paste events - uses clipboard manager for analysis
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
     // Prevent default paste to avoid HTML insertion
     e.preventDefault();
     
-    // Get text content (sanitize HTML if present)
-    const html = e.clipboardData?.getData('text/html');
-    const plainText = e.clipboardData?.getData('text/plain') || '';
+    if (!e.clipboardData) return;
     
-    // If HTML is present, strip all tags to get safe plain text
-    // This prevents XSS attacks from malicious clipboard content
-    let text = html ? stripHtml(html) : plainText;
+    // Analyze clipboard content
+    const analysis = analyzeClipboard(e.clipboardData);
     
-    // Check for files
-    const items = e.clipboardData?.items;
-    if (items && onAssetUpload) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === 'file') {
-          const file = item.getAsFile();
-          if (file) {
-            const isImage = file.type.startsWith('image/');
-            const isAudio = file.type.startsWith('audio/');
-            if (isImage || isAudio) {
-              onAssetUpload(file);
-              return;
-            }
+    // Handle files (images, audio, etc.)
+    if ((analysis.type === 'image' || analysis.type === 'audio' || analysis.type === 'file') && analysis.file) {
+      if (onAssetUpload) {
+        onAssetUpload(analysis.file);
+      }
+      return;
+    }
+    
+    // Handle HTML tables - delegate to parent for table class creation
+    if (analysis.type === 'html-table' && onPasteTable && analysis.html) {
+      const doc = new DOMParser().parseFromString(analysis.html, 'text/html');
+      const table = doc.querySelector('table');
+      if (table) {
+        const caption = table.querySelector('caption')?.textContent?.trim();
+        const headers: string[] = [];
+        const rows: string[][] = [];
+        
+        const thead = table.querySelector('thead');
+        if (thead) {
+          thead.querySelectorAll('th').forEach(th => headers.push(th.textContent?.trim() || ''));
+        }
+        
+        const tbody = table.querySelector('tbody') || table;
+        let skipFirst = false;
+        const trs = tbody.querySelectorAll('tr');
+        
+        if (headers.length === 0 && trs.length > 0) {
+          const firstRow = trs[0];
+          const ths = firstRow.querySelectorAll('th');
+          if (ths.length > 0) {
+            ths.forEach(th => headers.push(th.textContent?.trim() || ''));
+            skipFirst = true;
+          } else {
+            const tds = firstRow.querySelectorAll('td');
+            tds.forEach(td => headers.push(td.textContent?.trim() || ''));
+            skipFirst = true;
           }
         }
+        
+        trs.forEach((tr, index) => {
+          if (skipFirst && index === 0) return;
+          const row: string[] = [];
+          tr.querySelectorAll('td, th').forEach(td => row.push(td.textContent?.trim() || ''));
+          if (row.length > 0) rows.push(row);
+        });
+        
+        onPasteTable({ name: caption, headers, rows });
+        return;
       }
     }
     
+    // Handle multi-line content (HTML lists, multi-line text)
+    if ((analysis.type === 'html-list' || analysis.type === 'plain-multiline' || 
+         (analysis.type === 'html-text' && analysis.blocks && analysis.blocks.length > 1)) && 
+        analysis.blocks && analysis.blocks.length > 0 && onPasteBlocks) {
+      
+      // Get current cursor position to split text
+      const selection = window.getSelection();
+      let textBeforeCursor = '';
+      let textAfterCursor = '';
+      
+      if (editorRef.current && selection && selection.rangeCount > 0) {
+        const currentContent = htmlToContent(editorRef.current);
+        const cursorPos = getCursorPosition(editorRef.current);
+        textBeforeCursor = currentContent.substring(0, cursorPos);
+        textAfterCursor = currentContent.substring(cursorPos);
+      }
+      
+      // First block content goes into current block (merged with text before cursor)
+      const firstBlockContent = regenerateLinkUuids(analysis.blocks[0].content);
+      const currentBlockText = textBeforeCursor + firstBlockContent;
+      
+      // Remaining blocks become new sibling blocks
+      // If there's text after cursor, it becomes a separate block at the end
+      const newBlocks: ParsedBlock[] = [];
+      
+      // Add remaining paste blocks (flatten nested lists)
+      const flatBlocks = flattenBlocks(analysis.blocks.slice(1));
+      for (const block of flatBlocks) {
+        newBlocks.push({
+          content: regenerateLinkUuids(block.content),
+          depth: block.depth,
+        });
+      }
+      
+      // Text after cursor becomes the last block (at depth 0)
+      if (textAfterCursor.trim()) {
+        newBlocks.push({
+          content: textAfterCursor,
+          depth: 0,
+        });
+      }
+      
+      onPasteBlocks(currentBlockText, newBlocks);
+      return;
+    }
+    
+    // Single line paste - insert directly
+    let text = analysis.text || '';
+    
     // Regenerate UUIDs for any pasted links to create new link instances
-    // This ensures copy-paste creates independent link tracking
-    // Matches both [[nodeId]] and [[nodeId:oldUuid]] formats
-    text = text.replace(/\[\[([^\]:\s]+)(?::[a-f0-9-]+)?\]\]/g, (_match, nodeId) => {
-      const newUuid = generateLinkUuid();
-      return `[[${nodeId}:${newUuid}]]`;
-    });
+    text = regenerateLinkUuids(text);
     
     // Insert plain text at cursor
     const selection = window.getSelection();
@@ -1765,7 +1868,7 @@ export function BlockEditor({
       // Trigger input handler
       handleInput();
     }
-  }, [onAssetUpload, handleInput]);
+  }, [onAssetUpload, onPasteBlocks, onPasteTable, handleInput]);
 
   // Update popup position on scroll/resize
   useEffect(() => {
