@@ -121,13 +121,6 @@ function SortableBlockItem({
         isDraggedOver ? `query-block-list__item--drag-over query-block-list__item--drag-${dropPosition}` : ''
       }`}
     >
-      {/* Logic connector */}
-      {!isFirst && (
-        <span className="query-block-list__connector">
-          {parentLogic.toLowerCase()}
-        </span>
-      )}
-
       {/* Block content - QueryBlockBuilder renders its own card */}
       <QueryBlockBuilder
         block={block}
@@ -595,11 +588,6 @@ export function QueryBlockList({
         <>
           {safeBlocks.map((block, index) => (
             <div key={index} className="query-block-list__item">
-              {index > 0 && (
-                <span className="query-block-list__connector">
-                  {parentLogic.toLowerCase()}
-                </span>
-              )}
               <Card
                 className="query-block-list__card"
                 elevation="low"
