@@ -85,19 +85,14 @@ export function renderScopeProse(scope: ScopeNode): string {
     case 'entire_graph':
       return 'in the entire graph';
     
+    case 'pages':
+      return 'in all pages';
+    
     case 'current_page':
       if (scope.include_descendants) {
         return 'in this page and its descendants';
       }
       return 'in this page';
-    
-    case 'specific_pages':
-      const count = scope.page_uuids?.length || 0;
-      const pageWord = count === 1 ? 'page' : 'pages';
-      if (scope.include_descendants) {
-        return `in ${count} selected ${pageWord} and their descendants`;
-      }
-      return `in ${count} selected ${pageWord}`;
     
     case 'linked_refs':
       return 'that reference this page';
@@ -114,13 +109,10 @@ export function getScopeLabel(scope: ScopeNode): string {
   switch (scope.scope_type) {
     case 'entire_graph':
       return 'Entire graph';
+    case 'pages':
+      return 'All pages';
     case 'current_page':
       return scope.include_descendants ? 'This page (with children)' : 'This page';
-    case 'specific_pages':
-      const count = scope.page_uuids?.length || 0;
-      return `${count} selected page${count === 1 ? '' : 's'}`;
-    case 'linked_refs':
-      return 'Linked references';
     default:
       return 'Unknown scope';
   }

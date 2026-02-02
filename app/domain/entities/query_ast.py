@@ -38,8 +38,6 @@ class ScopeType(str, Enum):
     ENTIRE_GRAPH = "entire_graph"      # All nodes in the graph
     PAGES = "pages"                    # All pages in the graph (is_page=true)
     CURRENT_PAGE = "current_page"      # Current page being viewed
-    SPECIFIC_PAGES = "specific_pages"  # Explicitly selected pages
-    LINKED_REFS = "linked_refs"        # Nodes that reference the current page
 
 
 @dataclass
@@ -47,8 +45,6 @@ class ScopeNode:
     """Scope node - defines the starting point for query execution."""
     type: Literal["scope"] = "scope"
     scope_type: ScopeType = ScopeType.ENTIRE_GRAPH
-    # For specific_pages scope type
-    page_uuids: Optional[List[str]] = None
     # For parent_path filtering (nodes inside specific pages)
     include_descendants: Optional[bool] = None
     # For negated scope filters
@@ -60,8 +56,6 @@ class ScopeNode:
             "type": self.type,
             "scope_type": self.scope_type.value,
         }
-        if self.page_uuids:
-            result["page_uuids"] = self.page_uuids
         if self.include_descendants is not None:
             result["include_descendants"] = self.include_descendants
         if self.excluded_page_uuids:
@@ -73,7 +67,6 @@ class ScopeNode:
         """Create from dictionary."""
         return ScopeNode(
             scope_type=ScopeType(data.get("scope_type", "entire_graph")),
-            page_uuids=data.get("page_uuids"),
             include_descendants=data.get("include_descendants"),
             excluded_page_uuids=data.get("excluded_page_uuids"),
         )
@@ -166,8 +159,24 @@ class BaseConditionNode:
 class TypeCondition(BaseConditionNode):
     """Type condition - filter by node type/class."""
     condition_type: Literal[ConditionType.TYPE] = ConditionType.TYPE
-    type_uuid: str = ""
-    type_id: Optional[int] = None
+    # Use class prefix for consistency with frontend ClassCondition
+    type_uuid: str = ""  # Alias for class_uuid
+    type_id: Optional[int] = None  # Alias for class_id
+    # Preferred names (align with frontend)
+    class_uuid: Optional[str] = None
+    class_id: Optional[int] = None
+    
+    def __post_init__(self):
+        """Ensure backward compatibility by aliasing type_uuid to class_uuid."""
+        if self.class_uuid and not self.type_uuid:
+            self.type_uuid = self.class_uuid
+        elif self.type_uuid and not self.class_uuid:
+            self.class_uuid = self.type_uuid
+        
+        if self.class_id and not self.type_id:
+            self.type_id = self.class_id
+        elif self.type_id and not self.class_id:
+            self.class_id = self.type_id
 
 
 @dataclass
