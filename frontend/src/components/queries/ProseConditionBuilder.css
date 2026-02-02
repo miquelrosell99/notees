@@ -251,7 +251,6 @@
   font-weight: 400;
   font-style: italic;
   font-size: 0.875rem;
-  margin-bottom: var(--spacing-1);
 }
 
 /* Current Node indicator */
