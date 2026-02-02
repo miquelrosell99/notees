@@ -188,10 +188,13 @@ function BlockInternal({
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useMemo(() => {
     const classIds = block.classes;
+    console.log('[Block] Classes for block', block.id, ':', classIds, 'allClasses loaded:', !!allClasses);
     if (!classIds || classIds.length === 0 || !allClasses) return [];
-    return classIds
+    const details = classIds
       .map((classId: number) => allClasses.find((c: Node) => c.id === classId))
       .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
+    console.log('[Block] Resolved class details for block', block.id, ':', details);
+    return details;
   }, [block.classes, allClasses]);
   
   // Determine the icon to show on the bullet
@@ -1305,6 +1308,16 @@ function BlockInternal({
   }, [block.id, block.collapsed, getNextBlockId, children, siblings, setBlockState, setPendingCaret]);
 
   
+  // Check if this is a query block and get controls/results
+  const queryDisplay = QueryBlockDisplay({ 
+    block, 
+    onNodeClick: (nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar') 
+  });
+  
+  if (queryDisplay) {
+    console.log('[Block] Query display for block', block.id, ':', queryDisplay);
+  }
+
   return (
     <div
       ref={(el) => {
@@ -1397,14 +1410,6 @@ function BlockInternal({
                 onClick={() => {}}
               />
               
-              {/* Query block display - shows query results if block is classed as query */}
-              <QueryBlockDisplay
-                block={block}
-                onNodeClick={(nodeId, isPage) => {
-                  openNode(nodeId, isPage ? 'page' : 'sidebar');
-                }}
-              />
-              
               {/* Comment count badge */}
               {commentCount > 0 && (
                 <Button
@@ -1441,6 +1446,13 @@ function BlockInternal({
           </div>
         )}
         
+        {/* Query controls - inline with block content (right side) */}
+        {queryDisplay?.controls && (
+          <div className="block-query-controls">
+            {queryDisplay.controls}
+          </div>
+        )}
+        
         {/* Backlink count badge - right-aligned */}
         {backlinkCount > 0 && (
           <Button 
@@ -1461,6 +1473,13 @@ function BlockInternal({
       {/* Drop indicator - after or inside (inside shows as indented line at bottom) */}
       {isDragOver && (dropPosition === 'after' || dropPosition === 'inside') && (
         <div className={`drop-indicator drop-indicator-${dropPosition}`} />
+      )}
+      
+      {/* Query results - positioned like node-view-section content */}
+      {queryDisplay?.results && (
+        <div className="block-query-results">
+          {queryDisplay.results}
+        </div>
       )}
       
       {/* Children blocks with vertical collapse line */}
