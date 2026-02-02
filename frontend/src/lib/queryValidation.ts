@@ -230,7 +230,7 @@ function detectContradictions(group: GroupNode, path: string[], issues: Validati
   // Check for contradictory content conditions
   const contentConditions = conditions.filter(c => c.condition_type === 'content');
   if (contentConditions.length >= 2) {
-    const equalConditions = contentConditions.filter(c => c.operator === '=');
+    const equalConditions = contentConditions.filter(c => c.operator === 'equals');
     if (equalConditions.length >= 2) {
       const values = equalConditions.map(c => c.value);
       const uniqueValues = new Set(values);

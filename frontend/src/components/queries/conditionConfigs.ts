@@ -80,7 +80,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   property: {
     label: 'property',
     operators: PROPERTY_OPERATORS,
-    defaultOperator: '=',
+    defaultOperator: 'equals',
     hasStaticDynamicToggle: true, // For node-type properties
     staticMode: {
       inputType: 'text', // Can be node-selector if property_type is 'node'

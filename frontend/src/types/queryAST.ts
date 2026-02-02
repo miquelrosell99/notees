@@ -9,13 +9,53 @@
  * - AST is validatable
  * - AST is the source of truth (UI is a projection)
  * - AST is forward-compatible and extensible
- * - AST maintains backward compatibility with QueryBlockTree
  */
 
-import type { PropertyOperator, ContentOperator, PropertyType } from './query';
+// ==================== Operator Types ====================
 
-// Re-export for convenience
-export type { PropertyOperator, ContentOperator, PropertyType };
+/**
+ * Operators for property conditions
+ * Matches backend: PropertyOperator enum
+ */
+export type PropertyOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'greater_than'
+  | 'less_than'
+  | 'gte'
+  | 'lte'
+  | 'contains'
+  | 'starts_with'
+  | 'ends_with'
+  | 'is_empty'
+  | 'is_not_empty'
+  | 'in'
+  | 'not_in';
+
+/**
+ * Operators for content/text search conditions
+ * Matches backend: ContentOperator enum
+ */
+export type ContentOperator =
+  | 'contains'
+  | 'starts_with'
+  | 'ends_with'
+  | 'equals'
+  | 'regex'
+  | 'fts';
+
+/**
+ * Property types for property filter conditions
+ * Matches backend: PropertyType enum
+ */
+export type PropertyType =
+  | 'text'
+  | 'number'
+  | 'date'
+  | 'checkbox'
+  | 'select'
+  | 'multi_select'
+  | 'node';
 
 // ==================== Capability Model ====================
 

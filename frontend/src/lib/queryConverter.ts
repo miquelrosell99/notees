@@ -383,7 +383,7 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
         condition_type: 'property',
         property_name: 'uuid',
         property_type: 'text',
-        operator: '=',
+        operator: 'equals',
         value: uuidBlock.value,
       } as PropertyCondition;
     }
