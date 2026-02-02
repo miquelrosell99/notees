@@ -214,9 +214,22 @@ function BlockInternal({
     return null;
   }, [block.icon, blockClassDetails]);
   
+  // Check if this is a query block and get controls/results (must be before hasQueryResults)
+  const queryDisplay = QueryBlockDisplay({ 
+    block, 
+    onNodeClick: (nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar') 
+  });
+  
+  if (queryDisplay) {
+    console.log('[Block] Query display for block', block.id, ':', queryDisplay);
+  }
+  
   // Determine if block has children
   const hasChildren = children && children.length > 0;
   const isCollapsed = block.collapsed ?? false;
+  
+  // Check if block has query results (for showing collapse arrow)
+  const hasQueryResults = !!queryDisplay?.results;
   
   // PERFORMANCE: Only subscribe to actions and non-per-block state
   // Per-block state (selection, editing) comes from optimized selectors above
@@ -585,7 +598,7 @@ function BlockInternal({
     if (isCollapsed) classes.push('collapsed');
     if (!canEdit) classes.push('readonly');
     return classes.join(' ');
-  }, [blockState, isSelected, isPrimarySelected, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, isCollapsed, canEdit]);
+  }, [blockState, isSelected, isPrimarySelected, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, hasQueryResults, isCollapsed, canEdit]);
   
   // Indentation style (color now applied to block-content only)
   const blockStyle = useMemo(() => {
@@ -1307,17 +1320,6 @@ function BlockInternal({
     setBlockState(nextBlockId, 'edit');
   }, [block.id, block.collapsed, getNextBlockId, children, siblings, setBlockState, setPendingCaret]);
 
-  
-  // Check if this is a query block and get controls/results
-  const queryDisplay = QueryBlockDisplay({ 
-    block, 
-    onNodeClick: (nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar') 
-  });
-  
-  if (queryDisplay) {
-    console.log('[Block] Query display for block', block.id, ':', queryDisplay);
-  }
-
   return (
     <div
       ref={(el) => {
@@ -1345,14 +1347,14 @@ function BlockInternal({
             icon={bulletIcon}
             isPage={false}
             interactive={canMove || canSelect || !!onBulletClick}
-            hasChildren={hasChildren}
+            hasChildren={hasChildren || hasQueryResults}
             collapsed={isCollapsed}
             activatorRef={canMove ? setActivatorNodeRef : undefined}
             activatorListeners={canMove ? { ...attributes, ...listeners } : undefined}
             onClick={handleBulletClickInternal}
             onContextMenu={handleBulletContextMenu}
             onCollapseToggle={handleCollapseToggle}
-            showCollapseArrow={hasChildren}
+            showCollapseArrow={hasChildren || hasQueryResults}
           />
         )}
         
@@ -1476,7 +1478,7 @@ function BlockInternal({
       )}
       
       {/* Query results - positioned like node-view-section content */}
-      {queryDisplay?.results && (
+      {queryDisplay?.results && !isCollapsed && (
         <div className="block-query-results">
           {queryDisplay.results}
         </div>
