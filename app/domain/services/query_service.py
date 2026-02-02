@@ -1174,7 +1174,9 @@ class QueryExecutor:
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         
         # Generate SQL using new QueryASTToSQL
-        generator = QueryASTToSQL(self._graph_id, query_ast.scope.page_uuids[0] if query_ast.scope.page_uuids else None)
+        # Pass current_node_uuid from runtime params if available
+        current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
+        generator = QueryASTToSQL(self._graph_id, current_node_uuid)
         sql, params_dict = generator.generate(query_ast)
         
         # Convert named params to positional for asyncpg
@@ -1247,7 +1249,9 @@ class QueryExecutor:
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         
         # Generate SQL using new QueryASTToSQL
-        generator = QueryASTToSQL(self._graph_id, query_ast.scope.page_uuids[0] if query_ast.scope.page_uuids else None)
+        # Pass current_node_uuid from runtime params if available
+        current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
+        generator = QueryASTToSQL(self._graph_id, current_node_uuid)
         sql, params_dict = generator.generate(query_ast)
         
         # Convert named params to positional
