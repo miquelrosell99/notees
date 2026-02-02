@@ -13,6 +13,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  padding-top: 4px;
 }
 
 /* Expand hover area to include collapse arrow position */
