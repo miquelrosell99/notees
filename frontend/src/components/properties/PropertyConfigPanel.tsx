@@ -88,7 +88,7 @@ export function PropertyConfigPanel({
     if (isOpen && property) {
       setName(property.name);
       setIcon(property.icon || '');
-      setDescription(''); // TODO: Add description field to Property type
+      setDescription(property.description || '');
       setNewChoiceName('');
       setNewChoiceIcon('');
       setError(null);

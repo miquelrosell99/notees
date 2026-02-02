@@ -270,11 +270,51 @@ class TestCascadeDelete:
     
     async def test_delete_node_cascades_to_properties(self, authenticated_client, node_service):
         """Test that deleting a node removes its property values."""
+        from app.domain.entities import Property, PropertyType
+        
+        # Get property repo from authenticated client
+        property_repo = authenticated_client.get("property_repo")
+        if not property_repo:
+            pytest.skip("Property repository not available in test fixtures")
+            return
+        
         # Create a page
         page_data = NodeCreateData(name="Test Page", is_page=True)
         page = await node_service.create_node(page_data)
         
-        # Add a property value (would need property infrastructure - skip for now or mock)
-        # This test would verify that deleting the page removes entries from 
-        # property_value_text, property_value_node, etc.
-        pass  # TODO: implement when property system is testable
+        # Create a test property (text type)
+        test_property = Property(
+            name="Test Property",
+            type=PropertyType.TEXT,
+            is_multi=False,
+            is_local=False,
+        )
+        created_property = await property_repo.create(test_property)
+        assert created_property.id is not None
+        
+        # Assign property to node
+        await property_repo.assign_property_to_node(page.id, created_property.id)
+        
+        # Add a property value
+        from app.domain.entities import PropertyScalarValue
+        value = PropertyScalarValue(
+            node_id=page.id,
+            property_id=created_property.id,
+            value="Test value"
+        )
+        await property_repo.set_scalar_value(value)
+        
+        # Verify property value exists
+        all_values = await property_repo.get_all_property_values(page.id)
+        assert created_property.id in all_values
+        assert len(all_values[created_property.id]["values"]) > 0
+        
+        # Delete the page (should cascade delete property values)
+        await node_service.delete_node(page.id)
+        
+        # Verify property values are gone (node is soft-deleted, but values should be removed)
+        # Note: Depending on implementation, soft-deleted nodes might keep values
+        # This test documents expected behavior
+        all_values_after = await property_repo.get_all_property_values(page.id)
+        # Either no values exist, or the node_property assignment is gone
+        assert len(all_values_after) == 0 or created_property.id not in all_values_after

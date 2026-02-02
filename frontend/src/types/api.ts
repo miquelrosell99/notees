@@ -244,6 +244,7 @@ export interface Property {
   uuid: string;
   name: string;
   icon: string | null;
+  description?: string; // Optional description for the property
   type: PropertyType;
   multi: boolean;
   is_system: boolean;

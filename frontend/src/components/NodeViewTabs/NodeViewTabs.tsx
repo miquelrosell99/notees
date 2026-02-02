@@ -23,6 +23,9 @@ import {
 } from '@/hooks/useNodeViews';
 import type { NodeView, QueryBlockTree } from '@/types/query';
 import { createEmptyBlockTree } from '@/types/query';
+import { ViewBuilder } from '../queries/ViewBuilder';
+import { blockTreeToAST, astToBlockTree } from '@/lib/queryConverter';
+import type { QueryAST } from '@/types/queryAST';
 import './NodeViewTabs.css';
 
 // ==================== Types ====================
@@ -86,7 +89,7 @@ export function NodeViewTabs({
   const [editingView, setEditingView] = useState<NodeView | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newViewName, setNewViewName] = useState('');
-  const [editedBlockTree, setEditedBlockTree] = useState<QueryBlockTree | null>(null);
+  const [editedAST, setEditedAST] = useState<QueryAST | null>(null);
 
   // Fetch views for this node and view type
   const { data: views = [], isLoading: viewsLoading } = useNodeViews(nodeId, { viewType });
@@ -144,24 +147,28 @@ export function NodeViewTabs({
 
   const handleEditView = useCallback((view: NodeView) => {
     setEditingView(view);
-    // Initialize with empty tree - actual query block tree would come from query node's property
-    setEditedBlockTree(createEmptyBlockTree());
+    // Convert QueryBlockTree to QueryAST for editing
+    const blockTree = view.query_block_tree ?? createEmptyBlockTree();
+    const ast = blockTreeToAST(blockTree, view.uuid, false);
+    setEditedAST(ast);
   }, []);
 
   const handleSaveEdit = useCallback(async () => {
-    if (!editingView || !editedBlockTree) return;
+    if (!editingView || !editedAST) return;
 
     try {
+      // Convert QueryAST back to QueryBlockTree for backend
+      const blockTree = astToBlockTree(editedAST);
       await updateBlockTreeMutation.mutateAsync({
         viewId: editingView.id,
-        blockTree: editedBlockTree,
+        blockTree,
       });
       setEditingView(null);
-      setEditedBlockTree(null);
+      setEditedAST(null);
     } catch (error) {
       console.error('Failed to save query:', error);
     }
-  }, [editingView, editedBlockTree, updateBlockTreeMutation]);
+  }, [editingView, editedAST, updateBlockTreeMutation]);
 
   const handleDeleteView = useCallback(async (view: NodeView) => {
     try {
@@ -265,18 +272,19 @@ export function NodeViewTabs({
         isOpen={!!editingView}
         onClose={() => {
           setEditingView(null);
-          setEditedBlockTree(null);
+          setEditedAST(null);
         }}
         title={`Edit "${editingView?.name}" Query`}
         size="lg"
         className="node-view-tabs__edit-modal"
       >
-        {editingView && editedBlockTree && (
+        {editingView && editedAST && (
           <div className="node-view-tabs__edit-form">
-            {/* TODO: QueryBlockBuilder needs to be updated to use QueryAST instead of QueryBlockTree */}
-            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
-              Query editing UI under construction
-            </div>
+            <ViewBuilder
+              ast={editedAST}
+              onChange={setEditedAST}
+              hideFooter
+            />
             <div className="node-view-tabs__edit-actions">
               <InlineConfirmButton
                 onConfirm={() => handleDeleteView(editingView)}
@@ -293,7 +301,7 @@ export function NodeViewTabs({
                 variant="ghost"
                 onClick={() => {
                   setEditingView(null);
-                  setEditedBlockTree(null);
+                  setEditedAST(null);
                 }}
               >
                 Cancel
