@@ -238,7 +238,7 @@
 .dynamic-section__edit-modal {
   width: 1200px !important;
   max-width: 95vw !important;
-  min-height: 400px;
+  min-height: 70vh;
   max-height: 85vh;
 }
 

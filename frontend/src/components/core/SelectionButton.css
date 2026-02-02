@@ -19,8 +19,11 @@
 }
 
 .selection-button--disabled {
-  opacity: 0.5;
   pointer-events: none;
+}
+
+.selection-button--disabled .selection-button__option:not(.selection-button__option--selected) {
+  opacity: 0.4;
 }
 
 /* Animated selection indicator */

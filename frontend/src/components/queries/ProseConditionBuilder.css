@@ -55,6 +55,7 @@
 /* ==================== Condition Card Layout ==================== */
 
 .prose-condition-card {
+  position: relative;
   display: flex;
   align-items: stretch;
   min-height: 44px;
@@ -193,17 +194,17 @@
   }
 }
 
-/* Selection button (Static/Dynamic) positioned in top-right, left of delete button */
+/* Selection button (Static/Dynamic) positioned in top-right corner inside card */
 .prose-condition__selection-button {
   position: absolute;
-  top: 12px; /* Align with delete button */
-  right: 56px; /* Space for delete button + gap */
+  top: 6px;
+  right: 6px; /* Same margin as top for symmetry */
   z-index: 1;
   opacity: 0.8;
   transition: opacity var(--motion-duration-medium);
 }
 
-.query-block-list__card:hover .prose-condition__selection-button {
+.prose-condition-card:hover .prose-condition__selection-button {
   opacity: 1;
 }
 
@@ -228,10 +229,11 @@
   flex-direction: column;
   gap: var(--spacing-2);
   margin-top: var(--spacing-3);
-  margin-left: var(--spacing-4);
+  margin-left: 0;
   padding-left: var(--spacing-4);
   padding-top: var(--spacing-2);
   border-left: 2px solid var(--color-outline-variant);
+  width: 100%;
 }
 
 .prose-condition__word-muted {

@@ -101,6 +101,7 @@ export function ButtonWithPanel({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [portalPosition, setPortalPosition] = useState({ top: 0, left: 0 });
+  const [selectedIndex, setSelectedIndex] = useState(0);
   
   // Handle open state changes
   const handleOpenChange = useCallback((newOpen: boolean) => {
@@ -112,6 +113,9 @@ export function ButtonWithPanel({
   
   // Toggle panel
   const togglePanel = useCallback(() => {
+    if (!isOpen) {
+      setSelectedIndex(0);
+    }
     handleOpenChange(!isOpen);
   }, [isOpen, handleOpenChange]);
   
@@ -125,10 +129,11 @@ export function ButtonWithPanel({
     if (!isOpen || !closeOnClickOutside) return;
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      const clickedContainer = containerRef.current?.contains(target);
+      const clickedPanel = panelRef.current?.contains(target);
+      
+      if (!clickedContainer && !clickedPanel) {
         closePanel();
       }
     };
@@ -138,39 +143,45 @@ export function ButtonWithPanel({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, closeOnClickOutside, closePanel]);
   
-  // Escape key handler
+  // Keyboard navigation handler
   useEffect(() => {
-    if (!isOpen || !closeOnEscape) return;
+    if (!isOpen) return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && closeOnEscape) {
         closePanel();
         buttonRef.current?.focus();
+        return;
+      }
+      
+      // Arrow key navigation
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = panelRef.current?.querySelectorAll('[data-menu-item]');
+        if (!items || items.length === 0) return;
+        
+        setSelectedIndex(prev => {
+          if (e.key === 'ArrowDown') {
+            return Math.min(prev + 1, items.length - 1);
+          } else {
+            return Math.max(prev - 1, 0);
+          }
+        });
+      }
+      
+      // Enter key to select
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const items = panelRef.current?.querySelectorAll('[data-menu-item]');
+        if (items && items[selectedIndex]) {
+          (items[selectedIndex] as HTMLElement).click();
+        }
       }
     };
     
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, closeOnEscape, closePanel]);
-
-  // Lock body scroll when panel is open (especially important in modals)
-  useEffect(() => {
-    if (isOpen && usePortal) {
-      const scrollY = window.scrollY;
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      
-      return () => {
-        document.body.style.overflow = '';
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        window.scrollTo(0, scrollY);
-      };
-    }
-  }, [isOpen, usePortal]);
+  }, [isOpen, closeOnEscape, closePanel, selectedIndex]);
 
   // Calculate portal position when panel opens with viewport-aware positioning
   useEffect(() => {
@@ -306,15 +317,15 @@ export function ButtonWithPanel({
       ) : (
         <Button
           ref={buttonRef}
-          icon={icon}
           variant={variant}
           size={size}
           active={isOpen}
-          onClick={togglePanel}
           className={buttonClassName}
           title={tooltip}
           disabled={disabled}
           {...buttonProps}
+          icon={buttonProps.icon ?? icon}
+          onClick={togglePanel}
         >
           {buttonText}
         </Button>
@@ -344,7 +355,7 @@ export function ButtonWithPanel({
               )}
             </div>
           )}
-          <div className="btn-panel__content">
+          <div className="btn-panel__content" data-selected-index={selectedIndex}>
             {typeof children === 'function' ? children(closePanel) : children}
           </div>
         </Card>
@@ -357,8 +368,8 @@ export function ButtonWithPanel({
           style={{
             ...getPanelStyle(),
             position: 'fixed',
-            top: portalPosition.top,
-            left: portalPosition.left,
+            top: `${portalPosition.top}px`,
+            left: `${portalPosition.left}px`,
             zIndex: 9999,
           }}
           role="dialog"
@@ -380,7 +391,7 @@ export function ButtonWithPanel({
               )}
             </div>
           )}
-          <div className="btn-panel__content">
+          <div className="btn-panel__content" data-selected-index={selectedIndex}>
             {typeof children === 'function' ? children(closePanel) : children}
           </div>
         </Card>,

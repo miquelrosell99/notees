@@ -151,6 +151,10 @@
   display: inline-block;
 }
 
+.query-block-list__add-menu-panel {
+  z-index: 9999 !important;
+}
+
 .query-block-list__add-menu-dropdown {
   min-width: 150px;
   padding: 0.25rem;
