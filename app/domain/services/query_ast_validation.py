@@ -15,6 +15,8 @@ from app.domain.entities.query_ast import (
     PropertyCondition,
     ContentCondition,
     ReferenceCondition,
+    ParentCondition,
+    ChildCondition,
 )
 
 
@@ -195,13 +197,44 @@ def validate_condition(condition: ConditionNode, path: str) -> List[ValidationIs
             ))
     
     elif isinstance(condition, ReferenceCondition):
-        if not condition.target_uuid:
-            issues.append(ValidationIssue(
-                severity='error',
-                message='Reference condition missing target UUID',
-                path=f'{path}.target_uuid',
-                suggestion='Select a node to check references against'
-            ))
+        operator = getattr(condition, 'operator', 'references')
+        # Only validate target_uuid if operator requires a value
+        if operator not in ('has_references', 'has_no_references'):
+            if not condition.target_uuid and not getattr(condition, 'target_uuids', None):
+                issues.append(ValidationIssue(
+                    severity='error',
+                    message='Reference condition missing target UUID',
+                    path=f'{path}.target_uuid',
+                    suggestion='Select a node to check references against'
+                ))
+    
+    elif isinstance(condition, ParentCondition):
+        operator = getattr(condition, 'operator', 'has_parent')
+        # Only validate if operator requires a value
+        if operator not in ('has_no_parent', 'has_any_parent'):
+            has_static = condition.parent_uuid or getattr(condition, 'parent_uuids', None)
+            has_dynamic = condition.nested_group
+            if not has_static and not has_dynamic:
+                issues.append(ValidationIssue(
+                    severity='error',
+                    message='Parent condition requires parent_uuid(s) or nested_group',
+                    path=f'{path}',
+                    suggestion='Select a parent node or add filtering criteria'
+                ))
+    
+    elif isinstance(condition, ChildCondition):
+        operator = getattr(condition, 'operator', 'has_child')
+        # Only validate if operator requires a value
+        if operator not in ('has_no_child', 'has_any_child'):
+            has_static = getattr(condition, 'child_uuids', None)
+            has_dynamic = condition.nested_group
+            if not has_static and not has_dynamic:
+                issues.append(ValidationIssue(
+                    severity='error',
+                    message='Child condition requires child_uuids or nested_group',
+                    path=f'{path}',
+                    suggestion='Select child nodes or add filtering criteria'
+                ))
     
     return issues
 

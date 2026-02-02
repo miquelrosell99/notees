@@ -10,6 +10,7 @@ import { QueryBlockList } from './QueryBlockList';
 import { QueryBlockCard } from './QueryBlockCard';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { SelectionButton } from '../core/SelectionButton';
+import { operatorNeedsValue } from './conditionConfigs';
 import { isNodeRemovable, isNodeEditable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode, LogicType } from '@/types/queryAST';
 import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline } from '@mdi/js';
@@ -219,10 +220,22 @@ export function QueryBlockBuilder({
       return false;
     }
     
-    // For parent condition: only show nested group if static mode (parent_uuid) is NOT set
+    // Check if operator requires a value - if not, don't show nested group
+    const operator = (condition as any).operator;
+    if (operator && !operatorNeedsValue(condition.condition_type, operator)) {
+      return false;
+    }
+    
+    // For parent condition: only show nested group if static mode (parent_uuid/parent_uuids) is NOT set
     if (condition.condition_type === 'parent') {
       const parentCond = condition as any;
-      return !parentCond.parent_uuid && !parentCond.parent_id;
+      return !parentCond.parent_uuid && !parentCond.parent_uuids && !parentCond.parent_id;
+    }
+    
+    // For child condition: only show nested group if static mode (child_uuids) is NOT set
+    if (condition.condition_type === 'child') {
+      const childCond = condition as any;
+      return !childCond.child_uuids && !childCond.child_ids;
     }
     
     // For reference condition: only show nested group if static mode (target_uuid) is NOT set
