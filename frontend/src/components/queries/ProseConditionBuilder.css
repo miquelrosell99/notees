@@ -12,7 +12,7 @@
   align-items: center;
   gap: var(--spacing-3);
   flex-wrap: nowrap;
-  white-space: nowrap;
+  width: 100%;
 }
 
 .prose-condition__word {
@@ -20,13 +20,20 @@
   font-weight: 500;
   margin-right: var(--spacing-1);
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ==================== Input Styling ==================== */
 
-.prose-condition__input {
-  min-width: 100px;
+.prose-condition__operator {
+  flex-shrink: 0;
   max-width: 200px;
+}
+
+.prose-condition__input {
+  flex: 1;
+  min-width: 200px;
 }
 
 .prose-condition__input--error {
