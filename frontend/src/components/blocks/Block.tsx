@@ -214,11 +214,14 @@ function BlockInternal({
     return null;
   }, [block.icon, blockClassDetails]);
   
-  // Check if this is a query block and get controls/results (must be before hasQueryResults)
-  const queryDisplay = QueryBlockDisplay({ 
-    block, 
-    onNodeClick: (nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar') 
-  });
+  // Check if this is a query block and get controls/results (must be after openNode)
+  const queryDisplay = useMemo(() => {
+    if (!openNode) return null;
+    return QueryBlockDisplay({ 
+      block, 
+      onNodeClick: (nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar') 
+    });
+  }, [block, openNode]);
   
   if (queryDisplay) {
     console.log('[Block] Query display for block', block.id, ':', queryDisplay);
