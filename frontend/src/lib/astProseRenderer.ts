@@ -287,7 +287,7 @@ function renderReferenceProse(condition: ReferenceCondition, nodesMap?: Map<stri
 
 function renderReferencePathProse(condition: ReferencePathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group, nodesMap);
+    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
     return `reference nodes that ${nested}`;
   }
   return 'reference nodes matching criteria';
@@ -295,7 +295,7 @@ function renderReferencePathProse(condition: ReferencePathCondition, nodesMap?: 
 
 function renderParentProse(condition: ParentCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group, nodesMap);
+    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
     return `have a parent that ${nested}`;
   }
   return 'have a parent matching criteria';
@@ -303,7 +303,7 @@ function renderParentProse(condition: ParentCondition, nodesMap?: Map<string, No
 
 function renderParentPathProse(condition: ParentPathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group, nodesMap);
+    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
     const depthPhrase = condition.max_depth 
       ? ` (within ${condition.max_depth} level${condition.max_depth > 1 ? 's' : ''})`
       : '';
@@ -314,7 +314,7 @@ function renderParentPathProse(condition: ParentPathCondition, nodesMap?: Map<st
 
 function renderChildConditionProse(condition: ChildCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group, nodesMap);
+    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
     return `have a child that ${nested}`;
   }
   return 'have children matching criteria';
@@ -322,7 +322,7 @@ function renderChildConditionProse(condition: ChildCondition, nodesMap?: Map<str
 
 function renderChildPathProse(condition: ChildPathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group, nodesMap);
+    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
     const depthPhrase = condition.max_depth 
       ? ` (within ${condition.max_depth} level${condition.max_depth > 1 ? 's' : ''})`
       : '';
@@ -333,13 +333,27 @@ function renderChildPathProse(condition: ChildPathCondition, nodesMap?: Map<stri
 
 function renderClassPathProse(condition: ClassPathCondition, nodesMap?: Map<string, Node>): string {
   if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = renderGroupProse(condition.nested_group, nodesMap);
+    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
     return `inherit a class that ${nested}`;
   }
   return 'inherit classes from ancestors';
 }
 
 // ==================== Helper Functions ====================
+
+/**
+ * Convert a condition phrase to third-person singular form
+ * E.g., "have a class" -> "has a class", "contain text" -> "contains text"
+ */
+function toThirdPersonSingular(phrase: string): string {
+  return phrase
+    .replace(/^have /i, 'has ')
+    .replace(/^contain /i, 'contains ')
+    .replace(/^reference /i, 'references ')
+    .replace(/^match /i, 'matches ')
+    .replace(/^start /i, 'starts ')
+    .replace(/^end /i, 'ends ');
+}
 
 /**
  * Format a node UUID as a markdown link if the node is found, otherwise return quoted UUID
