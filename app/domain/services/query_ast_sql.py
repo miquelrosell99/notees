@@ -200,18 +200,34 @@ class QueryASTToSQL:
         return None
     
     def _generate_type_condition(self, condition: TypeCondition) -> Optional[str]:
-        """Generate SQL for type/class condition."""
+        """Generate SQL for type/class condition.
+        
+        Uses the class_ids array column in the node table to find nodes with a specific class.
+        Similar to ParentCondition, supports {current_node_uuid} placeholder.
+        """
+        from app.logging_config import get_logger
+        logger = get_logger(__name__)
+        
         if not condition.type_uuid:
             return None
         
-        param_name = self._add_param(condition.type_uuid)
+        # Skip if type_uuid is empty string (failed placeholder resolution)
+        if condition.type_uuid.strip() == '':
+            logger.warning("Type condition has empty type_uuid after placeholder resolution")
+            return None
         
-        # Check if node has this type via node_class_inline
-        return f"""(n.id IN (
-            SELECT node_id FROM node_class_inline
-            WHERE class_node_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
-            AND graph_id = %(graph_id)s
-        ))"""
+        # Check for unresolved placeholder
+        if '{' in condition.type_uuid and '}' in condition.type_uuid:
+            logger.error(f"Unresolved placeholder in type_uuid: {condition.type_uuid}")
+            return None
+        
+        param_name = self._add_param(condition.type_uuid)
+        logger.debug(f"Generating type/class condition SQL with uuid={condition.type_uuid}")
+        
+        # Query nodes that have this class in their class_ids array
+        return f"""(
+            (SELECT id FROM node WHERE uuid = %({param_name})s::uuid AND graph_id = %(graph_id)s) = ANY(n.class_ids)
+        )"""
     
     def _generate_property_condition(self, condition: PropertyCondition) -> Optional[str]:
         """Generate SQL for property condition.
