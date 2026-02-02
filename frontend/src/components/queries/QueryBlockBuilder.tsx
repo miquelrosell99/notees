@@ -170,7 +170,20 @@ export function QueryBlockBuilder({
               parentLogic={groupBlock.logic}
               onChange={handleGroupChange}
               readOnly={isReadOnly}
-              showAddButton={false}
+              showAddButton={true}
+              showEmptyMessage={false}
+            />
+          </div>
+        )}
+        {/* Show add button when empty */}
+        {groupBlock.children.length === 0 && !isReadOnly && (
+          <div className="query-block-builder__nested-body">
+            <QueryBlockList
+              blocks={[]}
+              parentLogic={groupBlock.logic}
+              onChange={handleGroupChange}
+              readOnly={isReadOnly}
+              showAddButton={true}
               showEmptyMessage={false}
             />
           </div>
@@ -238,7 +251,21 @@ export function QueryBlockBuilder({
                 children,
               })}
               readOnly={isReadOnly}
-              showAddButton={false}
+              showAddButton={true}
+              showEmptyMessage={false}
+            />
+          </div>
+        ) : isGroupChild && (notBlock.child as GroupNode).children.length === 0 && !isReadOnly ? (
+          <div className="query-block-builder__nested-body">
+            <QueryBlockList
+              blocks={[]}
+              parentLogic={(notBlock.child as GroupNode).logic}
+              onChange={(children) => handleNotChildChange({
+                ...(notBlock.child as GroupNode),
+                children,
+              })}
+              readOnly={isReadOnly}
+              showAddButton={true}
               showEmptyMessage={false}
             />
           </div>
