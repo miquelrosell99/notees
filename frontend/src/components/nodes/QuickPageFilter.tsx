@@ -55,7 +55,8 @@ function extractPageFilters(ast: QueryAST): PageFilterState[] {
     if (isParentPathCondition(child)) {
       const parentPath = child as ParentPathCondition;
       // Look for a content condition with a UUID value in the nested group
-      for (const nestedChild of parentPath.nested_group.children) {
+      if (parentPath.nested_group) {
+        for (const nestedChild of parentPath.nested_group?.children || []) {
         if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
           const contentCond = nestedChild as { value?: string };
           if (contentCond.value && !contentCond.value.startsWith('{')) {
@@ -74,7 +75,8 @@ function extractPageFilters(ast: QueryAST): PageFilterState[] {
       const notNode = child as NotNode;
       if (isParentPathCondition(notNode.child)) {
         const parentPath = notNode.child as ParentPathCondition;
-        for (const nestedChild of parentPath.nested_group.children) {
+        if (parentPath.nested_group) {
+          for (const nestedChild of parentPath.nested_group?.children || []) {
           if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
             const contentCond = nestedChild as { value?: string };
             if (contentCond.value && !contentCond.value.startsWith('{')) {
@@ -209,7 +211,7 @@ export function QuickPageFilter({
     const matchesUuid = (child: ASTChild): boolean => {
       if (isParentPathCondition(child)) {
         const parentPath = child as ParentPathCondition;
-        for (const nestedChild of parentPath.nested_group.children) {
+        for (const nestedChild of parentPath.nested_group?.children || []) {
           if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
             const contentCond = nestedChild as { value?: string };
             if (contentCond.value === uuid) return true;
@@ -220,7 +222,7 @@ export function QuickPageFilter({
         const notNode = child as NotNode;
         if (isParentPathCondition(notNode.child)) {
           const parentPath = notNode.child as ParentPathCondition;
-          for (const nestedChild of parentPath.nested_group.children) {
+          for (const nestedChild of parentPath.nested_group?.children || []) {
             if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
               const contentCond = nestedChild as { value?: string };
               if (contentCond.value === uuid) return true;
@@ -257,7 +259,7 @@ export function QuickPageFilter({
     const matchesUuid = (child: ASTChild): boolean => {
       if (isParentPathCondition(child)) {
         const parentPath = child as ParentPathCondition;
-        for (const nestedChild of parentPath.nested_group.children) {
+        for (const nestedChild of parentPath.nested_group?.children || []) {
           if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
             const contentCond = nestedChild as { value?: string };
             if (contentCond.value === uuid) return true;
@@ -268,7 +270,7 @@ export function QuickPageFilter({
         const notNode = child as NotNode;
         if (isParentPathCondition(notNode.child)) {
           const parentPath = notNode.child as ParentPathCondition;
-          for (const nestedChild of parentPath.nested_group.children) {
+          for (const nestedChild of parentPath.nested_group?.children || []) {
             if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
               const contentCond = nestedChild as { value?: string };
               if (contentCond.value === uuid) return true;

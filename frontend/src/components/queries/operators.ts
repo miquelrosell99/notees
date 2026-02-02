@@ -106,8 +106,8 @@ export const CHILD_OPERATORS: OperatorDefinition[] = [
  * Operators for parent path (ancestor) conditions
  */
 export const PARENT_PATH_OPERATORS: OperatorDefinition[] = [
-  { value: 'has_ancestor', label: 'is inside' },
-  { value: 'not_has_ancestor', label: 'is not inside' },
+  { value: 'has_ancestor', label: 'includes' },
+  { value: 'not_has_ancestor', label: 'does not include' },
   { value: 'has_any_ancestor', label: 'is set' },
   { value: 'has_no_ancestor', label: 'is not set' },
 ];

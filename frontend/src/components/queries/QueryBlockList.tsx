@@ -124,11 +124,7 @@ export function QueryBlockList({
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'parent',
-      nested_group: {
-        type: 'group',
-        logic: 'AND',
-        children: [],
-      },
+      parent_uuid: '',
     };
     onChange([...blocks, newCondition]);
     
@@ -147,11 +143,7 @@ export function QueryBlockList({
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'child',
-      nested_group: {
-        type: 'group',
-        logic: 'AND',
-        children: [],
-      },
+      child_uuids: [],
     };
     onChange([...blocks, newCondition]);
     
@@ -161,11 +153,7 @@ export function QueryBlockList({
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'child_path',
-      nested_group: {
-        type: 'group',
-        logic: 'AND',
-        children: [],
-      },
+      descendant_uuids: [],
     };
     onChange([...blocks, newCondition]);
     
@@ -175,11 +163,7 @@ export function QueryBlockList({
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'parent_path',
-      nested_group: {
-        type: 'group',
-        logic: 'AND',
-        children: [],
-      },
+      ancestor_uuids: [],
     };
     onChange([...blocks, newCondition]);
     
@@ -189,11 +173,7 @@ export function QueryBlockList({
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'class_path',
-      nested_group: {
-        type: 'group',
-        logic: 'AND',
-        children: [],
-      },
+      class_uuids: [],
     };
     onChange([...blocks, newCondition]);
     
@@ -203,11 +183,7 @@ export function QueryBlockList({
     const newCondition: ConditionNode = {
       type: 'condition',
       condition_type: 'reference_path',
-      nested_group: {
-        type: 'group',
-        logic: 'AND',
-        children: [],
-      },
+      target_uuids: [],
     };
     onChange([...blocks, newCondition]);
     
@@ -223,13 +199,13 @@ export function QueryBlockList({
       items: [
         {
           id: 'content',
-          label: 'Content',
+          label: 'CONTENT',
           description: 'Filter by node name or text',
           onClick: handleAddContent,
         },
         {
           id: 'property',
-          label: 'Property',
+          label: 'PROPERTY',
           description: 'Filter by property values',
           onClick: handleAddProperty,
         },
@@ -241,13 +217,13 @@ export function QueryBlockList({
       items: [
         {
           id: 'class',
-          label: 'Class',
+          label: 'CLASS',
           description: 'Filter by direct class',
           onClick: handleAddClass,
         },
         {
           id: 'class_path',
-          label: 'Class path',
+          label: 'CLASS PATH',
           description: 'Filter by inherited class',
           onClick: handleAddClassPath,
         },
@@ -259,13 +235,13 @@ export function QueryBlockList({
       items: [
         {
           id: 'reference',
-          label: 'References',
+          label: 'REFERENCE',
           description: 'Filter by direct references',
           onClick: handleAddReference,
         },
         {
           id: 'reference_path',
-          label: 'Reference path',
+          label: 'REFERENCE PATH',
           description: 'Filter by transitive references',
           onClick: handleAddReferencePath,
         },
@@ -277,25 +253,25 @@ export function QueryBlockList({
       items: [
         {
           id: 'parent',
-          label: 'Parent',
+          label: 'PARENT',
           description: 'Filter by direct parent',
           onClick: handleAddParent,
         },
         {
           id: 'parent_path',
-          label: 'Parent path',
+          label: 'PARENT PATH',
           description: 'Filter by ancestors',
           onClick: handleAddParentPath,
         },
         {
           id: 'child',
-          label: 'Child',
+          label: 'CHILD',
           description: 'Filter by direct children',
           onClick: handleAddChild,
         },
         {
           id: 'child_path',
-          label: 'Child path',
+          label: 'CHILD PATH',
           description: 'Filter by descendants',
           onClick: handleAddChildPath,
         },
