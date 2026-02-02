@@ -37,6 +37,7 @@ export async function listNodeViews(
   nodeId: number,
   options?: {
     view_type?: string;
+    include_query_ast?: boolean;
   }
 ): Promise<NodeView[]> {
   const response = await api.get<NodeViewsResponse>(BASE, {

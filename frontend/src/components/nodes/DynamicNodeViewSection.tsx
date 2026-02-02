@@ -23,9 +23,10 @@ import {
   useDeleteNodeView,
   useResetNodeViews,
 } from '@/hooks/useNodeViews';
-import { useCreateNode, usePageClass } from '@/hooks/useNodes';
+import { useCreateNode, usePageClass, useNodes } from '@/hooks/useNodes';
 import type { NodeView, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
+import type { Node } from '@/types/api';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
 import { NodeViewSection } from './NodeViewSection';
@@ -38,6 +39,7 @@ import { TextField } from '../core/TextField';
 import { ViewBuilder } from '../queries';
 import { ProseScopeSelector } from '../queries/ProseScopeSelector';
 import { QuerySQLPreview } from '../queries/QuerySQLPreview';
+import { ProseRenderer } from '../queries/ProseRenderer';
 import { DeleteIcon } from '../icons';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
@@ -172,6 +174,18 @@ export function DynamicNodeViewSection({
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode } = useNodesStore();
+
+  // Load all pages for node name lookup in prose renderer
+  const { data: allPages = [] } = useNodes({ pages_only: true });
+  
+  // Create a map of UUID -> Node for quick lookup
+  const nodesMap = useMemo(() => {
+    const map = new Map<string, Node>();
+    allPages.forEach(node => {
+      map.set(node.uuid, node);
+    });
+    return map;
+  }, [allPages]);
 
   // Determine active view
   const activeView = useMemo(() => {
@@ -772,7 +786,7 @@ export function DynamicNodeViewSection({
               <div>
                 <h4 className="query-preview__section-header">Natural Language</h4>
                 <div className="query-preview__prose">
-                  {getQueryIntent(editAST)}
+                  <ProseRenderer text={getQueryIntent(editAST, nodesMap)} />
                 </div>
               </div>
 
@@ -952,7 +966,7 @@ export function DynamicNodeViewSection({
           {editAST && (
             <div className="query-preview__content">
               <div className="query-preview__intent">
-                {getQueryIntent(editAST, viewType, nodeUuid)}
+                <ProseRenderer text={getQueryIntent(editAST, nodesMap)} />
               </div>
               <div className="query-preview__actions">
                 <Button
@@ -1119,7 +1133,7 @@ export function DynamicNodeViewSection({
             <div>
               <h4 className="query-preview__section-header">Natural Language</h4>
               <div className="query-preview__prose">
-                {getQueryIntent(editAST)}
+                <ProseRenderer text={getQueryIntent(editAST, nodesMap)} />
               </div>
             </div>
 
