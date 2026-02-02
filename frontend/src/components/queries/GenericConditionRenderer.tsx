@@ -237,7 +237,16 @@ export function GenericConditionRenderer({
   
   // Render static value input
   const renderStaticInput = () => {
-    if (!needsValue || selectionMode === 'dynamic' || selectionMode === 'current') return null;
+    if (!needsValue || selectionMode === 'dynamic') return null;
+    
+    // Show "Current Node" indicator when in current mode
+    if (selectionMode === 'current') {
+      return (
+        <span className="prose-condition__current-node">
+          Current Node
+        </span>
+      );
+    }
     
     switch (config.staticMode.inputType) {
       case 'text':
