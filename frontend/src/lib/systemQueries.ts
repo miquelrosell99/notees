@@ -68,8 +68,8 @@ export function createChildPagesQuery(parentPageUuid: string = '{current_node_uu
 }
 
 /**
- * Create a system query for pages of a specific type/class.
- * Shows all pages tagged with a specific type.
+ * Create a system query for pages of a specific class.
+ * Shows all pages tagged with a specific class.
  */
 export function createClassedNodesQuery(typeUuid: string, typeName?: string): QueryAST {
   const condition: ClassCondition = markAsSystemNode({

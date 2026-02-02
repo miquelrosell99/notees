@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 from ..entities import NodeView, generate_uuid
 from ..entities.query_ast import (
     QueryAST, ScopeNode, ScopeType, GroupNode, LogicType,
-    ReferenceCondition, ParentPathCondition, ParentCondition, TypeCondition, FlagCondition,
+    ReferenceCondition, ParentPathCondition, ParentCondition, ClassCondition, FlagCondition,
     PropertyCondition, PropertyOperator,
     ContentCondition, ContentOperator
 )
@@ -45,7 +45,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
-                    TypeCondition(type_uuid="{current_node_uuid}")
+                    ClassCondition(class_uuid="{current_node_uuid}")
                 ]
             ),
             is_system=True
