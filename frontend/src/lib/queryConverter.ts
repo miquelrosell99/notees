@@ -1,8 +1,16 @@
 /**
  * Query AST Converters
  * 
+ * @deprecated This converter is maintained for backward compatibility only.
+ * New code should use QueryAST directly without conversion.
+ * 
  * Bidirectional converters between QueryBlockTree (legacy) and QueryAST (new).
  * Maintains backward compatibility while enabling new AST-based features.
+ * 
+ * Migration path:
+ * 1. Update all components to work directly with QueryAST
+ * 2. Update API endpoints to accept/return QueryAST
+ * 3. Remove this converter once all usage is migrated
  */
 
 import type {
@@ -203,8 +211,8 @@ function convertBlockToASTNode(block: QueryBlock): ConditionNode | GroupNode | A
     
     case 'CLASS': {
       const classBlock = block as ClassBlock;
-      // Handle legacy type_id field for backward compatibility
-      const classId = classBlock.type_id ?? (block as any).type_id;
+      // Handle both legacy type_id and new class_id for backward compatibility
+      const classId = classBlock.class_id ?? classBlock.type_id ?? (block as any).class_id ?? (block as any).type_id;
       const condition: ClassCondition = {
         type: 'condition',
         condition_type: 'class',
@@ -480,7 +488,8 @@ function convertASTNodeToBlock(node: ConditionNode | GroupNode | ASTNotNode): Qu
       const classBlock: any = {
         type: 'CLASS',
         value: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? '' : classCond.class_uuid,
-        type_id: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? undefined : classCond.class_id,
+        class_id: classCond.operator === 'defined' || classCond.operator === 'not_defined' ? undefined : classCond.class_id,
+        class_uuid: classCond.class_uuid,
         operator: classCond.operator,
         class_uuids: classCond.class_uuids, // Support dynamic mode
       };

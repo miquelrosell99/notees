@@ -65,29 +65,15 @@ export function validateAST(ast: QueryAST): ValidationResult {
 function validateScope(scope: ScopeNode, errors: ValidationError[]): void {
   const path = ['scope'];
   
-  // Validate specific_pages has page_uuids
-  if (scope.scope_type === 'specific_pages') {
-    if (!scope.page_uuids || scope.page_uuids.length === 0) {
-      errors.push({
-        severity: 'error',
-        message: 'Scope type "specific_pages" requires page_uuids array',
-        path,
-        suggestion: 'Add page_uuids array or change scope_type',
-      });
-    }
-  }
-  
-  // Validate excluded pages don't overlap with included
-  if (scope.page_uuids && scope.excluded_page_uuids) {
-    const overlap = scope.page_uuids.filter(id => scope.excluded_page_uuids?.includes(id));
-    if (overlap.length > 0) {
-      errors.push({
-        severity: 'error',
-        message: 'Scope has overlapping page_uuids and excluded_page_uuids',
-        path,
-        suggestion: `Remove duplicates: ${overlap.join(', ')}`,
-      });
-    }
+  // Validate scope_type is valid
+  const validScopeTypes: ScopeType[] = ['entire_graph', 'pages', 'current_page'];
+  if (!validScopeTypes.includes(scope.scope_type)) {
+    errors.push({
+      severity: 'error',
+      message: `Invalid scope_type: ${scope.scope_type}`,
+      path,
+      suggestion: `Use one of: ${validScopeTypes.join(', ')}`,
+    });
   }
 }
 

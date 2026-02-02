@@ -9,14 +9,16 @@
  * - Whitespace and hierarchy over boxes and borders
  * - Intent-first with live-updating prose
  * - Progressive disclosure (basic → advanced)
- * - No validation noise or warnings (empty queries are valid)
+ * - Shows validation feedback inline for actionable errors
  */
 
 import { useCallback, useMemo } from 'react';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { assertValidAST } from '@/lib/astValidator';
+import { validateQueryAST } from '@/lib/queryValidation';
 import { QueryBlockList } from './QueryBlockList';
 import { ProseScopeSelector } from './ProseScopeSelector';
+import { ValidationFeedback } from './ValidationFeedback';
 import type { QueryAST, GroupNode, ConditionNode, NotNode } from '@/types/queryAST';
 import './ViewBuilder.css';
 
@@ -49,6 +51,9 @@ export function ViewBuilder({
   hideFooter = false,
 }: ViewBuilderProps) {
   
+  // Validate AST and get validation results
+  const validationResult = useMemo(() => validateQueryAST(ast), [ast]);
+  
   // Auto-normalize and validate AST on every change (validation is console-only)
   const handleChange = useCallback((updatedAST: QueryAST) => {
     const normalized = normalizeAST(updatedAST);
@@ -78,6 +83,24 @@ export function ViewBuilder({
   return (
     <div className={`view-builder ${className}`}>
       
+      {/* Scope Section - Prominent at top */}
+      <div className="view-builder__scope-section">
+        <div className="view-builder__scope-label">
+          <span className="view-builder__scope-icon">🔍</span>
+          <span className="view-builder__scope-text">Search in:</span>
+        </div>
+        <ProseScopeSelector
+          scope={ast.scope}
+          onChange={handleScopeChange}
+          readOnly={readOnly}
+        />Validation Feedback - Show errors/warnings if any */}
+      {!readOnly && validationResult.issues.length > 0 && (
+        <ValidationFeedback validationResult={validationResult} />
+      )}
+      
+      {/* 
+      </div>
+      
       {/* Filters Section */}
       <div className="view-builder__filters-section">
         <QueryBlockList
@@ -88,31 +111,17 @@ export function ViewBuilder({
         />
       </div>
       
-      {/* Footer with scope selector and result preview */}
-      {!hideFooter && (
+      {/* Footer with result preview */}
+      {!hideFooter && resultCount !== undefined && (
         <div className="view-builder__footer">
-          {/* Scope Selector - Left side, button only */}
-          <div className="view-builder__footer-left">
-            <ProseScopeSelector
-              scope={ast.scope}
-              onChange={handleScopeChange}
-              readOnly={readOnly}
-            />
-          </div>
-          
-          {/* Result Preview - Right side */}
-          <div className="view-builder__footer-right">
-            {resultCount !== undefined && (
-              <div className="view-builder__result-preview">
-                {isLoading ? (
-                  <span className="view-builder__result-loading">Calculating…</span>
-                ) : (
-                  <span className="view-builder__result-count">
-                    <span className="view-builder__result-dot">●</span>
-                    {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
-                  </span>
-                )}
-              </div>
+          <div className="view-builder__result-preview">
+            {isLoading ? (
+              <span className="view-builder__result-loading">Calculating…</span>
+            ) : (
+              <span className="view-builder__result-count">
+                <span className="view-builder__result-dot">●</span>
+                {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
+              </span>
             )}
           </div>
         </div>

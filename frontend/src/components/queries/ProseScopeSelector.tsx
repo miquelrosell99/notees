@@ -42,9 +42,9 @@ export function ProseScopeSelector({
         onChange={handleScopeTypeChange}
         disabled={readOnly}
         options={[
-          { value: 'all', icon: mdiWeb, label: 'All nodes' },
+          { value: 'entire_graph', icon: mdiWeb, label: 'All nodes' },
           { value: 'pages', icon: mdiFileMultiple, label: 'All pages' },
-          { value: 'current', icon: mdiFileDocumentOutline, label: 'Current node' },
+          { value: 'current_page', icon: mdiFileDocumentOutline, label: 'Current page' },
         ]}
         size="sm"
       />

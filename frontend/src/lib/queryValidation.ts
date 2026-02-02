@@ -50,46 +50,8 @@ export function validateQueryAST(ast: QueryAST): ValidationResult {
 function validateScope(ast: QueryAST, issues: ValidationIssue[]): void {
   const scope = ast.scope;
   
-  // Validate specific_pages scope
-  if (scope.scope_type === 'specific_pages') {
-    if (!scope.page_uuids || scope.page_uuids.length === 0) {
-      issues.push({
-        severity: 'error',
-        message: 'Specific pages scope requires at least one page',
-        path: ['scope'],
-        suggestion: 'Select at least one page or change scope type',
-      });
-    }
-    
-    // Check for duplicate UUIDs
-    if (scope.page_uuids) {
-      const uniqueUuids = new Set(scope.page_uuids);
-      if (uniqueUuids.size !== scope.page_uuids.length) {
-        issues.push({
-          severity: 'warning',
-          message: 'Duplicate pages in scope',
-          path: ['scope', 'page_uuids'],
-          suggestion: 'Remove duplicate page selections',
-        });
-      }
-    }
-  }
-  
-  // Check for contradictory scope (included and excluded same page)
-  if (scope.page_uuids && scope.excluded_page_uuids) {
-    const included = new Set(scope.page_uuids);
-    const excluded = new Set(scope.excluded_page_uuids);
-    const overlap = [...included].filter(uuid => excluded.has(uuid));
-    
-    if (overlap.length > 0) {
-      issues.push({
-        severity: 'error',
-        message: 'Page cannot be both included and excluded in scope',
-        path: ['scope'],
-        suggestion: 'Remove conflicting page from either included or excluded list',
-      });
-    }
-  }
+  // Note: excluded_page_uuids validation could be added here if needed in the future
+  // Currently, scope types are simple (entire_graph, pages, current_page) with no complex validation
 }
 
 /**
