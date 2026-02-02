@@ -187,11 +187,15 @@ function validateCondition(condition: ConditionNode, path: string[], issues: Val
       break;
       
     case 'reference_path':
-      validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      if (condition.nested_group) {
+        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      }
       break;
       
     case 'parent_path':
-      validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      if (condition.nested_group) {
+        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      }
       
       if (condition.max_depth !== undefined && condition.max_depth < 1) {
         issues.push({
@@ -200,6 +204,41 @@ function validateCondition(condition: ConditionNode, path: string[], issues: Val
           path,
           suggestion: 'Set max depth to 1 or higher, or leave undefined for unlimited',
         });
+      }
+      break;
+      
+    case 'parent':
+      // Validate nested group if present
+      if (condition.nested_group) {
+        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      }
+      break;
+      
+    case 'child':
+      // Validate nested group if present
+      if (condition.nested_group) {
+        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      }
+      break;
+      
+    case 'child_path':
+      if (condition.nested_group) {
+        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
+      }
+      
+      if (condition.max_depth !== undefined && condition.max_depth < 1) {
+        issues.push({
+          severity: 'error',
+          message: 'Max depth must be at least 1',
+          path,
+          suggestion: 'Set max depth to 1 or higher, or leave undefined for unlimited',
+        });
+      }
+      break;
+      
+    case 'class_path':
+      if (condition.nested_group) {
+        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
       }
       break;
   }

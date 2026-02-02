@@ -70,7 +70,7 @@ export interface ConditionConfig {
 
 export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   content: {
-    label: 'content',
+    label: 'CONTENT',
     operators: CONTENT_OPERATORS,
     defaultOperator: 'contains',
     hasStaticDynamicToggle: false,
@@ -82,7 +82,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   property: {
-    label: 'property',
+    label: 'PROPERTY',
     operators: PROPERTY_OPERATORS,
     defaultOperator: 'equals',
     hasStaticDynamicToggle: true, // For node-type properties
@@ -99,7 +99,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   class: {
-    label: 'class',
+    label: 'CLASS',
     operators: CLASS_OPERATORS,
     defaultOperator: 'contains',
     hasStaticDynamicToggle: true,
@@ -116,7 +116,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   reference: {
-    label: 'reference',
+    label: 'REFERENCE',
     operators: REFERENCE_OPERATORS,
     defaultOperator: 'references',
     hasStaticDynamicToggle: true,
@@ -133,7 +133,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   parent: {
-    label: 'parent',
+    label: 'PARENT',
     operators: PARENT_OPERATORS,
     defaultOperator: 'has_parent',
     hasStaticDynamicToggle: true,
@@ -151,7 +151,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   parent_path: {
-    label: 'inside',
+    label: 'PARENT PATH',
     operators: PARENT_PATH_OPERATORS,
     defaultOperator: 'has_ancestor',
     hasStaticDynamicToggle: true,
@@ -169,7 +169,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   child: {
-    label: 'child',
+    label: 'CHILD',
     operators: CHILD_OPERATORS,
     defaultOperator: 'has_child',
     hasStaticDynamicToggle: true,
@@ -187,7 +187,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   child_path: {
-    label: 'contains descendant',
+    label: 'CHILD PATH',
     operators: CHILD_PATH_OPERATORS,
     defaultOperator: 'has_descendant',
     hasStaticDynamicToggle: true,
@@ -205,7 +205,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   reference_path: {
-    label: 'references nodes',
+    label: 'REFERENCE PATH',
     operators: [{ value: 'references_matching', label: 'matching' }],
     defaultOperator: 'references_matching',
     hasStaticDynamicToggle: true,
@@ -222,7 +222,7 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
   },
   
   class_path: {
-    label: 'inherited class',
+    label: 'CLASS PATH',
     operators: [{ value: 'has_inherited_class', label: 'from ancestors' }],
     defaultOperator: 'has_inherited_class',
     hasStaticDynamicToggle: true,
