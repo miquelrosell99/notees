@@ -31,7 +31,7 @@ export interface Node {
   collapsed: boolean;
   active: boolean;
   is_page: boolean; // Whether this node is a page
-  is_class?: boolean; // Whether this node defines a class/type
+  is_class?: boolean; // Whether this node defines a class
   usable_in?: 'pages' | 'blocks' | 'both'; // Where this class can be applied (only meaningful when is_class=true)
   create_date: string;
   write_date: string;

@@ -370,13 +370,13 @@ export function QueryBlockList({
         {
           id: 'class',
           label: 'Class',
-          description: 'Filter by direct class/type',
+          description: 'Filter by direct class',
           onClick: handleAddClass,
         },
         {
           id: 'class_path',
           label: 'Class path',
-          description: 'Filter by inherited class/type',
+          description: 'Filter by inherited class',
           onClick: handleAddClassPath,
         },
       ],

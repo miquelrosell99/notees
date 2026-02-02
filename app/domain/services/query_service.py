@@ -1096,7 +1096,7 @@ class QueryExecutor:
     def _substitute_in_group(self, group, runtime_params: Dict[str, Any]):
         """Recursively substitute parameters in a group."""
         from ..entities.query_ast import (
-            GroupNode, TypeCondition, ReferenceCondition, NotNode, 
+            GroupNode, ClassCondition, ReferenceCondition, NotNode, 
             PropertyCondition, ParentCondition
         )
         
@@ -1109,8 +1109,8 @@ class QueryExecutor:
             elif isinstance(child, NotNode):
                 if isinstance(child.child, GroupNode):
                     self._substitute_in_group(child.child, runtime_params)
-                elif isinstance(child.child, TypeCondition):
-                    child.child.type_uuid = self._resolve_placeholder(child.child.type_uuid, runtime_params)
+                elif isinstance(child.child, ClassCondition):
+                    child.child.class_uuid = self._resolve_placeholder(child.child.class_uuid, runtime_params)
                 elif isinstance(child.child, ReferenceCondition):
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
                 elif isinstance(child.child, PropertyCondition):
@@ -1122,8 +1122,8 @@ class QueryExecutor:
                         logger.info(f"[_substitute_in_group] NOT>ParentCondition parent_uuid after: {child.child.parent_uuid}")
                     if child.child.nested_group:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
-            elif isinstance(child, TypeCondition):
-                child.type_uuid = self._resolve_placeholder(child.type_uuid, runtime_params)
+            elif isinstance(child, ClassCondition):
+                child.class_uuid = self._resolve_placeholder(child.class_uuid, runtime_params)
             elif isinstance(child, ReferenceCondition):
                 child.target_uuid = self._resolve_placeholder(child.target_uuid, runtime_params)
             elif isinstance(child, PropertyCondition):

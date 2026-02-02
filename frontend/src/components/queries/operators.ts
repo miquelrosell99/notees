@@ -54,10 +54,10 @@ export const PROPERTY_OPERATORS: OperatorDefinition[] = [
   { value: 'not_in', label: 'not in' },
 ];
 
-// ==================== Class/Type Operators ====================
+// ==================== Class Operators ====================
 
 /**
- * Operators for type/class conditions
+ * Operators for class conditions
  */
 export const CLASS_OPERATORS: OperatorDefinition[] = [
   { value: 'contains', label: 'contains' },
@@ -130,27 +130,4 @@ export const OPERATOR_MAP = new Map<string, OperatorDefinition>(
  */
 export function getOperatorDefinition(value: string): OperatorDefinition {
   return OPERATOR_MAP.get(value) ?? { value, label: value };
-}
-
-// ==================== Legacy Symbol Mapping ====================
-
-/**
- * Map from legacy symbols ('=', '!=', etc.) to new verbose values
- * Use this for backward compatibility during migration
- */
-export const LEGACY_OPERATOR_MAP: Record<string, string> = {
-  '=': 'equals',
-  '!=': 'not_equals',
-  '>': 'greater_than',
-  '>=': 'gte',
-  '<': 'less_than',
-  '<=': 'lte',
-  'matches_regex': 'regex',
-};
-
-/**
- * Normalize operator value from legacy symbol to verbose name
- */
-export function normalizeOperator(operator: string): string {
-  return LEGACY_OPERATOR_MAP[operator] ?? operator;
 }

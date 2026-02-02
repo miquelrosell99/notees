@@ -12,7 +12,7 @@ from app.domain.entities.query_ast import (
     GroupNode,
     ConditionNode,
     NotNode,
-    TypeCondition,
+    ClassCondition,
     PropertyCondition,
     ContentCondition,
     ReferenceCondition,
@@ -180,8 +180,8 @@ class QueryASTToSQL:
     
     def _generate_condition_sql(self, condition: ConditionNode) -> Optional[str]:
         """Generate SQL for a single condition."""
-        if isinstance(condition, TypeCondition):
-            return self._generate_type_condition(condition)
+        if isinstance(condition, ClassCondition):
+            return self._generate_class_condition(condition)
         elif isinstance(condition, PropertyCondition):
             return self._generate_property_condition(condition)
         elif isinstance(condition, ContentCondition):
@@ -199,8 +199,8 @@ class QueryASTToSQL:
         
         return None
     
-    def _generate_type_condition(self, condition: TypeCondition) -> Optional[str]:
-        """Generate SQL for type/class condition.
+    def _generate_class_condition(self, condition: ClassCondition) -> Optional[str]:
+        """Generate SQL for class condition.
         
         Uses the class_ids array column in the node table to find nodes with a specific class.
         Similar to ParentCondition, supports {current_node_uuid} placeholder.
@@ -208,21 +208,21 @@ class QueryASTToSQL:
         from app.logging_config import get_logger
         logger = get_logger(__name__)
         
-        if not condition.type_uuid:
+        if not condition.class_uuid:
             return None
         
-        # Skip if type_uuid is empty string (failed placeholder resolution)
-        if condition.type_uuid.strip() == '':
-            logger.warning("Type condition has empty type_uuid after placeholder resolution")
+        # Skip if class_uuid is empty string (failed placeholder resolution)
+        if condition.class_uuid.strip() == '':
+            logger.warning("Class condition has empty class_uuid after placeholder resolution")
             return None
         
         # Check for unresolved placeholder
-        if '{' in condition.type_uuid and '}' in condition.type_uuid:
-            logger.error(f"Unresolved placeholder in type_uuid: {condition.type_uuid}")
+        if '{' in condition.class_uuid and '}' in condition.class_uuid:
+            logger.error(f"Unresolved placeholder in class_uuid: {condition.class_uuid}")
             return None
         
-        param_name = self._add_param(condition.type_uuid)
-        logger.debug(f"Generating type/class condition SQL with uuid={condition.type_uuid}")
+        param_name = self._add_param(condition.class_uuid)
+        logger.debug(f"Generating class condition SQL with uuid={condition.class_uuid}")
         
         # Query nodes that have this class in their class_ids array
         return f"""(

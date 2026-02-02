@@ -65,12 +65,8 @@ class ScopeNode:
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> ScopeNode:
         """Create from dictionary."""
-        scope_type_value = data.get("scope_type", "entire_graph")
-        # Migration: replace legacy 'all' with 'entire_graph'
-        if scope_type_value == "all":
-            scope_type_value = "entire_graph"
         return ScopeNode(
-            scope_type=ScopeType(scope_type_value),
+            scope_type=ScopeType(data.get("scope_type", "entire_graph")),
             include_descendants=data.get("include_descendants"),
             excluded_page_uuids=data.get("excluded_page_uuids"),
         )
@@ -80,7 +76,7 @@ class ScopeNode:
 
 class ConditionType(str, Enum):
     """Types of conditions."""
-    TYPE = "type"
+    CLASS = "class"
     PROPERTY = "property"
     CONTENT = "content"
     REFERENCE = "reference"
@@ -160,27 +156,11 @@ class BaseConditionNode:
 
 
 @dataclass
-class TypeCondition(BaseConditionNode):
-    """Type condition - filter by node type/class."""
-    condition_type: Literal[ConditionType.TYPE] = ConditionType.TYPE
-    # Use class prefix for consistency with frontend ClassCondition
-    type_uuid: str = ""  # Alias for class_uuid
-    type_id: Optional[int] = None  # Alias for class_id
-    # Preferred names (align with frontend)
-    class_uuid: Optional[str] = None
+class ClassCondition(BaseConditionNode):
+    """Class condition - filter by node class."""
+    condition_type: Literal[ConditionType.CLASS] = ConditionType.CLASS
+    class_uuid: str = ""
     class_id: Optional[int] = None
-    
-    def __post_init__(self):
-        """Ensure backward compatibility by aliasing type_uuid to class_uuid."""
-        if self.class_uuid and not self.type_uuid:
-            self.type_uuid = self.class_uuid
-        elif self.type_uuid and not self.class_uuid:
-            self.class_uuid = self.type_uuid
-        
-        if self.class_id and not self.type_id:
-            self.type_id = self.class_id
-        elif self.type_id and not self.class_id:
-            self.class_id = self.type_id
 
 
 @dataclass
@@ -250,7 +230,7 @@ class FlagCondition(BaseConditionNode):
 
 # Union type for all conditions
 ConditionNode = Union[
-    TypeCondition,
+    ClassCondition,
     PropertyCondition,
     ContentCondition,
     ReferenceCondition,
@@ -392,10 +372,10 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
     """Create a ConditionNode from dictionary based on condition_type."""
     condition_type = ConditionType(data.get("condition_type", "content"))
     
-    if condition_type == ConditionType.TYPE:
-        return TypeCondition(
-            type_uuid=data.get("type_uuid", ""),
-            type_id=data.get("type_id"),
+    if condition_type == ConditionType.CLASS:
+        return ClassCondition(
+            class_uuid=data.get("class_uuid", ""),
+            class_id=data.get("class_id"),
         )
     elif condition_type == ConditionType.PROPERTY:
         return PropertyCondition(

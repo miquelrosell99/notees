@@ -113,8 +113,8 @@ function generateGroupSQL(group: import('@/types/queryAST').GroupNode, indent: n
 
 function generateConditionSQL(condition: import('@/types/queryAST').ConditionNode): string {
   switch (condition.condition_type) {
-    case 'type':
-      return `has_type('${condition.type_uuid}')`;
+    case 'class':
+      return `has_class('${condition.class_uuid}')`;
       
     case 'property': {
       const op = condition.operator;

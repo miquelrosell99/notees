@@ -11,7 +11,7 @@ from app.domain.entities.query_ast import (
     GroupNode,
     ConditionNode,
     NotNode,
-    TypeCondition,
+    ClassCondition,
     PropertyCondition,
     ContentCondition,
     ReferenceCondition,
@@ -157,13 +157,13 @@ def validate_condition(condition: ConditionNode, path: str) -> List[ValidationIs
     """Validate a condition node."""
     issues: List[ValidationIssue] = []
     
-    if isinstance(condition, TypeCondition):
-        if not condition.type_uuid:
+    if isinstance(condition, ClassCondition):
+        if not condition.class_uuid:
             issues.append(ValidationIssue(
                 severity='error',
-                message='Type condition missing type UUID',
-                path=f'{path}.type_uuid',
-                suggestion='Select a type/class for this condition'
+                message='Class condition missing class UUID',
+                path=f'{path}.class_uuid',
+                suggestion='Select a class for this condition'
             ))
     
     elif isinstance(condition, PropertyCondition):

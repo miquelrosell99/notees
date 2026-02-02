@@ -21,7 +21,7 @@ import {
 export type InputType = 
   | 'text'              // Simple text input
   | 'node-selector'     // Single node picker (pages)
-  | 'class-selector'    // Class/type picker
+  | 'class-selector'    // Class picker
   | 'property-selector' // Property name picker
   | 'none';             // No input needed (e.g., is_empty operator)
 
