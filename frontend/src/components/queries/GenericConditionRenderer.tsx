@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { mdiCursorPointer, mdiTextBoxMultipleOutline } from '@mdi/js';
+import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@mdi/js';
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
@@ -54,9 +54,21 @@ export function GenericConditionRenderer({
   const hasDynamicMode = config.hasStaticDynamicToggle || alwaysUsesNestedGroup(condition.condition_type);
   const inDynamicMode = 'nested_group' in condition && condition.nested_group !== undefined;
   
-  // State for static/dynamic toggle
-  const [selectionMode, setSelectionMode] = useState<'static' | 'dynamic'>(
-    inDynamicMode ? 'dynamic' : 'static'
+  // Check if using current node placeholder
+  const hasCurrentNodePlaceholder = (() => {
+    if (condition.condition_type === 'parent') {
+      return (condition as any).parent_uuid === '{current_node_uuid}';
+    } else if (condition.condition_type === 'reference') {
+      return (condition as any).target_uuid === '{current_node_uuid}';
+    } else if (condition.condition_type === 'property') {
+      return (condition as any).value === '{current_node_uuid}';
+    }
+    return false;
+  })();
+  
+  // State for static/dynamic/current toggle
+  const [selectionMode, setSelectionMode] = useState<'static' | 'current' | 'dynamic'>(
+    inDynamicMode ? 'dynamic' : hasCurrentNodePlaceholder ? 'current' : 'static'
   );
   
   // Get current operator
@@ -71,8 +83,20 @@ export function GenericConditionRenderer({
   // Update selection mode when condition changes externally
   useEffect(() => {
     const hasNested = 'nested_group' in condition && condition.nested_group !== undefined;
-    if (hasNested !== (selectionMode === 'dynamic')) {
-      setSelectionMode(hasNested ? 'dynamic' : 'static');
+    const hasCurrent = (() => {
+      if (condition.condition_type === 'parent') {
+        return (condition as any).parent_uuid === '{current_node_uuid}';
+      } else if (condition.condition_type === 'reference') {
+        return (condition as any).target_uuid === '{current_node_uuid}';
+      } else if (condition.condition_type === 'property') {
+        return (condition as any).value === '{current_node_uuid}';
+      }
+      return false;
+    })();
+    
+    const expectedMode = hasNested ? 'dynamic' : hasCurrent ? 'current' : 'static';
+    if (selectionMode !== expectedMode) {
+      setSelectionMode(expectedMode);
     }
   }, [condition, selectionMode]);
   
@@ -85,15 +109,43 @@ export function GenericConditionRenderer({
     } as any);
   };
   
-  // Handler for static/dynamic toggle
+  // Handler for static/dynamic/current toggle
   const handleModeChange = (mode: string) => {
-    setSelectionMode(mode as 'static' | 'dynamic');
+    setSelectionMode(mode as 'static' | 'current' | 'dynamic');
     
     if (mode === 'static') {
-      // Switch to static mode - remove nested_group
+      // Switch to static mode - remove nested_group and clear placeholder
       const updated = { ...condition };
       delete (updated as any).nested_group;
+      
+      // Clear current node placeholder if present
+      if (condition.condition_type === 'parent') {
+        delete (updated as any).parent_uuid;
+        delete (updated as any).parent_id;
+      } else if (condition.condition_type === 'reference') {
+        delete (updated as any).target_uuid;
+        delete (updated as any).target_id;
+      } else if (condition.condition_type === 'property') {
+        (updated as any).value = '';
+      }
+      
       onUpdate(updated);
+    } else if (mode === 'current') {
+      // Switch to current node mode - remove nested_group and set placeholder
+      const updated = { ...condition };
+      delete (updated as any).nested_group;
+      
+      if (condition.condition_type === 'parent') {
+        (updated as any).parent_uuid = '{current_node_uuid}';
+        delete (updated as any).parent_id;
+      } else if (condition.condition_type === 'reference') {
+        (updated as any).target_uuid = '{current_node_uuid}';
+        delete (updated as any).target_id;
+      } else if (condition.condition_type === 'property') {
+        (updated as any).value = '{current_node_uuid}';
+      }
+      
+      onUpdate(updated as any);
     } else {
       // Switch to dynamic mode - add nested_group
       onUpdate({
@@ -163,7 +215,7 @@ export function GenericConditionRenderer({
     />
   );
   
-  // Render static/dynamic toggle
+  // Render static/dynamic/current toggle
   const renderModeToggle = () => {
     if (!hasDynamicMode || !needsValue || readOnly) return null;
     
@@ -173,6 +225,7 @@ export function GenericConditionRenderer({
         onChange={handleModeChange}
         options={[
           { value: 'static', label: 'Static', icon: mdiCursorPointer },
+          { value: 'current', label: 'Current Node', icon: mdiCrosshairsGps },
           { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
         ]}
         size="sm"
@@ -184,7 +237,7 @@ export function GenericConditionRenderer({
   
   // Render static value input
   const renderStaticInput = () => {
-    if (!needsValue || selectionMode === 'dynamic') return null;
+    if (!needsValue || selectionMode === 'dynamic' || selectionMode === 'current') return null;
     
     switch (config.staticMode.inputType) {
       case 'text':
@@ -264,7 +317,7 @@ export function GenericConditionRenderer({
   
   // Render dynamic nested group
   const renderNestedGroup = () => {
-    if (selectionMode === 'static' && !alwaysUsesNestedGroup(condition.condition_type)) {
+    if ((selectionMode === 'static' || selectionMode === 'current') && !alwaysUsesNestedGroup(condition.condition_type)) {
       return null;
     }
     
