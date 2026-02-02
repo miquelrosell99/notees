@@ -2,7 +2,9 @@
  * QueryBlockDisplay Component
  * 
  * Renders query views with tabs for blocks that are classed as "query".
- * Displays the DynamicNodeViewSection which handles view tabs and editing.
+ * Displays the DynamicNodeViewSection in headless mode (no section header)
+ * so the block's own content acts as the header, with query controls and
+ * results appearing inline below.
  */
 import { DynamicNodeViewSection } from '../nodes/DynamicNodeViewSection';
 import type { Node } from '@/types/api';
@@ -36,6 +38,7 @@ export function QueryBlockDisplay({ block, onNodeClick }: QueryBlockDisplayProps
         hideWhenEmpty={false}
         defaultExpanded={true}
         onNodeClick={onNodeClick}
+        headless={true}
       />
     </div>
   );

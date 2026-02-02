@@ -1024,6 +1024,11 @@ export function useAddClass() {
         queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(updatedNode.page_id) });
         queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_id) });
       }
+      
+      // Invalidate NodeView queries - the backend may create views when certain classes are added
+      // (e.g., query class creates a main_content view)
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
     },
   });
 }
@@ -1069,6 +1074,11 @@ export function useRemoveClass() {
       if (updatedNode.parent_id !== null && updatedNode.parent_id !== nodeId) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_id) });
       }
+      
+      // Invalidate NodeView queries - the backend may delete views when certain classes are removed
+      // (e.g., query class removal deletes the main_content view)
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
     },
   });
 }
