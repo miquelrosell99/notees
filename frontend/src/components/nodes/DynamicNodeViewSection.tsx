@@ -43,6 +43,7 @@ import { ProseRenderer } from '../queries/ProseRenderer';
 import { DeleteIcon } from '../icons';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
+import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
@@ -343,13 +344,16 @@ export function DynamicNodeViewSection({
   const isQueryLoading = isPseudoNode ? pseudoQueryLoading : queryLoading;
   const handleRefetchQuery = isPseudoNode ? refetchPseudoQuery : refetchQuery;
 
-  // Preview query for edit modal - execute editAST in real-time
+  // Normalize editAST for preview execution (removes empty groups for accurate results)
+  const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
+
+  // Preview query for edit modal - execute normalized AST in real-time
   const {
     data: previewResults,
     isLoading: previewLoading,
   } = useQuery_(
     {
-      query_ast: editAST ?? undefined,
+      query_ast: previewAST,
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
@@ -358,8 +362,8 @@ export function DynamicNodeViewSection({
       include_properties: true,
     },
     {
-      enabled: !!editAST,
-      queryKey: ['preview-query', nodeId, editAST],
+      enabled: !!previewAST,
+      queryKey: ['preview-query', nodeId, previewAST],
     }
   );
 
@@ -414,8 +418,11 @@ export function DynamicNodeViewSection({
     }
     
     try {
+      // Normalize AST before saving (removes empty groups, flattens single-child groups)
+      const normalizedAST = normalizeAST(editAST);
+      
       // Auto-fix: Ensure system conditions are present before saving
-      const fixedAST = autoFixSystemQuery(editAST, viewType, {
+      const fixedAST = autoFixSystemQuery(normalizedAST, viewType, {
         nodeUuid: nodeUuid,
         parentUuid: nodeUuid,
         typeUuid: undefined,

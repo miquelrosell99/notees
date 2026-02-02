@@ -79,9 +79,11 @@ function normalizeGroup(group: GroupNode): GroupNode | ConditionNode | NotNode |
     }
   }
   
-  // If group is empty after normalization, remove it (unless it's a system node)
+  // If group is empty after normalization, keep it (user may be building a query)
+  // We only remove empty groups that are nested inside other groups
+  // Note: Empty groups at any level are now kept - they'll be shown with an "add filter" UI
   if (normalizedChildren.length === 0) {
-    return isSystemNode(group) ? group : null;
+    return group;
   }
   
   // If group has only one child, flatten it (unless it's a system node)

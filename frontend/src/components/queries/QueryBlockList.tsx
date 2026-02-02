@@ -141,7 +141,6 @@ export function QueryBlockList({
       children: [],
     };
     onChange([...blocks, newGroup]);
-    
   }, [blocks, onChange]);
 
   const handleAddChild = useCallback(() => {
