@@ -1077,6 +1077,7 @@ class QueryExecutor:
         Replaces placeholders like {current_node_uuid} with actual values.
         """
         import copy
+        logger.info(f"[_substitute_params] runtime_params={runtime_params}")
         query_ast = copy.deepcopy(query_ast)
         
         # Substitute in scope (page_uuids is no longer part of ScopeNode)
@@ -1099,7 +1100,10 @@ class QueryExecutor:
             PropertyCondition, ParentCondition
         )
         
+        logger.debug(f"[_substitute_in_group] Processing group with {len(group.children)} children")
+        
         for child in group.children:
+            logger.debug(f"[_substitute_in_group] Child type: {type(child).__name__}")
             if isinstance(child, GroupNode):
                 self._substitute_in_group(child, runtime_params)
             elif isinstance(child, NotNode):
@@ -1113,7 +1117,9 @@ class QueryExecutor:
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, ParentCondition):
                     if child.child.parent_uuid:
+                        logger.info(f"[_substitute_in_group] NOT>ParentCondition parent_uuid before: {child.child.parent_uuid}")
                         child.child.parent_uuid = self._resolve_placeholder(child.child.parent_uuid, runtime_params)
+                        logger.info(f"[_substitute_in_group] NOT>ParentCondition parent_uuid after: {child.child.parent_uuid}")
                     if child.child.nested_group:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
             elif isinstance(child, TypeCondition):
@@ -1124,8 +1130,11 @@ class QueryExecutor:
                 child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ParentCondition):
                 # ParentCondition can have parent_uuid (static) or nested_group (dynamic)
+                logger.info(f"[_substitute_in_group] ParentCondition found, parent_uuid={child.parent_uuid}")
                 if child.parent_uuid:
+                    logger.info(f"[_substitute_in_group] ParentCondition parent_uuid before: {child.parent_uuid}")
                     child.parent_uuid = self._resolve_placeholder(child.parent_uuid, runtime_params)
+                    logger.info(f"[_substitute_in_group] ParentCondition parent_uuid after: {child.parent_uuid}")
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
     
@@ -1136,11 +1145,20 @@ class QueryExecutor:
         
         # Replace known placeholders
         if '{current_node_uuid}' in value:
-            return value.replace('{current_node_uuid}', runtime_params.get('current_node_uuid', ''))
+            uuid_value = runtime_params.get('current_node_uuid', '')
+            if not uuid_value:
+                logger.warning(f"Placeholder {{current_node_uuid}} used but no runtime value provided")
+            return value.replace('{current_node_uuid}', uuid_value)
         elif '{current_node_id}' in value:
-            return value.replace('{current_node_id}', str(runtime_params.get('current_node_id', '')))
+            id_value = runtime_params.get('current_node_id', '')
+            if not id_value:
+                logger.warning(f"Placeholder {{current_node_id}} used but no runtime value provided")
+            return value.replace('{current_node_id}', str(id_value))
         elif '{current_user_id}' in value:
-            return value.replace('{current_user_id}', str(runtime_params.get('current_user_id', self._user_id or '')))
+            user_value = self._user_id or runtime_params.get('current_user_id', '')
+            if not user_value:
+                logger.warning(f"Placeholder {{current_user_id}} used but no runtime value provided")
+            return value.replace('{current_user_id}', str(user_value))
         
         return value
     
