@@ -56,20 +56,20 @@ export function GenericConditionRenderer({
   const hasDynamicMode = config.hasStaticDynamicToggle || alwaysUsesNestedGroup(condition.condition_type);
   const inDynamicMode = 'nested_group' in condition && condition.nested_group !== undefined;
   
-  // Check if using current node placeholder or if UUID matches current node
+  // Check if using current node placeholder (explicit placeholder only, not UUID match)
   const hasCurrentNodePlaceholder = (() => {
     if (condition.condition_type === 'parent') {
       const uuid = (condition as any).parent_uuid;
-      return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
+      return uuid === '{current_node_uuid}';
     } else if (condition.condition_type === 'reference') {
       const uuid = (condition as any).target_uuid;
-      return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
+      return uuid === '{current_node_uuid}';
     } else if (condition.condition_type === 'property') {
       const value = (condition as any).value;
-      return value === '{current_node_uuid}' || (currentNodeUuid && value === currentNodeUuid);
+      return value === '{current_node_uuid}';
     } else if (condition.condition_type === 'class') {
       const uuid = (condition as any).class_uuid;
-      return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
+      return uuid === '{current_node_uuid}';
     }
     return false;
   })();
@@ -94,16 +94,16 @@ export function GenericConditionRenderer({
     const hasCurrent = (() => {
       if (condition.condition_type === 'parent') {
         const uuid = (condition as any).parent_uuid;
-        return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
+        return uuid === '{current_node_uuid}';
       } else if (condition.condition_type === 'reference') {
         const uuid = (condition as any).target_uuid;
-        return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
+        return uuid === '{current_node_uuid}';
       } else if (condition.condition_type === 'property') {
         const value = (condition as any).value;
-        return value === '{current_node_uuid}' || (currentNodeUuid && value === currentNodeUuid);
+        return value === '{current_node_uuid}';
       } else if (condition.condition_type === 'class') {
         const uuid = (condition as any).class_uuid;
-        return uuid === '{current_node_uuid}' || (currentNodeUuid && uuid === currentNodeUuid);
+        return uuid === '{current_node_uuid}';
       }
       return false;
     })();
@@ -371,15 +371,12 @@ export function GenericConditionRenderer({
   
   // Main render
   return (
-    <>
-      <div className="prose-condition__inline">
-        <span className="prose-condition__word">{config.label}</span>
-        {renderOperator()}
-        {renderModeToggle()}
-        {renderStaticInput()}
-      </div>
-      {renderNestedGroup()}
-    </>
+    <div className="prose-condition__inline">
+      <span className="prose-condition__word">{config.label}</span>
+      {renderOperator()}
+      {renderModeToggle()}
+      {renderStaticInput()}
+    </div>
   );
 }
 
