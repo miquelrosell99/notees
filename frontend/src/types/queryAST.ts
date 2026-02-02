@@ -220,12 +220,14 @@ export interface ReferencePathCondition extends BaseConditionNode {
  */
 export interface ParentCondition extends BaseConditionNode {
   condition_type: 'parent';
-  // Static mode: specific parent
-  parent_uuid?: string;
+  // Static mode: specific parent(s)
+  parent_uuid?: string;  // Legacy: single parent
+  parent_uuids?: string[];  // Multiple parents
   parent_id?: number;
+  parent_ids?: number[];
   // Dynamic mode: parent matching criteria
   nested_group?: GroupNode;
-  operator?: 'has_parent' | 'has_no_parent';  // Default: 'has_parent'
+  operator?: 'has_parent' | 'not_has_parent' | 'has_no_parent' | 'has_any_parent';  // Default: 'has_parent'
 }
 
 /**
@@ -235,6 +237,7 @@ export interface ParentPathCondition extends BaseConditionNode {
   condition_type: 'parent_path';
   nested_group: GroupNode;
   max_depth?: number;
+  operator?: 'has_ancestor' | 'not_has_ancestor' | 'has_no_ancestor' | 'has_any_ancestor';  // Default: 'has_ancestor'
 }
 
 /**
@@ -242,8 +245,12 @@ export interface ParentPathCondition extends BaseConditionNode {
  */
 export interface ChildCondition extends BaseConditionNode {
   condition_type: 'child';
-  operator?: 'has_child' | 'has_no_child';  // Default: 'has_child'
-  nested_group: GroupNode;
+  // Static mode: specific children
+  child_uuids?: string[];
+  child_ids?: number[];
+  // Dynamic mode: children matching criteria
+  nested_group?: GroupNode;
+  operator?: 'has_child' | 'not_has_child' | 'has_no_child' | 'has_any_child';  // Default: 'has_child'
 }
 
 /**
@@ -251,6 +258,7 @@ export interface ChildCondition extends BaseConditionNode {
  */
 export interface ChildPathCondition extends BaseConditionNode {
   condition_type: 'child_path';
+  operator?: 'has_descendant' | 'not_has_descendant' | 'has_no_descendant' | 'has_any_descendant';  // Default: 'has_descendant'
   nested_group: GroupNode;
   max_depth?: number;
 }

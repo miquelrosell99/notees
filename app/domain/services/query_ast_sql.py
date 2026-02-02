@@ -19,6 +19,8 @@ from app.domain.entities.query_ast import (
     ReferencePathCondition,
     ParentPathCondition,
     ParentCondition,
+    ChildCondition,
+    ChildPathCondition,
     FlagCondition,
     LogicType,
     ScopeType,
@@ -196,6 +198,10 @@ class QueryASTToSQL:
             return self._generate_parent_condition(condition)
         elif isinstance(condition, FlagCondition):
             return self._generate_flag_condition(condition)
+        elif isinstance(condition, ChildCondition):
+            return self._generate_child_condition(condition)
+        elif isinstance(condition, ChildPathCondition):
+            return self._generate_child_path_condition(condition)
         
         return None
     
@@ -399,12 +405,28 @@ class QueryASTToSQL:
         
         This finds nodes that are descendants of nodes matching the nested group.
         For child_pages view: finds direct children (max_depth=1) of the current node.
+        
+        Operators:
+        - has_ancestor: node is descendant of matching nodes
+        - not_has_ancestor: node is NOT descendant of matching nodes
+        - has_no_ancestor: node has no ancestors (root nodes)
+        - has_any_ancestor: node has any ancestor (not root)
         """
-        if not condition.group or not condition.group.blocks:
+        operator = getattr(condition, 'operator', 'has_ancestor')
+        
+        # Handle no-value operators
+        if operator == 'has_no_ancestor':
+            # Node is a root (no ancestors in node_path)
+            return "NOT EXISTS (SELECT 1 FROM node_path np WHERE np.descendant_id = n.id)"
+        elif operator == 'has_any_ancestor':
+            # Node has at least one ancestor
+            return "EXISTS (SELECT 1 FROM node_path np WHERE np.descendant_id = n.id)"
+        
+        if not condition.nested_group or not condition.nested_group.blocks:
             return None
         
         # Get the first block in the group - typically a UUID block
-        first_block = condition.group.blocks[0]
+        first_block = condition.nested_group.blocks[0]
         
         # Handle UUID block (most common case for current_node_uuid)
         if hasattr(first_block, 'value'):
@@ -420,12 +442,20 @@ class QueryASTToSQL:
                 min_depth_param = self._add_param(condition.min_depth)
                 depth_condition = f" AND np.depth >= %({min_depth_param})s"
             
-            return f"""(EXISTS (
-                SELECT 1 FROM node_path np
-                WHERE np.descendant_id = n.id
-                AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
-                {depth_condition}
-            ))"""
+            if operator == 'not_has_ancestor':
+                return f"""(NOT EXISTS (
+                    SELECT 1 FROM node_path np
+                    WHERE np.descendant_id = n.id
+                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    {depth_condition}
+                ))"""
+            else:  # has_ancestor (default)
+                return f"""(EXISTS (
+                    SELECT 1 FROM node_path np
+                    WHERE np.descendant_id = n.id
+                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    {depth_condition}
+                ))"""
         
         return None
     
@@ -446,6 +476,12 @@ class QueryASTToSQL:
         Supports two modes:
         - Static: parent_uuid specified directly
         - Dynamic: nested_group filters parent nodes
+        
+        Operators:
+        - has_parent: parent is specific node(s)
+        - not_has_parent: parent is NOT specific node(s)
+        - has_no_parent: node has no parent (root node)
+        - has_any_parent: node has any parent (not root)
         """
         from app.logging_config import get_logger
         logger = get_logger(__name__)
@@ -453,33 +489,54 @@ class QueryASTToSQL:
         # Handle operator - default to 'has_parent' if not specified
         operator = getattr(condition, 'operator', 'has_parent')
         
-        # Static mode: direct parent UUID/ID
-        if condition.parent_uuid:
-            # Skip if parent_uuid is empty string (failed placeholder resolution)
-            if condition.parent_uuid.strip() == '':
-                logger.warning("Parent condition has empty parent_uuid after placeholder resolution")
+        # Static mode: direct parent UUID(s)/ID(s)
+        parent_uuids = None
+        if condition.parent_uuids:
+            parent_uuids = condition.parent_uuids
+        elif condition.parent_uuid:
+            parent_uuids = [condition.parent_uuid]
+        
+        if parent_uuids:
+            # Filter out empty strings and unresolved placeholders
+            valid_uuids = []
+            for uuid in parent_uuids:
+                if not uuid or uuid.strip() == '':
+                    logger.warning("Parent condition has empty parent_uuid after placeholder resolution")
+                    continue
+                if '{' in uuid and '}' in uuid:
+                    logger.error(f"Unresolved placeholder in parent_uuid: {uuid}")
+                    continue
+                valid_uuids.append(uuid)
+            
+            if not valid_uuids:
                 return None
             
-            # Check for unresolved placeholder - this should have been resolved before SQL generation
-            if '{' in condition.parent_uuid and '}' in condition.parent_uuid:
-                logger.error(f"Unresolved placeholder in parent_uuid: {condition.parent_uuid}")
-                # Don't generate SQL with unresolved placeholder - it will match nothing
-                return None
+            # Add all UUIDs as parameters
+            param_names = [self._add_param(uuid) for uuid in valid_uuids]
+            param_refs = ', '.join([f'%({p})s' for p in param_names])
+            logger.debug(f"Generating parent condition SQL with uuids={valid_uuids}, operator={operator}")
             
-            param_name = self._add_param(condition.parent_uuid)
-            logger.debug(f"Generating parent condition SQL with uuid={condition.parent_uuid}, operator={operator}")
-            if operator == 'has_no_parent':
-                # Negate the condition
-                return f"n.parent_id != (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
+            if operator == 'not_has_parent':
+                # Parent is NOT one of the specified nodes
+                return f"n.parent_id NOT IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND graph_id = %(graph_id)s)"
+            elif operator == 'has_no_parent':
+                # Ignore the specified parents and just check for NULL
+                return "n.parent_id IS NULL"
+            elif operator == 'has_any_parent':
+                # Ignore the specified parents and just check for NOT NULL
+                return "n.parent_id IS NOT NULL"
             else:  # has_parent (default)
-                return f"n.parent_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)"
+                # Parent is one of the specified nodes
+                return f"n.parent_id IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND graph_id = %(graph_id)s)"
         
         # Dynamic mode: nested group filters
         if not condition.nested_group:
             # If no parent_uuid and no nested_group, handle based on operator
             if operator == 'has_no_parent':
                 return "n.parent_id IS NULL"
-            # For has_parent without specification, this is invalid - return None
+            elif operator == 'has_any_parent':
+                return "n.parent_id IS NOT NULL"
+            # For has_parent/not_has_parent without specification, this is invalid - return None
             return None
         
         # Generate SQL for the nested group that filters parent nodes
@@ -492,19 +549,155 @@ class QueryASTToSQL:
         import re
         parent_sql = re.sub(r'\bn\.', 'parent_n.', nested_sql)
         
-        if operator == 'has_no_parent':
-            # Negate: node must NOT have a parent matching the criteria
+        if operator == 'not_has_parent':
+            # Negate: node's parent must NOT match the criteria
             return f"""n.parent_id NOT IN (
                 SELECT parent_n.id FROM node parent_n
                 WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
             )"""
+        elif operator == 'has_no_parent':
+            # Node has no parent at all
+            return "n.parent_id IS NULL"
+        elif operator == 'has_any_parent':
+            # Node has any parent
+            return "n.parent_id IS NOT NULL"
         else:  # has_parent (default)
             return f"""n.parent_id IN (
                 SELECT parent_n.id FROM node parent_n
                 WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
             )"""
+    
+    def _generate_child_condition(self, condition: ChildCondition) -> Optional[str]:
+        """Generate SQL for child condition - direct children match.
+        
+        Operators:
+        - has_child: node has a child matching criteria
+        - not_has_child: node has no child matching criteria
+        - has_no_child: node has no children at all
+        - has_any_child: node has at least one child
+        """
+        operator = getattr(condition, 'operator', 'has_child')
+        
+        # Handle no-value operators
+        if operator == 'has_no_child':
+            # Node has no children
+            return "NOT EXISTS (SELECT 1 FROM node child_n WHERE child_n.parent_id = n.id AND child_n.graph_id = %(graph_id)s AND child_n.active = TRUE)"
+        elif operator == 'has_any_child':
+            # Node has at least one child
+            return "EXISTS (SELECT 1 FROM node child_n WHERE child_n.parent_id = n.id AND child_n.graph_id = %(graph_id)s AND child_n.active = TRUE)"
+        
+        # Static mode: specific child UUID(s)
+        if condition.child_uuids:
+            child_uuids = condition.child_uuids
+            
+            # Add all UUIDs as parameters
+            param_names = [self._add_param(uuid) for uuid in child_uuids]
+            param_refs = ', '.join([f'%({p})s' for p in param_names])
+            
+            if operator == 'not_has_child':
+                # Node does NOT have any of these specific children
+                return f"""NOT EXISTS (
+                    SELECT 1 FROM node child_n
+                    WHERE child_n.parent_id = n.id
+                    AND child_n.uuid IN ({param_refs})
+                    AND child_n.graph_id = %(graph_id)s
+                    AND child_n.active = TRUE
+                )"""
+            else:  # has_child (default)
+                # Node has at least one of these specific children
+                return f"""EXISTS (
+                    SELECT 1 FROM node child_n
+                    WHERE child_n.parent_id = n.id
+                    AND child_n.uuid IN ({param_refs})
+                    AND child_n.graph_id = %(graph_id)s
+                    AND child_n.active = TRUE
+                )"""
+        
+        # Dynamic mode: children matching criteria
+        if not condition.nested_group:
+            return None
+        
+        # Generate SQL for the nested group that filters child nodes
+        nested_sql = self._generate_group_sql(condition.nested_group)
+        if not nested_sql:
+            return None
+        
+        # Replace all references to 'n.' in nested SQL with 'child_n.' to refer to child node
+        import re
+        child_sql = re.sub(r'\bn\.', 'child_n.', nested_sql)
+        
+        if operator == 'not_has_child':
+            # Node has no children matching criteria
+            return f"""NOT EXISTS (
+                SELECT 1 FROM node child_n
+                WHERE child_n.parent_id = n.id
+                AND child_n.graph_id = %(graph_id)s
+                AND child_n.active = TRUE
+                AND ({child_sql})
+            )"""
+        else:  # has_child (default)
+            return f"""EXISTS (
+                SELECT 1 FROM node child_n
+                WHERE child_n.parent_id = n.id
+                AND child_n.graph_id = %(graph_id)s
+                AND child_n.active = TRUE
+                AND ({child_sql})
+            )"""
+    
+    def _generate_child_path_condition(self, condition: ChildPathCondition) -> Optional[str]:
+        """Generate SQL for child path condition - descendants match.
+        
+        Operators:
+        - has_descendant: node has a descendant matching criteria
+        - not_has_descendant: node has no descendant matching criteria
+        - has_no_descendant: node has no descendants at all
+        - has_any_descendant: node has at least one descendant
+        """
+        operator = getattr(condition, 'operator', 'has_descendant')
+        
+        # Handle no-value operators
+        if operator == 'has_no_descendant':
+            # Node has no descendants (no entries in node_path where it's the ancestor)
+            return "NOT EXISTS (SELECT 1 FROM node_path np WHERE np.ancestor_id = n.id)"
+        elif operator == 'has_any_descendant':
+            # Node has at least one descendant
+            return "EXISTS (SELECT 1 FROM node_path np WHERE np.ancestor_id = n.id)"
+        
+        if not condition.nested_group or not condition.nested_group.blocks:
+            return None
+        
+        # Get the first block in the group
+        first_block = condition.nested_group.blocks[0]
+        
+        # Handle UUID block (for specific node matching)
+        if hasattr(first_block, 'value'):
+            uuid_value = first_block.value
+            param_name = self._add_param(uuid_value)
+            
+            # Build depth condition
+            depth_condition = ""
+            if condition.max_depth is not None:
+                depth_param = self._add_param(condition.max_depth)
+                depth_condition = f" AND np.depth = %({depth_param})s"
+            
+            if operator == 'not_has_descendant':
+                return f"""NOT EXISTS (
+                    SELECT 1 FROM node_path np
+                    WHERE np.ancestor_id = n.id
+                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    {depth_condition}
+                )"""
+            else:  # has_descendant (default)
+                return f"""EXISTS (
+                    SELECT 1 FROM node_path np
+                    WHERE np.ancestor_id = n.id
+                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    {depth_condition}
+                )"""
+        
+        return None
     
     def _add_param(self, value: Any) -> str:
         """Add a parameter and return its name."""

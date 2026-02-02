@@ -89,6 +89,8 @@ class ConditionType(str, Enum):
     REFERENCE_PATH = "reference_path"
     PARENT_PATH = "parent_path"
     PARENT = "parent"
+    CHILD = "child"
+    CHILD_PATH = "child_path"
     FLAG = "flag"
 
 
@@ -213,18 +215,21 @@ class ParentPathCondition(BaseConditionNode):
     condition_type: Literal[ConditionType.PARENT_PATH] = ConditionType.PARENT_PATH
     nested_group: Optional["GroupNode"] = None
     max_depth: Optional[int] = None
+    operator: Optional[str] = None  # 'has_ancestor' | 'has_no_ancestor' | 'is_descendant_of' | 'is_not_descendant_of'
 
 
 @dataclass
 class ParentCondition(BaseConditionNode):
     """Parent condition - filter by direct parent node matching criteria."""
     condition_type: Literal[ConditionType.PARENT] = ConditionType.PARENT
-    # Static mode: specific parent
-    parent_uuid: Optional[str] = None
+    # Static mode: specific parent(s)
+    parent_uuid: Optional[str] = None  # Legacy: single parent
+    parent_uuids: Optional[List[str]] = None  # Multiple parents
     parent_id: Optional[int] = None
+    parent_ids: Optional[List[int]] = None
     # Dynamic mode: parent matching criteria
     nested_group: Optional["GroupNode"] = None
-    operator: Optional[str] = None  # 'has_parent' | 'has_no_parent'
+    operator: Optional[str] = None  # 'has_parent' | 'not_has_parent' | 'has_no_parent' | 'has_any_parent'
 
 
 @dataclass
@@ -233,6 +238,27 @@ class FlagCondition(BaseConditionNode):
     condition_type: Literal[ConditionType.FLAG] = ConditionType.FLAG
     flag_name: str = ""  # e.g., "is_page", "is_day", "is_favorite"
     value: bool = True  # True to match, False to exclude
+
+
+@dataclass
+class ChildCondition(BaseConditionNode):
+    """Child condition - filter by direct child nodes matching criteria."""
+    condition_type: Literal[ConditionType.CHILD] = ConditionType.CHILD
+    # Static mode: specific child(ren)
+    child_uuids: Optional[List[str]] = None
+    child_ids: Optional[List[int]] = None
+    # Dynamic mode: children matching criteria
+    nested_group: Optional["GroupNode"] = None
+    operator: Optional[str] = None  # 'has_child' | 'not_has_child' | 'has_no_child' | 'has_any_child'
+
+
+@dataclass
+class ChildPathCondition(BaseConditionNode):
+    """Child path condition - filter by nodes with descendants matching criteria."""
+    condition_type: Literal[ConditionType.CHILD_PATH] = ConditionType.CHILD_PATH
+    nested_group: Optional["GroupNode"] = None
+    max_depth: Optional[int] = None
+    operator: Optional[str] = None  # 'has_descendant' | 'not_has_descendant' | 'has_no_descendant' | 'has_any_descendant'
 
 
 # Union type for all conditions
@@ -244,6 +270,8 @@ ConditionNode = Union[
     ReferencePathCondition,
     ParentPathCondition,
     ParentCondition,
+    ChildCondition,
+    ChildPathCondition,
     FlagCondition,
 ]
 
@@ -426,7 +454,9 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
             nested_group = GroupNode.from_dict(data["nested_group"])
         return ParentCondition(
             parent_uuid=data.get("parent_uuid"),
+            parent_uuids=data.get("parent_uuids"),
             parent_id=data.get("parent_id"),
+            parent_ids=data.get("parent_ids"),
             operator=data.get("operator", "has_parent"),
             nested_group=nested_group,
         )
@@ -434,6 +464,25 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         return FlagCondition(
             flag_name=data.get("flag_name", ""),
             value=data.get("value", True),
+        )
+    elif condition_type == ConditionType.CHILD:
+        nested_group = None
+        if "nested_group" in data and data["nested_group"]:
+            nested_group = GroupNode.from_dict(data["nested_group"])
+        return ChildCondition(
+            child_uuids=data.get("child_uuids"),
+            child_ids=data.get("child_ids"),
+            nested_group=nested_group,
+            operator=data.get("operator", "has_child"),
+        )
+    elif condition_type == ConditionType.CHILD_PATH:
+        nested_group = None
+        if "nested_group" in data and data["nested_group"]:
+            nested_group = GroupNode.from_dict(data["nested_group"])
+        return ChildPathCondition(
+            nested_group=nested_group,
+            max_depth=data.get("max_depth"),
+            operator=data.get("operator", "has_descendant"),
         )
     else:
         # Default to content condition
