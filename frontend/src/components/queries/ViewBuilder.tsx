@@ -93,13 +93,13 @@ export function ViewBuilder({
           scope={ast.scope}
           onChange={handleScopeChange}
           readOnly={readOnly}
-        />Validation Feedback - Show errors/warnings if any */}
+        />
+      </div>
+      
+      {/* Validation Feedback - Show errors/warnings if any */}
       {!readOnly && validationResult.issues.length > 0 && (
         <ValidationFeedback validationResult={validationResult} />
       )}
-      
-      {/* 
-      </div>
       
       {/* Filters Section */}
       <div className="view-builder__filters-section">
