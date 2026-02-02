@@ -24,7 +24,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { mdiChevronDown } from '@mdi/js';
+import { mdiChevronDown, mdiPlus } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { DeleteIcon } from '../icons';
@@ -619,6 +619,32 @@ export function QueryBlockList({
             </div>
           ))}
         </>
+      )}
+
+      {/* Inline add button for nested lists - always visible but subtle */}
+      {!readOnly && !showAddButton && (
+        <div className="query-block-list__inline-add">
+          <ButtonWithPanel
+            buttonText=""
+            variant="ghost"
+            size="sm"
+            panelPosition="bottom"
+            panelAlignment="start"
+            panelWidth={280}
+            panelMaxHeight={400}
+            closeOnClickOutside={true}
+            closeOnEscape={true}
+            showCloseButton={false}
+            usePortal={true}
+            buttonProps={{
+              icon: mdiPlus,
+              iconOnly: true,
+            }}
+            panelClassName="query-block-list__add-menu-panel"
+          >
+            {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
+          </ButtonWithPanel>
+        </div>
       )}
 
       {/* Add filter button */}

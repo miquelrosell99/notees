@@ -145,6 +145,27 @@
   position: relative;
 }
 
+/* Inline add button for nested lists */
+.query-block-list__inline-add {
+  display: inline-flex;
+  align-items: center;
+  padding-left: var(--spacing-1);
+}
+
+.query-block-list__inline-add button {
+  opacity: 0.3;
+  transition: opacity var(--motion-duration-short);
+}
+
+.query-block-list__inline-add:hover button,
+.query-block-list__inline-add button:focus {
+  opacity: 0.7;
+}
+
+.query-block-list__inline-add button:hover {
+  opacity: 1 !important;
+}
+
 /* Add menu */
 .query-block-list__add-menu {
   position: relative;
