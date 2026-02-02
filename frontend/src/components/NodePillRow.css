@@ -1,6 +1,6 @@
 .node-pill-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
   align-items: center;
   gap: var(--spacing-1);
   min-height: 28px;
