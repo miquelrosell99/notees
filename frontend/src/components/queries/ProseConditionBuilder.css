@@ -1,139 +1,11 @@
 /**
  * ProseConditionBuilder Styles
  * 
- * Minimal styling matching the app's design language.
+ * Styles for condition rendering within QueryBlockCard.
+ * Card layout is now handled by QueryBlockCard.css
  */
 
-.prose-condition-builder {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.prose-condition-builder__empty {
-  font-size: 0.9375rem;
-  color: var(--color-on-surface-variant);
-  font-style: italic;
-  margin: 0;
-  padding: var(--spacing-4) 0;
-}
-
-.prose-condition-builder__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
-
-.prose-condition-builder__nested {
-  padding-left: var(--spacing-4);
-  margin-left: var(--spacing-2);
-  border-left: 2px solid var(--color-outline-variant);
-  margin-top: var(--spacing-2);
-}
-
-.prose-condition-builder__add {
-  align-self: flex-start;
-  margin-top: var(--spacing-2);
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.875rem;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-}
-
-.prose-condition-builder__add:hover {
-  color: var(--color-on-surface);
-}
-
-.prose-condition-builder__add-dropdown {
-  align-self: flex-start;
-  margin-top: var(--spacing-2);
-  font-size: 0.875rem;
-}
-
-/* ==================== Condition Card Layout ==================== */
-
-.prose-condition-card {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  min-height: calc(36px + 12px); /* Selection button height (36px) + top/bottom margins (6px each) */
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--color-surface);
-  overflow: visible;
-  margin-bottom: var(--spacing-2);
-}
-
-.prose-condition-card--system {
-  background: var(--color-surface-variant);
-  border-color: var(--color-outline);
-}
-
-/* Content (expands to fill available space) */
-.prose-condition-card__content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  padding: var(--spacing-2) var(--spacing-3);
-  min-width: 0;
-}
-
-/* Corner button - top right corner, appears on hover */
-.prose-condition-card__corner-button {
-  position: absolute !important;
-  top: -6px;
-  right: -6px;
-  opacity: 0;
-  transition: opacity var(--motion-duration-short), transform var(--motion-duration-short);
-  z-index: 2;
-}
-
-.prose-condition-card__corner-button:hover {
-  transform: scale(1.05);
-  opacity: 1 !important;
-}
-
-.prose-condition-card:hover .prose-condition-card__corner-button {
-  opacity: 0.7;
-}
-
-/* System lock icon - always visible, less prominent */
-.prose-condition-card__corner-button--system {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: var(--color-surface-variant);
-  color: var(--color-on-surface-variant);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 50%;
-  opacity: 0.5;
-  cursor: default;
-}
-
-/* ==================== Legacy Prose Condition (keep for nested conditions) ==================== */
-
-.prose-condition {
-  position: relative;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--color-on-surface);
-}
-
-.prose-condition--system {
-  color: var(--color-on-surface-variant);
-}
-
-.prose-condition__connector {
-  color: var(--color-on-surface-variant);
-  font-size: 0.875rem;
-  font-style: italic;
-  font-weight: 500;
-  min-width: 32px;
-}
+/* ==================== Inline Condition Layout ==================== */
 
 .prose-condition__inline {
   display: flex;
@@ -150,13 +22,7 @@
   text-transform: uppercase;
 }
 
-.prose-condition__value {
-  font-family: var(--font-family-mono);
-  font-size: 0.8125rem;
-  background: var(--color-surface-variant);
-  padding: 2px 6px;
-  border-radius: var(--shape-extra-small);
-}
+/* ==================== Input Styling ==================== */
 
 .prose-condition__input {
   min-width: 100px;
@@ -179,7 +45,8 @@
   }
 }
 
-/* Selection button (Static/Dynamic) vertically centered with margins */
+/* ==================== Selection Button (Static/Current/Dynamic) ==================== */
+
 .prose-condition__selection-button {
   position: absolute;
   top: 6px;
@@ -192,26 +59,12 @@
   transition: opacity var(--motion-duration-medium);
 }
 
-.prose-condition-card:hover .prose-condition__selection-button {
+.query-block-card:hover .prose-condition__selection-button {
   opacity: 1;
 }
 
-.prose-condition__delete {
-  margin-left: auto;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  flex-shrink: 0;
-}
+/* ==================== Nested Group Display ==================== */
 
-.prose-condition:hover .prose-condition__delete {
-  opacity: 0.6;
-}
-
-.prose-condition__delete:hover {
-  opacity: 1 !important;
-}
-
-/* Nested query blocks for dynamic mode */
 .prose-condition__nested {
   display: flex;
   flex-direction: column;
@@ -231,7 +84,8 @@
   font-size: 0.875rem;
 }
 
-/* Current Node indicator */
+/* ==================== Current Node Indicator ==================== */
+
 .prose-condition__current-node {
   display: inline-flex;
   align-items: center;

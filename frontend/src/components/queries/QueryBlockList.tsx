@@ -20,8 +20,6 @@ type QueryBlock = ConditionNode | GroupNode | ASTNotNode;
 interface QueryBlockListProps {
   /** Array of blocks to render */
   blocks: QueryBlock[];
-  /** Parent group logic (AND/OR) - affects prose rendering */
-  parentLogic?: 'AND' | 'OR';
   /** Callback when blocks array changes */
   onChange: (blocks: QueryBlock[]) => void;
   /** Whether this list is read-only */
@@ -69,7 +67,6 @@ function BlockItem({
 
 export function QueryBlockList({
   blocks,
-  parentLogic = 'AND',
   onChange,
   readOnly = false,
   showAddButton = true,
@@ -108,7 +105,7 @@ export function QueryBlockList({
       type: 'condition',
       condition_type: 'class',
       class_uuid: '',
-      operator: 'static',
+      operator: 'is',
     };
     onChange([...blocks, newCondition]);
   }, [blocks, onChange]);
@@ -217,16 +214,7 @@ export function QueryBlockList({
     
   }, [blocks, onChange]);
 
-  const handleAddFlag = useCallback(() => {
-    const newCondition: ConditionNode = {
-      type: 'condition',
-      condition_type: 'flag',
-      flag_name: 'is_page',
-      operator: 'is_true',
-    };
-    onChange([...blocks, newCondition]);
-    
-  }, [blocks, onChange]);
+
 
   // Build menu categories
   const menuCategories: FilterMenuCategory[] = [
@@ -318,12 +306,6 @@ export function QueryBlockList({
       title: 'Advanced',
       icon: '',
       items: [
-        {
-          id: 'flag',
-          label: 'Flag',
-          description: 'Filter by node flags (is_page, is_day, etc.)',
-          onClick: handleAddFlag,
-        },
         {
           id: 'group',
           label: 'AND/OR/NOT',
