@@ -2,6 +2,11 @@
  * Query Preview Modal Styles
  */
 
+/* Override modal constraints for query preview */
+.query-preview-modal {
+  max-height: none !important;
+}
+
 .query-preview {
   display: flex;
   flex-direction: column;

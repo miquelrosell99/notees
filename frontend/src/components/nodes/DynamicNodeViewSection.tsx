@@ -779,6 +779,7 @@ export function DynamicNodeViewSection({
           onClose={() => setShowProseModal(false)}
           title="Query Preview"
           size="xl"
+          className="query-preview-modal"
         >
           {editAST && (
             <div className="query-preview">
@@ -1126,6 +1127,7 @@ export function DynamicNodeViewSection({
         onClose={() => setShowProseModal(false)}
         title="Query Preview"
         size="xl"
+        className="query-preview-modal"
       >
         {editAST && (
           <div className="query-preview">
