@@ -850,13 +850,15 @@ class NodeService:
         async with self._pool.acquire() as conn:
             # Remove from property_value_relation where this node is the target
             # This handles NODE-type properties that reference this node
-            deleted_count = await conn.fetchval("""
+            result = await conn.execute("""
                 DELETE FROM property_value_relation 
                 WHERE target_id = $1
-                RETURNING COUNT(*)
             """, node_id)
             
-            if deleted_count and deleted_count > 0:
+            # Extract the number of deleted rows from the result string (e.g., "DELETE 3")
+            deleted_count = int(result.split()[-1]) if result and result.split()[-1].isdigit() else 0
+            
+            if deleted_count > 0:
                 logger.info(f"[DELETE] Removed node {node_id} from {deleted_count} property value relations")
             
             # Note: Scalar and selection values don't reference other nodes directly,
