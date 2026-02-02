@@ -235,14 +235,22 @@ export function DynamicNodeViewSection({
     if (isSystemView) return 0;
     
     try {
-      const ast = activeView.query_ast;
+      let ast = activeView.query_ast;
       // Hide badge for system queries
       if (ast.is_system) return 0;
+      
+      // Apply auto-fix to ensure system conditions have proper capabilities marked
+      // This is needed because backend doesn't preserve capabilities
+      ast = autoFixSystemQuery(ast, viewType, {
+        nodeUuid: nodeUuid,
+        parentUuid: nodeUuid,
+      });
+      
       return countConditions(ast);
     } catch {
       return 0;
     }
-  }, [activeView?.query_ast, activeView?.is_default, activeView?.view_type]);
+  }, [activeView?.query_ast, activeView?.is_default, activeView?.view_type, viewType, nodeUuid]);
 
   // Create SelectionButton options from views
   const viewOptions = useMemo(() => {

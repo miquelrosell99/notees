@@ -59,12 +59,13 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       });
     },
     hasRequiredCondition: (ast, context) => {
+      // Don't require isSystemNode check - capabilities may be lost after backend round-trip
+      // The marking logic will re-apply capabilities to matching conditions
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
           isReferenceCondition(child) &&
-          child.target_uuid === context.nodeUuid &&
-          isSystemNode(child)
+          child.target_uuid === context.nodeUuid
       );
     },
   },
@@ -113,12 +114,13 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       });
     },
     hasRequiredCondition: (ast, context) => {
+      // Don't require isSystemNode check - capabilities may be lost after backend round-trip
+      // The marking logic will re-apply capabilities to matching conditions
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
           isClassCondition(child) &&
-          (child.class_uuid === context.nodeUuid || child.class_uuid === '{current_node_uuid}') &&
-          isSystemNode(child)
+          (child.class_uuid === context.nodeUuid || child.class_uuid === '{current_node_uuid}')
       );
     },
   },
