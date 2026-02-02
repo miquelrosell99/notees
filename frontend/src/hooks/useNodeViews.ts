@@ -11,6 +11,7 @@ import {
   createNodeView,
   updateNodeView,
   updateQueryBlockTree,
+  updateQueryAST,
   deleteNodeView,
   reorderNodeViews,
   executeNodeViewQuery,
@@ -256,6 +257,26 @@ export function useUpdateQueryBlockTree() {
   return useMutation({
     mutationFn: ({ viewId, blockTree }: { viewId: number; blockTree: QueryBlockTree }) =>
       updateQueryBlockTree(viewId, blockTree),
+    onSuccess: (updatedView) => {
+      // Update the cache for this view
+      queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
+      // Invalidate query results since the query changed
+      queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.queryResult(updatedView.id),
+      });
+    },
+  });
+}
+
+/**
+ * Update query AST for a NodeView (preferred)
+ */
+export function useUpdateQueryAST() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ viewId, queryAST }: { viewId: number; queryAST: Record<string, any> }) =>
+      updateQueryAST(viewId, queryAST),
     onSuccess: (updatedView) => {
       // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
