@@ -7,13 +7,12 @@
 
 import { useCallback } from 'react';
 import { QueryBlockList } from './QueryBlockList';
+import { QueryBlockCard } from './QueryBlockCard';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
-import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
-import { DeleteIcon } from '../icons';
-import { isSystemNode, isNodeRemovable, isNodeEditable } from '@/types/queryAST';
+import { isNodeRemovable, isNodeEditable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode, LogicType } from '@/types/queryAST';
-import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline, mdiClose } from '@mdi/js';
+import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline } from '@mdi/js';
 import './QueryBlockBuilder.css';
 
 // ==================== Types ====================
@@ -53,28 +52,6 @@ export function QueryBlockBuilder({
     }
   }, [block, onChange]);
   
-  // Handle group logic change (including NOT which wraps the group)
-  const handleLogicChange = useCallback((newLogic: string) => {
-    if (block.type === 'group') {
-      const groupBlock = block as GroupNode;
-      
-      if (newLogic === 'NOT') {
-        // Wrap the current group in a NOT node
-        const notNode: ASTNotNode = {
-          type: 'not',
-          child: groupBlock,
-        };
-        onChange(notNode);
-      } else {
-        // Just change the logic type
-        onChange({
-          ...groupBlock,
-          logic: newLogic as LogicType,
-        });
-      }
-    }
-  }, [block, onChange]);
-  
   // Handle NOT child change
   const handleNotChildChange = useCallback((child: ConditionNode | GroupNode | ASTNotNode) => {
     if (block.type === 'not') {
@@ -85,32 +62,16 @@ export function QueryBlockBuilder({
     }
   }, [block, onChange]);
   
-  // Handle logic change for NOT blocks (unwrap to group)
-  const handleNotLogicChange = useCallback((newLogic: string) => {
-    if (block.type === 'not') {
-      const notBlock = block as ASTNotNode;
-      if (notBlock.child.type === 'group' && newLogic !== 'NOT') {
-        // Unwrap the NOT and change to the selected logic
-        const innerGroup = notBlock.child as GroupNode;
-        onChange({
-          ...innerGroup,
-          logic: newLogic as LogicType,
-        });
-      }
-    }
-  }, [block, onChange]);
-  
   // Handle nested group changes (for conditions with nested groups)
   const handleNestedChange = useCallback((children: Array<ConditionNode | GroupNode | ASTNotNode>) => {
-    if ('nested_group' in block) {
-      const typedCondition = block as any;
+    if (block.type === 'condition' && 'nested_group' in block && block.nested_group) {
       onChange({
-        ...typedCondition,
+        ...block,
         nested_group: {
-          ...typedCondition.nested_group,
+          ...block.nested_group,
           children,
         },
-      } as ConditionNode);
+      });
     }
   }, [block, onChange]);
   
@@ -128,23 +89,13 @@ export function QueryBlockBuilder({
       const notBlockFallback = block as ASTNotNode;
       return (
         <>
-          <div className="prose-condition-card">
-            <div className="prose-condition-card__content">
-              <span className="prose-condition-card__label">NOT</span>
-            </div>
-            
-            {canRemove && !readOnly && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={onRemove}
-                title="Remove NOT"
-                className="prose-condition-card__corner-button"
-                icon={mdiClose}
-                iconOnly
-              />
-            )}
-          </div>
+          <QueryBlockCard
+            canRemove={canRemove}
+            readOnly={readOnly}
+            onRemove={onRemove}
+          >
+            <span className="query-block-card__label">NOT</span>
+          </QueryBlockCard>
           
           <div className="query-block-builder__nested-body">
             <QueryBlockBuilder
@@ -206,46 +157,34 @@ export function QueryBlockBuilder({
       }
     };
     
+    // Action button for logic selection
+    const logicActionButton = !isReadOnly ? (
+      <SelectionButton
+        options={logicOptions}
+        value={currentLogic}
+        onChange={handleUnifiedLogicChange}
+        size="sm"
+        disabled={readOnly}
+      />
+    ) : undefined;
+    
     return (
       <>
-        {/* Unified header for AND/OR/NOT */}
-        <div className="prose-condition-card">
-          <div className="prose-condition-card__content">
-            <span className="prose-condition-card__label">{currentLogic}</span>
-          </div>
-          
-          {/* SelectionButton on the right */}
-          {!isReadOnly && (
-            <SelectionButton
-              className="prose-condition__selection-button"
-              options={logicOptions}
-              value={currentLogic}
-              onChange={handleUnifiedLogicChange}
-              size="sm"
-              disabled={readOnly}
-            />
-          )}
-          
-          {/* Delete button in corner */}
-          {canRemove && !readOnly && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={onRemove}
-              title={`Remove ${currentLogic}`}
-              className="prose-condition-card__corner-button"
-              icon={mdiClose}
-              iconOnly
-            />
-          )}
-        </div>
+        {/* Unified header for AND/OR/NOT using QueryBlockCard */}
+        <QueryBlockCard
+          canRemove={canRemove}
+          readOnly={readOnly}
+          onRemove={onRemove}
+          actionButton={logicActionButton}
+        >
+          <span className="query-block-card__label">{currentLogic}</span>
+        </QueryBlockCard>
         
         {/* Children rendered below with vertical line */}
         {groupBlock.children.length > 0 && (
           <div className="query-block-builder__nested-body">
             <QueryBlockList
               blocks={groupBlock.children}
-              parentLogic={groupBlock.logic}
               onChange={handleUnifiedChildrenChange}
               readOnly={isReadOnly}
               showAddButton={true}
@@ -258,7 +197,6 @@ export function QueryBlockBuilder({
           <div className="query-block-builder__nested-body">
             <QueryBlockList
               blocks={[]}
-              parentLogic={groupBlock.logic}
               onChange={handleUnifiedChildrenChange}
               readOnly={isReadOnly}
               showAddButton={true}
@@ -312,11 +250,10 @@ export function QueryBlockBuilder({
         </div>
         
         {/* Nested group */}
-        {condition.nested_group && (
+        {'nested_group' in condition && condition.nested_group && (
           <div className="query-block-builder__nested-body">
             <QueryBlockList
               blocks={condition.nested_group.children}
-              parentLogic={condition.nested_group.logic}
               onChange={handleNestedChange}
               readOnly={isReadOnly}
               showAddButton={false}
