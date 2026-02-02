@@ -104,10 +104,10 @@ class QueryASTToSQL:
             # Filter to current page or its descendants
             if scope.include_descendants:
                 # Get all nodes under current page
-                return f"(n.page_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s AND graph_id = %(graph_id)s))"
+                return f"(n.page_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s::uuid AND graph_id = %(graph_id)s))"
             else:
                 # Only the current page itself
-                return f"(n.uuid = %(current_uuid)s)"
+                return f"(n.uuid = %(current_uuid)s::uuid)"
         
         elif scope.scope_type == ScopeType.SPECIFIC_PAGES:
             if not scope.page_uuids:
@@ -130,7 +130,7 @@ class QueryASTToSQL:
             # Nodes that link to current node
             return """(n.id IN (
                 SELECT source_id FROM node_link
-                WHERE target_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s AND graph_id = %(graph_id)s)
+                WHERE target_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s::uuid AND graph_id = %(graph_id)s)
                 AND graph_id = %(graph_id)s
             ))"""
         
