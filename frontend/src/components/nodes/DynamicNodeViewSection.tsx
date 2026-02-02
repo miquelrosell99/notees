@@ -71,8 +71,8 @@ export interface DynamicNodeViewSectionProps {
   onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
-  /** When true, renders without the NodeViewSection wrapper - just controls and content inline */
-  headless?: boolean;
+  /** When true, returns {controls, results} instead of JSX for custom layout */
+  split?: boolean;
 }
 
 // ==================== Main Component ====================
@@ -89,7 +89,8 @@ export function DynamicNodeViewSection({
   onBlockCreated,
   className = '',
   headless = false,
-}: DynamicNodeViewSectionProps): React.JSX.Element | null {
+  split = false,
+}: DynamicNodeViewSectionProps): React.JSX.Element | { controls: React.ReactNode; results: React.ReactNode } | null {
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
@@ -633,8 +634,16 @@ export function DynamicNodeViewSection({
     />
   );
 
+  // Split mode: return controls and results separately for custom layout
+  if (split) {
+    return {
+      controls: headerActions,
+      results: content,
+    };
+  }
+
   // Headless mode: render just controls and content without section wrapper
-  if (headless) {
+  if (false) {
     return (
       <>
         <div className={`dynamic-node-view-section--headless ${className}`}>
