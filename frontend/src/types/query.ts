@@ -9,6 +9,9 @@
  * Used by NodeViews to define dynamic queries for node collections.
  */
 
+// Import and re-export operator types from queryAST (canonical location)
+export type { PropertyOperator, ContentOperator, PropertyType } from './queryAST';
+
 // ==================== Query Block Types ====================
 
 /**
@@ -29,47 +32,6 @@ export type QueryBlockType =
   | 'CHILD_PATH'
   | 'CLASS_PATH'
   | 'UUID';
-
-/**
- * Operators for property conditions
- */
-export type PropertyOperator =
-  | '='
-  | '!='
-  | '>'
-  | '>='
-  | '<'
-  | '<='
-  | 'contains'
-  | 'starts_with'
-  | 'ends_with'
-  | 'is_empty'
-  | 'is_not_empty'
-  | 'in'
-  | 'not_in';
-
-/**
- * Operators for content/text search conditions
- */
-export type ContentOperator =
-  | 'contains'
-  | '='
-  | 'starts_with'
-  | 'ends_with'
-  | 'matches_regex'
-  | 'fts';
-
-/**
- * Property types for property filter blocks
- */
-export type PropertyType =
-  | 'text'
-  | 'integer'
-  | 'float'
-  | 'boolean'
-  | 'selection'
-  | 'node'
-  | 'date';
 
 // ==================== Block Interfaces ====================
 

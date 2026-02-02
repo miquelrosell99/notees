@@ -86,7 +86,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
               condition_type: 'property',
               property_name: 'uuid',
               property_type: 'text',
-              operator: '=',
+              operator: 'equals',
               value: '{current_node_uuid}',
             },
           ],

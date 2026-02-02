@@ -121,7 +121,7 @@ export function createDefaultBlock(type: QueryBlockType): QueryBlock {
         type,
         property_name: '',
         property_type: 'text',
-        operator: '=',
+        operator: 'equals',
         value: '',
       };
     case 'CONTENT':
