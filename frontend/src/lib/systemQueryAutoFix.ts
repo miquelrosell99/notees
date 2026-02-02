@@ -164,7 +164,7 @@ export function autoFixSystemQuery(
   
   const correctScope: ScopeNode = {
     type: 'scope',
-    scope_type: defaultScopes[viewType] || 'all',
+    scope_type: defaultScopes[viewType] || 'entire_graph',
   };
   
   // Check if required condition already exists

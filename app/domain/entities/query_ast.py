@@ -65,8 +65,12 @@ class ScopeNode:
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> ScopeNode:
         """Create from dictionary."""
+        scope_type_value = data.get("scope_type", "entire_graph")
+        # Migration: replace legacy 'all' with 'entire_graph'
+        if scope_type_value == "all":
+            scope_type_value = "entire_graph"
         return ScopeNode(
-            scope_type=ScopeType(data.get("scope_type", "entire_graph")),
+            scope_type=ScopeType(scope_type_value),
             include_descendants=data.get("include_descendants"),
             excluded_page_uuids=data.get("excluded_page_uuids"),
         )

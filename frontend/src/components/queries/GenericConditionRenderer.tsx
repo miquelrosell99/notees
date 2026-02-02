@@ -62,6 +62,9 @@ export function GenericConditionRenderer({
       return (condition as any).target_uuid === '{current_node_uuid}';
     } else if (condition.condition_type === 'property') {
       return (condition as any).value === '{current_node_uuid}';
+    } else if (condition.condition_type === 'class' || (condition as any).condition_type === 'type') {
+      // Check both type_uuid (backend) and class_uuid (frontend)
+      return (condition as any).class_uuid === '{current_node_uuid}' || (condition as any).type_uuid === '{current_node_uuid}';
     }
     return false;
   })();
@@ -90,6 +93,9 @@ export function GenericConditionRenderer({
         return (condition as any).target_uuid === '{current_node_uuid}';
       } else if (condition.condition_type === 'property') {
         return (condition as any).value === '{current_node_uuid}';
+      } else if (condition.condition_type === 'class' || (condition as any).condition_type === 'type') {
+        // Check both type_uuid (backend) and class_uuid (frontend)
+        return (condition as any).class_uuid === '{current_node_uuid}' || (condition as any).type_uuid === '{current_node_uuid}';
       }
       return false;
     })();
@@ -143,6 +149,11 @@ export function GenericConditionRenderer({
         delete (updated as any).target_id;
       } else if (condition.condition_type === 'property') {
         (updated as any).value = '{current_node_uuid}';
+      } else if (condition.condition_type === 'class' || (condition as any).condition_type === 'type') {
+        (updated as any).class_uuid = '{current_node_uuid}';
+        (updated as any).type_uuid = '{current_node_uuid}';  // Set both for compatibility
+        delete (updated as any).class_id;
+        delete (updated as any).type_id;
       }
       
       onUpdate(updated as any);
