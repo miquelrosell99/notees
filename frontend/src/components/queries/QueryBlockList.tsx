@@ -412,8 +412,8 @@ export function QueryBlockList({
         },
         {
           id: 'group',
-          label: 'Group (AND/OR)',
-          description: 'Add a logic group',
+          label: 'AND/OR/NOT',
+          description: 'Add a logic group (AND/OR/NOT)',
           onClick: handleAddGroup,
         },
       ],

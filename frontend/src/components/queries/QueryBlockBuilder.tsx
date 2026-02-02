@@ -9,9 +9,11 @@ import { useCallback } from 'react';
 import { QueryBlockList } from './QueryBlockList';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { Button } from '../core/Button';
+import { SelectionButton } from '../core/SelectionButton';
 import { DeleteIcon } from '../icons';
 import { isSystemNode, isNodeRemovable, isNodeEditable } from '@/types/queryAST';
-import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
+import type { GroupNode, ConditionNode, NotNode as ASTNotNode, LogicType } from '@/types/queryAST';
+import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline } from '@mdi/js';
 import './QueryBlockBuilder.css';
 
 // ==================== Types ====================
@@ -51,6 +53,28 @@ export function QueryBlockBuilder({
     }
   }, [block, onChange]);
   
+  // Handle group logic change (including NOT which wraps the group)
+  const handleLogicChange = useCallback((newLogic: string) => {
+    if (block.type === 'group') {
+      const groupBlock = block as GroupNode;
+      
+      if (newLogic === 'NOT') {
+        // Wrap the current group in a NOT node
+        const notNode: ASTNotNode = {
+          type: 'not',
+          child: groupBlock,
+        };
+        onChange(notNode);
+      } else {
+        // Just change the logic type
+        onChange({
+          ...groupBlock,
+          logic: newLogic as LogicType,
+        });
+      }
+    }
+  }, [block, onChange]);
+  
   // Handle NOT child change
   const handleNotChildChange = useCallback((child: ConditionNode | GroupNode | ASTNotNode) => {
     if (block.type === 'not') {
@@ -58,6 +82,21 @@ export function QueryBlockBuilder({
         ...block,
         child,
       });
+    }
+  }, [block, onChange]);
+  
+  // Handle logic change for NOT blocks (unwrap to group)
+  const handleNotLogicChange = useCallback((newLogic: string) => {
+    if (block.type === 'not') {
+      const notBlock = block as ASTNotNode;
+      if (notBlock.child.type === 'group' && newLogic !== 'NOT') {
+        // Unwrap the NOT and change to the selected logic
+        const innerGroup = notBlock.child as GroupNode;
+        onChange({
+          ...innerGroup,
+          logic: newLogic as LogicType,
+        });
+      }
     }
   }, [block, onChange]);
   
@@ -78,11 +117,27 @@ export function QueryBlockBuilder({
   // Render based on block type
   if (block.type === 'group') {
     const groupBlock = block as GroupNode;
+    
+    const logicOptions = [
+      { value: 'AND', icon: mdiSetAll, label: 'All conditions must match (AND)' },
+      { value: 'OR', icon: mdiSetNone, label: 'Any condition can match (OR)' },
+      { value: 'NOT', icon: mdiCloseCircleOutline, label: 'Exclude matches (NOT)' },
+    ];
+    
     return (
       <div className="query-block-builder query-block-builder--group">
         <div className="query-block-builder__header">
+          {!isReadOnly && (
+            <SelectionButton
+              options={logicOptions}
+              value={groupBlock.logic}
+              onChange={handleLogicChange}
+              size="sm"
+              disabled={readOnly}
+            />
+          )}
           <span className="query-block-builder__label">
-            {groupBlock.logic} Group
+            {groupBlock.logic}
           </span>
           {canRemove && !readOnly && (
             <Button
@@ -112,9 +167,26 @@ export function QueryBlockBuilder({
   
   if (block.type === 'not') {
     const notBlock = block as ASTNotNode;
+    const isGroupChild = notBlock.child.type === 'group';
+    
+    const logicOptions = [
+      { value: 'AND', icon: mdiSetAll, label: 'All conditions must match (AND)' },
+      { value: 'OR', icon: mdiSetNone, label: 'Any condition can match (OR)' },
+      { value: 'NOT', icon: mdiCloseCircleOutline, label: 'Exclude matches (NOT)' },
+    ];
+    
     return (
       <div className="query-block-builder query-block-builder--not">
         <div className="query-block-builder__header">
+          {!isReadOnly && isGroupChild && (
+            <SelectionButton
+              options={logicOptions}
+              value="NOT"
+              onChange={handleNotLogicChange}
+              size="sm"
+              disabled={readOnly}
+            />
+          )}
           <span className="query-block-builder__label">NOT</span>
           {canRemove && !readOnly && (
             <Button
@@ -129,12 +201,26 @@ export function QueryBlockBuilder({
         </div>
         
         <div className="query-block-builder__body">
-          <QueryBlockBuilder
-            block={notBlock.child}
-            onChange={handleNotChildChange}
-            onRemove={() => {}}
-            readOnly={isReadOnly}
-          />
+          {isGroupChild ? (
+            <QueryBlockList
+              blocks={(notBlock.child as GroupNode).children}
+              parentLogic={(notBlock.child as GroupNode).logic}
+              onChange={(children) => handleNotChildChange({
+                ...(notBlock.child as GroupNode),
+                children,
+              })}
+              readOnly={isReadOnly}
+              showAddButton={false}
+              showEmptyMessage={false}
+            />
+          ) : (
+            <QueryBlockBuilder
+              block={notBlock.child}
+              onChange={handleNotChildChange}
+              onRemove={() => {}}
+              readOnly={isReadOnly}
+            />
+          )}
         </div>
       </div>
     );

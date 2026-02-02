@@ -458,19 +458,26 @@ export function isEmptyQuery(ast: QueryAST): boolean {
 }
 
 /**
- * Count total number of conditions in a query
+ * Count total number of user (non-system) conditions in a query.
+ * System conditions (marked with locked capabilities) are excluded from the count.
  */
 export function countConditions(ast: QueryAST): number {
   function countInGroup(group: GroupNode): number {
     let count = 0;
     for (const child of group.children) {
       if (child.type === 'condition') {
-        count++;
+        // Only count non-system conditions
+        if (!isSystemNode(child)) {
+          count++;
+        }
       } else if (child.type === 'group') {
         count += countInGroup(child);
       } else if (child.type === 'not') {
         if (child.child.type === 'condition') {
-          count++;
+          // Only count non-system conditions
+          if (!isSystemNode(child.child)) {
+            count++;
+          }
         } else {
           count += countInGroup(child.child);
         }
