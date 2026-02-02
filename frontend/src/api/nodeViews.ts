@@ -169,7 +169,7 @@ export async function countQueryResults(
 export async function getNodeViewsByType(
   nodeId: number
 ): Promise<Record<string, NodeView[]>> {
-  const views = await listNodeViews(nodeId);
+  const views = await listNodeViews(nodeId, { include_query_ast: true });
   
   const grouped: Record<string, NodeView[]> = {};
   for (const view of views) {
