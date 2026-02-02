@@ -13,7 +13,6 @@ export type DragItemType =
   | 'block'            // Document blocks (hierarchical tree)
   | 'card'             // Node cards in card view
   | 'list-item'        // Node list items
-  | 'query-block'      // Query builder blocks
   | 'sidebar-item'     // Sidebar favorites/recent
   | 'property-column'  // Table column reordering
   | 'graph-node'       // Graph view nodes (may not use @dnd-kit)
@@ -61,18 +60,6 @@ export interface NodeDragData extends DragData {
     nodeId: number;
     nodeName: string;
     isPage: boolean;
-  };
-}
-
-/**
- * Data for dragging query blocks
- */
-export interface QueryBlockDragData extends DragData {
-  type: 'query-block';
-  id: string;
-  payload: {
-    blockIndex: number;
-    blockType: 'condition' | 'group' | 'not';
   };
 }
 

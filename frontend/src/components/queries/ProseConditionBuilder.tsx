@@ -87,11 +87,6 @@ function ProseConditionRow({
   
   return (
     <div className={`prose-condition-card ${isSystem ? 'prose-condition-card--system' : ''}`}>
-      {/* Drag Handle */}
-      <div className="prose-condition-card__drag">
-        <span className="prose-condition-card__drag-handle">⋮⋮</span>
-      </div>
-      
       {/* Condition content - type, operator, and target */}
       <div className="prose-condition-card__content">
         <GenericConditionRenderer

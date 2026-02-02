@@ -539,13 +539,6 @@ export function isNodeRemovable(node: ConditionNode | GroupNode | NotNode): bool
 }
 
 /**
- * Check if a node is movable
- */
-export function isNodeMovable(node: ConditionNode | GroupNode | NotNode): boolean {
-  return node.capabilities?.movable ?? true;
-}
-
-/**
  * Mark a node as a system node (locked)
  */
 export function markAsSystemNode<T extends ConditionNode | GroupNode | NotNode>(node: T): T {
