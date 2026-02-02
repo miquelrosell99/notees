@@ -363,6 +363,7 @@ export function GenericConditionRenderer({
           parentLogic={nestedGroup.logic}
           onChange={handleNestedGroupChange}
           readOnly={readOnly}
+          showEmptyMessage={false}
         />
       </div>
     );

@@ -51,6 +51,22 @@
   background-color: var(--bg-active);
 }
 
+/* Keyboard selection highlight - same as hover */
+.btn-panel__content[data-selected-index="0"] .add-filter-menu__item[data-index="0"],
+.btn-panel__content[data-selected-index="1"] .add-filter-menu__item[data-index="1"],
+.btn-panel__content[data-selected-index="2"] .add-filter-menu__item[data-index="2"],
+.btn-panel__content[data-selected-index="3"] .add-filter-menu__item[data-index="3"],
+.btn-panel__content[data-selected-index="4"] .add-filter-menu__item[data-index="4"],
+.btn-panel__content[data-selected-index="5"] .add-filter-menu__item[data-index="5"],
+.btn-panel__content[data-selected-index="6"] .add-filter-menu__item[data-index="6"],
+.btn-panel__content[data-selected-index="7"] .add-filter-menu__item[data-index="7"],
+.btn-panel__content[data-selected-index="8"] .add-filter-menu__item[data-index="8"],
+.btn-panel__content[data-selected-index="9"] .add-filter-menu__item[data-index="9"],
+.btn-panel__content[data-selected-index="10"] .add-filter-menu__item[data-index="10"],
+.btn-panel__content[data-selected-index="11"] .add-filter-menu__item[data-index="11"] {
+  background-color: var(--bg-hover);
+}
+
 .add-filter-menu__divider {
   height: 1px;
   background-color: var(--border-light);
