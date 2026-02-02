@@ -69,44 +69,31 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
     },
   },
   
-  // Child Pages section - requires parent condition with UUID filter
+  // Child Pages section - requires parent condition with current node UUID
   {
     viewType: 'child_pages',
     requiresCondition: (_ast, context) => {
-      // Always use placeholder - don't need context check since placeholder resolves at runtime
+      // Use the new static mode with placeholder
       return markAsSystemNode({
         type: 'condition',
         condition_type: 'parent',
-        nested_group: {
-          type: 'group',
-          logic: 'AND',
-          children: [
-            {
-              type: 'condition',
-              condition_type: 'property',
-              property_name: 'uuid',
-              property_type: 'text',
-              operator: 'equals',
-              value: '{current_node_uuid}',
-            },
-          ],
-        },
+        parent_uuid: '{current_node_uuid}',
+        operator: 'has_parent',
       });
     },
     hasRequiredCondition: (ast, context) => {
       return ast.root_group.children.some(
         (child) => {
-          if (child.type !== 'condition' || !isSystemNode(child)) return false;
-          const parentCond = child as any;
+          if (child.type !== 'condition') return false;
+          const parentCond = child as ParentCondition;
           if (parentCond.condition_type !== 'parent') return false;
-          // Check if nested group has UUID condition matching context
-          const nestedChildren = parentCond.nested_group?.children || [];
-          return nestedChildren.some(
-            (nested: any) =>
-              nested.condition_type === 'property' &&
-              nested.property_name === 'uuid' &&
-              (nested.value === context.nodeUuid || nested.value === '{current_node_uuid}')
-          );
+          // Check if it has parent_uuid set (static mode with placeholder or actual UUID)
+          // Don't require isSystemNode check here - we'll mark it if found
+          return !!(parentCond.parent_uuid && (
+            parentCond.parent_uuid === '{current_node_uuid}' ||
+            parentCond.parent_uuid === context.parentUuid ||
+            parentCond.parent_uuid === context.nodeUuid
+          ));
         }
       );
     },
@@ -182,10 +169,41 @@ export function autoFixSystemQuery(
   
   // Check if required condition already exists
   if (section.hasRequiredCondition(ast, context)) {
-    // Condition already exists and is marked as system, just ensure scope is correct
+    // Condition exists - ensure it's marked as system and scope is correct
+    const updatedChildren = ast.root_group.children.map((child) => {
+      // Check if this is the system condition that needs marking
+      if (child.type === 'condition') {
+        if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
+          const parentCond = child as ParentCondition;
+          if (parentCond.parent_uuid && (
+            parentCond.parent_uuid === '{current_node_uuid}' ||
+            parentCond.parent_uuid === context.parentUuid ||
+            parentCond.parent_uuid === context.nodeUuid
+          )) {
+            return markAsSystemNode(child);
+          }
+        } else if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
+          const refCond = child as ReferenceCondition;
+          if (refCond.target_uuid === context.nodeUuid) {
+            return markAsSystemNode(child);
+          }
+        } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
+          const classCond = child as ClassCondition;
+          if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') {
+            return markAsSystemNode(child);
+          }
+        }
+      }
+      return child;
+    });
+    
     return {
       ...ast,
       scope: correctScope,
+      root_group: {
+        ...ast.root_group,
+        children: updatedChildren,
+      },
     };
   }
   

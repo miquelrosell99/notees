@@ -34,7 +34,7 @@ import { DragHandle } from '../dnd/DragHandle';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
 import { AddFilterMenu, type FilterMenuCategory } from './AddFilterMenu';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
-import { isSystemNode } from '@/types/queryAST';
+import { isSystemNode, isNodeRemovable, isNodeEditable, isNodeMovable } from '@/types/queryAST';
 import './QueryBlockList.css';
 
 // ==================== Types ====================
@@ -81,7 +81,10 @@ function SortableBlockItem({
 }: SortableBlockItemProps) {
   // Check if this block is a system block (should not be dragged/deleted)
   const isSystem = isSystemNode(block);
-  const effectiveReadOnly = readOnly || isSystem;
+  const canRemove = isNodeRemovable(block);
+  const canEdit = isNodeEditable(block);
+  const canMove = isNodeMovable(block);
+  const effectiveReadOnly = readOnly || !canEdit;
   
   const {
     attributes,
@@ -93,7 +96,7 @@ function SortableBlockItem({
     isDragging,
   } = useSortable({
     id: `block-${index}`,
-    disabled: isSystem, // Disable dragging for system blocks
+    disabled: !canMove || readOnly, // Disable dragging if not movable
     data: {
       type: 'query-block',
       block,
@@ -130,7 +133,7 @@ function SortableBlockItem({
         padding={false}
         radius="md"
       >
-        {/* Drag handle - hide for system blocks */}
+        {/* Drag handle - hide for read-only blocks */}
         {!effectiveReadOnly && (
           <div
             ref={setActivatorNodeRef}
@@ -152,8 +155,8 @@ function SortableBlockItem({
           />
         </div>
 
-        {/* Delete button (hover only) - hide for system blocks */}
-        {!effectiveReadOnly && (
+        {/* Delete button (hover only) - hide if not removable */}
+        {canRemove && !readOnly && (
           <Button
             variant="ghost"
             size="sm"
