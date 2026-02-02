@@ -51,7 +51,7 @@ from .query import (
     ChildPathBlock,
     ClassPathBlock,
     UuidBlock,
-    QueryBlockTree,
+    QueryAST,
     NodeView,
     QUERY_PLACEHOLDERS,
 )
@@ -103,7 +103,7 @@ __all__ = [
     "ChildPathBlock",
     "ClassPathBlock",
     "UuidBlock",
-    "QueryBlockTree",
+    "QueryAST",
     "NodeView",
     "QUERY_PLACEHOLDERS",
 ]

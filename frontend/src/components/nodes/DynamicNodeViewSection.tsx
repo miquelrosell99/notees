@@ -24,8 +24,9 @@ import {
   useResetNodeViews,
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
-import type { NodeView, QueryBlockTree, NodeViewType } from '@/types/query';
+import type { NodeView, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
+import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
 import { NodeCollection, NodeCollectionToolbar } from './NodeCollection';
 import { NodeViewSection } from './NodeViewSection';
 import { Button } from '../core/Button';
@@ -38,12 +39,8 @@ import { ViewBuilder } from '../queries';
 import { ProseScopeSelector } from '../queries/ProseScopeSelector';
 import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { DeleteIcon } from '../icons';
-import { createEmptyBlockTree } from '@/types/query';
-import { createEmptyQueryAST, countConditions } from '@/types/queryAST';
-import { blockTreeToAST } from '@/lib/queryConverter';
 import { validateQueryAST, canSaveQuery, getValidationSummary } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
-import { isSystemBlock } from '../queries/constants';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
@@ -74,18 +71,6 @@ export interface DynamicNodeViewSectionProps {
   onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
-}
-
-// ==================== Helper Functions ====================
-
-/**
- * Count the number of user-defined filter blocks (excluding system blocks)
- */
-function countMainFilterBlocks(tree: QueryBlockTree | null): number {
-  if (!tree || !tree.blocks) return 0;
-  
-  // Count only non-system blocks
-  return tree.blocks.filter(block => !isSystemBlock(block)).length;
 }
 
 // ==================== Main Component ====================
@@ -168,7 +153,6 @@ export function DynamicNodeViewSection({
     refetch: refetchViews,
   } = useNodeViews(nodeId, { 
     viewType, 
-    includeQueryBlockTree: true,
     enabled: nodeId > 0 && hasInitialized,
   });
 
@@ -219,7 +203,7 @@ export function DynamicNodeViewSection({
 
   // Count conditions for badge display
   const filterBlockCount = useMemo(() => {
-    if (!activeView?.query_block_tree) return 0;
+    if (!activeView?.query_ast) return 0;
     
     // System views (default views for linked_references, child_pages) don't show badge
     const isSystemView = activeView.is_default && (
@@ -230,14 +214,14 @@ export function DynamicNodeViewSection({
     if (isSystemView) return 0;
     
     try {
-      const ast = blockTreeToAST(activeView.query_block_tree, undefined, isSystemView);
+      const ast = activeView.query_ast;
       // Hide badge for system queries
       if (ast.is_system) return 0;
       return countConditions(ast);
     } catch {
-      return countMainFilterBlocks(activeView.query_block_tree);
+      return 0;
     }
-  }, [activeView?.query_block_tree, activeView?.is_default, activeView?.view_type]);
+  }, [activeView?.query_ast, activeView?.is_default, activeView?.view_type]);
 
   // Create SelectionButton options from views
   const viewOptions = useMemo(() => {
@@ -248,25 +232,38 @@ export function DynamicNodeViewSection({
     }));
   }, [views]);
 
-  // Default block tree for pseudo-nodes (like all_pages)
-  const pseudoNodeBlockTree = useMemo(() => {
+  // Default query AST for pseudo-nodes (like all_pages)
+  const pseudoNodeAST = useMemo(() => {
     if (!isPseudoNode) return null;
     
     // Define default query for each pseudo view type
-    const defaultQueries: Record<string, QueryBlockTree> = {
+    const defaultQueries: Record<string, QueryAST> = {
       'all_pages': {
-        type: 'AND_CONTAINER',
-        blocks: [
-          // No filters needed - scope handles page filtering
-          { type: 'PROPERTY', property_name: 'parent_id', property_type: 'node', operator: 'is_empty', value: null },
-        ],
+        type: 'query',
+        version: '1.0',
         scope: {
-          scope_type: 'pages',  // Use pages scope instead of class filter
+          type: 'scope',
+          scope_type: 'pages',  // Use pages scope
+        },
+        root_group: {
+          type: 'group',
+          logic: 'AND',
+          children: [
+            // No parent (top-level pages only)
+            { 
+              type: 'condition', 
+              condition_type: 'property', 
+              property_name: 'parent_id', 
+              property_type: 'node', 
+              operator: 'is_empty', 
+              value: null 
+            },
+          ],
         },
       },
     };
     
-    return defaultQueries[viewType] ?? { type: 'AND_CONTAINER', blocks: [] };
+    return defaultQueries[viewType] ?? createEmptyQueryAST();
   }, [isPseudoNode, viewType]);
 
   // Execute query for active view (normal nodes)
@@ -293,7 +290,7 @@ export function DynamicNodeViewSection({
     refetch: refetchPseudoQuery,
   } = useQuery_(
     {
-      block_tree: pseudoNodeBlockTree ?? undefined,
+      query_ast: pseudoNodeAST ?? undefined,
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
@@ -304,7 +301,7 @@ export function DynamicNodeViewSection({
       include_properties: true,
     },
     {
-      enabled: isPseudoNode && !!pseudoNodeBlockTree,
+      enabled: isPseudoNode && !!pseudoNodeAST,
       queryKey: ['pseudo-node-query', viewType, nodeId],
     }
   );
@@ -341,22 +338,18 @@ export function DynamicNodeViewSection({
     
     const queryId = `view-${view.id}-${view.uuid}`;
     let ast: QueryAST;
-    let isFromBackendAST = false;
     
-    // Check if query_block_tree is actually a QueryAST (backend stores AST in query_json)
-    const data = view.query_block_tree;
-    if (data && typeof data === 'object' && 'type' in data && data.type === 'query' && 'root_group' in data) {
-      // It's already a QueryAST, use it directly
-      ast = data as QueryAST;
+    // Use query_ast directly from view, or create empty one
+    if (view.query_ast && typeof view.query_ast === 'object' && view.query_ast.type === 'query') {
+      ast = view.query_ast;
       // Ensure it has an ID
       if (!ast.id) {
         ast.id = queryId;
       }
-      isFromBackendAST = true;
     } else {
-      // It's a QueryBlockTree (or null/empty), convert it
-      const blockTree = data ?? createEmptyBlockTree();
-      ast = blockTreeToAST(blockTree, queryId, false); // false = not system
+      // No AST, create empty one
+      ast = createEmptyQueryAST();
+      ast.id = queryId;
     }
     
     // Auto-fix: Restore missing system conditions and ensure capabilities are set
@@ -404,7 +397,6 @@ export function DynamicNodeViewSection({
         });
       }
       
-      // Save QueryAST directly (no BlockTree conversion needed)
       await updateQueryMutation.mutateAsync({
         viewId: editingView.id,
         queryAST: fixedAST,

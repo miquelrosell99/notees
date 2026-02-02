@@ -9,7 +9,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNodeSearch, usePages } from '@/hooks';
 import type { Node } from '@/types/api';
-import type { QueryBlock, QueryBlockTree } from '@/types/query';
+import type { QueryAST, ConditionNode, GroupNode, NotNode, ParentPathCondition } from '@/types/queryAST';
+import { createGroupNode } from '@/types/queryAST';
 import { Button } from '../core/Button';
 import { Badge } from '../core/Badge';
 import { Checkbox } from '../core/Checkbox';
@@ -25,49 +26,67 @@ interface PageFilterState {
 }
 
 interface QuickPageFilterProps {
-  /** Current block tree to analyze and modify */
-  blockTree: QueryBlockTree;
-  /** Callback when block tree changes */
-  onChange: (blockTree: QueryBlockTree) => void;
+  /** Current QueryAST to analyze and modify */
+  ast: QueryAST;
+  /** Callback when AST changes */
+  onChange: (ast: QueryAST) => void;
   /** Size variant */
   size?: 'xs' | 'sm' | 'md';
   /** Additional CSS class */
   className?: string;
 }
 
+type ASTChild = ConditionNode | GroupNode | NotNode;
+
 /**
- * Extract page filter states from a block tree
+ * Check if a node is a parent_path condition
  */
-function extractPageFilters(tree: QueryBlockTree): PageFilterState[] {
+function isParentPathCondition(node: ASTChild): node is ParentPathCondition {
+  return node.type === 'condition' && (node as ConditionNode).condition_type === 'parent_path';
+}
+
+/**
+ * Extract page filter states from a QueryAST
+ */
+function extractPageFilters(ast: QueryAST): PageFilterState[] {
   const filters: PageFilterState[] = [];
   
-  for (const block of tree.blocks) {
-    // Direct PARENT_PATH block
-    if (block.type === 'PARENT_PATH') {
-      const parentPathBlock = block as { blocks?: QueryBlock[] };
-      const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
-      if (uuidBlock?.value && !uuidBlock.value.startsWith('{')) {
-        filters.push({
-          uuid: uuidBlock.value,
-          name: '', // Will be populated later
-          icon: null,
-          negated: false,
-        });
+  for (const child of ast.root_group.children) {
+    // Direct parent_path condition - check for UUID in nested group
+    if (isParentPathCondition(child)) {
+      const parentPath = child as ParentPathCondition;
+      // Look for a content condition with a UUID value in the nested group
+      for (const nestedChild of parentPath.nested_group.children) {
+        if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+          const contentCond = nestedChild as { value?: string };
+          if (contentCond.value && !contentCond.value.startsWith('{')) {
+            filters.push({
+              uuid: contentCond.value,
+              name: '',
+              icon: null,
+              negated: false,
+            });
+          }
+        }
       }
     }
-    // NOT_CONTAINER wrapping PARENT_PATH (negated)
-    else if (block.type === 'NOT_CONTAINER') {
-      const notBlock = block as { block?: QueryBlock };
-      if (notBlock.block?.type === 'PARENT_PATH') {
-        const parentPathBlock = notBlock.block as { blocks?: QueryBlock[] };
-        const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
-        if (uuidBlock?.value && !uuidBlock.value.startsWith('{')) {
-          filters.push({
-            uuid: uuidBlock.value,
-            name: '',
-            icon: null,
-            negated: true,
-          });
+    // NOT node wrapping parent_path (negated)
+    else if (child.type === 'not') {
+      const notNode = child as NotNode;
+      if (isParentPathCondition(notNode.child)) {
+        const parentPath = notNode.child as ParentPathCondition;
+        for (const nestedChild of parentPath.nested_group.children) {
+          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+            const contentCond = nestedChild as { value?: string };
+            if (contentCond.value && !contentCond.value.startsWith('{')) {
+              filters.push({
+                uuid: contentCond.value,
+                name: '',
+                icon: null,
+                negated: true,
+              });
+            }
+          }
         }
       }
     }
@@ -77,12 +96,24 @@ function extractPageFilters(tree: QueryBlockTree): PageFilterState[] {
 }
 
 /**
- * Create a PARENT_PATH block for a page
+ * Create a parent_path condition for a page
  */
-function createParentPathBlock(uuid: string): QueryBlock {
+function createParentPathCondition(uuid: string): ParentPathCondition {
   return {
-    type: 'PARENT_PATH',
-    blocks: [{ type: 'UUID', value: uuid }],
+    type: 'condition',
+    condition_type: 'parent_path',
+    nested_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        {
+          type: 'condition',
+          condition_type: 'content',
+          operator: 'equals',
+          value: uuid,
+        },
+      ],
+    },
   };
 }
 
@@ -90,7 +121,7 @@ function createParentPathBlock(uuid: string): QueryBlock {
  * QuickPageFilter Component
  */
 export function QuickPageFilter({
-  blockTree,
+  ast,
   onChange,
   size = 'xs',
   className = '',
@@ -117,7 +148,7 @@ export function QuickPageFilter({
   
   // Get current page filters with names
   const currentFilters = useMemo(() => {
-    const filters = extractPageFilters(blockTree);
+    const filters = extractPageFilters(ast);
     // Populate names from allPages
     return filters.map(f => {
       const page = allPages.find(p => p.uuid === f.uuid);
@@ -127,7 +158,7 @@ export function QuickPageFilter({
         icon: page?.icon ?? null,
       };
     });
-  }, [blockTree, allPages]);
+  }, [ast, allPages]);
   
   // Count of active page filters
   const filterCount = currentFilters.length;
@@ -141,56 +172,76 @@ export function QuickPageFilter({
       handleRemovePageFilter(page.uuid);
       if (currentFilters[existingIndex].negated !== negated) {
         // Re-add with opposite negation
-        const newBlock = negated
-          ? { type: 'NOT_CONTAINER' as const, block: createParentPathBlock(page.uuid) }
-          : createParentPathBlock(page.uuid);
+        const newCondition = createParentPathCondition(page.uuid);
+        const newChild: ASTChild = negated
+          ? { type: 'not', child: newCondition }
+          : newCondition;
         onChange({
-          ...blockTree,
-          blocks: [...blockTree.blocks, newBlock],
+          ...ast,
+          root_group: {
+            ...ast.root_group,
+            children: [...ast.root_group.children, newChild],
+          },
         });
       }
       return;
     }
     
     // Add new filter
-    const newBlock = negated
-      ? { type: 'NOT_CONTAINER' as const, block: createParentPathBlock(page.uuid) }
-      : createParentPathBlock(page.uuid);
+    const newCondition = createParentPathCondition(page.uuid);
+    const newChild: ASTChild = negated
+      ? { type: 'not', child: newCondition }
+      : newCondition;
     
     onChange({
-      ...blockTree,
-      blocks: [...blockTree.blocks, newBlock],
+      ...ast,
+      root_group: {
+        ...ast.root_group,
+        children: [...ast.root_group.children, newChild],
+      },
     });
     
     setQuery('');
-  }, [blockTree, currentFilters, onChange]);
+  }, [ast, currentFilters, onChange]);
   
   // Remove a page filter by UUID
   const handleRemovePageFilter = useCallback((uuid: string) => {
-    const newBlocks = blockTree.blocks.filter(block => {
-      // Check direct PARENT_PATH
-      if (block.type === 'PARENT_PATH') {
-        const parentPathBlock = block as { blocks?: QueryBlock[] };
-        const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
-        return uuidBlock?.value !== uuid;
-      }
-      // Check NOT_CONTAINER wrapping PARENT_PATH
-      if (block.type === 'NOT_CONTAINER') {
-        const notBlock = block as { block?: QueryBlock };
-        if (notBlock.block?.type === 'PARENT_PATH') {
-          const parentPathBlock = notBlock.block as { blocks?: QueryBlock[] };
-          const uuidBlock = parentPathBlock.blocks?.find(b => b.type === 'UUID') as { value?: string } | undefined;
-          return uuidBlock?.value !== uuid;
+    // Helper to check if a condition matches the UUID
+    const matchesUuid = (child: ASTChild): boolean => {
+      if (isParentPathCondition(child)) {
+        const parentPath = child as ParentPathCondition;
+        for (const nestedChild of parentPath.nested_group.children) {
+          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+            const contentCond = nestedChild as { value?: string };
+            if (contentCond.value === uuid) return true;
+          }
         }
       }
-      return true;
-    });
+      if (child.type === 'not') {
+        const notNode = child as NotNode;
+        if (isParentPathCondition(notNode.child)) {
+          const parentPath = notNode.child as ParentPathCondition;
+          for (const nestedChild of parentPath.nested_group.children) {
+            if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+              const contentCond = nestedChild as { value?: string };
+              if (contentCond.value === uuid) return true;
+            }
+          }
+        }
+      }
+      return false;
+    };
+    
+    const newChildren = ast.root_group.children.filter(child => !matchesUuid(child));
     
     onChange({
-      ...blockTree,
-      blocks: newBlocks,
+      ...ast,
+      root_group: {
+        ...ast.root_group,
+        children: newChildren,
+      },
     });
-  }, [blockTree, onChange]);
+  }, [ast, onChange]);
   
   // Handle click on search result
   const handleResultClick = useCallback((page: Node, e: React.MouseEvent) => {
@@ -203,33 +254,47 @@ export function QuickPageFilter({
     const page = allPages.find(p => p.uuid === uuid);
     if (!page) return;
     
-    // Remove existing and re-add with opposite negation
-    handleRemovePageFilter(uuid);
-    const newBlock = currentlyNegated
-      ? createParentPathBlock(uuid)
-      : { type: 'NOT_CONTAINER' as const, block: createParentPathBlock(uuid) };
-    
-    onChange({
-      ...blockTree,
-      blocks: [...blockTree.blocks.filter(b => {
-        // Re-filter since handleRemovePageFilter is async-ish
-        if (b.type === 'PARENT_PATH') {
-          const ab = b as { blocks?: QueryBlock[] };
-          const ub = ab.blocks?.find(x => x.type === 'UUID') as { value?: string } | undefined;
-          return ub?.value !== uuid;
-        }
-        if (b.type === 'NOT_CONTAINER') {
-          const nb = b as { block?: QueryBlock };
-          if (nb.block?.type === 'PARENT_PATH') {
-            const ab = nb.block as { blocks?: QueryBlock[] };
-            const ub = ab.blocks?.find(x => x.type === 'UUID') as { value?: string } | undefined;
-            return ub?.value !== uuid;
+    // Helper to check if a condition matches the UUID
+    const matchesUuid = (child: ASTChild): boolean => {
+      if (isParentPathCondition(child)) {
+        const parentPath = child as ParentPathCondition;
+        for (const nestedChild of parentPath.nested_group.children) {
+          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+            const contentCond = nestedChild as { value?: string };
+            if (contentCond.value === uuid) return true;
           }
         }
-        return true;
-      }), newBlock],
+      }
+      if (child.type === 'not') {
+        const notNode = child as NotNode;
+        if (isParentPathCondition(notNode.child)) {
+          const parentPath = notNode.child as ParentPathCondition;
+          for (const nestedChild of parentPath.nested_group.children) {
+            if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+              const contentCond = nestedChild as { value?: string };
+              if (contentCond.value === uuid) return true;
+            }
+          }
+        }
+      }
+      return false;
+    };
+    
+    // Remove existing and re-add with opposite negation
+    const filteredChildren = ast.root_group.children.filter(child => !matchesUuid(child));
+    const newCondition = createParentPathCondition(uuid);
+    const newChild: ASTChild = currentlyNegated
+      ? newCondition
+      : { type: 'not', child: newCondition };
+    
+    onChange({
+      ...ast,
+      root_group: {
+        ...ast.root_group,
+        children: [...filteredChildren, newChild],
+      },
     });
-  }, [blockTree, allPages, onChange]);
+  }, [ast, allPages, onChange]);
   
   // Close on click outside
   useEffect(() => {

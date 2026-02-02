@@ -9,7 +9,6 @@ import type {
   NodeView, 
   NodeViewCreate, 
   NodeViewUpdate, 
-  QueryBlockTree,
   QueryExecuteRequest,
 } from '@/types/query';
 
@@ -38,7 +37,6 @@ export async function listNodeViews(
   nodeId: number,
   options?: {
     view_type?: string;
-    include_query_block_tree?: boolean;
   }
 ): Promise<NodeView[]> {
   const response = await api.get<NodeViewsResponse>(BASE, {
@@ -53,13 +51,8 @@ export async function listNodeViews(
 /**
  * Get a NodeView by ID
  */
-export async function getNodeView(
-  viewId: number,
-  includeQueryBlockTree = true
-): Promise<NodeView> {
-  const response = await api.get<NodeView>(`${BASE}/${viewId}`, {
-    params: { include_query_block_tree: includeQueryBlockTree },
-  });
+export async function getNodeView(viewId: number): Promise<NodeView> {
+  const response = await api.get<NodeView>(`${BASE}/${viewId}`);
   return response.data;
 }
 
@@ -68,12 +61,9 @@ export async function getNodeView(
  */
 export async function getDefaultNodeView(
   nodeId: number,
-  viewType: string,
-  includeQueryBlockTree = true
+  viewType: string
 ): Promise<NodeView | null> {
-  const response = await api.get<NodeView | null>(`${BASE}/default/${nodeId}/${viewType}`, {
-    params: { include_query_block_tree: includeQueryBlockTree },
-  });
+  const response = await api.get<NodeView | null>(`${BASE}/default/${nodeId}/${viewType}`);
   return response.data;
 }
 
@@ -97,18 +87,7 @@ export async function updateNodeView(
 }
 
 /**
- * Update the query block tree for a NodeView (legacy)
- */
-export async function updateQueryBlockTree(
-  viewId: number,
-  blockTree: QueryBlockTree
-): Promise<NodeView> {
-  const response = await api.put<NodeView>(`${BASE}/${viewId}/query`, blockTree);
-  return response.data;
-}
-
-/**
- * Update the query AST for a NodeView (preferred)
+ * Update the query AST for a NodeView
  */
 export async function updateQueryAST(
   viewId: number,
@@ -187,12 +166,9 @@ export async function countQueryResults(
  * Get all NodeViews for a node grouped by view_type
  */
 export async function getNodeViewsByType(
-  nodeId: number,
-  includeQueryBlockTree = false
+  nodeId: number
 ): Promise<Record<string, NodeView[]>> {
-  const views = await listNodeViews(nodeId, {
-    include_query_block_tree: includeQueryBlockTree,
-  });
+  const views = await listNodeViews(nodeId);
   
   const grouped: Record<string, NodeView[]> = {};
   for (const view of views) {

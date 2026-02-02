@@ -25,25 +25,8 @@ export type {
   BaseConditionNode,
 } from './queryAST';
 
-// Export legacy QueryBlockTree types (backward compatibility)
+// Export NodeView types from query
 export { 
-  type QueryBlockType,
-  type BaseQueryBlock,
-  type ContainerBlock,
-  type NotBlock,
-  type ClassBlock,
-  type PropertyBlock,
-  type ContentBlock,
-  type ReferenceBlock,
-  type ReferencePathBlock,
-  type ParentBlock,
-  type ParentPathBlock,
-  type ChildBlock,
-  type ChildPathBlock,
-  type ClassPathBlock,
-  type UuidBlock,
-  type QueryBlock,
-  type QueryBlockTree,
   type NodeViewType,
   type NodeView,
   type NodeViewCreate,

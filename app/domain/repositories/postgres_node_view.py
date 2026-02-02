@@ -11,7 +11,7 @@ from asyncpg.pool import PoolConnectionProxy
 
 from ..entities import NodeView, generate_uuid
 from ...logging_config import get_logger
-from ...db.schema.constants import DEFAULT_QUERY_BLOCK_TREE
+from ...db.schema.constants import DEFAULT_QUERY_AST
 from .base import normalize_timestamp
 from ...utils import utc_now
 
@@ -59,12 +59,12 @@ class PostgresNodeViewRepository:
         # Parse query_json from JSONB
         query_json = row.get('query_json')
         if query_json is None:
-            query_json = DEFAULT_QUERY_BLOCK_TREE.copy()
+            query_json = DEFAULT_QUERY_AST.copy()
         elif isinstance(query_json, str):
             try:
                 query_json = json.loads(query_json)
             except json.JSONDecodeError:
-                query_json = DEFAULT_QUERY_BLOCK_TREE.copy()
+                query_json = DEFAULT_QUERY_AST.copy()
         
         # Parse shown_properties from JSONB
         shown_properties = row.get('shown_properties', [])
@@ -119,7 +119,7 @@ class PostgresNodeViewRepository:
         
         # Use default if not provided
         if query_json is None:
-            query_json = DEFAULT_QUERY_BLOCK_TREE.copy()
+            query_json = DEFAULT_QUERY_AST.copy()
         
         async with self._pool.acquire() as conn:
             # Use ON CONFLICT to handle the unique constraint on default views

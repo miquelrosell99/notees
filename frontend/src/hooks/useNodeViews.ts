@@ -10,7 +10,6 @@ import {
   getDefaultNodeView,
   createNodeView,
   updateNodeView,
-  updateQueryBlockTree,
   updateQueryAST,
   deleteNodeView,
   reorderNodeViews,
@@ -24,7 +23,6 @@ import {
 import type {
   NodeViewCreate,
   NodeViewUpdate,
-  QueryBlockTree,
   QueryExecuteRequest,
 } from '@/types/query';
 
@@ -54,18 +52,16 @@ export function useNodeViews(
   nodeId: number,
   options?: {
     viewType?: string;
-    includeQueryBlockTree?: boolean;
     enabled?: boolean;
   }
 ) {
-  const { viewType, includeQueryBlockTree = false, enabled = true } = options ?? {};
+  const { viewType, enabled = true } = options ?? {};
 
   return useQuery({
     queryKey: nodeViewKeys.list(nodeId, viewType),
     queryFn: () =>
       listNodeViews(nodeId, {
         view_type: viewType,
-        include_query_block_tree: includeQueryBlockTree,
       }),
     enabled: enabled && nodeId > 0,
   });
@@ -77,15 +73,14 @@ export function useNodeViews(
 export function useNodeViewsByType(
   nodeId: number,
   options?: {
-    includeQueryBlockTree?: boolean;
     enabled?: boolean;
   }
 ) {
-  const { includeQueryBlockTree = false, enabled = true } = options ?? {};
+  const { enabled = true } = options ?? {};
 
   return useQuery({
     queryKey: nodeViewKeys.byType(nodeId),
-    queryFn: () => getNodeViewsByType(nodeId, includeQueryBlockTree),
+    queryFn: () => getNodeViewsByType(nodeId),
     enabled: enabled && nodeId > 0,
   });
 }
@@ -96,15 +91,14 @@ export function useNodeViewsByType(
 export function useNodeView(
   viewId: number,
   options?: {
-    includeQueryBlockTree?: boolean;
     enabled?: boolean;
   }
 ) {
-  const { includeQueryBlockTree = true, enabled = true } = options ?? {};
+  const { enabled = true } = options ?? {};
 
   return useQuery({
     queryKey: nodeViewKeys.detail(viewId),
-    queryFn: () => getNodeView(viewId, includeQueryBlockTree),
+    queryFn: () => getNodeView(viewId),
     enabled: enabled && viewId > 0,
   });
 }
@@ -116,15 +110,14 @@ export function useDefaultNodeView(
   nodeId: number,
   viewType: string,
   options?: {
-    includeQueryBlockTree?: boolean;
     enabled?: boolean;
   }
 ) {
-  const { includeQueryBlockTree = true, enabled = true } = options ?? {};
+  const { enabled = true } = options ?? {};
 
   return useQuery({
     queryKey: nodeViewKeys.default(nodeId, viewType),
-    queryFn: () => getDefaultNodeView(nodeId, viewType, includeQueryBlockTree),
+    queryFn: () => getDefaultNodeView(nodeId, viewType),
     enabled: enabled && nodeId > 0 && viewType.length > 0,
   });
 }
@@ -249,27 +242,7 @@ export function useUpdateNodeView() {
 }
 
 /**
- * Update a NodeView's query block tree
- */
-export function useUpdateQueryBlockTree() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ viewId, blockTree }: { viewId: number; blockTree: QueryBlockTree }) =>
-      updateQueryBlockTree(viewId, blockTree),
-    onSuccess: (updatedView) => {
-      // Update the cache for this view
-      queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
-      // Invalidate query results since the query changed
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.queryResult(updatedView.id),
-      });
-    },
-  });
-}
-
-/**
- * Update query AST for a NodeView (preferred)
+ * Update query AST for a NodeView
  */
 export function useUpdateQueryAST() {
   const queryClient = useQueryClient();
@@ -413,7 +386,6 @@ export function useActiveNodeView(
 ) {
   const { data: views = [], isLoading } = useNodeViews(nodeId, {
     viewType,
-    includeQueryBlockTree: true,
   });
 
   const activeView = activeViewId
@@ -434,7 +406,6 @@ export function useActiveNodeView(
 export function useNodeViewTabs(nodeId: number, viewType: string) {
   const { data: views = [], isLoading, isError } = useNodeViews(nodeId, {
     viewType,
-    includeQueryBlockTree: true,
   });
 
   const defaultView = views.length > 0 ? views[0] : null;

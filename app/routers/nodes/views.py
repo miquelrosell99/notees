@@ -38,9 +38,7 @@ class NodeViewResponse(BaseModel):
     group_by: Optional[str] = None
     create_date: str
     write_date: str
-    # The query block tree JSON (legacy format)
-    query_block_tree: Optional[Dict[str, Any]] = None
-    # The query AST (new format)
+    # The query AST JSON
     query_ast: Optional[Dict[str, Any]] = None
 
 
@@ -51,9 +49,6 @@ class NodeViewCreateRequest(BaseModel):
     view_type: str
     order_index: int = 0
     is_default: bool = False
-    # Legacy format (will be converted to AST internally)
-    query_block_tree: Optional[Dict[str, Any]] = None
-    # New format (preferred)
     query_ast: Optional[Dict[str, Any]] = None
 
 
@@ -68,15 +63,13 @@ class NodeViewUpdateRequest(BaseModel):
 
 class QueryExecuteRequest(BaseModel):
     """Request to execute a query."""
-    block_tree: Optional[Dict[str, Any]] = None
-    # New: support query_ast directly
     query_ast: Optional[Dict[str, Any]] = None
     runtime_params: Optional[Dict[str, Any]] = None
     limit: Optional[int] = 100
     offset: Optional[int] = None
     order_by: Optional[str] = None
-    include_children: Optional[bool] = False  # Whether to include children for each result
-    include_properties: Optional[bool] = False  # Whether to include properties for each result
+    include_children: Optional[bool] = False
+    include_properties: Optional[bool] = False
 
 
 class QueryASTUpdateRequest(BaseModel):
@@ -233,7 +226,7 @@ async def _include_properties_for_results(user: User, results: List[Dict[str, An
 
 async def _node_view_to_response(
     view,
-    include_query_block_tree: bool = False,
+    include_query_ast: bool = False,
     user: Optional[User] = None,
 ) -> NodeViewResponse:
     """Convert NodeView entity to response model."""
@@ -253,8 +246,8 @@ async def _node_view_to_response(
     )
     
     # query_json is stored directly on the view now
-    if include_query_block_tree:
-        response.query_block_tree = view.query_json
+    if include_query_ast:
+        response.query_ast = view.query_json
     
     return response
 
@@ -265,7 +258,7 @@ async def _node_view_to_response(
 async def list_node_views(
     node_id: int,
     view_type: Optional[str] = None,
-    include_query_block_tree: bool = False,
+    include_query_ast: bool = False,
     user: User = Depends(get_current_user),
 ) -> Dict[str, List[NodeViewResponse]]:
     """List NodeViews for a node.
@@ -273,7 +266,7 @@ async def list_node_views(
     Args:
         node_id: The node ID
         view_type: Optional filter by view_type
-        include_query_block_tree: Whether to include query block trees
+        include_query_ast: Whether to include query block trees
         
     Returns:
         Dict with 'views' list
@@ -285,8 +278,8 @@ async def list_node_views(
     for view in views:
         resp = await _node_view_to_response(
             view, 
-            include_query_block_tree=include_query_block_tree,
-            user=user if include_query_block_tree else None,
+            include_query_ast=include_query_ast,
+            user=user if include_query_ast else None,
         )
         responses.append(resp)
     
@@ -296,7 +289,7 @@ async def list_node_views(
 @router.get("/{view_id}")
 async def get_node_view(
     view_id: int,
-    include_query_block_tree: bool = True,
+    include_query_ast: bool = True,
     user: User = Depends(get_current_user),
 ) -> NodeViewResponse:
     """Get a NodeView by ID."""
@@ -308,8 +301,8 @@ async def get_node_view(
     
     return await _node_view_to_response(
         view,
-        include_query_block_tree=include_query_block_tree,
-        user=user if include_query_block_tree else None,
+        include_query_ast=include_query_ast,
+        user=user if include_query_ast else None,
     )
 
 
@@ -317,7 +310,7 @@ async def get_node_view(
 async def get_default_view(
     node_id: int,
     view_type: str,
-    include_query_block_tree: bool = True,
+    include_query_ast: bool = True,
     user: User = Depends(get_current_user),
 ) -> Optional[NodeViewResponse]:
     """Get the default NodeView for a view_type."""
@@ -329,8 +322,8 @@ async def get_default_view(
     
     return await _node_view_to_response(
         view,
-        include_query_block_tree=include_query_block_tree,
-        user=user if include_query_block_tree else None,
+        include_query_ast=include_query_ast,
+        user=user if include_query_ast else None,
     )
 
 
@@ -341,7 +334,7 @@ async def create_node_view(
 ) -> NodeViewResponse:
     """Create a new NodeView.
     
-    Accepts either query_ast (preferred) or query_block_tree (legacy).
+    Accepts either query_ast (preferred) or query_ast (legacy).
     Stores as QueryAST format internally.
     """
     repo = await _get_node_view_repo(user)
@@ -371,9 +364,9 @@ async def create_node_view(
             raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid query AST: {str(e)}")
-    elif request.query_block_tree:
+    elif request.query_ast:
         # Legacy format - store as-is for now (could convert to AST)
-        query_json = request.query_block_tree
+        query_json = request.query_ast
     else:
         # Default empty query
         query_json = create_default_query_ast().to_dict()
@@ -388,7 +381,7 @@ async def create_node_view(
         is_default=request.is_default,
     )
     
-    return await _node_view_to_response(view, include_query_block_tree=True, user=user)
+    return await _node_view_to_response(view, include_query_ast=True, user=user)
 
 
 @router.put("/{view_id}")
@@ -412,16 +405,16 @@ async def update_node_view(
     if not view:
         raise HTTPException(status_code=404, detail="NodeView not found")
     
-    return await _node_view_to_response(view, include_query_block_tree=True, user=user)
+    return await _node_view_to_response(view, include_query_ast=True, user=user)
 
 
 @router.put("/{view_id}/query")
-async def update_query_block_tree(
+async def update_query_legacy(
     view_id: int,
-    block_tree: Dict[str, Any],
+    query_data: Dict[str, Any],
     user: User = Depends(get_current_user),
 ) -> NodeViewResponse:
-    """Update the query block tree for a NodeView (legacy endpoint)."""
+    """Update the query for a NodeView (legacy endpoint)."""
     repo = await _get_node_view_repo(user)
     
     view = await repo.get_by_id(view_id)
@@ -429,12 +422,12 @@ async def update_query_block_tree(
         raise HTTPException(status_code=404, detail="NodeView not found")
     
     # Update query_json directly on the view
-    updated_view = await repo.update_query_json(view_id, block_tree)
+    updated_view = await repo.update_query_json(view_id, query_data)
     
     if not updated_view:
         raise HTTPException(status_code=500, detail="Failed to update query")
     
-    return await _node_view_to_response(updated_view, include_query_block_tree=True, user=user)
+    return await _node_view_to_response(updated_view, include_query_ast=True, user=user)
 
 
 @router.put("/{view_id}/query-ast")
@@ -490,7 +483,7 @@ async def update_query_ast(
         if not updated_view:
             raise HTTPException(status_code=500, detail="Failed to update query")
         
-        return await _node_view_to_response(updated_view, include_query_block_tree=True, user=user)
+        return await _node_view_to_response(updated_view, include_query_ast=True, user=user)
     
     except HTTPException:
         raise
@@ -613,8 +606,8 @@ async def execute_node_view_query(
     
     logger.info(f"[execute_node_view_query] view_id={view_id}, runtime_params={request.runtime_params}")
     
-    # Use request block_tree if provided, otherwise use view's query_json
-    effective_query = request.block_tree if request.block_tree else view.query_json
+    # Use request query_ast if provided, otherwise use view's query_json
+    effective_query = request.query_ast if request.query_ast else view.query_json
     if not effective_query:
         effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
@@ -647,14 +640,14 @@ async def execute_query(
     """Execute a query directly (without saving).
     
     Args:
-        request: Query execution request with block_tree/query_ast and optional params
+        request: Query execution request with query_ast and optional params
         
     Returns:
         Dict with 'nodes' list of matching nodes
     """
     executor = await _get_query_executor(user)
     
-    effective_query = request.block_tree
+    effective_query = request.query_ast
     if not effective_query:
         effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
@@ -685,14 +678,14 @@ async def count_query_results(
     """Count results for a query without fetching all data.
     
     Args:
-        request: Query execution request with query
+        request: Query execution request with query_ast
         
     Returns:
         Dict with 'count' of matching nodes
     """
     executor = await _get_query_executor(user)
     
-    effective_query = request.block_tree
+    effective_query = request.query_ast
     if not effective_query:
         effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
@@ -747,7 +740,7 @@ async def ensure_default_views(
     # Return all views
     all_views = await repo.list_by_node(node_id)
     responses = [
-        await _node_view_to_response(v, include_query_block_tree=True, user=user)
+        await _node_view_to_response(v, include_query_ast=True, user=user)
         for v in all_views
     ]
     
@@ -799,7 +792,7 @@ async def reset_node_views(
     
     # Convert the created views directly to responses (don't re-query)
     responses = [
-        await _node_view_to_response(v, include_query_block_tree=True, user=user)
+        await _node_view_to_response(v, include_query_ast=True, user=user)
         for v in created_views
     ]
     
