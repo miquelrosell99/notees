@@ -11,7 +11,7 @@
  * Now uses config-driven GenericConditionRenderer to eliminate repetitive code.
  */
 
-import { mdiLock } from '@mdi/js';
+import { mdiLock, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import { GenericConditionRenderer } from './GenericConditionRenderer';
 import { isSystemNode, isNodeEditable, isNodeRemovable } from '@/types/queryAST';
@@ -101,27 +101,25 @@ function ProseConditionRow({
         />
       </div>
       
-      {/* Actions */}
-      <div className="prose-condition-card__actions">
-        {isSystem ? (
-          <div 
-            className="prose-condition-card__action" 
-            title="This filter is required for this view type"
-          >
-            <Icon path={mdiLock} size={0.55} />
-          </div>
-        ) : canRemove && !readOnly ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={onRemove}
-            title="Remove condition"
-            className="prose-condition-card__action"
-          >
-            <DeleteIcon size="sm" />
-          </Button>
-        ) : null}
-      </div>
+      {/* Delete/Lock button - top right corner */}
+      {isSystem ? (
+        <div 
+          className="prose-condition-card__corner-button prose-condition-card__corner-button--system" 
+          title="This filter is required for this view type"
+        >
+          <Icon path={mdiLock} size={0.55} />
+        </div>
+      ) : canRemove && !readOnly ? (
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={onRemove}
+          title="Remove condition"
+          className="prose-condition-card__corner-button"
+          icon={mdiClose}
+          iconOnly
+        />
+      ) : null}
     </div>
   );
 }

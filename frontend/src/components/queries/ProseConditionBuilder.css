@@ -62,7 +62,7 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: var(--spacing-2);
 }
 
@@ -105,30 +105,38 @@
   min-width: 0;
 }
 
-/* Actions (right edge) */
-.prose-condition-card__actions {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: var(--spacing-2) var(--spacing-2);
+/* Corner button - top right corner, appears on hover */
+.prose-condition-card__corner-button {
+  position: absolute !important;
+  top: -6px;
+  right: -6px;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short), transform var(--motion-duration-short);
+  z-index: 2;
 }
 
-.prose-condition-card__action {
+.prose-condition-card__corner-button:hover {
+  transform: scale(1.05);
+  opacity: 1 !important;
+}
+
+.prose-condition-card:hover .prose-condition-card__corner-button {
+  opacity: 0.7;
+}
+
+/* System lock icon - always visible, less prominent */
+.prose-condition-card__corner-button--system {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-surface-variant);
-  opacity: 0.4;
-  background: none;
-  border: none;
-  padding: 6px;
-  border-radius: var(--shape-extra-small);
-  transition: all 0.15s ease;
-}
-
-.prose-condition-card__action:hover {
-  opacity: 1;
+  width: 20px;
+  height: 20px;
   background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 50%;
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ==================== Legacy Prose Condition (keep for nested conditions) ==================== */
