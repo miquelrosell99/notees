@@ -180,6 +180,7 @@ export function NodeTableView({
             onContentChange={handleContentChange}
             showBullet={false}
             showTypes={false}
+            showQueryResults={false}
             canEdit={editable}
             canMove={false}
             canSelect={false}
