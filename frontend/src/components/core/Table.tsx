@@ -87,6 +87,8 @@ export interface TableProps<T> {
   onRowShiftClick?: (row: T) => void;
   /** Row context menu handler */
   onRowContextMenu?: (row: T, event: React.MouseEvent) => void;
+  /** Column header context menu handler */
+  onHeaderContextMenu?: (column: TableColumn<T>, event: React.MouseEvent) => void;
   /** Whether the table is loading */
   loading?: boolean;
   /** Empty state content */
@@ -141,6 +143,7 @@ export function Table<T>({
   onRowClick,
   onRowShiftClick,
   onRowContextMenu,
+  onHeaderContextMenu,
   loading = false,
   emptyContent = 'No data',
   caption,
@@ -488,6 +491,13 @@ export function Table<T>({
                     ].filter(Boolean).join(' ')}
                     style={{ width: column.width }}
                     onClick={() => handleSort(column)}
+                    onContextMenu={(e) => {
+                      if (onHeaderContextMenu) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onHeaderContextMenu(column, e);
+                      }
+                    }}
                     aria-sort={
                       sortEntry
                         ? sortEntry.direction === 'asc' ? 'ascending' : 'descending'
