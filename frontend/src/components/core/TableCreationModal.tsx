@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { TableSizeSelector, type TableSize } from './TableSizeSelector';
 import { Button } from './Button';
-import './TableSizeSelector.css';
+import { Modal } from './Modal';
 
 export interface TableCreationModalProps {
   /** Whether the modal is open */
@@ -65,13 +65,6 @@ export function TableCreationModal({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onCancel]);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onCancel();
-    }
-  }, [onCancel]);
-
   // Handle size selection for new table
   const handleSelect = useCallback((size: TableSize) => {
     onConfirm(size);
@@ -82,88 +75,82 @@ export function TableCreationModal({
     onAdaptExisting();
   }, [onAdaptExisting]);
 
-  if (!isOpen) return null;
-
   return (
-    <div 
-      className="table-size-modal" 
-      onClick={handleBackdropClick}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="table-size-modal-title"
+    <Modal
+      isOpen={isOpen}
+      onClose={onCancel}
+      title={existingChildCount > 0 ? 'Convert to Table' : 'Insert Table'}
+      size="sm"
+      closeOnBackdrop={true}
+      closeOnEscape={true}
+      showCloseButton={false}
     >
-      <div className="table-size-modal__content" onClick={(e) => e.stopPropagation()}>
-        <h3 id="table-size-modal-title" className="table-size-modal__title">
-          {existingChildCount > 0 ? 'Convert to Table' : 'Insert Table'}
-        </h3>
-        
-        {/* Mode toggle when there are existing children */}
-        {existingChildCount > 0 && (
-          <div className="table-size-modal__mode-toggle">
+      {/* Mode toggle when there are existing children */}
+      {existingChildCount > 0 && (
+        <div className="table-size-modal__mode-toggle">
+          <Button
+            variant={mode === 'adapt' ? 'primary' : 'ghost'}
+            size="sm"
+            onClick={() => setMode('adapt')}
+          >
+            Adapt existing ({existingChildCount} blocks)
+          </Button>
+          <Button
+            variant={mode === 'select' ? 'primary' : 'ghost'}
+            size="sm"
+            onClick={() => setMode('select')}
+          >
+            Create new table
+          </Button>
+        </div>
+      )}
+      
+      {mode === 'adapt' && existingChildCount > 0 ? (
+        <>
+          <p className="table-size-modal__hint">
+            Convert {existingChildCount} existing {existingChildCount === 1 ? 'block' : 'blocks'} into table columns.
+            Their children will become cells, balanced across all columns.
+          </p>
+          <div className="table-size-modal__actions">
             <Button
-              variant={mode === 'adapt' ? 'primary' : 'ghost'}
+              variant="ghost"
               size="sm"
-              onClick={() => setMode('adapt')}
+              onClick={onCancel}
             >
-              Adapt existing ({existingChildCount} blocks)
+              Cancel
             </Button>
             <Button
-              variant={mode === 'select' ? 'primary' : 'ghost'}
+              variant="primary"
               size="sm"
-              onClick={() => setMode('select')}
+              onClick={handleAdaptConfirm}
             >
-              Create new table
+              Convert
             </Button>
           </div>
-        )}
-        
-        {mode === 'adapt' && existingChildCount > 0 ? (
-          <>
-            <p className="table-size-modal__hint">
-              Convert {existingChildCount} existing {existingChildCount === 1 ? 'block' : 'blocks'} into table columns.
-              Their children will become cells, balanced across all columns.
-            </p>
-            <div className="table-size-modal__actions">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onCancel}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleAdaptConfirm}
-              >
-                Convert
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="table-size-modal__hint">
-              Select the number of columns and rows
-            </p>
-            <TableSizeSelector
-              maxRows={10}
-              maxColumns={10}
-              onSelect={handleSelect}
-              hintText="Hover to preview, click to insert"
-            />
-            <div className="table-size-modal__actions">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onCancel}
-              >
-                Cancel
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+        </>
+      ) : (
+        <>
+          <p className="table-size-modal__hint">
+            Select the number of columns and rows
+          </p>
+          <TableSizeSelector
+            maxRows={10}
+            maxColumns={10}
+            onSelect={handleSelect}
+            hintText="Hover to preview, click to insert"
+          />
+          <div className="table-size-modal__actions">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 
