@@ -7,7 +7,7 @@
  * - Blocks: Shows the block itself as an editable block (like focused block mode),
  *   followed by its children and linked references
  */
-import { useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   useNode, 
   useUpdateNode, 
@@ -299,7 +299,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard]);
+  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard, systemClassIds]);
 
   // Get effective icon (node's icon or first class's icon)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
