@@ -237,7 +237,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
       <ConfirmationModal
         isOpen={showDeleteModal}
         title="Delete page"
-        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${node.name || 'Untitled'}"?`}
         secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
@@ -410,7 +410,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
       <ConfirmationModal
         isOpen={showDeleteModal}
         title="Delete page"
-        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${node.name || 'Untitled'}"?`}
         secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
