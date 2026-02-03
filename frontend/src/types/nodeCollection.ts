@@ -118,8 +118,8 @@ export interface NodeCollectionProps {
   /** Only show nodes with is_page=true in list view (filters both top-level and children) */
   pagesOnly?: boolean;
   
-  /** Whether to show types/classes for each node in list view (default: false) */
-  showTypes?: boolean;
+  /** Whether to show classes for each node in list view (default: false) */
+  showClasses?: boolean;
   
   /** Page map for resolving page nodes by ID (needed for groupBy='page') */
   pageMap?: Map<number, Node>;
@@ -280,8 +280,8 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   /** Whether to show breadcrumbs for top-level nodes (default: true) */
   showBreadcrumbs?: boolean;
   
-  /** Whether to show types/classes for each node (default: false) */
-  showTypes?: boolean;
+  /** Whether to show classes for each node (default: false) */
+  showClasses?: boolean;
   
   /** Only show nodes with is_page=true (filters both top-level and children) */
   pagesOnly?: boolean;

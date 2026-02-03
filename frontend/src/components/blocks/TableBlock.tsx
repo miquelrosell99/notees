@@ -424,7 +424,7 @@ export function TableBlock({
               depth={0}
               parentId={col.parent_id}
               showBullet={false}
-              showTypes={false}
+              showClasses={false}
               showQueryResults={false}
               canEdit={false}
               canMove={false}
@@ -477,7 +477,7 @@ export function TableBlock({
                 depth={0}
                 parentId={cell.parent_id}
                 showBullet={false}
-                showTypes={false}
+                showClasses={false}
                 showQueryResults={false}
                 canEdit={editable}
                 canMove={false}

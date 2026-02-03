@@ -22,8 +22,8 @@ export interface BlockPreviewProps {
   showIcon?: boolean;
   /** Icon override */
   icon?: string | null;
-  /** Whether to show types/classes (default: false) */
-  showTypes?: boolean;
+  /** Whether to show classes (default: false) */
+  showClasses?: boolean;
   /** Click handler */
   onClick?: () => void;
   /** Shift+click handler */
@@ -50,7 +50,7 @@ export function BlockPreview({
   showBullet = true,
   showIcon: _showIcon, // Ignored - Block always shows icon via Bullet
   icon,
-  showTypes = false,
+  showClasses = false,
   onClick,
   onShiftClick,
   onBulletClick,
@@ -83,7 +83,7 @@ export function BlockPreview({
         parentId={null}
         showBullet={showBullet}
         showChildren={false}
-        showTypes={showTypes}
+        showClasses={showClasses}
         canMove={false}
         canEdit={false}
         canSelect={false}
