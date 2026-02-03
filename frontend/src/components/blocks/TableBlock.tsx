@@ -32,13 +32,12 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { mdiClose, mdiArrowRight, mdiDockRight, mdiPlus } from '@mdi/js';
-import { useCreateNode, useUpdateNode, useDeleteNode } from '@/hooks';
+import { useCreateNode, useDeleteNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { Table, type TableColumn } from '../core/Table';
 import { Button } from '../core/Button';
 import { Block } from './Block';
-import { ContextMenu } from '../core/ContextMenu';
 import './TableBlock.css';
 
 interface TableBlockProps {
@@ -94,25 +93,14 @@ export function TableBlock({
   editable = true,
   onStructureChange,
 }: TableBlockProps) {
-  // Editing state (only for headers now - cells edited via Block)
-  const [editingHeader, setEditingHeader] = useState<number | null>(null);
-  const [editingHeaderValue, setEditingHeaderValue] = useState('');
-  
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; colIndex: number } | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [showRenameSubmenu, setShowRenameSubmenu] = useState(false);
-  
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   
   // Refs
-  const headerInputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Mutations
   const createNode = useCreateNode();
-  const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
   const { openNode, addSidebarCard } = useNodesStore();
 
@@ -193,120 +181,31 @@ export function TableBlock({
   }, [editable, colCount, columns, rowCount, createNode, onStructureChange]);
 
   // ==================== Save Handlers ====================
-
-  const handleHeaderSave = useCallback(async () => {
-    if (editingHeader === null) return;
-
-    const column = columns[editingHeader];
-    if (!column) return;
-
-    if (column.name !== editingHeaderValue) {
-      await updateNode.mutateAsync({
-        id: column.id,
-        data: { name: editingHeaderValue },
-      });
-    }
-
-    setEditingHeader(null);
-    setEditingHeaderValue('');
-  }, [editingHeader, columns, editingHeaderValue, updateNode]);
-
-  // ==================== Keyboard Navigation ====================
-
-  const handleHeaderKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (editingHeader === null) return;
-
-    switch (e.key) {
-      case 'Enter':
-        e.preventDefault();
-        handleHeaderSave();
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setEditingHeader(null);
-        setEditingHeaderValue('');
-        break;
-      case 'Tab':
-        e.preventDefault();
-        handleHeaderSave().then(() => {
-          const nextCol = e.shiftKey ? editingHeader - 1 : editingHeader + 1;
-          if (nextCol >= 0 && nextCol < colCount) {
-            const column = columns[nextCol];
-            setEditingHeader(nextCol);
-            setEditingHeaderValue(column?.name ?? '');
-          }
-        });
-        break;
-    }
-  }, [editingHeader, handleHeaderSave, colCount, columns]);
-
-  // ==================== Context Menu Handlers ====================
-
-  const handleHeaderContextMenu = useCallback((column: TableColumn<TableRowData>, event: React.MouseEvent) => {
-    const colIndex = columns.findIndex(col => `col-${col.id}` === column.key);
-    if (colIndex === -1) return;
-
-    setContextMenu({ x: event.clientX, y: event.clientY, colIndex });
-    setRenameValue(columns[colIndex]?.name || '');
-    setShowRenameSubmenu(false);
-  }, [columns]);
-
-  const handleRenameColumn = useCallback(async () => {
-    if (contextMenu === null) return;
-    const column = columns[contextMenu.colIndex];
-    if (!column || !renameValue.trim()) return;
-
-    if (column.name !== renameValue) {
-      await updateNode.mutateAsync({
-        id: column.id,
-        data: { name: renameValue },
-      });
-    }
-
-    setContextMenu(null);
-    setShowRenameSubmenu(false);
-  }, [contextMenu, columns, renameValue, updateNode]);
-
-  const handleDeleteColumnFromMenu = useCallback(async () => {
-    if (contextMenu === null) return;
-    await handleDeleteColumn(contextMenu.colIndex);
-    setContextMenu(null);
-  }, [contextMenu, handleDeleteColumn]);
-
-  // Header editing
-  const handleHeaderClick = useCallback((colIndex: number) => {
-    if (!editable) return;
-    
-    const column = columns[colIndex];
-    setEditingHeader(colIndex);
-    setEditingHeaderValue(column?.name ?? '');
-  }, [columns, editable]);
+  // Headers are now readonly Block components - no editing needed
 
   // Create column definitions for Table component
   const tableColumns = useMemo<TableColumn<TableRowData>[]>(() => {
     return columns.map((col, colIndex) => ({
       key: `col-${col.id}`,
-      header: editable ? (
-        <div className="table-editable-header">
-          {editingHeader === colIndex ? (
-            <input
-              ref={headerInputRef}
-              type="text"
-              className="table-header-input"
-              value={editingHeaderValue}
-              onChange={(e) => setEditingHeaderValue(e.target.value)}
-              onKeyDown={handleHeaderKeyDown}
-              onBlur={handleHeaderSave}
-              onClick={(e) => e.stopPropagation()}
+      header: (
+        <div className="table-block__header">
+          <div className="table-block__header-content">
+            <Block
+              block={col}
+              children={[]}
+              siblings={[]}
+              depth={0}
+              parentId={col.parent_id}
+              showBullet={false}
+              showTypes={false}
+              showQueryResults={false}
+              canEdit={false}
+              canMove={false}
+              canSelect={false}
             />
-          ) : (
-            <>
-              <span 
-                className="table-header-text"
-                onClick={() => handleHeaderClick(colIndex)}
-              >
-                {col.name || 'Untitled'}
-              </span>
+          </div>
+          <div className="table-block__header-actions">
+            {editable && (
               <Button
                 icon={mdiClose}
                 variant="ghost"
@@ -316,12 +215,31 @@ export function TableBlock({
                   handleDeleteColumn(colIndex);
                 }}
                 title="Delete column"
-                className="table-delete-col-btn"
               />
-            </>
-          )}
+            )}
+            <Button
+              icon={mdiDockRight}
+              variant="ghost"
+              size="xs"
+              title="Open in sidebar"
+              onClick={(e) => {
+                e.stopPropagation();
+                addSidebarCard(col.id, col.is_page ? 'page' : 'block');
+              }}
+            />
+            <Button
+              icon={mdiArrowRight}
+              variant="ghost"
+              size="xs"
+              title="Open node"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNode(col.id, col.is_page ? 'page' : 'block');
+              }}
+            />
+          </div>
         </div>
-      ) : (col.name || 'Untitled'),
+      ),
       accessor: (row) => {
         const cell = row.cells[colIndex];
         
@@ -374,7 +292,7 @@ export function TableBlock({
         );
       },
     }));
-  }, [columns, editable, editingHeader, editingHeaderValue, openNode, addSidebarCard]);
+  }, [columns, editable, openNode, addSidebarCard, handleDeleteColumn]);
 
   // Add actions column if editable
   const allColumns = useMemo<TableColumn<TableRowData>[]>(() => {
@@ -412,14 +330,6 @@ export function TableBlock({
       },
     ];
   }, [tableColumns, editable, handleAddColumn, handleDeleteRow]);
-
-  // Focus input when editing starts (only for headers now)
-  useEffect(() => {
-    if (editingHeader !== null && headerInputRef.current) {
-      headerInputRef.current.focus();
-      headerInputRef.current.select();
-    }
-  }, [editingHeader]);
 
   // Clear selection when clicking outside
   useEffect(() => {
@@ -503,7 +413,6 @@ export function TableBlock({
             .filter(n => !isNaN(n));
           setSelectedRows(new Set(rowIndices));
         }}
-        onHeaderContextMenu={editable ? handleHeaderContextMenu : undefined}
         hoverable={true}
         showHeader={true}
         className="table-block__table"
@@ -552,66 +461,6 @@ export function TableBlock({
             </Button>
           </div>
         </div>
-      )}
-      
-      {/* Column context menu */}
-      {contextMenu && editable && (
-        <ContextMenu
-          items={[
-            {
-              id: 'rename',
-              label: 'Rename',
-              keepOpen: true,
-              submenu: showRenameSubmenu ? (
-                <div className="table-rename-submenu">
-                  <input
-                    type="text"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleRenameColumn();
-                      } else if (e.key === 'Escape') {
-                        setShowRenameSubmenu(false);
-                      }
-                    }}
-                    placeholder="Column name"
-                    className="table-rename-input"
-                    autoFocus
-                  />
-                  <div className="table-rename-actions">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleRenameColumn}
-                    >
-                      Confirm
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowRenameSubmenu(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : undefined,
-              onClick: () => setShowRenameSubmenu(true),
-            },
-            {
-              id: 'delete',
-              label: 'Delete Column',
-              danger: true,
-              onClick: handleDeleteColumnFromMenu,
-            },
-          ]}
-          position={{ x: contextMenu.x, y: contextMenu.y }}
-          onClose={() => {
-            setContextMenu(null);
-            setShowRenameSubmenu(false);
-          }}
-        />
       )}
     </div>
   );

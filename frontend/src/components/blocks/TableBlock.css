@@ -9,6 +9,10 @@
   width: 100%;
 }
 
+.table-block > * {
+  margin-top: var(--spacing-4);
+}
+
 .table-block--empty {
   padding: var(--spacing-4);
   text-align: center;
@@ -50,10 +54,43 @@
   background: var(--color-primary-hover);
 }
 
+/* Table header styles - same structure as cells */
+.table-block__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  min-height: 2rem;
+  padding: var(--spacing-1) 0;
+}
+
+.table-block__header-content {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.table-block__header-content > .block {
+  min-height: 24px;
+}
+
+.table-block__header-actions {
+  display: flex;
+  gap: var(--spacing-1);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+  /* Reserve space for 3 buttons (delete + 2 nav) */
+  min-width: calc(3 * (var(--spacing-1) + 24px + var(--spacing-1)));
+}
+
+.table-block__header:hover .table-block__header-actions {
+  opacity: 1;
+}
+
 /* Table cell styles with Block component and action buttons */
 .table-block__cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-2);
   min-height: 2rem;
   padding: var(--spacing-1) 0;
@@ -62,6 +99,13 @@
 .table-block__cell-content {
   flex: 1;
   min-width: 0;
+  /* Ensure no vertical shift when switching between edit and display modes */
+  align-self: stretch;
+}
+
+/* Ensure Block component within cell has consistent height */
+.table-block__cell-content > .block {
+  min-height: 24px;
 }
 
 .table-block__cell-actions {
