@@ -36,6 +36,7 @@ async def get_comments(
     rows = await pool.fetch("""
         SELECT id FROM node
         WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
         ORDER BY sequence, create_date
     """, node_id)
     
@@ -77,6 +78,7 @@ async def create_comment(
     seq_row = await pool.fetchrow("""
         SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
         FROM node WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
     """, node_id)
     next_seq = seq_row['next_seq'] if seq_row else 0
     
@@ -137,6 +139,7 @@ async def get_comment_count(
     row = await pool.fetchrow("""
         SELECT COUNT(*) as count FROM node 
         WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
     """, node_id)
     
     return {"count": row['count'] if row else 0}

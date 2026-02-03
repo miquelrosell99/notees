@@ -255,6 +255,7 @@ async def get_node(
             WHERE np.ancestor_id = $1 
               AND np.depth > 0
               AND n.active = TRUE
+              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
             ORDER BY np.depth, n.sequence
         """, node_id)
         all_descendants = [service._node_repo.row_to_node(row) for row in rows]
