@@ -33,6 +33,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useCreateNode, useUpdateNode, useDeleteNode } from '@/hooks';
 import type { Node } from '@/types';
+import { Table, type TableColumn } from '../core/Table';
+import { Button } from '../core/Button';
+import { ContextMenu } from '../core/ContextMenu';
 import './TableBlock.css';
 
 interface TableBlockProps {
@@ -67,6 +70,26 @@ function getCellNode(columns: Node[], colIndex: number, rowIndex: number): Node 
   return column.children[rowIndex] ?? null;
 }
 
+/**
+ * Row data type for Table component
+ */
+interface TableRowData {
+  rowIndex: number;
+  cells: (Node | null)[];
+}
+
+/**
+ * Transform node structure to Table component data format
+ */
+function transformToTableData(columns: Node[], rowCount: number): TableRowData[] {
+  const rows: TableRowData[] = [];
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    const cells = columns.map((_col, colIndex) => getCellNode(columns, colIndex, rowIndex));
+    rows.push({ rowIndex, cells });
+  }
+  return rows;
+}
+
 export function TableBlock({
   block,
   columns,
@@ -79,19 +102,20 @@ export function TableBlock({
   const [editingHeader, setEditingHeader] = useState<number | null>(null);
   const [editingHeaderValue, setEditingHeaderValue] = useState('');
   
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; colIndex: number } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [showRenameSubmenu, setShowRenameSubmenu] = useState(false);
+  
   // Cell selection state (selected but not editing)
   const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
   
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-  const [isBoxSelecting, setIsBoxSelecting] = useState(false);
-  const [boxSelectStart, setBoxSelectStart] = useState<{ x: number; y: number } | null>(null);
-  const [boxSelectCurrent, setBoxSelectCurrent] = useState<{ x: number; y: number } | null>(null);
   
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
-  const tableRef = useRef<HTMLTableElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Mutations
@@ -102,6 +126,278 @@ export function TableBlock({
   // Computed values
   const rowCount = useMemo(() => getRowCount(columns), [columns]);
   const colCount = columns.length;
+
+  // Transform node structure to Table data format
+  const tableData = useMemo(() => transformToTableData(columns, rowCount), [columns, rowCount]);
+
+  // ==================== Column Operations ====================
+
+  const handleAddColumn = useCallback(async () => {
+    if (!editable) return;
+
+    // Create the column
+    const newColumn = await createNode.mutateAsync({
+      name: `Column ${colCount + 1}`,
+      parent_id: block.id,
+      sequence: colCount,
+    });
+
+    // Add empty cells to match existing row count
+    for (let i = 0; i < rowCount; i++) {
+      await createNode.mutateAsync({
+        name: '',
+        parent_id: newColumn.id,
+        sequence: i,
+      });
+    }
+
+    onStructureChange?.();
+  }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
+
+  const handleDeleteColumn = useCallback(async (colIndex: number) => {
+    if (!editable) return;
+
+    const column = columns[colIndex];
+    if (!column) return;
+
+    // Normal delete - deletes column and all its cells automatically
+    await deleteNode.mutateAsync(column.id);
+    onStructureChange?.();
+  }, [editable, columns, deleteNode, onStructureChange]);
+
+  // ==================== Row Operations ====================
+
+  /**
+   * Delete a row (delete cell from each column at that row index)
+   */
+  const handleDeleteRow = useCallback(async (rowIndex: number) => {
+    if (!editable) return;
+
+    for (const column of columns) {
+      const cell = column.children?.[rowIndex];
+      if (cell) {
+        await deleteNode.mutateAsync(cell.id);
+      }
+    }
+    onStructureChange?.();
+  }, [editable, columns, deleteNode, onStructureChange]);
+
+  /**
+   * Add a new row (add empty cell to each column)
+   */
+  const handleAddRow = useCallback(async () => {
+    if (!editable || colCount === 0) return;
+
+    // Add an empty cell to each column
+    for (const column of columns) {
+      await createNode.mutateAsync({
+        name: '',
+        parent_id: column.id,
+        sequence: rowCount,
+      });
+    }
+    onStructureChange?.();
+  }, [editable, colCount, columns, rowCount, createNode, onStructureChange]);
+
+  // ==================== Save Handlers ====================
+
+  const handleHeaderSave = useCallback(async () => {
+    if (editingHeader === null) return;
+
+    const column = columns[editingHeader];
+    if (!column) return;
+
+    if (column.name !== editingHeaderValue) {
+      await updateNode.mutateAsync({
+        id: column.id,
+        data: { name: editingHeaderValue },
+      });
+    }
+
+    setEditingHeader(null);
+    setEditingHeaderValue('');
+  }, [editingHeader, columns, editingHeaderValue, updateNode]);
+
+  // ==================== Keyboard Navigation ====================
+
+  const handleHeaderKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (editingHeader === null) return;
+
+    switch (e.key) {
+      case 'Enter':
+        e.preventDefault();
+        handleHeaderSave();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setEditingHeader(null);
+        setEditingHeaderValue('');
+        break;
+      case 'Tab':
+        e.preventDefault();
+        handleHeaderSave().then(() => {
+          const nextCol = e.shiftKey ? editingHeader - 1 : editingHeader + 1;
+          if (nextCol >= 0 && nextCol < colCount) {
+            const column = columns[nextCol];
+            setEditingHeader(nextCol);
+            setEditingHeaderValue(column?.name ?? '');
+          }
+        });
+        break;
+    }
+  }, [editingHeader, handleHeaderSave, colCount, columns]);
+
+  // ==================== Context Menu Handlers ====================
+
+  const handleHeaderContextMenu = useCallback((column: TableColumn<TableRowData>, event: React.MouseEvent) => {
+    const colIndex = columns.findIndex(col => `col-${col.id}` === column.key);
+    if (colIndex === -1) return;
+
+    setContextMenu({ x: event.clientX, y: event.clientY, colIndex });
+    setRenameValue(columns[colIndex]?.name || '');
+    setShowRenameSubmenu(false);
+  }, [columns]);
+
+  const handleRenameColumn = useCallback(async () => {
+    if (contextMenu === null) return;
+    const column = columns[contextMenu.colIndex];
+    if (!column || !renameValue.trim()) return;
+
+    if (column.name !== renameValue) {
+      await updateNode.mutateAsync({
+        id: column.id,
+        data: { name: renameValue },
+      });
+    }
+
+    setContextMenu(null);
+    setShowRenameSubmenu(false);
+  }, [contextMenu, columns, renameValue, updateNode]);
+
+  const handleDeleteColumnFromMenu = useCallback(async () => {
+    if (contextMenu === null) return;
+    await handleDeleteColumn(contextMenu.colIndex);
+    setContextMenu(null);
+  }, [contextMenu, handleDeleteColumn]);
+
+  // Create column definitions for Table component
+  const tableColumns = useMemo<TableColumn<TableRowData>[]>(() => {
+    return columns.map((col, colIndex) => ({
+      key: `col-${col.id}`,
+      header: editable ? (
+        <div className="table-editable-header">
+          {editingHeader === colIndex ? (
+            <input
+              ref={headerInputRef}
+              type="text"
+              className="table-header-input"
+              value={editingHeaderValue}
+              onChange={(e) => setEditingHeaderValue(e.target.value)}
+              onKeyDown={handleHeaderKeyDown}
+              onBlur={handleHeaderSave}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <>
+              <span 
+                className="table-header-text"
+                onClick={() => handleHeaderClick(colIndex)}
+              >
+                {col.name || 'Untitled'}
+              </span>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteColumn(colIndex);
+                }}
+                title="Delete column"
+                className="table-delete-col-btn"
+              >
+                ×
+              </Button>
+            </>
+          )}
+        </div>
+      ) : (col.name || 'Untitled'),
+      accessor: (row) => {
+        const cell = row.cells[colIndex];
+        const isEditing = editingCell?.rowIndex === row.rowIndex && editingCell?.colIndex === colIndex;
+        const isCellSelected = selectedCell?.rowIndex === row.rowIndex && selectedCell?.colIndex === colIndex;
+        
+        if (!editable) {
+          return <span className="table-cell-text">{cell?.name ?? ''}</span>;
+        }
+
+        return (
+          <div
+            className={`table-cell-content ${isCellSelected ? 'table-cell--focused' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCellClick(row.rowIndex, colIndex, e);
+            }}
+            onDoubleClick={() => handleCellDoubleClick(row.rowIndex, colIndex)}
+          >
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                className="table-cell-input"
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                onKeyDown={handleCellKeyDown}
+                onBlur={handleCellSave}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="table-cell-text">
+                {cell?.name ?? ''}
+              </span>
+            )}
+          </div>
+        );
+      },
+    }));
+  }, [columns, editable, editingHeader, editingHeaderValue, editingCell, editingValue, selectedCell]);
+
+  // Add actions column if editable
+  const allColumns = useMemo<TableColumn<TableRowData>[]>(() => {
+    if (!editable) return tableColumns;
+    
+    return [
+      ...tableColumns,
+      {
+        key: 'add-column',
+        header: (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleAddColumn}
+            title="Add column"
+            className="table-add-col-btn"
+          >
+            +
+          </Button>
+        ),
+        accessor: (row) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteRow(row.rowIndex);
+            }}
+            title="Delete row"
+            className="table-delete-row-btn"
+          >
+            ×
+          </Button>
+        ),
+        width: '40px',
+      },
+    ];
+  }, [tableColumns, editable]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -262,23 +558,6 @@ export function TableBlock({
     setEditingValue('');
   }, [editingCell, columns, editingValue, updateNode, handleAddCellToColumn]);
 
-  const handleHeaderSave = useCallback(async () => {
-    if (editingHeader === null) return;
-
-    const column = columns[editingHeader];
-    if (!column) return;
-
-    if (column.name !== editingHeaderValue) {
-      await updateNode.mutateAsync({
-        id: column.id,
-        data: { name: editingHeaderValue },
-      });
-    }
-
-    setEditingHeader(null);
-    setEditingHeaderValue('');
-  }, [editingHeader, columns, editingHeaderValue, updateNode]);
-
   // ==================== Keyboard Navigation ====================
 
   const handleCellKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -311,33 +590,6 @@ export function TableBlock({
         break;
     }
   }, [editingCell, handleCellSave, colCount, rowCount, columns]);
-
-  const handleHeaderKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (editingHeader === null) return;
-
-    switch (e.key) {
-      case 'Enter':
-        e.preventDefault();
-        handleHeaderSave();
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setEditingHeader(null);
-        setEditingHeaderValue('');
-        break;
-      case 'Tab':
-        e.preventDefault();
-        handleHeaderSave().then(() => {
-          const nextCol = e.shiftKey ? editingHeader - 1 : editingHeader + 1;
-          if (nextCol >= 0 && nextCol < colCount) {
-            const column = columns[nextCol];
-            setEditingHeader(nextCol);
-            setEditingHeaderValue(column?.name ?? '');
-          }
-        });
-        break;
-    }
-  }, [editingHeader, handleHeaderSave, colCount, columns]);
 
   // Delete selected rows handler (defined early for use in effect)
   const handleDeleteSelectedRows = useCallback(async () => {
@@ -460,259 +712,6 @@ export function TableBlock({
 
   // ==================== Column Operations ====================
 
-  const handleAddColumn = useCallback(async () => {
-    if (!editable) return;
-
-    // Create the column
-    const newColumn = await createNode.mutateAsync({
-      name: `Column ${colCount + 1}`,
-      parent_id: block.id,
-      sequence: colCount,
-    });
-
-    // Add empty cells to match existing row count
-    for (let i = 0; i < rowCount; i++) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: newColumn.id,
-        sequence: i,
-      });
-    }
-
-    onStructureChange?.();
-  }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
-
-  const handleDeleteColumn = useCallback(async (colIndex: number) => {
-    if (!editable) return;
-
-    const column = columns[colIndex];
-    if (!column) return;
-
-    // Normal delete - deletes column and all its cells automatically
-    await deleteNode.mutateAsync(column.id);
-    onStructureChange?.();
-  }, [editable, columns, deleteNode, onStructureChange]);
-
-  // ==================== Row Operations ====================
-
-  /**
-   * Add a new row (add empty cell to each column)
-   */
-  const handleAddRow = useCallback(async () => {
-    if (!editable || colCount === 0) return;
-
-    // Add an empty cell to each column
-    for (const column of columns) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: column.id,
-        sequence: rowCount,
-      });
-    }
-    onStructureChange?.();
-  }, [editable, colCount, columns, rowCount, createNode, onStructureChange]);
-
-  /**
-   * Delete a row (delete cell from each column at that row index)
-   */
-  const handleDeleteRow = useCallback(async (rowIndex: number) => {
-    if (!editable) return;
-
-    for (const column of columns) {
-      const cell = column.children?.[rowIndex];
-      if (cell) {
-        await deleteNode.mutateAsync(cell.id);
-      }
-    }
-    onStructureChange?.();
-  }, [editable, columns, deleteNode, onStructureChange]);
-
-  // ==================== Box Selection ====================
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!editable) return;
-    if (e.button !== 0) return; // Only left click
-    
-    // Don't start box select if clicking on interactive elements
-    const target = e.target as HTMLElement;
-    if (target.closest('input, button, textarea')) return;
-    
-    // Check if clicking on a cell content area (but not header)
-    const cell = target.closest('.table-block__cell');
-    
-    if (!cell) {
-      // Clicking on empty area - start box select
-      const rect = wrapperRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      
-      setIsBoxSelecting(true);
-      setBoxSelectStart({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      setBoxSelectCurrent({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      setSelectedRows(new Set());
-    }
-  }, [editable]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isBoxSelecting || !boxSelectStart) return;
-    
-    const rect = wrapperRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const currentPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setBoxSelectCurrent(currentPos);
-    
-    // Calculate which rows intersect with the selection box
-    if (tableRef.current) {
-      const rows = tableRef.current.querySelectorAll('tbody tr:not(.table-block__add-row)');
-      const newSelection = new Set<number>();
-      
-      const selectionRect = {
-        left: Math.min(boxSelectStart.x, currentPos.x),
-        right: Math.max(boxSelectStart.x, currentPos.x),
-        top: Math.min(boxSelectStart.y, currentPos.y),
-        bottom: Math.max(boxSelectStart.y, currentPos.y),
-      };
-      
-      rows.forEach((row, index) => {
-        const rowRect = row.getBoundingClientRect();
-        const relativeRowRect = {
-          left: rowRect.left - rect.left,
-          right: rowRect.right - rect.left,
-          top: rowRect.top - rect.top,
-          bottom: rowRect.bottom - rect.top,
-        };
-        
-        // Check if selection box intersects with row
-        if (
-          selectionRect.left < relativeRowRect.right &&
-          selectionRect.right > relativeRowRect.left &&
-          selectionRect.top < relativeRowRect.bottom &&
-          selectionRect.bottom > relativeRowRect.top
-        ) {
-          newSelection.add(index);
-        }
-      });
-      
-      setSelectedRows(newSelection);
-    }
-  }, [isBoxSelecting, boxSelectStart]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsBoxSelecting(false);
-    setBoxSelectStart(null);
-    setBoxSelectCurrent(null);
-  }, []);
-
-  // Register global mouse handlers for box select
-  useEffect(() => {
-    if (isBoxSelecting) {
-      const handleGlobalMouseMove = (e: MouseEvent) => {
-        const rect = wrapperRef.current?.getBoundingClientRect();
-        if (!rect || !boxSelectStart) return;
-        
-        const currentPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-        setBoxSelectCurrent(currentPos);
-        
-        // Calculate which rows intersect
-        if (tableRef.current) {
-          const rows = tableRef.current.querySelectorAll('tbody tr:not(.table-block__add-row)');
-          const newSelection = new Set<number>();
-          
-          const selectionRect = {
-            left: Math.min(boxSelectStart.x, currentPos.x),
-            right: Math.max(boxSelectStart.x, currentPos.x),
-            top: Math.min(boxSelectStart.y, currentPos.y),
-            bottom: Math.max(boxSelectStart.y, currentPos.y),
-          };
-          
-          rows.forEach((row, index) => {
-            const rowRect = row.getBoundingClientRect();
-            const relativeRowRect = {
-              left: rowRect.left - rect.left,
-              right: rowRect.right - rect.left,
-              top: rowRect.top - rect.top,
-              bottom: rowRect.bottom - rect.top,
-            };
-            
-            if (
-              selectionRect.left < relativeRowRect.right &&
-              selectionRect.right > relativeRowRect.left &&
-              selectionRect.top < relativeRowRect.bottom &&
-              selectionRect.bottom > relativeRowRect.top
-            ) {
-              newSelection.add(index);
-            }
-          });
-          
-          setSelectedRows(newSelection);
-        }
-      };
-      
-      const handleGlobalMouseUp = () => {
-        setIsBoxSelecting(false);
-        setBoxSelectStart(null);
-        setBoxSelectCurrent(null);
-      };
-      
-      document.addEventListener('mousemove', handleGlobalMouseMove);
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleGlobalMouseMove);
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [isBoxSelecting, boxSelectStart]);
-
-  // ==================== Row Click Handler ====================
-
-  const handleRowClick = useCallback((rowIndex: number, e: React.MouseEvent) => {
-    if (!editable) return;
-    
-    // If clicking on row action buttons, don't select
-    const target = e.target as HTMLElement;
-    if (target.closest('.table-block__row-actions')) return;
-    
-    // Shift-click: extend selection
-    if (e.shiftKey && selectedRows.size > 0) {
-      const minRow = Math.min(...selectedRows, rowIndex);
-      const maxRow = Math.max(...selectedRows, rowIndex);
-      const newSelection = new Set<number>();
-      for (let i = minRow; i <= maxRow; i++) {
-        newSelection.add(i);
-      }
-      setSelectedRows(newSelection);
-      return;
-    }
-    
-    // Ctrl/Cmd-click: toggle row in selection
-    if (e.ctrlKey || e.metaKey) {
-      setSelectedRows(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(rowIndex)) {
-          newSet.delete(rowIndex);
-        } else {
-          newSet.add(rowIndex);
-        }
-        return newSet;
-      });
-      return;
-    }
-  }, [editable, selectedRows]);
-
-  // ==================== Selection Box Rendering ====================
-
-  const selectionBoxStyle = useMemo(() => {
-    if (!isBoxSelecting || !boxSelectStart || !boxSelectCurrent) return null;
-    
-    const left = Math.min(boxSelectStart.x, boxSelectCurrent.x);
-    const top = Math.min(boxSelectStart.y, boxSelectCurrent.y);
-    const width = Math.abs(boxSelectCurrent.x - boxSelectStart.x);
-    const height = Math.abs(boxSelectCurrent.y - boxSelectStart.y);
-    
-    return { left, top, width, height };
-  }, [isBoxSelecting, boxSelectStart, boxSelectCurrent]);
-
   // ==================== Render ====================
 
   // Render empty state if no columns
@@ -723,12 +722,15 @@ export function TableBlock({
           Empty table
         </div>
         {editable && (
-          <button
-            className="table-block__add-column-btn"
+          <Button
+            variant="primary"
+            size="md"
             onClick={handleAddColumn}
+            className="table-block__add-column-btn table-block__add-column-btn--square"
+            title="Add Column"
           >
-            + Add Column
-          </button>
+            +
+          </Button>
         )}
       </div>
     );
@@ -738,222 +740,132 @@ export function TableBlock({
     <div 
       className="table-block"
       ref={wrapperRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
     >
       {block.name && (
         <div className="table-block__title">{block.name}</div>
       )}
       
-      <div className="table-block__wrapper">
-        <table ref={tableRef} className="table-block__table">
-          <thead>
-            <tr>
-              {/* Row selection checkbox column */}
-              {editable && (
-                <th className="table-block__select-col">
-                  <input
-                    type="checkbox"
-                    checked={selectedRows.size === rowCount && rowCount > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        const allRows = new Set<number>();
-                        for (let i = 0; i < rowCount; i++) {
-                          allRows.add(i);
-                        }
-                        setSelectedRows(allRows);
-                      } else {
-                        setSelectedRows(new Set());
-                      }
-                    }}
-                    title="Select all rows"
-                  />
-                </th>
-              )}
-              {columns.map((col, colIndex) => (
-                <th
-                  key={col.id}
-                  className={`table-block__header ${editingHeader === colIndex ? 'table-block__header--editing' : ''}`}
-                  onClick={() => handleHeaderClick(colIndex)}
-                >
-                  {editingHeader === colIndex ? (
-                    <input
-                      ref={headerInputRef}
-                      type="text"
-                      className="table-block__header-input"
-                      value={editingHeaderValue}
-                      onChange={(e) => setEditingHeaderValue(e.target.value)}
-                      onKeyDown={handleHeaderKeyDown}
-                      onBlur={handleHeaderSave}
-                    />
-                  ) : (
-                    <span className="table-block__header-text">
-                      {col.name || 'Untitled'}
-                    </span>
-                  )}
-                  {editable && (
-                    <button
-                      className="table-block__delete-col-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteColumn(colIndex);
-                      }}
-                      title="Delete column"
-                    >
-                      ×
-                    </button>
-                  )}
-                </th>
-              ))}
-              {editable && (
-                <th className="table-block__add-col">
-                  <button
-                    className="table-block__add-col-btn"
-                    onClick={handleAddColumn}
-                    title="Add column"
-                  >
-                    +
-                  </button>
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: rowCount }).map((_, rowIndex) => {
-              const isRowSelected = selectedRows.has(rowIndex);
-              
-              return (
-                <tr 
-                  key={rowIndex}
-                  className={isRowSelected ? 'table-block__row--selected' : ''}
-                  onClick={(e) => handleRowClick(rowIndex, e)}
-                >
-                  {/* Row selection checkbox */}
-                  {editable && (
-                    <td className="table-block__select-cell">
-                      <input
-                        type="checkbox"
-                        checked={isRowSelected}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          setSelectedRows(prev => {
-                            const newSet = new Set(prev);
-                            if (e.target.checked) {
-                              newSet.add(rowIndex);
-                            } else {
-                              newSet.delete(rowIndex);
-                            }
-                            return newSet;
-                          });
-                        }}
-                      />
-                    </td>
-                  )}
-                  {columns.map((col, colIndex) => {
-                    const cell = getCellNode(columns, colIndex, rowIndex);
-                    const isEditing = editingCell?.rowIndex === rowIndex && editingCell?.colIndex === colIndex;
-                    const isCellSelected = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
-                    
-                    return (
-                      <td
-                        key={`${col.id}-${rowIndex}`}
-                        className={`table-block__cell ${isEditing ? 'table-block__cell--editing' : ''} ${isRowSelected ? 'table-block__cell--selected' : ''} ${isCellSelected ? 'table-block__cell--focused' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCellClick(rowIndex, colIndex, e);
-                        }}
-                        onDoubleClick={() => handleCellDoubleClick(rowIndex, colIndex)}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          // Could add context menu here for cell operations
-                        }}
-                      >
-                        {isEditing ? (
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            className="table-block__cell-input"
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onKeyDown={handleCellKeyDown}
-                            onBlur={handleCellSave}
-                          />
-                        ) : (
-                          <span className="table-block__cell-text">
-                            {cell?.name ?? ''}
-                          </span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  {editable && (
-                    <td className="table-block__row-actions">
-                      <button
-                        className="table-block__delete-row-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteRow(rowIndex);
-                        }}
-                        title="Delete row"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-            {editable && (
-              <tr className="table-block__add-row">
-                <td colSpan={colCount + 2}>
-                  <button
-                    className="table-block__add-row-btn"
-                    onClick={handleAddRow}
-                  >
-                    + Add Row
-                  </button>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        
-        {/* Box selection overlay */}
-        {isBoxSelecting && selectionBoxStyle && (
-          <div
-            className="table-block__selection-box"
-            style={{
-              left: selectionBoxStyle.left,
-              top: selectionBoxStyle.top,
-              width: selectionBoxStyle.width,
-              height: selectionBoxStyle.height,
-            }}
-          />
-        )}
-      </div>
+      <Table<TableRowData>
+        data={tableData}
+        columns={allColumns}
+        getRowKey={(row) => `row-${row.rowIndex}`}
+        size="md"
+        variant="default"
+        selectable={editable}
+        selectedKeys={new Set(Array.from(selectedRows).map(i => `row-${i}`))}
+        onSelectionChange={(keys) => {
+          const rowIndices = Array.from(keys)
+            .map(k => parseInt(String(k).replace('row-', '')))
+            .filter(n => !isNaN(n));
+          setSelectedRows(new Set(rowIndices));
+        }}
+        onHeaderContextMenu={editable ? handleHeaderContextMenu : undefined}
+        hoverable={true}
+        showHeader={true}
+        className="table-block__table"
+      />
+      
+      {/* Add row button */}
+      {editable && (
+        <div className="table-block__add-row-wrapper">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleAddRow}
+            className="table-add-row-btn"
+          >
+            + Add Row
+          </Button>
+        </div>
+      )}
       
       {/* Selection actions toolbar */}
       {selectedRows.size > 0 && editable && (
-        <div className="table-block__selection-toolbar">
-          <span className="table-block__selection-count">
+        <div className="table-selection-toolbar">
+          <span className="table-selection-info">
             {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''} selected
           </span>
-          <button
-            className="table-block__selection-action"
-            onClick={handleDeleteSelectedRows}
-            title="Delete selected rows"
-          >
-            Delete
-          </button>
-          <button
-            className="table-block__selection-action"
-            onClick={() => setSelectedRows(new Set())}
-            title="Clear selection"
-          >
-            Clear
-          </button>
+          <div className="table-selection-actions">
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteSelectedRows}
+              title="Delete selected rows"
+              className="table-selection-action table-selection-action--danger"
+            >
+              Delete
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setSelectedRows(new Set())}
+              title="Clear selection"
+              className="table-selection-action"
+            >
+              Clear
+            </Button>
+          </div>
         </div>
+      )}
+      
+      {/* Column context menu */}
+      {contextMenu && editable && (
+        <ContextMenu
+          items={[
+            {
+              id: 'rename',
+              label: 'Rename',
+              keepOpen: true,
+              submenu: showRenameSubmenu ? (
+                <div className="table-rename-submenu">
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleRenameColumn();
+                      } else if (e.key === 'Escape') {
+                        setShowRenameSubmenu(false);
+                      }
+                    }}
+                    placeholder="Column name"
+                    className="table-rename-input"
+                    autoFocus
+                  />
+                  <div className="table-rename-actions">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleRenameColumn}
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowRenameSubmenu(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : undefined,
+              onClick: () => setShowRenameSubmenu(true),
+            },
+            {
+              id: 'delete',
+              label: 'Delete Column',
+              danger: true,
+              onClick: handleDeleteColumnFromMenu,
+            },
+          ]}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => {
+            setContextMenu(null);
+            setShowRenameSubmenu(false);
+          }}
+        />
       )}
     </div>
   );

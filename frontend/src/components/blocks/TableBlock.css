@@ -1,333 +1,110 @@
 /**
  * TableBlock Styles
  * 
- * Styles for the block-based table component.
+ * Wrapper styles for the block-based table component.
+ * Uses core Table component for rendering.
  */
 
 .table-block {
-  margin: 8px 0;
-  font-size: var(--font-size-sm);
+  width: 100%;
 }
 
 .table-block--empty {
-  padding: 16px;
+  padding: var(--spacing-4);
   text-align: center;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-secondary);
+  border: 1px dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-variant);
 }
 
 .table-block__empty-message {
-  color: var(--color-text-muted);
-  margin-bottom: 12px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: var(--spacing-3);
 }
 
 .table-block__title {
   font-weight: 500;
-  margin-bottom: 8px;
-  color: var(--color-text);
-}
-
-.table-block__wrapper {
-  overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  position: relative;
-}
-
-.table-block__table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.table-block__header {
-  padding: 8px 12px;
-  text-align: left;
-  font-weight: 500;
-  background: var(--color-surface-secondary);
-  border-bottom: 1px solid var(--color-border);
-  position: relative;
-  cursor: pointer;
-  min-width: 100px;
-}
-
-.table-block__header:hover {
-  background: var(--color-surface-hover);
-}
-
-.table-block__header--editing {
-  padding: 4px;
-}
-
-.table-block__header-text {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.table-block__header-input {
-  width: 100%;
-  padding: 4px 8px;
-  font-size: inherit;
-  font-weight: 500;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  outline: none;
-}
-
-.table-block__delete-col-btn {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  border-radius: var(--radius-sm);
-}
-
-.table-block__header:hover .table-block__delete-col-btn {
-  opacity: 1;
-}
-
-.table-block__delete-col-btn:hover {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-
-.table-block__add-col {
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
-  background: transparent;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.table-block__add-col-btn {
-  width: 100%;
-  height: 100%;
-  padding: 8px;
-  font-size: 16px;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.table-block__add-col-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-primary);
-}
-
-.table-block__cell {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
-  cursor: pointer;
-  vertical-align: top;
-}
-
-.table-block__cell:hover {
-  background: var(--color-surface-hover);
-}
-
-.table-block__cell--editing {
-  padding: 4px;
-  background: var(--color-surface);
-}
-
-.table-block__cell-text {
-  display: block;
-  min-height: 1.4em;
-}
-
-.table-block__cell-input {
-  width: 100%;
-  padding: 4px 8px;
-  font-size: inherit;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  outline: none;
-}
-
-.table-block__row-actions {
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
-  border-bottom: 1px solid var(--color-border);
-  text-align: center;
-}
-
-.table-block__delete-row-btn {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  font-size: 14px;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  border-radius: var(--radius-sm);
-}
-
-tr:hover .table-block__delete-row-btn {
-  opacity: 1;
-}
-
-.table-block__delete-row-btn:hover {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-
-.table-block__add-row {
-  background: transparent;
-}
-
-.table-block__add-row td {
-  padding: 0;
-  border-bottom: none;
-}
-
-.table-block__add-row-btn {
-  width: 100%;
-  padding: 8px;
-  font-size: var(--font-size-sm);
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.table-block__add-row-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-primary);
+  margin-bottom: var(--spacing-2);
+  color: var(--color-on-surface);
 }
 
 .table-block__add-column-btn {
-  padding: 8px 16px;
-  font-size: var(--font-size-sm);
+  padding: var(--spacing-2) var(--spacing-4);
+  font: var(--font-body-medium);
   background: var(--color-primary);
   border: none;
-  border-radius: var(--radius-md);
-  color: white;
+  border-radius: var(--shape-medium);
+  color: var(--color-on-primary);
   cursor: pointer;
   transition: background-color 0.15s ease;
+}
+
+.table-block__add-column-btn--square {
+  aspect-ratio: 1 / 1;
+  padding: var(--spacing-2);
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .table-block__add-column-btn:hover {
   background: var(--color-primary-hover);
 }
 
-/* Selection checkbox column */
-.table-block__select-col {
-  width: 36px;
-  min-width: 36px;
-  padding: 8px;
-  text-align: center;
-  background: var(--color-surface-secondary);
-  border-bottom: 1px solid var(--color-border);
+/* Custom table element styles for editable features */
+.table-block__table .table-cell--header {
+  position: relative;
+  user-select: none;
 }
 
-.table-block__select-cell {
-  width: 36px;
-  min-width: 36px;
-  padding: 8px;
-  text-align: center;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.table-block__select-col input[type="checkbox"],
-.table-block__select-cell input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--color-primary);
-}
-
-/* Selected row styles */
-.table-block__row--selected {
-  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
-}
-
-.table-block__row--selected .table-block__cell {
-  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
-}
-
-.table-block__cell--selected {
-  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
-}
-
-/* Single cell focused state */
-.table-block__cell--focused {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
-  background: var(--color-selection-bg, rgba(59, 130, 246, 0.1));
-}
-
-/* Box selection overlay */
-.table-block__selection-box {
-  position: absolute;
-  background: var(--color-selection-bg, rgba(59, 130, 246, 0.2));
-  border: 1px solid var(--color-primary);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Selection toolbar */
-.table-block__selection-toolbar {
+.table-editable-header {
+  position: relative;
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  margin-top: 8px;
-  background: var(--color-surface-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
 }
 
-.table-block__selection-count {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.table-block__selection-action {
-  padding: 4px 12px;
-  font-size: var(--font-size-sm);
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
+.table-cell-content {
+  width: 100%;
+  min-height: 1.4em;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.table-block__selection-action:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-text-muted);
+.table-cell-content:hover {
+  background: var(--color-hover-overlay);
 }
 
-.table-block__selection-action:first-of-type {
-  color: var(--color-error);
-  border-color: var(--color-error);
+.table-block__add-row-wrapper {
+  margin-top: var(--spacing-2);
 }
 
-.table-block__selection-action:first-of-type:hover {
-  background: var(--color-error-bg);
+/* Context menu rename submenu */
+.table-rename-submenu {
+  padding: var(--spacing-3);
+  min-width: 200px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-1);
+}
+
+.table-rename-input {
+  width: 100%;
+  padding: var(--spacing-2);
+  font: var(--font-body-medium);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface);
+  margin-bottom: var(--spacing-2);
+}
+
+.table-rename-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.table-rename-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: flex-end;
 }

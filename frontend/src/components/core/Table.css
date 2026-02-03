@@ -229,3 +229,260 @@
     display: none;
   }
 }
+
+/* ==================== Editable Table Styles (for TableBlock) ==================== */
+
+/* Editable header cell */
+.table-cell--editable-header {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.table-cell--editable-header:hover {
+  background: var(--color-hover-overlay);
+}
+
+.table-header-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-header-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: inherit;
+  font-weight: 600;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  outline: none;
+}
+
+/* Delete column button */
+.table-delete-col-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border-radius: var(--shape-small);
+}
+
+.table-cell--editable-header:hover .table-delete-col-btn {
+  opacity: 1;
+}
+
+.table-delete-col-btn:hover {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+/* Add column cell */
+.table-add-col-cell {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  background: transparent;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.table-add-col-btn {
+  width: 100%;
+  height: 100%;
+  padding: var(--spacing-2);
+  font-size: 16px;
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.table-add-col-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-primary);
+}
+
+/* Editable cell */
+.table-cell--editable {
+  cursor: pointer;
+}
+
+.table-cell--editable:hover {
+  background: var(--color-hover-overlay);
+}
+
+.table-cell--editing {
+  padding: 4px;
+  background: var(--color-surface);
+}
+
+.table-cell-text {
+  display: block;
+  min-height: 1.4em;
+}
+
+.table-cell-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: inherit;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  outline: none;
+}
+
+/* Row actions column */
+.table-row-actions-cell {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  text-align: center;
+}
+
+.table-delete-row-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 14px;
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border-radius: var(--shape-small);
+}
+
+.table-row:hover .table-delete-row-btn {
+  opacity: 1;
+}
+
+.table-delete-row-btn:hover {
+  background: var(--color-error-container);
+  color: var(--color-error);
+}
+
+/* Add row */
+.table-add-row {
+  background: transparent;
+}
+
+.table-add-row td {
+  padding: 0;
+  border-bottom: none;
+}
+
+.table-add-row-btn {
+  width: 100%;
+  padding: var(--spacing-2);
+  font: var(--font-body-medium);
+  background: none;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.table-add-row-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-primary);
+}
+
+/* Selection checkbox column */
+.table-select-col {
+  width: 36px;
+  min-width: 36px;
+  padding: var(--spacing-2);
+  text-align: center;
+  background: var(--color-surface-variant);
+}
+
+.table-select-cell {
+  width: 36px;
+  min-width: 36px;
+  padding: var(--spacing-2);
+  text-align: center;
+}
+
+.table-select-col input[type="checkbox"],
+.table-select-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* Cell focused state */
+.table-cell--focused {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  background: var(--color-primary-container);
+}
+
+/* Selection box overlay */
+.table-selection-box {
+  position: absolute;
+  background: var(--color-primary-container);
+  border: 1px solid var(--color-primary);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Selection toolbar */
+.table-selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-top: var(--spacing-2);
+  background: var(--color-surface-variant);
+  border-radius: var(--shape-medium);
+}
+
+.table-selection-info {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.table-selection-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.table-selection-action {
+  padding: var(--spacing-1) var(--spacing-3);
+  font: var(--font-body-medium);
+  background: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.table-selection-action:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline);
+}
+
+.table-selection-action--danger:hover {
+  background: var(--color-error-container);
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
