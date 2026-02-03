@@ -52,7 +52,7 @@ export function QuerySection({
       onBlockCreated={onBlockCreated}
       showAddButton={viewType !== 'linked_references'}
     >
-      {({ controls, results, count, isLoading }) => {
+      {({ results, count, isLoading }) => {
         // Hide section if empty and hideWhenEmpty is true
         if (hideWhenEmpty && !isLoading && count === 0) {
           return null;
@@ -65,7 +65,6 @@ export function QuerySection({
             count={count}
             defaultExpanded={defaultExpanded}
             hideWhenEmpty={false}
-            headerActions={controls}
             className={`query-section ${className}`}
           >
             {results}

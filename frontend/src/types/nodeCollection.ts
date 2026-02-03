@@ -175,6 +175,9 @@ export interface NodeCollectionProps {
   /** Hide the internal toolbar (use when rendering toolbar externally via NodeCollectionToolbar) */
   hideToolbar?: boolean;
   
+  /** Custom content to render at the start of the toolbar */
+  toolbarPrefix?: React.ReactNode;
+  
   /** Show "Add" button in the toolbar (default: false) */
   showAddButton?: boolean;
   

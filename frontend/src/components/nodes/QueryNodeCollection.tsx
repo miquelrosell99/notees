@@ -57,6 +57,8 @@ export interface QueryNodeCollectionProps {
   onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
+  /** Whether to hide the toolbar completely (for inline/headless use like query blocks) */
+  hideToolbar?: boolean;
   /** Whether to show add button in toolbar */
   showAddButton?: boolean;
   /** Render prop - receives controls and results */
@@ -82,6 +84,7 @@ export function QueryNodeCollection({
   viewType,
   onNodeClick,
   onBlockCreated,
+  hideToolbar = false,
   showAddButton = true,
   children,
 }: QueryNodeCollectionProps): React.ReactNode {
@@ -419,9 +422,9 @@ export function QueryNodeCollection({
 
   const resultCount = resultNodes.length;
 
-  // Controls/toolbar
-  const controls = (
-    <div className="dynamic-section__header-actions">
+  // Toolbar prefix - view selector, filter button, add view button
+  const toolbarPrefix = (
+    <>
       {/* View selection (only when multiple views) */}
       {views.length > 1 && (
         <SelectionButton
@@ -458,6 +461,37 @@ export function QueryNodeCollection({
         onClick={handleAddView}
         title="Add view"
       />
+    </>
+  );
+
+  // Results with integrated toolbar
+  const results = (
+    <>
+      {isQueryLoading ? (
+        <div className="dynamic-section__loading">Loading...</div>
+      ) : (
+        <NodeCollection
+          nodes={resultNodes}
+          viewId={activeView?.id}
+          view={activeView}
+          viewMode={collectionViewMode}
+          availableViewModes={['list', 'table', 'card']}
+          onViewModeChange={handleViewModeChange}
+          editable={true}
+          hideToolbar={hideToolbar}
+          toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
+          showGroupBy={collectionViewMode === 'list'}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
+          showAddButton={showAddButton && viewType !== 'linked_references'}
+          onAdd={handleAddNode}
+          pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
+          selectedPropertyUuids={selectedPropertyUuids}
+          onPropertyColumnsChange={handlePropertyColumnsChange}
+          onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+          emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
+        />
+      )}
 
       {/* Edit Modal */}
       <Modal
@@ -543,37 +577,11 @@ export function QueryNodeCollection({
           </div>
         )}
       </Modal>
-    </div>
-  );
-
-  // Results
-  const results = isQueryLoading ? (
-    <div className="dynamic-section__loading">Loading...</div>
-  ) : (
-    <NodeCollection
-      nodes={resultNodes}
-      viewId={activeView?.id}
-      view={activeView}
-      viewMode={collectionViewMode}
-      availableViewModes={['list', 'table', 'card']}
-      onViewModeChange={handleViewModeChange}
-      editable={true}
-      hideToolbar={false}
-      showGroupBy={collectionViewMode === 'list'}
-      groupBy={groupBy}
-      onGroupByChange={setGroupBy}
-      showAddButton={showAddButton && viewType !== 'linked_references'}
-      onAdd={handleAddNode}
-      pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
-      selectedPropertyUuids={selectedPropertyUuids}
-      onPropertyColumnsChange={handlePropertyColumnsChange}
-      onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
-      emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
-    />
+    </>
   );
 
   return children({
-    controls,
+    controls: null,  // No longer separate - integrated into NodeCollection toolbar
     results,
     count: resultCount,
     isLoading: isQueryLoading,
