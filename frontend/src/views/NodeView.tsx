@@ -39,6 +39,7 @@ import { NodeViewSection, QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
+
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isSystemClassUuid, isBlockOnlyClass } from '@/constants';
 import type { Asset } from '../api/assets';
 
@@ -136,7 +137,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, onAddSidebarCard]);
+  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, onAddSidebarCard, pageClassId]);
 
   return (
     <div className="focused-block-content">

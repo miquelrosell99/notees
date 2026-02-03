@@ -32,7 +32,7 @@ import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
 import { BlockEditor, type TaskState, type PastedTable } from './BlockEditor';
@@ -40,6 +40,7 @@ import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
+import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
@@ -158,8 +159,23 @@ function BlockInternal({
   const deleteNode = useDeleteNode();
   const createNode = useCreateNode();
   const removeClass = useRemoveClass();
+  const addClass = useAddClass();
   const { data: allClasses } = useClasses();
   useSystemClasses(); // Keep hook call for side effects
+  
+  // Table creation modal state
+  const [tableCreationState, setTableCreationState] = useState<{
+    isOpen: boolean;
+    classNodeId: number | null;
+    keepInline: boolean;
+    className: string;
+  }>({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
+  
+  // Get table class for detecting table class additions
+  const tableClass = useMemo(() => {
+    if (!allClasses) return null;
+    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table) ?? null;
+  }, [allClasses]);
   
   // Get query class ID from system classes
   const queryClass = useMemo(() => {
@@ -841,6 +857,69 @@ function BlockInternal({
     }
   }, [block.id, block.name, block.parent_id, block.sequence, parentId, allClasses, createNode, setPendingCaret]);
   
+  // ==================== Table Class Handling ====================
+  
+  // Create table structure (columns and rows) after adding table class
+  const createTableStructure = useCallback(async (size: TableSize) => {
+    // Create column blocks as children of the table block
+    for (let colIndex = 0; colIndex < size.columns; colIndex++) {
+      const columnNode = await createNode.mutateAsync({
+        name: `Column ${colIndex + 1}`,
+        parent_id: block.id,
+        sequence: colIndex,
+      });
+      
+      // Create row cells for each column
+      for (let rowIndex = 0; rowIndex < size.rows; rowIndex++) {
+        await createNode.mutateAsync({
+          name: '',
+          parent_id: columnNode.id,
+          sequence: rowIndex,
+        });
+      }
+    }
+  }, [createNode, block.id]);
+
+  // Handle table creation modal confirm
+  const handleTableCreationConfirm = useCallback(async (size: TableSize) => {
+    const { classNodeId, keepInline, className } = tableCreationState;
+    if (!classNodeId) return;
+    
+    try {
+      // First add the table class to the block via the parent's callback
+      // This ensures proper cache invalidation through the mutation
+      if (onAddClass) {
+        onAddClass(classNodeId, keepInline, className);
+      } else {
+        // Fallback: add class directly if no callback provided
+        await addClass.mutateAsync({ nodeId: block.id, classId: classNodeId });
+      }
+      // Then create the table structure
+      await createTableStructure(size);
+    } catch (error) {
+      console.error('Failed to create table:', error);
+    }
+    
+    setTableCreationState({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
+  }, [tableCreationState, onAddClass, addClass, block.id, createTableStructure]);
+
+  // Handle table creation modal cancel
+  const handleTableCreationCancel = useCallback(() => {
+    // Just close the modal - don't add the class since user cancelled
+    setTableCreationState({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
+  }, []);
+
+  // Wrapped onAddClass that intercepts table class additions
+  const handleAddClass = useCallback((classNodeId: number, keepInline: boolean, className: string) => {
+    // Check if this is the table class - show size selector modal
+    if (tableClass && classNodeId === tableClass.id) {
+      setTableCreationState({ isOpen: true, classNodeId, keepInline, className });
+      return;
+    }
+    // For other classes, pass through to parent callback
+    onAddClass?.(classNodeId, keepInline, className);
+  }, [tableClass, onAddClass]);
+  
   // Handle Backspace at start of block - delete block and merge text with visual block above
   // Rules:
   // - Don't merge if current block has children
@@ -1494,7 +1573,7 @@ function BlockInternal({
               content={block.name || ''}
               onChange={(content) => onContentChange?.(block.id, content)}
               editorRef={editorRef}
-              onAddClass={onAddClass}
+              onAddClass={handleAddClass}
               queryClassId={queryClass?.id ?? null}
               onAddTag={onAddTag}
               onCreateClass={onCreateClass}
@@ -1638,7 +1717,7 @@ function BlockInternal({
                     content={block.name || ''}
                     onChange={(content) => onContentChange?.(block.id, content)}
                     editorRef={editorRef}
-                    onAddClass={onAddClass}
+                    onAddClass={handleAddClass}
                     queryClassId={queryClass?.id ?? null}
                     onAddTag={onAddTag}
                     onCreateClass={onCreateClass}
@@ -1767,7 +1846,7 @@ function BlockInternal({
                     onContentChange={onContentChange}
                     onBulletClick={onBulletClick}
                     onShiftClick={onShiftClick}
-                    onAddClass={onAddClass}
+                    onAddClass={handleAddClass}
                   onAddTag={onAddTag}
                   onCreateClass={onCreateClass}
                   onCreateTag={onCreateTag}
@@ -1820,6 +1899,13 @@ function BlockInternal({
           />
         )
       )}
+      
+      {/* Table Size Selection Modal */}
+      <TableCreationModal
+        isOpen={tableCreationState.isOpen}
+        onConfirm={handleTableCreationConfirm}
+        onCancel={handleTableCreationCancel}
+      />
 
     </div>
   );

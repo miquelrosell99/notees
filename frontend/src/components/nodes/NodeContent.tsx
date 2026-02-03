@@ -184,7 +184,7 @@ export function NodeContent({
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard]);
+  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard, systemClassIds, children]);
 
   const viewMode = toViewMode(displayMode);
 
