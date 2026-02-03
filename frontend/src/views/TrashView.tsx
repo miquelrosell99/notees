@@ -15,6 +15,7 @@ import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { useState, useCallback } from 'react';
 import { Button } from '../components/core/Button';
+import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import './TrashView.css';
 
 interface TrashViewProps {
@@ -24,6 +25,7 @@ interface TrashViewProps {
 export function TrashView({ className = '' }: TrashViewProps) {
   const { openNode } = useNodesStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
+  const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const queryClient = useQueryClient();
   
   // Fetch trash directly from API
@@ -54,19 +56,14 @@ export function TrashView({ className = '' }: TrashViewProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      setShowEmptyConfirm(false);
     },
   });
   
-  // Handle empty trash with confirmation
-  const handleEmptyTrash = useCallback(() => {
-    const trashCount = nodes?.length ?? 0;
-    if (trashCount === 0) return;
-    
-    const message = `Permanently delete all ${trashCount} item${trashCount > 1 ? 's' : ''} from trash? This cannot be undone.`;
-    if (confirm(message)) {
-      emptyTrashMutation.mutate();
-    }
-  }, [nodes?.length, emptyTrashMutation]);
+  // Handle empty trash confirmation
+  const handleEmptyTrashConfirm = useCallback(() => {
+    emptyTrashMutation.mutate();
+  }, [emptyTrashMutation]);
   
   // Generate context menu items for trash nodes
   const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
@@ -111,16 +108,18 @@ export function TrashView({ className = '' }: TrashViewProps) {
             <h1 className="page-header__title">
               <TrashIcon size="lg" /> Trash
             </h1>
-            {!isLoading && nodes && nodes.length > 0 && (
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleEmptyTrash}
-                disabled={emptyTrashMutation.isPending}
-              >
-                {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
-              </Button>
-            )}
+            <div className="page-header__actions">
+              {!isLoading && nodes && nodes.length > 0 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setShowEmptyConfirm(true)}
+                  disabled={emptyTrashMutation.isPending}
+                >
+                  {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -152,6 +151,19 @@ export function TrashView({ className = '' }: TrashViewProps) {
           />
         )}
       </div>
+      
+      {/* Empty Trash Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showEmptyConfirm}
+        title="Empty Trash"
+        message={`Permanently delete ${nodes?.length ?? 0} item${(nodes?.length ?? 0) !== 1 ? 's' : ''} from trash?`}
+        secondaryMessage="This action cannot be undone."
+        confirmLabel="Empty Trash"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleEmptyTrashConfirm}
+        onCancel={() => setShowEmptyConfirm(false)}
+      />
     </article>
   );
 }

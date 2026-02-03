@@ -4,6 +4,23 @@
   margin: 0 auto;
 }
 
+.trash-view .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.trash-view .page-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.trash-view .page-header__actions {
+  flex-shrink: 0;
+}
+
 .trash-view__content {
   display: flex;
   flex-direction: column;
