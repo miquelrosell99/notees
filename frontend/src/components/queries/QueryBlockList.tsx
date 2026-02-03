@@ -4,11 +4,11 @@
  * Renders an array of query blocks (conditions or groups) with ability to add and delete blocks.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { mdiPlus } from '@mdi/js';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
+import { Button } from '../core/Button';
+import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
-import { AddFilterMenu, type FilterMenuCategory } from './AddFilterMenu';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
 import { isNodeEditable } from '@/types/queryAST';
 import './QueryBlockList.css';
@@ -81,7 +81,7 @@ export function QueryBlockList({
       condition_type: 'property',
       property_name: '',
       property_type: 'text',
-      operator: 'equals',
+      operator: 'contains',
       value: '',
     };
     onChange([...blocks, newCondition]);
@@ -105,7 +105,7 @@ export function QueryBlockList({
       type: 'condition',
       condition_type: 'class',
       class_uuid: '',
-      operator: 'is',
+      operator: 'contains',
     };
     onChange([...blocks, newCondition]);
   }, [blocks, onChange]);
@@ -191,103 +191,69 @@ export function QueryBlockList({
 
 
 
-  // Build menu categories
-  const menuCategories: FilterMenuCategory[] = [
+  // State for context menu
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Build context menu items
+  const contextMenuItems: ContextMenuItem[] = [
     {
-      title: 'Content',
-      icon: '',
-      items: [
-        {
-          id: 'content',
-          label: 'CONTENT',
-          description: 'Filter by node name or text',
-          onClick: handleAddContent,
-        },
-        {
-          id: 'property',
-          label: 'PROPERTY',
-          description: 'Filter by property values',
-          onClick: handleAddProperty,
-        },
-      ],
+      id: 'content',
+      label: 'CONTENT',
+      onClick: () => { handleAddContent(); setMenuPosition(null); },
     },
     {
-      title: 'Classification',
-      icon: '',
-      items: [
-        {
-          id: 'class',
-          label: 'CLASS',
-          description: 'Filter by direct class',
-          onClick: handleAddClass,
-        },
-        {
-          id: 'class_path',
-          label: 'CLASS PATH',
-          description: 'Filter by inherited class',
-          onClick: handleAddClassPath,
-        },
-      ],
+      id: 'property',
+      label: 'PROPERTY',
+      onClick: () => { handleAddProperty(); setMenuPosition(null); },
+    },
+    { id: 'sep-1', label: '', separator: true },
+    {
+      id: 'class',
+      label: 'CLASS',
+      onClick: () => { handleAddClass(); setMenuPosition(null); },
     },
     {
-      title: 'References',
-      icon: '',
-      items: [
-        {
-          id: 'reference',
-          label: 'REFERENCE',
-          description: 'Filter by direct references',
-          onClick: handleAddReference,
-        },
-        {
-          id: 'reference_path',
-          label: 'REFERENCE PATH',
-          description: 'Filter by transitive references',
-          onClick: handleAddReferencePath,
-        },
-      ],
+      id: 'class_path',
+      label: 'CLASS PATH',
+      onClick: () => { handleAddClassPath(); setMenuPosition(null); },
+    },
+    { id: 'sep-2', label: '', separator: true },
+    {
+      id: 'reference',
+      label: 'REFERENCE',
+      onClick: () => { handleAddReference(); setMenuPosition(null); },
     },
     {
-      title: 'Hierarchy',
-      icon: '',
-      items: [
-        {
-          id: 'parent',
-          label: 'PARENT',
-          description: 'Filter by direct parent',
-          onClick: handleAddParent,
-        },
-        {
-          id: 'parent_path',
-          label: 'PARENT PATH',
-          description: 'Filter by ancestors',
-          onClick: handleAddParentPath,
-        },
-        {
-          id: 'child',
-          label: 'CHILD',
-          description: 'Filter by direct children',
-          onClick: handleAddChild,
-        },
-        {
-          id: 'child_path',
-          label: 'CHILD PATH',
-          description: 'Filter by descendants',
-          onClick: handleAddChildPath,
-        },
-      ],
+      id: 'reference_path',
+      label: 'REFERENCE PATH',
+      onClick: () => { handleAddReferencePath(); setMenuPosition(null); },
+    },
+    { id: 'sep-3', label: '', separator: true },
+    {
+      id: 'parent',
+      label: 'PARENT',
+      onClick: () => { handleAddParent(); setMenuPosition(null); },
     },
     {
-      title: 'Advanced',
-      icon: '',
-      items: [
-        {
-          id: 'group',
-          label: 'AND/OR/NOT',
-          description: 'Add a logic group (AND/OR/NOT)',
-          onClick: handleAddGroup,
-        },
-      ],
+      id: 'parent_path',
+      label: 'PARENT PATH',
+      onClick: () => { handleAddParentPath(); setMenuPosition(null); },
+    },
+    {
+      id: 'child',
+      label: 'CHILD',
+      onClick: () => { handleAddChild(); setMenuPosition(null); },
+    },
+    {
+      id: 'child_path',
+      label: 'CHILD PATH',
+      onClick: () => { handleAddChildPath(); setMenuPosition(null); },
+    },
+    { id: 'sep-4', label: '', separator: true },
+    {
+      id: 'group',
+      label: 'AND/OR/NOT',
+      onClick: () => { handleAddGroup(); setMenuPosition(null); },
     },
   ];
 
@@ -359,75 +325,59 @@ export function QueryBlockList({
       {/* Inline add button for nested lists - always visible but subtle */}
       {!readOnly && !showAddButton && (
         <div className="query-block-list__inline-add">
-          <ButtonWithPanel
-            buttonText=""
+          <Button
+            icon={mdiPlus}
+            iconOnly
             variant="ghost"
             size="sm"
-            panelPosition="bottom"
-            panelAlignment="start"
-            panelWidth={280}
-            panelMaxHeight={400}
-            closeOnClickOutside={true}
-            closeOnEscape={true}
-            showCloseButton={false}
-            usePortal={true}
-            buttonProps={{
-              icon: mdiPlus,
-              iconOnly: true,
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
             }}
-            panelClassName="query-block-list__add-menu-panel"
-          >
-            {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
-          </ButtonWithPanel>
+          />
         </div>
       )}
 
       {/* Add filter button - show small button when there are blocks, big button when empty */}
       {!readOnly && showAddButton && safeBlocks.length > 0 && (
         <div className="query-block-list__add">
-          <ButtonWithPanel
-            buttonText=""
+          <Button
+            icon={mdiPlus}
+            iconOnly
             variant="ghost"
             size="sm"
-            panelPosition="bottom"
-            panelAlignment="start"
-            panelWidth={280}
-            panelMaxHeight={400}
-            closeOnClickOutside={true}
-            closeOnEscape={true}
-            showCloseButton={false}
-            usePortal={true}
-            buttonProps={{
-              icon: mdiPlus,
-              iconOnly: true,
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
             }}
-            panelClassName="query-block-list__add-menu-panel"
-          >
-            {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
-          </ButtonWithPanel>
+          />
         </div>
       )}
 
       {/* Big "Add condition" button when empty */}
       {!readOnly && showAddButton && safeBlocks.length === 0 && (
         <div className="query-block-list__empty-add">
-          <ButtonWithPanel
-            buttonText="+ Add condition"
+          <Button
+            icon={mdiPlus}
             variant="default"
             size="md"
-            panelPosition="bottom"
-            panelAlignment="start"
-            panelWidth={280}
-            panelMaxHeight={400}
-            closeOnClickOutside={true}
-            closeOnEscape={true}
-            showCloseButton={false}
-            usePortal={true}
-            panelClassName="query-block-list__add-menu-panel"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+            }}
           >
-            {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
-          </ButtonWithPanel>
+            Add condition
+          </Button>
         </div>
+      )}
+
+      {/* Context menu for adding conditions */}
+      {menuPosition && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={menuPosition}
+          onClose={() => setMenuPosition(null)}
+        />
       )}
     </div>
   );
