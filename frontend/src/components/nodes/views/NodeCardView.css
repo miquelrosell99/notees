@@ -258,12 +258,16 @@
   color: var(--text-tertiary);
   opacity: 0.5;
   padding: 0.125rem;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, max-height 0.2s ease, padding 0.2s ease;
   pointer-events: none;
+  max-height: 1.5rem;
+  overflow: hidden;
 }
 
 .node-card__body--hover-reveal:hover .node-card__collapsed-indicator {
   opacity: 0;
+  max-height: 0;
+  padding: 0;
 }
 
 /* Content wrapper inside hover-reveal body */
@@ -278,7 +282,7 @@
 
 /* Expand on hover */
 .node-card__body--hover-reveal:hover {
-  padding: 0.5rem 0.75rem 0.75rem;
+  padding: 0 0.75rem 0.75rem;
 }
 
 .node-card__body--hover-reveal:hover .node-card__body-content {
@@ -416,7 +420,7 @@
 /* Card children via Block components */
 .node-card__children {
   font-size: 0.875rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.25rem 0.75rem 0.5rem;
 }
 
 .node-card__children .block-container {
