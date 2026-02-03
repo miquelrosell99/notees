@@ -282,18 +282,14 @@ function CommonCardLayout({
         </div>
       ) : (
         editable && (
-          <div 
-            className="node-card__bottom-add-zone"
-            onMouseEnter={() => setIsBottomHovered(true)}
-            onMouseLeave={() => setIsBottomHovered(false)}
-            onClick={handleAddChild}
-          >
-            {isBottomHovered && (
+          <div className="node-card__add-block-section">
+            <div className="node-card__add-block-trigger" />
+            <div className="node-card__add-block-content">
               <Button
                 variant="ghost"
                 size="sm"
                 icon={mdiPlus}
-                className="node-card__bottom-add-button"
+                className="node-card__add-block-section-button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleAddChild(e);
@@ -301,7 +297,7 @@ function CommonCardLayout({
               >
                 Add block
               </Button>
-            )}
+            </div>
           </div>
         )
       )}
