@@ -54,8 +54,8 @@ interface TableBlockProps {
   viewMode?: 'table' | 'outline';
   /** Called when table structure changes */
   onStructureChange?: () => void;
-  /** Disable auto-balance during bulk table creation */
-  disableAutoBalance?: boolean;
+  /** Ref to disable auto-balance during bulk table creation */
+  disableAutoBalanceRef?: React.MutableRefObject<boolean>;
 }
 
 /**
@@ -100,7 +100,7 @@ export function TableBlock({
   editable = true,
   viewMode = 'table',
   onStructureChange,
-  disableAutoBalance = false,
+  disableAutoBalanceRef,
 }: TableBlockProps) {
   // Context menu state
   const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number; colIndex: number } | null>(null);
@@ -142,7 +142,7 @@ export function TableBlock({
   const isBalancing = useRef(false);
   
   useEffect(() => {
-    if (!editable || isBalancing.current || colCount === 0 || disableAutoBalance || isBulkOperation.current) return;
+    if (!editable || isBalancing.current || colCount === 0 || disableAutoBalanceRef?.current || isBulkOperation.current) return;
     
     // Check if any column has a different number of children than the max
     const childCounts = columns.map(col => col.children?.length ?? 0);
