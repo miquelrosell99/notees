@@ -773,16 +773,6 @@ export function DynamicNodeViewSection({
         >
           {editingView && editAST && (
             <div className="dynamic-section__edit-content">
-              {/* View name editor */}
-              <div className="dynamic-section__view-name">
-                <TextField
-                  value={editViewName}
-                  onChange={(e) => setEditViewName(e.target.value)}
-                  placeholder="View name"
-                  size="sm"
-                />
-              </div>
-              
               {/* Query builder with inline validation */}
               <ViewBuilder
                 ast={editAST}
@@ -918,6 +908,15 @@ export function DynamicNodeViewSection({
               
               <div className="dynamic-section__footer-spacer" />
               
+              {/* View name field */}
+              <TextField
+                value={editViewName}
+                onChange={(e) => setEditViewName(e.target.value)}
+                placeholder="View name"
+                size="sm"
+                className="dynamic-section__view-name-field"
+              />
+              
               {/* Delete button - only for non-default views */}
               {!editingView?.is_default && (
                 <InlineConfirmButton
@@ -948,16 +947,6 @@ export function DynamicNodeViewSection({
         >
           {editingView && editAST && (
             <div className="dynamic-section__edit-content">
-              {/* View name editor */}
-              <div className="dynamic-section__view-name">
-                <TextField
-                  value={editViewName}
-                  onChange={(e) => setEditViewName(e.target.value)}
-                  placeholder="View name"
-                  size="sm"
-                />
-              </div>
-              
               {/* Query builder with inline validation */}
               <ViewBuilder
                 ast={editAST}
