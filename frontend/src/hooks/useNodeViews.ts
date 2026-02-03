@@ -153,6 +153,7 @@ export function useNodeViewQuery(
         include_properties: includeProperties,
       }),
     enabled: enabled && viewId > 0,
+    staleTime: 0,
   });
 }
 
@@ -172,6 +173,7 @@ export function useQuery_(
     queryKey: queryKey ?? [...nodeViewKeys.queryResults(), 'adhoc', request],
     queryFn: () => executeQuery(request),
     enabled,
+    staleTime: 0,
   });
 }
 
