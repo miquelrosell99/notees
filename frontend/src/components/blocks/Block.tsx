@@ -2102,7 +2102,7 @@ function BlockInternal({
       {/* Table Size Selection Modal */}
       <TableCreationModal
         isOpen={tableCreationState.isOpen}
-        existingChildCount={children.length}
+        existingChildCount={children?.length ?? 0}
         onConfirm={handleTableCreationConfirm}
         onAdaptExisting={handleTableAdaptExisting}
         onCancel={handleTableCreationCancel}
