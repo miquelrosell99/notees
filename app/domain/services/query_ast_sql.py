@@ -60,9 +60,10 @@ class QueryASTToSQL:
         # Generate WHERE clause from scope and conditions
         where_clauses = []
         
-        # Always filter by graph_id and active
+        # Always filter by graph_id, active, and not deleted
         where_clauses.append("n.graph_id = %(graph_id)s")
         where_clauses.append("n.active = TRUE")
+        where_clauses.append("(n.is_deleted = FALSE OR n.is_deleted IS NULL)")
         
         # Add scope filtering
         scope_clause = self._generate_scope_sql(ast.scope)
