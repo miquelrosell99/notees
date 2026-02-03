@@ -90,3 +90,23 @@ export function isSystemClassUuid(uuid: string | null | undefined): boolean {
   if (!uuid) return false;
   return Object.values(SYSTEM_CLASS_UUIDS).includes(uuid as typeof SYSTEM_CLASS_UUIDS[keyof typeof SYSTEM_CLASS_UUIDS]);
 }
+
+/**
+ * Non-removable system classes - cannot be removed from nodes
+ * These are fundamental to the node's identity or system-managed
+ */
+export const NON_REMOVABLE_CLASS_UUIDS = [
+  SYSTEM_CLASS_UUIDS.page,
+  SYSTEM_CLASS_UUIDS.class,
+  SYSTEM_CLASS_UUIDS.day,
+  SYSTEM_CLASS_UUIDS.month,
+  SYSTEM_CLASS_UUIDS.year,
+] as const;
+
+/**
+ * Check if a class UUID is non-removable (cannot be removed from nodes)
+ */
+export function isNonRemovableClass(uuid: string | null | undefined): boolean {
+  if (!uuid) return false;
+  return NON_REMOVABLE_CLASS_UUIDS.includes(uuid as typeof NON_REMOVABLE_CLASS_UUIDS[number]);
+}
