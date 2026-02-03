@@ -595,6 +595,9 @@ class PostgresNodeRepository(NodeRepository):
     
     async def hard_delete(self, node_id: int) -> bool:
         """Permanently delete a node and all its children."""
+        from app.logging_config import get_logger
+        logger = get_logger(__name__)
+        
         # Permission check - need delete permission
         if self._user_id:
             await self.permissions.require_node_delete(node_id)
@@ -608,16 +611,27 @@ class PostgresNodeRepository(NodeRepository):
                 WHERE np.ancestor_id = $1 AND n.graph_id = $2
             """, node_id, self._graph_id)
             
+            logger.info(f"[HARD_DELETE] node_id={node_id}, graph_id={self._graph_id}, found {len(rows)} descendants in node_path")
+            
             if not rows:
-                return False
+                # Try direct delete if node_path has no entries
+                logger.info(f"[HARD_DELETE] No node_path entries, trying direct delete")
+                result = await conn.execute(
+                    "DELETE FROM node WHERE id = $1 AND graph_id = $2",
+                    node_id, self._graph_id
+                )
+                logger.info(f"[HARD_DELETE] Direct delete result: {result}")
+                return "DELETE 1" in result
             
             ids_to_delete = [row['id'] for row in rows]
+            logger.info(f"[HARD_DELETE] Deleting node ids: {ids_to_delete}")
             
             # Hard delete all nodes (cascades to property values, links)
-            await conn.execute(
+            result = await conn.execute(
                 "DELETE FROM node WHERE id = ANY($1) AND graph_id = $2",
                 ids_to_delete, self._graph_id
             )
+            logger.info(f"[HARD_DELETE] Delete result: {result}")
             
             return True
     
