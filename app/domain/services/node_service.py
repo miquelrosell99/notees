@@ -793,7 +793,7 @@ class NodeService:
         
         deleted_count = 0
         for row in rows:
-            success = await self._node_repo.delete(row['id'])
+            success = await self._node_repo.hard_delete(row['id'])
             if success:
                 deleted_count += 1
         
