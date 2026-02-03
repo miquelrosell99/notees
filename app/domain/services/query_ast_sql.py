@@ -51,10 +51,13 @@ class QueryASTToSQL:
         Returns:
             (sql, params) tuple
         """
-        # Base SELECT with all node fields
+        # Base SELECT with all node fields plus page info for grouping
         sql_parts = [
-            "SELECT DISTINCT n.*",
+            "SELECT DISTINCT n.*,",
+            "       page.name AS page_name,",
+            "       page.uuid AS page_uuid",
             "FROM node n",
+            "LEFT JOIN node page ON page.id = n.page_id AND page.active = TRUE",
         ]
         
         # Generate WHERE clause from scope and conditions
