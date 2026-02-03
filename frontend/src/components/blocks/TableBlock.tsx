@@ -125,6 +125,68 @@ export function TableBlock({
   // Transform node structure to Table data format
   const tableData = useMemo(() => transformToTableData(columns, rowCount), [columns, rowCount]);
 
+  // ==================== Auto-Balance Table Structure ====================
+  // When columns have mismatched row counts (e.g., a cell was added/moved to one column),
+  // automatically add empty cells to balance the table structure.
+  // This handles:
+  // - A new cell block being created in one column
+  // - A block being moved into a column from outside the table
+  // - A block being moved out of a column (useDeleteNode already creates replacement)
+  
+  // Track if we're currently balancing to prevent infinite loops
+  const isBalancing = useRef(false);
+  
+  useEffect(() => {
+    if (!editable || isBalancing.current || colCount === 0) return;
+    
+    // Check if any column has a different number of children than the max
+    const childCounts = columns.map(col => col.children?.length ?? 0);
+    const maxChildren = Math.max(...childCounts);
+    
+    // Find columns that need cells added
+    const columnsNeedingCells: { column: Node; missingCount: number }[] = [];
+    for (let i = 0; i < columns.length; i++) {
+      const currentCount = childCounts[i];
+      if (currentCount < maxChildren) {
+        columnsNeedingCells.push({
+          column: columns[i],
+          missingCount: maxChildren - currentCount,
+        });
+      }
+    }
+    
+    // If all columns are balanced, nothing to do
+    if (columnsNeedingCells.length === 0) return;
+    
+    // Balance the table by adding empty cells to columns that need them
+    const balanceTable = async () => {
+      isBalancing.current = true;
+      
+      try {
+        for (const { column, missingCount } of columnsNeedingCells) {
+          const currentChildCount = column.children?.length ?? 0;
+          
+          // Add cells at the end of the column to match the max row count
+          for (let i = 0; i < missingCount; i++) {
+            await createNode.mutateAsync({
+              name: '',
+              parent_id: column.id,
+              sequence: currentChildCount + i,
+            });
+          }
+        }
+        
+        onStructureChange?.();
+      } catch (error) {
+        console.error('TableBlock: Error balancing table structure', error);
+      } finally {
+        isBalancing.current = false;
+      }
+    };
+    
+    balanceTable();
+  }, [columns, colCount, editable, createNode, onStructureChange]);
+
   // ==================== Column Operations ====================
 
   const handleAddColumn = useCallback(async () => {
@@ -317,6 +379,7 @@ export function TableBlock({
                 canEdit={editable}
                 canMove={false}
                 canSelect={false}
+                isTableCell={true}
               />
             </div>
             <div className="table-block__cell-actions">
