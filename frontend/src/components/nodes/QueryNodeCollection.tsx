@@ -636,6 +636,7 @@ export function QueryNodeCollection({
         }}
         title="Query Preview"
         size="xl"
+        className="query-preview-modal"
       >
         {editAST && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
