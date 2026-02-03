@@ -96,6 +96,8 @@ interface BlockProps {
   showTypes?: boolean;
   /** Whether to render children blocks (default: true) */
   showChildren?: boolean;
+  /** Whether to render query results for query blocks (default: true) */
+  showQueryResults?: boolean;
   /** Use isolated local state instead of global block selection store. Use for blocks that appear in multiple places (e.g., linked references) */
   isolatedState?: boolean;
   /** Suppress the block's own color styling (used when color is applied at container level, e.g., focused blocks) */
@@ -134,6 +136,7 @@ function BlockInternal({
   showBullet = true,
   showTypes = true,
   showChildren = true,
+  showQueryResults = true,
   isolatedState = false,
   suppressColor = false,
   customContextMenuItems,
@@ -1451,7 +1454,7 @@ function BlockInternal({
       
       {/* Block row - contains bullet and content on same line */}
       {/* For query blocks, this will be passed as leftElement to the toolbar */}
-      {!(hasQueryClass && openNode) && (
+      {!(hasQueryClass && openNode && showQueryResults) && (
       <div className="block-row">
         {/* Bullet - drag handle, context menu anchor, collapse toggle */}
         {showBullet && (
@@ -1587,7 +1590,7 @@ function BlockInternal({
       )}
       
       {/* Query results - positioned like node-view-section content */}
-      {openNode && hasQueryClass && (
+      {showQueryResults && openNode && hasQueryClass && (
         <QueryNodeCollection
           nodeId={block.id}
           nodeUuid={block.uuid}
@@ -1898,6 +1901,7 @@ function blockPropsAreEqual(
   if (prevProps.showBullet !== nextProps.showBullet) return false;
   if (prevProps.showTypes !== nextProps.showTypes) return false;
   if (prevProps.showChildren !== nextProps.showChildren) return false;
+  if (prevProps.showQueryResults !== nextProps.showQueryResults) return false;
   if (prevProps.isolatedState !== nextProps.isolatedState) return false;
   if (prevProps.suppressColor !== nextProps.suppressColor) return false;
   
