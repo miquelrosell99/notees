@@ -40,11 +40,13 @@ import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
+import { SelectionButton } from '../core/SelectionButton';
 import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
+import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
@@ -171,6 +173,15 @@ function BlockInternal({
     keepInline: boolean;
     className: string;
   }>({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
+  
+  // Table view mode state (table vs outline)
+  const [tableViewMode, setTableViewMode] = useState<'table' | 'outline'>('table');
+  
+  // View mode options for table toggle
+  const tableViewModeOptions = useMemo(() => [
+    { value: 'table', icon: mdiTable, label: 'Table view' },
+    { value: 'outline', icon: mdiFormatListBulleted, label: 'Outline view' },
+  ], []);
   
   // Get table class for detecting table class additions
   const tableClass = useMemo(() => {
@@ -1666,6 +1677,17 @@ function BlockInternal({
             <span className="block-backlink-badge__count">{backlinkCount}</span>
           </Button>
         )}
+        
+        {/* Table view mode toggle - only for table blocks */}
+        {hasTableClass && hasChildren && (
+          <SelectionButton
+            options={tableViewModeOptions}
+            value={tableViewMode}
+            onChange={(value) => setTableViewMode(value as 'table' | 'outline')}
+            size="sm"
+            className="block-table-toggle"
+          />
+        )}
       </div>
       )}
       
@@ -1830,6 +1852,7 @@ function BlockInternal({
             block={block}
             columns={children}
             editable={canEdit}
+            viewMode={tableViewMode}
           />
         </div>
       ) : (
