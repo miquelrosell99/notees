@@ -40,7 +40,6 @@ import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
-import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
@@ -146,7 +145,6 @@ function BlockInternal({
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null);
   const [isLineHovered, setIsLineHovered] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Local state for isolated mode (blocks that appear in multiple places like linked references)
   const [localBlockState, setLocalBlockState] = useState<BlockState>('display');
@@ -605,15 +603,7 @@ function BlockInternal({
     return getNodeColorStylesAuto(block.color);
   }, [block.color, suppressColor]);
   
-  // Handlers for deletion modal
-  const handleConfirmDelete = useCallback(() => {
-    deleteNode.mutate(block.id);
-    setShowDeleteModal(false);
-  }, [block.id, deleteNode]);
-  
-  const handleCancelDelete = useCallback(() => {
-    setShowDeleteModal(false);
-  }, []);
+
   
   // Handle Enter key creating a new block
   // Level-agnostic: works at any nesting depth
@@ -1827,18 +1817,7 @@ function BlockInternal({
           />
         )
       )}
-      
-      {/* Deletion confirmation modal */}
-      <ConfirmationModal
-        isOpen={showDeleteModal}
-        title={`Delete ${block.is_page ? 'page' : 'block'}`}
-        message={`Are you sure you want to delete "${block.name || 'Untitled'}"? This action cannot be undone.`}
-        confirmLabel="Delete permanently"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
-      />
+
     </div>
   );
 }

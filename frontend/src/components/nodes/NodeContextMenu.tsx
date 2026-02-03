@@ -172,8 +172,14 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   const archiveNode = useArchiveNode();
   
   const handleDeleteClick = useCallback(() => {
-    setShowDeleteModal(true);
-  }, []);
+    // Only show confirmation for pages, not for blocks
+    if (node.is_page) {
+      setShowDeleteModal(true);
+    } else {
+      deleteNode.mutate(node.id);
+      onClose();
+    }
+  }, [node.is_page, node.id, deleteNode, onClose]);
   
   const handleArchiveClick = useCallback(() => {
     // Show warning if node has a parent
@@ -230,9 +236,9 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
       )}
       <ConfirmationModal
         isOpen={showDeleteModal}
-        title={`Delete ${node.is_page ? 'page' : 'block'}`}
+        title="Delete page"
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
-        secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
+        secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
@@ -403,9 +409,9 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
       )}
       <ConfirmationModal
         isOpen={showDeleteModal}
-        title={`Delete ${node.is_page ? 'page' : 'block'}`}
+        title="Delete page"
         message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
-        secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
+        secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
@@ -446,14 +452,14 @@ export function BlockContextMenu({
   onConvertToPage,
   onMoveBlock 
 }: BlockContextMenuProps) {
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
   
   const handleDeleteClick = useCallback(() => {
-    setShowDeleteModal(true);
-  }, []);
+    deleteNode.mutate(node.id);
+    onClose();
+  }, [node.id, deleteNode, onClose]);
   
   const handleArchiveClick = useCallback(() => {
     // Always show warning for blocks since they always have a parent
@@ -463,7 +469,6 @@ export function BlockContextMenu({
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
   const { openNode } = useNodesStore();
   const updateNode = useUpdateNode();
-  const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
   const blockItems = useMemo((): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [
@@ -510,17 +515,6 @@ export function BlockContextMenu({
     updateNode.mutate({ id: node.id, data });
   }, [node.id, updateNode]);
   
-  const handleConfirmDelete = useCallback(() => {
-    deleteNode.mutate(node.id);
-    setShowDeleteModal(false);
-    onClose();
-  }, [node.id, deleteNode, onClose]);
-  
-  const handleCancelDelete = useCallback(() => {
-    setShowDeleteModal(false);
-    onClose();
-  }, [onClose]);
-  
   const handleConfirmArchive = useCallback(() => {
     archiveNode.mutate(node.id);
     setShowArchiveModal(false);
@@ -534,7 +528,7 @@ export function BlockContextMenu({
   
   return (
     <>
-      {!showDeleteModal && !showArchiveModal && (
+      {!showArchiveModal && (
         <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -544,17 +538,6 @@ export function BlockContextMenu({
           />
         </div>
       )}
-      <ConfirmationModal
-        isOpen={showDeleteModal}
-        title={`Delete ${node.is_page ? 'page' : 'block'}`}
-        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? This action cannot be undone.`}
-        secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
-      />
       <ConfirmationModal
         isOpen={showArchiveModal}
         title="Archive child block"
