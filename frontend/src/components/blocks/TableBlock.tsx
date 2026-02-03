@@ -40,6 +40,7 @@ import { Button } from '../core/Button';
 import { Block } from './Block';
 import { ContextMenu } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
+import { NodeCollection } from '../nodes/NodeCollection';
 import './TableBlock.css';
 
 interface TableBlockProps {
@@ -49,6 +50,8 @@ interface TableBlockProps {
   columns: Node[];
   /** Whether the table is editable */
   editable?: boolean;
+  /** Current view mode */
+  viewMode?: 'table' | 'outline';
   /** Called when table structure changes */
   onStructureChange?: () => void;
 }
@@ -93,6 +96,7 @@ export function TableBlock({
   block,
   columns,
   editable = true,
+  viewMode = 'table',
   onStructureChange,
 }: TableBlockProps) {
   // Context menu state
@@ -440,7 +444,17 @@ export function TableBlock({
       className="table-block"
       ref={wrapperRef}
     >
-      <Table<TableRowData>
+      {/* Outline view - render columns as regular blocks using NodeCollection */}
+      {viewMode === 'outline' ? (
+        <NodeCollection
+          nodes={columns}
+          viewMode="list"
+          editable={editable}
+        />
+      ) : (
+        /* Table view */
+        <>
+          <Table<TableRowData>
         key={`table-${columns.length}-${columns.map(c => c.id).join('-')}`}
         data={tableData}
         columns={tableColumns}
@@ -503,6 +517,8 @@ export function TableBlock({
             </Button>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Header context menu */}
