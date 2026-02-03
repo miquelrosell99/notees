@@ -1461,7 +1461,7 @@ function BlockInternal({
       
       {/* Block row - contains bullet and content on same line */}
       {/* For query blocks, this will be passed as leftElement to the toolbar */}
-      {!(hasQueryClass && !isCollapsed) && (
+      {!(hasQueryClass && openNode) && (
       <div className="block-row">
         {/* Bullet - drag handle, context menu anchor, collapse toggle */}
         {showBullet && (
@@ -1597,28 +1597,142 @@ function BlockInternal({
       )}
       
       {/* Query results - positioned like node-view-section content */}
-      {openNode && hasQueryClass && !isCollapsed && (
+      {openNode && hasQueryClass && (
         <QueryNodeCollection
           nodeId={block.id}
           nodeUuid={block.uuid}
           viewType="main_content"
           showAddButton={true}
           onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
+          hideToolbarControls={isCollapsed}
+          hideContent={isCollapsed}
           leftElement={
-            showBullet && (
-              <Bullet
-                nodeId={block.id}
-                icon={bulletIcon}
-                isPage={false}
-                interactive={canMove || canSelect || !!onBulletClick}
-                hasChildren={hasChildren || hasQueryResults}
-                collapsed={isCollapsed}
-                onClick={handleBulletClickInternal}
-                onContextMenu={handleBulletContextMenu}
-                onCollapseToggle={handleCollapseToggle}
-                showCollapseArrow={hasChildren || hasQueryResults}
-              />
-            )
+            <>
+              {/* Bullet */}
+              {showBullet && (
+                <Bullet
+                  nodeId={block.id}
+                  icon={bulletIcon}
+                  isPage={false}
+                  interactive={canMove || canSelect || !!onBulletClick}
+                  hasChildren={hasChildren || hasQueryResults}
+                  collapsed={isCollapsed}
+                  activatorRef={canMove ? setActivatorNodeRef : undefined}
+                  activatorListeners={canMove ? { ...attributes, ...listeners } : undefined}
+                  onClick={handleBulletClickInternal}
+                  onContextMenu={handleBulletContextMenu}
+                  onCollapseToggle={handleCollapseToggle}
+                  showCollapseArrow={hasChildren || hasQueryResults}
+                />
+              )}
+              
+              {/* Block content */}
+              <Card 
+                className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}`}
+                style={contentColorStyle} 
+                onClick={handleContentClick}
+                onFocus={handleFocus}
+                elevation="none"
+                variant="transparent"
+                padding={false}
+                radius="none"
+              >
+                {blockState === 'edit' ? (
+                  <BlockEditor
+                    nodeId={block.id}
+                    isPage={block.is_page}
+                    nodeUuid={block.uuid}
+                    content={block.name || ''}
+                    onChange={(content) => onContentChange?.(block.id, content)}
+                    editorRef={editorRef}
+                    onAddClass={onAddClass}
+                    queryClassId={queryClass?.id ?? null}
+                    onAddTag={onAddTag}
+                    onCreateClass={onCreateClass}
+                    onCreateTag={onCreateTag}
+                    onLinkPage={onLinkPage}
+                    onCreatePageLink={onCreatePageLink}
+                    onOpenComments={onOpenComments ?? undefined}
+                    onAssetUpload={onAssetUpload}
+                    readOnly={!canEdit}
+                    isTask={Boolean(block.properties?.state)}
+                    taskState={(block.properties?.state as TaskState) || 'todo'}
+                    onTaskStateChange={onTaskStateChange ? (newState) => onTaskStateChange(block.id, newState) : undefined}
+                    onEscape={() => setBlockState(block.id, 'selected')}
+                    onExtendSelection={extendSelectionKeyboard}
+                    onEnterCreateBlock={handleEnterCreateBlock}
+                    onBackspaceAtStart={handleBackspaceAtStart}
+                    onDeleteAtEnd={handleDeleteAtEnd}
+                    onIndent={handleIndent}
+                    onOutdent={handleOutdent}
+                    onPasteBlocks={handlePasteBlocks}
+                    onPasteTable={handlePasteTable}
+                    onNavigateUp={handleNavigateUp}
+                    onNavigateDown={handleNavigateDown}
+                  />
+                ) : (
+                  <div 
+                    ref={contentRef}
+                    className={`block-content-view${!block.name ? ' block-content-view--empty' : ''}`}
+                  >
+                    <BlockContent
+                      content={block.name || ''}
+                      blockId={block.id}
+                      onClick={() => {}}
+                    />
+                    
+                    {/* Comment count badge */}
+                    {commentCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="block-comment-badge"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenComments?.();
+                        }}
+                        title={`${commentCount} comment${commentCount > 1 ? 's' : ''}`}
+                      >
+                        💬 {commentCount}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </Card>
+              
+              {/* Block classes */}
+              {showTypes && blockClassDetails.length > 0 && (
+                <div className="block-types">
+                  {blockClassDetails.map((classNode: Node) => {
+                    return (
+                      <NodeClassPill
+                        key={classNode.id}
+                        classNode={classNode}
+                        onClick={() => openNode(classNode.id, 'page')}
+                        onRemove={isSystemClassUuid(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
+                        readOnly={!canEdit}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Backlink count badge */}
+              {backlinkCount > 0 && (
+                <Button 
+                  variant="ghost"
+                  size="xs"
+                  className="block-backlink-badge"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenBacklinks?.();
+                  }}
+                  title={`${backlinkCount} backlink${backlinkCount > 1 ? 's' : ''}`}
+                >
+                  <span className="block-backlink-badge__count">{backlinkCount}</span>
+                </Button>
+              )}
+            </>
           }
         >
           {({ results }) => (
