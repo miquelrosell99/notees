@@ -34,10 +34,12 @@ async def list_daily_pages(
     
     # Query nodes with is_day=1, ordered by uuid (which is YYYYMMDD format)
     # Exclude class pages (is_class=1) to filter out the "day" class page itself
+    # Also exclude soft-deleted nodes (is_deleted=true)
     async with service._pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT * FROM node 
             WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND graph_id = $1
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
             ORDER BY uuid DESC
         """, service._graph_id)
     
