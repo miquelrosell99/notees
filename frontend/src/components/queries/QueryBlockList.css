@@ -129,13 +129,13 @@
 }
 
 .query-block-list__add-menu-panel {
-  z-index: 9999 !important;
+  z-index: 10001 !important;
 }
 
 .query-block-list__add-menu-dropdown {
   min-width: 150px;
   padding: 0.25rem;
-  z-index: 9999;
+  z-index: 10001;
 }
 
 /* Portal version (rendered at body level) */
