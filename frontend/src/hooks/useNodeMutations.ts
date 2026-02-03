@@ -1094,6 +1094,12 @@ export function useAddClass() {
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
       
+      // Update cache with the returned node data for immediate UI update
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.detailBase(nodeId) },
+        (old) => old ? { ...old, ...updatedNode } : updatedNode
+      );
+      
       // Invalidate the node query to refetch with all fields (including properties)
       // This ensures the cover section and other property-dependent UI doesn't break
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
@@ -1155,6 +1161,12 @@ export function useRemoveClass() {
     },
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
+      
+      // Update cache with the returned node data for immediate UI update
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.detailBase(nodeId) },
+        (old) => old ? { ...old, ...updatedNode } : updatedNode
+      );
       
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
