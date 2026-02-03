@@ -297,7 +297,7 @@ export function PropertyNodesView({
             nodes={nodes}
             viewMode="card"
             sortable={false}
-            showTypes={true}
+            showClasses={true}
             onNodeClick={onNodeClick}
           />
         )}

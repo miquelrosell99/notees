@@ -150,7 +150,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
         showEmpty={false}
-        showTypes={true}
+        showClasses={true}
         provideBlockCallbacks={true}
         blockCallbacks={blockCallbacks}
         suppressRootColor={true}
@@ -720,7 +720,7 @@ function ExtendedBySection({
         nodes={nodes}
         viewMode="list"
         editable={false}
-        showTypes={true}
+        showClasses={true}
         onNodeClick={(node) => onNodeClick(node.id)}
         onNodeShiftClick={(node) => onAddSidebarCard(node.id)}
       />

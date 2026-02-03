@@ -152,7 +152,7 @@ interface NodeListItemProps {
   showBullets: boolean;
   showIndentation: boolean;
   showBreadcrumbs: boolean;
-  showTypes: boolean;
+  showClasses: boolean;
   pagesOnly: boolean;
   siblings: Node[];
   parentBlock?: Node | null;
@@ -176,7 +176,7 @@ function NodeListItem({
   showBullets,
   showIndentation,
   showBreadcrumbs,
-  showTypes,
+  showClasses,
   pagesOnly,
   siblings,
   parentBlock,
@@ -308,7 +308,7 @@ function NodeListItem({
           onBulletClick={handleBulletClick}
           onShiftClick={handleShiftClick}
           showBullet={showBullets}
-          showTypes={showTypes}
+          showClasses={showClasses}
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
           customContextMenuItems={generatedContextMenuItems}
@@ -349,7 +349,7 @@ function NodeListItem({
         onShiftClick={() => onNodeShiftClick?.(node)}
         showBullet={showBullets}
         showChildren={shouldRenderChildren}
-        showTypes={showTypes}
+        showClasses={showClasses}
         canMove={false}
         canEdit={false}
         canSelect={false}
@@ -372,7 +372,7 @@ interface GroupHeaderProps {
   showBullets: boolean;
   showIndentation: boolean;
   showBreadcrumbs: boolean;
-  showTypes: boolean;
+  showClasses: boolean;
   pagesOnly: boolean;
   pageMap?: Map<number, Node>;
   onNodeClick?: (node: Node) => void;
@@ -391,7 +391,7 @@ function GroupHeader({
   showBullets,
   showIndentation,
   showBreadcrumbs,
-  showTypes,
+  showClasses,
   pagesOnly,
   onNodeClick,
   onNodeShiftClick,
@@ -479,7 +479,7 @@ function GroupHeader({
               showBullets={showBullets}
               showIndentation={showIndentation}
               showBreadcrumbs={showBreadcrumbs}
-              showTypes={showTypes}
+              showClasses={showClasses}
               pagesOnly={pagesOnly}
               siblings={blocks}
               parentBlock={page}
@@ -508,7 +508,7 @@ export function NodeListView({
   showBullets = true,
   showIndentation = true,
   showBreadcrumbs = true,
-  showTypes = false,
+  showClasses = false,
   pagesOnly = false,
   sortable = false,
   onReorder,
@@ -578,7 +578,7 @@ export function NodeListView({
                 showBullets={showBullets}
                 showIndentation={showIndentation}
                 showBreadcrumbs={showBreadcrumbs}
-                showTypes={showTypes}
+                showClasses={showClasses}
                 pagesOnly={pagesOnly}
                 siblings={pages}
                 parentBlock={null}
@@ -604,7 +604,7 @@ export function NodeListView({
             showBullets={showBullets}
             showIndentation={showIndentation}
             showBreadcrumbs={showBreadcrumbs}
-            showTypes={showTypes}
+            showClasses={showClasses}
             pagesOnly={pagesOnly}
             pageMap={pageMap}
             onNodeClick={onNodeClick}
@@ -638,7 +638,7 @@ export function NodeListView({
             showBullets={showBullets}
             showIndentation={showIndentation}
             showBreadcrumbs={showBreadcrumbs}
-            showTypes={showTypes}
+            showClasses={showClasses}
             pagesOnly={pagesOnly}
             siblings={filteredNodes}
             parentBlock={null}

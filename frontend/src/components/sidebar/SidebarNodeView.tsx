@@ -434,7 +434,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
                   onNodeShiftClick={(clickedNode) => addSidebarCard(clickedNode.id, 'block')}
                   onContentChange={handleBlockChange}
                   showEmpty={false}
-                  showTypes={true}
+                  showClasses={true}
                   provideBlockCallbacks={true}
                   blockCallbacks={blockCallbacks}
                 />

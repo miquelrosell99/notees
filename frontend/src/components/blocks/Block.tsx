@@ -96,8 +96,8 @@ interface BlockProps {
   canSelect?: boolean;
   /** Whether to show the bullet (default: true) */
   showBullet?: boolean;
-  /** Whether to show the type pills (default: true) */
-  showTypes?: boolean;
+  /** Whether to show the class pills (default: true) */
+  showClasses?: boolean;
   /** Whether to render children blocks (default: true) */
   showChildren?: boolean;
   /** Whether to render query results for query blocks (default: true) */
@@ -148,7 +148,7 @@ function BlockInternal({
   canEdit = true,
   canSelect = true,
   showBullet = true,
-  showTypes = true,
+  showClasses = true,
   showChildren = true,
   showQueryResults = true,
   isolatedState = false,
@@ -1778,7 +1778,7 @@ function BlockInternal({
         </Card>
         
         {/* Block classes - right-aligned */}
-        {showTypes && blockClassDetails.length > 0 && (
+        {showClasses && blockClassDetails.length > 0 && (
           <div className="block-types">
             {blockClassDetails.map((classNode: Node) => {
               return (
@@ -1936,7 +1936,7 @@ function BlockInternal({
               </Card>
               
               {/* Block classes */}
-              {showTypes && blockClassDetails.length > 0 && (
+              {showClasses && blockClassDetails.length > 0 && (
                 <div className="block-types">
                   {blockClassDetails.map((classNode: Node) => {
                     return (
@@ -2112,7 +2112,7 @@ function BlockInternal({
  * Props that affect render:
  * - block.id, block.name, block.collapsed, block.color, block.icon
  * - children (recursive comparison needed for nested blocks!)
- * - depth, canEdit, canMove, canSelect, showBullet, showTypes, showChildren
+ * - depth, canEdit, canMove, canSelect, showBullet, showClasses, showChildren
  * - commentCount, backlinkCount (badges)
  * 
  * IMPORTANT: Children comparison must be recursive to detect changes at any depth.
@@ -2177,7 +2177,7 @@ function blockPropsAreEqual(
   if (prevProps.canMove !== nextProps.canMove) return false;
   if (prevProps.canSelect !== nextProps.canSelect) return false;
   if (prevProps.showBullet !== nextProps.showBullet) return false;
-  if (prevProps.showTypes !== nextProps.showTypes) return false;
+  if (prevProps.showClasses !== nextProps.showClasses) return false;
   if (prevProps.showChildren !== nextProps.showChildren) return false;
   if (prevProps.showQueryResults !== nextProps.showQueryResults) return false;
   if (prevProps.isolatedState !== nextProps.isolatedState) return false;
