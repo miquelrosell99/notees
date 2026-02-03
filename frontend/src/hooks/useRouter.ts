@@ -9,6 +9,7 @@
  * - /pages                -> All pages view
  * - /journal              -> Journals view
  * - /archived             -> Archived pages view
+ * - /trash                -> Trash view
  * - /assets               -> Assets view
  * - /{uuid}               -> Node view (UUID format: 8-4-4-4-12 hex chars)
  * 
@@ -29,6 +30,7 @@ export const SPECIAL_VIEWS: Record<string, MainViewType | 'auth'> = {
   'pages': 'all-pages',
   'journal': 'journals',
   'archived': 'archived',
+  'trash': 'trash',
   'assets': 'assets',
   'auth': 'auth',
 };
@@ -51,6 +53,7 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
   'journals': 'journal',
   'timeline': 'timeline',
   'archived': 'archived',
+  'trash': 'trash',
   'assets': 'assets',
   'property': '', // Property view uses root path
 };
