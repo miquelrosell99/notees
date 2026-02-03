@@ -77,7 +77,7 @@ export function NodeClassPill({
           text={classNode.name}
           leftIcon={classNode.icon ? <NodeIcon icon={classNode.icon} isPage={true} size="xs" /> : undefined}
           rightIcon={!readOnly && onRemove ? <CloseIcon size="xs" /> : undefined}
-          onRightIconClick={!readOnly ? handleRemove : undefined}
+          onRightIconClick={!readOnly && onRemove ? handleRemove : undefined}
           color={classNode.color || undefined}
         />
       </div>

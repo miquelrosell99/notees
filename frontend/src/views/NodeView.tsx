@@ -40,7 +40,7 @@ import { PropertiesSection } from '../components/PropertiesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 
-import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isSystemClassUuid, isBlockOnlyClass } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import type { Asset } from '../api/assets';
 
 import './NodeView.css';
@@ -496,7 +496,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 onColorChange={handleNodeColorChange}
                 onAdd={handleAddClass}
                 onCreateNew={handleCreateClass}
-                canRemove={(n) => !isSystemClassUuid(n.uuid)}
+                canRemove={(n) => !isNonRemovableClass(n.uuid)}
                 canAdd={(n) => !isBlockOnlyClass(n.uuid)}
               />
             </div>
