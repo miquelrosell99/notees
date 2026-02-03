@@ -1898,8 +1898,8 @@ function BlockInternal({
         </QueryNodeCollection>
       )}
       
-      {/* Table rendering (if block has table class) */}
-      {showChildren && hasChildren && !isCollapsed && hasTableClass ? (
+      {/* Table rendering (if block has table class and in table view mode) */}
+      {showChildren && hasChildren && !isCollapsed && hasTableClass && tableViewMode === 'table' ? (
         <div className="children-container">
           <TableBlock
             block={block}
