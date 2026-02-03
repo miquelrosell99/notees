@@ -384,7 +384,7 @@ export function createEmptyQueryAST(): QueryAST {
     version: '1.0',
     scope: {
       type: 'scope',
-      scope_type: 'current_page',
+      scope_type: 'pages',
     },
     root_group: {
       type: 'group',
