@@ -67,11 +67,18 @@
 
 /* Card layouts */
 .node-card--cover-top {
-  flex-direction: column;
+  display: grid !important;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto auto 1fr;
+  gap: 0;
 }
 
+/* Grid-based layouts: no-cover uses single column, horizontal layouts use 2 columns */
 .node-card--no-cover {
-  flex-direction: column;
+  display: grid !important;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 0;
 }
 
 /* Horizontal layouts use CSS Grid - override flex display */
@@ -88,6 +95,12 @@
 }
 
 /* Cover in horizontal layouts - spans first 3 rows (title, classes, tags) */
+.node-card--cover-top .node-card__cover {
+  grid-column: 1;
+  grid-row: 1;
+  height: auto;
+}
+
 .node-card--cover-left .node-card__cover {
   grid-column: 1;
   grid-row: 1 / 4;
@@ -102,7 +115,17 @@
   border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
-/* Header in horizontal layouts */
+/* Header positioning for grid layouts */
+.node-card--cover-top .node-card__header {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.node-card--no-cover .node-card__header {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 .node-card--cover-left .node-card__header {
   grid-column: 2;
   grid-row: 1;
@@ -113,7 +136,17 @@
   grid-row: 1;
 }
 
-/* Classes row */
+/* Classes row positioning */
+.node-card--cover-top .node-card__classes-row {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.node-card--no-cover .node-card__classes-row {
+  grid-column: 1;
+  grid-row: 2;
+}
+
 .node-card--cover-left .node-card__classes-row {
   grid-column: 2;
   grid-row: 2;
@@ -124,7 +157,17 @@
   grid-row: 2;
 }
 
-/* Tags row */
+/* Tags row positioning */
+.node-card--cover-top .node-card__tags-row {
+  grid-column: 1;
+  grid-row: 4;
+}
+
+.node-card--no-cover .node-card__tags-row {
+  grid-column: 1;
+  grid-row: 3;
+}
+
 .node-card--cover-left .node-card__tags-row {
   grid-column: 2;
   grid-row: 3;
@@ -135,10 +178,39 @@
   grid-row: 3;
 }
 
-/* Children body spans both columns */
+/* Children body spans all columns */
+.node-card--cover-top .node-card__body,
+.node-card--no-cover .node-card__body,
 .node-card--cover-left .node-card__body,
 .node-card--cover-right .node-card__body {
   grid-column: 1 / -1;
+  grid-row: 5;
+}
+
+.node-card--no-cover .node-card__body {
+  grid-row: 4;
+}
+
+.node-card--cover-left .node-card__body,
+.node-card--cover-right .node-card__body {
+  grid-row: 4;
+}
+
+/* Bottom add zone spans all columns in grid layouts */
+.node-card--cover-top .node-card__bottom-add-zone,
+.node-card--no-cover .node-card__bottom-add-zone,
+.node-card--cover-left .node-card__bottom-add-zone,
+.node-card--cover-right .node-card__bottom-add-zone {
+  grid-column: 1 / -1;
+  grid-row: 5;
+}
+
+.node-card--no-cover .node-card__bottom-add-zone {
+  grid-row: 4;
+}
+
+.node-card--cover-left .node-card__bottom-add-zone,
+.node-card--cover-right .node-card__bottom-add-zone {
   grid-row: 4;
 }
 
