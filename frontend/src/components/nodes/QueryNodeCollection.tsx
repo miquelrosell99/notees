@@ -303,7 +303,7 @@ export function QueryNodeCollection({
       current_node_uuid: nodeUuid,
       current_node_id: nodeId,
     },
-    includeChildren: viewType === 'linked_references' || viewType === 'child_pages',
+    includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || collectionViewMode === 'card',
     includeProperties: true,
     enabled: !!activeView && nodeId > 0,
   });
@@ -319,12 +319,12 @@ export function QueryNodeCollection({
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
       },
-      include_children: viewType === 'all_pages',
+      include_children: viewType === 'all_pages' || collectionViewMode === 'card',
       include_properties: true,
     },
     {
       enabled: isPseudoNode && !!pseudoNodeAST,
-      queryKey: ['pseudo-node-query', viewType, nodeId],
+      queryKey: ['pseudo-node-query', viewType, nodeId, collectionViewMode],
     }
   );
 
@@ -346,12 +346,12 @@ export function QueryNodeCollection({
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
       },
-      include_children: viewType === 'all_pages',
+      include_children: viewType === 'all_pages' || collectionViewMode === 'card',
       include_properties: true,
     },
     {
       enabled: !!previewAST,
-      queryKey: ['preview-query', nodeId, previewAST],
+      queryKey: ['preview-query', nodeId, previewAST, collectionViewMode],
     }
   );
 
