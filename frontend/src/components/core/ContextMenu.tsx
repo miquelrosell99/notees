@@ -93,11 +93,14 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    // Use both mousedown and click to ensure we catch outside clicks
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('click', handleClickOutside, true);
     document.addEventListener('keydown', handleEscape);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('click', handleClickOutside, true);
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleKeyDown);
     };
