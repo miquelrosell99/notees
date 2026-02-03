@@ -158,6 +158,23 @@ async def get_trash(
     }
 
 
+@router.post("/trash/empty", name="empty_trash")
+async def empty_trash(
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete all soft-deleted nodes (empty trash).
+    
+    This is irreversible. All nodes in trash will be hard deleted from the database.
+    """
+    service = await _get_node_service(user)
+    count = await service.empty_trash()
+    
+    return {
+        "status": "success",
+        "deleted_count": count
+    }
+
+
 @router.post("/{node_id}/restore", name="restore_node")
 async def restore_node(
     node_id: int,
