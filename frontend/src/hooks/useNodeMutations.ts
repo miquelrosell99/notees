@@ -1095,9 +1095,22 @@ export function useAddClass() {
       const oldNode = context?.oldNode;
       
       // Update cache with the returned node data for immediate UI update
+      // Only update fields that are in the response to avoid overwriting children/properties
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(nodeId) },
-        (old) => old ? { ...old, ...updatedNode } : updatedNode
+        (old) => {
+          if (!old) return updatedNode;
+          return {
+            ...old,
+            classes: updatedNode.classes,
+            is_page: updatedNode.is_page,
+            is_class: updatedNode.is_class,
+            is_daily: updatedNode.is_daily,
+            is_monthly: updatedNode.is_monthly,
+            is_yearly: updatedNode.is_yearly,
+            write_date: updatedNode.write_date,
+          };
+        }
       );
       
       // Invalidate the node query to refetch with all fields (including properties)
@@ -1163,9 +1176,22 @@ export function useRemoveClass() {
       const oldNode = context?.oldNode;
       
       // Update cache with the returned node data for immediate UI update
+      // Only update fields that are in the response to avoid overwriting children/properties
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(nodeId) },
-        (old) => old ? { ...old, ...updatedNode } : updatedNode
+        (old) => {
+          if (!old) return updatedNode;
+          return {
+            ...old,
+            classes: updatedNode.classes,
+            is_page: updatedNode.is_page,
+            is_class: updatedNode.is_class,
+            is_daily: updatedNode.is_daily,
+            is_monthly: updatedNode.is_monthly,
+            is_yearly: updatedNode.is_yearly,
+            write_date: updatedNode.write_date,
+          };
+        }
       );
       
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
