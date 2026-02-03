@@ -1,10 +1,10 @@
 /**
  * All Pages View - displays all root pages as a pseudo-page
  * 
- * Uses DynamicNodeViewSection with all_pages view type.
+ * Uses QuerySection with all_pages view type.
  */
 import { useCallback } from 'react';
-import { DynamicNodeViewSection } from '../components/nodes/DynamicNodeViewSection';
+import { QuerySection } from '../components/nodes/QuerySection';
 import { SearchBox } from '../components/SearchBox';
 import { PageIcon } from '../components/icons';
 import { useNodesStore } from '@/stores';
@@ -45,8 +45,8 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
         />
       </div>
       
-      {/* Pages Section - use DynamicNodeViewSection with all_pages view type */}
-      <DynamicNodeViewSection
+      {/* Pages Section - use QuerySection with all_pages view type */}
+      <QuerySection
         nodeId={PSEUDO_NODE_ID}
         nodeUuid={PSEUDO_NODE_UUID}
         viewType="all_pages"
@@ -61,4 +61,3 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
 }
 
 export default AllPagesView;
-
