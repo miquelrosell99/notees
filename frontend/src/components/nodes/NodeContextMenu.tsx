@@ -225,7 +225,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   return (
     <>
       {!showDeleteModal && !showArchiveModal && (
-        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+        <div className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={commonItems}
@@ -398,7 +398,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   return (
     <>
       {!showDeleteModal && !showArchiveModal && (
-        <div className="page-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+        <div className="page-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={pageItems}
@@ -529,7 +529,7 @@ export function BlockContextMenu({
   return (
     <>
       {!showArchiveModal && (
-        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
+        <div className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={blockItems}
