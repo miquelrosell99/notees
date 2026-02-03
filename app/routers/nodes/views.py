@@ -114,6 +114,48 @@ async def _get_property_repo(user: User):
     return service._property_repo
 
 
+async def _include_classes_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Fetch and attach classes for each node in results.
+    
+    This adds 'classes' to each node dict with their class IDs.
+    Recursively processes children as well.
+    """
+    if not results:
+        return results
+    
+    service = await _get_node_service(user)
+    
+    async def _add_classes_recursive(nodes: List[Dict[str, Any]]):
+        """Recursively add classes to nodes and their children."""
+        # Collect all node IDs
+        node_ids = [n.get("id") for n in nodes if n.get("id")]
+        if not node_ids:
+            return
+        
+        # Fetch classes for all nodes in batch
+        from app.routers.nodes.helpers import _get_class_ids_for_multiple_nodes
+        classes_map = await _get_class_ids_for_multiple_nodes(
+            service._pool,
+            service._graph_id,
+            node_ids
+        )
+        
+        # Attach classes to each node
+        for node in nodes:
+            node_id = node.get("id")
+            if node_id and node_id in classes_map:
+                node["classes"] = classes_map[node_id]
+            
+            # Recursively process children
+            if node.get("children"):
+                await _add_classes_recursive(node["children"])
+    
+    # Process all results and their children recursively
+    await _add_classes_recursive(results)
+    
+    return results
+
+
 async def _include_children_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Recursively fetch children for each node in results.
     
@@ -625,6 +667,9 @@ async def execute_node_view_query(
     if request.include_children:
         results = await _include_children_for_results(user, results)
     
+    # Always include classes (needed for card view and other displays)
+    results = await _include_classes_for_results(user, results)
+    
     # If include_properties is requested, fetch properties for each node
     if request.include_properties:
         results = await _include_properties_for_results(user, results)
@@ -662,6 +707,9 @@ async def execute_query(
     # If include_children is requested, fetch children for each node
     if request.include_children:
         results = await _include_children_for_results(user, results)
+    
+    # Always include classes (needed for card view and other displays)
+    results = await _include_classes_for_results(user, results)
     
     # If include_properties is requested, fetch properties for each node
     if request.include_properties:
