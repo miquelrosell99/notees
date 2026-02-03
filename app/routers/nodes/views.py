@@ -133,8 +133,8 @@ async def _include_classes_for_results(user: User, results: List[Dict[str, Any]]
             return
         
         # Fetch classes for all nodes in batch
-        from app.routers.nodes.helpers import _get_class_ids_for_multiple_nodes
-        classes_map = await _get_class_ids_for_multiple_nodes(
+        from app.routers.nodes.helpers import _get_class_ids_batch
+        classes_map = await _get_class_ids_batch(
             service._pool,
             service._graph_id,
             node_ids
