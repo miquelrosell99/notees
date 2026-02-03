@@ -26,6 +26,8 @@ export interface ModalProps {
   onClose: () => void;
   /** Modal title (shown in header) */
   title?: string;
+  /** Optional element to render left of the title (e.g., button) */
+  headerLeftElement?: ReactNode;
   /** Modal size */
   size?: ModalSize;
   /** Modal content */
@@ -52,6 +54,7 @@ export function Modal({
   isOpen,
   onClose,
   title,
+  headerLeftElement,
   size = 'md',
   children,
   footer,
@@ -108,8 +111,13 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
       >
-        {(title || showCloseButton) && (
+        {(title || headerLeftElement || showCloseButton) && (
           <div className="modal__header">
+            {headerLeftElement && (
+              <div className="modal__header-left">
+                {headerLeftElement}
+              </div>
+            )}
             {title && <h2 id="modal-title" className="modal__title">{title}</h2>}
             {showCloseButton && (
               <Button
