@@ -59,19 +59,18 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 2rem;
-  padding: var(--spacing-1) 0;
 }
 
 .table-block__header-content {
   flex: 1;
   min-width: 0;
-  align-self: stretch;
+  display: flex;
+  align-items: center;
 }
 
 .table-block__header-content > .block {
-  min-height: 24px;
   padding: 0;
+  flex: 1;
 }
 
 .table-block__header-actions {
@@ -93,21 +92,19 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 2rem;
-  padding: var(--spacing-1) 0;
 }
 
 .table-block__cell-content {
   flex: 1;
   min-width: 0;
-  /* Ensure no vertical shift when switching between edit and display modes */
-  align-self: stretch;
+  display: flex;
+  align-items: center;
 }
 
 /* Ensure Block component within cell has consistent height */
 .table-block__cell-content > .block {
-  min-height: 24px;
   padding: 0;
+  flex: 1;
 }
 
 .table-block__cell-actions {
@@ -145,7 +142,6 @@
 
 .table-cell-content {
   width: 100%;
-  min-height: 1.4em;
   cursor: pointer;
 }
 
