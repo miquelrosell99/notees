@@ -99,24 +99,16 @@ export function TableCreationModal({
               ]}
             />
           )}
-          <div style={{ display: 'flex', gap: 'var(--spacing-2)', marginLeft: 'auto' }}>
+          {mode === 'adapt' && existingChildCount > 0 && (
             <Button
-              variant="ghost"
+              variant="primary"
               size="sm"
-              onClick={onCancel}
+              onClick={handleAdaptConfirm}
+              style={{ marginLeft: 'auto' }}
             >
-              Cancel
+              Convert
             </Button>
-            {mode === 'adapt' && existingChildCount > 0 && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleAdaptConfirm}
-              >
-                Convert
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       }
     >
