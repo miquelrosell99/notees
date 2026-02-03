@@ -177,6 +177,9 @@ function BlockInternal({
     className: string;
   }>({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
   
+  // Track when table structure is being created to disable auto-balance
+  const isCreatingTableStructure = useRef(false);
+  
   // Table view mode state (table vs outline)
   const [tableViewMode, setTableViewMode] = useState<'table' | 'outline'>('table');
   
@@ -226,12 +229,10 @@ function BlockInternal({
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useMemo(() => {
     const classIds = block.classes;
-    console.log('[Block] Classes for block', block.id, ':', classIds, 'allClasses loaded:', !!allClasses);
     if (!classIds || classIds.length === 0 || !allClasses) return [];
     const details = classIds
       .map((classId: number) => allClasses.find((c: Node) => c.id === classId))
       .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
-    console.log('[Block] Resolved class details for block', block.id, ':', details);
     return details;
   }, [block.classes, allClasses]);
   
@@ -881,22 +882,30 @@ function BlockInternal({
   
   // Create table structure (columns and rows) after adding table class
   const createTableStructure = useCallback(async (size: TableSize) => {
-    // Create column blocks as children of the table block
-    for (let colIndex = 0; colIndex < size.columns; colIndex++) {
-      const columnNode = await createNode.mutateAsync({
-        name: `Column ${colIndex + 1}`,
-        parent_id: block.id,
-        sequence: colIndex,
-      });
-      
-      // Create row cells for each column
-      for (let rowIndex = 0; rowIndex < size.rows; rowIndex++) {
-        await createNode.mutateAsync({
-          name: '',
-          parent_id: columnNode.id,
-          sequence: rowIndex,
+    // Set flag to disable auto-balance during table creation
+    isCreatingTableStructure.current = true;
+    
+    try {
+      // Create column blocks as children of the table block
+      for (let colIndex = 0; colIndex < size.columns; colIndex++) {
+        const columnNode = await createNode.mutateAsync({
+          name: `Column ${colIndex + 1}`,
+          parent_id: block.id,
+          sequence: colIndex,
         });
+        
+        // Create row cells for each column
+        for (let rowIndex = 0; rowIndex < size.rows; rowIndex++) {
+          await createNode.mutateAsync({
+            name: '',
+            parent_id: columnNode.id,
+            sequence: rowIndex,
+          });
+        }
       }
+    } finally {
+      // Re-enable auto-balance after creation is complete
+      isCreatingTableStructure.current = false;
     }
   }, [createNode, block.id]);
 
@@ -1870,6 +1879,7 @@ function BlockInternal({
             columns={children}
             editable={canEdit}
             viewMode={tableViewMode}
+            disableAutoBalance={isCreatingTableStructure.current}
           />
         </div>
       ) : (
