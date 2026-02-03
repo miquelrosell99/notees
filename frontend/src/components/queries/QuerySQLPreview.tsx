@@ -64,17 +64,12 @@ function generateScopeSQL(ast: QueryAST): string {
     case 'current_page':
       return 'ancestor_of(nodes.id, {current_page_id})';
       
-    case 'specific_pages':
-      if (!scope.page_uuids || scope.page_uuids.length === 0) {
-        return '';
-      }
-      const pageList = scope.page_uuids.map(uuid => `'${uuid}'`).join(', ');
-      return `ancestor_uuid IN (${pageList})`;
-      
-    case 'linked_refs':
-      return 'references_node({current_page_id})';
-      
     default:
+      // Handle specific_pages and linked_refs as unknown scope types
+      if ((scope as any).page_uuids) {
+        const pageList = (scope as any).page_uuids.map((uuid: string) => `'${uuid}'`).join(', ');
+        return `ancestor_uuid IN (${pageList})`;
+      }
       return '';
   }
 }
@@ -95,7 +90,7 @@ function generateGroupSQL(group: import('@/types/queryAST').GroupNode, indent: n
       } else if (child.type === 'not') {
         const innerSQL = child.child.type === 'group'
           ? generateGroupSQL(child.child, indent + 1)
-          : generateConditionSQL(child.child);
+          : generateConditionSQL(child.child as import('@/types/queryAST').ConditionNode);
         return innerSQL ? `NOT (${innerSQL})` : '';
       } else {
         return generateConditionSQL(child);
@@ -142,7 +137,7 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
       
       if (op === 'contains') {
         return `content LIKE '%${val}%'`;
-      } else if (op === '=') {
+      } else if (op === 'equals') {
         return `content = '${val}'`;
       } else if (op === 'starts_with') {
         return `content LIKE '${val}%'`;

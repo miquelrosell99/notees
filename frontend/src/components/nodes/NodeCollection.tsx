@@ -659,7 +659,7 @@ export function NodeCollection({
                 selectedPropertyUuids={selectedPropertyUuids}
                 onPropertyColumnsChange={handlePropertyColumnsChange}
                 toolbarPrefix={toolbarPrefix}
-                leftElement={leftElement}
+                leftElement={typeof leftElement === 'function' ? leftElement(nodes.length) : leftElement}
                 hideToolbarControls={hideToolbarControls}
               />
             </div>

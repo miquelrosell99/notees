@@ -95,9 +95,6 @@ export function renderScopeProse(scope: ScopeNode): string {
       }
       return 'in this page';
     
-    case 'linked_refs':
-      return 'that reference this page';
-    
     default:
       return 'in unknown scope';
   }
@@ -151,7 +148,9 @@ function renderChildProse(node: ConditionNode | GroupNode | NotNode, nodesMap?: 
   if (node.type === 'not') {
     const childPhrase = node.child.type === 'group' 
       ? renderGroupProse(node.child, nodesMap)
-      : renderConditionProse(node.child, nodesMap);
+      : node.child.type === 'condition'
+      ? renderConditionProse(node.child, nodesMap)
+      : 'unknown';
     return `do not ${childPhrase}`;
   }
   
@@ -242,20 +241,20 @@ function renderPropertyProse(condition: PropertyCondition): string {
       return `have empty property "${propName}"`;
     case 'is_not_empty':
       return `have non-empty property "${propName}"`;
-    case '=':
+    case 'equals':
       return `have property "${propName}" equal to "${value}"`;
-    case '!=':
+    case 'not_equals':
       return `have property "${propName}" not equal to "${value}"`;
     case 'contains':
       return `have property "${propName}" containing "${value}"`;
-    case '>':
+    case 'greater_than':
       return `have property "${propName}" greater than ${value}`;
-    case '<':
+    case 'less_than':
       return `have property "${propName}" less than ${value}`;
-    case '>=':
+    case 'gte':
       return `have property "${propName}" at least ${value}`;
-    case '<=':
-      return `have property "${propName}" at most ${condition.value}`;
+    case 'lte':
+      return `have property "${propName}" at most ${value}`;
     default:
       return `have property "${propName}"`;
   }
@@ -265,14 +264,10 @@ function renderContentProse(condition: ContentCondition): string {
   switch (condition.operator) {
     case 'contains':
       return `contain text "${condition.value}"`;
-    case '=':
-      return `have content equal to "${condition.value}"`;
     case 'starts_with':
       return `start with "${condition.value}"`;
     case 'ends_with':
       return `end with "${condition.value}"`;
-    case 'matches_regex':
-      return `match pattern /${condition.value}/`;
     case 'fts':
       return `match full-text search "${condition.value}"`;
     default:

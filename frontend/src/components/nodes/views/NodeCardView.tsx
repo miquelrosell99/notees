@@ -193,7 +193,7 @@ function NodeCard({
   }, [node?.properties, node.id]);
   
   // Get the asset node for the cover image (for bullet)
-  const { data: assetNode, isLoading: assetNodeLoading } = useNode(coverImageId, { include_children: false });
+  const { data: assetNode } = useNode(coverImageId, { include_children: false });
   
   // Bullet handlers for cover asset
   const handleCoverBulletClick = useCallback((e: React.MouseEvent) => {

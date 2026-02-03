@@ -197,13 +197,10 @@ export function useStructuralHistory() {
       // 3. Restore modified nodes to their before state
       for (const snapshot of entry.before.nodes) {
         try {
-          await updateNode({
-            id: snapshot.id,
-            data: {
-              name: snapshot.name,
-              parent_id: snapshot.parent_id,
-              sequence: snapshot.order_index,
-            },
+          await updateNode(snapshot.id, {
+            name: snapshot.name,
+            parent_id: snapshot.parent_id,
+            sequence: snapshot.order_index,
           });
         } catch (error) {
           console.error(`[History] Failed to restore node ${snapshot.id}:`, error);
@@ -281,13 +278,10 @@ export function useStructuralHistory() {
         }
         
         try {
-          await updateNode({
-            id: snapshot.id,
-            data: {
-              name: snapshot.name,
-              parent_id: snapshot.parent_id,
-              sequence: snapshot.order_index,
-            },
+          await updateNode(snapshot.id, {
+            name: snapshot.name,
+            parent_id: snapshot.parent_id,
+            sequence: snapshot.order_index,
           });
         } catch (error) {
           console.error(`[History] Failed to restore node ${snapshot.id}:`, error);

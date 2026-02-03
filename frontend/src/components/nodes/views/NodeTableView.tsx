@@ -13,7 +13,7 @@
  * - Drag-and-drop reordering with drag handles
  * - Row selection with checkboxes
  */
-import { useMemo, useCallback, useState, type ReactNode } from 'react';
+import React, { useMemo, useCallback, useState, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
@@ -386,11 +386,11 @@ export function NodeTableView({
       
       {/* Context menu */}
       {contextMenuNode && customContextMenu && (
-        <customContextMenu
-          node={contextMenuNode}
-          position={contextMenuPosition}
-          onClose={handleCloseContextMenu}
-        />
+        React.createElement(customContextMenu, {
+          node: contextMenuNode,
+          position: contextMenuPosition,
+          onClose: handleCloseContextMenu,
+        })
       )}
     </>
   );

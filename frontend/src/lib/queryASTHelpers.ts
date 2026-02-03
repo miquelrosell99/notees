@@ -23,7 +23,6 @@ import type {
   PropertyOperator,
   PropertyType,
 } from '@/types/queryAST';
-import { createGroupNode } from '@/types/queryAST';
 
 // ==================== Factory Functions ====================
 

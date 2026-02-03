@@ -7,7 +7,7 @@
  * Note: Create, rename, and import functionality requires implementing modal components.
  */
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack:react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   listDatabases, 
   switchDatabase,
@@ -201,7 +201,7 @@ export function DatabaseManagementView({
             </div>
           ) : databases.length > 0 ? (
             <div className="db-management__grid">
-              {databases.map((db) => (
+              {databases.map((db: DatabaseInfo) => (
                 <Card 
                   key={db.name} 
                   className={`db-management__card ${db.name === data?.active ? 'db-management__card--active' : ''} ${deleteConfirm === db.name ? 'db-management__card--delete-confirm' : ''}`}

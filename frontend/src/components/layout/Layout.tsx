@@ -265,7 +265,7 @@ export function Layout() {
             ) => {
               for (const blockData of blockDataList) {
                 const newNode = await createNodeMutation.mutateAsync({
-                  name: blockData.content,
+                  name: (blockData as any).content || '',
                   parent_id: parentId,
                 });
                 

@@ -230,11 +230,11 @@ export function analyzeHierarchicalPath(
   
   // Analyze parent segments
   for (const segment of parsed.parentSegments) {
-    const key = `${segment}|${currentParentId ?? 'null'}`;
-    const matchingNodes = pageMap.get(key) || [];
+    const key: string = `${segment}|${currentParentId ?? 'null'}`;
+    const matchingNodes: Node[] = pageMap.get(key) || [];
     
     const hasConflict = matchingNodes.length > 1;
-    const singleNode = matchingNodes.length === 1 ? matchingNodes[0] : undefined;
+    const singleNode: Node | undefined = matchingNodes.length === 1 ? matchingNodes[0] : undefined;
     
     segments.push({
       name: segment,

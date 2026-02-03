@@ -110,6 +110,14 @@ interface BlockProps {
   customContextMenuItems?: ContextMenuItem[];
   /** Whether this block is a table cell (prevents deletion, creates replacement cell instead) */
   isTableCell?: boolean;
+  /** Called when arrow left is pressed at start of content (for table cell navigation) */
+  onNavigateLeft?: () => void;
+  /** Called when arrow right is pressed at end of content (for table cell navigation) */
+  onNavigateRight?: () => void;
+  /** Called when arrow up is pressed in table cell (for navigating between rows or exiting table) */
+  onNavigateUp?: () => void;
+  /** Called when arrow down is pressed in table cell (for navigating between rows or exiting table) */
+  onNavigateDown?: () => void;
 }
 
 // Internal component function - use Block or MemoizedBlock exports
@@ -147,6 +155,10 @@ function BlockInternal({
   suppressColor = false,
   customContextMenuItems,
   isTableCell = false,
+  onNavigateLeft,
+  onNavigateRight,
+  onNavigateUp,
+  onNavigateDown,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1521,6 +1533,17 @@ function BlockInternal({
   // Handle arrow down navigation - navigate to visually next block
   // Level-agnostic: works at any nesting depth
   const handleNavigateDown = useCallback((caretX?: number) => {
+    // Special handling for table blocks: navigate to first cell instead of first column
+    if (hasTableClass && children && children.length > 0) {
+      const firstColumn = children[0];
+      const firstCell = firstColumn?.children?.[0];
+      if (firstCell) {
+        setPendingCaret(firstCell.id, 0, caretX);
+        setBlockState(firstCell.id, 'edit');
+        return;
+      }
+    }
+    
     // Use visual order (getNextBlockId) to find the block visually below
     let nextBlockId = getNextBlockId(block.id, 'down');
     
@@ -1554,7 +1577,7 @@ function BlockInternal({
     // The BlockEditor will use caretX to find the best horizontal position
     setPendingCaret(nextBlockId, 0, caretX);
     setBlockState(nextBlockId, 'edit');
-  }, [block.id, block.collapsed, getNextBlockId, children, siblings, setBlockState, setPendingCaret]);
+  }, [block.id, block.collapsed, hasTableClass, getNextBlockId, children, siblings, setBlockState, setPendingCaret]);
 
   return (
     <div
@@ -1638,8 +1661,10 @@ function BlockInternal({
               onOutdent={handleOutdent}
               onPasteBlocks={handlePasteBlocks}
               onPasteTable={handlePasteTable}
-              onNavigateUp={handleNavigateUp}
-              onNavigateDown={handleNavigateDown}
+              onNavigateUp={onNavigateUp ?? handleNavigateUp}
+              onNavigateDown={onNavigateDown ?? handleNavigateDown}
+              onNavigateLeft={onNavigateLeft}
+              onNavigateRight={onNavigateRight}
             />
           ) : (
             <div 
@@ -1793,8 +1818,10 @@ function BlockInternal({
                     onOutdent={handleOutdent}
                     onPasteBlocks={handlePasteBlocks}
                     onPasteTable={handlePasteTable}
-                    onNavigateUp={handleNavigateUp}
-                    onNavigateDown={handleNavigateDown}
+                    onNavigateUp={onNavigateUp ?? handleNavigateUp}
+                    onNavigateDown={onNavigateDown ?? handleNavigateDown}
+                    onNavigateLeft={onNavigateLeft}
+                    onNavigateRight={onNavigateRight}
                   />
                 ) : (
                   <div 
@@ -1880,6 +1907,20 @@ function BlockInternal({
             editable={canEdit}
             viewMode={tableViewMode}
             disableAutoBalanceRef={isCreatingTableStructure}
+            onNavigateToParent={() => {
+              // Navigate to the parent table block itself (put cursor at end of table block name)
+              const cursorPosition = (block.name || '').length;
+              setPendingCaret(block.id, cursorPosition);
+              setBlockState(block.id, 'edit');
+            }}
+            onNavigateToNextBlock={() => {
+              // Navigate to the next block after the table
+              const nextBlockId = getNextBlockId(block.id, 'down');
+              if (nextBlockId) {
+                setPendingCaret(nextBlockId, 0);
+                setBlockState(nextBlockId, 'edit');
+              }
+            }}
           />
         </div>
       ) : (

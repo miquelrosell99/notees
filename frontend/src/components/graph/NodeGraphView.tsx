@@ -30,7 +30,6 @@ import {
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
-import { ColorButton } from '../core/ColorButton';
 import { SelectionButton } from '../core/SelectionButton';
 import { ListSortable } from '../core/ListSortable';
 import { ClassColorsPanel } from '../shared/ClassColorsPanel';

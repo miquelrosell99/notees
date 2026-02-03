@@ -31,7 +31,6 @@ import { SlashCommandPopup } from '../SlashCommandPopup';
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { stripHtml } from '@/utils/sanitize';
 import { 
   analyzeClipboard, 
   regenerateLinkUuids,
@@ -97,6 +96,10 @@ interface BlockEditorProps {
   onNavigateUp?: (caretX?: number) => void;
   /** Called when user presses arrow down at end/last line. Receives caretX for position preservation. */
   onNavigateDown?: (caretX?: number) => void;
+  /** Called when user presses arrow left at start of content (for table cell navigation) */
+  onNavigateLeft?: () => void;
+  /** Called when user presses arrow right at end of content (for table cell navigation) */
+  onNavigateRight?: () => void;
   /** Called with shift+arrow for extending selection */
   onExtendSelection?: (direction: 'up' | 'down') => void;
   /** Whether this block is a task (enables Shift+Enter state cycling) */
@@ -766,6 +769,8 @@ export function BlockEditor({
   onEscape,
   onNavigateUp,
   onNavigateDown,
+  onNavigateLeft,
+  onNavigateRight,
   onExtendSelection,
   isTask = false,
   taskState,
@@ -1421,8 +1426,24 @@ export function BlockEditor({
       // Select the pill (no need to deselect old pill since we return early if one is selected)
       adjacentPill.classList.add(adjacentPill.classList.contains('inline-node-link') ? 'inline-node-link--selected' : 'link-pill--selected');
       setSelectedPill(adjacentPill);
+      return;
     }
-  }, [selectedPill]);
+    
+    // Handle navigation to adjacent cell (for table cells)
+    // Check if cursor is at the edge of content and no pill navigation happened
+    if (!editorRef.current) return;
+    
+    const currentContent = htmlToContent(editorRef.current);
+    const cursorPos = getCursorPosition(editorRef.current);
+    
+    if (direction === 'left' && cursorPos === 0 && onNavigateLeft) {
+      e.preventDefault();
+      onNavigateLeft();
+    } else if (direction === 'right' && cursorPos === currentContent.length && onNavigateRight) {
+      e.preventDefault();
+      onNavigateRight();
+    }
+  }, [selectedPill, onNavigateLeft, onNavigateRight]);
 
   // Handle selection from popup
   const handleSelect = useCallback((node: Node, keepInline: boolean) => {
