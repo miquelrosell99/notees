@@ -7,7 +7,24 @@
 .node-collection-toolbar {
   display: flex;
   align-items: center;
+  width: 100%;
+}
+
+/* Left section - header/block element */
+.node-collection-toolbar__left {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Right section - toolbar controls */
+.node-collection-toolbar__right {
+  display: flex;
+  align-items: center;
   gap: var(--spacing-2);
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .node-collection-toolbar__group-by {
@@ -58,8 +75,50 @@
 
 /* Left element (block element, collapsible header) */
 .node-collection-toolbar__left {
-  flex: 1;
-  min-width: 0;
   display: flex;
   align-items: center;
+  min-width: 0;
+}
+
+/* When NodeViewSection header is in the toolbar */
+.node-collection-toolbar .node-view-section__header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  cursor: pointer;
+  min-width: 0;
+  width: 100%;
+}
+
+.node-collection-toolbar .node-view-section__toggle {
+  flex-shrink: 0;
+}
+
+.node-collection-toolbar .node-view-section__title-area {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.node-collection-toolbar .node-view-section__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.node-collection-toolbar .node-view-section__title {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-collection-toolbar .node-view-section__count {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }

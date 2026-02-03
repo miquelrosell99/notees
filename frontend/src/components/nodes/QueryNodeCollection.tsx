@@ -61,6 +61,12 @@ export interface QueryNodeCollectionProps {
   hideToolbar?: boolean;
   /** Whether to show add button in toolbar */
   showAddButton?: boolean;
+  /** Element to render at the left side of the toolbar (e.g., block element, collapsible header) */
+  leftElement?: React.ReactNode | ((count: number) => React.ReactNode);
+  /** Hide toolbar controls while keeping leftElement visible */
+  hideToolbarControls?: boolean;
+  /** Hide the content area while keeping toolbar visible */
+  hideContent?: boolean;
   /** Render prop - receives controls and results */
   children: (result: QueryNodeCollectionResult) => React.ReactNode;
 }
@@ -86,6 +92,9 @@ export function QueryNodeCollection({
   onBlockCreated,
   hideToolbar = false,
   showAddButton = true,
+  leftElement,
+  hideToolbarControls = false,
+  hideContent = false,
   children,
 }: QueryNodeCollectionProps): React.ReactNode {
   // State
@@ -422,6 +431,11 @@ export function QueryNodeCollection({
 
   const resultCount = resultNodes.length;
 
+  // Resolve leftElement (can be static or function)
+  const resolvedLeftElement = typeof leftElement === 'function' 
+    ? leftElement(resultCount) 
+    : leftElement;
+
   // Toolbar prefix - view selector, filter button, add view button
   const toolbarPrefix = (
     <>
@@ -480,6 +494,9 @@ export function QueryNodeCollection({
           editable={true}
           hideToolbar={hideToolbar}
           toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
+          leftElement={resolvedLeftElement}
+          hideToolbarControls={hideToolbarControls}
+          hideContent={hideContent}
           showGroupBy={collectionViewMode === 'list'}
           groupBy={groupBy}
           onGroupByChange={setGroupBy}
