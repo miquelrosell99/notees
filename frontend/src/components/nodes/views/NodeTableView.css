@@ -9,38 +9,38 @@
   width: 100%;
 }
 
-/* Node-specific name cell */
+/* Name cell with Block component and action buttons */
 .node-table__name-cell {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
   width: 100%;
 }
 
-.node-table__block-wrapper {
+.node-table__name-content {
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
 
-/* Override Block styles for table context */
-.node-table__block-wrapper .block {
+/* Override Block styles for table context - name column */
+.node-table__name-content .block {
   padding: 0;
   margin: 0;
 }
 
-.node-table__block-wrapper .block__container {
+.node-table__name-content .block__container {
   padding: 0;
   min-height: auto;
 }
 
-.node-table__block-wrapper .block__content {
+.node-table__name-content .block__content {
   padding: 0.25rem 0;
 }
 
 /* Prevent word breaking in table cells - keep text on one line */
-.node-table__block-wrapper .block-content-view,
-.node-table__block-wrapper .block-content-pills {
+.node-table__name-content .block-content-view,
+.node-table__name-content .block-content-pills {
   word-break: normal;
   white-space: nowrap;
   overflow: hidden;
