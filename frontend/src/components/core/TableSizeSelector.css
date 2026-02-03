@@ -109,3 +109,55 @@
   gap: var(--spacing-2);
   margin-top: var(--spacing-2);
 }
+
+/* Mode toggle for adapt vs new table */
+.table-size-modal__mode-toggle {
+  display: flex;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+/* Adapt mode options */
+.table-size-modal__adapt-options {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  min-width: 200px;
+}
+
+.table-size-modal__adapt-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+}
+
+.table-size-modal__adapt-select {
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.table-size-modal__adapt-select:hover {
+  border-color: var(--color-primary);
+}
+
+.table-size-modal__adapt-select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.table-size-modal__adapt-preview {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
