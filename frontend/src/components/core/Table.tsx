@@ -109,6 +109,8 @@ export interface TableProps<T> {
   onRowContextMenu?: (row: T, event: React.MouseEvent) => void;
   /** Column header context menu handler */
   onHeaderContextMenu?: (column: TableColumn<T>, event: React.MouseEvent) => void;
+  /** Header checkbox context menu handler */
+  onHeaderCheckboxContextMenu?: (event: React.MouseEvent) => void;
   /** Whether the table is loading */
   loading?: boolean;
   /** Empty state content */
@@ -168,6 +170,7 @@ export function Table<T>({
   onRowShiftClick,
   onRowContextMenu,
   onHeaderContextMenu,
+  onHeaderCheckboxContextMenu,
   loading = false,
   emptyContent = 'No data',
   caption,
@@ -528,7 +531,15 @@ export function Table<T>({
           <thead className="table-header">
             <tr className="table-row table-row--header">
               {selectable && (
-                <th className="table-cell table-cell--checkbox" onClick={(e) => e.stopPropagation()}>
+                <th 
+                  className="table-cell table-cell--checkbox" 
+                  onClick={(e) => e.stopPropagation()}
+                  onContextMenu={onHeaderCheckboxContextMenu ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onHeaderCheckboxContextMenu(e);
+                  } : undefined}
+                >
                   <Checkbox
                     size={size === 'lg' ? 'md' : 'sm'}
                     checked={allSelected}
