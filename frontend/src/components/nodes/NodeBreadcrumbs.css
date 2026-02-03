@@ -67,6 +67,10 @@
   align-items: center;
 }
 
+.node-breadcrumb-link .block-content-view {
+  min-height: 0;
+}
+
 .node-breadcrumb-link .block-text {
   line-height: 1.2;
 }

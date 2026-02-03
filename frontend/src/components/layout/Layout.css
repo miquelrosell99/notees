@@ -73,6 +73,7 @@
 .main-content .node-view-header-left,
 .main-content-wrapper .node-view-header-left {
   display: flex;
+  align-items: center;
   justify-content: flex-start;
   min-width: 0;
 }
