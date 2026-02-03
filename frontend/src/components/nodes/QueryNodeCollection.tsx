@@ -36,6 +36,7 @@ import { DeleteIcon } from '../icons';
 import { validateQueryAST, canSaveQuery } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
+import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline } from '@mdi/js';
@@ -103,6 +104,7 @@ export function QueryNodeCollection({
   const [editViewName, setEditViewName] = useState('');
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [showProseModal, setShowProseModal] = useState(false);
 
   // Handle AST changes during editing
   const handleASTChange = useCallback((newAST: QueryAST) => {
@@ -450,6 +452,28 @@ export function QueryNodeCollection({
       )}
       
       {activeView && (
+        <Button
+          icon={mdiEyeOutline}
+          iconOnly
+          variant="ghost"
+          size="xs"
+          onClick={() => setShowProseModal(true)}
+          title="Show query as prose"
+        />
+      )}
+      
+      {activeView && (
+        <Button
+          icon={mdiEyeOutline}
+          iconOnly
+          variant="ghost"
+          size="xs"
+          onClick={() => setShowProseModal(true)}
+          title="Show query as prose"
+        />
+      )}
+      
+      {activeView && (
         <div className="dynamic-section__filter-btn-wrapper">
           <Button
             icon={mdiFilterOutline}
@@ -591,6 +615,25 @@ export function QueryNodeCollection({
               resultCount={previewResults?.length ?? 0}
               isLoading={previewLoading}
             />
+          </div>
+        )}
+      </Modal>
+
+      {/* Prose query preview modal */}
+      <Modal
+        isOpen={showProseModal}
+        onClose={() => setShowProseModal(false)}
+        title="Query as prose"
+        size="md"
+      >
+        {editAST && (
+          <div style={{
+            padding: '16px',
+            fontSize: '15px',
+            lineHeight: '1.6',
+            color: 'var(--color-text-primary, #212529)'
+          }}>
+            {getQueryIntent(editAST)}
           </div>
         )}
       </Modal>
