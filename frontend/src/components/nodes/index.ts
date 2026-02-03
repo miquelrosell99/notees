@@ -26,8 +26,11 @@ export { NodePreview } from './NodePreview';
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';
 
-export { DynamicNodeViewSection } from './DynamicNodeViewSection';
-export type { DynamicNodeViewSectionProps } from './DynamicNodeViewSection';
+export { QueryNodeCollection } from './QueryNodeCollection';
+export type { QueryNodeCollectionProps, QueryNodeCollectionResult } from './QueryNodeCollection';
+
+export { QuerySection } from './QuerySection';
+export type { QuerySectionProps } from './QuerySection';
 
 // NodeCollection - Universal node collection component
 export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './NodeCollection';

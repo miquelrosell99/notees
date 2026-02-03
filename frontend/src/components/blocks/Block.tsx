@@ -30,13 +30,12 @@ import React, { useRef, useEffect, useCallback, useState, useMemo, memo } from '
 import { useQueryClient } from '@tanstack/react-query';
 import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
-import { BlockEditor, type TaskState, type PastedBlock, type PastedTable } from './BlockEditor';
+import { BlockEditor, type TaskState, type PastedTable } from './BlockEditor';
 import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -49,7 +48,8 @@ import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
-import { QueryBlockDisplay } from './QueryBlockDisplay';
+import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
+import { useSystemClasses } from '@/hooks/useNodes';
 import './Block.css';
 import './InlineLink.css';
 
@@ -158,6 +158,7 @@ function BlockInternal({
   const createNode = useCreateNode();
   const removeClass = useRemoveClass();
   const { data: allClasses } = useClasses();
+  useSystemClasses(); // Keep hook call for side effects
   
   // Get query class ID from system classes
   const queryClass = useMemo(() => {
@@ -215,10 +216,10 @@ function BlockInternal({
   }, [block.icon, blockClassDetails]);
   
   // Check if block has query class (for collapse arrow) - reuse queryClass from above
-  const hasQueryClass = queryClass && block.classes?.includes(queryClass.id);
+  const hasQueryClass = !!(queryClass && block.classes?.includes(queryClass.id));
   
   // Determine if block has children
-  const hasChildren = children && children.length > 0;
+  const hasChildren = !!(children && children.length > 0);
   const isCollapsed = block.collapsed ?? false;
   
   // Check if block has query results (for showing collapse arrow)
@@ -229,9 +230,6 @@ function BlockInternal({
   const {
     selectBlock,
     addToSelection,
-    startDrag,
-    updateDragTarget,
-    endDrag,
     registerBlock,
     unregisterBlock,
     setBlockState: setGlobalBlockState,
@@ -1573,23 +1571,23 @@ function BlockInternal({
           </div>
         )}
         
-        {/* Query controls and results using render prop pattern */}
-        {openNode && (
-          <QueryBlockDisplay 
-            block={block} 
-            onNodeClick={(nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar')}
+        {/* Query controls and results */}
+        {openNode && hasQueryClass && (
+          <QueryNodeCollection
+            nodeId={block.id}
+            nodeUuid={block.uuid}
+            viewType="main_content"
+            hideToolbar={true}
+            onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
           >
-            {(queryDisplay) => (
-              <>
-                {/* Query controls - inline with block content (right side) */}
-                {queryDisplay?.controls && (
-                  <div className={`block-query-controls ${isCollapsed ? 'collapsed' : ''}`}>
-                    {queryDisplay.controls}
-                  </div>
-                )}
-              </>
+            {({ controls }) => (
+              controls && (
+                <div className={`block-query-controls ${isCollapsed ? 'collapsed' : ''}`}>
+                  {controls}
+                </div>
+              )
             )}
-          </QueryBlockDisplay>
+          </QueryNodeCollection>
         )}
         
         {/* Backlink count badge - right-aligned */}
@@ -1615,19 +1613,22 @@ function BlockInternal({
       )}
       
       {/* Query results - positioned like node-view-section content */}
-      {openNode && (
-        <QueryBlockDisplay 
-          block={block} 
-          onNodeClick={(nodeId, isPage) => openNode(nodeId, isPage ? 'page' : 'sidebar')}
+      {openNode && hasQueryClass && !isCollapsed && (
+        <QueryNodeCollection
+          nodeId={block.id}
+          nodeUuid={block.uuid}
+          viewType="main_content"
+          hideToolbar={true}
+          onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
         >
-          {(queryDisplay) => (
-            queryDisplay?.results && !isCollapsed ? (
+          {({ results }) => (
+            results && (
               <div className="block-query-results">
-                {queryDisplay.results}
+                {results}
               </div>
-            ) : null
+            )
           )}
-        </QueryBlockDisplay>
+        </QueryNodeCollection>
       )}
       
       {/* Children blocks with vertical collapse line */}

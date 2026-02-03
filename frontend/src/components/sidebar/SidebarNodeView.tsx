@@ -34,7 +34,7 @@ import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
 import { NodePillRow } from '../NodePillRow';
-import { DynamicNodeViewSection } from '../nodes';
+import { QuerySection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
 import { TextField } from '../core/TextField';
@@ -442,7 +442,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             
             {/* Classed nodes section - collapsed by default */}
             {isClassNode && (
-              <DynamicNodeViewSection
+              <QuerySection
                 nodeId={node.id}
                 nodeUuid={node.uuid}
                 viewType="classed_nodes"
@@ -457,7 +457,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             
             {/* Child pages section - collapsed by default */}
             {pageChildren.length > 0 && (
-              <DynamicNodeViewSection
+              <QuerySection
                 nodeId={node.id}
                 nodeUuid={node.uuid}
                 viewType="child_pages"
@@ -471,7 +471,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             )}
             
             {/* Linked References - collapsed by default */}
-            <DynamicNodeViewSection
+            <QuerySection
               nodeId={node.id}
               nodeUuid={node.uuid}
               viewType="linked_references"
@@ -546,7 +546,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       {/* Linked References for blocks only - already shown in page section via NodeViewSection */}
       {nodeType === 'block' && (
         <div className="sidebar-node-view__references">
-          <DynamicNodeViewSection
+          <QuerySection
             nodeId={node.id}
             nodeUuid={node.uuid}
             viewType="linked_references"
