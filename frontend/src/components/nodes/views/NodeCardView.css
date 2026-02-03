@@ -247,7 +247,7 @@
 /* Hover-reveal body - collapsed by default, expands on hover */
 .node-card__body--hover-reveal {
   padding: 0;
-  min-height: 12px;
+  min-height: 8px;
   transition: padding 0.2s ease;
 }
 
@@ -257,7 +257,7 @@
   font-size: 0.875rem;
   color: var(--text-tertiary);
   opacity: 0.5;
-  padding: 0.25rem;
+  padding: 0.125rem;
   transition: opacity 0.2s ease;
   pointer-events: none;
 }
