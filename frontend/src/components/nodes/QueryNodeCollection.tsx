@@ -31,6 +31,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { InlineConfirmButton } from '../core/InlineConfirmButton';
 import { TextField } from '../core/TextField';
 import { ViewBuilder } from '../queries';
+import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { ProseScopeSelector } from '../queries/ProseScopeSelector';
 import { DeleteIcon } from '../icons';
 import { validateQueryAST, canSaveQuery } from '@/lib/queryValidation';
@@ -39,7 +40,7 @@ import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
-import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline } from '@mdi/js';
+import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
 import './DynamicNodeViewSection.css';
 import './QueryPreview.css';
 
@@ -105,6 +106,15 @@ export function QueryNodeCollection({
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showProseModal, setShowProseModal] = useState(false);
+  const [showSQL, setShowSQL] = useState(false);
+
+  // Handle copying AST to clipboard
+  const handleCopyAST = useCallback(() => {
+    if (editAST) {
+      const astJson = JSON.stringify(editAST, null, 2);
+      navigator.clipboard.writeText(astJson);
+    }
+  }, [editAST]);
 
   // Handle AST changes during editing
   const handleASTChange = useCallback((newAST: QueryAST) => {
@@ -283,6 +293,16 @@ export function QueryNodeCollection({
     }
   );
 
+  // Build nodesMap for prose rendering
+  const nodesMap = useMemo(() => {
+    if (!previewResults) return undefined;
+    const map = new Map();
+    previewResults.forEach(node => {
+      map.set(node.uuid, node);
+    });
+    return map;
+  }, [previewResults]);
+
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
     setEditingView(view);
@@ -452,28 +472,6 @@ export function QueryNodeCollection({
       )}
       
       {activeView && (
-        <Button
-          icon={mdiEyeOutline}
-          iconOnly
-          variant="ghost"
-          size="xs"
-          onClick={() => setShowProseModal(true)}
-          title="Show query as prose"
-        />
-      )}
-      
-      {activeView && (
-        <Button
-          icon={mdiEyeOutline}
-          iconOnly
-          variant="ghost"
-          size="xs"
-          onClick={() => setShowProseModal(true)}
-          title="Show query as prose"
-        />
-      )}
-      
-      {activeView && (
         <div className="dynamic-section__filter-btn-wrapper">
           <Button
             icon={mdiFilterOutline}
@@ -542,7 +540,17 @@ export function QueryNodeCollection({
           setEditAST(null);
           setEditViewName('');
         }}
-        title="Edit Query"
+        title="Query"
+        headerLeftElement={
+          <Button
+            icon={mdiEyeOutline}
+            iconOnly
+            variant="ghost"
+            size="xs"
+            onClick={() => setShowProseModal(true)}
+            title="Show query as prose"
+          />
+        }
         size="xl"
         className="dynamic-section__edit-modal"
         footer={editingView && (
@@ -622,18 +630,142 @@ export function QueryNodeCollection({
       {/* Prose query preview modal */}
       <Modal
         isOpen={showProseModal}
-        onClose={() => setShowProseModal(false)}
-        title="Query as prose"
-        size="md"
+        onClose={() => {
+          setShowProseModal(false);
+          setShowSQL(false);
+        }}
+        title="Query Preview"
+        size="xl"
       >
         {editAST && (
-          <div style={{
-            padding: '16px',
-            fontSize: '15px',
-            lineHeight: '1.6',
-            color: 'var(--color-text-primary, #212529)'
-          }}>
-            {getQueryIntent(editAST)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Prose description */}
+            <div>
+              <h4 style={{
+                fontSize: '13px',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                marginBottom: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Natural Language
+              </h4>
+              <div style={{
+                padding: '16px',
+                fontSize: '15px',
+                lineHeight: '1.6',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: '4px'
+              }}>
+                {getQueryIntent(editAST, nodesMap)}
+              </div>
+            </div>
+
+            {/* AST Section */}
+            <div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px'
+              }}>
+                <h4 style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  Query Structure
+                </h4>
+                <Button
+                  icon={mdiContentCopy}
+                  onClick={handleCopyAST}
+                  variant="ghost"
+                  size="xs"
+                >
+                  Copy
+                </Button>
+              </div>
+              <pre style={{
+                padding: '16px',
+                fontSize: '13px',
+                lineHeight: '1.5',
+                backgroundColor: 'var(--bg-tertiary)',
+                borderRadius: '4px',
+                overflow: 'auto',
+                maxHeight: '300px',
+                color: 'var(--text-primary)'
+              }}>
+                {JSON.stringify(editAST, null, 2)}
+              </pre>
+            </div>
+
+            {/* SQL Section */}
+            <div>
+              {!showSQL ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSQL(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '8px 0',
+                    fontSize: '13px',
+                    color: 'var(--text-tertiary)',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Show SQL preview
+                </button>
+              ) : (
+                <>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    marginBottom: '12px'
+                  }}>
+                    <h4 style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Execution Preview
+                    </h4>
+                    <span style={{
+                      fontSize: '12px',
+                      color: 'var(--text-tertiary)',
+                      fontStyle: 'italic'
+                    }}>
+                      (informational only)
+                    </span>
+                  </div>
+                  <QuerySQLPreview ast={editAST} />
+                  <button
+                    type="button"
+                    onClick={() => setShowSQL(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '8px 0',
+                      marginTop: '8px',
+                      fontSize: '13px',
+                      color: 'var(--text-tertiary)',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    Hide
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </Modal>

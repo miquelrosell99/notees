@@ -65,16 +65,27 @@
 .modal__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: var(--spacing-4);
   border-bottom: 1px solid var(--color-outline-variant);
   flex-shrink: 0;
+  gap: var(--spacing-2);
+}
+
+.modal__header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
 }
 
 .modal__title {
   margin: 0;
   font: var(--font-title-medium);
   color: var(--color-on-surface);
+  flex: 1;
+}
+
+.modal__close {
+  margin-left: auto;
 }
 
 .modal__close {
