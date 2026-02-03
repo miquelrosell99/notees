@@ -79,8 +79,8 @@
   opacity: 0;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
-  /* Reserve space for 3 buttons (delete + 2 nav) */
-  min-width: calc(3 * (var(--spacing-1) + 24px + var(--spacing-1)));
+  /* Reserve space for 2 buttons (both nav buttons) */
+  min-width: calc(2 * (var(--spacing-1) + 24px + var(--spacing-1)));
 }
 
 .table-block__header:hover .table-block__header-actions {

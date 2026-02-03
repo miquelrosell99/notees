@@ -31,13 +31,15 @@
  * - Row deletion: Removes corresponding cells from all columns
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { mdiClose, mdiArrowRight, mdiDockRight, mdiPlus } from '@mdi/js';
+import { mdiArrowRight, mdiDockRight, mdiPlus } from '@mdi/js';
 import { useCreateNode, useDeleteNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { Table, type TableColumn } from '../core/Table';
 import { Button } from '../core/Button';
 import { Block } from './Block';
+import { ContextMenu } from '../core/ContextMenu';
+import { ConfirmationModal } from '../core/ConfirmationModal';
 import './TableBlock.css';
 
 interface TableBlockProps {
@@ -93,6 +95,13 @@ export function TableBlock({
   editable = true,
   onStructureChange,
 }: TableBlockProps) {
+  // Context menu state
+  const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number; colIndex: number } | null>(null);
+  const [rowContextMenu, setRowContextMenu] = useState<{ x: number; y: number; rowIndex: number } | null>(null);
+  
+  // Confirmation modal state
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'column' | 'rows'; index?: number; rows?: Set<number> } | null>(null);
+  
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   
@@ -135,50 +144,89 @@ export function TableBlock({
     onStructureChange?.();
   }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
 
+  const handleAddColumnLeft = useCallback(async (colIndex: number) => {
+    if (!editable) return;
+
+    // Create the column with the target sequence
+    const newColumn = await createNode.mutateAsync({
+      name: `Column ${colCount + 1}`,
+      parent_id: block.id,
+      sequence: colIndex,
+    });
+
+    // Add empty cells to match existing row count
+    for (let i = 0; i < rowCount; i++) {
+      await createNode.mutateAsync({
+        name: '',
+        parent_id: newColumn.id,
+        sequence: i,
+      });
+    }
+
+    onStructureChange?.();
+  }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
+
+  const handleAddColumnRight = useCallback(async (colIndex: number) => {
+    if (!editable) return;
+
+    // Create the column after the target
+    const newColumn = await createNode.mutateAsync({
+      name: `Column ${colCount + 1}`,
+      parent_id: block.id,
+      sequence: colIndex + 1,
+    });
+
+    // Add empty cells to match existing row count
+    for (let i = 0; i < rowCount; i++) {
+      await createNode.mutateAsync({
+        name: '',
+        parent_id: newColumn.id,
+        sequence: i,
+      });
+    }
+
+    onStructureChange?.();
+  }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
+
   const handleDeleteColumn = useCallback(async (colIndex: number) => {
     if (!editable) return;
 
     const column = columns[colIndex];
     if (!column) return;
 
-    // Normal delete - deletes column and all its cells automatically
-    await deleteNode.mutateAsync(column.id);
-    onStructureChange?.();
-  }, [editable, columns, deleteNode, onStructureChange]);
+    // Show confirmation modal
+    setDeleteConfirm({ type: 'column', index: colIndex });
+  }, [editable, columns]);
 
   // ==================== Row Operations ====================
 
-  /**
-   * Delete a row (delete cell from each column at that row index)
-   */
-  const handleDeleteRow = useCallback(async (rowIndex: number) => {
-    if (!editable) return;
-
-    for (const column of columns) {
-      const cell = column.children?.[rowIndex];
-      if (cell) {
-        await deleteNode.mutateAsync(cell.id);
-      }
-    }
-    onStructureChange?.();
-  }, [editable, columns, deleteNode, onStructureChange]);
-
-  /**
-   * Add a new row (add empty cell to each column)
-   */
-  const handleAddRow = useCallback(async () => {
+  const handleAddRowAbove = useCallback(async (rowIndex: number) => {
     if (!editable || colCount === 0) return;
 
-    // Add an empty cell to each column
+    // Add an empty cell to each column at the specified position
     for (const column of columns) {
       await createNode.mutateAsync({
         name: '',
         parent_id: column.id,
-        sequence: rowCount,
+        sequence: rowIndex,
       });
     }
     onStructureChange?.();
-  }, [editable, colCount, columns, rowCount, createNode, onStructureChange]);
+  }, [editable, colCount, columns, createNode, onStructureChange]);
+
+  const handleAddRowBelow = useCallback(async (rowIndex: number) => {
+    if (!editable || colCount === 0) return;
+
+    // Add an empty cell to each column after the specified position
+    for (const column of columns) {
+      await createNode.mutateAsync({
+        name: '',
+        parent_id: column.id,
+        sequence: rowIndex + 1,
+      });
+    }
+    onStructureChange?.();
+  }, [editable, colCount, columns, createNode, onStructureChange]);
 
   // ==================== Save Handlers ====================
   // Headers are now readonly Block components - no editing needed
@@ -205,18 +253,6 @@ export function TableBlock({
             />
           </div>
           <div className="table-block__header-actions">
-            {editable && (
-              <Button
-                icon={mdiClose}
-                variant="ghost"
-                size="xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteColumn(colIndex);
-                }}
-                title="Delete column"
-              />
-            )}
             <Button
               icon={mdiDockRight}
               variant="ghost"
@@ -294,43 +330,6 @@ export function TableBlock({
     }));
   }, [columns, editable, openNode, addSidebarCard, handleDeleteColumn]);
 
-  // Add actions column if editable
-  const allColumns = useMemo<TableColumn<TableRowData>[]>(() => {
-    if (!editable) return tableColumns;
-    
-    return [
-      ...tableColumns,
-      {
-        key: 'add-column',
-        header: (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleAddColumn}
-            title="Add column"
-            className="table-add-col-btn"
-          >
-            +
-          </Button>
-        ),
-        accessor: (row) => (
-          <Button
-            icon={mdiClose}
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteRow(row.rowIndex);
-            }}
-            title="Delete row"
-            className="table-delete-row-btn"
-          />
-        ),
-        width: '40px',
-      },
-    ];
-  }, [tableColumns, editable, handleAddColumn, handleDeleteRow]);
-
   // Clear selection when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -354,22 +353,38 @@ export function TableBlock({
   const handleDeleteSelectedRows = useCallback(async () => {
     if (!editable || selectedRows.size === 0) return;
 
-    // Sort rows in descending order to delete from bottom to top
-    // This prevents index shifting issues
-    const sortedRows = Array.from(selectedRows).sort((a, b) => b - a);
+    // Show confirmation modal
+    setDeleteConfirm({ type: 'rows', rows: new Set(selectedRows) });
+  }, [editable, selectedRows]);
 
-    for (const rowIndex of sortedRows) {
-      for (const column of columns) {
-        const cell = column.children?.[rowIndex];
-        if (cell) {
-          await deleteNode.mutateAsync(cell.id);
+  const confirmDelete = useCallback(async () => {
+    if (!deleteConfirm) return;
+
+    if (deleteConfirm.type === 'column' && deleteConfirm.index !== undefined) {
+      const column = columns[deleteConfirm.index];
+      if (column) {
+        await deleteNode.mutateAsync(column.id);
+        onStructureChange?.();
+      }
+    } else if (deleteConfirm.type === 'rows' && deleteConfirm.rows) {
+      // Sort rows in descending order to delete from bottom to top
+      const sortedRows = Array.from(deleteConfirm.rows).sort((a, b) => b - a);
+
+      for (const rowIndex of sortedRows) {
+        for (const column of columns) {
+          const cell = column.children?.[rowIndex];
+          if (cell) {
+            await deleteNode.mutateAsync(cell.id);
+          }
         }
       }
+
+      setSelectedRows(new Set());
+      onStructureChange?.();
     }
 
-    setSelectedRows(new Set());
-    onStructureChange?.();
-  }, [editable, selectedRows, columns, deleteNode, onStructureChange]);
+    setDeleteConfirm(null);
+  }, [deleteConfirm, columns, deleteNode, onStructureChange]);
 
   // ==================== Render ====================
 
@@ -400,8 +415,9 @@ export function TableBlock({
       ref={wrapperRef}
     >
       <Table<TableRowData>
+        key={`table-${columns.length}-${columns.map(c => c.id).join('-')}`}
         data={tableData}
-        columns={allColumns}
+        columns={tableColumns}
         getRowKey={(row) => `row-${row.rowIndex}`}
         size="md"
         variant="default"
@@ -413,26 +429,23 @@ export function TableBlock({
             .filter(n => !isNaN(n));
           setSelectedRows(new Set(rowIndices));
         }}
+        onHeaderContextMenu={editable ? (column, event) => {
+          const colIndex = columns.findIndex(col => `col-${col.id}` === column.key);
+          if (colIndex !== -1) {
+            event.preventDefault();
+            setHeaderContextMenu({ x: event.clientX, y: event.clientY, colIndex });
+          }
+        } : undefined}
+        onRowContextMenu={editable ? (row, event) => {
+          event.preventDefault();
+          setRowContextMenu({ x: event.clientX, y: event.clientY, rowIndex: row.rowIndex });
+        } : undefined}
         hoverable={true}
         showHeader={true}
         className="table-block__table"
         onNodeOpen={openNode}
         onNodeOpenInSidebar={addSidebarCard}
       />
-      
-      {/* Add row button */}
-      {editable && (
-        <div className="table-block__add-row-wrapper">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleAddRow}
-            className="table-add-row-btn"
-          >
-            + Add Row
-          </Button>
-        </div>
-      )}
       
       {/* Selection actions toolbar */}
       {selectedRows.size > 0 && editable && (
@@ -461,6 +474,85 @@ export function TableBlock({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Header context menu */}
+      {headerContextMenu && editable && (
+        <ContextMenu
+          items={[
+            {
+              id: 'add-left',
+              label: 'Add Column Left',
+              onClick: () => {
+                handleAddColumnLeft(headerContextMenu.colIndex);
+                setHeaderContextMenu(null);
+              },
+            },
+            {
+              id: 'add-right',
+              label: 'Add Column Right',
+              onClick: () => {
+                handleAddColumnRight(headerContextMenu.colIndex);
+                setHeaderContextMenu(null);
+              },
+            },
+            {
+              id: 'delete',
+              label: 'Delete Column',
+              danger: true,
+              onClick: () => {
+                handleDeleteColumn(headerContextMenu.colIndex);
+                setHeaderContextMenu(null);
+              },
+            },
+          ]}
+          position={{ x: headerContextMenu.x, y: headerContextMenu.y }}
+          onClose={() => setHeaderContextMenu(null)}
+        />
+      )}
+
+      {/* Row context menu */}
+      {rowContextMenu && editable && (
+        <ContextMenu
+          items={[
+            {
+              id: 'add-above',
+              label: 'Add Row Above',
+              onClick: () => {
+                handleAddRowAbove(rowContextMenu.rowIndex);
+                setRowContextMenu(null);
+              },
+            },
+            {
+              id: 'add-below',
+              label: 'Add Row Below',
+              onClick: () => {
+                handleAddRowBelow(rowContextMenu.rowIndex);
+                setRowContextMenu(null);
+              },
+            },
+          ]}
+          position={{ x: rowContextMenu.x, y: rowContextMenu.y }}
+          onClose={() => setRowContextMenu(null)}
+        />
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <ConfirmationModal
+          isOpen={true}
+          title={deleteConfirm.type === 'column' ? 'Delete Column' : 'Delete Rows'}
+          message={
+            deleteConfirm.type === 'column'
+              ? 'Are you sure you want to delete this column and all its cells?'
+              : `Are you sure you want to delete ${deleteConfirm.rows?.size} row${deleteConfirm.rows?.size === 1 ? '' : 's'}?`
+          }
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          variant="danger"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+        />
       )}
     </div>
   );
