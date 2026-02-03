@@ -244,6 +244,50 @@
   height: auto;
 }
 
+/* Empty body state - small invisible trigger zone */
+.node-card__body--empty {
+  padding: 0;
+  min-height: 12px;
+  transition: padding 0.2s ease;
+}
+
+/* Hide content inside empty body until hovered */
+.node-card__body--empty .node-card__add-block {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, max-height 0.2s ease, padding 0.2s ease;
+}
+
+.node-card__body--empty:hover {
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.node-card__body--empty:hover .node-card__add-block {
+  opacity: 1;
+  max-height: 4rem;
+  padding: 0.5rem 0.75rem;
+  pointer-events: auto;
+}
+
+/* Show border on tags row only when body has content or is hovered */
+.node-card__tags-row {
+  border-bottom: none;
+  transition: border-color 0.15s ease;
+}
+
+/* Show bottom border on tags when body has children */
+.node-card:has(.node-card__body:not(.node-card__body--empty)) .node-card__tags-row {
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
+/* Show bottom border on tags when empty body is hovered */
+.node-card:has(.node-card__body--empty:hover) .node-card__tags-row {
+  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+}
+
 /* Content section header - collapsible */
 .node-card__content-header {
   cursor: pointer;
@@ -297,11 +341,6 @@
   border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
   min-height: 2rem;
   align-items: center;
-}
-
-/* Remove bottom border from last metadata row to avoid double border with add-block section */
-.node-card__tags-row {
-  border-bottom: none;
 }
 
 .node-card--cover-left .node-card__metadata-row {
@@ -504,7 +543,6 @@
 /* Add block button at end of children list */
 .node-card__add-block {
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
 .node-card__add-block-button {
@@ -516,60 +554,5 @@
 
 .node-card__add-block-button:hover {
   opacity: 1;
-}
-
-/* Add block section for cards with no children - hidden by default, slides down on hover */
-.node-card__add-block-section {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  grid-column: 1 / -1;
-}
-
-/* Hover trigger zone - always present at bottom of card */
-.node-card__add-block-trigger {
-  height: 8px;
-  width: 100%;
-  cursor: pointer;
-  margin-top: -8px;
-}
-
-/* Content that slides down */
-.node-card__add-block-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-height 0.2s ease, opacity 0.15s ease, padding 0.2s ease, border-color 0.15s ease;
-  padding: 0;
-  border-top: 1px solid transparent;
-}
-
-/* Show content when hovering on trigger or content itself */
-.node-card__add-block-section:hover .node-card__add-block-content {
-  max-height: 3rem;
-  opacity: 1;
-  padding: 0.5rem;
-  border-top-color: var(--color-outline-variant, var(--border-color));
-}
-
-.node-card__add-block-section-button {
-  width: 100%;
-}
-
-/* Position add block section at the end of the grid */
-.node-card--cover-top .node-card__add-block-section {
-  grid-row: 5;
-}
-
-.node-card--no-cover .node-card__add-block-section {
-  grid-row: 4;
-}
-
-.node-card--cover-left .node-card__add-block-section,
-.node-card--cover-right .node-card__add-block-section {
-  grid-row: 4;
 }
 
