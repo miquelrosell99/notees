@@ -115,6 +115,8 @@ export function TableBlock({
   
   // Refs
   const wrapperRef = useRef<HTMLDivElement>(null);
+  // Track bulk operations to prevent auto-balance from running mid-operation
+  const isBulkOperation = useRef(false);
 
   // Mutations
   const createNode = useCreateNode();
@@ -140,7 +142,7 @@ export function TableBlock({
   const isBalancing = useRef(false);
   
   useEffect(() => {
-    if (!editable || isBalancing.current || colCount === 0 || disableAutoBalance) return;
+    if (!editable || isBalancing.current || colCount === 0 || disableAutoBalance || isBulkOperation.current) return;
     
     // Check if any column has a different number of children than the max
     const childCounts = columns.map(col => col.children?.length ?? 0);
@@ -195,67 +197,82 @@ export function TableBlock({
   const handleAddColumn = useCallback(async () => {
     if (!editable) return;
 
-    // Create the column
-    const newColumn = await createNode.mutateAsync({
-      name: `Column ${colCount + 1}`,
-      parent_id: block.id,
-      sequence: colCount,
-    });
-
-    // Add empty cells to match existing row count
-    for (let i = 0; i < rowCount; i++) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: newColumn.id,
-        sequence: i,
+    isBulkOperation.current = true;
+    try {
+      // Create the column
+      const newColumn = await createNode.mutateAsync({
+        name: `Column ${colCount + 1}`,
+        parent_id: block.id,
+        sequence: colCount,
       });
-    }
 
-    onStructureChange?.();
+      // Add empty cells to match existing row count
+      for (let i = 0; i < rowCount; i++) {
+        await createNode.mutateAsync({
+          name: '',
+          parent_id: newColumn.id,
+          sequence: i,
+        });
+      }
+
+      onStructureChange?.();
+    } finally {
+      isBulkOperation.current = false;
+    }
   }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
 
   const handleAddColumnLeft = useCallback(async (colIndex: number) => {
     if (!editable) return;
 
-    // Create the column with the target sequence
-    const newColumn = await createNode.mutateAsync({
-      name: `Column ${colCount + 1}`,
-      parent_id: block.id,
-      sequence: colIndex,
-    });
-
-    // Add empty cells to match existing row count
-    for (let i = 0; i < rowCount; i++) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: newColumn.id,
-        sequence: i,
+    isBulkOperation.current = true;
+    try {
+      // Create the column with the target sequence
+      const newColumn = await createNode.mutateAsync({
+        name: `Column ${colCount + 1}`,
+        parent_id: block.id,
+        sequence: colIndex,
       });
-    }
 
-    onStructureChange?.();
+      // Add empty cells to match existing row count
+      for (let i = 0; i < rowCount; i++) {
+        await createNode.mutateAsync({
+          name: '',
+          parent_id: newColumn.id,
+          sequence: i,
+        });
+      }
+
+      onStructureChange?.();
+    } finally {
+      isBulkOperation.current = false;
+    }
   }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
 
   const handleAddColumnRight = useCallback(async (colIndex: number) => {
     if (!editable) return;
 
-    // Create the column after the target
-    const newColumn = await createNode.mutateAsync({
-      name: `Column ${colCount + 1}`,
-      parent_id: block.id,
-      sequence: colIndex + 1,
-    });
-
-    // Add empty cells to match existing row count
-    for (let i = 0; i < rowCount; i++) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: newColumn.id,
-        sequence: i,
+    isBulkOperation.current = true;
+    try {
+      // Create the column after the target
+      const newColumn = await createNode.mutateAsync({
+        name: `Column ${colCount + 1}`,
+        parent_id: block.id,
+        sequence: colIndex + 1,
       });
-    }
 
-    onStructureChange?.();
+      // Add empty cells to match existing row count
+      for (let i = 0; i < rowCount; i++) {
+        await createNode.mutateAsync({
+          name: '',
+          parent_id: newColumn.id,
+          sequence: i,
+        });
+      }
+
+      onStructureChange?.();
+    } finally {
+      isBulkOperation.current = false;
+    }
   }, [editable, createNode, block.id, colCount, rowCount, onStructureChange]);
 
   const handleDeleteColumn = useCallback(async (colIndex: number) => {
@@ -273,29 +290,39 @@ export function TableBlock({
   const handleAddRowAbove = useCallback(async (rowIndex: number) => {
     if (!editable || colCount === 0) return;
 
-    // Add an empty cell to each column at the specified position
-    for (const column of columns) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: column.id,
-        sequence: rowIndex,
-      });
+    isBulkOperation.current = true;
+    try {
+      // Add an empty cell to each column at the specified position
+      for (const column of columns) {
+        await createNode.mutateAsync({
+          name: '',
+          parent_id: column.id,
+          sequence: rowIndex,
+        });
+      }
+      onStructureChange?.();
+    } finally {
+      isBulkOperation.current = false;
     }
-    onStructureChange?.();
   }, [editable, colCount, columns, createNode, onStructureChange]);
 
   const handleAddRowBelow = useCallback(async (rowIndex: number) => {
     if (!editable || colCount === 0) return;
 
-    // Add an empty cell to each column after the specified position
-    for (const column of columns) {
-      await createNode.mutateAsync({
-        name: '',
-        parent_id: column.id,
-        sequence: rowIndex + 1,
-      });
+    isBulkOperation.current = true;
+    try {
+      // Add an empty cell to each column after the specified position
+      for (const column of columns) {
+        await createNode.mutateAsync({
+          name: '',
+          parent_id: column.id,
+          sequence: rowIndex + 1,
+        });
+      }
+      onStructureChange?.();
+    } finally {
+      isBulkOperation.current = false;
     }
-    onStructureChange?.();
   }, [editable, colCount, columns, createNode, onStructureChange]);
 
   const handleAddRowBelowHeader = useCallback(async () => {
@@ -443,43 +470,48 @@ export function TableBlock({
   const confirmDelete = useCallback(async () => {
     if (!deleteConfirm) return;
 
-    if (deleteConfirm.type === 'column' && deleteConfirm.index !== undefined) {
-      const column = columns[deleteConfirm.index];
-      if (column) {
-        await deleteNode.mutateAsync(column.id);
+    isBulkOperation.current = true;
+    try {
+      if (deleteConfirm.type === 'column' && deleteConfirm.index !== undefined) {
+        const column = columns[deleteConfirm.index];
+        if (column) {
+          await deleteNode.mutateAsync(column.id);
+          onStructureChange?.();
+        }
+      } else if (deleteConfirm.type === 'allRows') {
+        // Delete all cells in all rows
+        for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+          for (const column of columns) {
+            const cell = column.children?.[rowIndex];
+            if (cell) {
+              await deleteNode.mutateAsync(cell.id);
+            }
+          }
+        }
+        
+        setSelectedRows(new Set());
+        onStructureChange?.();
+      } else if (deleteConfirm.type === 'rows' && deleteConfirm.rows) {
+        // Sort rows in descending order to delete from bottom to top
+        const sortedRows = Array.from(deleteConfirm.rows).sort((a, b) => b - a);
+
+        for (const rowIndex of sortedRows) {
+          for (const column of columns) {
+            const cell = column.children?.[rowIndex];
+            if (cell) {
+              await deleteNode.mutateAsync(cell.id);
+            }
+          }
+        }
+
+        setSelectedRows(new Set());
         onStructureChange?.();
       }
-    } else if (deleteConfirm.type === 'allRows') {
-      // Delete all cells in all rows
-      for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-        for (const column of columns) {
-          const cell = column.children?.[rowIndex];
-          if (cell) {
-            await deleteNode.mutateAsync(cell.id);
-          }
-        }
-      }
-      
-      setSelectedRows(new Set());
-      onStructureChange?.();
-    } else if (deleteConfirm.type === 'rows' && deleteConfirm.rows) {
-      // Sort rows in descending order to delete from bottom to top
-      const sortedRows = Array.from(deleteConfirm.rows).sort((a, b) => b - a);
 
-      for (const rowIndex of sortedRows) {
-        for (const column of columns) {
-          const cell = column.children?.[rowIndex];
-          if (cell) {
-            await deleteNode.mutateAsync(cell.id);
-          }
-        }
-      }
-
-      setSelectedRows(new Set());
-      onStructureChange?.();
+      setDeleteConfirm(null);
+    } finally {
+      isBulkOperation.current = false;
     }
-
-    setDeleteConfirm(null);
   }, [deleteConfirm, columns, deleteNode, rowCount, onStructureChange]);
 
   // ==================== Render ====================
