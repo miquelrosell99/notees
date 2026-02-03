@@ -921,7 +921,75 @@ function BlockInternal({
     }
   }, [createNode, block.id]);
 
-  // Handle table creation modal confirm
+  // Adapt existing children blocks to table structure
+  // Existing children become cells distributed across specified number of columns
+  const adaptExistingChildrenToTable = useCallback(async (columnCount: number) => {
+    if (children.length === 0) return;
+    
+    // Set flag to disable auto-balance during table creation
+    isCreatingTableStructure.current = true;
+    
+    try {
+      // Sort children by sequence to maintain order
+      const sortedChildren = [...children].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+      
+      // Calculate how many rows we need
+      const rowCount = Math.ceil(sortedChildren.length / columnCount);
+      
+      // Create column blocks first
+      const columnNodes: { id: number; sequence: number }[] = [];
+      for (let colIndex = 0; colIndex < columnCount; colIndex++) {
+        const columnNode = await createNode.mutateAsync({
+          name: `Column ${colIndex + 1}`,
+          parent_id: block.id,
+          sequence: colIndex,
+        });
+        columnNodes.push({ id: columnNode.id, sequence: colIndex });
+      }
+      
+      // Move existing children into the columns as cells
+      // Distribute children row by row (left to right, then next row)
+      for (let i = 0; i < sortedChildren.length; i++) {
+        const child = sortedChildren[i];
+        const colIndex = i % columnCount;
+        const rowIndex = Math.floor(i / columnCount);
+        const targetColumn = columnNodes[colIndex];
+        
+        // Move the child to become a cell in the column
+        await moveNode.mutateAsync({
+          id: child.id,
+          parentId: targetColumn.id,
+          position: rowIndex,
+        });
+      }
+      
+      // Fill remaining cells with empty nodes to make a complete grid
+      const totalCellsNeeded = rowCount * columnCount;
+      const emptyCellsNeeded = totalCellsNeeded - sortedChildren.length;
+      
+      if (emptyCellsNeeded > 0) {
+        // Figure out where to add empty cells (at the end of the last row)
+        const lastRowStartIndex = (rowCount - 1) * columnCount;
+        const filledCellsInLastRow = sortedChildren.length - lastRowStartIndex;
+        
+        for (let i = 0; i < emptyCellsNeeded; i++) {
+          const colIndex = filledCellsInLastRow + i;
+          const targetColumn = columnNodes[colIndex];
+          
+          await createNode.mutateAsync({
+            name: '',
+            parent_id: targetColumn.id,
+            sequence: rowCount - 1,
+          });
+        }
+      }
+    } finally {
+      // Re-enable auto-balance after creation is complete
+      isCreatingTableStructure.current = false;
+    }
+  }, [children, createNode, moveNode, block.id]);
+
+  // Handle table creation modal confirm (new table)
   const handleTableCreationConfirm = useCallback(async (size: TableSize) => {
     const { classNodeId, keepInline, className } = tableCreationState;
     if (!classNodeId) return;
@@ -943,6 +1011,27 @@ function BlockInternal({
     
     setTableCreationState({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
   }, [tableCreationState, onAddClass, addClass, block.id, createTableStructure]);
+
+  // Handle adapting existing children to table structure
+  const handleTableAdaptExisting = useCallback(async (columnCount: number) => {
+    const { classNodeId, keepInline, className } = tableCreationState;
+    if (!classNodeId) return;
+    
+    try {
+      // First add the table class to the block via the parent's callback
+      if (onAddClass) {
+        onAddClass(classNodeId, keepInline, className);
+      } else {
+        await addClass.mutateAsync({ nodeId: block.id, classId: classNodeId });
+      }
+      // Then adapt existing children to table structure
+      await adaptExistingChildrenToTable(columnCount);
+    } catch (error) {
+      console.error('Failed to adapt to table:', error);
+    }
+    
+    setTableCreationState({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
+  }, [tableCreationState, onAddClass, addClass, block.id, adaptExistingChildrenToTable]);
 
   // Handle table creation modal cancel
   const handleTableCreationCancel = useCallback(() => {
@@ -1641,6 +1730,7 @@ function BlockInternal({
               editorRef={editorRef}
               onAddClass={handleAddClass}
               queryClassId={queryClass?.id ?? null}
+              tableClassId={tableClass?.id ?? null}
               onAddTag={onAddTag}
               onCreateClass={onCreateClass}
               onCreateTag={onCreateTag}
@@ -1798,6 +1888,7 @@ function BlockInternal({
                     editorRef={editorRef}
                     onAddClass={handleAddClass}
                     queryClassId={queryClass?.id ?? null}
+                    tableClassId={tableClass?.id ?? null}
                     onAddTag={onAddTag}
                     onCreateClass={onCreateClass}
                     onCreateTag={onCreateTag}
@@ -2011,7 +2102,9 @@ function BlockInternal({
       {/* Table Size Selection Modal */}
       <TableCreationModal
         isOpen={tableCreationState.isOpen}
+        existingChildCount={children.length}
         onConfirm={handleTableCreationConfirm}
+        onAdaptExisting={handleTableAdaptExisting}
         onCancel={handleTableCreationCancel}
       />
 
