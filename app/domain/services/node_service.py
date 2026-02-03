@@ -777,6 +777,28 @@ class NodeService:
         # Use the repository's delete method which handles cascades
         return await self._node_repo.delete(node_id)
     
+    async def empty_trash(self) -> int:
+        """Permanently delete all soft-deleted nodes (empty trash).
+        
+        This is irreversible. All nodes in trash will be hard deleted from the database.
+        
+        Returns:
+            Number of nodes deleted
+        """
+        pool = self._node_repo.get_connection()
+        rows = await pool.fetch("""
+            SELECT id FROM node 
+            WHERE graph_id = $1 AND is_deleted = true
+        """, self._graph_id)
+        
+        deleted_count = 0
+        for row in rows:
+            success = await self._node_repo.delete(row['id'])
+            if success:
+                deleted_count += 1
+        
+        return deleted_count
+    
     async def _replace_inline_class_references(self, node: Node, already_updated: set) -> None:
         """Replace inline class references ({{nodeId}}) with the node's name.
         

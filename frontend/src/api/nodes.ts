@@ -594,3 +594,11 @@ export async function restoreNode(nodeId: number): Promise<Node> {
 export async function permanentDeleteNode(nodeId: number): Promise<void> {
   await api.delete(`${BASE}/${nodeId}/permanent`);
 }
+
+/**
+ * Empty trash - permanently delete all soft-deleted nodes
+ */
+export async function emptyTrash(): Promise<{ deleted_count: number }> {
+  const response = await api.post(`${BASE}/trash/empty`);
+  return response.data;
+}
