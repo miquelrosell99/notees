@@ -93,6 +93,14 @@
   opacity: 1 !important;
 }
 
+/* Big add button when empty */
+.query-block-list__empty-add {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-6);
+}
+
 /* Inline add button for nested lists */
 .query-block-list__inline-add {
   display: inline-flex;
