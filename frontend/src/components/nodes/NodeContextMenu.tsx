@@ -471,16 +471,7 @@ export function BlockContextMenu({
   const updateNode = useUpdateNode();
   
   const blockItems = useMemo((): ContextMenuItem[] => {
-    const items: ContextMenuItem[] = [
-      {
-        id: 'focus-block',
-        label: 'Focus on block',
-        onClick: () => {
-          openNode(node.id, 'block');
-          onClose();
-        }
-      },
-    ];
+    const items: ContextMenuItem[] = [];
     
     if (onConvertToPage) {
       items.push({
