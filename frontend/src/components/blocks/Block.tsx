@@ -41,6 +41,7 @@ import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { ContextMenu } from '../core/ContextMenu';
 import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
+import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
 import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
@@ -176,6 +177,11 @@ function BlockInternal({
     if (!allClasses) return null;
     return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table) ?? null;
   }, [allClasses]);
+  
+  // Check if this block has the table class
+  const hasTableClass = useMemo(() => {
+    return !!(tableClass && block.classes?.includes(tableClass.id));
+  }, [tableClass, block.classes]);
   
   // Get query class ID from system classes
   const queryClass = useMemo(() => {
@@ -1817,56 +1823,67 @@ function BlockInternal({
         </QueryNodeCollection>
       )}
       
-      {/* Children blocks with vertical collapse line */}
-      {showChildren && hasChildren && !isCollapsed && (
+      {/* Table rendering (if block has table class) */}
+      {showChildren && hasChildren && !isCollapsed && hasTableClass ? (
         <div className="children-container">
-          {/* Vertical line for collapsing children */}
-          <div 
-            className={`children-collapse-line ${isLineHovered ? 'hovered' : ''}`}
-            onClick={handleCollapseToggle}
-            onMouseEnter={() => setIsLineHovered(true)}
-            onMouseLeave={() => setIsLineHovered(false)}
-            title="Click to collapse children"
+          <TableBlock
+            block={block}
+            columns={children}
+            editable={canEdit}
           />
-          <SortableContext 
-            items={children.map(child => `block-${child.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="nested-blocks">
-              {children.map((child) => (
-                <BlockErrorBoundary key={child.id} blockId={String(child.id)}>
-                  <Block
-                    key={child.id}
-                    block={child}
-                    children={child.children}
-                    siblings={children}
-                    depth={depth + 1}
-                    parentId={block.id}
-                    parentBlock={block}
-                    onContentChange={onContentChange}
-                    onBulletClick={onBulletClick}
-                    onShiftClick={onShiftClick}
-                    onAddClass={handleAddClass}
-                  onAddTag={onAddTag}
-                  onCreateClass={onCreateClass}
-                  onCreateTag={onCreateTag}
-                  onLinkPage={onLinkPage}
-                  onCreatePageLink={onCreatePageLink}
-                  onOpenComments={onOpenComments}
-                  onAssetUpload={onAssetUpload}
-                  commentCount={child.comment_count}
-                  backlinkCount={child.backlink_count}
-                  canMove={canMove}
-                  canEdit={canEdit}
-                  canSelect={canSelect}
-                  onTaskStateChange={onTaskStateChange}
-                  onOpenBacklinks={onOpenBacklinks}
-                />
-                </BlockErrorBoundary>
-              ))}
-            </div>
-          </SortableContext>
         </div>
+      ) : (
+        /* Children blocks with vertical collapse line */
+        showChildren && hasChildren && !isCollapsed && (
+          <div className="children-container">
+            {/* Vertical line for collapsing children */}
+            <div 
+              className={`children-collapse-line ${isLineHovered ? 'hovered' : ''}`}
+              onClick={handleCollapseToggle}
+              onMouseEnter={() => setIsLineHovered(true)}
+              onMouseLeave={() => setIsLineHovered(false)}
+              title="Click to collapse children"
+            />
+            <SortableContext 
+              items={children.map(child => `block-${child.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="nested-blocks">
+                {children.map((child) => (
+                  <BlockErrorBoundary key={child.id} blockId={String(child.id)}>
+                    <Block
+                      key={child.id}
+                      block={child}
+                      children={child.children}
+                      siblings={children}
+                      depth={depth + 1}
+                      parentId={block.id}
+                      parentBlock={block}
+                      onContentChange={onContentChange}
+                      onBulletClick={onBulletClick}
+                      onShiftClick={onShiftClick}
+                      onAddClass={handleAddClass}
+                    onAddTag={onAddTag}
+                    onCreateClass={onCreateClass}
+                    onCreateTag={onCreateTag}
+                    onLinkPage={onLinkPage}
+                    onCreatePageLink={onCreatePageLink}
+                    onOpenComments={onOpenComments}
+                    onAssetUpload={onAssetUpload}
+                    commentCount={child.comment_count}
+                    backlinkCount={child.backlink_count}
+                    canMove={canMove}
+                    canEdit={canEdit}
+                    canSelect={canSelect}
+                    onTaskStateChange={onTaskStateChange}
+                    onOpenBacklinks={onOpenBacklinks}
+                  />
+                  </BlockErrorBoundary>
+                ))}
+              </div>
+            </SortableContext>
+          </div>
+        )
       )}
       
       {/* Context menu for bullet right-click */}
