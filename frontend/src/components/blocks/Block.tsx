@@ -922,9 +922,10 @@ function BlockInternal({
   }, [createNode, block.id]);
 
   // Adapt existing children blocks to table structure
-  // Existing children become cells distributed across specified number of columns
-  const adaptExistingChildrenToTable = useCallback(async (columnCount: number) => {
-    if (children.length === 0) return;
+  // Direct children become columns, their children become cells (rows)
+  // Balances rows so all columns have the same number of cells
+  const adaptExistingChildrenToTable = useCallback(async () => {
+    if (!children || children.length === 0) return;
     
     // Set flag to disable auto-balance during table creation
     isCreatingTableStructure.current = true;
@@ -933,61 +934,51 @@ function BlockInternal({
       // Sort children by sequence to maintain order
       const sortedChildren = [...children].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
       
-      // Calculate how many rows we need
-      const rowCount = Math.ceil(sortedChildren.length / columnCount);
+      // Direct children become columns
+      // Find the maximum number of children (cells) any column has
+      const maxCellCount = Math.max(...sortedChildren.map(child => child.children?.length ?? 0));
       
-      // Create column blocks first
-      const columnNodes: { id: number; sequence: number }[] = [];
-      for (let colIndex = 0; colIndex < columnCount; colIndex++) {
-        const columnNode = await createNode.mutateAsync({
-          name: `Column ${colIndex + 1}`,
-          parent_id: block.id,
-          sequence: colIndex,
-        });
-        columnNodes.push({ id: columnNode.id, sequence: colIndex });
-      }
-      
-      // Move existing children into the columns as cells
-      // Distribute children row by row (left to right, then next row)
-      for (let i = 0; i < sortedChildren.length; i++) {
-        const child = sortedChildren[i];
-        const colIndex = i % columnCount;
-        const rowIndex = Math.floor(i / columnCount);
-        const targetColumn = columnNodes[colIndex];
+      // Update each child's sequence to ensure proper column ordering
+      // and rename them to "Column N" if they don't have meaningful names
+      for (let colIndex = 0; colIndex < sortedChildren.length; colIndex++) {
+        const child = sortedChildren[colIndex];
         
-        // Move the child to become a cell in the column
-        await moveNode.mutateAsync({
-          id: child.id,
-          parentId: targetColumn.id,
-          position: rowIndex,
-        });
-      }
-      
-      // Fill remaining cells with empty nodes to make a complete grid
-      const totalCellsNeeded = rowCount * columnCount;
-      const emptyCellsNeeded = totalCellsNeeded - sortedChildren.length;
-      
-      if (emptyCellsNeeded > 0) {
-        // Figure out where to add empty cells (at the end of the last row)
-        const lastRowStartIndex = (rowCount - 1) * columnCount;
-        const filledCellsInLastRow = sortedChildren.length - lastRowStartIndex;
-        
-        for (let i = 0; i < emptyCellsNeeded; i++) {
-          const colIndex = filledCellsInLastRow + i;
-          const targetColumn = columnNodes[colIndex];
-          
-          await createNode.mutateAsync({
-            name: '',
-            parent_id: targetColumn.id,
-            sequence: rowCount - 1,
+        // Update sequence if needed
+        if (child.sequence !== colIndex) {
+          await updateNode.mutateAsync({
+            id: child.id,
+            data: { sequence: colIndex }
           });
+        }
+        
+        // Rename to "Column N" if empty or just whitespace
+        if (!child.name || child.name.trim() === '') {
+          await updateNode.mutateAsync({
+            id: child.id,
+            data: { name: `Column ${colIndex + 1}` }
+          });
+        }
+        
+        // Balance cells in this column
+        const currentCellCount = child.children?.length ?? 0;
+        const cellsNeeded = maxCellCount - currentCellCount;
+        
+        if (cellsNeeded > 0) {
+          // Add empty cells to match the max row count
+          for (let rowIndex = 0; rowIndex < cellsNeeded; rowIndex++) {
+            await createNode.mutateAsync({
+              name: '',
+              parent_id: child.id,
+              sequence: currentCellCount + rowIndex,
+            });
+          }
         }
       }
     } finally {
       // Re-enable auto-balance after creation is complete
       isCreatingTableStructure.current = false;
     }
-  }, [children, createNode, moveNode, block.id]);
+  }, [children, createNode, updateNode, block.id]);
 
   // Handle table creation modal confirm (new table)
   const handleTableCreationConfirm = useCallback(async (size: TableSize) => {
@@ -1013,7 +1004,7 @@ function BlockInternal({
   }, [tableCreationState, onAddClass, addClass, block.id, createTableStructure]);
 
   // Handle adapting existing children to table structure
-  const handleTableAdaptExisting = useCallback(async (columnCount: number) => {
+  const handleTableAdaptExisting = useCallback(async () => {
     const { classNodeId, keepInline, className } = tableCreationState;
     if (!classNodeId) return;
     
@@ -1025,7 +1016,7 @@ function BlockInternal({
         await addClass.mutateAsync({ nodeId: block.id, classId: classNodeId });
       }
       // Then adapt existing children to table structure
-      await adaptExistingChildrenToTable(columnCount);
+      await adaptExistingChildrenToTable();
     } catch (error) {
       console.error('Failed to adapt to table:', error);
     }

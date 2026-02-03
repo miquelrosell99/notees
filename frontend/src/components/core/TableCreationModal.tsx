@@ -23,7 +23,7 @@ export interface TableCreationModalProps {
   /** Called when user selects a size for new table */
   onConfirm: (size: TableSize) => void;
   /** Called when user wants to adapt existing children to table */
-  onAdaptExisting: (columns: number) => void;
+  onAdaptExisting: () => void;
   /** Called when user cancels */
   onCancel: () => void;
 }
@@ -40,15 +40,12 @@ export function TableCreationModal({
 }: TableCreationModalProps) {
   // Track which mode is active: 'select' for new table, 'adapt' for adapting existing
   const [mode, setMode] = useState<'select' | 'adapt'>('select');
-  // Track number of columns for adapt mode
-  const [adaptColumns, setAdaptColumns] = useState(1);
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       // Default to adapt mode if there are existing children
       setMode(existingChildCount > 0 ? 'adapt' : 'select');
-      setAdaptColumns(1);
     }
   }, [isOpen, existingChildCount]);
 
@@ -82,13 +79,10 @@ export function TableCreationModal({
 
   // Handle adapt existing children confirmation
   const handleAdaptConfirm = useCallback(() => {
-    onAdaptExisting(adaptColumns);
-  }, [onAdaptExisting, adaptColumns]);
+    onAdaptExisting();
+  }, [onAdaptExisting]);
 
   if (!isOpen) return null;
-
-  // Calculate rows that would result from adapting existing children
-  const adaptedRows = existingChildCount > 0 ? Math.ceil(existingChildCount / adaptColumns) : 0;
 
   return (
     <div 
@@ -126,25 +120,9 @@ export function TableCreationModal({
         {mode === 'adapt' && existingChildCount > 0 ? (
           <>
             <p className="table-size-modal__hint">
-              Convert {existingChildCount} existing blocks into table cells
+              Convert {existingChildCount} existing {existingChildCount === 1 ? 'block' : 'blocks'} into table columns.
+              Their children will become cells, balanced across all columns.
             </p>
-            <div className="table-size-modal__adapt-options">
-              <label className="table-size-modal__adapt-label">
-                Number of columns:
-                <select 
-                  className="table-size-modal__adapt-select"
-                  value={adaptColumns}
-                  onChange={(e) => setAdaptColumns(Number(e.target.value))}
-                >
-                  {Array.from({ length: Math.min(existingChildCount, 10) }, (_, i) => i + 1).map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </label>
-              <p className="table-size-modal__adapt-preview">
-                This will create a {adaptColumns} × {adaptedRows} table
-              </p>
-            </div>
             <div className="table-size-modal__actions">
               <Button
                 variant="ghost"
