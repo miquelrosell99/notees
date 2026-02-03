@@ -542,7 +542,6 @@
 }
 
 .node-card__add-block-button {
-  width: 100%;
   justify-content: flex-start;
   opacity: 0.7;
   transition: opacity 0.15s ease;
