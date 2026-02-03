@@ -172,7 +172,7 @@ export function PropertyView({
             availableViewModes={['table', 'list', 'card']}
             onViewModeChange={setViewMode}
             editable={false}
-            showTypes={true}
+            showClasses={true}
             onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}
             tableColumns={columns}

@@ -42,7 +42,7 @@ export function BlockDrag({
         parentId={null}
         showBullet={showBullet}
         showChildren={false}
-        showTypes={false}
+        showClasses={false}
         canMove={false}
         canEdit={false}
         canSelect={false}

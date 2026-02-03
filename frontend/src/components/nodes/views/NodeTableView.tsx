@@ -181,7 +181,7 @@ export function NodeTableView({
             parentId={node.parent_id}
             onContentChange={handleContentChange}
             showBullet={false}
-            showTypes={false}
+            showClasses={false}
             showQueryResults={false}
             canEdit={editable}
             canMove={false}
