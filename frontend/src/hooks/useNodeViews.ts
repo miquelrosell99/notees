@@ -257,9 +257,18 @@ export function useUpdateQueryAST() {
     onSuccess: (updatedView) => {
       // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
-      // Invalidate query results since the query changed
+      // Invalidate ALL query results for this view (regardless of parameters)
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.queryResult(updatedView.id),
+        queryKey: nodeViewKeys.queryResults(),
+        predicate: (query) => {
+          const key = query.queryKey;
+          // Match ['nodeViews', 'queryResults', viewId, ...]
+          return key[0] === 'nodeViews' && key[1] === 'queryResults' && key[2] === updatedView.id;
+        },
+      });
+      // Also invalidate the list queries since the view was updated
+      queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.list(updatedView.node_id),
       });
     },
   });
