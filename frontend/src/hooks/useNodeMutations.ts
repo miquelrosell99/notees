@@ -1086,10 +1086,40 @@ export function useAddClass() {
   return useMutation({
     mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
       nodesApi.addClass(nodeId, classId),
-    onMutate: async ({ nodeId }) => {
+    onMutate: async ({ nodeId, classId }) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
+      
       // Get the old node to compare flags after mutation
       const oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      
+      // Optimistically update the cache to add the class immediately
+      queryClient.setQueriesData<Node>(
+        { 
+          queryKey: nodeKeys.detailBase(nodeId),
+          exact: false  // Match all queries starting with this key
+        },
+        (old) => {
+          if (!old) return old;
+          const currentClasses = old.classes ?? [];
+          if (currentClasses.includes(classId)) return old;
+          return {
+            ...old,
+            classes: [...currentClasses, classId],
+          };
+        }
+      );
+      
       return { oldNode };
+    },
+    onError: (_err, { nodeId }, context) => {
+      // Rollback on error
+      if (context?.oldNode) {
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.detailBase(nodeId), exact: false },
+          () => context.oldNode
+        );
+      }
     },
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
@@ -1097,7 +1127,7 @@ export function useAddClass() {
       // Update cache with the returned node data for immediate UI update
       // Only update fields that are in the response to avoid overwriting children/properties
       queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(nodeId) },
+        { queryKey: nodeKeys.detailBase(nodeId), exact: false },
         (old) => {
           if (!old) return updatedNode;
           return {
@@ -1167,10 +1197,38 @@ export function useRemoveClass() {
   return useMutation({
     mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
       nodesApi.removeClass(nodeId, classId),
-    onMutate: async ({ nodeId }) => {
+    onMutate: async ({ nodeId, classId }) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
+      
       // Get the old node to compare flags after mutation
       const oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      
+      // Optimistically update the cache to remove the class immediately
+      queryClient.setQueriesData<Node>(
+        { 
+          queryKey: nodeKeys.detailBase(nodeId),
+          exact: false  // Match all queries starting with this key
+        },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            classes: old.classes?.filter((id: number) => id !== classId) ?? [],
+          };
+        }
+      );
+      
       return { oldNode };
+    },
+    onError: (_err, { nodeId }, context) => {
+      // Rollback on error
+      if (context?.oldNode) {
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.detailBase(nodeId), exact: false },
+          () => context.oldNode
+        );
+      }
     },
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
@@ -1178,7 +1236,7 @@ export function useRemoveClass() {
       // Update cache with the returned node data for immediate UI update
       // Only update fields that are in the response to avoid overwriting children/properties
       queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(nodeId) },
+        { queryKey: nodeKeys.detailBase(nodeId), exact: false },
         (old) => {
           if (!old) return updatedNode;
           return {
