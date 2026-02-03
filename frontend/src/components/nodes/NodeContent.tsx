@@ -214,6 +214,7 @@ export function NodeContent({
             onNodeShiftClick={handleNodeShiftClick}
             onContentChange={handleBlockChange}
             showEmpty={false}
+            showTypes={true}
             provideBlockCallbacks={true}
             blockCallbacks={blockCallbacks}
           />

@@ -601,6 +601,7 @@ export function QueryNodeCollection({
           showAddButton={showAddButton && viewType !== 'linked_references'}
           onAdd={handleAddNode}
           pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
+          showTypes={true}
           selectedPropertyUuids={selectedPropertyUuids}
           onPropertyColumnsChange={handlePropertyColumnsChange}
           onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
