@@ -81,6 +81,8 @@ interface BlockEditorProps {
   onAddClass?: (classNodeId: number, keepInline: boolean, className: string) => void;
   /** Query class ID for converting block to query */
   queryClassId?: number | null;
+  /** Table class ID for converting block to table */
+  tableClassId?: number | null;
   onAddTag?: (tagNodeId: number, keepInline: boolean, tagName: string) => void;
   onCreateClass?: (name: string, keepInline: boolean) => void;
   onCreateTag?: (name: string, keepInline: boolean) => void;
@@ -758,6 +760,7 @@ export function BlockEditor({
   onChange,
   onAddClass,
   queryClassId,
+  tableClassId,
   onAddTag,
   onCreateClass,
   onCreateTag,
@@ -1724,6 +1727,28 @@ export function BlockEditor({
         
         // Assign the query class
         onAddClass(queryClassId, false, 'query');
+      }
+      
+      setSlashCommand(prev => ({ ...prev, isOpen: false }));
+      setTimeout(() => editorRef.current?.focus(), 0);
+      return;
+    }
+    
+    // For table command, assign the table class
+    if (command === 'table') {
+      if (onAddClass && tableClassId) {
+        // Remove the slash and query from content
+        const newContent = textBeforeTrigger + textAfterCursor.trimStart();
+        isInternalChange.current = true;
+        lastContentRef.current = newContent;
+        onChange(newContent);
+        
+        // Update HTML
+        const html = contentToHtml(newContent, linkNames, typeNames);
+        editorRef.current.innerHTML = html || '<br>';
+        
+        // Assign the table class
+        onAddClass(tableClassId, false, 'table');
       }
       
       setSlashCommand(prev => ({ ...prev, isOpen: false }));
