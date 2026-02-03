@@ -1879,7 +1879,7 @@ function BlockInternal({
             columns={children}
             editable={canEdit}
             viewMode={tableViewMode}
-            disableAutoBalance={isCreatingTableStructure.current}
+            disableAutoBalanceRef={isCreatingTableStructure}
           />
         </div>
       ) : (
