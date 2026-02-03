@@ -220,6 +220,9 @@ function CommonCardLayout({
       
       {/* Row 4: Children section - unified body with child blocks and add button */}
       <div className="node-card__body node-card__body--hover-reveal">
+        {hasChildren && (
+          <div className="node-card__collapsed-indicator">•••</div>
+        )}
         <div className="node-card__body-content">
           {hasChildren && (
             <div className="node-card__children">
