@@ -45,7 +45,7 @@ import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
-import { SYSTEM_CLASS_UUIDS, isSystemClassUuid } from '@/constants';
+import { SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
@@ -1705,7 +1705,7 @@ function BlockInternal({
                   key={classNode.id}
                   classNode={classNode}
                   onClick={() => openNode(classNode.id, 'page')}
-                  onRemove={isSystemClassUuid(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
+                  onRemove={isNonRemovableClass(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
                   readOnly={!canEdit}
                 />
               );
@@ -1862,7 +1862,7 @@ function BlockInternal({
                         key={classNode.id}
                         classNode={classNode}
                         onClick={() => openNode(classNode.id, 'page')}
-                        onRemove={isSystemClassUuid(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
+                        onRemove={isNonRemovableClass(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
                         readOnly={!canEdit}
                       />
                     );
