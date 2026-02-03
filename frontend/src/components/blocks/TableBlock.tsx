@@ -40,7 +40,6 @@ import { Button } from '../core/Button';
 import { Block } from './Block';
 import { ContextMenu } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
-import { NodeCollection } from '../nodes/NodeCollection';
 import './TableBlock.css';
 
 interface TableBlockProps {
@@ -50,7 +49,7 @@ interface TableBlockProps {
   columns: Node[];
   /** Whether the table is editable */
   editable?: boolean;
-  /** Current view mode */
+  /** Current view mode (deprecated - now handled by Block component) */
   viewMode?: 'table' | 'outline';
   /** Called when table structure changes */
   onStructureChange?: () => void;
@@ -102,7 +101,7 @@ export function TableBlock({
   block,
   columns,
   editable = true,
-  viewMode = 'table',
+  viewMode: _viewMode = 'table',  // Deprecated - kept for backward compatibility
   onStructureChange,
   disableAutoBalanceRef,
   onNavigateToParent,
@@ -621,17 +620,8 @@ export function TableBlock({
       className="table-block"
       ref={wrapperRef}
     >
-      {/* Outline view - render columns as regular blocks using NodeCollection */}
-      {viewMode === 'outline' ? (
-        <NodeCollection
-          nodes={columns}
-          viewMode="list"
-          editable={editable}
-        />
-      ) : (
-        /* Table view */
-        <>
-          <Table<TableRowData>
+      {/* Table view */}
+      <Table<TableRowData>
         key={`table-${columns.length}-${columns.map(c => c.id).join('-')}`}
         data={tableData}
         columns={tableColumns}
@@ -694,8 +684,6 @@ export function TableBlock({
             </Button>
           </div>
         </div>
-      )}
-        </>
       )}
 
       {/* Header context menu */}
