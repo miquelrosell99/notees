@@ -98,9 +98,10 @@ export function TableBlock({
   // Context menu state
   const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number; colIndex: number } | null>(null);
   const [rowContextMenu, setRowContextMenu] = useState<{ x: number; y: number; rowIndex: number } | null>(null);
+  const [headerRowContextMenu, setHeaderRowContextMenu] = useState<{ x: number; y: number } | null>(null);
   
   // Confirmation modal state
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'column' | 'rows'; index?: number; rows?: Set<number> } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'column' | 'rows' | 'allRows'; index?: number; rows?: Set<number> } | null>(null);
   
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -227,6 +228,18 @@ export function TableBlock({
     }
     onStructureChange?.();
   }, [editable, colCount, columns, createNode, onStructureChange]);
+
+  const handleAddRowBelowHeader = useCallback(async () => {
+    if (!editable) return;
+    await handleAddRowAbove(0);
+  }, [editable, handleAddRowAbove]);
+
+  const handleDeleteAllRows = useCallback(async () => {
+    if (!editable || rowCount === 0) return;
+    
+    // Show confirmation modal for all rows
+    setDeleteConfirm({ type: 'allRows' });
+  }, [editable, rowCount]);
 
   // ==================== Save Handlers ====================
   // Headers are now readonly Block components - no editing needed
@@ -366,6 +379,19 @@ export function TableBlock({
         await deleteNode.mutateAsync(column.id);
         onStructureChange?.();
       }
+    } else if (deleteConfirm.type === 'allRows') {
+      // Delete all cells in all rows
+      for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        for (const column of columns) {
+          const cell = column.children?.[rowIndex];
+          if (cell) {
+            await deleteNode.mutateAsync(cell.id);
+          }
+        }
+      }
+      
+      setSelectedRows(new Set());
+      onStructureChange?.();
     } else if (deleteConfirm.type === 'rows' && deleteConfirm.rows) {
       // Sort rows in descending order to delete from bottom to top
       const sortedRows = Array.from(deleteConfirm.rows).sort((a, b) => b - a);
@@ -384,7 +410,7 @@ export function TableBlock({
     }
 
     setDeleteConfirm(null);
-  }, [deleteConfirm, columns, deleteNode, onStructureChange]);
+  }, [deleteConfirm, columns, deleteNode, rowCount, onStructureChange]);
 
   // ==================== Render ====================
 
@@ -413,6 +439,18 @@ export function TableBlock({
     <div 
       className="table-block"
       ref={wrapperRef}
+      onContextMenu={(e) => {
+        // Check if right-click is on the header row checkbox area
+        const target = e.target as HTMLElement;
+        const headerCell = target.closest('.table-cell--header');
+        const headerRow = target.closest('.table-header .table-row');
+        const isCheckboxArea = headerCell?.querySelector('.checkbox') || target.closest('.checkbox');
+        
+        if (editable && headerRow && isCheckboxArea) {
+          e.preventDefault();
+          setHeaderRowContextMenu({ x: e.clientX, y: e.clientY });
+        }
+      }}
     >
       <Table<TableRowData>
         key={`table-${columns.length}-${columns.map(c => c.id).join('-')}`}
@@ -546,14 +584,49 @@ export function TableBlock({
         />
       )}
 
+      {/* Header row context menu */}
+      {headerRowContextMenu && editable && (
+        <ContextMenu
+          items={[
+            {
+              id: 'add-row',
+              label: 'Add Row Below',
+              onClick: () => {
+                handleAddRowBelowHeader();
+                setHeaderRowContextMenu(null);
+              },
+            },
+            {
+              id: 'delete-all',
+              label: 'Delete All Rows',
+              danger: true,
+              onClick: () => {
+                handleDeleteAllRows();
+                setHeaderRowContextMenu(null);
+              },
+            },
+          ]}
+          position={{ x: headerRowContextMenu.x, y: headerRowContextMenu.y }}
+          onClose={() => setHeaderRowContextMenu(null)}
+        />
+      )}
+
       {/* Delete confirmation modal */}
       {deleteConfirm && (
         <ConfirmationModal
           isOpen={true}
-          title={deleteConfirm.type === 'column' ? 'Delete Column' : 'Delete Rows'}
+          title={
+            deleteConfirm.type === 'column'
+              ? 'Delete Column'
+              : deleteConfirm.type === 'allRows'
+              ? 'Delete All Rows'
+              : 'Delete Rows'
+          }
           message={
             deleteConfirm.type === 'column'
               ? 'Are you sure you want to delete this column and all its cells?'
+              : deleteConfirm.type === 'allRows'
+              ? `Are you sure you want to delete all ${rowCount} row${rowCount === 1 ? '' : 's'}?`
               : `Are you sure you want to delete ${deleteConfirm.rows?.size} row${deleteConfirm.rows?.size === 1 ? '' : 's'}?`
           }
           confirmLabel="Delete"
