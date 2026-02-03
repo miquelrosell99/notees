@@ -68,11 +68,11 @@
   align-items: center;
   position: relative;
   padding: var(--spacing-1) 0;
+  gap: var(--spacing-2);
 }
 
 /* Make the page header clickable */
 .node-list-group__page-header {
-  flex: 1;
   font-weight: 600;
   cursor: pointer;
   border-radius: var(--radius-sm);
@@ -81,6 +81,18 @@
 
 .node-list-group__page-header:hover {
   background-color: var(--bg-hover);
+}
+
+/* Navigation actions - hidden by default, shown on hover */
+.node-list-group__actions {
+  display: flex;
+  gap: var(--spacing-1);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.node-list-group__header:hover .node-list-group__actions {
+  opacity: 1;
 }
 
 .node-list-group__page-header .block-preview__content {
