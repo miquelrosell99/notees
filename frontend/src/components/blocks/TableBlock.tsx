@@ -531,6 +531,15 @@ export function TableBlock({
                 setRowContextMenu(null);
               },
             },
+            {
+              id: 'delete',
+              label: 'Delete Row',
+              danger: true,
+              onClick: () => {
+                setDeleteConfirm({ type: 'rows', rows: new Set([rowContextMenu.rowIndex]) });
+                setRowContextMenu(null);
+              },
+            },
           ]}
           position={{ x: rowContextMenu.x, y: rowContextMenu.y }}
           onClose={() => setRowContextMenu(null)}

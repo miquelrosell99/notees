@@ -57,7 +57,7 @@
 /* Table header styles - same structure as cells */
 .table-block__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--spacing-2);
   min-height: 2rem;
   padding: var(--spacing-1) 0;
@@ -71,6 +71,7 @@
 
 .table-block__header-content > .block {
   min-height: 24px;
+  padding: 0;
 }
 
 .table-block__header-actions {
@@ -90,7 +91,7 @@
 /* Table cell styles with Block component and action buttons */
 .table-block__cell {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--spacing-2);
   min-height: 2rem;
   padding: var(--spacing-1) 0;
@@ -106,6 +107,7 @@
 /* Ensure Block component within cell has consistent height */
 .table-block__cell-content > .block {
   min-height: 24px;
+  padding: 0;
 }
 
 .table-block__cell-actions {
