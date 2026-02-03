@@ -1460,6 +1460,8 @@ function BlockInternal({
       )}
       
       {/* Block row - contains bullet and content on same line */}
+      {/* For query blocks, this will be passed as leftElement to the toolbar */}
+      {!(hasQueryClass && !isCollapsed) && (
       <div className="block-row">
         {/* Bullet - drag handle, context menu anchor, collapse toggle */}
         {showBullet && (
@@ -1571,25 +1573,6 @@ function BlockInternal({
           </div>
         )}
         
-        {/* Query controls and results */}
-        {openNode && hasQueryClass && (
-          <QueryNodeCollection
-            nodeId={block.id}
-            nodeUuid={block.uuid}
-            viewType="main_content"
-            hideToolbar={true}
-            onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
-          >
-            {({ controls }) => (
-              controls && (
-                <div className={`block-query-controls ${isCollapsed ? 'collapsed' : ''}`}>
-                  {controls}
-                </div>
-              )
-            )}
-          </QueryNodeCollection>
-        )}
-        
         {/* Backlink count badge - right-aligned */}
         {backlinkCount > 0 && (
           <Button 
@@ -1606,6 +1589,7 @@ function BlockInternal({
           </Button>
         )}
       </div>
+      )}
       
       {/* Drop indicator - after or inside (inside shows as indented line at bottom) */}
       {isDragOver && (dropPosition === 'after' || dropPosition === 'inside') && (
@@ -1618,8 +1602,24 @@ function BlockInternal({
           nodeId={block.id}
           nodeUuid={block.uuid}
           viewType="main_content"
-          hideToolbar={true}
+          showAddButton={true}
           onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
+          leftElement={
+            showBullet && (
+              <Bullet
+                nodeId={block.id}
+                icon={bulletIcon}
+                isPage={false}
+                interactive={canMove || canSelect || !!onBulletClick}
+                hasChildren={hasChildren || hasQueryResults}
+                collapsed={isCollapsed}
+                onClick={handleBulletClickInternal}
+                onContextMenu={handleBulletContextMenu}
+                onCollapseToggle={handleCollapseToggle}
+                showCollapseArrow={hasChildren || hasQueryResults}
+              />
+            )
+          }
         >
           {({ results }) => (
             results && (
