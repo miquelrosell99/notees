@@ -774,8 +774,8 @@ class NodeService:
         if not row:
             return False
         
-        # Use the repository's delete method which handles cascades
-        return await self._node_repo.delete(node_id)
+        # Use the repository's hard_delete method to permanently remove from database
+        return await self._node_repo.hard_delete(node_id)
     
     async def empty_trash(self) -> int:
         """Permanently delete all soft-deleted nodes (empty trash).
@@ -785,18 +785,27 @@ class NodeService:
         Returns:
             Number of nodes deleted
         """
+        from app.logging_config import get_logger
+        logger = get_logger(__name__)
+        
         pool = self._node_repo.get_connection()
         rows = await pool.fetch("""
             SELECT id FROM node 
             WHERE graph_id = $1 AND is_deleted = true
         """, self._graph_id)
         
+        logger.info(f"[EMPTY_TRASH] Found {len(rows)} nodes in trash for graph {self._graph_id}")
+        
         deleted_count = 0
         for row in rows:
-            success = await self._node_repo.hard_delete(row['id'])
+            node_id = row['id']
+            logger.info(f"[EMPTY_TRASH] Attempting to hard delete node {node_id}")
+            success = await self._node_repo.hard_delete(node_id)
+            logger.info(f"[EMPTY_TRASH] hard_delete({node_id}) returned {success}")
             if success:
                 deleted_count += 1
         
+        logger.info(f"[EMPTY_TRASH] Successfully deleted {deleted_count} of {len(rows)} nodes")
         return deleted_count
     
     async def _replace_inline_class_references(self, node: Node, already_updated: set) -> None:
