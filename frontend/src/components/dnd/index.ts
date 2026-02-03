@@ -2,6 +2,13 @@
  * DnD Components and Hooks
  * 
  * Re-exports all drag-and-drop utilities from @dnd-kit
+ * 
+ * NOTE: This application uses two DnD approaches:
+ * 1. @dnd-kit (this folder) - For complex drag operations (Block dragging, property columns)
+ * 2. ListSortable (core/) - For simple list reordering with custom styling
+ * 
+ * RECOMMENDATION: Consolidate to @dnd-kit in the future for consistency.
+ * ListSortable is currently used in: ClassColorsPanel, NodeListView, NavigationSidebar, NodeGraphView.
  */
 
 // Components

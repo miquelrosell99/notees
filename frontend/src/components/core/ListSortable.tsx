@@ -4,7 +4,11 @@
  * A reusable sortable list component with animated drag-and-drop reordering.
  * Each item has: icon (left) → text (center) → optional action (right)
  * 
- * Uses standard drag-and-drop patterns with smooth auto-scrolling.
+ * Uses native drag-and-drop patterns with smooth auto-scrolling.
+ * 
+ * NOTE: This is a lightweight alternative to @dnd-kit for simple list reordering.
+ * Consider migrating to @dnd-kit's SortableList for consistency across the app.
+ * Currently used in: ClassColorsPanel, NodeListView, NavigationSidebar, NodeGraphView.
  */
 import { useRef, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
