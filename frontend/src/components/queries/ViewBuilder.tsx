@@ -94,22 +94,6 @@ export function ViewBuilder({
           readOnly={readOnly}
         />
       </div>
-      
-      {/* Footer with result preview */}
-      {!hideFooter && resultCount !== undefined && (
-        <div className="view-builder__footer">
-          <div className="view-builder__result-preview">
-            {isLoading ? (
-              <span className="view-builder__result-loading">Calculating…</span>
-            ) : (
-              <span className="view-builder__result-count">
-                <span className="view-builder__result-dot">●</span>
-                {resultCount} node{resultCount === 1 ? '' : 's'} will appear in this view
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
