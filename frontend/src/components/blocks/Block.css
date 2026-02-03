@@ -520,6 +520,7 @@
 /* Table view mode toggle - right-aligned in block row */
 .block .block-table-toggle {
   margin-left: var(--spacing-2);
+  margin-top: -5px; /* Offset internal padding to align icons with text */
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
   flex-shrink: 0;
