@@ -81,11 +81,6 @@ export function ViewBuilder({
   return (
     <div className={`view-builder ${className}`}>
       
-      {/* Validation Feedback - Show errors/warnings if any */}
-      {!readOnly && validationResult.issues.length > 0 && (
-        <ValidationFeedback validationResult={validationResult} />
-      )}
-      
       {/* Filters Section */}
       <div className="view-builder__filters-section">
         <QueryBlockList
