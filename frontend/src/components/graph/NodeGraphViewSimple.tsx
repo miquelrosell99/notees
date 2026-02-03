@@ -65,7 +65,7 @@ export function NodeGraphViewSimple({
       type: apiNode.type || 'page',
       isDaily: apiNode.is_daily || false,
       tags: apiNode.tags || [],
-      types: apiNode.type_ids || apiNode.types || [],
+      types: (apiNode as any).type_ids || (apiNode as any).types || [],
       parentId: parentMap.get(apiNode.id) ?? null,
       glare: 'normal',
       pinned: false,

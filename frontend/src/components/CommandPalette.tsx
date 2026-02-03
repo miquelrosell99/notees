@@ -272,7 +272,7 @@ export function CommandPalette({
           break;
         }
         try {
-          const newNode = await createNodeMutation.mutateAsync({
+          await createNodeMutation.mutateAsync({
             name: query.trim(),
             parent_id: destinationPage.id,
           });

@@ -12,7 +12,7 @@
  * - System nodes must have proper capabilities set
  */
 
-import type { QueryAST, GroupNode, ConditionNode, NotNode, ScopeNode } from '@/types/queryAST';
+import type { QueryAST, GroupNode, ConditionNode, NotNode, ScopeNode, ScopeType } from '@/types/queryAST';
 import { getConditionConfig } from '@/components/queries/conditionConfigs';
 import { isSystemNode, SYSTEM_CAPABILITIES } from '@/types/queryAST';
 
@@ -90,7 +90,7 @@ function validateGroup(group: GroupNode, path: string[], errors: ValidationError
   // Validate children array exists
   if (!Array.isArray(group.children)) {
     errors.push({
-      path: path.join('.'),
+      path,
       message: 'Group must have a children array',
       severity: 'error',
     });
@@ -227,7 +227,7 @@ function validateNotNode(notNode: NotNode, path: string[], errors: ValidationErr
   
   if (notNode.child.type === 'group') {
     validateGroup(notNode.child, childPath, errors);
-  } else {
+  } else if (notNode.child.type === 'condition') {
     validateCondition(notNode.child, childPath, errors);
   }
 }

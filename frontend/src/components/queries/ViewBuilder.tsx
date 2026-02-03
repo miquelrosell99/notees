@@ -12,12 +12,9 @@
  * - Shows validation feedback inline for actionable errors
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { assertValidAST } from '@/lib/astValidator';
-import { validateQueryAST } from '@/lib/queryValidation';
 import { QueryBlockList } from './QueryBlockList';
-import { ProseScopeSelector } from './ProseScopeSelector';
-import { ValidationFeedback } from './ValidationFeedback';
 import type { QueryAST, GroupNode, ConditionNode, NotNode } from '@/types/queryAST';
 import './ViewBuilder.css';
 
@@ -36,6 +33,8 @@ interface ViewBuilderProps {
   readOnly?: boolean;
   /** Additional CSS class */
   className?: string;
+  /** Hide the footer section */
+  hideFooter?: boolean;
 }
 
 // ==================== Main Component ====================
@@ -43,29 +42,15 @@ interface ViewBuilderProps {
 export function ViewBuilder({
   ast,
   onChange,
-  resultCount = 0,
-  isLoading = false,
   readOnly = false,
   className = '',
-  hideFooter = false,
 }: ViewBuilderProps) {
-  
-  // Validate AST and get validation results
-  const validationResult = useMemo(() => validateQueryAST(ast), [ast]);
   
   // Pass through changes without normalization - normalization happens on save
   const handleChange = useCallback((updatedAST: QueryAST) => {
     assertValidAST(updatedAST); // Developer-only: log validation issues
     onChange(updatedAST);
   }, [onChange]);
-  
-  // Handle scope changes
-  const handleScopeChange = useCallback((scope: typeof ast.scope) => {
-    handleChange({
-      ...ast,
-      scope,
-    });
-  }, [ast, handleChange]);
   
   // Handle root group children changes
   const handleChildrenChange = useCallback((children: Array<ConditionNode | GroupNode | NotNode>) => {

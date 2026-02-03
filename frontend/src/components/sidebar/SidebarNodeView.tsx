@@ -7,7 +7,7 @@
  * - Blocks: Shows the block itself as an editable block (like focused block mode),
  *   followed by its children and linked references
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { 
   useNode, 
   useUpdateNode, 

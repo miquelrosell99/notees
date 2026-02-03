@@ -231,8 +231,7 @@ function PropertyValue({
                 if (dateParts.length === 3) {
                   const uuid = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
                   try {
-                    const dayNode = await getNodeByUuid(uuid);
-                    openNode(dayNode.id, 'page');
+                    const dayNode = await getNodeByUuid(uuid);                  const { openNode } = require('@/stores').useOpenNodeAction.getState();                    openNode(dayNode.id, 'page');
                   } catch (error) {
                     console.error('Failed to find day page:', error);
                   }

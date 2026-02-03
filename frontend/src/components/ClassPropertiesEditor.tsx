@@ -18,7 +18,6 @@ import {
   useProperties 
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
-import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { Button } from './core/Button';
 import './PropertiesSection.css';
 

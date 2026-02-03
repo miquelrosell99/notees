@@ -17,7 +17,7 @@ interface ProseRendererProps {
  * Parse text and render markdown links as clickable elements
  */
 export function ProseRenderer({ text }: ProseRendererProps): React.JSX.Element {
-  const { openNode } = useNodesStore();
+  useNodesStore();
 
   // Parse markdown links: [text](uuid)
   const parts = parseMarkdownLinks(text);

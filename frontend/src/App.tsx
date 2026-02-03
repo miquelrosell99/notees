@@ -20,7 +20,7 @@ import { DndProvider } from './providers/DndProvider';
 import { listDatabases } from './api/databases';
 import { useAuthStore, useNodesStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
-import { getAuthToken, clearAuthToken, getUserData, setUserData } from './utils/auth';
+import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
 import './App.css';
 
 const log = getLogger('App');
@@ -65,7 +65,7 @@ function AppContent() {
     
     if (token && user) {
       log.debug('Found stored auth, restoring session', { username: (user as any).username });
-      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setUser(user as any);
     } else {
       log.debug('No valid stored auth found');
       // Clear any partial auth data

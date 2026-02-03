@@ -698,6 +698,7 @@ function ExtendedBySection({
     icon: cls.icon,
     color: null,
     parent_id: null,
+    is_page: true,
     page_id: null,
     sequence: 0,
     collapsed: false,

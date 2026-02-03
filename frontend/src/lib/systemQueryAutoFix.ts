@@ -10,7 +10,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, PropertyCondition, ClassCondition, ParentCondition } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/query';
 
@@ -18,10 +18,6 @@ import type { NodeViewType } from '@/types/query';
 
 function isReferenceCondition(node: ConditionNode): node is ReferenceCondition {
   return node.condition_type === 'reference';
-}
-
-function isPropertyCondition(node: ConditionNode): node is PropertyCondition {
-  return node.condition_type === 'property';
 }
 
 function isClassCondition(node: ConditionNode): node is ClassCondition {
@@ -73,7 +69,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
   // Child Pages section - requires parent condition with current node UUID
   {
     viewType: 'child_pages',
-    requiresCondition: (_ast, context) => {
+    requiresCondition: (_ast, _context) => {
       // Use the new static mode with placeholder
       return markAsSystemNode({
         type: 'condition',
@@ -158,7 +154,7 @@ export function autoFixSystemQuery(
   }
   
   // Auto-fix scope for system views
-  const defaultScopes: Record<string, ScopeNode['scope_type']> = {
+  const defaultScopes: Record<string, 'entire_graph' | 'pages' | 'current_page'> = {
     'linked_references': 'entire_graph',
     'child_pages': 'pages',
     'classed_nodes': 'entire_graph',
