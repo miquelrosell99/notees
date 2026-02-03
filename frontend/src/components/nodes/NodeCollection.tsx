@@ -437,6 +437,9 @@ export function NodeCollection({
   hideContent = false,
   showAddButton = false,
   onAdd,
+  can_create = true,
+  can_edit = true,
+  can_delete = true,
   cardLayout,
   onCardLayoutChange,
   selectedPropertyUuids: selectedPropertyUuidsProp,
@@ -508,10 +511,10 @@ export function NodeCollection({
   const effectiveViewModes = availableViewModes ?? DEFAULT_VIEW_MODES_ORDER;
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
   const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
-  const showAdd = showAddButton && onAdd;
+  const effectiveShowAdd = showAddButton && onAdd && can_create;
   
   // Whether to show the internal toolbar (show if we have leftElement OR toolbar controls)
-  const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || showAdd);
+  const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || effectiveShowAdd);
   
   // Enable grouping when groupBy is set (regardless of toolbar visibility)
   const enableGrouping = showGroupByProp && viewMode === 'list';
@@ -582,7 +585,7 @@ export function NodeCollection({
             layout={effectiveCardLayout}
             sortable={sortable}
             onReorder={onReorder}
-            onAdd={onAdd}
+            onAdd={can_create ? onAdd : undefined}
           />
         );
       
@@ -652,8 +655,8 @@ export function NodeCollection({
                 showGroupBy={showGroupByInToolbar}
                 groupBy={groupBy}
                 onGroupByChange={handleGroupByChange}
-                showAddButton={showAddButton}
-                onAdd={onAdd}
+                showAddButton={effectiveShowAdd}
+                onAdd={can_create ? onAdd : undefined}
                 cardLayout={effectiveCardLayout}
                 onCardLayoutChange={onCardLayoutChange}
                 selectedPropertyUuids={selectedPropertyUuids}

@@ -1834,7 +1834,10 @@ function BlockInternal({
           nodeId={block.id}
           nodeUuid={block.uuid}
           viewType="main_content"
-          showAddButton={true}
+          showAddButton={false}
+          can_create={false}
+          can_edit={true}
+          can_delete={true}
           onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
           hideToolbarControls={isCollapsed}
           hideContent={isCollapsed}
