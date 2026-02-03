@@ -216,91 +216,73 @@ function CommonCardLayout({
         )}
       </div>
       
-      {/* Row 4: Children (spans all columns) */}
-      {hasChildren ? (
-        <div className="node-card__body">
-          <div 
-            className="node-card__content-header"
-            onClick={(e) => {
-              e.stopPropagation();
-              setContentExpanded(!contentExpanded);
-            }}
-          >
-            <Button
-              variant="ghost"
-              size="xs"
-              icon={contentExpanded ? mdiChevronDown : mdiChevronRight}
-              className="node-card__content-toggle"
+      {/* Row 4: Children section - unified body with child blocks and add button */}
+      <div className={`node-card__body ${!hasChildren ? 'node-card__body--empty' : ''}`}>
+        {hasChildren && (
+          <>
+            <div 
+              className="node-card__content-header"
+              onClick={(e) => {
+                e.stopPropagation();
+                setContentExpanded(!contentExpanded);
+              }}
             >
-              Content
-            </Button>
-          </div>
-          {contentExpanded && (
-            <div className="node-card__children">
-              {children.map((child) => {
-                const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
-                const effectiveCollapsed = hasPersistedCollapse 
-                  ? child.collapsed 
-                  : tempCollapsedChildren.has(child.id);
-                const childWithCollapse = hasPersistedCollapse 
-                  ? child 
-                  : { ...child, collapsed: effectiveCollapsed };
-                
-                return (
-                  <Block
-                    key={child.id}
-                    block={childWithCollapse}
-                    children={child.children}
-                    parentId={node.id}
-                    depth={1}
-                    canMove={false}
-                    canSelect={false}
-                    canEdit={editable}
-                    showBullet={true}
-                    showChildren={true}
-                    onContentChange={handleContentChange}
-                    onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                    onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
-                  />
-                );
-              })}
-              {editable && (
-                <div className="node-card__add-block">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleAddChild}
-                    icon={mdiPlus}
-                    className="node-card__add-block-button"
-                  >
-                    Add block
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-        editable && (
-          <div className="node-card__add-block-section">
-            <div className="node-card__add-block-trigger" />
-            <div className="node-card__add-block-content">
               <Button
                 variant="ghost"
-                size="sm"
-                icon={mdiPlus}
-                className="node-card__add-block-section-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAddChild(e);
-                }}
+                size="xs"
+                icon={contentExpanded ? mdiChevronDown : mdiChevronRight}
+                className="node-card__content-toggle"
               >
-                Add block
+                Content
               </Button>
             </div>
+            {contentExpanded && (
+              <div className="node-card__children">
+                {children.map((child) => {
+                  const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                  const effectiveCollapsed = hasPersistedCollapse 
+                    ? child.collapsed 
+                    : tempCollapsedChildren.has(child.id);
+                  const childWithCollapse = hasPersistedCollapse 
+                    ? child 
+                    : { ...child, collapsed: effectiveCollapsed };
+                  
+                  return (
+                    <Block
+                      key={child.id}
+                      block={childWithCollapse}
+                      children={child.children}
+                      parentId={node.id}
+                      depth={1}
+                      canMove={false}
+                      canSelect={false}
+                      canEdit={editable}
+                      showBullet={true}
+                      showChildren={true}
+                      onContentChange={handleContentChange}
+                      onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                      onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+        {editable && (
+          <div className="node-card__add-block">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleAddChild}
+              icon={mdiPlus}
+              className="node-card__add-block-button"
+            >
+              Add block
+            </Button>
           </div>
-        )
-      )}
+        )}
+      </div>
     </>
   );
 }
