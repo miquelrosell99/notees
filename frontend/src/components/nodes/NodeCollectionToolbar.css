@@ -14,9 +14,24 @@
 /* Left section - header/block element */
 .node-collection-toolbar__left {
   display: flex;
-  align-items: center;
-  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+/* When block content is in the toolbar, make it flexible and clickable */
+.node-collection-toolbar__left .block-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  cursor: text;
+}
+
+/* Ensure block content view inside toolbar is clickable */
+.node-collection-toolbar__left .block-content-view {
+  min-height: 24px;
+  cursor: text;
 }
 
 /* Right section - toolbar controls */
