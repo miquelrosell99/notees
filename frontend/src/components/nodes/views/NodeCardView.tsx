@@ -21,7 +21,7 @@ import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
-import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode } from '@/hooks';
+import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useNodesStore } from '@/stores';
 import { Button } from '../../core/Button';
@@ -33,7 +33,7 @@ import { AddCoverButton } from '../../core/AddCoverButton';
 import { FloatingButtonArray } from '../../core/FloatingButtonArray';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
-import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
@@ -178,7 +178,8 @@ function CommonCardLayout({
           <NodeClassPill
             key={cls.id}
             classNode={cls}
-            readOnly={true}
+            readOnly={!editable}
+            onRemove={isNonRemovableClass(cls.uuid) ? undefined : () => removeClass.mutate({ nodeId: node.id, classId: cls.id })}
           />
         ))}
         {editable && (
@@ -200,7 +201,8 @@ function CommonCardLayout({
           <NodeClassPill
             key={tag.id}
             classNode={tag}
-            readOnly={true}
+            readOnly={!editable}
+            onRemove={() => removeClass.mutate({ nodeId: node.id, classId: tag.id })}
           />
         ))}
         {editable && (
@@ -217,71 +219,53 @@ function CommonCardLayout({
       </div>
       
       {/* Row 4: Children section - unified body with child blocks and add button */}
-      <div className={`node-card__body ${!hasChildren ? 'node-card__body--empty' : ''}`}>
-        {hasChildren && (
-          <>
-            <div 
-              className="node-card__content-header"
-              onClick={(e) => {
-                e.stopPropagation();
-                setContentExpanded(!contentExpanded);
-              }}
-            >
+      <div className="node-card__body node-card__body--hover-reveal">
+        <div className="node-card__body-content">
+          {hasChildren && (
+            <div className="node-card__children">
+              {children.map((child) => {
+                const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
+                const effectiveCollapsed = hasPersistedCollapse 
+                  ? child.collapsed 
+                  : tempCollapsedChildren.has(child.id);
+                const childWithCollapse = hasPersistedCollapse 
+                  ? child 
+                  : { ...child, collapsed: effectiveCollapsed };
+                
+                return (
+                  <Block
+                    key={child.id}
+                    block={childWithCollapse}
+                    children={child.children}
+                    parentId={node.id}
+                    depth={1}
+                    canMove={false}
+                    canSelect={false}
+                    canEdit={editable}
+                    showBullet={true}
+                    showChildren={true}
+                    onContentChange={handleContentChange}
+                    onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
+                    onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+          {editable && (
+            <div className="node-card__add-block">
               <Button
                 variant="ghost"
-                size="xs"
-                icon={contentExpanded ? mdiChevronDown : mdiChevronRight}
-                className="node-card__content-toggle"
+                size="sm"
+                onClick={handleAddChild}
+                icon={mdiPlus}
+                className="node-card__add-block-button"
               >
-                Content
+                Add block
               </Button>
             </div>
-            {contentExpanded && (
-              <div className="node-card__children">
-                {children.map((child) => {
-                  const hasPersistedCollapse = child.collapsed !== null && child.collapsed !== undefined;
-                  const effectiveCollapsed = hasPersistedCollapse 
-                    ? child.collapsed 
-                    : tempCollapsedChildren.has(child.id);
-                  const childWithCollapse = hasPersistedCollapse 
-                    ? child 
-                    : { ...child, collapsed: effectiveCollapsed };
-                  
-                  return (
-                    <Block
-                      key={child.id}
-                      block={childWithCollapse}
-                      children={child.children}
-                      parentId={node.id}
-                      depth={1}
-                      canMove={false}
-                      canSelect={false}
-                      canEdit={editable}
-                      showBullet={true}
-                      showChildren={true}
-                      onContentChange={handleContentChange}
-                      onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                      onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-        {editable && (
-          <div className="node-card__add-block">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleAddChild}
-              icon={mdiPlus}
-              className="node-card__add-block-button"
-            >
-              Add block
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   );
@@ -317,6 +301,9 @@ function NodeCard({
   
   // Store actions for navigation
   const { openNode, addSidebarCard } = useNodesStore();
+  
+  // Mutations for class/tag management
+  const removeClass = useRemoveClass();
   
   // Drag state for cover replacement
   const [isCoverDragging, setIsCoverDragging] = useState(false);

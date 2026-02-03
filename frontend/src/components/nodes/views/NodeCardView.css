@@ -244,47 +244,43 @@
   height: auto;
 }
 
-/* Empty body state - small invisible trigger zone */
-.node-card__body--empty {
+/* Hover-reveal body - collapsed by default, expands on hover */
+.node-card__body--hover-reveal {
   padding: 0;
   min-height: 12px;
   transition: padding 0.2s ease;
 }
 
-/* Hide content inside empty body until hovered */
-.node-card__body--empty .node-card__add-block {
+/* Content wrapper inside hover-reveal body */
+.node-card__body--hover-reveal .node-card__body-content {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
   padding: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, max-height 0.2s ease, padding 0.2s ease;
+  transition: opacity 0.2s ease, max-height 0.3s ease, padding 0.2s ease;
 }
 
-.node-card__body--empty:hover {
+/* Expand on hover */
+.node-card__body--hover-reveal:hover {
   padding: 0.5rem 0.75rem 0.75rem;
 }
 
-.node-card__body--empty:hover .node-card__add-block {
+.node-card__body--hover-reveal:hover .node-card__body-content {
   opacity: 1;
-  max-height: 4rem;
-  padding: 0.5rem 0.75rem;
+  max-height: 1000px;
+  padding: 0;
   pointer-events: auto;
 }
 
-/* Show border on tags row only when body has content or is hovered */
+/* Show border on tags row only when body is hovered */
 .node-card__tags-row {
   border-bottom: none;
   transition: border-color 0.15s ease;
 }
 
-/* Show bottom border on tags when body has children */
-.node-card:has(.node-card__body:not(.node-card__body--empty)) .node-card__tags-row {
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
-}
-
-/* Show bottom border on tags when empty body is hovered */
-.node-card:has(.node-card__body--empty:hover) .node-card__tags-row {
+/* Show bottom border on tags when hover-reveal body is hovered */
+.node-card:has(.node-card__body--hover-reveal:hover) .node-card__tags-row {
   border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
