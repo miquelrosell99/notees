@@ -57,15 +57,16 @@ function extractPageFilters(ast: QueryAST): PageFilterState[] {
       // Look for a content condition with a UUID value in the nested group
       if (parentPath.nested_group) {
         for (const nestedChild of parentPath.nested_group?.children || []) {
-        if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
-          const contentCond = nestedChild as { value?: string };
-          if (contentCond.value && !contentCond.value.startsWith('{')) {
-            filters.push({
-              uuid: contentCond.value,
-              name: '',
-              icon: null,
-              negated: false,
-            });
+          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+            const contentCond = nestedChild as { value?: string };
+            if (contentCond.value && !contentCond.value.startsWith('{')) {
+              filters.push({
+                uuid: contentCond.value,
+                name: '',
+                icon: null,
+                negated: false,
+              });
+            }
           }
         }
       }
@@ -77,15 +78,16 @@ function extractPageFilters(ast: QueryAST): PageFilterState[] {
         const parentPath = notNode.child as ParentPathCondition;
         if (parentPath.nested_group) {
           for (const nestedChild of parentPath.nested_group?.children || []) {
-          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
-            const contentCond = nestedChild as { value?: string };
-            if (contentCond.value && !contentCond.value.startsWith('{')) {
-              filters.push({
-                uuid: contentCond.value,
-                name: '',
-                icon: null,
-                negated: true,
-              });
+            if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+              const contentCond = nestedChild as { value?: string };
+              if (contentCond.value && !contentCond.value.startsWith('{')) {
+                filters.push({
+                  uuid: contentCond.value,
+                  name: '',
+                  icon: null,
+                  negated: true,
+                });
+              }
             }
           }
         }

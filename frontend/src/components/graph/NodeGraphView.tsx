@@ -24,7 +24,6 @@ import {
   type NodeGraphRendererRef,
   type GraphNode,
   type GraphLink,
-  type TypeColor,
   type GraphSettings,
   type GraphViewMode,
 } from './NodeGraphRenderer';
@@ -507,7 +506,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
         links={links}
         viewMode={viewMode}
         settings={graphSettings}
-        typeColors={classColors}
+        classColors={classColors}
         showTypeNodes={showTypeNodes}
         selectedNodeIds={selectedNodeIds}
         onNodeClick={handleNodeClick}
