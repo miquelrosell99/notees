@@ -194,6 +194,17 @@ export interface NodeCollectionProps {
   /** Callback when Add button is clicked */
   onAdd?: () => void;
   
+  // ==================== Capability Props ====================
+  
+  /** Whether new items can be created (default: true). Controls add buttons in toolbar and card view. */
+  can_create?: boolean;
+  
+  /** Whether items can be edited (default: true). Controls editability of content. */
+  can_edit?: boolean;
+  
+  /** Whether items can be deleted (default: true). Controls delete actions in context menus. */
+  can_delete?: boolean;
+  
   /** Card layout mode for card view */
   cardLayout?: 'no-cover' | 'cover-top' | 'cover-bottom' | 'cover-left' | 'cover-right';
   

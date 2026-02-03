@@ -119,7 +119,7 @@ export interface QueryNodeCollectionProps {
   className?: string;
   /** Whether to hide the toolbar completely (for inline/headless use like query blocks) */
   hideToolbar?: boolean;
-  /** Whether to show add button in toolbar */
+  /** Whether to show add button in toolbar (deprecated - use can_create instead) */
   showAddButton?: boolean;
   /** Element to render at the left side of the toolbar (e.g., block element, collapsible header) */
   leftElement?: React.ReactNode | ((count: number) => React.ReactNode);
@@ -127,6 +127,16 @@ export interface QueryNodeCollectionProps {
   hideToolbarControls?: boolean;
   /** Hide the content area while keeping toolbar visible */
   hideContent?: boolean;
+  
+  // ==================== Capability Props ====================
+  
+  /** Whether new items can be created (default: true). Controls add buttons in toolbar and card view. */
+  can_create?: boolean;
+  /** Whether items can be edited (default: true). Controls editability of content. */
+  can_edit?: boolean;
+  /** Whether items can be deleted (default: true). Controls delete actions in context menus. */
+  can_delete?: boolean;
+  
   /** Render prop - receives controls and results */
   children: (result: QueryNodeCollectionResult) => React.ReactNode;
 }
@@ -155,8 +165,14 @@ export function QueryNodeCollection({
   leftElement,
   hideToolbarControls = false,
   hideContent = false,
+  can_create = true,
+  can_edit = true,
+  can_delete = true,
   children,
 }: QueryNodeCollectionProps): React.ReactNode {
+  // Compute effective capabilities
+  // can_create controls both toolbar add button and card view add card
+  const effectiveCanCreate = can_create && showAddButton;
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
@@ -589,7 +605,7 @@ export function QueryNodeCollection({
           viewMode={collectionViewMode}
           availableViewModes={['list', 'table', 'card']}
           onViewModeChange={handleViewModeChange}
-          editable={true}
+          editable={can_edit}
           hideToolbar={hideToolbar}
           toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
           leftElement={resolvedLeftElement}
@@ -598,8 +614,11 @@ export function QueryNodeCollection({
           showGroupBy={collectionViewMode === 'list'}
           groupBy={groupBy}
           onGroupByChange={setGroupBy}
-          showAddButton={showAddButton && viewType !== 'linked_references'}
-          onAdd={handleAddNode}
+          showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
+          onAdd={effectiveCanCreate ? handleAddNode : undefined}
+          can_create={can_create}
+          can_edit={can_edit}
+          can_delete={can_delete}
           pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
           showClasses={true}
           selectedPropertyUuids={selectedPropertyUuids}
