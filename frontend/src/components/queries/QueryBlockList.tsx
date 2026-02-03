@@ -413,7 +413,7 @@ export function QueryBlockList({
         <div className="query-block-list__empty-add">
           <ButtonWithPanel
             buttonText="+ Add condition"
-            variant="secondary"
+            variant="default"
             size="md"
             panelPosition="bottom"
             panelAlignment="start"

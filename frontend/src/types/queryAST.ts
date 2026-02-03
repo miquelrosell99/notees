@@ -397,11 +397,10 @@ export function createEmptyQueryAST(): QueryAST {
 /**
  * Create a scope node
  */
-export function createScopeNode(scopeType: ScopeType, pageUuids?: string[]): ScopeNode {
+export function createScopeNode(scopeType: ScopeType): ScopeNode {
   return {
     type: 'scope',
     scope_type: scopeType,
-    page_uuids: pageUuids,
   };
 }
 
@@ -502,7 +501,7 @@ export function countConditions(ast: QueryAST): number {
           if (!isSystemNode(child.child)) {
             count++;
           }
-        } else {
+        } else if (child.child.type === 'group') {
           count += countInGroup(child.child);
         }
       }

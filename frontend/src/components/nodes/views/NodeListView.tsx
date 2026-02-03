@@ -113,6 +113,7 @@ function groupBlocksByPage(
           color: null,
           parent_id: null,
           page_id: null,
+          is_page: true,
           sequence: 0,
           collapsed: false,
           active: true,

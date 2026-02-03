@@ -39,9 +39,7 @@ export function validateQueryAST(ast: QueryAST): ValidationResult {
 /**
  * Validate scope node
  */
-function validateScope(ast: QueryAST, issues: ValidationIssue[]): void {
-  const scope = ast.scope;
-  
+function validateScope(_ast: QueryAST, _issues: ValidationIssue[]): void {
   // Note: excluded_page_uuids validation could be added here if needed in the future
   // Currently, scope types are simple (entire_graph, pages, current_page) with no complex validation
 }

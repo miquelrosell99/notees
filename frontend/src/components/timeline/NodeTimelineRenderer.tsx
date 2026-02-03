@@ -627,7 +627,6 @@ export function NodeTimelineRenderer({
     const mouseX = e.clientX - rect.left;
     const minimapWidth = rect.width;
     const mainWidth = dimensions.width;
-    const totalDays = (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24);
     const { scale } = transform;
     
     if (isDraggingHandle) {
@@ -841,7 +840,7 @@ export function NodeTimelineRenderer({
         <div className="node-timeline-renderer__minimap-controls">
           <SelectionButton
             options={zoomPresetOptions}
-            value={zoomPreset === 'custom' ? undefined : zoomPreset}
+            value={zoomPreset === 'custom' ? '' : zoomPreset}
             onChange={(val) => zoomToPreset(val as any)}
             size="sm"
           />

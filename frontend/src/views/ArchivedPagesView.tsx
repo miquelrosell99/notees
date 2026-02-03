@@ -13,7 +13,7 @@ import { unarchiveNode, deleteNode } from '@/api/nodes';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -45,9 +45,10 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
     return [
       {
+        id: 'unarchive',
         label: 'Unarchive',
         icon: 'mdi mdi-archive-arrow-up',
-        action: () => {
+        onClick: () => {
           if (confirm('Unarchive this page?')) {
             unarchiveMutation.mutate(node.id);
           }
@@ -55,9 +56,10 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         },
       },
       {
+        id: 'delete',
         label: 'Delete',
         icon: 'mdi mdi-delete',
-        action: () => {
+        onClick: () => {
           if (confirm('Delete this page permanently? This action cannot be undone.')) {
             deleteMutation.mutate(node.id);
           }

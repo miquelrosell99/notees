@@ -4,10 +4,9 @@
  * Components for selecting nodes (types, pages) in the query builder.
  * Uses the standard SearchBox component for consistent UX.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { mdiTagOutline, mdiPageNextOutline } from '@mdi/js';
 import Icon from '@mdi/react';
-import { Button } from '../core/Button';
 import { NodeClassPill } from '../NodeClassPill';
 import { SearchBox } from '../SearchBox';
 import { useClasses, usePages, useNode } from '@/hooks';
@@ -149,7 +148,7 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
       sectionsList.push({
         title: 'Special',
         searchFn: async () => [{ id: -1, name: 'Current Page', is_page: true } as AppNode],
-        renderItem: (node: AppNode) => (
+        renderItem: () => (
           <>
             <span className="result-icon">
               <Icon path={mdiPageNextOutline} size={0.6} />
@@ -207,7 +206,7 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
         <SearchBox
           placeholder={placeholder || 'Select...'}
           sections={sections}
-          onSelect={(node) => handleSelect(node === 'current-page' ? 'current-page' : node)}
+          onSelect={(node) => handleSelect(typeof node === 'string' ? node : node)}
         />
       ) : (
         <div className="single-node-selector__empty">

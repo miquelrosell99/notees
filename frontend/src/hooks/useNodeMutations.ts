@@ -126,9 +126,8 @@ export function useCreateNode() {
         await queryClient.cancelQueries({ queryKey: nodeKeys.pageContent(variables.parent_id) });
         await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
       }
-      if (variables.is_page) {
-        await queryClient.cancelQueries({ queryKey: nodeKeys.pages() });
-      }
+      // NodeCreate doesn't have is_page - pages are created by classes
+      // Skip page query cancellation for create operations
       
       // Only do optimistic update for blocks (not pages, since pages have more complex state)
       if (!variables.parent_id) {
@@ -759,7 +758,7 @@ export function useDeleteNode() {
         }
       }
     },
-    onSuccess: async ({ deletedNode, tableCellInfo }, deletedId) => {
+    onSuccess: async ({ deletedNode: _deletedNode, tableCellInfo }, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
       // Use dynamic import to avoid circular dependency issues
       const { useNodesStore } = await import('@/stores');

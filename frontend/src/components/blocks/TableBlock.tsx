@@ -33,7 +33,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { mdiArrowRight, mdiDockRight, mdiPlus } from '@mdi/js';
 import { useCreateNode, useDeleteNode, useContentSave } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node } from '@/types';
 import { Table, type TableColumn } from '../core/Table';
 import { Button } from '../core/Button';
@@ -56,6 +56,10 @@ interface TableBlockProps {
   onStructureChange?: () => void;
   /** Ref to disable auto-balance during bulk table creation */
   disableAutoBalanceRef?: React.MutableRefObject<boolean>;
+  /** Called when navigating up from first row - should go to parent table block */
+  onNavigateToParent?: () => void;
+  /** Called when navigating down from last row - should go to next block after table */
+  onNavigateToNextBlock?: () => void;
 }
 
 /**
@@ -101,6 +105,8 @@ export function TableBlock({
   viewMode = 'table',
   onStructureChange,
   disableAutoBalanceRef,
+  onNavigateToParent,
+  onNavigateToNextBlock,
 }: TableBlockProps) {
   // Context menu state
   const [headerContextMenu, setHeaderContextMenu] = useState<{ x: number; y: number; colIndex: number } | null>(null);
@@ -123,6 +129,7 @@ export function TableBlock({
   const deleteNode = useDeleteNode();
   const { openNode, addSidebarCard } = useNodesStore();
   const { handleContentChange } = useContentSave();
+  const { setBlockState, setPendingCaret } = useBlockSelectionStore();
 
   // Computed values
   const rowCount = useMemo(() => getRowCount(columns), [columns]);
@@ -130,6 +137,69 @@ export function TableBlock({
 
   // Transform node structure to Table data format
   const tableData = useMemo(() => transformToTableData(columns, rowCount), [columns, rowCount]);
+
+  // ==================== Horizontal Navigation ====================
+  // Navigate to the cell at the specified position
+  const navigateToCell = useCallback((targetColIndex: number, targetRowIndex: number, cursorAtEnd: boolean = false) => {
+    const targetCell = getCellNode(columns, targetColIndex, targetRowIndex);
+    if (!targetCell) return;
+    
+    // Set cursor position: 0 for start, content length for end
+    const cursorPosition = cursorAtEnd ? (targetCell.name || '').length : 0;
+    setPendingCaret(targetCell.id, cursorPosition);
+    setBlockState(targetCell.id, 'edit');
+  }, [columns, setBlockState, setPendingCaret]);
+
+  // Create navigation handlers for a specific cell
+  const createCellNavigationHandlers = useCallback((colIndex: number, rowIndex: number) => {
+    const handleNavigateLeft = () => {
+      // Move to previous column in same row, or last column of previous row
+      if (colIndex > 0) {
+        navigateToCell(colIndex - 1, rowIndex, true);
+      } else if (rowIndex > 0) {
+        // Wrap to last column of previous row
+        navigateToCell(colCount - 1, rowIndex - 1, true);
+      } else {
+        // At first cell of first row - go to parent table block
+        onNavigateToParent?.();
+      }
+    };
+
+    const handleNavigateRight = () => {
+      // Move to next column in same row, or first column of next row
+      if (colIndex < colCount - 1) {
+        navigateToCell(colIndex + 1, rowIndex, false);
+      } else if (rowIndex < rowCount - 1) {
+        // Wrap to first column of next row
+        navigateToCell(0, rowIndex + 1, false);
+      } else {
+        // At last cell of last row - go to next block after table
+        onNavigateToNextBlock?.();
+      }
+    };
+
+    const handleNavigateUp = () => {
+      // Move to same column in previous row
+      if (rowIndex > 0) {
+        navigateToCell(colIndex, rowIndex - 1, true);
+      } else {
+        // At first row - go to parent table block
+        onNavigateToParent?.();
+      }
+    };
+
+    const handleNavigateDown = () => {
+      // Move to same column in next row
+      if (rowIndex < rowCount - 1) {
+        navigateToCell(colIndex, rowIndex + 1, false);
+      } else {
+        // At last row - go to next block after table
+        onNavigateToNextBlock?.();
+      }
+    };
+
+    return { handleNavigateLeft, handleNavigateRight, handleNavigateUp, handleNavigateDown };
+  }, [colCount, rowCount, navigateToCell, onNavigateToParent, onNavigateToNextBlock]);
 
   // ==================== Auto-Balance Table Structure ====================
   // When columns have mismatched row counts (e.g., a cell was added/moved to one column),
@@ -392,6 +462,9 @@ export function TableBlock({
         // If no cell exists, return empty
         if (!cell) return '';
 
+        // Get navigation handlers for this cell position
+        const { handleNavigateLeft, handleNavigateRight, handleNavigateUp, handleNavigateDown } = createCellNavigationHandlers(colIndex, row.rowIndex);
+
         // Always render Block component with navigation buttons
         return (
           <div 
@@ -412,6 +485,10 @@ export function TableBlock({
                 canSelect={false}
                 isTableCell={true}
                 onContentChange={handleContentChange}
+                onNavigateLeft={handleNavigateLeft}
+                onNavigateRight={handleNavigateRight}
+                onNavigateUp={handleNavigateUp}
+                onNavigateDown={handleNavigateDown}
               />
             </div>
             <div className="table-block__cell-actions">
@@ -440,7 +517,7 @@ export function TableBlock({
         );
       },
     }));
-  }, [columns, editable, openNode, addSidebarCard, handleDeleteColumn]);
+  }, [columns, editable, openNode, addSidebarCard, handleDeleteColumn, createCellNavigationHandlers, handleContentChange]);
 
   // Clear selection when clicking outside
   useEffect(() => {
