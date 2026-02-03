@@ -34,15 +34,24 @@
 .table-size-selector__cell {
   width: 20px;
   height: 20px;
+  padding: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 2px;
   cursor: pointer;
   transition: background-color 0.1s ease, border-color 0.1s ease;
+  display: block;
+  appearance: none;
+  outline: none;
 }
 
 .table-size-selector__cell:hover {
   border-color: var(--color-primary);
+}
+
+.table-size-selector__cell:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
 }
 
 .table-size-selector__cell--selected {

@@ -78,13 +78,15 @@ export function TableSizeSelector({
           col <= hoveredSize.columns;
         
         cells.push(
-          <div
+          <button
             key={`${row}-${col}`}
+            type="button"
             className={`table-size-selector__cell ${isSelected ? 'table-size-selector__cell--selected' : ''}`}
             onMouseEnter={() => handleCellMouseEnter(row, col)}
             onClick={(e) => handleCellClick(row, col, e)}
             role="gridcell"
             aria-selected={isSelected}
+            aria-label={`Select ${col} columns by ${row} rows`}
             data-row={row}
             data-col={col}
           />
