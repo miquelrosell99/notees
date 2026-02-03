@@ -78,7 +78,7 @@ export interface GraphLink {
   type: 'parent' | 'reference';
 }
 
-export interface TypeColor {
+export interface ClassColor {
   typeId: number;
   typeName: string;
   color: string;
@@ -99,8 +99,8 @@ export interface NodeGraphRendererProps {
   viewMode?: GraphViewMode;
   /** Graph settings */
   settings?: GraphSettings;
-  /** Type colors for node coloring */
-  typeColors?: TypeColor[];
+  /** Class colors for node coloring */
+  classColors?: ClassColor[];
   /** Whether to show type nodes */
   showTypeNodes?: boolean;
   /** Currently highlighted node (for minimap mode) */
@@ -175,14 +175,14 @@ function findPathBetweenNodes(
   return [];
 }
 
-function getNodeColor(node: GraphNode, typeColors: TypeColor[], accentColor: string): string {
+function getNodeColor(node: GraphNode, classColors: ClassColor[], accentColor: string): string {
   if (node.color) return node.color;
   
-  if (node.types && node.types.length > 0 && typeColors.length > 0) {
-    const sortedTypeColors = [...typeColors].sort((a, b) => a.order - b.order);
-    for (const typeColor of sortedTypeColors) {
-      if (node.types.includes(typeColor.typeId)) {
-        return typeColor.color;
+  if (node.types && node.types.length > 0 && classColors.length > 0) {
+    const sortedClassColors = [...classColors].sort((a, b) => a.order - b.order);
+    for (const classColor of sortedClassColors) {
+      if (node.types.includes(classColor.typeId)) {
+        return classColor.color;
       }
     }
   }
@@ -234,32 +234,33 @@ function getNodeRadius(
   return NODE_RADIUS_MIN + ratio * (NODE_RADIUS_MAX - NODE_RADIUS_MIN);
 }
 
-function buildFullPath(
-  node: GraphNode,
-  nodes: GraphNode[]
-): string {
-  if (node.parentId === null) {
-    // Root page, just return name
-    return node.name;
-  }
-  
-  // Build path from root to current node
-  const path: string[] = [];
-  let currentId: number | null = node.id;
-  const visited = new Set<number>(); // Prevent infinite loops
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  
-  while (currentId !== null && !visited.has(currentId)) {
-    visited.add(currentId);
-    const currentNode = nodeMap.get(currentId);
-    if (!currentNode) break;
-    
-    path.unshift(currentNode.name);
-    currentId = currentNode.parentId;
-  }
-  
-  return path.join(' / ');
-}
+// Unused - kept for future reference
+// function buildFullPath(
+//   node: GraphNode,
+//   nodes: GraphNode[]
+// ): string {
+//   if (node.parentId === null) {
+//     // Root page, just return name
+//     return node.name;
+//   }
+//   
+//   // Build path from root to current node
+//   const path: string[] = [];
+//   let currentId: number | null = node.id;
+//   const visited = new Set<number>(); // Prevent infinite loops
+//   const nodeMap = new Map(nodes.map(n => [n.id, n]));
+//   
+//   while (currentId !== null && !visited.has(currentId)) {
+//     visited.add(currentId);
+//     const currentNode = nodeMap.get(currentId);
+//     if (!currentNode) break;
+//     
+//     path.unshift(currentNode.name);
+//     currentId = currentNode.parentId;
+//   }
+//   
+//   return path.join(' / ');
+// }
 
 // ==================== Component ====================
 
@@ -268,7 +269,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   links: inputLinks,
   viewMode = 'normal',
   settings = { linkCountAttraction: false, nodeSizeMode: 'uniform' },
-  typeColors = [],
+  classColors = [],
   showTypeNodes = true,
   currentNodeId = null,
   selectedNodeIds = [],
@@ -295,7 +296,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
-  const typeColorsRef = useRef(typeColors);
+  const classColorsRef = useRef(classColors);
   const showTypeNodesRef = useRef(showTypeNodes);
   const selectedNodeIdsRef = useRef(selectedNodeIds);
   const currentNodeIdRef = useRef(currentNodeId);
@@ -387,7 +388,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       const parentNodeIds = new Set(parentNodes.map(p => p.id));
       
-      const orphans = childNodes.filter(n => !parentNodeIds.has(n.parentId));
+      const orphans = childNodes.filter(n => n.parentId !== null && !parentNodeIds.has(n.parentId));
       orphans.forEach((node, i) => {
         const angle = (2 * Math.PI * i) / orphans.length + Math.PI;
         node.targetX = centerX + outerRadius * Math.cos(angle);
@@ -408,7 +409,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Keep refs in sync
   useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
-  useEffect(() => { typeColorsRef.current = typeColors; }, [typeColors]);
+  useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
   useEffect(() => { 
     showTypeNodesRef.current = showTypeNodes;
     // Recalculate positions when type node visibility changes (affects circle/tree layout)
@@ -769,7 +770,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const { width: w, height: h } = dimensions;
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
-    const currentTypeColors = typeColorsRef.current;
+    const currentClassColors = classColorsRef.current;
     const showTypes = showTypeNodesRef.current;
     const nodes = nodesRef.current;
     const links = linksRef.current;
@@ -910,7 +911,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const isDragging = node.id === draggedNodeId;
       const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
-      const nodeColor = getNodeColor(node, currentTypeColors, accentColor);
+      const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       
       // Draw shadow for dragged node
       if (isDragging && liftProgress > 0) {

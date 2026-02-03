@@ -1533,7 +1533,7 @@ function BlockInternal({
       
       {/* Block row - contains bullet and content on same line */}
       {/* For query blocks, this will be passed as leftElement to the toolbar */}
-      {!(hasQueryClass && openNode && showQueryResults) && (
+      {!(hasQueryClass && typeof openNode === 'function' && showQueryResults) && (
       <div className="block-row">
         {/* Bullet - drag handle, context menu anchor, collapse toggle */}
         {showBullet && (
