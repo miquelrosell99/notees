@@ -799,11 +799,22 @@ class NodeService:
         deleted_count = 0
         for row in rows:
             node_id = row['id']
+            # Check if node still exists (it may have been deleted as a descendant of another node)
+            exists = await pool.fetchrow("SELECT id FROM node WHERE id = $1 AND graph_id = $2", node_id, self._graph_id)
+            if not exists:
+                logger.info(f"[EMPTY_TRASH] Node {node_id} already deleted (was descendant of another trash node)")
+                continue
+            
             logger.info(f"[EMPTY_TRASH] Attempting to hard delete node {node_id}")
-            success = await self._node_repo.hard_delete(node_id)
-            logger.info(f"[EMPTY_TRASH] hard_delete({node_id}) returned {success}")
-            if success:
-                deleted_count += 1
+            try:
+                success = await self._node_repo.hard_delete(node_id)
+                logger.info(f"[EMPTY_TRASH] hard_delete({node_id}) returned {success}")
+                if success:
+                    deleted_count += 1
+            except PermissionError as e:
+                # Node may have been deleted as part of a parent cascade
+                logger.info(f"[EMPTY_TRASH] Skipping node {node_id}: {e}")
+                continue
         
         logger.info(f"[EMPTY_TRASH] Successfully deleted {deleted_count} of {len(rows)} nodes")
         return deleted_count

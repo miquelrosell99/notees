@@ -76,6 +76,8 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
     accessor: col.render 
       ? col.render 
       : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
+    // Disable automatic node cell rendering for name column since it uses Block component
+    renderNodeCell: col.key !== 'name',
   }));
 }
 
@@ -170,7 +172,7 @@ export function NodeTableView({
 
     return (
       <div className="node-table__name-cell">
-        <div className="node-table__block-wrapper">
+        <div className="node-table__name-content">
           <Block
             block={node}
             children={[]}
@@ -378,6 +380,8 @@ export function NodeTableView({
         depth={depth}
         className={`node-table-view ${className}`}
         getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
+        onNodeOpen={openNode}
+        onNodeOpenInSidebar={addSidebarCard}
       />
       
       {/* Context menu */}
