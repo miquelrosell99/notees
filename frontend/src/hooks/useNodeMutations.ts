@@ -589,6 +589,63 @@ export function useUpdateNode() {
   });
 }
 
+// Table class UUID for detecting table cells
+const TABLE_CLASS_UUID = '00000000-0000-0000-0001-000000000015';
+
+/**
+ * Helper to find a node in the query cache by ID
+ * Searches through all detail and page-content queries
+ */
+function findNodeInCache(queryClient: ReturnType<typeof useQueryClient>, nodeId: number): Node | null {
+  const queryCache = queryClient.getQueryCache();
+  
+  // Helper to recursively find node in tree
+  const findInTree = (node: Node): Node | null => {
+    if (node.id === nodeId) return node;
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findInTree(child);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  
+  // Search all detail queries
+  const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+  for (const query of detailQueries) {
+    const data = query.state.data as Node | undefined;
+    if (data) {
+      const found = findInTree(data);
+      if (found) return found;
+    }
+  }
+  
+  // Search all page-content queries
+  const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+  for (const query of pageContentQueries) {
+    const data = query.state.data as Node | undefined;
+    if (data) {
+      const found = findInTree(data);
+      if (found) return found;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Check if a node has the table class
+ */
+function hasTableClass(node: Node, allClasses: Node[] | undefined): boolean {
+  if (!node.classes || !allClasses) return false;
+  
+  const tableClass = allClasses.find(c => c.uuid === TABLE_CLASS_UUID);
+  if (!tableClass) return false;
+  
+  return node.classes.includes(tableClass.id);
+}
+
 /**
  * Hook to delete a node
  * 
@@ -597,16 +654,58 @@ export function useUpdateNode() {
  * - All ((uuid)) links are replaced with the block's text content
  * - Type/tag references are removed from properties but inline text remains
  * - If a page is deleted and it's currently being viewed, navigate to home
+ * - If the node is a table cell (grandparent has table class), a replacement cell is created
  */
 export function useDeleteNode() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (id: number) => {
-      // Fetch the node info before deleting so we can check if it's a page
-      const nodeData = queryClient.getQueryData<Node>(nodeKeys.detail(id, {}));
+    mutationFn: async (id: number): Promise<{ deletedNode: Node | undefined; tableCellInfo: { parentId: number; sequence: number } | null }> => {
+      // Fetch the node info before deleting
+      let nodeData = queryClient.getQueryData<Node>(nodeKeys.detail(id, {}));
+      
+      // If not found in direct cache, search in tree structures
+      if (!nodeData) {
+        nodeData = findNodeInCache(queryClient, id) ?? undefined;
+      }
+      
+      // Check if this is a table cell (grandparent has table class)
+      let tableCellInfo: { parentId: number; sequence: number } | null = null;
+      
+      if (nodeData && nodeData.parent_id) {
+        // Get the parent (column) from cache
+        const parentNode = findNodeInCache(queryClient, nodeData.parent_id);
+        
+        if (parentNode && parentNode.parent_id) {
+          // Get the grandparent (table) from cache
+          const grandparentNode = findNodeInCache(queryClient, parentNode.parent_id);
+          
+          // Check if grandparent has table class
+          const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
+          
+          if (grandparentNode && hasTableClass(grandparentNode, allClasses)) {
+            // This is a table cell! Save the info for replacement
+            tableCellInfo = {
+              parentId: nodeData.parent_id,
+              sequence: nodeData.sequence ?? 0,
+            };
+          }
+        }
+      }
+      
+      // Perform the deletion
       await nodesApi.deleteNode(id);
-      return nodeData; // Return the cached node data
+      
+      // If this was a table cell, create a replacement empty cell
+      if (tableCellInfo) {
+        await nodesApi.createNode({
+          name: '',
+          parent_id: tableCellInfo.parentId,
+          sequence: tableCellInfo.sequence,
+        });
+      }
+      
+      return { deletedNode: nodeData, tableCellInfo };
     },
     onMutate: async (deletedId) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
@@ -660,7 +759,7 @@ export function useDeleteNode() {
         }
       }
     },
-    onSuccess: async (deletedNode, deletedId) => {
+    onSuccess: async ({ deletedNode, tableCellInfo }, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
       // Use dynamic import to avoid circular dependency issues
       const { useNodesStore } = await import('@/stores');
@@ -678,6 +777,14 @@ export function useDeleteNode() {
       
       // Remove the deleted node's queries (all variations)
       queryClient.removeQueries({ queryKey: nodeKeys.detailBase(deletedId) });
+      
+      // If a table cell was replaced, invalidate the parent (column) to refresh
+      if (tableCellInfo) {
+        queryClient.invalidateQueries({ 
+          queryKey: nodeKeys.detailBase(tableCellInfo.parentId),
+          refetchType: 'active',
+        });
+      }
       
       // Remove from favorites and recents
       const { useFavoritesStore } = await import('@/stores');

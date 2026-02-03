@@ -108,6 +108,8 @@ interface BlockProps {
   suppressColor?: boolean;
   /** Custom context menu items to override default menu */
   customContextMenuItems?: ContextMenuItem[];
+  /** Whether this block is a table cell (prevents deletion, creates replacement cell instead) */
+  isTableCell?: boolean;
 }
 
 // Internal component function - use Block or MemoizedBlock exports
@@ -144,6 +146,7 @@ function BlockInternal({
   isolatedState = false,
   suppressColor = false,
   customContextMenuItems,
+  isTableCell = false,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -941,9 +944,17 @@ function BlockInternal({
   // Rules:
   // - Don't merge if current block has children
   // - Don't merge if block above is at a lower hierarchy level (deeper/child)
+  // - For table cells: don't delete, just clear content if any, otherwise do nothing
   // 
   // Level-agnostic: works at any nesting depth
   const handleBackspaceAtStart = useCallback((remainingText: string) => {
+    // Table cells should never be deleted - they maintain table structure
+    // If there's remaining text, we could optionally clear it, but for now just prevent deletion
+    if (isTableCell) {
+      // Table cells can't merge with other cells - just ignore backspace at start
+      return;
+    }
+    
     // Don't merge if current block has children
     if (children && children.length > 0) {
       return;
@@ -1109,13 +1120,19 @@ function BlockInternal({
     };
     
     executeMerge();
-  }, [block.id, block.parent_id, children, getNextBlockId, blockParentMapFromStore, parentId, parentBlock, siblings, updateNode, deleteNode, setBlockState, setPendingCaret]);
+  }, [block.id, block.parent_id, children, getNextBlockId, blockParentMapFromStore, parentId, parentBlock, siblings, updateNode, deleteNode, setBlockState, setPendingCaret, isTableCell]);
   
   // Handle Delete at end of block - merge next block's text into current
   // Rules:
   // - Don't merge if next block has children
   // - Don't merge if next block is at a higher hierarchy level (parent/ancestor)
+  // - For table cells: don't delete adjacent cells
   const handleDeleteAtEnd = useCallback(() => {
+    // Table cells should never merge/delete adjacent cells - they maintain table structure
+    if (isTableCell) {
+      return;
+    }
+    
     // Don't operate on optimistic blocks (negative IDs)
     if (block.id < 0) {
       console.warn('handleDeleteAtEnd: Cannot operate on optimistic block');
@@ -1241,7 +1258,7 @@ function BlockInternal({
     };
     
     executeMerge();
-  }, [block.id, block.name, children, siblings, getNextBlockId, blockParentMapFromStore, updateNode, deleteNode]);
+  }, [block.id, block.name, children, siblings, getNextBlockId, blockParentMapFromStore, updateNode, deleteNode, isTableCell]);
   
   // Handle Tab - indent block (move as child of previous sibling)
   const handleIndent = useCallback(() => {
