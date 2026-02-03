@@ -273,7 +273,7 @@ export function operatorNeedsValue(conditionType: string, operator: string): boo
 /**
  * Check if a condition type always uses nested groups
  */
-export function alwaysUsesNestedGroup(conditionType: string): boolean {
+export function alwaysUsesNestedGroup(_conditionType: string): boolean {
   // All conditions now support both static and dynamic modes
   return false;
 }

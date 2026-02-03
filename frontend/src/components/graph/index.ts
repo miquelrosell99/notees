@@ -19,7 +19,10 @@ export type { NodeToNodeLineProps, LineStyle, ArrowDirection } from './NodeToNod
 
 // Core components
 export { NodeGraphRenderer } from './NodeGraphRenderer';
-export type { NodeGraphRendererRef, GraphNode, GraphLink } from './NodeGraphRenderer';
+export type { NodeGraphRendererRef, GraphNode, GraphLink, GraphSettings, GraphViewMode } from './NodeGraphRenderer';
+
+// Re-export ClassColor from shared for convenience
+export type { ClassColor } from '../shared/ClassColorsPanel';
 
 export { NodeGraphView } from './NodeGraphView';
 export type { NodeGraphViewProps } from './NodeGraphView';
