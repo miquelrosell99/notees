@@ -11,9 +11,11 @@
  * - Supports adapting existing children to table layout
  */
 import { useCallback, useEffect, useState } from 'react';
+import { mdiTablePlus, mdiAutoFix } from '@mdi/js';
 import { TableSizeSelector, type TableSize } from './TableSizeSelector';
 import { Button } from './Button';
 import { Modal } from './Modal';
+import { SelectionButton } from './SelectionButton';
 
 export interface TableCreationModalProps {
   /** Whether the modal is open */
@@ -79,52 +81,45 @@ export function TableCreationModal({
     <Modal
       isOpen={isOpen}
       onClose={onCancel}
-      title={existingChildCount > 0 ? 'Convert to Table' : 'Insert Table'}
+      title={mode === 'adapt' ? 'Convert to Table' : 'Insert Table'}
       size="sm"
       closeOnBackdrop={true}
       closeOnEscape={true}
-      showCloseButton={false}
+      showCloseButton={true}
       footer={
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCancel}
-          >
-            Cancel
-          </Button>
-          {mode === 'adapt' && existingChildCount > 0 && (
-            <Button
-              variant="primary"
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+          {existingChildCount > 0 && (
+            <SelectionButton
+              value={mode}
+              onChange={(value) => setMode(value as 'select' | 'adapt')}
               size="sm"
-              onClick={handleAdaptConfirm}
-            >
-              Convert
-            </Button>
+              options={[
+                { value: 'adapt', icon: mdiAutoFix, label: 'Adapt existing blocks' },
+                { value: 'select', icon: mdiTablePlus, label: 'Create new table' },
+              ]}
+            />
           )}
-        </>
+          <div style={{ display: 'flex', gap: 'var(--spacing-2)', marginLeft: 'auto' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+            {mode === 'adapt' && existingChildCount > 0 && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleAdaptConfirm}
+              >
+                Convert
+              </Button>
+            )}
+          </div>
+        </div>
       }
     >
-      {/* Mode toggle when there are existing children */}
-      {existingChildCount > 0 && (
-        <div className="table-size-modal__mode-toggle">
-          <Button
-            variant={mode === 'adapt' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setMode('adapt')}
-          >
-            Adapt existing ({existingChildCount} blocks)
-          </Button>
-          <Button
-            variant={mode === 'select' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setMode('select')}
-          >
-            Create new table
-          </Button>
-        </div>
-      )}
-      
       {mode === 'adapt' && existingChildCount > 0 ? (
         <p className="table-size-modal__hint">
           Convert {existingChildCount} existing {existingChildCount === 1 ? 'block' : 'blocks'} into table columns.
