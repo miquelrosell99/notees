@@ -884,6 +884,7 @@ export function NodeTimelineRenderer({
               nodes={selectedEvent.nodes}
               viewMode="list"
               editable={false}
+              showTypes={true}
             />
           </div>
         </Card>
