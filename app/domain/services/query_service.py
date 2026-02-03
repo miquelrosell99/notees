@@ -140,6 +140,7 @@ class QuerySQLGenerator:
             LEFT JOIN node page ON page.id = n.page_id AND page.active = TRUE
             WHERE n.graph_id = {self._next_param(self._graph_id)}
               AND n.active = TRUE
+              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
         """
         
         if where_clause:
