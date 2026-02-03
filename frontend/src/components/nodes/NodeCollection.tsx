@@ -132,6 +132,8 @@ export interface NodeCollectionToolbarProps {
   toolbarPrefix?: React.ReactNode;
   /** Element to render at the very left of the toolbar (e.g., block element, collapsible header) */
   leftElement?: React.ReactNode;
+  /** Hide toolbar controls while keeping leftElement visible */
+  hideToolbarControls?: boolean;
   /** Additional CSS class */
   className?: string;
 }
@@ -159,6 +161,7 @@ export function NodeCollectionToolbar({
   onResetViews,
   toolbarPrefix,
   leftElement,
+  hideToolbarControls = false,
   className = '',
 }: NodeCollectionToolbarProps) {
   // Use store for card layout if not controlled
@@ -220,7 +223,7 @@ export function NodeCollectionToolbar({
   );
 
   // Check if we have any toolbar content (excluding leftElement)
-  const hasToolbarContent = showViewSwitcher || showGroupByButton || showAdd || showPropertyColumnSelector || toolbarPrefix;
+  const hasToolbarContent = !hideToolbarControls && (showViewSwitcher || showGroupByButton || showAdd || showPropertyColumnSelector || toolbarPrefix);
 
   // Don't render if nothing to show
   if (!leftElement && !hasToolbarContent) {
@@ -229,30 +232,33 @@ export function NodeCollectionToolbar({
 
   return (
     <div className={`node-collection-toolbar ${className}`}>
-      {/* Left element (block element, collapsible header, etc.) */}
+      {/* Left section - always visible when leftElement exists */}
       {leftElement && (
         <div className="node-collection-toolbar__left">
           {leftElement}
         </div>
       )}
       
-      {/* Custom prefix content */}
-      {toolbarPrefix}
-      
-      {/* Add Button */}
-      {showAdd && (
-        <Button
-          icon={mdiPlus}
-          variant="ghost"
-          size="sm"
-          onClick={onAdd}
-          title="Add"
-          className="node-collection-toolbar__add"
-        />
-      )}
-      
-      {/* Property Column Selector - only shown in table view */}
-      {showPropertyColumnSelector && (
+      {/* Right section - toolbar controls */}
+      {hasToolbarContent && (
+        <div className="node-collection-toolbar__right">
+          {/* Custom prefix content */}
+          {toolbarPrefix}
+          
+          {/* Add Button */}
+          {showAdd && (
+            <Button
+              icon={mdiPlus}
+              variant="ghost"
+              size="sm"
+              onClick={onAdd}
+              title="Add"
+              className="node-collection-toolbar__add"
+            />
+          )}
+          
+          {/* Property Column Selector - only shown in table view */}
+          {showPropertyColumnSelector && (
         <ButtonWithPanel
           icon={mdiTableColumn}
           variant="ghost"
@@ -351,6 +357,8 @@ export function NodeCollectionToolbar({
           className="node-collection-toolbar__reset-views"
         />
       )}
+        </div>
+      )}
     </div>
   );
 }
@@ -424,6 +432,9 @@ export function NodeCollection({
   suppressRootColor = false,
   hideToolbar = false,
   toolbarPrefix,
+  leftElement,
+  hideToolbarControls = false,
+  hideContent = false,
   showAddButton = false,
   onAdd,
   cardLayout,
@@ -499,8 +510,8 @@ export function NodeCollection({
   const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
   const showAdd = showAddButton && onAdd;
   
-  // Whether to show the internal toolbar
-  const showInternalToolbar = !hideToolbar && (showGroupByInToolbar || showViewSwitcher || showAdd);
+  // Whether to show the internal toolbar (show if we have leftElement OR toolbar controls)
+  const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || showAdd);
   
   // Enable grouping when groupBy is set (regardless of toolbar visibility)
   const enableGrouping = showGroupByProp && viewMode === 'list';
@@ -643,17 +654,22 @@ export function NodeCollection({
                 showAddButton={showAddButton}
                 onAdd={onAdd}
                 cardLayout={effectiveCardLayout}
-                onCardLayoutChange={onCardLayoutChange}                selectedPropertyUuids={selectedPropertyUuids}
+                onCardLayoutChange={onCardLayoutChange}
+                selectedPropertyUuids={selectedPropertyUuids}
                 onPropertyColumnsChange={handlePropertyColumnsChange}
                 toolbarPrefix={toolbarPrefix}
+                leftElement={leftElement}
+                hideToolbarControls={hideToolbarControls}
               />
             </div>
           )}
           
           {/* Content */}
-          <div className="node-collection__content">
-            {renderViewMode()}
-          </div>
+          {!hideContent && (
+            <div className="node-collection__content">
+              {renderViewMode()}
+            </div>
+          )}
         </div>
       )}
     </NodeCollectionContext.Provider>
