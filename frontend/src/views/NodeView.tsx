@@ -35,7 +35,7 @@ import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
-import { NodeViewSection, DynamicNodeViewSection } from '../components/nodes';
+import { NodeViewSection, QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
@@ -593,7 +593,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       
       {/* Show nodes that have this node as their class - only for class nodes */}
       {isClassNode && (
-        <DynamicNodeViewSection
+        <QuerySection
           nodeId={node.id}
           nodeUuid={node.uuid}
           viewType="classed_nodes"
@@ -608,7 +608,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       
       {/* Child pages section - shows pages that have this node as parent (pages only) */}
       {resolvedType === 'page' && (
-        <DynamicNodeViewSection
+        <QuerySection
           nodeId={node.id}
           nodeUuid={node.uuid}
           viewType="child_pages"
@@ -631,7 +631,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       )}
       
       {/* Linked References - shows all references to this node (universal for all nodes) */}
-      <DynamicNodeViewSection
+      <QuerySection
         nodeId={node.id}
         nodeUuid={node.uuid}
         viewType="linked_references"
