@@ -439,18 +439,6 @@ export function TableBlock({
     <div 
       className="table-block"
       ref={wrapperRef}
-      onContextMenu={(e) => {
-        // Check if right-click is on the header row checkbox area
-        const target = e.target as HTMLElement;
-        const headerCell = target.closest('.table-cell--header');
-        const headerRow = target.closest('.table-header .table-row');
-        const isCheckboxArea = headerCell?.querySelector('.checkbox') || target.closest('.checkbox');
-        
-        if (editable && headerRow && isCheckboxArea) {
-          e.preventDefault();
-          setHeaderRowContextMenu({ x: e.clientX, y: e.clientY });
-        }
-      }}
     >
       <Table<TableRowData>
         key={`table-${columns.length}-${columns.map(c => c.id).join('-')}`}
@@ -473,6 +461,9 @@ export function TableBlock({
             event.preventDefault();
             setHeaderContextMenu({ x: event.clientX, y: event.clientY, colIndex });
           }
+        } : undefined}
+        onHeaderCheckboxContextMenu={editable ? (event) => {
+          setHeaderRowContextMenu({ x: event.clientX, y: event.clientY });
         } : undefined}
         onRowContextMenu={editable ? (row, event) => {
           event.preventDefault();
