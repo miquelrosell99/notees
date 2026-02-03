@@ -251,6 +251,21 @@
   transition: padding 0.2s ease;
 }
 
+/* Collapsed indicator (three dots) */
+.node-card__collapsed-indicator {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  opacity: 0.5;
+  padding: 0.25rem;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.node-card__body--hover-reveal:hover .node-card__collapsed-indicator {
+  opacity: 0;
+}
+
 /* Content wrapper inside hover-reveal body */
 .node-card__body--hover-reveal .node-card__body-content {
   opacity: 0;
