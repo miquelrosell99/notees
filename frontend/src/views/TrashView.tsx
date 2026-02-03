@@ -14,7 +14,7 @@ import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { useState, useCallback } from 'react';
-import { Button } from '@/components/core';
+import { Button } from '../components/core/Button';
 import './TrashView.css';
 
 interface TrashViewProps {
