@@ -27,16 +27,8 @@ export function validateQueryAST(ast: QueryAST): ValidationResult {
   // Validate root group
   validateGroup(ast.root_group, ['root_group'], issues);
   
-  // Check for empty query (with safety check)
-  const hasChildren = Array.isArray(ast.root_group.children) && ast.root_group.children.length > 0;
-  if (!hasChildren) {
-    issues.push({
-      severity: 'warning',
-      message: 'Query has no conditions',
-      path: ['root_group'],
-      suggestion: 'Add at least one condition to filter results',
-    });
-  }
+  // Check for empty query (with safety check) - silently allowed
+  // const hasChildren = Array.isArray(ast.root_group.children) && ast.root_group.children.length > 0;
   
   return {
     valid: !issues.some(issue => issue.severity === 'error'),
@@ -69,14 +61,8 @@ function validateGroup(group: GroupNode, path: string[], issues: ValidationIssue
     return;
   }
   
-  // Empty group warning
+  // Empty group - silently allowed
   if (group.children.length === 0) {
-    issues.push({
-      severity: 'warning',
-      message: 'Empty condition group',
-      path,
-      suggestion: 'Add conditions to this group or remove it',
-    });
     return;
   }
   

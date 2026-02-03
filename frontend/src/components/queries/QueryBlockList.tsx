@@ -316,10 +316,10 @@ export function QueryBlockList({
   return (
     <div className={`query-block-list ${className}`}>
       {/* Empty state - only when no blocks, showing add button, and showEmptyMessage is true */}
-      {safeBlocks.length === 0 && showAddButton && showEmptyMessage && (
+      {safeBlocks.length === 0 && showAddButton && showEmptyMessage && readOnly && (
         <div className="query-block-list__empty">
           <p className="query-block-list__empty-message">
-            {readOnly ? 'No filters — all nodes will be shown' : 'Click "+ Add filter" to add conditions'}
+            No filters — all nodes will be shown
           </p>
         </div>
       )}
@@ -382,8 +382,8 @@ export function QueryBlockList({
         </div>
       )}
 
-      {/* Add filter button */}
-      {!readOnly && showAddButton && (
+      {/* Add filter button - show small button when there are blocks, big button when empty */}
+      {!readOnly && showAddButton && safeBlocks.length > 0 && (
         <div className="query-block-list__add">
           <ButtonWithPanel
             buttonText=""
@@ -401,6 +401,28 @@ export function QueryBlockList({
               icon: mdiPlus,
               iconOnly: true,
             }}
+            panelClassName="query-block-list__add-menu-panel"
+          >
+            {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
+          </ButtonWithPanel>
+        </div>
+      )}
+
+      {/* Big "Add condition" button when empty */}
+      {!readOnly && showAddButton && safeBlocks.length === 0 && (
+        <div className="query-block-list__empty-add">
+          <ButtonWithPanel
+            buttonText="+ Add condition"
+            variant="secondary"
+            size="md"
+            panelPosition="bottom"
+            panelAlignment="start"
+            panelWidth={280}
+            panelMaxHeight={400}
+            closeOnClickOutside={true}
+            closeOnEscape={true}
+            showCloseButton={false}
+            usePortal={true}
             panelClassName="query-block-list__add-menu-panel"
           >
             {(closePanel) => <AddFilterMenu categories={menuCategories} onItemClick={closePanel} />}
