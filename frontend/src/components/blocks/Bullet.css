@@ -9,10 +9,12 @@
 
 .bullet-wrapper {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  /* Align bullet dot with text baseline */
+  margin-top: 1px;
 }
 
 /* Expand hover area to include collapse arrow position */
