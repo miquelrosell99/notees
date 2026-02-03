@@ -178,6 +178,16 @@ export interface NodeCollectionProps {
   /** Custom content to render at the start of the toolbar */
   toolbarPrefix?: React.ReactNode;
   
+  /** Element to render at the left side of the toolbar (e.g., block element, collapsible header).
+   * Can be a ReactNode or a function that receives the result count for dynamic rendering. */
+  leftElement?: React.ReactNode | ((count: number) => React.ReactNode);
+  
+  /** Hide toolbar controls while keeping leftElement visible (for collapsed sections) */
+  hideToolbarControls?: boolean;
+  
+  /** Hide the content area while keeping toolbar visible (for collapsed sections) */
+  hideContent?: boolean;
+  
   /** Show "Add" button in the toolbar (default: false) */
   showAddButton?: boolean;
   

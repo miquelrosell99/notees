@@ -4,9 +4,12 @@
  * A section wrapper that combines QueryNodeCollection with NodeViewSection.
  * Used for displaying query-based sections on pages (linked refs, child pages, etc.)
  */
+import { useState, useCallback } from 'react';
 import { QueryNodeCollection } from './QueryNodeCollection';
-import { NodeViewSection } from './NodeViewSection';
+import { ChevronRightIcon, ChevronDownIcon } from '../icons';
+import { Button } from '../core/Button';
 import type { NodeViewType } from '@/types/query';
+import './NodeViewSection.css';
 
 export interface QuerySectionProps {
   /** The node ID to display views for */
@@ -43,6 +46,12 @@ export function QuerySection({
   onBlockCreated,
   className = '',
 }: QuerySectionProps): React.JSX.Element | null {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  
+  const handleToggle = useCallback(() => {
+    setIsExpanded(prev => !prev);
+  }, []);
+
   return (
     <QueryNodeCollection
       nodeId={nodeId}
@@ -51,6 +60,29 @@ export function QuerySection({
       onNodeClick={onNodeClick}
       onBlockCreated={onBlockCreated}
       showAddButton={viewType !== 'linked_references'}
+      hideToolbarControls={!isExpanded}
+      hideContent={!isExpanded}
+      leftElement={(count) => (
+        <div className="node-view-section__header-content" onClick={handleToggle}>
+          <Button 
+            variant="ghost"
+            size="xs"
+            className="node-view-section__toggle"
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
+          >
+            {isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
+          </Button>
+          
+          <div className="node-view-section__title-area">
+            {icon && <span className="node-view-section__icon">{icon}</span>}
+            <h3 className="node-view-section__title">{title}</h3>
+            {count !== undefined && (
+              <span className="node-view-section__count">({count})</span>
+            )}
+          </div>
+        </div>
+      )}
     >
       {({ results, count, isLoading }) => {
         // Hide section if empty and hideWhenEmpty is true
@@ -59,16 +91,10 @@ export function QuerySection({
         }
 
         return (
-          <NodeViewSection
-            title={title}
-            icon={icon}
-            count={count}
-            defaultExpanded={defaultExpanded}
-            hideWhenEmpty={false}
-            className={`query-section ${className}`}
-          >
+          <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} query-section ${className}`}>
+            {/* Always render results (includes toolbar with header) */}
             {results}
-          </NodeViewSection>
+          </section>
         );
       }}
     </QueryNodeCollection>
