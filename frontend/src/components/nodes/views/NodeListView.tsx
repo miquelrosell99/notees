@@ -15,16 +15,19 @@
  * - GroupBy support: groups blocks by page (pages shown as collapsed headers)
  */
 import { useCallback, useMemo, useState } from 'react';
+import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '../../core/ContextMenu';
 import { Block } from '../../blocks/Block';
 import { BlockPreview } from '../../blocks/BlockPreview';
 import { Bullet } from '../../blocks/Bullet';
+import { Button } from '../../core/Button';
 import { ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
+import { useNodesStore } from '@/stores/nodesStore';
 import { sortNodes, compareNodes } from '@/utils/sorting';
 import { findNodeById } from '@/utils/nodeTree';
 import './NodeListView.css';
@@ -397,6 +400,8 @@ function GroupHeader({
   customContextMenuItems,
 }: GroupHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const openNode = useNodesStore(state => state.openNode);
+  const addSidebarCard = useNodesStore(state => state.addSidebarCard);
   
   const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -433,6 +438,31 @@ function GroupHeader({
           <span className="node-list-group__no-page-label">
             {pageId !== null ? `Page #${pageId} (unavailable)` : 'Unknown Page'}
           </span>
+        )}
+        {/* Navigation buttons - shown on hover */}
+        {page && (
+          <div className="node-list-group__actions">
+            <Button
+              icon={mdiDockRight}
+              variant="ghost"
+              size="xs"
+              title="Open in sidebar"
+              onClick={(e) => {
+                e.stopPropagation();
+                addSidebarCard(page.id, page.is_page ? 'page' : 'block');
+              }}
+            />
+            <Button
+              icon={mdiArrowRight}
+              variant="ghost"
+              size="xs"
+              title="Open node"
+              onClick={(e) => {
+                e.stopPropagation();
+                openNode(page.id, page.is_page ? 'page' : 'block');
+              }}
+            />
+          </div>
         )}
       </div>
       
