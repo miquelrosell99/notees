@@ -486,3 +486,37 @@
   color: var(--color-error);
   border-color: var(--color-error);
 }
+
+/* Node cell with navigation buttons */
+.table-cell--node {
+  position: relative;
+}
+
+.table-node-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.table-node-cell__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-node-cell__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.table-row:hover .table-node-cell__actions,
+.table-node-cell__actions:focus-within {
+  opacity: 1;
+}

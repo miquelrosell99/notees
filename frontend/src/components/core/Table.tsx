@@ -10,14 +10,32 @@
  * - Expandable rows with nested children
  * - Drag-and-drop row reordering
  * - Depth-based row indentation
+ * - Automatic Node cell rendering with Block component and navigation buttons
  */
 import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } from 'react';
+import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import { Checkbox } from './Checkbox';
+import { Button } from './Button';
 import './Table.css';
 
 export type TableSize = 'sm' | 'md' | 'lg';
 export type TableVariant = 'default' | 'striped' | 'bordered';
 export type SortDirection = 'asc' | 'desc';
+
+/**
+ * Helper to detect if a value is a Node object
+ */
+function isNode(value: unknown): value is { id: number; uuid: string; name: string; is_page?: boolean; parent_id?: number | null } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'uuid' in value &&
+    'name' in value &&
+    typeof (value as any).id === 'number' &&
+    typeof (value as any).uuid === 'string'
+  );
+}
 
 /** Entry for multi-column sorting */
 export interface SortEntry {
@@ -42,6 +60,8 @@ export interface TableColumn<T> {
   align?: 'left' | 'center' | 'right';
   /** Whether to hide on mobile */
   hideOnMobile?: boolean;
+  /** Whether to auto-render Node cells with Block component and navigation buttons (default: true) */
+  renderNodeCell?: boolean;
 }
 
 /** Configuration for expandable rows */
@@ -113,6 +133,10 @@ export interface TableProps<T> {
   expandedKeys?: Set<string | number>;
   /** Callback when expanded keys change */
   onExpandedChange?: (keys: Set<string | number>) => void;
+  /** Callback when a node should be opened (for Node cell auto-rendering) */
+  onNodeOpen?: (nodeId: number, type: 'page' | 'block') => void;
+  /** Callback when a node should be opened in sidebar (for Node cell auto-rendering) */
+  onNodeOpenInSidebar?: (nodeId: number, type: 'page' | 'block') => void;
 }
 
 /** Default drag handle icon */
@@ -156,6 +180,8 @@ export function Table<T>({
   depth = 0,
   expandedKeys: controlledExpandedKeys,
   onExpandedChange: _onExpandedChange,
+  onNodeOpen,
+  onNodeOpenInSidebar,
 }: TableProps<T>) {
   // Multi-column sort state: array of { key, direction } in sort priority order
   const [sortColumns, setSortColumns] = useState<SortEntry[]>([]);
@@ -432,19 +458,57 @@ export function Table<T>({
           )}
           
           {/* Data columns */}
-          {columns.map((column) => (
-            <td
-              key={column.key}
-              className={[
-                'table-cell',
-                column.align ? `table-cell--${column.align}` : '',
-                column.hideOnMobile ? 'table-cell--hide-mobile' : '',
-              ].filter(Boolean).join(' ')}
-              style={{ width: column.width }}
-            >
-              {column.accessor(row)}
-            </td>
-          ))}
+          {columns.map((column) => {
+            const cellValue = column.accessor(row);
+            const shouldRenderNodeCell = column.renderNodeCell !== false && isNode(cellValue);
+            
+            return (
+              <td
+                key={column.key}
+                className={[
+                  'table-cell',
+                  column.align ? `table-cell--${column.align}` : '',
+                  column.hideOnMobile ? 'table-cell--hide-mobile' : '',
+                  shouldRenderNodeCell ? 'table-cell--node' : '',
+                ].filter(Boolean).join(' ')}
+                style={{ width: column.width }}
+              >
+                {shouldRenderNodeCell ? (
+                  <div className="table-node-cell">
+                    <span className="table-node-cell__name">{cellValue.name}</span>
+                    <div className="table-node-cell__actions">
+                      {onNodeOpenInSidebar && (
+                        <Button
+                          icon={mdiDockRight}
+                          variant="ghost"
+                          size="xs"
+                          title="Open in sidebar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNodeOpenInSidebar(cellValue.id, cellValue.is_page ? 'page' : 'block');
+                          }}
+                        />
+                      )}
+                      {onNodeOpen && (
+                        <Button
+                          icon={mdiArrowRight}
+                          variant="ghost"
+                          size="xs"
+                          title="Open node"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNodeOpen(cellValue.id, cellValue.is_page ? 'page' : 'block');
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  cellValue
+                )}
+              </td>
+            );
+          })}
         </tr>
         
         {/* Render children if expanded */}

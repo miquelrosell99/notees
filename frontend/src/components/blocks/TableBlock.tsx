@@ -31,10 +31,13 @@
  * - Row deletion: Removes corresponding cells from all columns
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { mdiClose, mdiArrowRight, mdiDockRight, mdiPlus } from '@mdi/js';
 import { useCreateNode, useUpdateNode, useDeleteNode } from '@/hooks';
+import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { Table, type TableColumn } from '../core/Table';
 import { Button } from '../core/Button';
+import { Block } from './Block';
 import { ContextMenu } from '../core/ContextMenu';
 import './TableBlock.css';
 
@@ -47,11 +50,6 @@ interface TableBlockProps {
   editable?: boolean;
   /** Called when table structure changes */
   onStructureChange?: () => void;
-}
-
-interface CellPosition {
-  rowIndex: number;
-  colIndex: number;
 }
 
 /**
@@ -96,9 +94,7 @@ export function TableBlock({
   editable = true,
   onStructureChange,
 }: TableBlockProps) {
-  // Editing state
-  const [editingCell, setEditingCell] = useState<CellPosition | null>(null);
-  const [editingValue, setEditingValue] = useState('');
+  // Editing state (only for headers now - cells edited via Block)
   const [editingHeader, setEditingHeader] = useState<number | null>(null);
   const [editingHeaderValue, setEditingHeaderValue] = useState('');
   
@@ -107,14 +103,10 @@ export function TableBlock({
   const [renameValue, setRenameValue] = useState('');
   const [showRenameSubmenu, setShowRenameSubmenu] = useState(false);
   
-  // Cell selection state (selected but not editing)
-  const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
-  
   // Selection state
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   
   // Refs
-  const inputRef = useRef<HTMLInputElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -122,6 +114,7 @@ export function TableBlock({
   const createNode = useCreateNode();
   const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
+  const { openNode, addSidebarCard } = useNodesStore();
 
   // Computed values
   const rowCount = useMemo(() => getRowCount(columns), [columns]);
@@ -280,6 +273,15 @@ export function TableBlock({
     setContextMenu(null);
   }, [contextMenu, handleDeleteColumn]);
 
+  // Header editing
+  const handleHeaderClick = useCallback((colIndex: number) => {
+    if (!editable) return;
+    
+    const column = columns[colIndex];
+    setEditingHeader(colIndex);
+    setEditingHeaderValue(column?.name ?? '');
+  }, [columns, editable]);
+
   // Create column definitions for Table component
   const tableColumns = useMemo<TableColumn<TableRowData>[]>(() => {
     return columns.map((col, colIndex) => ({
@@ -306,6 +308,7 @@ export function TableBlock({
                 {col.name || 'Untitled'}
               </span>
               <Button
+                icon={mdiClose}
                 variant="ghost"
                 size="xs"
                 onClick={(e) => {
@@ -314,52 +317,64 @@ export function TableBlock({
                 }}
                 title="Delete column"
                 className="table-delete-col-btn"
-              >
-                ×
-              </Button>
+              />
             </>
           )}
         </div>
       ) : (col.name || 'Untitled'),
       accessor: (row) => {
         const cell = row.cells[colIndex];
-        const isEditing = editingCell?.rowIndex === row.rowIndex && editingCell?.colIndex === colIndex;
-        const isCellSelected = selectedCell?.rowIndex === row.rowIndex && selectedCell?.colIndex === colIndex;
         
-        if (!editable) {
-          return <span className="table-cell-text">{cell?.name ?? ''}</span>;
-        }
+        // If no cell exists, return empty
+        if (!cell) return '';
 
+        // Always render Block component with navigation buttons
         return (
-          <div
-            className={`table-cell-content ${isCellSelected ? 'table-cell--focused' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCellClick(row.rowIndex, colIndex, e);
-            }}
-            onDoubleClick={() => handleCellDoubleClick(row.rowIndex, colIndex)}
+          <div 
+            className="table-block__cell"
           >
-            {isEditing ? (
-              <input
-                ref={inputRef}
-                type="text"
-                className="table-cell-input"
-                value={editingValue}
-                onChange={(e) => setEditingValue(e.target.value)}
-                onKeyDown={handleCellKeyDown}
-                onBlur={handleCellSave}
-                onClick={(e) => e.stopPropagation()}
+            <div className="table-block__cell-content">
+              <Block
+                block={cell}
+                children={[]}
+                siblings={[]}
+                depth={0}
+                parentId={cell.parent_id}
+                showBullet={false}
+                showTypes={false}
+                showQueryResults={false}
+                canEdit={editable}
+                canMove={false}
+                canSelect={false}
               />
-            ) : (
-              <span className="table-cell-text">
-                {cell?.name ?? ''}
-              </span>
-            )}
+            </div>
+            <div className="table-block__cell-actions">
+              <Button
+                icon={mdiDockRight}
+                variant="ghost"
+                size="xs"
+                title="Open in sidebar"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addSidebarCard(cell.id, cell.is_page ? 'page' : 'block');
+                }}
+              />
+              <Button
+                icon={mdiArrowRight}
+                variant="ghost"
+                size="xs"
+                title="Open node"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openNode(cell.id, cell.is_page ? 'page' : 'block');
+                }}
+              />
+            </div>
           </div>
         );
       },
     }));
-  }, [columns, editable, editingHeader, editingHeaderValue, editingCell, editingValue, selectedCell]);
+  }, [columns, editable, editingHeader, editingHeaderValue, openNode, addSidebarCard]);
 
   // Add actions column if editable
   const allColumns = useMemo<TableColumn<TableRowData>[]>(() => {
@@ -382,6 +397,7 @@ export function TableBlock({
         ),
         accessor: (row) => (
           <Button
+            icon={mdiClose}
             variant="ghost"
             size="sm"
             onClick={(e) => {
@@ -390,23 +406,14 @@ export function TableBlock({
             }}
             title="Delete row"
             className="table-delete-row-btn"
-          >
-            ×
-          </Button>
+          />
         ),
         width: '40px',
       },
     ];
-  }, [tableColumns, editable]);
+  }, [tableColumns, editable, handleAddColumn, handleDeleteRow]);
 
-  // Focus input when editing starts
-  useEffect(() => {
-    if (editingCell && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editingCell]);
-
+  // Focus input when editing starts (only for headers now)
   useEffect(() => {
     if (editingHeader !== null && headerInputRef.current) {
       headerInputRef.current.focus();
@@ -419,7 +426,6 @@ export function TableBlock({
     const handleClickOutside = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as globalThis.Node)) {
         setSelectedRows(new Set());
-        setSelectedCell(null);
       }
     };
     
@@ -428,168 +434,11 @@ export function TableBlock({
   }, []);
 
   // ==================== Cell Editing ====================
-
-  const handleCellClick = useCallback((rowIndex: number, colIndex: number, e: React.MouseEvent) => {
-    if (!editable) return;
-    
-    // If shift-clicking and we have selected rows, extend selection
-    if (e.shiftKey && selectedRows.size > 0) {
-      const minRow = Math.min(...selectedRows, rowIndex);
-      const maxRow = Math.max(...selectedRows, rowIndex);
-      const newSelection = new Set<number>();
-      for (let i = minRow; i <= maxRow; i++) {
-        newSelection.add(i);
-      }
-      setSelectedRows(newSelection);
-      setSelectedCell(null);
-      return;
-    }
-    
-    // If ctrl-clicking, toggle row selection
-    if (e.ctrlKey || e.metaKey) {
-      setSelectedRows(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(rowIndex)) {
-          newSet.delete(rowIndex);
-        } else {
-          newSet.add(rowIndex);
-        }
-        return newSet;
-      });
-      setSelectedCell(null);
-      return;
-    }
-    
-    // Clear row selection
-    setSelectedRows(new Set());
-    
-    // If clicking on already selected cell, start editing
-    if (selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex) {
-      const cellNode = getCellNode(columns, colIndex, rowIndex);
-      setEditingCell({ rowIndex, colIndex });
-      setEditingValue(cellNode?.name ?? '');
-      setSelectedCell(null);
-      return;
-    }
-    
-    // Otherwise, select the cell
-    setSelectedCell({ rowIndex, colIndex });
-    setEditingCell(null);
-  }, [columns, editable, selectedRows, selectedCell]);
-
-  // Double-click to directly edit
-  const handleCellDoubleClick = useCallback((rowIndex: number, colIndex: number) => {
-    if (!editable) return;
-    
-    setSelectedRows(new Set());
-    setSelectedCell(null);
-    const cellNode = getCellNode(columns, colIndex, rowIndex);
-    setEditingCell({ rowIndex, colIndex });
-    setEditingValue(cellNode?.name ?? '');
-  }, [columns, editable]);
-
-  const handleHeaderClick = useCallback((colIndex: number) => {
-    if (!editable) return;
-    
-    const column = columns[colIndex];
-    setEditingHeader(colIndex);
-    setEditingHeaderValue(column?.name ?? '');
-  }, [columns, editable]);
-
-  // Add cell to column with row sync
-  const handleAddCellToColumn = useCallback(async (
-    columnId: number,
-    rowIndex: number,
-    content: string = ''
-  ) => {
-    if (!editable) return;
-
-    // Create the cell in the target column
-    await createNode.mutateAsync({
-      name: content,
-      parent_id: columnId,
-      sequence: rowIndex,
-    });
-
-    // Check if we need to sync other columns (if this row is beyond their current length)
-    for (const column of columns) {
-      if (column.id === columnId) continue;
-      
-      const columnRowCount = column.children?.length ?? 0;
-      
-      // If this column has fewer rows, add empty cells to fill up
-      if (columnRowCount <= rowIndex) {
-        for (let i = columnRowCount; i <= rowIndex; i++) {
-          await createNode.mutateAsync({
-            name: '',
-            parent_id: column.id,
-            sequence: i,
-          });
-        }
-      }
-    }
-
-    onStructureChange?.();
-  }, [editable, createNode, columns, onStructureChange]);
-
-  const handleCellSave = useCallback(async () => {
-    if (!editingCell) return;
-
-    const { rowIndex, colIndex } = editingCell;
-    const column = columns[colIndex];
-    if (!column) return;
-
-    const existingCell = getCellNode(columns, colIndex, rowIndex);
-
-    if (existingCell) {
-      // Update existing cell
-      if (existingCell.name !== editingValue) {
-        await updateNode.mutateAsync({
-          id: existingCell.id,
-          data: { name: editingValue },
-        });
-      }
-    } else if (editingValue.trim()) {
-      // Create new cell - this will trigger row sync
-      await handleAddCellToColumn(column.id, rowIndex, editingValue);
-    }
-
-    setEditingCell(null);
-    setEditingValue('');
-  }, [editingCell, columns, editingValue, updateNode, handleAddCellToColumn]);
+  // Cell editing is now handled directly by Block component (canEdit={editable})
+  // Only keep row selection for multi-row operations
 
   // ==================== Keyboard Navigation ====================
-
-  const handleCellKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!editingCell) return;
-
-    switch (e.key) {
-      case 'Enter':
-        e.preventDefault();
-        handleCellSave();
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setEditingCell(null);
-        setEditingValue('');
-        break;
-      case 'Tab':
-        e.preventDefault();
-        handleCellSave().then(() => {
-          const nextCol = e.shiftKey ? editingCell.colIndex - 1 : editingCell.colIndex + 1;
-          if (nextCol >= 0 && nextCol < colCount) {
-            const cellNode = getCellNode(columns, nextCol, editingCell.rowIndex);
-            setEditingCell({ rowIndex: editingCell.rowIndex, colIndex: nextCol });
-            setEditingValue(cellNode?.name ?? '');
-          } else if (!e.shiftKey && editingCell.rowIndex < rowCount - 1) {
-            const cellNode = getCellNode(columns, 0, editingCell.rowIndex + 1);
-            setEditingCell({ rowIndex: editingCell.rowIndex + 1, colIndex: 0 });
-            setEditingValue(cellNode?.name ?? '');
-          }
-        });
-        break;
-    }
-  }, [editingCell, handleCellSave, colCount, rowCount, columns]);
+  // No longer needed - Block handles editing internally
 
   // Delete selected rows handler (defined early for use in effect)
   const handleDeleteSelectedRows = useCallback(async () => {
@@ -612,106 +461,6 @@ export function TableBlock({
     onStructureChange?.();
   }, [editable, selectedRows, columns, deleteNode, onStructureChange]);
 
-  // Delete cell with replacement (defined early for use in effect)
-  const handleDeleteCell = useCallback(async (rowIndex: number, colIndex: number) => {
-    if (!editable) return;
-
-    const column = columns[colIndex];
-    if (!column) return;
-
-    const cell = getCellNode(columns, colIndex, rowIndex);
-    if (!cell) return;
-
-    // Delete the cell
-    await deleteNode.mutateAsync(cell.id);
-
-    // Create a new empty cell in its place
-    await createNode.mutateAsync({
-      name: '',
-      parent_id: column.id,
-      sequence: rowIndex,
-    });
-
-    onStructureChange?.();
-  }, [editable, columns, deleteNode, createNode, onStructureChange]);
-
-  // Global keyboard handler for selected rows and cells
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle if editing
-      if (editingCell || editingHeader !== null) return;
-      
-      // Handle selected cell
-      if (selectedCell) {
-        switch (e.key) {
-          case 'Delete':
-          case 'Backspace':
-            e.preventDefault();
-            handleDeleteCell(selectedCell.rowIndex, selectedCell.colIndex);
-            setSelectedCell(null);
-            break;
-          case 'Escape':
-            e.preventDefault();
-            setSelectedCell(null);
-            break;
-          case 'Enter':
-            e.preventDefault();
-            // Start editing the selected cell
-            const cellNode = getCellNode(columns, selectedCell.colIndex, selectedCell.rowIndex);
-            setEditingCell({ rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex });
-            setEditingValue(cellNode?.name ?? '');
-            setSelectedCell(null);
-            break;
-          case 'ArrowUp':
-            e.preventDefault();
-            if (selectedCell.rowIndex > 0) {
-              setSelectedCell({ rowIndex: selectedCell.rowIndex - 1, colIndex: selectedCell.colIndex });
-            }
-            break;
-          case 'ArrowDown':
-            e.preventDefault();
-            if (selectedCell.rowIndex < rowCount - 1) {
-              setSelectedCell({ rowIndex: selectedCell.rowIndex + 1, colIndex: selectedCell.colIndex });
-            }
-            break;
-          case 'ArrowLeft':
-            e.preventDefault();
-            if (selectedCell.colIndex > 0) {
-              setSelectedCell({ rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex - 1 });
-            }
-            break;
-          case 'ArrowRight':
-            e.preventDefault();
-            if (selectedCell.colIndex < colCount - 1) {
-              setSelectedCell({ rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex + 1 });
-            }
-            break;
-        }
-        return;
-      }
-      
-      // Handle selected rows
-      if (selectedRows.size > 0) {
-        switch (e.key) {
-          case 'Delete':
-          case 'Backspace':
-            e.preventDefault();
-            handleDeleteSelectedRows();
-            break;
-          case 'Escape':
-            e.preventDefault();
-            setSelectedRows(new Set());
-            break;
-        }
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedRows, selectedCell, editingCell, editingHeader, handleDeleteSelectedRows, handleDeleteCell, columns, rowCount, colCount]);
-
-  // ==================== Column Operations ====================
-
   // ==================== Render ====================
 
   // Render empty state if no columns
@@ -723,14 +472,13 @@ export function TableBlock({
         </div>
         {editable && (
           <Button
+            icon={mdiPlus}
             variant="primary"
             size="md"
             onClick={handleAddColumn}
             className="table-block__add-column-btn table-block__add-column-btn--square"
             title="Add Column"
-          >
-            +
-          </Button>
+          />
         )}
       </div>
     );
@@ -741,10 +489,6 @@ export function TableBlock({
       className="table-block"
       ref={wrapperRef}
     >
-      {block.name && (
-        <div className="table-block__title">{block.name}</div>
-      )}
-      
       <Table<TableRowData>
         data={tableData}
         columns={allColumns}
@@ -763,6 +507,8 @@ export function TableBlock({
         hoverable={true}
         showHeader={true}
         className="table-block__table"
+        onNodeOpen={openNode}
+        onNodeOpenInSidebar={addSidebarCard}
       />
       
       {/* Add row button */}

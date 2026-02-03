@@ -50,6 +50,40 @@
   background: var(--color-primary-hover);
 }
 
+/* Table cell styles with Block component and action buttons */
+.table-block__cell {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 2rem;
+  padding: var(--spacing-1) 0;
+}
+
+.table-block__cell-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.table-block__cell-actions {
+  display: flex;
+  gap: var(--spacing-1);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+  /* Reserve space even when hidden to prevent layout shift */
+  min-width: calc(2 * (var(--spacing-1) + 24px + var(--spacing-1)));
+}
+
+.table-block__cell:hover .table-block__cell-actions {
+  opacity: 1;
+}
+
+/* Hide buttons when cell is being edited, but maintain space */
+.table-block__cell:has(.block--editing) .table-block__cell-actions {
+  visibility: hidden;
+  opacity: 0;
+}
+
 /* Custom table element styles for editable features */
 .table-block__table .table-cell--header {
   position: relative;
