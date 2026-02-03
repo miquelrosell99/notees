@@ -84,6 +84,26 @@ export function TableCreationModal({
       closeOnBackdrop={true}
       closeOnEscape={true}
       showCloseButton={false}
+      footer={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          {mode === 'adapt' && existingChildCount > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleAdaptConfirm}
+            >
+              Convert
+            </Button>
+          )}
+        </>
+      }
     >
       {/* Mode toggle when there are existing children */}
       {existingChildCount > 0 && (
@@ -106,28 +126,10 @@ export function TableCreationModal({
       )}
       
       {mode === 'adapt' && existingChildCount > 0 ? (
-        <>
-          <p className="table-size-modal__hint">
-            Convert {existingChildCount} existing {existingChildCount === 1 ? 'block' : 'blocks'} into table columns.
-            Their children will become cells, balanced across all columns.
-          </p>
-          <div className="table-size-modal__actions">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleAdaptConfirm}
-            >
-              Convert
-            </Button>
-          </div>
-        </>
+        <p className="table-size-modal__hint">
+          Convert {existingChildCount} existing {existingChildCount === 1 ? 'block' : 'blocks'} into table columns.
+          Their children will become cells, balanced across all columns.
+        </p>
       ) : (
         <>
           <p className="table-size-modal__hint">
@@ -139,15 +141,6 @@ export function TableCreationModal({
             onSelect={handleSelect}
             hintText="Hover to preview, click to insert"
           />
-          <div className="table-size-modal__actions">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-          </div>
         </>
       )}
     </Modal>
