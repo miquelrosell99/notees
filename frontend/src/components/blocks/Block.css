@@ -517,6 +517,23 @@
   font-weight: 500;
 }
 
+/* Table view mode toggle - right-aligned in block row */
+.block .block-table-toggle {
+  margin-left: var(--spacing-2);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  flex-shrink: 0;
+}
+
+.block:hover .block-table-toggle,
+.block:focus-within .block-table-toggle {
+  opacity: 0.7;
+}
+
+.block .block-table-toggle:hover {
+  opacity: 1;
+}
+
 /* Empty block - maintains width without placeholder text */
 .block-content-view--empty {
   min-height: 24px;
