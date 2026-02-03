@@ -20,6 +20,7 @@ import {
   useDeleteNodeView,
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
+import { useClasses } from '@/hooks/useNodeQueries';
 import type { NodeView, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
@@ -43,6 +44,63 @@ import { useNodesStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
 import './DynamicNodeViewSection.css';
 import './QueryPreview.css';
+
+// ==================== Helper Functions ====================
+
+/**
+ * Render prose text with clickable markdown links
+ */
+function renderProseWithLinks(text: string, onLinkClick: (uuid: string) => void): React.ReactNode {
+  // Match markdown links: [text](uuid)
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    // Add text before the link
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+
+    // Add the link
+    const linkText = match[1];
+    const uuid = match[2];
+    parts.push(
+      <a
+        key={match.index}
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          onLinkClick(uuid);
+        }}
+        style={{
+          color: 'var(--color-primary)',
+          textDecoration: 'none',
+          cursor: 'pointer',
+          borderBottom: '1px solid var(--color-primary)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.textDecoration = 'underline';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.textDecoration = 'none';
+        }}
+      >
+        {linkText}
+      </a>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
 
 // ==================== Types ====================
 
@@ -126,6 +184,7 @@ export function QueryNodeCollection({
   // Get persisted view mode from store
   const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
   const setNodeViewMode = useNodesStore(state => state.setNodeViewMode);
+  const openNode = useNodesStore(state => state.openNode);
   const persistedViewMode = getNodeViewMode(nodeId);
   
   const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>(
@@ -178,6 +237,9 @@ export function QueryNodeCollection({
   const deleteViewMutation = useDeleteNodeView();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
+  
+  // Fetch all classes for prose rendering
+  const { data: allClasses = [] } = useClasses();
 
   // Determine active view
   const activeView = useMemo(() => {
@@ -295,13 +357,27 @@ export function QueryNodeCollection({
 
   // Build nodesMap for prose rendering
   const nodesMap = useMemo(() => {
-    if (!previewResults) return undefined;
     const map = new Map();
-    previewResults.forEach(node => {
+    // Add preview results
+    if (previewResults) {
+      previewResults.forEach(node => {
+        map.set(node.uuid, node);
+      });
+    }
+    // Add all classes/types so they can be referenced by UUID
+    allClasses.forEach(node => {
       map.set(node.uuid, node);
     });
     return map;
-  }, [previewResults]);
+  }, [previewResults, allClasses]);
+
+  // Handle clicking on a node link in prose preview
+  const handleNodeLinkClick = useCallback((uuid: string) => {
+    const node = nodesMap.get(uuid);
+    if (node) {
+      openNode(node.id, node.is_page ? 'page' : 'block');
+    }
+  }, [nodesMap, openNode]);
 
   // Handlers
   const handleEditView = useCallback((view: NodeView) => {
@@ -660,7 +736,7 @@ export function QueryNodeCollection({
                 backgroundColor: 'var(--bg-secondary)',
                 borderRadius: '4px'
               }}>
-                {getQueryIntent(editAST, nodesMap)}
+                {renderProseWithLinks(getQueryIntent(editAST, nodesMap), handleNodeLinkClick)}
               </div>
             </div>
 
