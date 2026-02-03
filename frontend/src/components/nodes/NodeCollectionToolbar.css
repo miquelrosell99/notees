@@ -43,12 +43,34 @@
   margin-left: auto;
 }
 
+.node-collection-toolbar__add {
+  align-self: center;
+}
+
+.node-collection-toolbar__property-columns {
+  align-self: center;
+}
+
 .node-collection-toolbar__group-by {
   /* GroupBy button */
+  align-self: center;
+}
+
+.node-collection-toolbar__card-layout-selector {
+  align-self: center;
+}
+
+.node-collection-toolbar__card-size-selector {
+  align-self: center;
 }
 
 .node-collection-toolbar__view-switcher {
   /* View mode switcher */
+  align-self: center;
+}
+
+.node-collection-toolbar__reset-views {
+  align-self: center;
 }
 
 .node-collection-toolbar__card-size-slider {
