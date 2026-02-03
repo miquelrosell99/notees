@@ -8,13 +8,14 @@
   display: flex;
   align-items: center;
   width: 100%;
+  gap: var(--spacing-2);
 }
 
 /* Left section - header/block element */
 .node-collection-toolbar__left {
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
 }
 

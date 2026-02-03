@@ -542,17 +542,18 @@ export function NodeCollection({
     customContextMenuItems,
   };
 
-  // Empty state
-  if (nodes.length === 0 && showEmpty) {
-    return (
-      <div className={`node-collection node-collection--empty ${className}`}>
-        <div className="node-collection__empty-message">{emptyMessage}</div>
-      </div>
-    );
-  }
+  // Check if empty
+  const isEmpty = nodes.length === 0 && showEmpty;
 
   // Render based on view mode
   const renderViewMode = () => {
+    // Empty state content
+    if (isEmpty) {
+      return (
+        <div className="node-collection__empty-message">{emptyMessage}</div>
+      );
+    }
+    
     switch (viewMode) {
       case 'list':
         return (
@@ -640,7 +641,7 @@ export function NodeCollection({
   return (
     <NodeCollectionContext.Provider value={contextValue}>
       {wrapWithCallbacks(
-        <div className={`node-collection node-collection--${viewMode} ${className}`}>
+        <div className={`node-collection node-collection--${viewMode} ${isEmpty ? 'node-collection--empty' : ''} ${className}`}>
           {/* Header with GroupBy and View Mode Switcher - hidden when hideToolbar is true */}
           {showInternalToolbar && (
             <div className="node-collection__header">
