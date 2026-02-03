@@ -32,7 +32,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { mdiArrowRight, mdiDockRight, mdiPlus } from '@mdi/js';
-import { useCreateNode, useDeleteNode } from '@/hooks';
+import { useCreateNode, useDeleteNode, useContentSave } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { Table, type TableColumn } from '../core/Table';
@@ -122,6 +122,7 @@ export function TableBlock({
   const createNode = useCreateNode();
   const deleteNode = useDeleteNode();
   const { openNode, addSidebarCard } = useNodesStore();
+  const { handleContentChange } = useContentSave();
 
   // Computed values
   const rowCount = useMemo(() => getRowCount(columns), [columns]);
@@ -410,6 +411,7 @@ export function TableBlock({
                 canMove={false}
                 canSelect={false}
                 isTableCell={true}
+                onContentChange={handleContentChange}
               />
             </div>
             <div className="table-block__cell-actions">
