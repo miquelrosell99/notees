@@ -266,12 +266,15 @@ export function QueryNodeCollection({
     return defaultView ?? views[0] ?? null;
   }, [views, activeViewId]);
 
-  // Count filter blocks for badge
+  // Count filter blocks for badge (excludes system query blocks)
   const filterBlockCount = useMemo(() => {
     const ast = activeView?.query_ast;
     if (!ast || typeof ast !== 'object' || ast.type !== 'query') return 0;
-    return countConditions(ast);
-  }, [activeView]);
+    // Apply auto-fix to ensure system conditions have proper capabilities marked
+    // before counting (capabilities may be lost after backend round-trip)
+    const fixedAST = autoFixSystemQuery(ast, viewType, { nodeUuid });
+    return countConditions(fixedAST);
+  }, [activeView, viewType, nodeUuid]);
 
   // Create SelectionButton options from views
   const viewOptions = useMemo(() => {
