@@ -267,7 +267,6 @@ export function PropertiesSection({
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
-  const [propertyPopupPosition, setPropertyPopupPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [configPanelPosition, setConfigPanelPosition] = useState<{ x: number; y: number } | undefined>();
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
@@ -411,13 +410,13 @@ export function PropertiesSection({
       onSuccess: (newProperty) => {
         // Add the property to this node with empty value
         setPropertyMutation.mutate({ nodeId, propertyId: newProperty.id, value: '' });
-        // Open config panel to edit the newly created property
-        setConfigPanelPosition({ x: propertyPopupPosition.left, y: propertyPopupPosition.top });
+        // Open config panel to edit the newly created property (positioned at center of screen)
+        setConfigPanelPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
         setEditingProperty(newProperty);
         setShowConfigPanel(true);
       },
     });
-  }, [createPropertyMutation, setPropertyMutation, nodeId, propertyPopupPosition]);
+  }, [createPropertyMutation, setPropertyMutation, nodeId]);
 
   // Handler for clicking on a property name to edit it
   const handlePropertyNameClick = useCallback((property: Property, event: React.MouseEvent) => {
@@ -499,15 +498,11 @@ export function PropertiesSection({
     return (
       <section className={`properties-view ${variantClass} ${className}`}>
         {showAddProperty && !readOnly && (
-          <>
+          <div className="properties-add-wrapper">
             <Button 
               icon={mdiPlus}
               className="properties-add-btn" 
-              onClick={(e) => {
-                const rect = (e.target as HTMLElement).getBoundingClientRect();
-                setPropertyPopupPosition({ top: rect.bottom + 4, left: rect.left });
-                setShowPropertyPopup(true);
-              }}
+              onClick={() => setShowPropertyPopup(!showPropertyPopup)}
               title="Add property"
               size="sm"
               variant="ghost"
@@ -516,13 +511,12 @@ export function PropertiesSection({
             </Button>
             <PropertySuggestionPopup
               isOpen={showPropertyPopup}
-              position={propertyPopupPosition}
               onClose={() => setShowPropertyPopup(false)}
               onSelect={handleSelectProperty}
               onCreate={handleCreateNewProperty}
               excludeIds={appliedPropertyIds}
             />
-          </>
+          </div>
         )}
       </section>
     );
@@ -658,33 +652,26 @@ export function PropertiesSection({
 
         {/* Add property button */}
         {showAddProperty && !readOnly && (
-          <div className="properties-add">
+          <div className="properties-add-wrapper">
             <Button 
               icon={mdiPlus}
               className="properties-add-btn" 
-              onClick={(e) => {
-                const rect = (e.target as HTMLElement).getBoundingClientRect();
-                setPropertyPopupPosition({ top: rect.bottom + 4, left: rect.left });
-                setShowPropertyPopup(true);
-              }}
+              onClick={() => setShowPropertyPopup(!showPropertyPopup)}
               title="Add property"
               size="xs"
               variant="ghost"
             >
               Add property
             </Button>
+            <PropertySuggestionPopup
+              isOpen={showPropertyPopup}
+              onClose={() => setShowPropertyPopup(false)}
+              onSelect={handleSelectProperty}
+              onCreate={handleCreateNewProperty}
+              excludeIds={appliedPropertyIds}
+            />
           </div>
         )}
-
-        {/* Property Suggestion Popup */}
-        <PropertySuggestionPopup
-          isOpen={showPropertyPopup}
-          position={propertyPopupPosition}
-          onClose={() => setShowPropertyPopup(false)}
-          onSelect={handleSelectProperty}
-          onCreate={handleCreateNewProperty}
-          excludeIds={appliedPropertyIds}
-        />
 
         {/* Property Config Panel */}
         <PropertyConfigPanel
