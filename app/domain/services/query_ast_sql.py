@@ -213,6 +213,7 @@ class QueryASTToSQL:
         """Generate SQL for class condition.
         
         Uses the class_ids array column in the node table to find nodes with a specific class.
+        Also includes nodes whose classes extend the target class (inheritance).
         Similar to ParentCondition, supports {current_node_uuid} placeholder.
         """
         from app.logging_config import get_logger
@@ -234,9 +235,25 @@ class QueryASTToSQL:
         param_name = self._add_param(condition.class_uuid)
         logger.debug(f"Generating class condition SQL with uuid={condition.class_uuid}")
         
-        # Query nodes that have this class in their class_ids array
+        # Query nodes that have this class OR any class that extends this class (recursively)
+        # Uses a recursive CTE to find all child classes that extend the target class
         return f"""(
-            (SELECT id FROM node WHERE uuid = %({param_name})s::uuid AND graph_id = %(graph_id)s) = ANY(n.class_ids)
+            EXISTS (
+                SELECT 1 FROM (
+                    -- Get the target class ID
+                    WITH RECURSIVE class_hierarchy AS (
+                        -- Base case: the target class itself
+                        SELECT id FROM node WHERE uuid = %({param_name})s::uuid AND graph_id = %(graph_id)s
+                        UNION
+                        -- Recursive case: classes that extend any class in the hierarchy
+                        SELECT ce.target_id
+                        FROM class_extend ce
+                        INNER JOIN class_hierarchy ch ON ce.source_id = ch.id
+                    )
+                    SELECT id FROM class_hierarchy
+                ) AS matching_classes
+                WHERE matching_classes.id = ANY(n.class_ids)
+            )
         )"""
     
     def _generate_property_condition(self, condition: PropertyCondition) -> Optional[str]:
