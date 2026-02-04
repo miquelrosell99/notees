@@ -40,9 +40,11 @@ interface ContextMenuProps {
   title?: string;
   /** Active/anchor item for positioning reference */
   activeItem?: string;
+  /** Optional container ref - clicks inside this container won't close the menu */
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
-export function ContextMenu({ items, position, onClose, title, activeItem }: ContextMenuProps) {
+export function ContextMenu({ items, position, onClose, title, activeItem, containerRef }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -57,6 +59,10 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
       // Don't close if clicking inside submenu
       const submenuEl = document.querySelector('.context-menu-submenu');
       if (submenuEl && submenuEl.contains(e.target as Node)) {
+        return;
+      }
+      // Don't close if clicking inside container (e.g., color picker row)
+      if (containerRef?.current && containerRef.current.contains(e.target as Node)) {
         return;
       }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -104,7 +110,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem }: Con
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose, navigableItems, focusedIndex]);
+  }, [onClose, navigableItems, focusedIndex, containerRef]);
 
   // Adjust position to stay within viewport
   const adjustedPosition = useCallback(() => {

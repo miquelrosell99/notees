@@ -250,6 +250,7 @@ export function BlockContent({
   }, [blockId, trackLinkClick]);
 
   const handleColorChange = useCallback((nodeId: number, color: string | null) => {
+    console.log('[BlockContent] handleColorChange called:', { nodeId, color });
     updateNode.mutate({ id: nodeId, data: { color } });
   }, [updateNode]);
 

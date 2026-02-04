@@ -47,11 +47,13 @@ export function MainContent() {
   
   // Compute color styles for nodes (gradient border + tint) - applies to both pages and focused blocks
   const nodeColorStyle = useMemo(() => {
+    // Debug log - remove after fixing
+    console.log('[MainContent] currentNode:', currentNodeId, 'color:', currentNode?.color, 'rawColor:', JSON.stringify(currentNode?.color));
     if (!currentNode || !currentNode.color) {
       return undefined;
     }
     return getNodeColorStyles(currentNode.color, isDarkMode);
-  }, [currentNode, isDarkMode]);
+  }, [currentNode, isDarkMode, currentNodeId]);
   
   // Render different views based on mainViewType
   if (mainViewType === 'all-pages') {
