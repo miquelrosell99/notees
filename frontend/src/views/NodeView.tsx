@@ -549,7 +549,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             {/* Row 2: Extends (only for classes) */}
             {node.is_class && (
               <div className="page-header-section__extends">
-                <div className="section-label">Extends</div>
+                <div className="section-label">Extends:</div>
                 <NodePillRow
                   nodes={extendsDetails}
                   searchMode="classes"
@@ -566,7 +566,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             
             {/* Row 3: Tags */}
             <div className="page-header-section__tags">
-              <div className="section-label">Tags</div>
+              <div className="section-label">Tags:</div>
               <NodePillRow
                 nodes={pageTagDetails}
                 searchMode="tags"
