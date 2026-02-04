@@ -129,6 +129,8 @@ export interface QueryNodeCollectionProps {
   hideContent?: boolean;
   /** Hide view management controls (view selector, filter button, add view button) */
   hideViewManagement?: boolean;
+  /** Whether to show class pills in list view (default: true) */
+  showClasses?: boolean;
   
   // ==================== Capability Props ====================
   
@@ -168,6 +170,7 @@ export function QueryNodeCollection({
   hideToolbarControls = false,
   hideContent = false,
   hideViewManagement = false,
+  showClasses = true,
   can_create = true,
   can_edit = true,
   can_delete = true,
@@ -635,7 +638,7 @@ export function QueryNodeCollection({
           can_edit={can_edit}
           can_delete={can_delete}
           pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
-          showClasses={true}
+          showClasses={showClasses}
           selectedPropertyUuids={selectedPropertyUuids}
           onPropertyColumnsChange={handlePropertyColumnsChange}
           onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
