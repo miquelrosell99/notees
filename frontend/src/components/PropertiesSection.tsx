@@ -316,9 +316,8 @@ export function PropertiesSection({
       if (prop.uuid === SYSTEM_PROPERTY_UUIDS.banner) continue;
       
       // Get value from node properties if it exists
-      const key = prop.name.toLowerCase().replace(/\s+/g, '_');
-      const value = node?.properties && key in (node.properties as Record<string, unknown>)
-        ? (node.properties as Record<string, unknown>)[key]
+      const value = node?.properties && String(prop.id) in (node.properties as Record<string, unknown>)
+        ? (node.properties as Record<string, unknown>)[String(prop.id)]
         : classProp.default_value ?? null;
       
       entries.push({
@@ -341,11 +340,10 @@ export function PropertiesSection({
         // Skip the system 'Banner' property - it has its own UI element (BannerImage)
         if (prop.uuid === SYSTEM_PROPERTY_UUIDS.banner) continue;
         
-        const key = prop.name.toLowerCase().replace(/\s+/g, '_');
-        if (key in (node.properties as Record<string, unknown>)) {
+        if (String(prop.id) in (node.properties as Record<string, unknown>)) {
           entries.push({
             property: prop,
-            value: (node.properties as Record<string, unknown>)[key],
+            value: (node.properties as Record<string, unknown>)[String(prop.id)],
             hidden: false,
           });
           addedPropertyIds.add(prop.id);
