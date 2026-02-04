@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useSystemClasses, useClassExtends, useAddClassExtends, useRemoveClassExtends } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -73,8 +73,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const addTag = useAddTag();
   const addClass = useAddClass();
   const addTagLink = useAddTagLink();
-  const { data: allClasses } = useClasses();
-  const { pageClassId } = usePageClass();
+  const { systemClassIds } = useSystemClasses();
   const { openCommentsForNode, openNode } = useNodesStore();
   const { enterEditMode } = useBlockSelectionStore();
   
@@ -118,20 +117,16 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
       }
     },
     onCreateClass: (blockId: number, name: string, _keepInline: boolean) => {
-      const classClass = allClasses?.find(c => c.name?.toLowerCase() === 'class');
-      if (!pageClassId) return;
-      createNode.mutate({ name, classes: [pageClassId] }, {
+      if (!systemClassIds?.page || !systemClassIds?.class) return;
+      createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
         onSuccess: (newPage) => {
           addClass.mutate({ nodeId: blockId, classId: newPage.id });
-          if (classClass) {
-            addClass.mutate({ nodeId: newPage.id, classId: classClass.id });
-          }
         }
       });
     },
     onCreateTag: (blockId: number, name: string, _keepInline: boolean) => {
-      if (!pageClassId) return;
-      createNode.mutate({ name, classes: [pageClassId] }, {
+      if (!systemClassIds?.page) return;
+      createNode.mutate({ name, classes: [systemClassIds.page] }, {
         onSuccess: (newPage) => {
           addTag.mutate({ nodeId: blockId, tagId: newPage.id });
         }
@@ -139,8 +134,8 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     },
     onCreatePageLink: async (name) => {
       try {
-        if (!pageClassId) return undefined;
-        const newPage = await createNode.mutateAsync({ name, classes: [pageClassId] });
+        if (!systemClassIds?.page) return undefined;
+        const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
         return String(newPage.id);
       } catch (error) {
         console.error('Failed to create page for link:', error);
@@ -155,7 +150,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, onAddSidebarCard, pageClassId]);
+  }), [addClass, addTag, addTagLink, createNode, systemClassIds, openCommentsForNode, onAddSidebarCard]);
 
   return (
     <div className="focused-block-content">
