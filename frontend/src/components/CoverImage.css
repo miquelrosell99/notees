@@ -50,109 +50,72 @@
   z-index: 20;
 }
 
-/* Expand hover area to include actions and image */
-.cover-image-card--expanded {
-  /* Use padding to extend hover area for actions on the left */
-  padding-left: 4px;
-  margin-left: -4px;
-  height: 100%;
-  width: fit-content;  /* Shrink to image width */
-}
-
-.cover-image-card--expanded > .card {
-  /* Offset children to account for padding */
-  margin-left: 4px;
-}
-
-/* Expanded state */
-.cover-image-card--expanded {
-  animation: cover-expand 0.25s ease forwards;
-}
-
-@keyframes cover-expand {
-  from {
-    opacity: 0.7;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Collapsed state - just the arrow */
-.cover-image-card--collapsed {
-  width: 24px;
-  margin-left: var(--spacing-2);
-  margin-right: var(--spacing-2);
-}
-
-.cover-image-card--empty {
-  opacity: 0;
-  transition: opacity 0.2s;
-  /* Extend hover area to include collapse button to the left */
-  padding-left: var(--spacing-4);
-  margin-left: 0;
-}
-
-.page-header:hover .cover-image-card--empty,
-.cover-image-card--empty:hover {
-  opacity: 1;
-}
-
-/* Empty collapsed state - just a thin strip with expand arrow */
-.cover-image-card--empty-collapsed {
-  width: 24px;
+/* Base cover structure - flex row */
+.cover-image-card--empty,
+.cover-image-card--with-image {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   height: 100px;
-  margin-left: var(--spacing-2);
-  margin-right: var(--spacing-2);
-  opacity: 0.3;
-  transition: opacity 0.15s, width 0.25s ease;
 }
 
-.page-header:hover .cover-image-card--empty-collapsed,
-.cover-image-card--empty-collapsed:hover,
-.cover-image-card--empty-collapsed:focus-within {
+/* Content wrapper - animates width */
+.cover-image-card__content {
+  overflow: hidden;
+  transition: width 0.25s ease, opacity 0.25s ease;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.cover-image-card__content--collapsed {
+  width: 0;
+  opacity: 0;
+}
+
+.cover-image-card__content--expanded {
   opacity: 1;
 }
 
-/* Collapse button for empty expanded state */
-.cover-image-card__collapse-btn--empty-expanded {
-  position: absolute;
-  top: 50%;
-  left: 0;  /* In the padding area */
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
+/* Empty state content */
+.cover-image-card--empty .cover-image-card__content--expanded {
+  width: 40px;
+}
+
+/* With image content */
+.cover-image-card__content--with-image.cover-image-card__content--expanded {
+  width: auto;
+}
+
+/* Collapse toggle button - always on the right */
+.cover-image-card__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 100%;
   padding: 0;
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.4;
   transition: opacity 0.15s, color 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-shrink: 0;
 }
 
-.cover-image-card__collapse-btn--empty-expanded {
-  opacity: 0.3;
+.cover-image-card:hover .cover-image-card__collapse-btn,
+.cover-image-card__collapse-btn:focus-visible {
+  opacity: 0.6;
 }
 
-.cover-image-card--empty:hover .cover-image-card__collapse-btn--empty-expanded,
-.cover-image-card__collapse-btn--empty-expanded:focus-visible {
-  opacity: 0.5;
-}
-
-.cover-image-card__collapse-btn--empty-expanded:hover {
+.cover-image-card__collapse-btn:hover {
   opacity: 1;
   color: var(--color-on-surface);
 }
 
-.cover-image-card__collapse-btn--empty-expanded:focus-visible {
-  opacity: 1;
+.cover-image-card__collapse-btn:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
@@ -178,25 +141,6 @@
   color: var(--color-on-surface);
   border-color: var(--color-outline);
   outline: none;
-}
-
-/* Collapsed state arrow button - always visible */
-.cover-image-card__collapse-btn--collapsed {
-  position: relative;
-  top: 0;
-  right: 0;
-  width: 24px;
-  height: 100px;
-  border-radius: var(--radius-md);
-  opacity: 0.4;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.cover-image-card__collapse-btn--collapsed:hover {
-  opacity: 1;
-  color: var(--color-on-surface);
 }
 
 /* Loading state */

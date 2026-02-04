@@ -21,13 +21,13 @@ import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
-import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass } from '@/hooks';
+import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useNodesStore } from '@/stores';
 import { Button } from '../../core/Button';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
-import { NodeClassPill } from '../../NodeClassPill';
+import { NodePill } from '../../NodePill';
 import { ImageModal } from '../../core/ImageModal';
 import { AddCoverButton } from '../../core/AddCoverButton';
 import { FloatingButtonArray } from '../../core/FloatingButtonArray';
@@ -175,11 +175,12 @@ function CommonCardLayout({
       {/* Row 2: Classes */}
       <div className="node-card__metadata-row node-card__classes-row">
         {classDetails.map((cls) => (
-          <NodeClassPill
+          <NodePill
             key={cls.id}
-            classNode={cls}
+            node={cls}
             readOnly={!editable}
             onRemove={isNonRemovableClass(cls.uuid) ? undefined : () => removeClass.mutate({ nodeId: node.id, classId: cls.id })}
+            onColorChange={(color) => updateNode.mutate({ id: cls.id, data: { color } })}
           />
         ))}
         {editable && (
@@ -198,11 +199,12 @@ function CommonCardLayout({
       {/* Row 3: Tags */}
       <div className="node-card__metadata-row node-card__tags-row">
         {tagDetails.map((tag) => (
-          <NodeClassPill
+          <NodePill
             key={tag.id}
-            classNode={tag}
+            node={tag}
             readOnly={!editable}
             onRemove={() => removeClass.mutate({ nodeId: node.id, classId: tag.id })}
+            onColorChange={(color) => updateNode.mutate({ id: tag.id, data: { color } })}
           />
         ))}
         {editable && (
@@ -307,6 +309,7 @@ function NodeCard({
   
   // Mutations for class/tag management
   const removeClass = useRemoveClass();
+  const updateNode = useUpdateNode();
   
   // Drag state for cover replacement
   const [isCoverDragging, setIsCoverDragging] = useState(false);

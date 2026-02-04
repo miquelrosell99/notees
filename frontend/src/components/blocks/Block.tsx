@@ -44,7 +44,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
-import { NodeClassPill } from '../NodeClassPill';
+import { NodePill } from '../NodePill';
 import { useBlockCallbacks } from './BlockCallbacksContext';
 import { SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
@@ -55,7 +55,6 @@ import { BlockContent } from './BlockContent';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
 import { useSystemClasses } from '@/hooks/useNodes';
 import './Block.css';
-import './InlineLink.css';
 
 // ==================== Block Component ====================
 
@@ -1789,11 +1788,12 @@ function BlockInternal({
           <div className="block-types">
             {blockClassDetails.map((classNode: Node) => {
               return (
-                <NodeClassPill
+                <NodePill
                   key={classNode.id}
-                  classNode={classNode}
+                  node={classNode}
                   onClick={() => openNode(classNode.id, 'page')}
                   onRemove={isNonRemovableClass(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
+                  onColorChange={(color) => updateNode.mutate({ id: classNode.id, data: { color } })}
                   readOnly={!canEdit}
                 />
               );
@@ -1950,11 +1950,12 @@ function BlockInternal({
                 <div className="block-types">
                   {blockClassDetails.map((classNode: Node) => {
                     return (
-                      <NodeClassPill
+                      <NodePill
                         key={classNode.id}
-                        classNode={classNode}
+                        node={classNode}
                         onClick={() => openNode(classNode.id, 'page')}
                         onRemove={isNonRemovableClass(classNode.uuid) ? undefined : () => removeClass.mutate({ nodeId: block.id, classId: classNode.id })}
+                        onColorChange={(color) => updateNode.mutate({ id: classNode.id, data: { color } })}
                         readOnly={!canEdit}
                       />
                     );
