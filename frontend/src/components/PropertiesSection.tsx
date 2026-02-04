@@ -330,6 +330,8 @@ export function PropertiesSection({
     
     // Then add any additional properties that have values on this node
     // but aren't from classes
+    console.log('[PropertiesSection] node.properties:', node?.properties);
+    console.log('[PropertiesSection] allProperties IDs:', allProperties?.map(p => p.id));
     if (node?.properties) {
       for (const prop of allProperties) {
         if (addedPropertyIds.has(prop.id)) continue;
@@ -340,7 +342,9 @@ export function PropertiesSection({
         // Skip the system 'Banner' property - it has its own UI element (BannerImage)
         if (prop.uuid === SYSTEM_PROPERTY_UUIDS.banner) continue;
         
-        if (String(prop.id) in (node.properties as Record<string, unknown>)) {
+        const hasProperty = String(prop.id) in (node.properties as Record<string, unknown>);
+        if (hasProperty) {
+          console.log(`[PropertiesSection] Found prop ${prop.id} (${prop.name}) in node.properties`);
           entries.push({
             property: prop,
             value: (node.properties as Record<string, unknown>)[String(prop.id)],
@@ -348,6 +352,13 @@ export function PropertiesSection({
           });
           addedPropertyIds.add(prop.id);
         }
+      }
+      
+      // Log properties that are in node.properties but NOT in allProperties
+      const nodePropertyIds = Object.keys(node.properties as Record<string, unknown>).map(k => parseInt(k, 10));
+      const missingFromAllProps = nodePropertyIds.filter(id => !allProperties.some(p => p.id === id));
+      if (missingFromAllProps.length > 0) {
+        console.warn('[PropertiesSection] Properties in node.properties but NOT in allProperties:', missingFromAllProps);
       }
     }
     

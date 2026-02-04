@@ -57,7 +57,9 @@ async def set_property_value(
     try:
         if prop.type in SCALAR_TYPES:
             # Scalar value - allow empty strings
-            await repo.set_scalar_value(node_id, request.property_id, request.value)
+            logger.info(f"[SET_PROPERTY] Setting scalar value for node {node_id}, prop {request.property_id}, value={repr(request.value)}, type={prop.type}")
+            result = await repo.set_scalar_value(node_id, request.property_id, request.value)
+            logger.info(f"[SET_PROPERTY] Scalar value set result: {result}")
         elif prop.type in RELATION_TYPES:
             # Relation value (expects node_id as value)
             # Skip if empty string (placeholder value from frontend)
@@ -119,6 +121,9 @@ async def set_property_value(
             elif hasattr(val, 'selection_line_id'):
                 # Selection type
                 response.properties[str(prop_id)] = val.selection_line_id
+        else:
+            # Property assigned but no value yet - include with null
+            response.properties[str(prop_id)] = None
     
     return response
 

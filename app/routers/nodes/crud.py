@@ -307,6 +307,9 @@ async def get_node(
                         elif hasattr(val, 'selection_line_id'):
                             # Selection type
                             node_properties_map[nid][str(prop_id)] = val.selection_line_id
+                    else:
+                        # Property assigned but no value yet - include with null
+                        node_properties_map[nid][str(prop_id)] = None
         
         # Build tree structure from flat list using parent_id
         node_map: Dict[int, NodeResponse] = {}
@@ -393,6 +396,9 @@ async def get_node(
                 elif hasattr(val, 'selection_line_id'):
                     # Selection type
                     response.properties[str(prop_id)] = val.selection_line_id
+            else:
+                # Property assigned but no value yet - include with null
+                response.properties[str(prop_id)] = None
     
     return response
 
@@ -549,6 +555,9 @@ async def get_page_content(
             elif hasattr(val, 'selection_line_id'):
                 # Selection type
                 page_response.properties[str(prop_id)] = val.selection_line_id
+        else:
+            # Property assigned but no value yet - include with null
+            page_response.properties[str(prop_id)] = None
     
     # Add backlinks with context
     page_response.linked_references = []
