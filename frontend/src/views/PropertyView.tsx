@@ -213,15 +213,16 @@ function PropertyValueDisplay({
         </span>
       );
     
-    case 'date':
+    case 'date': {
       const date = new Date(String(value));
       return (
         <span className="property-view-value-date">
           {date.toLocaleDateString()}
         </span>
       );
+    }
     
-    case 'selection':
+    case 'selection': {
       const option = property.options.find(o => o.name === value);
       return (
         <span className="property-view-value-selection">
@@ -229,6 +230,7 @@ function PropertyValueDisplay({
           {String(value)}
         </span>
       );
+    }
     
     case 'node':
       // Node reference - would need to resolve the node name
