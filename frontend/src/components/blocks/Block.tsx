@@ -484,6 +484,9 @@ function BlockInternal({
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     if (!canEdit) return;
     
+    // If already editing, don't interfere with native cursor positioning
+    if (blockState === 'edit') return;
+    
     e.stopPropagation();
     
     // Calculate cursor position from click and set via model-first approach
@@ -497,7 +500,7 @@ function BlockInternal({
     
     // Enter edit mode
     setBlockState(block.id, 'edit');
-  }, [block.id, block.name, canEdit, setBlockState, getCursorPositionFromClick, setPendingCaret]);
+  }, [block.id, block.name, blockState, canEdit, setBlockState, getCursorPositionFromClick, setPendingCaret]);
   
   // Handle bullet click for navigation
   const handleBulletClickInternal = useCallback((e: React.MouseEvent) => {
