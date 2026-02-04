@@ -95,8 +95,9 @@ export function useDebouncedSave(debounceMs = DEFAULT_DEBOUNCE_MS) {
   
   // Flush on unmount
   useEffect(() => {
+    const pending = pendingChanges.current;
     return () => {
-      pendingChanges.current.forEach((change) => {
+      pending.forEach((change) => {
         clearTimeout(change.timeoutId);
         // Note: Can't reliably call mutation in cleanup, 
         // consider using navigator.sendBeacon for critical saves

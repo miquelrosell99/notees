@@ -3,7 +3,7 @@
  * 
  * A styled checkbox input component.
  */
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import './Checkbox.css';
 
 export type CheckboxSize = 'sm' | 'md' | 'lg';
@@ -44,7 +44,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   },
   ref
 ) {
-  const checkboxId = id || `checkbox-${Math.random().toString(36).slice(2, 9)}`;
+  const generatedId = useId();
+  const checkboxId = id || `checkbox-${generatedId}`;
   
   const containerClasses = [
     'checkbox-container',

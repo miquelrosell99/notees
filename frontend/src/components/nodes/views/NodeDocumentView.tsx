@@ -13,7 +13,7 @@
  * - Read-only: renders BlockPreview component
  * - Recursive children handling
  */
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
@@ -45,7 +45,7 @@ function DocumentNode({
   onNodeShiftClick,
   onContentChange,
 }: DocumentNodeProps) {
-  const children = node.children ?? [];
+  const children = useMemo(() => node.children ?? [], [node.children]);
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
 
   // Handlers
