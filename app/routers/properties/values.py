@@ -53,18 +53,28 @@ async def set_property_value(
     # Dispatch to the appropriate handler based on property type
     try:
         if prop.type in SCALAR_TYPES:
-            # Scalar value
+            # Scalar value - allow empty strings
             await repo.set_scalar_value(node_id, request.property_id, request.value, order=None)
         elif prop.type in RELATION_TYPES:
             # Relation value (expects node_id as value)
-            if not isinstance(request.value, int):
+            # Skip if empty string (placeholder value from frontend)
+            if request.value == '' or request.value is None:
+                # Just assign the property without setting a value
+                await repo.assign_property_to_node(node_id, request.property_id)
+            elif not isinstance(request.value, int):
                 raise ValueError(f"Relation property expects node ID as value, got {type(request.value)}")
-            await repo.set_relation_value(node_id, request.property_id, request.value, order=None)
+            else:
+                await repo.set_relation_value(node_id, request.property_id, request.value, order=None)
         else:
             # Selection value (expects selection_line_id as value)
-            if not isinstance(request.value, int):
+            # Skip if empty string (placeholder value from frontend)
+            if request.value == '' or request.value is None:
+                # Just assign the property without setting a value
+                await repo.assign_property_to_node(node_id, request.property_id)
+            elif not isinstance(request.value, int):
                 raise ValueError(f"Selection property expects selection_line_id as value, got {type(request.value)}")
-            await repo.set_selection_value(node_id, request.property_id, request.value, order=None)
+            else:
+                await repo.set_selection_value(node_id, request.property_id, request.value, order=None)
     except ValueError as e:
         raise HTTPException(400, str(e))
     
