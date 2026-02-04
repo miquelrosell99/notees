@@ -9,12 +9,14 @@
  * - NodeCollection table with property value as a column
  * - Navigation to nodes on click
  */
-import { useState, useMemo, type ReactNode } from 'react';
+import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { useProperty, useNodesWithProperty } from '@/hooks';
+import { useNodesStore } from '@/stores';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeIcon } from '../components/icons';
+import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
 import './PropertyView.css';
 
 /** Property type display info */
@@ -45,7 +47,32 @@ export function PropertyView({
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   
   // Fetch property details
-  const { data: property, isLoading: propertyLoading } = useProperty(propertyId);
+  const { data: fetchedProperty, isLoading: propertyLoading } = useProperty(propertyId);
+  
+  // Local property state for optimistic updates
+  const [property, setProperty] = useState<Property | undefined>(fetchedProperty);
+  
+  // Update local state when fetched property changes
+  useMemo(() => {
+    if (fetchedProperty) {
+      setProperty(fetchedProperty);
+    }
+  }, [fetchedProperty]);
+  
+  // Handle property updates
+  const handlePropertyUpdate = useCallback((updatedProperty: Property) => {
+    setProperty(updatedProperty);
+  }, []);
+  
+  // Get navigation function
+  const { openNode } = useNodesStore();
+  
+  // Handle property deletion
+  const handlePropertyDelete = useCallback(() => {
+    // Navigate to home or a default page after deletion
+    // The property data will be removed from cache automatically by the mutation
+    openNode(1, 'page'); // Navigate to a safe page (adjust ID as needed)
+  }, [openNode]);
   
   // Fetch nodes with this property using property ID
   const { data: nodesWithProperty, isLoading: nodesLoading } = useNodesWithProperty(
@@ -155,6 +182,13 @@ export function PropertyView({
           </div>
         </div>
       )}
+      
+      {/* Property Configuration Section */}
+      <PropertyConfigSection
+        property={property}
+        onUpdate={handlePropertyUpdate}
+        onDelete={handlePropertyDelete}
+      />
       
       {/* Nodes with this property */}
       <section className="property-view-nodes">

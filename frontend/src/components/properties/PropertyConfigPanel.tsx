@@ -15,6 +15,7 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import type { Property, PropertyType, SelectionOption } from '@/types/api';
 import { updateProperty, addSelectionOption, deleteSelectionOption, deleteProperty } from '@/api/properties';
+import { useSetNodeProperty } from '@/hooks';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
 import { Button } from '../core/Button';
 import { ConfirmationModal } from '../core/ConfirmationModal';
@@ -34,6 +35,7 @@ const PROPERTY_TYPES: { type: PropertyType; label: string; icon: string }[] = [
 interface PropertyConfigPanelProps {
   isOpen: boolean;
   property: Property | null;
+  nodeId?: number;  // If provided, delete action removes property from this node instead of deleting property
   position?: { x: number; y: number };
   onClose: () => void;
   onUpdate: (property: Property) => void;
@@ -54,6 +56,7 @@ interface PanelState {
 export function PropertyConfigPanel({
   isOpen,
   property,
+  nodeId,
   position,
   onClose,
   onUpdate,
@@ -68,6 +71,9 @@ export function PropertyConfigPanel({
   const [newChoiceIcon, setNewChoiceIcon] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // Mutation for removing property from node
+  const removeNodePropertyMutation = useSetNodeProperty();
   
   // Panel expansion state
   const [panels, setPanels] = useState<PanelState>({
@@ -232,19 +238,29 @@ export function PropertyConfigPanel({
   }, [property, onDelete]);
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!property || !onDelete) return;
+    if (!property) return;
     
     try {
-      await deleteProperty(property.id);
-      onDelete(property.id);
+      if (nodeId) {
+        // Remove property from specific node
+        await removeNodePropertyMutation.mutateAsync({ 
+          nodeId, 
+          propertyId: property.id, 
+          value: null 
+        });
+      } else if (onDelete) {
+        // Delete property from database entirely
+        await deleteProperty(property.id);
+        onDelete(property.id);
+      }
       setShowDeleteModal(false);
       onClose();
     } catch (err) {
-      setError('Failed to delete property');
+      setError(nodeId ? 'Failed to remove property from node' : 'Failed to delete property');
       console.error(err);
       setShowDeleteModal(false);
     }
-  }, [property, onDelete, onClose]);
+  }, [property, nodeId, onDelete, onClose, removeNodePropertyMutation]);
 
   const handleCancelDelete = useCallback(() => {
     setShowDeleteModal(false);
@@ -270,6 +286,65 @@ export function PropertyConfigPanel({
       }
     : {};
   
+  // When nodeId is provided, show simplified menu with only remove/open actions
+  if (nodeId) {
+    return (
+      <div className="property-config-backdrop">
+        <div className="property-config-panel property-config-panel--compact" ref={panelRef} style={style}>
+          {/* Property header */}
+          <div className="config-section-header config-section-readonly">
+            <div className="property-view-icon">
+              {property.icon || typeInfo?.icon || ''}
+            </div>
+            <div className="property-view-info">
+              <div className="property-view-title">{property.name}</div>
+              <div className="property-view-type">
+                {typeInfo?.icon} {typeInfo?.label || property.type}
+              </div>
+            </div>
+          </div>
+          
+          <div className="config-divider"></div>
+          
+          {/* Actions section */}
+          <div className="config-actions-section">
+            {onOpenPropertyView && (
+              <Button variant="ghost" className="config-action-btn" onClick={handleGoToProperty}>
+                <span className="config-action-icon"></span>
+                <span>Open property</span>
+              </Button>
+            )}
+            
+            {!property.is_system && (
+              <Button variant="ghost" className="config-action-btn delete" onClick={handleDeleteClick}>
+                <span className="config-action-icon"></span>
+                <span>Remove from this node</span>
+              </Button>
+            )}
+            
+            {property.is_system && (
+              <p className="config-hint config-system-hint">
+                This is a system property and cannot be removed.
+              </p>
+            )}
+          </div>
+        </div>
+        
+        <ConfirmationModal
+          isOpen={showDeleteModal}
+          title="Remove Property"
+          message={`Remove the property "${property.name}" from this node? The property itself will remain in the database.`}
+          confirmLabel="Remove"
+          cancelLabel="Cancel"
+          variant="danger"
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+        />
+      </div>
+    );
+  }
+  
+  // Full configuration panel (when nodeId is not provided)
   return (
     <div className="property-config-backdrop">
       <div className="property-config-panel" ref={panelRef} style={style}>
@@ -563,10 +638,10 @@ export function PropertyConfigPanel({
             </Button>
           )}
           
-          {!property.is_system && onDelete && (
+          {!property.is_system && (nodeId || onDelete) && (
             <Button variant="ghost" className="config-action-btn delete" onClick={handleDeleteClick}>
               <span className="config-action-icon"></span>
-              <span>Delete property from database</span>
+              <span>{nodeId ? 'Remove property from this node' : 'Delete property from database'}</span>
             </Button>
           )}
           
@@ -580,9 +655,13 @@ export function PropertyConfigPanel({
       
       <ConfirmationModal
         isOpen={showDeleteModal}
-        title="Delete Property"
-        message={`Are you sure you want to delete the property "${property.name}"? This action cannot be undone and will remove all values of this property from all nodes.`}
-        confirmLabel="Delete"
+        title={nodeId ? 'Remove Property' : 'Delete Property'}
+        message={
+          nodeId 
+            ? `Remove the property "${property.name}" from this node? The property itself will remain in the database.`
+            : `Are you sure you want to delete the property "${property.name}"? This action cannot be undone and will remove all values of this property from all nodes.`
+        }
+        confirmLabel={nodeId ? 'Remove' : 'Delete'}
         cancelLabel="Cancel"
         variant="danger"
         onConfirm={handleConfirmDelete}
