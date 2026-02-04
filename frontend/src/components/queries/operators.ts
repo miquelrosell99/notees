@@ -68,6 +68,15 @@ export const CLASS_OPERATORS: OperatorDefinition[] = [
   { value: 'not_defined', label: 'is not defined' },
 ];
 
+// ==================== Extends Operators ====================
+
+/**
+ * Operators for class extends conditions (inheritance)
+ */
+export const EXTENDS_OPERATORS: OperatorDefinition[] = [
+  { value: 'extends', label: 'extends' },
+];
+
 // ==================== Reference Operators ====================
 
 /**

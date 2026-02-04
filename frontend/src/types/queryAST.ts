@@ -170,6 +170,15 @@ export interface ClassCondition extends BaseConditionNode {
 }
 
 /**
+ * Extends condition - filter by classes that extend a given class
+ */
+export interface ExtendsCondition extends BaseConditionNode {
+  condition_type: 'extends';
+  extends_class_uuid: string;
+  extends_class_id?: number;
+}
+
+/**
  * Property condition - filter by property value
  */
 export interface PropertyCondition extends BaseConditionNode {
@@ -292,6 +301,7 @@ export interface ClassPathCondition extends BaseConditionNode {
  */
 export type ConditionNode =
   | ClassCondition
+  | ExtendsCondition
   | PropertyCondition
   | ContentCondition
   | ReferenceCondition

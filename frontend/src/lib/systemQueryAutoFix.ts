@@ -10,7 +10,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ScopeNode } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/query';
 
@@ -26,6 +26,10 @@ function isClassCondition(node: ConditionNode): node is ClassCondition {
 
 function isParentCondition(node: ConditionNode): node is ParentCondition {
   return node.condition_type === 'parent';
+}
+
+function isExtendsCondition(node: ConditionNode): node is ExtendsCondition {
+  return node.condition_type === 'extends';
 }
 
 // ==================== System Section Definitions ====================
@@ -212,6 +216,11 @@ export function autoFixSystemQuery(
         } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
           const classCond = child as ClassCondition;
           if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') {
+            return markAsSystemNode(child);
+          }
+        } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
+          const extCond = child as ExtendsCondition;
+          if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') {
             return markAsSystemNode(child);
           }
         }
