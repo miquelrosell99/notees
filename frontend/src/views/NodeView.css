@@ -45,13 +45,13 @@
 }
 
 /* Page header section - CSS Grid layout for pages */
-/* Grid: [header]     [cover]
-         [types]      [cover]
-         [tags]       [cover]
-         [properties] [cover] */
+/* Grid: [header]     [types] [cover]
+         [extends]    ...     [cover]
+         [tags]       ...     [cover]
+         [properties] ...     [cover] */
 .page-header-section {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   grid-template-rows: auto auto auto auto;
   gap: var(--spacing-1) var(--spacing-4);
   margin-bottom: var(--spacing-4);
@@ -73,32 +73,35 @@
   margin-bottom: 0;
 }
 
-/* Types, tags, extends, and properties rows - aligned with icon */
-.page-header-section__types,
+/* Types on same row as header, right side */
+.page-header-section__types {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Extends, tags rows - with labels inline */
 .page-header-section__extends,
 .page-header-section__tags {
   display: flex;
   align-items: center;
 }
 
-.page-header-section__types {
-  grid-column: 1;
+.page-header-section__extends {
+  grid-column: 1 / 3;
   grid-row: 2;
 }
 
-.page-header-section__extends {
-  grid-column: 1;
+.page-header-section__tags {
+  grid-column: 1 / 3;
   grid-row: 3;
 }
 
-.page-header-section__tags {
-  grid-column: 1;
-  grid-row: 4;
-}
-
 .page-header-section__properties {
-  grid-column: 1;
-  grid-row: 5;
+  grid-column: 1 / 3;
+  grid-row: 4;
 }
 
 /* Section labels for classes, extends, and tags */
@@ -117,7 +120,7 @@
 
 /* Cover image spans all rows */
 .page-header-section .cover-image-card {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1 / -1;
   align-self: stretch;
 }
