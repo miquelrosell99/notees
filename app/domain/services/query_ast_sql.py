@@ -13,6 +13,7 @@ from app.domain.entities.query_ast import (
     ConditionNode,
     NotNode,
     ClassCondition,
+    ExtendsCondition,
     PropertyCondition,
     ContentCondition,
     ReferenceCondition,
@@ -188,6 +189,8 @@ class QueryASTToSQL:
         """Generate SQL for a single condition."""
         if isinstance(condition, ClassCondition):
             return self._generate_class_condition(condition)
+        elif isinstance(condition, ExtendsCondition):
+            return self._generate_extends_condition(condition)
         elif isinstance(condition, PropertyCondition):
             return self._generate_property_condition(condition)
         elif isinstance(condition, ContentCondition):
@@ -253,6 +256,43 @@ class QueryASTToSQL:
                     SELECT id FROM class_hierarchy
                 ) AS matching_classes
                 WHERE matching_classes.id = ANY(n.class_ids)
+            )
+        )"""
+    
+    def _generate_extends_condition(self, condition: ExtendsCondition) -> Optional[str]:
+        """Generate SQL for extends condition.
+        
+        Finds classes (nodes) that extend a given class.
+        Used for "Extended By" sections to show child classes.
+        """
+        from app.logging_config import get_logger
+        logger = get_logger(__name__)
+        
+        if not condition.extends_class_uuid:
+            return None
+        
+        # Skip if extends_class_uuid is empty string (failed placeholder resolution)
+        if condition.extends_class_uuid.strip() == '':
+            logger.warning("Extends condition has empty extends_class_uuid after placeholder resolution")
+            return None
+        
+        # Check for unresolved placeholder
+        if '{' in condition.extends_class_uuid and '}' in condition.extends_class_uuid:
+            logger.error(f"Unresolved placeholder in extends_class_uuid: {condition.extends_class_uuid}")
+            return None
+        
+        param_name = self._add_param(condition.extends_class_uuid)
+        logger.debug(f"Generating extends condition SQL with uuid={condition.extends_class_uuid}")
+        
+        # Query classes that extend the target class via the class_extend table
+        # target_id = the class that extends (child), source_id = the class being extended (parent)
+        return f"""(
+            n.id IN (
+                SELECT ce.target_id
+                FROM class_extend ce
+                INNER JOIN node parent_class ON parent_class.id = ce.source_id
+                WHERE parent_class.uuid = %({param_name})s::uuid
+                  AND parent_class.graph_id = %(graph_id)s
             )
         )"""
     

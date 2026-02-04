@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 from ..entities import NodeView, generate_uuid
 from ..entities.query_ast import (
     QueryAST, ScopeNode, ScopeType, GroupNode, LogicType,
-    ReferenceCondition, ParentPathCondition, ParentCondition, ClassCondition, FlagCondition,
+    ReferenceCondition, ParentPathCondition, ParentCondition, ClassCondition, ExtendsCondition, FlagCondition,
     PropertyCondition, PropertyOperator,
     ContentCondition, ContentOperator
 )
@@ -48,6 +48,21 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                     ClassCondition(
                         class_uuid="{current_node_uuid}",
                         operator="contains"
+                    )
+                ]
+            ),
+            is_system=True
+        )
+    },
+    "extended_by": {
+        "name": "Extended By",
+        "query_ast": QueryAST(
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            root_group=GroupNode(
+                logic=LogicType.AND,
+                children=[
+                    ExtendsCondition(
+                        extends_class_uuid="{current_node_uuid}"
                     )
                 ]
             ),
