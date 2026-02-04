@@ -31,7 +31,7 @@ class SetPropertyRequest(BaseModel):
     value: Any
 
 
-@router.post("/nodes/{node_id}/properties")
+@router.post("/{node_id}/properties")
 async def set_property_value(
     node_id: int,
     request: SetPropertyRequest,
@@ -76,7 +76,7 @@ async def set_property_value(
     return _node_to_response(node)
 
 
-@router.get("/nodes/{node_id}/properties")
+@router.get("/{node_id}/properties")
 async def get_node_properties(
     node_id: int,
     user: User = Depends(get_current_user),
@@ -115,7 +115,7 @@ async def get_node_properties(
     return {"properties": result}
 
 
-@router.post("/nodes/{node_id}/properties/{property_id}/assign")
+@router.post("/{node_id}/properties/{property_id}/assign")
 async def assign_property_to_node(
     node_id: int,
     property_id: int,
@@ -135,7 +135,7 @@ async def assign_property_to_node(
     )
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}")
+@router.delete("/{node_id}/properties/{property_id}")
 async def remove_property_from_node(
     node_id: int,
     property_id: int,
@@ -153,7 +153,7 @@ async def remove_property_from_node(
 
 # ============== Scalar Values ==============
 
-@router.post("/nodes/{node_id}/properties/{property_id}/scalar")
+@router.post("/{node_id}/properties/{property_id}/scalar")
 async def set_scalar_value(
     node_id: int,
     property_id: int,
@@ -171,7 +171,7 @@ async def set_scalar_value(
     return _scalar_value_to_response(val)
 
 
-@router.get("/nodes/{node_id}/properties/{property_id}/scalar")
+@router.get("/{node_id}/properties/{property_id}/scalar")
 async def get_scalar_values(
     node_id: int,
     property_id: int,
@@ -184,7 +184,7 @@ async def get_scalar_values(
     return {"values": [_scalar_value_to_response(v) for v in values]}
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}/scalar/{value_id}")
+@router.delete("/{node_id}/properties/{property_id}/scalar/{value_id}")
 async def remove_scalar_value(
     node_id: int,
     property_id: int,
@@ -201,7 +201,7 @@ async def remove_scalar_value(
     return {"status": "ok"}
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}/scalar")
+@router.delete("/{node_id}/properties/{property_id}/scalar")
 async def clear_scalar_values(
     node_id: int,
     property_id: int,
@@ -216,7 +216,7 @@ async def clear_scalar_values(
 
 # ============== Relation Values ==============
 
-@router.post("/nodes/{node_id}/properties/{property_id}/relation")
+@router.post("/{node_id}/properties/{property_id}/relation")
 async def set_relation_value(
     node_id: int,
     property_id: int,
@@ -234,7 +234,7 @@ async def set_relation_value(
     return _relation_value_to_response(val)
 
 
-@router.get("/nodes/{node_id}/properties/{property_id}/relation")
+@router.get("/{node_id}/properties/{property_id}/relation")
 async def get_relation_values(
     node_id: int,
     property_id: int,
@@ -247,7 +247,7 @@ async def get_relation_values(
     return {"values": [_relation_value_to_response(v) for v in values]}
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}/relation/{value_id}")
+@router.delete("/{node_id}/properties/{property_id}/relation/{value_id}")
 async def remove_relation_value(
     node_id: int,
     property_id: int,
@@ -271,7 +271,7 @@ async def remove_relation_value(
     return {"status": "ok"}
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}/relation")
+@router.delete("/{node_id}/properties/{property_id}/relation")
 async def clear_relation_values(
     node_id: int,
     property_id: int,
@@ -293,7 +293,7 @@ async def clear_relation_values(
 
 # ============== Selection Values ==============
 
-@router.post("/nodes/{node_id}/properties/{property_id}/selection")
+@router.post("/{node_id}/properties/{property_id}/selection")
 async def set_selection_value(
     node_id: int,
     property_id: int,
@@ -311,7 +311,7 @@ async def set_selection_value(
     return _selection_value_to_response(val)
 
 
-@router.get("/nodes/{node_id}/properties/{property_id}/selection")
+@router.get("/{node_id}/properties/{property_id}/selection")
 async def get_selection_values(
     node_id: int,
     property_id: int,
@@ -324,7 +324,7 @@ async def get_selection_values(
     return {"values": [_selection_value_to_response(v) for v in values]}
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}/selection/{value_id}")
+@router.delete("/{node_id}/properties/{property_id}/selection/{value_id}")
 async def remove_selection_value(
     node_id: int,
     property_id: int,
@@ -341,7 +341,7 @@ async def remove_selection_value(
     return {"status": "ok"}
 
 
-@router.delete("/nodes/{node_id}/properties/{property_id}/selection")
+@router.delete("/{node_id}/properties/{property_id}/selection")
 async def clear_selection_values(
     node_id: int,
     property_id: int,
