@@ -95,7 +95,7 @@
 
 /* Empty collapsed state - even more subtle */
 .banner-image--empty-collapsed {
-  opacity: 0;
+  opacity: 0.3;
   border: none;
 }
 
@@ -154,7 +154,7 @@
   border-radius: var(--radius-sm);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.3;
   transition: opacity 0.15s, color 0.15s;
 }
 
@@ -196,7 +196,7 @@
   position: absolute;
   top: var(--spacing-1);
   right: var(--spacing-1);
-  opacity: 0;
+  opacity: 0.3;
 }
 
 .banner-image--empty:hover .banner-image__collapse-btn--expanded-empty {

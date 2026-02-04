@@ -106,7 +106,7 @@
   height: 100px;
   margin-left: var(--spacing-2);
   margin-right: var(--spacing-2);
-  opacity: 0;
+  opacity: 0.3;
   transition: opacity 0.15s, width 0.25s ease;
 }
 
@@ -135,6 +135,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.cover-image-card__collapse-btn--empty-expanded {
+  opacity: 0.3;
 }
 
 .cover-image-card--empty:hover .cover-image-card__collapse-btn--empty-expanded,
