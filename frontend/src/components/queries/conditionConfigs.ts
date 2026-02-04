@@ -9,6 +9,7 @@ import {
   CONTENT_OPERATORS,
   PROPERTY_OPERATORS,
   CLASS_OPERATORS,
+  EXTENDS_OPERATORS,
   REFERENCE_OPERATORS,
   PARENT_OPERATORS,
   CHILD_OPERATORS,
@@ -113,6 +114,18 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
       defaultLogic: 'AND',
     },
     noValueOperators: ['defined', 'not_defined'],
+  },
+  
+  extends: {
+    label: 'EXTENDS',
+    operators: EXTENDS_OPERATORS,
+    defaultOperator: 'extends',
+    hasStaticDynamicToggle: false,
+    staticMode: {
+      inputType: 'class-selector',
+      placeholder: 'Select class',
+      required: true,
+    },
   },
   
   reference: {

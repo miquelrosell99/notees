@@ -35,7 +35,7 @@ import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
-import { NodeViewSection, QuerySection } from '../components/nodes';
+import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';

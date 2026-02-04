@@ -69,6 +69,9 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'class') {
       const uuid = (condition as any).class_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+    } else if (condition.condition_type === 'extends') {
+      const uuid = (condition as any).extends_class_uuid;
+      return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
     }
     return false;
   })();
@@ -84,7 +87,11 @@ export function GenericConditionRenderer({
   
   // Hooks for data fetching (always call, conditionally use)
   const { data: allProperties = [] } = useProperties();
-  const classId = condition.condition_type === 'class' ? (condition as any).class_id : null;
+  const classId = condition.condition_type === 'class' 
+    ? (condition as any).class_id 
+    : condition.condition_type === 'extends' 
+      ? (condition as any).extends_class_id 
+      : null;
   const { data: selectedClassNode } = useNode(classId);
   
   // Update selection mode when condition changes externally
@@ -102,6 +109,9 @@ export function GenericConditionRenderer({
         return value === '{current_node_uuid}' || (value && value === currentNodeUuid);
       } else if (condition.condition_type === 'class') {
         const uuid = (condition as any).class_uuid;
+        return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+      } else if (condition.condition_type === 'extends') {
+        const uuid = (condition as any).extends_class_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       }
       return false;
@@ -184,6 +194,9 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'class') {
         (updated as any).class_uuid = targetUuid;
         delete (updated as any).class_id;
+      } else if (condition.condition_type === 'extends') {
+        (updated as any).extends_class_uuid = targetUuid;
+        delete (updated as any).extends_class_id;
       }
       
       onUpdate(updated as any);
@@ -222,6 +235,9 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'parent') {
       updates.parent_id = nodeId ?? undefined;
       updates.parent_uuid = node?.uuid ?? '';
+    } else if (condition.condition_type === 'extends') {
+      updates.extends_class_id = nodeId ?? undefined;
+      updates.extends_class_uuid = node?.uuid ?? '';
     }
     
     onUpdate({
