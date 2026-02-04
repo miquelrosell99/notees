@@ -458,7 +458,7 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search pages... (use @classname to filter)"
+            placeholder="Search pages and blocks..."
           />
           {matchedClass && (
             <span className="command-palette__class-badge" title={`Filtering by class: ${matchedClass.name}`}>
