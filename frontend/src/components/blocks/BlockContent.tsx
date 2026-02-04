@@ -13,14 +13,13 @@
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
-import { LinkBadge } from '../core/LinkBadge';
+import { NodePill } from '../NodePill';
 import { ContextMenu } from '../core/ContextMenu';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon } from '../icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { sanitizeContent } from '@/utils/linkSanitization';
-import './InlineLink.css';
 
 // Regex patterns
 const LINK_REGEX = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
@@ -136,125 +135,6 @@ function parseContent(content: string): ContentPart[] {
   return parts;
 }
 
-interface InlineLinkProps {
-  linkId: string;
-  raw: string;
-  linkUuid?: string;
-  clickCount?: number;
-  onNavigate: (linkId: string, node: Node | undefined, openInSidebar: boolean, linkUuid?: string) => void;
-  onDeleteLink?: (raw: string) => void;
-}
-
-function InlineLink({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDeleteLink }: InlineLinkProps) {
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const nodeId = parseInt(linkId, 10);
-  const { data: node } = useNode(isNaN(nodeId) ? null : nodeId);
-  const { data: allClasses } = useClasses();
-  
-  const displayText = useMemo(() => {
-    if (!node) return `[Missing Node ${linkId}]`;
-    if (!node.name || node.name.trim() === '') {
-      return node.is_page ? '[Untitled Page]' : '[Empty Block]';
-    }
-    if (!node.is_page && node.name.length > 50) {
-      return `${node.name.slice(0, 50)}...`;
-    }
-    return node.name;
-  }, [node, linkId]);
-  
-  const isPage = node?.is_page ?? true;
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
-  
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onNavigate(linkId, node, e.shiftKey, linkUuid);
-  }, [linkId, node, onNavigate, linkUuid]);
-  
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY });
-  }, []);
-  
-  const contextMenuItems: ContextMenuItem[] = useMemo(() => {
-    const items: ContextMenuItem[] = [
-      {
-        id: 'open',
-        label: isPage ? 'Open page' : 'Open block',
-        onClick: () => {
-          onNavigate(linkId, node, false, linkUuid);
-          setContextMenu(null);
-        },
-      },
-      {
-        id: 'open-sidebar',
-        label: 'Open in sidebar',
-        shortcut: '⇧Click',
-        onClick: () => {
-          onNavigate(linkId, node, true, linkUuid);
-          setContextMenu(null);
-        },
-      },
-      { id: 'sep1', label: '', separator: true },
-      {
-        id: 'copy',
-        label: 'Copy link',
-        onClick: () => {
-          navigator.clipboard.writeText(raw);
-          setContextMenu(null);
-        },
-      },
-    ];
-    
-    if (onDeleteLink) {
-      items.push(
-        { id: 'sep2', label: '', separator: true },
-        {
-          id: 'delete',
-          label: 'Delete link',
-          danger: true,
-          onClick: () => {
-            onDeleteLink(raw);
-            setContextMenu(null);
-          },
-        }
-      );
-    }
-    
-    return items;
-  }, [linkId, node, raw, isPage, onNavigate, onDeleteLink, linkUuid]);
-  
-  return (
-    <>
-      <span
-        className={`link-pill ${isPage ? 'link-pill--page' : 'link-pill--block'}`}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-        data-link-raw={raw}
-        data-node-id={linkId}
-        data-label={displayText}
-        title={`${isPage ? 'Page' : 'Block'}: ${displayText}\nClick to open, Shift+click for sidebar`}
-      >
-        <LinkBadge
-          text={displayText}
-          isPage={isPage}
-          icon={effectiveIcon}
-          clickCount={clickCount}
-          interactive={true}
-        />
-      </span>
-      {contextMenu && (
-        <ContextMenu
-          items={contextMenuItems}
-          position={contextMenu}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-    </>
-  );
-}
-
 interface TypePillProps {
   typeId: string;
   raw: string;
@@ -356,32 +236,15 @@ export function BlockContent({
     return map;
   }, [linkClicksData]);
   
-  const handleNavigate = useCallback((
-    linkId: string, 
-    node: Node | undefined, 
-    openInSidebar: boolean, 
-    linkUuid?: string
-  ) => {
-    if (node) {
-      const viewType = node.is_page ? 'page' : 'block';
-      
-      if (blockId) {
-        trackLinkClick.mutate({
-          sourceNodeId: blockId,
-          targetNodeId: node.id,
-          nodeLinkUuid: linkUuid,
-        });
-      }
-      
-      if (openInSidebar) {
-        addSidebarCard(node.id, viewType);
-      } else {
-        openNode(node.id, viewType);
-      }
-    } else {
-      console.warn(`Node not found: ${linkId}`);
+  const handleNavigate = useCallback((targetId: string | number, type: 'page-link' | 'block-link') => {
+    const nodeId = typeof targetId === 'number' ? targetId : parseInt(String(targetId), 10);
+    if (!isNaN(nodeId) && blockId) {
+      trackLinkClick.mutate({
+        sourceNodeId: blockId,
+        targetNodeId: nodeId,
+      });
     }
-  }, [openNode, addSidebarCard, blockId, trackLinkClick]);
+  }, [blockId, trackLinkClick]);
   
   if (parts.length === 1 && parts[0].type === 'text') {
     return (
@@ -434,14 +297,12 @@ export function BlockContent({
         }
         
         return (
-          <InlineLink
+          <NodePill
             key={key}
-            linkId={part.id!}
-            raw={part.raw!}
-            linkUuid={part.linkUuid}
+            nodeId={parseInt(part.id!, 10)}
             clickCount={clickCounts.get(part.id!) ?? 0}
-            onNavigate={handleNavigate}
-            onDeleteLink={onDeleteLink}
+            variant="link"
+            readOnly={false}
           />
         );
       })}

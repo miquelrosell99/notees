@@ -169,10 +169,6 @@ export type { NodeActivity } from './nodes/NodeActivityLogSection';
 export { BannerImage } from './BannerImage';
 export { CoverImage } from './CoverImage';
 
-// Node link components
-export { NodeLink } from './nodes/NodeLink';
-export type { NodeLinkProps } from './nodes/NodeLink';
-
 // NodeCollection - Universal node collection system
 export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './nodes/NodeCollection';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCollection';

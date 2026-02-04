@@ -1,0 +1,55 @@
+/**
+ * NodePill styles
+ */
+
+.node-pill {
+  cursor: pointer;
+  display: inline-flex;
+}
+
+/* Link variant - faded colors */
+.node-pill--link.node-pill--page .pill {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  color: var(--color-on-surface);
+}
+
+.node-pill--link.node-pill--block .pill {
+  background-color: color-mix(in srgb, var(--color-secondary) 8%, var(--color-surface));
+  color: var(--color-on-surface-variant);
+}
+
+/* Click count badge */
+.node-pill__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-1);
+  min-width: 14px;
+  height: 14px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1;
+  background-color: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  color: var(--color-on-surface);
+  border-radius: var(--shape-full);
+}
+
+/* Pill Color Picker Popup */
+.pill-color-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+}
+
+.pill-color-picker {
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-3);
+  padding: var(--spacing-2);
+  z-index: 1001;
+}

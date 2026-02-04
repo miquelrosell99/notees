@@ -14,9 +14,6 @@ export { NodeContent } from './NodeContent';
 
 export { NodeContextMenu, PageContextMenu, BlockContextMenu, ColorPickerRow } from './NodeContextMenu';
 
-export { NodeLink } from './NodeLink';
-export type { NodeLinkProps } from './NodeLink';
-
 
 
 export { NodePicker } from './NodePicker';
