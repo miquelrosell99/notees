@@ -504,7 +504,7 @@ export function PropertiesSection({
               className="properties-add-btn" 
               onClick={() => setShowPropertyPopup(!showPropertyPopup)}
               title="Add property"
-              size="sm"
+              size="xs"
               variant="ghost"
             >
               Add property

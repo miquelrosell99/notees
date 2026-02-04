@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses, useLinkedReferencesCount, usePageClass } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useExtendedByClasses, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -289,6 +289,51 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
     updateNode.mutate({ id: targetNode.id, data: { color } });
   }, [updateNode]);
+
+  // Handle adding an extends (inheritance) relationship
+  const addClassExtends = useAddClassExtends();
+  const handleAddExtends = useCallback((extendsClass: Node) => {
+    if (!node) return;
+    addClassExtends.mutate({ classId: node.id, extendsClassId: extendsClass.id });
+  }, [node, addClassExtends]);
+
+  // Handle creating a new class and adding it as extends
+  const handleCreateExtends = useCallback((name: string) => {
+    if (!node) return;
+    const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
+    const pageClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.page);
+    
+    // Create with Page and Class classes
+    const classes = [];
+    if (pageClass) classes.push(pageClass.id);
+    if (classClass) classes.push(classClass.id);
+    
+    createNode.mutate({ name, classes }, {
+      onSuccess: (newClass) => {
+        addClassExtends.mutate({ classId: node.id, extendsClassId: newClass.id });
+      }
+    });
+  }, [node, createNode, addClassExtends, allClasses]);
+
+  // Handle removing an extends relationship
+  const removeClassExtends = useRemoveClassExtends();
+  const handleRemoveExtends = useCallback((extendsClass: Node) => {
+    if (!node) return;
+    removeClassExtends.mutate({ classId: node.id, extendsClassId: extendsClass.id });
+  }, [node, removeClassExtends]);
+
+  // Fetch class extends (inheritance) data for classes
+  const { data: extendsData } = useClassExtends(node?.is_class ? node.id : null);
+
+  // Resolve extends details from IDs
+  const extendsDetails = useMemo(() => {
+    if (!extendsData || extendsData.length === 0) return [];
+    return extendsData
+      .map(ext => {
+        return allNodes?.find(n => n.id === ext.extends_class_node_id);
+      })
+      .filter((n): n is Node => n !== undefined);
+  }, [extendsData, allNodes]);
   
   // Check if node is used as a class
   const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
@@ -486,6 +531,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             
             {/* Row 2: Classes */}
             <div className="page-header-section__types">
+              <div className="section-label">Classes</div>
               <NodePillRow
                 nodes={pageClassDetails}
                 searchMode="classes"
@@ -501,8 +547,27 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 3: Tags */}
+            {/* Row 3: Extends (only for classes) */}
+            {node.is_class && (
+              <div className="page-header-section__extends">
+                <div className="section-label">Extends</div>
+                <NodePillRow
+                  nodes={extendsDetails}
+                  searchMode="classes"
+                  emptyText="Add extend"
+                  searchPlaceholder="Search classes to extend..."
+                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onRemove={handleRemoveExtends}
+                  onColorChange={handleNodeColorChange}
+                  onAdd={handleAddExtends}
+                  onCreateNew={handleCreateExtends}
+                />
+              </div>
+            )}
+            
+            {/* Row 4: Tags */}
             <div className="page-header-section__tags">
+              <div className="section-label">Tags</div>
               <NodePillRow
                 nodes={pageTagDetails}
                 searchMode="tags"
@@ -516,7 +581,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 4: Properties Section */}
+            {/* Row 5: Properties Section */}
             <div className="page-header-section__properties">
               <PropertiesSection 
                 nodeId={node.id}
