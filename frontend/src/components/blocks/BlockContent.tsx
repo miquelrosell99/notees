@@ -13,6 +13,7 @@
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { LinkBadge } from '../core/LinkBadge';
 import { ContextMenu } from '../core/ContextMenu';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
@@ -227,7 +228,7 @@ function InlineLink({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDelet
   return (
     <>
       <span
-        className={`link-pill ${isPage ? 'link-pill--page' : 'link-pill--block'}${!effectiveIcon ? ' link-pill--no-icon' : ''}`}
+        className={`link-pill ${isPage ? 'link-pill--page' : 'link-pill--block'}`}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         data-link-raw={raw}
@@ -235,15 +236,13 @@ function InlineLink({ linkId, raw, linkUuid, clickCount = 0, onNavigate, onDelet
         data-label={displayText}
         title={`${isPage ? 'Page' : 'Block'}: ${displayText}\nClick to open, Shift+click for sidebar`}
       >
-        {effectiveIcon && (
-          <span className="link-pill__icon">
-            <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" />
-          </span>
-        )}
-        <span className="link-pill__text">{displayText}</span>
-        {clickCount > 0 && (
-          <span className="link-pill__badge">{clickCount}</span>
-        )}
+        <LinkBadge
+          text={displayText}
+          isPage={isPage}
+          icon={effectiveIcon}
+          clickCount={clickCount}
+          interactive={true}
+        />
       </span>
       {contextMenu && (
         <ContextMenu
