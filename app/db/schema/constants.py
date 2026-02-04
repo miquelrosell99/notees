@@ -131,7 +131,7 @@ SYSTEM_CLASS_UUIDS = {
 
 # Default icons for system classes (MDI icon names)
 SYSTEM_CLASS_ICONS = {
-    "class": "shape",
+    "class": "tag-multiple",
     "day": "calendar-today",
     "month": "calendar-month",
     "year": "calendar-text",
