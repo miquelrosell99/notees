@@ -84,7 +84,7 @@ export function GenericConditionRenderer({
   );
   
   // Get current operator
-  const operator = (condition as unknown as Record<string, unknown>).operator || config?.defaultOperator;
+  const operator = (condition as unknown as Record<string, unknown>).operator as string | undefined || config?.defaultOperator;
   const needsValue = operatorNeedsValue(condition.condition_type, operator as string);
   
   // Update selection mode when condition changes externally
@@ -132,7 +132,7 @@ export function GenericConditionRenderer({
   const handleOperatorChange = (newOperator: string | null) => {
     if (!newOperator) return;
     
-    const updated: unknown = {
+    const updated: Record<string, unknown> = {
       ...condition,
       operator: newOperator,
     };
@@ -156,7 +156,7 @@ export function GenericConditionRenderer({
       setSelectionMode('static');
     }
     
-    onUpdate(updated);
+    onUpdate(updated as unknown as ConditionNode);
   };
   
   // Handler for static/dynamic/current toggle
