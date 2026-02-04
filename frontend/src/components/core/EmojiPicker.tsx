@@ -93,7 +93,6 @@ const EMOJI_NAMES: Record<string, string[]> = {
   '🌏': ['earth', 'world', 'globe', 'asia'],
   '☀️': ['sun', 'sunny', 'weather'],
   '🌙': ['moon', 'night'],
-  '⭐': ['star'],
   '🌈': ['rainbow', 'colors'],
   '☁️': ['cloud', 'weather'],
   '⛈️': ['storm', 'thunder', 'lightning'],
