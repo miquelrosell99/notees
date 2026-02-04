@@ -127,6 +127,8 @@ export interface QueryNodeCollectionProps {
   hideToolbarControls?: boolean;
   /** Hide the content area while keeping toolbar visible */
   hideContent?: boolean;
+  /** Hide view management controls (view selector, filter button, add view button) */
+  hideViewManagement?: boolean;
   
   // ==================== Capability Props ====================
   
@@ -165,6 +167,7 @@ export function QueryNodeCollection({
   leftElement,
   hideToolbarControls = false,
   hideContent = false,
+  hideViewManagement = false,
   can_create = true,
   can_edit = true,
   can_delete = true,
@@ -561,42 +564,46 @@ export function QueryNodeCollection({
   // Toolbar prefix - view selector, filter button, add view button
   const toolbarPrefix = (
     <>
-      {/* View selection (only when multiple views) */}
-      {views.length > 1 && (
-        <SelectionButton
-          options={viewOptions}
-          value={String(activeView?.id ?? '')}
-          onChange={(value) => setActiveViewId(Number(value))}
-          size="sm"
-        />
-      )}
-      
-      {activeView && (
-        <div className="dynamic-section__filter-btn-wrapper">
+      {!hideViewManagement && (
+        <>
+          {/* View selection (only when multiple views) */}
+          {views.length > 1 && (
+            <SelectionButton
+              options={viewOptions}
+              value={String(activeView?.id ?? '')}
+              onChange={(value) => setActiveViewId(Number(value))}
+              size="sm"
+            />
+          )}
+          
+          {activeView && (
+            <div className="dynamic-section__filter-btn-wrapper">
+              <Button
+                icon={mdiFilterOutline}
+                iconOnly
+                variant="ghost"
+                size="xs"
+                onClick={() => handleEditView(activeView)}
+                title="Edit view"
+              />
+              {filterBlockCount > 0 && (
+                <Badge variant="primary" size="xs" className="dynamic-section__filter-badge">
+                  {filterBlockCount}
+                </Badge>
+              )}
+            </div>
+          )}
+          
           <Button
-            icon={mdiFilterOutline}
+            icon={mdiPlusBox}
             iconOnly
             variant="ghost"
             size="xs"
-            onClick={() => handleEditView(activeView)}
-            title="Edit view"
+            onClick={handleAddView}
+            title="Add view"
           />
-          {filterBlockCount > 0 && (
-            <Badge variant="primary" size="xs" className="dynamic-section__filter-badge">
-              {filterBlockCount}
-            </Badge>
-          )}
-        </div>
+        </>
       )}
-      
-      <Button
-        icon={mdiPlusBox}
-        iconOnly
-        variant="ghost"
-        size="xs"
-        onClick={handleAddView}
-        title="Add view"
-      />
     </>
   );
 
@@ -619,7 +626,7 @@ export function QueryNodeCollection({
           leftElement={resolvedLeftElement}
           hideToolbarControls={hideToolbarControls}
           hideContent={hideContent}
-          showGroupBy={collectionViewMode === 'list'}
+          showGroupBy={!hideViewManagement && collectionViewMode === 'list'}
           groupBy={groupBy}
           onGroupByChange={setGroupBy}
           showAddButton={effectiveCanCreate && viewType !== 'linked_references'}

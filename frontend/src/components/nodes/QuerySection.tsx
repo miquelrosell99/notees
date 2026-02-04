@@ -32,6 +32,10 @@ export interface QuerySectionProps {
   onBlockCreated?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
+  /** Hide view management controls (view selector, filter button, add view button) */
+  hideViewManagement?: boolean;
+  /** Whether new items can be created (default: true) */
+  can_create?: boolean;
 }
 
 export function QuerySection({
@@ -45,6 +49,8 @@ export function QuerySection({
   onNodeClick,
   onBlockCreated,
   className = '',
+  hideViewManagement = false,
+  can_create = true,
 }: QuerySectionProps): React.JSX.Element | null {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   
@@ -62,6 +68,8 @@ export function QuerySection({
       showAddButton={viewType !== 'linked_references'}
       hideToolbarControls={!isExpanded}
       hideContent={!isExpanded}
+      hideViewManagement={hideViewManagement}
+      can_create={can_create}
       leftElement={(count) => (
         <div className="node-view-section__header-content" onClick={handleToggle}>
           <Button 
