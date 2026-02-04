@@ -2,7 +2,7 @@
  * NodeLink Component
  * 
  * Displays an inline link to a node (page or block) with:
- * - Card-based styling with border, shadow, and rounded corners
+ * - Card-based styling with small rounded corners and faded background
  * - Badge showing click count
  * - Right-click context menu for replace/remove
  * - Click to navigate
@@ -10,10 +10,9 @@
  * Used in block content to show [[Page Name]] or ((block-uuid)) links.
  */
 import { useState, useCallback, useRef } from 'react';
-import { Card } from '../core/Card';
+import { LinkBadge } from '../core/LinkBadge';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { useNode } from '@/hooks';
-import { NodeIcon } from '../icons';
 import './NodeLink.css';
 
 export interface NodeLinkProps {
@@ -129,24 +128,13 @@ export function NodeLink({
         onContextMenu={handleContextMenu}
         title={`${type === 'page-link' ? 'Page' : 'Block'}: ${displayText}`}
       >
-        <Card
-          className="node-link__card"
-          elevation="low"
-          variant="outlined"
-          padding={false}
-          radius="sm"
+        <LinkBadge
+          text={displayText}
+          isPage={isPage}
+          icon={targetNode?.icon}
+          clickCount={clickCount}
           interactive={!readOnly}
-        >
-          {targetNode?.icon && (
-            <span className="node-link__icon">
-              <NodeIcon icon={targetNode.icon} isPage={isPage} size="xs" />
-            </span>
-          )}
-          <span className="node-link__text">{displayText}</span>
-          {clickCount > 0 && (
-            <span className="node-link__badge">{clickCount}</span>
-          )}
-        </Card>
+        />
       </span>
       
       {/* Context menu */}
