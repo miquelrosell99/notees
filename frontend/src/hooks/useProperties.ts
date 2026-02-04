@@ -65,6 +65,26 @@ export function useUpdateProperty() {
   });
 }
 
+/**
+ * Hook to delete a property
+ */
+export function useDeleteProperty() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: number) => 
+      propertiesApi.deleteProperty(id),
+    onSuccess: (_, id) => {
+      // Remove from cache
+      queryClient.removeQueries({ queryKey: propertyKeys.detail(id) });
+      // Invalidate lists to refresh all property lists
+      queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
+      // Invalidate all nodes since they might have this property
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+    },
+  });
+}
+
 // ==================== Type Properties (for Types/Classes) ====================
 
 /**
