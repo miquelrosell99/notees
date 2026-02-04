@@ -29,7 +29,7 @@ import './NodeViewTabs.css';
 
 // ==================== Types ====================
 
-export type ViewType = 'linked_references' | 'backlinks' | 'child_pages' | 'classed_nodes' | 'main_content' | 'custom';
+export type ViewType = 'linked_references' | 'backlinks' | 'child_pages' | 'classed_nodes' | 'extended_by' | 'main_content' | 'custom';
 
 interface NodeViewTabsProps {
   /** The node ID to fetch views for */

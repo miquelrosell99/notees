@@ -18,6 +18,7 @@ export type { QueryAST } from './queryAST';
 export type NodeViewType =
   | 'child_pages'
   | 'classed_nodes'
+  | 'extended_by'
   | 'linked_references'
   | 'main_content'
   | 'all_pages';

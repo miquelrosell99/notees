@@ -120,6 +120,29 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       );
     },
   },
+  
+  // Extended By view - classes that extend this class
+  {
+    viewType: 'extended_by',
+    requiresCondition: (_ast, context) => {
+      // For extended_by views, lock to the current page as the class being extended
+      if (!context.nodeUuid) return null;
+      return markAsSystemNode({
+        type: 'condition',
+        condition_type: 'extends',
+        extends_class_uuid: context.nodeUuid, // Lock to current page
+      });
+    },
+    hasRequiredCondition: (ast, context) => {
+      return ast.root_group.children.some(
+        (child) =>
+          child.type === 'condition' &&
+          (child as Record<string, unknown>).condition_type === 'extends' &&
+          ((child as Record<string, unknown>).extends_class_uuid === context.nodeUuid || 
+           (child as Record<string, unknown>).extends_class_uuid === '{current_node_uuid}')
+      );
+    },
+  },
 ];
 
 // ==================== Auto-Fix Functions ====================
@@ -158,6 +181,7 @@ export function autoFixSystemQuery(
     'linked_references': 'entire_graph',
     'child_pages': 'pages',
     'classed_nodes': 'entire_graph',
+    'extended_by': 'entire_graph',
   };
   
   const correctScope: ScopeNode = {
@@ -263,6 +287,7 @@ export function getAutoFixDescription(viewType: string): string | null {
     linked_references: 'Add required reference condition',
     child_pages: 'Add required parent condition',
     classed_nodes: 'Add required class condition',
+    extended_by: 'Add required extends condition',
   };
   return descriptions[viewType] || null;
 }
