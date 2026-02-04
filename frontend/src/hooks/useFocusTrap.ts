@@ -260,7 +260,7 @@ export function useFocusableList(
     }
   }, [containerRef, selector]);
   
-  return { setFocusIndex, currentIndex: currentIndexRef.current };
+  return { setFocusIndex };
 }
 
 export default useFocusTrap;

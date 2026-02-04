@@ -318,9 +318,11 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
 
 /**
  * Props for NodeDocumentView (document mode)
+ * Document mode has no extra props - just flat recursive display
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface NodeDocumentViewProps extends NodeCollectionViewBaseProps {
-  // Document mode has no extra props - just flat recursive display
+  // Intentionally empty - inherits all props from base
 }
 
 /**

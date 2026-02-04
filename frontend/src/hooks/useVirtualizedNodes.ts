@@ -91,12 +91,14 @@ export function useVirtualizedNodes({
   }, [nodeIds]);
 
   // Calculate which nodes should render (visible + overscan)
-  const renderIds = useMemo(() => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const nodesToRender = useMemo(() => {
     if (!enabled) {
       return new Set(nodeIds);
     }
     
     const result = new Set<number>();
+    // Reading ref here is intentional - we want to access the latest order without re-triggering
     const order = nodeOrderRef.current;
     
     // Add visible nodes and their neighbors

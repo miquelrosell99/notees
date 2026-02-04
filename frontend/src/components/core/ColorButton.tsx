@@ -145,7 +145,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
   };
 
   const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace('#', '');
+    const value = e.target.value.replace('#', '');
     setHexInput(value);
   };
 

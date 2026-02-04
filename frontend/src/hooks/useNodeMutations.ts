@@ -24,7 +24,6 @@ import { nodeViewKeys } from './useNodeViews';
  * IMPORTANT: Only returns a new object reference if the node was actually found and updated.
  * This is critical for React's reconciliation - if nothing changed, same reference must be returned.
  */
-// @ts-expect-error - Used recursively on line 32, TypeScript doesn't detect it
 function updateNodeById(node: Node | undefined, targetId: number, updater: (n: Node) => Node): Node | undefined {
   if (!node) return undefined;
   if (node.id === targetId) {

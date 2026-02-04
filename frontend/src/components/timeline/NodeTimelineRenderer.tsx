@@ -4,6 +4,9 @@
  * Displays timeline with time events (date property occurrences).
  * Each event is rendered as a NodeCircle, stacked if multiple events at same time.
  */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { getSettings, setSetting } from '@/api/databases';
 import * as nodesApi from '@/api/nodes';

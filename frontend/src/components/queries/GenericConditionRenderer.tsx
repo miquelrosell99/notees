@@ -5,6 +5,8 @@
  * Uses ConditionConfig to determine how to render each condition type.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState, useEffect } from 'react';
 import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@mdi/js';
 import { Dropdown } from '../core/Dropdown';
@@ -40,37 +42,37 @@ export function GenericConditionRenderer({
   const config = getConditionConfig(condition.condition_type);
   const currentNodeUuid = useCurrentNodeUuid();
   
-  if (!config) {
-    // Fallback for unknown condition types
-    return (
-      <div className="prose-condition__inline">
-        <span className="prose-condition__text">
-          Unknown condition type: {condition.condition_type}
-        </span>
-      </div>
-    );
-  }
+  // Calculate classId for useNode hook (must be before any conditional returns)
+  const classId = condition.condition_type === 'class' 
+    ? (condition as unknown as Record<string, unknown>).class_id as number | null
+    : condition.condition_type === 'extends' 
+      ? (condition as unknown as Record<string, unknown>).extends_class_id as number | null
+      : null;
+  
+  // Hooks must be called unconditionally - always call them here
+  const { data: allProperties = [] } = useProperties();
+  const { data: selectedClassNode } = useNode(classId);
   
   // Determine if we're in dynamic mode
-  const hasDynamicMode = config.hasStaticDynamicToggle || alwaysUsesNestedGroup(condition.condition_type);
+  const hasDynamicMode = config?.hasStaticDynamicToggle || alwaysUsesNestedGroup(condition.condition_type);
   const inDynamicMode = 'nested_group' in condition && condition.nested_group !== undefined;
   
   // Check if using current node - either explicit placeholder OR actual UUID match
   const hasCurrentNodePlaceholder = (() => {
     if (condition.condition_type === 'parent') {
-      const uuid = (condition as any).parent_uuid;
+      const uuid = (condition as unknown as Record<string, unknown>).parent_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
     } else if (condition.condition_type === 'reference') {
-      const uuid = (condition as any).target_uuid;
+      const uuid = (condition as unknown as Record<string, unknown>).target_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
     } else if (condition.condition_type === 'property') {
-      const value = (condition as any).value;
+      const value = (condition as unknown as Record<string, unknown>).value;
       return value === '{current_node_uuid}' || (value && value === currentNodeUuid);
     } else if (condition.condition_type === 'class') {
-      const uuid = (condition as any).class_uuid;
+      const uuid = (condition as unknown as Record<string, unknown>).class_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
     } else if (condition.condition_type === 'extends') {
-      const uuid = (condition as any).extends_class_uuid;
+      const uuid = (condition as unknown as Record<string, unknown>).extends_class_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
     }
     return false;
@@ -82,36 +84,27 @@ export function GenericConditionRenderer({
   );
   
   // Get current operator
-  const operator = (condition as any).operator || config.defaultOperator;
-  const needsValue = operatorNeedsValue(condition.condition_type, operator);
-  
-  // Hooks for data fetching (always call, conditionally use)
-  const { data: allProperties = [] } = useProperties();
-  const classId = condition.condition_type === 'class' 
-    ? (condition as any).class_id 
-    : condition.condition_type === 'extends' 
-      ? (condition as any).extends_class_id 
-      : null;
-  const { data: selectedClassNode } = useNode(classId);
+  const operator = (condition as unknown as Record<string, unknown>).operator || config?.defaultOperator;
+  const needsValue = operatorNeedsValue(condition.condition_type, operator as string);
   
   // Update selection mode when condition changes externally
   useEffect(() => {
     const hasNested = 'nested_group' in condition && condition.nested_group !== undefined;
     const hasCurrent = (() => {
       if (condition.condition_type === 'parent') {
-        const uuid = (condition as any).parent_uuid;
+        const uuid = (condition as unknown as Record<string, unknown>).parent_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       } else if (condition.condition_type === 'reference') {
-        const uuid = (condition as any).target_uuid;
+        const uuid = (condition as unknown as Record<string, unknown>).target_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       } else if (condition.condition_type === 'property') {
-        const value = (condition as any).value;
+        const value = (condition as unknown as Record<string, unknown>).value;
         return value === '{current_node_uuid}' || (value && value === currentNodeUuid);
       } else if (condition.condition_type === 'class') {
-        const uuid = (condition as any).class_uuid;
+        const uuid = (condition as unknown as Record<string, unknown>).class_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       } else if (condition.condition_type === 'extends') {
-        const uuid = (condition as any).extends_class_uuid;
+        const uuid = (condition as unknown as Record<string, unknown>).extends_class_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       }
       return false;
@@ -123,11 +116,23 @@ export function GenericConditionRenderer({
     }
   }, [condition, selectionMode, currentNodeUuid]);
   
+  // NOW we can do conditional checks after all hooks are called
+  if (!config) {
+    // Fallback for unknown condition types
+    return (
+      <div className="prose-condition__inline">
+        <span className="prose-condition__text">
+          Unknown condition type: {condition.condition_type}
+        </span>
+      </div>
+    );
+  }
+  
   // Handler for operator change
   const handleOperatorChange = (newOperator: string | null) => {
     if (!newOperator) return;
     
-    const updated: any = {
+    const updated: unknown = {
       ...condition,
       operator: newOperator,
     };

@@ -1399,7 +1399,7 @@ export function BlockEditor({
         const text = container.textContent || '';
         if (text === '\u200B' && range.startOffset <= 1) {
           // We're in a ZWS, check previous sibling for a pill
-          let prev = container.previousSibling;
+          const prev = container.previousSibling;
           if (prev && ((prev as HTMLElement).classList?.contains('inline-node-link') || (prev as HTMLElement).classList?.contains('link-pill'))) {
             adjacentPill = prev as HTMLElement;
           }
@@ -1410,7 +1410,7 @@ export function BlockEditor({
       const container = range.startContainer;
       if (container.nodeType === Node.TEXT_NODE && 
           range.startOffset === (container.textContent?.length || 0)) {
-        let next = container.nextSibling;
+        const next = container.nextSibling;
         if (next && ((next as HTMLElement).classList?.contains('inline-node-link') || (next as HTMLElement).classList?.contains('link-pill'))) {
           adjacentPill = next as HTMLElement;
         }

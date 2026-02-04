@@ -218,7 +218,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     }
     
     return { blockChildren: blocks, pageChildren: pages };
-  }, [node?.children, node?.id]);
+  }, [node]);
   
   // Resolve page class details from IDs
   const pageClassDetails = useMemo(() => {
@@ -230,7 +230,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
         return allNodes?.find(n => n.id === classId);
       })
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
-  }, [node?.classes, allClasses, allNodes]);
+  }, [node, allClasses, allNodes]);
   
   // Resolve page tag details from IDs
   const pageTagDetails = useMemo(() => {
@@ -246,7 +246,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
         if (t.is_class) return false;
         return true;
       });
-  }, [node?.tags, allTags, allNodes]);
+  }, [node, allTags, allNodes]);
   
   // A node is a "class node" if it's in the classes list OR has nodes using it as their class
   const isClassNode = useMemo(() => {

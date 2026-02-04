@@ -261,6 +261,7 @@ export const useKeyboardStore = create<KeyboardState>()(
       
       resetShortcut: (id) => {
         set((state) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [id]: _, ...rest } = state.customShortcuts;
           return { customShortcuts: rest };
         });

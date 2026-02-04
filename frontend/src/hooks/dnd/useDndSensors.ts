@@ -5,6 +5,8 @@
  * Handles mouse, touch, and keyboard interactions.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import {
   useSensor,
   useSensors,

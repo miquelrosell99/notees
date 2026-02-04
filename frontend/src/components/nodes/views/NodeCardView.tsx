@@ -429,7 +429,7 @@ function NodeCard({
   
   // Get the image URL from the asset node's uuid (async with token)
   useEffect(() => {
-    // Reset if no cover
+    // Reset if no cover - this is async cleanup, not cascading render
     if (!coverImageId || !assetNode?.uuid) {
       setCoverUrl(null);
       return;

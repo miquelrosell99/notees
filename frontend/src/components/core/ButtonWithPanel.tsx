@@ -196,7 +196,7 @@ export function ButtonWithPanel({
     
     let top = 0;
     let left = 0;
-    let preferredPosition = panelPosition;
+    const preferredPosition = panelPosition;
     
     // Try to fit in preferred position, fallback if doesn't fit
     const tryPosition = (pos: PanelPosition): { top: number; left: number; fits: boolean } => {

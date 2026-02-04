@@ -279,7 +279,7 @@ export function NodeTableView({
         };
       })
       .filter((col): col is NodeTableColumn => col !== null);
-  }, [propertyUuids, allProperties, allClasses, editable, openNode]);
+  }, [propertyUuids, allProperties, allClasses, editable, openNode, addClass, removeClass, dateColumnRenderer]);
   
   // Convert node columns to Table columns, injecting column renderers
   const nodeColumns = useMemo<NodeTableColumn[]>(() => {

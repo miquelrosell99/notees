@@ -203,7 +203,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       
       return newPage;
     },
-    [createNodeMutation, navigateOnSuccess, openNode, onSuccess]
+    [createNodeMutation, navigateOnSuccess, openNode, onSuccess, pageClassId]
   );
 
   // Check if there's any content to send

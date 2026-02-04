@@ -8,7 +8,7 @@
  * 
  * NOTE: Moved out of core/ - has domain knowledge (Node type, uses hooks)
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { usePages, useSearch, useQuickAdd } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
@@ -55,7 +55,8 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
   });
   
   // Reset state when dialog opens
-  useEffect(() => {
+  // Using useLayoutEffect to avoid cascading renders
+  useLayoutEffect(() => {
     if (isOpen) {
       setCreateType('page');
       setPageName('');

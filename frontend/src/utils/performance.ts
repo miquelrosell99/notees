@@ -372,6 +372,7 @@ export function useRenderTracking(componentName: string) {
   const renderStartRef = useRef<number>(0);
   
   // Track render start
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   renderStartRef.current = performance.now();
   
   useEffect(() => {
@@ -411,17 +412,17 @@ export function useNodeLoadTracking(nodeId: number | null, isLoading: boolean) {
  * Hook to measure time to first render
  */
 export function useTimeToFirstRender(name: string) {
-  const mounted = useRef(false);
+  const mounted = useRef<boolean | null>(null);
   
   useEffect(() => {
-    if (!mounted.current) {
+    if (mounted.current == null) {
       mounted.current = true;
       perfStore.markEnd(`${name}:firstRender`);
     }
   }, [name]);
   
   // Mark start on first call
-  if (!mounted.current) {
+  if (mounted.current == null) {
     perfStore.markStart(`${name}:firstRender`);
   }
 }

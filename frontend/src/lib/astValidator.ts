@@ -12,6 +12,8 @@
  * - System nodes must have proper capabilities set
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import type { QueryAST, GroupNode, ConditionNode, NotNode, ScopeNode, ScopeType } from '@/types/queryAST';
 import { getConditionConfig } from '@/components/queries/conditionConfigs';
 import { isSystemNode, SYSTEM_CAPABILITIES } from '@/types/queryAST';

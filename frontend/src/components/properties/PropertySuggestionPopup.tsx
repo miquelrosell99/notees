@@ -10,7 +10,7 @@
  * 
  * Uses the same dropdown pattern as NodePillRow for consistency.
  */
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';
 import type { Property } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -85,12 +85,13 @@ export function PropertySuggestionPopup({
   const totalItems = filteredProperties.length + (showCreateOption ? 1 : 0);
   
   // Reset selection when list changes
-  useEffect(() => {
+  // Using useLayoutEffect to sync before paint
+  useLayoutEffect(() => {
     setSelectedIndex(0);
   }, [filteredProperties.length, showCreateOption]);
   
   // Focus input and reset state when popup opens
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
