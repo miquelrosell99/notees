@@ -78,12 +78,39 @@ async def set_property_value(
     except ValueError as e:
         raise HTTPException(400, str(e))
     
-    # Fetch and return the updated node
+    # Fetch and return the updated node with properties
     node = await node_service.get_node(node_id)
     if not node:
         raise HTTPException(404, f"Node {node_id} not found")
     
-    return _node_to_response(node)
+    # Get classes for the node
+    from ..nodes.helpers import _get_class_ids
+    class_ids = await _get_class_ids(node_service, node_id)
+    
+    # Build response with properties populated
+    response = _node_to_response(node, classes=class_ids)
+    response.properties = {}
+    all_prop_values = await repo.get_all_property_values(node_id)
+    for prop_id, prop_data in all_prop_values.items():
+        prop_entity = prop_data['property']
+        values = prop_data['values']
+        if values:
+            # Extract the actual value based on property type
+            val = values[0]  # Get first value
+            if hasattr(val, 'target_id'):
+                # Relation type
+                response.properties[prop_entity.name] = val.target_id
+            elif hasattr(val, 'value_integer'):
+                # Scalar type
+                response.properties[prop_entity.name] = (
+                    val.value_integer or val.value_float or 
+                    val.value_text or val.value_boolean
+                )
+            elif hasattr(val, 'selection_line_id'):
+                # Selection type
+                response.properties[prop_entity.name] = val.selection_line_id
+    
+    return response
 
 
 @router.get("/{node_id}/properties")
