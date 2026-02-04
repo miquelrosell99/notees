@@ -703,7 +703,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
           onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
           hideViewManagement={true}
-          can_create={false}
         />
       )}
       
