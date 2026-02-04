@@ -263,11 +263,11 @@ export async function moveNode(
  * Search nodes by name
  * 
  * @param query - Search query string
- * @param type_filters - Optional comma-separated type IDs to filter results
+ * @param class_filters - Optional comma-separated class IDs to filter results
  */
-export async function searchNodes(query: string, type_filters?: string): Promise<Node[]> {
+export async function searchNodes(query: string, class_filters?: string): Promise<Node[]> {
   const response = await api.get<NodesResponse>(`${BASE}/search`, {
-    params: { q: query, type_filters },
+    params: { q: query, class_filters },
   });
   return response.data.nodes ?? [];
 }

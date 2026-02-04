@@ -335,11 +335,13 @@ export function usePages(options?: { includeChildren?: boolean; rootOnly?: boole
 
 /**
  * Hook to search nodes
+ * @param query - Search query string
+ * @param classFilters - Optional comma-separated class IDs to filter results
  */
-export function useSearch(query: string) {
+export function useSearch(query: string, classFilters?: string) {
   return useQuery({
-    queryKey: nodeKeys.search(query),
-    queryFn: () => nodesApi.searchNodes(query),
+    queryKey: nodeKeys.search(query, classFilters),
+    queryFn: () => nodesApi.searchNodes(query, classFilters),
     enabled: query.length > 0,
     placeholderData: [],
   });

@@ -2,7 +2,7 @@
  * SuggestionPopup - Floating popup for various triggers
  * 
  * Shows matching nodes when user types trigger characters in the editor.
- * - @ triggers type selection (nodes with "type" tag)
+ * - @ triggers class selection (nodes that are classes)
  * - # triggers tag selection (any page)
  * - [[ triggers link selection (pages first, then blocks)
  * 
@@ -12,7 +12,7 @@
  * Multi-select mode:
  * - Shows checkboxes next to each item
  * - Selected items are accumulated at the top
- * - Used for query filters, types list, and tags list
+ * - Used for query filters, classes list, and tags list
  * 
  * NOTE: Moved out of core/ - has domain knowledge (Node type, useNodeSearch hook)
  */
@@ -23,7 +23,7 @@ import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon } from './icons';
 import { Checkbox } from './core/Checkbox';
 
-export type SuggestionType = 'type' | 'tag' | 'link';
+export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
 
 export interface SuggestionPopupProps {
   /** Whether the popup is visible */
@@ -79,7 +79,7 @@ export function SuggestionPopup({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Map SuggestionType to NodeSearchMode
-  const searchMode: NodeSearchMode = type === 'type' ? 'classes' : type === 'tag' ? 'tags' : 'all';
+  const searchMode: NodeSearchMode = (type === 'type' || type === 'class') ? 'classes' : type === 'tag' ? 'tags' : 'all';
   
   // Use shared search hook
   const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(query, {
@@ -229,7 +229,7 @@ export function SuggestionPopup({
   
   // Helper to get icon for item
   const renderItemIcon = (node: Node, isPage: boolean) => {
-    if (type === 'type') {
+    if (type === 'type' || type === 'class') {
       return <NodeIcon icon={node.icon} isPage={true} size="sm" />;
     } else if (type === 'tag') {
       return <TagIcon size="sm" />;
@@ -270,6 +270,11 @@ export function SuggestionPopup({
           <>
             <span className="suggestion-popup__icon">@</span>
             <span>Set type</span>
+          </>
+        ) : type === 'class' ? (
+          <>
+            <span className="suggestion-popup__icon">@</span>
+            <span>Select class</span>
           </>
         ) : type === 'tag' ? (
           <>

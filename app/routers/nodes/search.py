@@ -142,7 +142,7 @@ async def get_graph_data_endpoint(
 async def search_nodes(
     q: str,
     limit: int = 50,
-    type_filters: Optional[str] = None,  # Comma-separated type IDs to filter by
+    class_filters: Optional[str] = None,  # Comma-separated class IDs to filter by
     user: User = Depends(get_current_user),
 ):
     """Search nodes by name.
@@ -150,18 +150,18 @@ async def search_nodes(
     Args:
         q: Search query
         limit: Maximum number of results
-        type_filters: Optional comma-separated list of type IDs to filter results
+        class_filters: Optional comma-separated list of class IDs to filter results
     
-    Returns nodes with type_ids populated for reliable filtering.
+    Returns nodes with class_ids populated for reliable filtering.
     """
     service = await _get_node_service(user)
     nodes = await service.search(q, limit)
     
-    # Parse type filters if provided
-    filter_type_ids: Optional[set] = None
-    if type_filters:
+    # Parse class filters if provided
+    filter_class_ids: Optional[set] = None
+    if class_filters:
         try:
-            filter_type_ids = {int(tid.strip()) for tid in type_filters.split(',') if tid.strip()}
+            filter_class_ids = {int(cid.strip()) for cid in class_filters.split(',') if cid.strip()}
         except ValueError:
             pass
     
@@ -171,16 +171,16 @@ async def search_nodes(
     # Batch fetch type_ids for all nodes using PostgreSQL
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
-    # Build response, optionally filtering by types
+    # Build response, optionally filtering by classes
     result = []
     for n in nodes:
         if n.id is None:
             continue
         node_class_ids = class_ids_map.get(n.id, [])
         
-        # Apply type filter if specified
-        if filter_type_ids:
-            if not filter_type_ids.intersection(node_class_ids):
+        # Apply class filter if specified
+        if filter_class_ids:
+            if not filter_class_ids.intersection(node_class_ids):
                 continue
         
         result.append(_node_to_response(n, classes=node_class_ids))
@@ -193,7 +193,7 @@ async def list_nodes(
     pages_only: bool = False,
     parent_id: Optional[int] = None,
     type_id: Optional[int] = None,
-    type_filters: Optional[str] = None,  # Comma-separated type IDs to filter by
+    class_filters: Optional[str] = None,  # Comma-separated class IDs to filter by
     include_children: bool = False,
     root_only: bool = False,  # Only return nodes with no parent
     page: int = Query(1, ge=1, description="Page number"),
@@ -206,13 +206,13 @@ async def list_nodes(
         pages_only: Only return pages (no blocks)
         parent_id: Only return children of this node
         type_id: Only return nodes with this type
-        type_filters: Additional comma-separated type IDs to filter by
+        class_filters: Additional comma-separated class IDs to filter by
         include_children: Include nested children for each node
         root_only: Only return root nodes (no parent_id)
         page: Page number (1-indexed)
         page_size: Number of items per page (1-200)
     
-    Returns paginated nodes with type_ids populated for reliable filtering.
+    Returns paginated nodes with class_ids populated for reliable filtering.
     """
     service = await _get_node_service(user)
     
@@ -225,15 +225,15 @@ async def list_nodes(
     else:
         nodes = await service.search("", limit=10000)  # Get all for filtering
     
-    # Parse type filters if provided
-    filter_type_ids: Optional[set] = None
-    if type_filters:
+    # Parse class filters if provided
+    filter_class_ids: Optional[set] = None
+    if class_filters:
         try:
-            filter_type_ids = {int(tid.strip()) for tid in type_filters.split(',') if tid.strip()}
+            filter_class_ids = {int(cid.strip()) for cid in class_filters.split(',') if cid.strip()}
         except ValueError:
             pass
     
-    # Batch fetch type_ids for all nodes
+    # Batch fetch class_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
     
@@ -241,16 +241,16 @@ async def list_nodes(
     if root_only:
         nodes = [n for n in nodes if n.parent_id is None]
     
-    # Build response, optionally filtering by types
+    # Build response, optionally filtering by classes
     result = []
     for n in nodes:
         if n.id is None:
             continue
         node_class_ids = class_ids_map.get(n.id, [])
         
-        # Apply type filter if specified
-        if filter_type_ids:
-            if not filter_type_ids.intersection(node_class_ids):
+        # Apply class filter if specified
+        if filter_class_ids:
+            if not filter_class_ids.intersection(node_class_ids):
                 continue
         
         result.append(_node_to_response(n, classes=node_class_ids))
