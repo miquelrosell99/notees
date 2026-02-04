@@ -1,0 +1,1300 @@
+﻿
+> frontend@0.0.0 lint
+> eslint .
+
+
+C:\Users\mrosell\Documents\notees\frontend\src\App.tsx
+  67:78  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  68:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\api\nodeViews.ts
+  95:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\BannerImage.tsx
+  112:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\BannerImage.tsx:112:5
+  110 |   // Reset collapsed state when pageId changes (navigating to a different page)
+  111 |   useEffect(() => {
+> 112 |     setIsCollapsed(getCollapsedState(pageId, !!bannerImageId));
+      |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  113 |   }, [pageId, bannerImageId]);
+  114 |   
+  115 |   // Bullet handlers  react-hooks/set-state-in-effect
+  205:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\BannerImage.tsx:205:7
+  203 |   useEffect(() => {
+  204 |     if (!bannerImageId || !assetNode?.uuid) {
+> 205 |       setImageUrl(null);
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  206 |       return;
+  207 |     }
+  208 |                                                                                                               react-hooks/set-state-in-effect
+  308:13  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               jsx-a11y/click-events-have-key-events
+  308:13  warning  Non-interactive elements should not be assigned mouse or keyboard event listeners                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            jsx-a11y/no-noninteractive-element-interactions
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\CommandPalette.tsx
+  262:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\CommandPalette.tsx:262:5
+  260 |   // Reset selection when results change
+  261 |   useEffect(() => {
+> 262 |     setSelectedIndex(0);
+      |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  263 |   }, [allItems.length]);
+  264 |   
+  265 |   // Focus input when opened   react-hooks/set-state-in-effect
+  268:7  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\CommandPalette.tsx:268:7
+  266 |   useEffect(() => {
+  267 |     if (isOpen) {
+> 268 |       setQuery('');
+      |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  269 |       setSelectedIndex(0);
+  270 |       setSelectedClasses([]);
+  271 |       setClassPopupPosition(null);  react-hooks/set-state-in-effect
+  458:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\CoverImage.tsx
+  108:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\CoverImage.tsx:108:5
+  106 |   // Reset collapsed state when pageId or coverImageId changes
+  107 |   useEffect(() => {
+> 108 |     setIsCollapsed(getCollapsedState(pageId, !!coverImageId));
+      |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  109 |   }, [pageId, coverImageId]);
+  110 |   
+  111 |   // Bullet handlers  react-hooks/set-state-in-effect
+  201:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\CoverImage.tsx:201:7
+  199 |   useEffect(() => {
+  200 |     if (!coverImageId || !assetNode?.uuid) {
+> 201 |       setImageUrl(null);
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  202 |       return;
+  203 |     }
+  204 |                                                                                             react-hooks/set-state-in-effect
+  311:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           jsx-a11y/click-events-have-key-events
+  311:11  warning  Non-interactive elements should not be assigned mouse or keyboard event listeners                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        jsx-a11y/no-noninteractive-element-interactions
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\ImportDataModal.tsx
+   38:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\ImportDataModal.tsx:38:7
+  36 |   useEffect(() => {
+  37 |     if (isOpen) {
+> 38 |       setContent('');
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  39 |       setError(null);
+  40 |       setParsedData(null);
+  41 |       setTimeout(() => textareaRef.current?.focus(), 0);  react-hooks/set-state-in-effect
+   48:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\ImportDataModal.tsx:48:7
+  46 |   useEffect(() => {
+  47 |     if (!content.trim()) {
+> 48 |       setError(null);
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  49 |       setParsedData(null);
+  50 |       return;
+  51 |     }                                                      react-hooks/set-state-in-effect
+   62:14  error    'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  103:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+  104:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\NodeClassPill.tsx
+  197:7  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  264:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  269:7  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\NodePill.tsx
+  179:20  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\NodePill.tsx:179:20
+  177 |       
+  178 |       if (onReplace) {
+> 179 |         items.push({
+      |                    ^
+> 180 |           id: 'replace',
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 181 |           label: 'Replace',
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 193 |           },
+      | ^^^^^^^^^^^^^^^^^^^^^^^^
+> 194 |         });
+      | ^^^^^^^^^^ Passing a ref to a function may read its value during render
+  195 |       }
+  196 |       
+  197 |       if (onRemove) {  react-hooks/refs
+  267:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+  306:15  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+  318:15  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+  395:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+  400:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\NodePillRow.tsx
+  94:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\NodePillRow.tsx:94:5
+  92 |   // Reset selection when results change
+  93 |   useEffect(() => {
+> 94 |     setSelectedIndex(0);
+     |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  95 |   }, [filteredResults.length, searchQuery]);
+  96 |
+  97 |   // Close picker when clicking outside  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\NodeViewTabs\NodeViewTabs.tsx
+  58:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\PageHeader.tsx
+   58:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\PageHeader.tsx:58:5
+  56 |   // Sync with page name when it changes externally
+  57 |   useEffect(() => {
+> 58 |     setInputValue(page.name || '');
+     |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  59 |   }, [page.name]);
+  60 |   
+  61 |   // Get all classes (for effective icon calculation)  react-hooks/set-state-in-effect
+  288:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  jsx-a11y/click-events-have-key-events
+  315:15  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  jsx-a11y/click-events-have-key-events
+  315:15  warning  Non-interactive elements should not be assigned mouse or keyboard event listeners                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               jsx-a11y/no-noninteractive-element-interactions
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\PropertiesSection.tsx
+  194:7    error  Unexpected lexical declaration in case block  no-case-declarations
+  213:7    error  Unexpected lexical declaration in case block  no-case-declarations
+  234:102  error  A `require()` style import is forbidden       @typescript-eslint/no-require-imports
+  438:45   error  '_propertyId' is defined but never used       @typescript-eslint/no-unused-vars
+  598:67   error  '_source' is defined but never used           @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\Scratchpad.tsx
+  59:11  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\Scratchpad.tsx:59:11
+  57 |         // Only load entries if they're from today
+  58 |         if (data.date === today) {
+> 59 |           setEntries(data.entries);
+     |           ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  60 |         } else {
+  61 |           // Clear old entries
+  62 |           setEntries([]);  react-hooks/set-state-in-effect
+  82:16  error  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\SearchBox.tsx
+   98:12  error    React Hook "useQuery" cannot be called inside a callback. React Hooks must be called in a React function component or a custom React Hook function                                        react-hooks/rules-of-hooks
+  119:7   warning  The 'allSections' array makes the dependencies of useCallback Hook (at line 269) change on every render. To fix this, wrap the initialization of 'allSections' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  230:23  error    Unexpected any. Specify a different type                                                                                                                                                  @typescript-eslint/no-explicit-any
+  298:6   warning  React Hook useCallback has an unnecessary dependency: 'showCreateOption'. Either exclude it or remove the dependency array                                                                react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\SettingsModal.tsx
+   99:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                     jsx-a11y/click-events-have-key-events
+  301:19  warning  The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+  304:19  warning  The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+  307:19  warning  The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\SlashCommandPopup.tsx
+  111:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\SlashCommandPopup.tsx:111:5
+  109 |   // Reset selection when results change
+  110 |   useEffect(() => {
+> 111 |     setSelectedIndex(0);
+      |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  112 |   }, [filteredCommands.length, query]);
+  113 |   
+  114 |   // Handle keyboard navigation  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\SuggestionPopup.tsx
+  135:9  error  Unexpected lexical declaration in case block  no-case-declarations
+  144:9  error  Unexpected lexical declaration in case block  no-case-declarations
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\assets\AssetBlock.tsx
+  90:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\assets\AssetPreview.tsx
+   68:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\assets\AssetPreview.tsx:68:5
+  66 |
+  67 |   useEffect(() => {
+> 68 |     setCurrentWidth(width);
+     |     ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  69 |     setCurrentHeight(height);
+  70 |   }, [width, height]);
+  71 |  react-hooks/set-state-in-effect
+  113:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          jsx-a11y/click-events-have-key-events
+  203:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          jsx-a11y/click-events-have-key-events
+  266:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          jsx-a11y/click-events-have-key-events
+  294:16  error    '_propContentType' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\assets\AssetUploadModal.tsx
+  120:34  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `validateFile`, but the source dependencies were [acceptedTypes]. Inferred different dependency than source.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\assets\AssetUploadModal.tsx:120:34
+  118 |   };
+  119 |
+> 120 |   const handleFile = useCallback((file: File) => {
+      |                                  ^^^^^^^^^^^^^^^^^
+> 121 |     const validationError = validateFile(file);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 122 |     if (validationError) {
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 138 |     reader.readAsDataURL(file);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 139 |   }, [acceptedTypes]);
+      | ^^^^ Could not preserve existing manual memoization
+  140 |
+  141 |   // Handle initial file (e.g. from paste)
+  142 |   useEffect(() => {  react-hooks/preserve-manual-memoization
+  139:6   warning  React Hook useCallback has a missing dependency: 'validateFile'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/exhaustive-deps
+  144:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\assets\AssetUploadModal.tsx:144:7
+  142 |   useEffect(() => {
+  143 |     if (isOpen && initialFile) {
+> 144 |       handleFile(initialFile);
+      |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  145 |     }
+  146 |   }, [isOpen, initialFile, handleFile]);
+  147 |                                                                                                                                                            react-hooks/set-state-in-effect
+  265:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           jsx-a11y/click-events-have-key-events
+  266:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           jsx-a11y/click-events-have-key-events
+  274:13  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\Block.tsx
+   425:32  error    Unexpected any. Specify a different type                                                                               @typescript-eslint/no-explicit-any
+   659:6   warning  React Hook useMemo has an unnecessary dependency: 'hasQueryResults'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+   998:6   warning  React Hook useCallback has an unnecessary dependency: 'block.id'. Either exclude it or remove the dependency array     react-hooks/exhaustive-deps
+  2037:13  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                         jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockCallbacksContext.tsx
+  64:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  72:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockContent.tsx
+   25:28  error    Unnecessary escape character: \}                                                                no-useless-escape
+  193:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  273:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  280:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockEditor.tsx
+   197:29  error    Unnecessary escape character: \}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-useless-escape
+   852:6   warning  React Hook useLayoutEffect has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+   868:31  error    Unnecessary escape character: \}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-useless-escape
+   953:8   error    Error: This value cannot be modified
+
+Modifying component props or hook arguments is not allowed. Consider using a local variable instead.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockEditor.tsx:953:8
+  951 |   useEffect(() => {
+  952 |     if (externalEditorRef && internalEditorRef.current) {
+> 953 |       (externalEditorRef as React.MutableRefObject<HTMLDivElement | null>).current = internalEditorRef.current;
+      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `externalEditorRef` cannot be modified
+  954 |     }
+  955 |   }, [externalEditorRef]);
+  956 |   
+
+Hint: If this value is a Ref (value returned by `useRef()`), rename the variable to end in "Ref"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/immutability
+  1013:6   warning  React Hook useEffect has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  1051:7   error    Error: Cannot access variable before it is declared
+
+`checkTriggers` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockEditor.tsx:1051:7
+  1049 |       
+  1050 |       // Check for triggers
+> 1051 |       checkTriggers(newContent);
+       |       ^^^^^^^^^^^^^ `checkTriggers` accessed before it is declared
+  1052 |     }
+  1053 |   }, [isComposing, onChange]);
+  1054 |   
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockEditor.tsx:1056:3
+  1054 |   
+  1055 |   // Check for trigger characters
+> 1056 |   const checkTriggers = useCallback((text: string) => {
+       |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1057 |     if (readOnly || !editorRef.current) return;
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1058 |     
+       ÔÇª
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1147 |     setTrigger(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1148 |   }, [readOnly]);
+       | ^^^^^^^^^^^^^^^^^^ `checkTriggers` is declared here
+  1149 |
+  1150 |   // Handle keydown for navigation and deletion
+  1151 |   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {                                                                                                                                                                                                         react-hooks/immutability
+  1053:6   warning  React Hook useCallback has missing dependencies: 'checkTriggers' and 'editorRef'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  1148:6   warning  React Hook useCallback has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+  1267:7   error    Error: Cannot access variable before it is declared
+
+`handleArrowNavigation` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockEditor.tsx:1267:7
+  1265 |     // Arrow navigation around pills
+  1266 |     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+> 1267 |       handleArrowNavigation(e);
+       |       ^^^^^^^^^^^^^^^^^^^^^ `handleArrowNavigation` accessed before it is declared
+  1268 |     }
+  1269 |
+  1270 |     // Arrow up/down navigation - check if cursor is on first/last line
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockEditor.tsx:1339:3
+  1337 |   
+  1338 |   // Handle arrow navigation around pills
+> 1339 |   const handleArrowNavigation = useCallback((e: React.KeyboardEvent) => {
+       |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1340 |     const selection = window.getSelection();
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1341 |     if (!selection || selection.rangeCount === 0) return;
+       ÔÇª
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1448 |     }
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 1449 |   }, [selectedPill, onNavigateLeft, onNavigateRight]);
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `handleArrowNavigation` is declared here
+  1450 |
+  1451 |   // Handle selection from popup
+  1452 |   const handleSelect = useCallback((node: Node, keepInline: boolean) => {  react-hooks/immutability
+  1336:6   warning  React Hook useCallback has missing dependencies: 'editorRef' and 'handleArrowNavigation'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  1449:6   warning  React Hook useCallback has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+  1546:6   warning  React Hook useCallback has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+  1622:6   warning  React Hook useCallback has missing dependencies: 'editorRef' and 'typeNames'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  1783:6   warning  React Hook useCallback has missing dependencies: 'editorRef', 'onAddClass', 'queryClassId', and 'tableClassId'. Either include them or remove the dependency array. If 'onAddClass' changes too often, find the parent component that defines it and wrap that definition in useCallback                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-hooks/exhaustive-deps
+  1917:6   warning  React Hook useCallback has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+  1942:6   warning  React Hook useEffect has a missing dependency: 'editorRef'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\BlockPreview.tsx
+  51:13  error    '_showIcon' is defined but never used                                                           @typescript-eslint/no-unused-vars
+  58:12  error    '_variant' is defined but never used                                                            @typescript-eslint/no-unused-vars
+  60:17  error    '_propertyName' is defined but never used                                                       @typescript-eslint/no-unused-vars
+  80:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\Bullet.tsx
+   48:39  error    Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  152:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\InlineNodeLink.tsx
+  88:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\TableBlock.tsx
+  104:13  error    '_viewMode' is assigned a value but never used                                                                            @typescript-eslint/no-unused-vars
+  263:6   warning  React Hook useEffect has a missing dependency: 'disableAutoBalanceRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  519:6   warning  React Hook useMemo has an unnecessary dependency: 'handleDeleteColumn'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\TextPropertyBlock.tsx
+  182:36  error  React Hook "useCallback" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?  react-hooks/rules-of-hooks
+  190:34  error  React Hook "useCallback" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?  react-hooks/rules-of-hooks
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\renderers\GenericRenderer.tsx
+  66:21  error  Unexpected constant truthiness on the left-hand side of a `||` expression  no-constant-binary-expression
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\blocks\renderers\ImageRenderer.tsx
+   83:21  error    Unexpected constant truthiness on the left-hand side of a `||` expression          no-constant-binary-expression
+  106:13  warning  Non-interactive elements should not be assigned mouse or keyboard event listeners  jsx-a11y/no-noninteractive-element-interactions
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\BooleanToggle.tsx
+  43:36  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\BooleanToggle.tsx:43:36
+  41 |   ref
+  42 | ) {
+> 43 |   const toggleId = id || `toggle-${Math.random().toString(36).slice(2, 9)}`;
+     |                                    ^^^^^^^^^^^^^ Cannot call impure function
+  44 |   
+  45 |   const containerClasses = [
+  46 |     'toggle-container',  react-hooks/purity
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ButtonWithPanel.tsx
+  255:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ButtonWithPanel.tsx:255:5
+  253 |     left = Math.max(16, Math.min(result.left, viewportWidth - actualWidth - 16));
+  254 |     
+> 255 |     setPortalPosition({ top, left });
+      |     ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  256 |   }, [usePortal, isOpen, panelPosition, panelAlignment, panelWidth]);
+  257 |   
+  258 |   // Calculate panel position styles  react-hooks/set-state-in-effect
+  373:43  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\CalendarPopup.tsx
+   91:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\CalendarPopup.tsx:91:5
+  89 |     }
+  90 |     
+> 91 |     setPosition({ top, left });
+     |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  92 |   }, [isOpen, anchorRef]);
+  93 |   
+  94 |   // Fetch daily note when a date is selected                                                       react-hooks/set-state-in-effect
+  111:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\CalendarPopup.tsx:111:7
+  109 |       openNode(monthlyNote.id, 'page');
+  110 |       onClose();
+> 111 |       setNavigateToMonth(null);
+      |       ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  112 |     }
+  113 |   }, [monthlyNote, navigateToMonth, openNode, onClose]);
+  114 |     react-hooks/set-state-in-effect
+  120:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\CalendarPopup.tsx:120:7
+  118 |       openNode(yearlyNote.id, 'page');
+  119 |       onClose();
+> 120 |       setNavigateToYear(null);
+      |       ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  121 |     }
+  122 |   }, [yearlyNote, navigateToYear, openNode, onClose]);
+  123 |          react-hooks/set-state-in-effect
+  129:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\CalendarPopup.tsx:129:7
+  127 |       openNode(dailyNote.id, 'page');
+  128 |       onClose();
+> 129 |       setSelectedDate(null);
+      |       ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  130 |     }
+  131 |   }, [dailyNote, selectedDate, openNode, onClose]);
+  132 |                  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\Checkbox.tsx
+  47:40  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\Checkbox.tsx:47:40
+  45 |   ref
+  46 | ) {
+> 47 |   const checkboxId = id || `checkbox-${Math.random().toString(36).slice(2, 9)}`;
+     |                                        ^^^^^^^^^^^^^ Cannot call impure function
+  48 |   
+  49 |   const containerClasses = [
+  50 |     'checkbox-container',  react-hooks/purity
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ColorButton.tsx
+  203:9  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\Dropdown.tsx
+  243:9   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  318:25  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ErrorBoundary.tsx
+  131:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\FeatureFlag.tsx
+  18:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ImageModal.tsx
+  94:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\InlineConfirmButton.tsx
+  50:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\InlineConfirmButton.tsx:50:7
+  48 |   useEffect(() => {
+  49 |     if (disabled) {
+> 50 |       setIsConfirming(false);
+     |       ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  51 |     }
+  52 |   }, [disabled]);
+  53 |  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\LazyImage.tsx
+   99:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\LazyImage.tsx:99:7
+   97 |     // Skip if already visible or priority
+   98 |     if (isVisible || priority || loadedImages.has(src)) {
+>  99 |       setIsVisible(true);
+      |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  100 |       return;
+  101 |     }
+  102 |  react-hooks/set-state-in-effect
+  174:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         jsx-a11y/click-events-have-key-events
+  200:9   warning  Non-interactive elements should not be assigned mouse or keyboard event listeners                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      jsx-a11y/no-noninteractive-element-interactions
+  222:17  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ListSortable.tsx
+  272:18  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\ListSortable.tsx:272:18
+  270 |       className={`list-sortable ${className} ${dragState ? 'list-sortable--dragging' : ''}`}
+  271 |     >
+> 272 |       {items.map((item, index) => {
+      |                  ^^^^^^^^^^^^^^^^^^
+> 273 |         const isDragging = dragState?.dragIndex === index;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 274 |         const style = getItemStyle(index);
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 323 |         );
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 324 |       })}
+      | ^^^^^^^^ Cannot access ref value during render
+  325 |     </div>
+  326 |   );
+  327 | }  react-hooks/refs
+  277:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\Modal.tsx
+  102:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\Table.tsx
+   35:22  error    Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+   36:22  error    Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  442:13  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\TableCreationModal.tsx
+  50:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\TableCreationModal.tsx:50:7
+  48 |     if (isOpen) {
+  49 |       // Default to adapt mode if there are existing children
+> 50 |       setMode(existingChildCount > 0 ? 'adapt' : 'select');
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  51 |     }
+  52 |   }, [isOpen, existingChildCount]);
+  53 |  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\core\TableSizeSelector.tsx
+  105:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\dnd\SortableItem.tsx
+  26:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  28:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  85:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graph\NodeCircle.tsx
+  184:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graph\NodeGraphRenderer.tsx
+  545:5  error    Error: Cannot access variable before it is declared
+
+`startSimulation` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graph\NodeGraphRenderer.tsx:545:5
+  543 |     
+  544 |     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
+> 545 |     startSimulation();
+      |     ^^^^^^^^^^^^^^^ `startSimulation` accessed before it is declared
+  546 |     
+  547 |     return () => {
+  548 |       cancelAnimationFrame(animationRef.current);
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graph\NodeGraphRenderer.tsx:617:3
+  615 |
+  616 |   // Start physics simulation
+> 617 |   const startSimulation = useCallback(() => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 618 |     const canvas = canvasRef.current;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 619 |     if (!canvas) return;
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 765 |     simulate();
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 766 |   }, [viewMode, getConnectedNodes]);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `startSimulation` is declared here
+  767 |
+  768 |   // Render function
+  769 |   const render = useCallback((ctx: CanvasRenderingContext2D) => {  react-hooks/immutability
+  550:6  warning  React Hook useEffect has missing dependencies: 'showTypeNodes' and 'startSimulation'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graph\NodeGraphViewSimple.tsx
+  68:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  68:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graph\NodeToNodeLine.tsx
+  161:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graphs\GraphModal.tsx
+  83:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graphs\GraphNameModal.tsx
+  98:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\graphs\ImportOptionsModal.tsx
+  61:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\icons.tsx
+  366:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\layout\Layout.tsx
+  268:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\lazy.tsx
+  79:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeActivityLogSection.tsx
+  118:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeCircle.tsx
+  4:1  error  This rule can't verify that `export *` only exports components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeCollection.tsx
+  373:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-refresh/only-export-components
+  483:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeCollection.tsx:483:7
+  481 |         .sort((a, b) => a.sequence - b.sequence)
+  482 |         .map(p => p.uuid);
+> 483 |       setInternalPropertyUuids(sortedProperties);
+      |       ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  484 |     }
+  485 |   }, [view, selectedPropertyUuidsProp]);
+  486 |     react-hooks/set-state-in-effect
+  613:9   error  Unexpected lexical declaration in case block                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           no-case-declarations
+  689:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeContent.tsx
+  128:40  error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  128:53  error    '_className' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+  131:48  error    '_tagName' is defined but never used                                                                              @typescript-eslint/no-unused-vars
+  137:36  error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  145:34  error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  187:7   warning  React Hook useMemo has an unnecessary dependency: 'allClasses'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeContextMenu.tsx
+   64:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                              jsx-a11y/click-events-have-key-events
+  172:6   warning  React Hook useMemo has an unnecessary dependency: 'archiveNode'. Either exclude it or remove the dependency array           react-hooks/exhaustive-deps
+  177:11  error    An interface declaring no members is equivalent to its supertype                                                            @typescript-eslint/no-empty-object-type
+  529:6   warning  React Hook useMemo has unnecessary dependencies: 'node' and 'openNode'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeLink.tsx
+  125:7  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePicker.tsx
+  135:11  error    Error: Cannot access variable before it is declared
+
+`handleSelect` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePicker.tsx:135:11
+  133 |         e.preventDefault();
+  134 |         if (selectedIndex < filteredResults.length) {
+> 135 |           handleSelect(filteredResults[selectedIndex]);
+      |           ^^^^^^^^^^^^ `handleSelect` accessed before it is declared
+  136 |         } else if (showCreateOption) {
+  137 |           handleCreate();
+  138 |         }
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePicker.tsx:150:3
+  148 |   
+  149 |   // Handle node selection
+> 150 |   const handleSelect = useCallback((node: Node) => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 151 |     if (multi) {
+      | ^^^^^^^^^^^^^^^^
+> 152 |       const currentIds = Array.isArray(value) ? value : value ? [value] : [];
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^
+> 164 |     }
+      | ^^^^^^^^^^^^^^^^
+> 165 |   }, [multi, value, onChange]);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `handleSelect` is declared here
+  166 |   
+  167 |   // Handle creating a new page
+  168 |   const handleCreate = useCallback(async () => {                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/immutability
+  137:11  error    Error: Cannot access variable before it is declared
+
+`handleCreate` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePicker.tsx:137:11
+  135 |           handleSelect(filteredResults[selectedIndex]);
+  136 |         } else if (showCreateOption) {
+> 137 |           handleCreate();
+      |           ^^^^^^^^^^^^ `handleCreate` accessed before it is declared
+  138 |         }
+  139 |         break;
+  140 |         
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePicker.tsx:168:3
+  166 |   
+  167 |   // Handle creating a new page
+> 168 |   const handleCreate = useCallback(async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 169 |     if (!onCreate || !query.trim()) return;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 170 |     
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 171 |     try {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 172 |       const newNode = await onCreate(query.trim());
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 173 |       handleSelect(newNode);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 174 |     } catch (error) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 175 |       console.error('Failed to create node:', error);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 176 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 177 |   }, [onCreate, query, handleSelect]);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `handleCreate` is declared here
+  178 |   
+  179 |   // Handle removing a selected node
+  180 |   const handleRemove = useCallback((nodeId: number) => {  react-hooks/immutability
+  147:6   warning  React Hook useCallback has missing dependencies: 'handleCreate' and 'handleSelect'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePreview.tsx
+  70:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodePreview.tsx:70:5
+  68 |     if (y < padding) y = padding;
+  69 |     
+> 70 |     setAdjustedPosition({ x, y });
+     |     ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  71 |   }, [position, anchorRect]);
+  72 |
+  73 |   // Close on click outside  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeToNodeLine.tsx
+  4:1  error  This rule can't verify that `export *` only exports components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\NodeViewSection.tsx
+  75:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  95:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\QueryNodeCollection.tsx
+   70:7   warning  Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+  318:18  error    Unexpected any. Specify a different type                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  435:6   warning  React Hook useCallback has a missing dependency: 'nodeUuid'. Either include it or remove the dependency array                                                                                                  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\QuerySection.tsx
+  78:9  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\QuickPageFilter.tsx
+  175:7   error    Error: Cannot access variable before it is declared
+
+`handleRemovePageFilter` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\QuickPageFilter.tsx:175:7
+  173 |     if (existingIndex >= 0) {
+  174 |       // Already exists - toggle or update
+> 175 |       handleRemovePageFilter(page.uuid);
+      |       ^^^^^^^^^^^^^^^^^^^^^^ `handleRemovePageFilter` accessed before it is declared
+  176 |       if (currentFilters[existingIndex].negated !== negated) {
+  177 |         // Re-add with opposite negation
+  178 |         const newCondition = createParentPathCondition(page.uuid);
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\QuickPageFilter.tsx:211:3
+  209 |   
+  210 |   // Remove a page filter by UUID
+> 211 |   const handleRemovePageFilter = useCallback((uuid: string) => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 212 |     // Helper to check if a condition matches the UUID
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 213 |     const matchesUuid = (child: ASTChild): boolean => {
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 246 |     });
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 247 |   }, [ast, onChange]);
+      | ^^^^^^^^^^^^^^^^^^^^^^^ `handleRemovePageFilter` is declared here
+  248 |   
+  249 |   // Handle click on search result
+  250 |   const handleResultClick = useCallback((page: Node, e: React.MouseEvent) => {  react-hooks/immutability
+  208:6   warning  React Hook useCallback has a missing dependency: 'handleRemovePageFilter'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  401:23  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeCardView.tsx
+  301:9   warning  The 'children' logical expression could make the dependencies of useEffect Hook (at line 369) change on every render. To fix this, wrap the initialization of 'children' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/exhaustive-deps
+  301:9   warning  The 'children' logical expression could make the dependencies of useCallback Hook (at line 501) change on every render. To fix this, wrap the initialization of 'children' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+  333:30  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `node.tags`, but the source dependencies were [node?.tags, allTags, allNodes]. Inferred different dependency than source.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeCardView.tsx:333:30
+  331 |   
+  332 |   // Resolve tag details
+> 333 |   const tagDetails = useMemo(() => {
+      |                              ^^^^^^^
+> 334 |     if (!node?.tags || node.tags.length === 0) return [];
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 335 |     return node.tags
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 345 |       });
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 346 |   }, [node?.tags, allTags, allNodes]);
+      | ^^^^ Could not preserve existing manual memoization
+  347 |   
+  348 |   // Get effective icon (from node or inherited from class)
+  349 |   const effectiveIcon = useMemo(() => getEffectiveIcon(node, propsAllClasses), [node, propsAllClasses]);  react-hooks/preserve-manual-memoization
+  368:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeCardView.tsx:368:5
+  366 |   // Reset temporary collapsed state when node changes
+  367 |   useEffect(() => {
+> 368 |     setTempCollapsedChildren(new Set(children.map(child => child.id)));
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  369 |   }, [node.id, children]);
+  370 |   
+  371 |   // Context menu state                                                                                                                                                                                                                       react-hooks/set-state-in-effect
+  404:32  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `node.properties?.cover`, but the source dependencies were [node?.properties, node.id]. Inferred different dependency than source.
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeCardView.tsx:404:32
+  402 |   
+  403 |   // Get cover image ID from properties
+> 404 |   const coverImageId = useMemo(() => {
+      |                                ^^^^^^^
+> 405 |     const coverValue = node?.properties?.cover;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 406 |     return typeof coverValue === 'number' ? coverValue : null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 407 |   }, [node?.properties, node.id]);
+      | ^^^^ Could not preserve existing manual memoization
+  408 |   
+  409 |   // Get the asset node for the cover image (for bullet)
+  410 |   const { data: assetNode } = useNode(coverImageId, { include_children: false });                                                                                    react-hooks/preserve-manual-memoization
+  407:6   warning  React Hook useMemo has an unnecessary dependency: 'node.id'. Either exclude it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  434:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeCardView.tsx:434:7
+  432 |     // Reset if no cover - this is async cleanup, not cascading render
+  433 |     if (!coverImageId || !assetNode?.uuid) {
+> 434 |       setCoverUrl(null);
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  435 |       return;
+  436 |     }
+  437 |                                                                                                                                                                                                                                                                          react-hooks/set-state-in-effect
+  641:5   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         jsx-a11y/click-events-have-key-events
+  652:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         jsx-a11y/click-events-have-key-events
+  652:11  warning  Non-interactive elements should not be assigned mouse or keyboard event listeners                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      jsx-a11y/no-noninteractive-element-interactions
+  704:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeDocumentView.tsx
+  48:9  warning  The 'children' logical expression could make the dependencies of useCallback Hook (at line 63) change on every render. To fix this, wrap the initialization of 'children' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  48:9  warning  The 'children' logical expression could make the dependencies of useCallback Hook (at line 76) change on every render. To fix this, wrap the initialization of 'children' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeGanttView.tsx
+  163:9  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeListView.tsx
+  192:9  warning  The 'rawChildren' logical expression could make the dependencies of useMemo Hook (at line 196) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'rawChildren' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\nodes\views\NodeTableView.tsx
+  163:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\properties\PropertyCell.tsx
+  158:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  181:28  error    Unexpected any. Specify a different type                                                        @typescript-eslint/no-explicit-any
+  197:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\properties\PropertyConfigPanel.tsx
+  90:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\properties\PropertyConfigPanel.tsx:90:7
+  88 |   useLayoutEffect(() => {
+  89 |     if (isOpen && property) {
+> 90 |       setName(property.name);
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  91 |       setIcon(property.icon || '');
+  92 |       setDescription(property.description || '');
+  93 |       setNewChoiceName('');  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\properties\PropertySuggestionPopup.tsx
+  90:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\properties\PropertySuggestionPopup.tsx:90:5
+  88 |   // Using useLayoutEffect to sync before paint
+  89 |   useLayoutEffect(() => {
+> 90 |     setSelectedIndex(0);
+     |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  91 |   }, [filteredProperties.length, showCreateOption]);
+  92 |   
+  93 |   // Focus input and reset state when popup opens  react-hooks/set-state-in-effect
+  96:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\properties\PropertySuggestionPopup.tsx:96:7
+  94 |   useLayoutEffect(() => {
+  95 |     if (isOpen) {
+> 96 |       setQuery('');
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  97 |       setSelectedIndex(0);
+  98 |       setTimeout(() => inputRef.current?.focus(), 50);
+  99 |     }                                                             react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\queries\AddFilterMenu.tsx
+  51:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\queries\GenericConditionRenderer.tsx
+  115:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\queries\GenericConditionRenderer.tsx:115:7
+  113 |     const expectedMode = hasNested ? 'dynamic' : hasCurrent ? 'current' : 'static';
+  114 |     if (selectionMode !== expectedMode) {
+> 115 |       setSelectionMode(expectedMode);
+      |       ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  116 |     }
+  117 |   }, [condition, selectionMode, currentNodeUuid]);
+  118 |     react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\queries\conditionConfigs.ts
+  289:39  error  '_conditionType' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\quickadd\QuickAddDialog.tsx
+   61:7  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\quickadd\QuickAddDialog.tsx:61:7
+  59 |   useLayoutEffect(() => {
+  60 |     if (isOpen) {
+> 61 |       setCreateType('page');
+     |       ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  62 |       setPageName('');
+  63 |       resetBlocks();
+  64 |       setDestinationPage(null);  react-hooks/set-state-in-effect
+  133:5  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              jsx-a11y/click-events-have-key-events
+  134:7  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\sidebar\CommentsSidebar.tsx
+  82:11  warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\sidebar\SidebarContextSections.tsx
+   77:7   warning  Visible, non-interactive elements with click handlers must have at least one keyboard listener  jsx-a11y/click-events-have-key-events
+  159:43  error    '_commentId' is defined but never used                                                          @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\sidebar\SidebarNodeView.tsx
+  108:88   error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  108:110  error    '_className' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+  113:105  error    '_tagName' is defined but never used                                                                              @typescript-eslint/no-unused-vars
+  259:40   error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  259:53   error    '_className' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+  262:48   error    '_tagName' is defined but never used                                                                              @typescript-eslint/no-unused-vars
+  268:36   error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  276:34   error    '_keepInline' is defined but never used                                                                           @typescript-eslint/no-unused-vars
+  302:7    warning  React Hook useMemo has an unnecessary dependency: 'allClasses'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\components\timeline\NodeTimelineRenderer.tsx
+  679:6  warning  React Hook useCallback has an unnecessary dependency: 'dateRange'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\RouterSync.tsx
+  90:18  error  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useContentSave.ts
+  146:25  warning  The ref value 'pendingChangesRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'pendingChangesRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useDebouncedSave.ts
+  99:22  warning  The ref value 'pendingChanges.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'pendingChanges.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useFocusTrap.ts
+  159:47  warning  The ref value 'finalFocusRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'finalFocusRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useFocusedView.ts
+   18:10  error  'useMemo' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  153:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useFocusedView.ts:153:5
+  151 |   // Reset backlinks state when node changes
+  152 |   useLayoutEffect(() => {
+> 153 |     setShouldLoadBacklinks(false);
+      |     ^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  154 |   }, [nodeId]);
+  155 |
+  156 |   return {  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useKeyboardShortcuts.tsx
+   28:32  error  'SHORTCUT_IDS' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
+   28:46  error  'formatShortcutKey' is defined but never used                                                                                   @typescript-eslint/no-unused-vars
+   31:24  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   43:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   61:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   76:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   83:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   93:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  123:16  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useNodeMutations.ts
+    27:10  error  'updateNodeById' is defined but never used  @typescript-eslint/no-unused-vars
+   606:22  error  Unexpected any. Specify a different type    @typescript-eslint/no-explicit-any
+   791:38  error  '_deletedNode' is defined but never used    @typescript-eslint/no-unused-vars
+  1058:17  error  '_movedNode' is defined but never used      @typescript-eslint/no-unused-vars
+  1058:29  error  '_variables' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useNodeViews.ts
+  255:83  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useRouter.ts
+  272:18  error  'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  362:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useRouter.ts:362:7
+  360 |   useLayoutEffect(() => {
+  361 |     if (!currentNodeId) {
+> 362 |       setUuid(null);
+      |       ^^^^^^^ Avoid calling setState() directly within an effect
+  363 |       return;
+  364 |     }
+  365 |       react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useSearchableList.ts
+  67:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useSearchableList.ts:67:5
+  65 |   // Using useLayoutEffect to sync before paint
+  66 |   useLayoutEffect(() => {
+> 67 |     setSelectedIndex(0);
+     |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  68 |   }, [totalItems]);
+  69 |
+  70 |   // Focus input when opened  react-hooks/set-state-in-effect
+
+C:\Users\mrosell\Documents\notees\frontend\src\hooks\useVirtualizedNodes.ts
+   94:3  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+   95:9  error    'nodesToRender' is assigned a value but never used                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  229:6  warning  React Hook useCallback has an unnecessary dependency: 'renderIds'. Either exclude it or remove the dependency array. Outer scope values like 'renderIds' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+  234:6  warning  React Hook useCallback has an unnecessary dependency: 'renderIds'. Either exclude it or remove the dependency array. Outer scope values like 'renderIds' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+
+C:\Users\mrosell\Documents\notees\frontend\src\lib\astProseRenderer.ts
+  403:38  error  '_group' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\lib\queryValidation.ts
+  42:24  error  '_ast' is defined but never used     @typescript-eslint/no-unused-vars
+  42:40  error  '_issues' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\lib\systemQueryAutoFix.ts
+  76:25  error  '_ast' is defined but never used      @typescript-eslint/no-unused-vars
+  76:31  error  '_context' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mrosell\Documents\notees\frontend\src\stores\blockSelectionStore.ts
+  726:43  error  Optional chain expressions can return undefined by design - using a non-null assertion is unsafe and wrong  @typescript-eslint/no-non-null-asserted-optional-chain
+
+C:\Users\mrosell\Documents\notees\frontend\src\utils\performance.ts
+  375:3  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/rules-of-hooks')
+
+C:\Users\mrosell\Documents\notees\frontend\src\views\NodeView.tsx
+  110:56  error  '_keepInline' is defined but never used  @typescript-eslint/no-unused-vars
+  110:78  error  '_className' is defined but never used   @typescript-eslint/no-unused-vars
+  113:73  error  '_tagName' is defined but never used     @typescript-eslint/no-unused-vars
+  119:52  error  '_keepInline' is defined but never used  @typescript-eslint/no-unused-vars
+  127:50  error  '_keepInline' is defined but never used  @typescript-eslint/no-unused-vars
+
+Ô£û 259 problems (149 errors, 110 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+

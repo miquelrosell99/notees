@@ -15,7 +15,7 @@
  * - Enables focused view to load in <200ms regardless of graph size
  */
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, useCallback, useLayoutEffect } from 'react';
+import { useState, useCallback, useLayoutEffect } from 'react';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './useNodes';
 import type { Node, Backlink } from '@/types';
