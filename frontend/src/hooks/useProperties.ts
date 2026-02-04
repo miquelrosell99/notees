@@ -135,6 +135,8 @@ export function useAddClassExtends() {
     onSuccess: (_, { classId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      // Invalidate nodes list so resolved extends details update in UI
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
   });
 }
@@ -151,6 +153,8 @@ export function useRemoveClassExtends() {
     onSuccess: (_, { classId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      // Invalidate nodes list so resolved extends details update in UI
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
   });
 }
