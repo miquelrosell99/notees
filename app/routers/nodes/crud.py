@@ -295,11 +295,15 @@ async def get_node(
                             # Relation type
                             node_properties_map[nid][str(prop_id)] = val.target_id
                         elif hasattr(val, 'value_integer'):
-                            # Scalar type
-                            node_properties_map[nid][str(prop_id)] = (
-                                val.value_integer or val.value_float or 
-                                val.value_text or val.value_boolean
-                            )
+                            # Scalar type - check each field, not using `or` since empty string is falsy
+                            if val.value_text is not None:
+                                node_properties_map[nid][str(prop_id)] = val.value_text
+                            elif val.value_integer is not None:
+                                node_properties_map[nid][str(prop_id)] = val.value_integer
+                            elif val.value_float is not None:
+                                node_properties_map[nid][str(prop_id)] = val.value_float
+                            elif val.value_boolean is not None:
+                                node_properties_map[nid][str(prop_id)] = val.value_boolean
                         elif hasattr(val, 'selection_line_id'):
                             # Selection type
                             node_properties_map[nid][str(prop_id)] = val.selection_line_id
@@ -377,11 +381,15 @@ async def get_node(
                     # Relation type
                     response.properties[str(prop_id)] = val.target_id
                 elif hasattr(val, 'value_integer'):
-                    # Scalar type
-                    response.properties[str(prop_id)] = (
-                        val.value_integer or val.value_float or 
-                        val.value_text or val.value_boolean
-                    )
+                    # Scalar type - check each field, not using `or` since empty string is falsy
+                    if val.value_text is not None:
+                        response.properties[str(prop_id)] = val.value_text
+                    elif val.value_integer is not None:
+                        response.properties[str(prop_id)] = val.value_integer
+                    elif val.value_float is not None:
+                        response.properties[str(prop_id)] = val.value_float
+                    elif val.value_boolean is not None:
+                        response.properties[str(prop_id)] = val.value_boolean
                 elif hasattr(val, 'selection_line_id'):
                     # Selection type
                     response.properties[str(prop_id)] = val.selection_line_id
@@ -529,11 +537,15 @@ async def get_page_content(
                 logger.info(f"    -> target_id={val.target_id}")
                 page_response.properties[str(prop_id)] = val.target_id
             elif hasattr(val, 'value_integer'):
-                # Scalar type
-                page_response.properties[str(prop_id)] = (
-                    val.value_integer or val.value_float or 
-                    val.value_text or val.value_boolean
-                )
+                # Scalar type - check each field, not using `or` since empty string is falsy
+                if val.value_text is not None:
+                    page_response.properties[str(prop_id)] = val.value_text
+                elif val.value_integer is not None:
+                    page_response.properties[str(prop_id)] = val.value_integer
+                elif val.value_float is not None:
+                    page_response.properties[str(prop_id)] = val.value_float
+                elif val.value_boolean is not None:
+                    page_response.properties[str(prop_id)] = val.value_boolean
             elif hasattr(val, 'selection_line_id'):
                 # Selection type
                 page_response.properties[str(prop_id)] = val.selection_line_id
