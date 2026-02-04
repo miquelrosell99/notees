@@ -108,6 +108,129 @@ async def remove_class_property(
 
 # ============== Class Extends (Inheritance) ==============
 
+@router.get("/classes/{class_node_id}/extends")
+async def get_class_extends(
+    class_node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get all classes that this class extends (inherits from).
+    
+    Returns the direct parent classes in sequence order.
+    """
+    from ...domain.services.class_extension_service import ClassExtensionService
+    from ...dependencies import get_pool
+    from ...db.schema import get_or_create_user_graph
+    
+    pool = await get_pool()
+    user_id = int(user.id)
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+    repo = await _get_property_repo(user)
+    
+    extension_service = ClassExtensionService(pool, graph_id, repo)
+    
+    try:
+        extends = await extension_service.get_extended_classes_with_details(class_node_id)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to get class extends: {str(e)}")
+    
+    # Return in the format expected by the frontend
+    result = []
+    for ext in extends:
+        result.append({
+            "id": ext.id,
+            "class_node_id": ext.target_id,
+            "class_node_name": "",  # Not needed since target is the current class
+            "extends_class_node_id": ext.source_id,
+            "extends_class_node_name": ext.source_name,
+            "extends_class_icon": ext.source_icon,
+            "sequence": ext.sequence,
+        })
+    
+    return {"extends": result}
+
+
+@router.post("/classes/{class_node_id}/extends")
+async def add_class_extends(
+    class_node_id: int,
+    request: dict,
+    user: User = Depends(get_current_user),
+):
+    """Add a class extension (inheritance) relationship.
+    
+    Request body:
+        extends_class_node_id: The class to extend (parent)
+        sequence: Optional order index (default 0)
+    """
+    from ...domain.services.class_extension_service import ClassExtensionService, CircularInheritanceError
+    from ...dependencies import get_pool
+    from ...db.schema import get_or_create_user_graph
+    
+    extends_class_id = request.get("extends_class_node_id")
+    if not extends_class_id:
+        raise HTTPException(400, "extends_class_node_id is required")
+    
+    sequence = request.get("sequence", 0)
+    
+    pool = await get_pool()
+    user_id = int(user.id)
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+    repo = await _get_property_repo(user)
+    
+    extension_service = ClassExtensionService(pool, graph_id, repo)
+    
+    try:
+        ext = await extension_service.add_extends(class_node_id, extends_class_id, sequence)
+    except CircularInheritanceError as e:
+        raise HTTPException(400, f"Cannot add extension: {str(e)}")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Failed to add class extension: {str(e)}")
+    
+    return {
+        "id": ext.id,
+        "class_node_id": ext.target_id,
+        "class_node_name": "",
+        "extends_class_node_id": ext.source_id,
+        "extends_class_node_name": ext.source_name,
+        "extends_class_icon": ext.source_icon,
+        "sequence": ext.sequence,
+    }
+
+
+@router.delete("/classes/{class_node_id}/extends/{extends_class_node_id}")
+async def remove_class_extends(
+    class_node_id: int,
+    extends_class_node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Remove a class extension (inheritance) relationship."""
+    from ...domain.services.class_extension_service import ClassExtensionService
+    from ...dependencies import get_pool
+    from ...db.schema import get_or_create_user_graph
+    
+    pool = await get_pool()
+    user_id = int(user.id)
+    async with pool.acquire() as conn:
+        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+    repo = await _get_property_repo(user)
+    
+    extension_service = ClassExtensionService(pool, graph_id, repo)
+    
+    try:
+        success = await extension_service.remove_extends(class_node_id, extends_class_node_id)
+        if not success:
+            raise HTTPException(404, "Class extension not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to remove class extension: {str(e)}")
+    
+    return {"status": "ok"}
+
+
 @router.get("/classes/{class_node_id}/inherited-properties")
 async def get_inherited_properties_endpoint(
     class_node_id: int,

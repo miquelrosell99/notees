@@ -24,7 +24,7 @@ import asyncpg
 
 from ..entities import (
     Property, PropertyType, PropertySelectionLine,
-    PropertyClassFilter, ClassProperty, ClassExtend,
+    PropertyClassFilter, ClassProperty,
     NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     SCALAR_TYPES, RELATION_TYPES, ALWAYS_SINGLE_TYPES,
     generate_uuid,

@@ -350,19 +350,5 @@ class ClassProperty:
     default_selection_id: Optional[int] = None
 
 
-@dataclass
-class ClassExtend:
-    """Links a class to other classes it extends (inherits from).
-    
-    When a class extends another class, nodes with that class will
-    also have the properties defined on the extended classes.
-    
-    Schema fields (class_extend table):
-    - target_id: The child class node that extends another
-    - source_id: The parent class node being extended
-    - sequence: Order of extended classes
-    """
-    id: Optional[int] = None
-    target_id: int = 0  # The child class node
-    source_id: int = 0  # The parent class node being extended
-    sequence: int = 0  # Order of extended classes
+# Note: ClassExtend entity is now defined in class_extension_service.py
+# as it's only used by that service for managing inheritance relationships
