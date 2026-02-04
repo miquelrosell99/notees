@@ -75,11 +75,12 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     
     # Create 'class' node (renamed from 'type')
     class_uuid = SYSTEM_CLASS_UUIDS["class"]
+    class_icon = SYSTEM_CLASS_ICONS.get("class")
     class_row = await conn.fetchrow("""
-        INSERT INTO node (uuid, graph_id, name, is_class, is_page, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'class', TRUE, TRUE, $3, $3, $4, $4)
+        INSERT INTO node (uuid, graph_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'class', $3, TRUE, TRUE, $4, $4, $5, $5)
         RETURNING id
-    """, class_uuid, graph_id, now, user_id)
+    """, class_uuid, graph_id, class_icon, now, user_id)
     if class_row is None:
         raise RuntimeError("Failed to create 'class' node")
     class_node_id = class_row['id']
