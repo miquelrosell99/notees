@@ -108,6 +108,36 @@ export function NodePicker({
     setSelectedIndex(0);
   }, [filteredResults.length, query]);
   
+  // Handle node selection
+  const handleSelect = useCallback((node: Node) => {
+    if (multi) {
+      const currentIds = Array.isArray(value) ? value : value ? [value] : [];
+      if (currentIds.includes(node.id)) {
+        // Remove if already selected
+        onChange(currentIds.filter(id => id !== node.id));
+      } else {
+        // Add to selection
+        onChange([...currentIds, node.id]);
+      }
+    } else {
+      onChange(node.id);
+      setIsOpen(false);
+      setQuery('');
+    }
+  }, [multi, value, onChange]);
+  
+  // Handle creating a new page
+  const handleCreate = useCallback(async () => {
+    if (!onCreate || !query.trim()) return;
+    
+    try {
+      const newNode = await onCreate(query.trim());
+      handleSelect(newNode);
+    } catch (error) {
+      console.error('Failed to create node:', error);
+    }
+  }, [onCreate, query, handleSelect]);
+  
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!isOpen) {
@@ -144,37 +174,7 @@ export function NodePicker({
         setQuery('');
         break;
     }
-  }, [isOpen, selectedIndex, totalItems, filteredResults, showCreateOption, onCreate]);
-  
-  // Handle node selection
-  const handleSelect = useCallback((node: Node) => {
-    if (multi) {
-      const currentIds = Array.isArray(value) ? value : value ? [value] : [];
-      if (currentIds.includes(node.id)) {
-        // Remove if already selected
-        onChange(currentIds.filter(id => id !== node.id));
-      } else {
-        // Add to selection
-        onChange([...currentIds, node.id]);
-      }
-    } else {
-      onChange(node.id);
-      setIsOpen(false);
-      setQuery('');
-    }
-  }, [multi, value, onChange]);
-  
-  // Handle creating a new page
-  const handleCreate = useCallback(async () => {
-    if (!onCreate || !query.trim()) return;
-    
-    try {
-      const newNode = await onCreate(query.trim());
-      handleSelect(newNode);
-    } catch (error) {
-      console.error('Failed to create node:', error);
-    }
-  }, [onCreate, query, handleSelect]);
+  }, [isOpen, selectedIndex, totalItems, filteredResults, showCreateOption, onCreate, handleCreate, handleSelect]);
   
   // Handle removing a selected node
   const handleRemove = useCallback((nodeId: number) => {

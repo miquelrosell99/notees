@@ -58,6 +58,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
   // Using useLayoutEffect to avoid cascading renders
   useLayoutEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize dialog state when opened in useLayoutEffect
       setCreateType('page');
       setPageName('');
       resetBlocks();

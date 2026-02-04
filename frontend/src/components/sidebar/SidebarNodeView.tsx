@@ -105,11 +105,13 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   }, [openNode]);
 
   // Handle adding a class to a block
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for callback signature
   const handleAddClassToBlock = useCallback((blockId: number) => (classNodeId: number, _keepInline: boolean, _className: string) => {
     addClass.mutate({ nodeId: blockId, classId: classNodeId });
   }, [addClass]);
 
   // Handle adding a tag to a block
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for callback signature
   const handleAddTagToBlock = useCallback((blockId: number) => (tagNodeId: number, keepInline: boolean, _tagName: string) => {
     addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
     if (keepInline) {
@@ -255,6 +257,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   }, [node, allClasses, classedNodes]);
   
   // Block callbacks for NodeCollection context
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for BlockCallbacks interface
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
     onAddClass: (blockId, classNodeId, _keepInline, _className) => {
       addClass.mutate({ nodeId: blockId, classId: classNodeId });

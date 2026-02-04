@@ -67,8 +67,9 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
     if (x < padding) x = padding;
     if (y < padding) y = padding;
     
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Calculate position based on DOM measurements
     setAdjustedPosition({ x, y });
-  }, [position, anchorRect]);
+  }, [position, anchorRect, nodeId]);
 
   // Close on click outside
   useEffect(() => {

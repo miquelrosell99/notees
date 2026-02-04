@@ -269,6 +269,7 @@ export function ListSortable<T extends ListSortableItem>({
       ref={containerRef}
       className={`list-sortable ${className} ${dragState ? 'list-sortable--dragging' : ''}`}
     >
+      {/* eslint-disable-next-line react-hooks/refs -- Intentional ref access for drag & drop optimization */}
       {items.map((item, index) => {
         const isDragging = dragState?.dragIndex === index;
         const style = getItemStyle(index);

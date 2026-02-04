@@ -112,6 +112,7 @@ export function GenericConditionRenderer({
     
     const expectedMode = hasNested ? 'dynamic' : hasCurrent ? 'current' : 'static';
     if (selectionMode !== expectedMode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Derive UI mode from condition structure
       setSelectionMode(expectedMode);
     }
   }, [condition, selectionMode, currentNodeUuid]);

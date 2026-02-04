@@ -359,6 +359,7 @@ export function useCurrentNodeUuid(): string | null {
   // Using useLayoutEffect to sync state before paint
   useLayoutEffect(() => {
     if (!currentNodeId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Clear UUID when node is cleared
       setUuid(null);
       return;
     }

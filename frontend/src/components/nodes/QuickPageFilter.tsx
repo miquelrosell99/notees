@@ -166,6 +166,45 @@ export function QuickPageFilter({
   // Count of active page filters
   const filterCount = currentFilters.length;
   
+  // Remove a page filter by UUID
+  const handleRemovePageFilter = useCallback((uuid: string) => {
+    // Helper to check if a condition matches the UUID
+    const matchesUuid = (child: ASTChild): boolean => {
+      if (isParentPathCondition(child)) {
+        const parentPath = child as ParentPathCondition;
+        for (const nestedChild of parentPath.nested_group?.children || []) {
+          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+            const contentCond = nestedChild as { value?: string };
+            if (contentCond.value === uuid) return true;
+          }
+        }
+      }
+      if (child.type === 'not') {
+        const notNode = child as NotNode;
+        if (isParentPathCondition(notNode.child)) {
+          const parentPath = notNode.child as ParentPathCondition;
+          for (const nestedChild of parentPath.nested_group?.children || []) {
+            if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
+              const contentCond = nestedChild as { value?: string };
+              if (contentCond.value === uuid) return true;
+            }
+          }
+        }
+      }
+      return false;
+    };
+    
+    const newChildren = ast.root_group.children.filter(child => !matchesUuid(child));
+    
+    onChange({
+      ...ast,
+      root_group: {
+        ...ast.root_group,
+        children: newChildren,
+      },
+    });
+  }, [ast, onChange]);
+
   // Add a page filter
   const handleAddPageFilter = useCallback((page: Node, negated: boolean) => {
     // Check if already exists
@@ -205,46 +244,7 @@ export function QuickPageFilter({
     });
     
     setQuery('');
-  }, [ast, currentFilters, onChange]);
-  
-  // Remove a page filter by UUID
-  const handleRemovePageFilter = useCallback((uuid: string) => {
-    // Helper to check if a condition matches the UUID
-    const matchesUuid = (child: ASTChild): boolean => {
-      if (isParentPathCondition(child)) {
-        const parentPath = child as ParentPathCondition;
-        for (const nestedChild of parentPath.nested_group?.children || []) {
-          if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
-            const contentCond = nestedChild as { value?: string };
-            if (contentCond.value === uuid) return true;
-          }
-        }
-      }
-      if (child.type === 'not') {
-        const notNode = child as NotNode;
-        if (isParentPathCondition(notNode.child)) {
-          const parentPath = notNode.child as ParentPathCondition;
-          for (const nestedChild of parentPath.nested_group?.children || []) {
-            if (nestedChild.type === 'condition' && nestedChild.condition_type === 'content') {
-              const contentCond = nestedChild as { value?: string };
-              if (contentCond.value === uuid) return true;
-            }
-          }
-        }
-      }
-      return false;
-    };
-    
-    const newChildren = ast.root_group.children.filter(child => !matchesUuid(child));
-    
-    onChange({
-      ...ast,
-      root_group: {
-        ...ast.root_group,
-        children: newChildren,
-      },
-    });
-  }, [ast, onChange]);
+  }, [ast, currentFilters, onChange, handleRemovePageFilter]);
   
   // Handle click on search result
   const handleResultClick = useCallback((page: Node, e: React.MouseEvent) => {

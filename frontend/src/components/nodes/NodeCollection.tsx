@@ -480,6 +480,7 @@ export function NodeCollection({
       const sortedProperties = [...view.shown_properties]
         .sort((a, b) => a.sequence - b.sequence)
         .map(p => p.uuid);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync internal state with view properties on view change
       setInternalPropertyUuids(sortedProperties);
     }
   }, [view, selectedPropertyUuidsProp]);
