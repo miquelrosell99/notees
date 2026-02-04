@@ -7,7 +7,7 @@
 import { useCallback, useMemo } from 'react';
 import { mdiTagOutline, mdiPageNextOutline } from '@mdi/js';
 import Icon from '@mdi/react';
-import { NodeClassPill } from '../NodeClassPill';
+import { NodePill } from '../NodePill';
 import { SearchBox } from '../SearchBox';
 import { useClasses, usePages, useNode } from '@/hooks';
 import type { Node as AppNode } from '@/types';
@@ -63,9 +63,9 @@ export function NodeSelector({ mode, selectedIds, onAdd, onRemove, placeholder, 
       {selectedNodes.length > 0 && (
         <div className="node-selector__selected">
           {selectedNodes.map(node => (
-            <NodeClassPill
+            <NodePill
               key={node.id}
-              classNode={node}
+              node={node}
               onRemove={readOnly ? undefined : () => handleRemove(node.id)}
               readOnly={readOnly}
             />
@@ -196,8 +196,8 @@ export function SingleNodeSelector({ mode, selectedId, onChange, placeholder, re
         </div>
       ) : selectedNode ? (
         <div className="single-node-selector__selected">
-          <NodeClassPill
-            classNode={selectedNode}
+          <NodePill
+            node={selectedNode}
             onRemove={readOnly ? undefined : handleClear}
             readOnly={readOnly}
           />

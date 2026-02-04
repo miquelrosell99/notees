@@ -28,7 +28,7 @@ import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
 import { FloatingButtonArray } from './core/FloatingButtonArray';
-import { mdiImageOutline, mdiChevronDown, mdiChevronUp, mdiPencil, mdiClose } from '@mdi/js';
+import { mdiImageOutline, mdiChevronDown, mdiPencil, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import './BannerImage.css';
 
@@ -240,87 +240,108 @@ export function BannerImage({
     // Show collapsed strip if editable
     if (!editable) return null;
     
-    // Collapsed state - just the expand arrow
-    if (isCollapsed) {
-      return (
-        <div 
-          className="banner-image banner-image--collapsed banner-image--empty-collapsed"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <button
-            className="banner-image__collapse-btn banner-image__collapse-btn--collapsed"
-            onClick={handleToggleCollapse}
-            onKeyDown={handleCollapseKeyDown}
-            title="Expand to add banner"
-            aria-label="Expand banner area"
-            aria-expanded="false"
-          >
-            <Icon path={mdiChevronDown} size={0.7} />
-          </button>
-        </div>
-      );
-    }
-    
-    // Expanded empty state - show add button
     return (
       <div 
-        className={`banner-image banner-image--empty ${isDragging ? 'banner-image--dragging' : ''}`}
+        className={`banner-image banner-image--empty ${isCollapsed ? 'banner-image--collapsed' : 'banner-image--expanded'} ${isDragging ? 'banner-image--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragOver={!isCollapsed ? handleDragOver : undefined}
+        onDragLeave={!isCollapsed ? handleDragLeave : undefined}
+        onDrop={!isCollapsed ? handleDrop : undefined}
       >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="banner-image__collapse-btn banner-image__collapse-btn--expanded-empty"
+        {!isCollapsed && (
+          <Button 
+            variant="ghost"
+            size="sm"
+            className="banner-image__add-btn"
+            onClick={onSelectImage}
+            title="Add banner image"
+          >
+            <Icon path={mdiImageOutline} size={0.8} />
+            <span>Add banner</span>
+          </Button>
+        )}
+        <button
+          className="banner-image__collapse-btn"
           onClick={handleToggleCollapse}
           onKeyDown={handleCollapseKeyDown}
-          title="Collapse banner area"
-          aria-label="Collapse banner area"
-          aria-expanded="true"
+          title={isCollapsed ? "Expand to add banner" : "Collapse banner area"}
+          aria-label={isCollapsed ? "Expand banner area" : "Collapse banner area"}
+          aria-expanded={!isCollapsed}
         >
-          <Icon path={mdiChevronUp} size={0.7} />
-        </Button>
-        <Button 
-          variant="ghost"
-          size="sm"
-          className="banner-image__add-btn"
-          onClick={onSelectImage}
-          title="Add banner image"
-        >
-          <Icon path={mdiImageOutline} size={0.8} />
-          <span>Add banner</span>
-        </Button>
+          <Icon path={mdiChevronDown} size={0.7} rotate={isCollapsed ? 0 : 180} />
+        </button>
       </div>
     );
   }
   
-  // Has banner image - collapsed state
-  if (isCollapsed) {
-    return (
+  // Has banner image
+  return (
+    <>
       <div 
-        className="banner-image banner-image--collapsed"
+        className={`banner-image banner-image--with-image ${isCollapsed ? 'banner-image--collapsed' : `banner-image--expanded banner-image--${height}`} ${isDragging ? 'banner-image--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="banner-image__collapse-btn banner-image__collapse-btn--collapsed"
+        <Card 
+          className="banner-image__card"
+          elevation="low"
+          variant="default"
+          padding={false}
+          radius="md"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <img 
+            key={imageUrl}
+            src={imageUrl} 
+            alt="Banner" 
+            className="banner-image__img"
+            onClick={() => setIsModalOpen(true)}
+            style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
+            title="Click to view full size"
+            draggable="false"
+          />
+          
+          {editable && isHovered && !isCollapsed && (
+            <FloatingButtonArray
+              className="banner-image__actions"
+              size="md"
+            >
+              <Button
+                icon={mdiPencil}
+                iconOnly
+                variant="ghost"
+                size="sm"
+                onClick={onSelectImage}
+                title="Change image"
+              />
+              <Button
+                icon={mdiClose}
+                iconOnly
+                variant="ghost"
+                size="sm"
+                onClick={handleRemove}
+                title="Remove image"
+              />
+            </FloatingButtonArray>
+          )}
+        </Card>
+        
+        <button
+          className="banner-image__collapse-btn"
           onClick={handleToggleCollapse}
           onKeyDown={handleCollapseKeyDown}
-          title="Expand banner image"
-          aria-label="Expand banner image"
-          aria-expanded="false"
+          title={isCollapsed ? "Expand banner image" : "Collapse banner"}
+          aria-label={isCollapsed ? "Expand banner image" : "Collapse banner image"}
+          aria-expanded={!isCollapsed}
         >
-          <Icon path={mdiChevronDown} size={0.7} />
-        </Button>
+          <Icon path={mdiChevronDown} size={0.7} rotate={isCollapsed ? 0 : 180} />
+        </button>
         
         {/* Preview tooltip on hover */}
-        {isHovered && (
+        {isCollapsed && isHovered && (
           <div className="banner-image__preview-tooltip">
             <img 
               src={imageUrl} 
@@ -330,69 +351,6 @@ export function BannerImage({
           </div>
         )}
       </div>
-    );
-  }
-  
-  // Expanded state - show full banner
-  return (
-    <>
-      <Card 
-        className={`banner-image banner-image--${height} banner-image--expanded ${isDragging ? 'banner-image--dragging' : ''}`}
-        elevation="low"
-        variant="default"
-        padding={false}
-        radius="md"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <img 
-          key={imageUrl}
-          src={imageUrl} 
-          alt="Banner" 
-          className="banner-image__img"
-          onClick={() => setIsModalOpen(true)}
-          style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
-          title="Click to view full size"
-          draggable="false"
-        />
-        
-        {editable && isHovered && (
-          <FloatingButtonArray
-            className="banner-image__actions"
-            size="md"
-          >
-            <Button
-              icon={mdiChevronUp}
-              iconOnly
-              variant="ghost"
-              size="sm"
-              onClick={handleToggleCollapse}
-              title="Collapse banner"
-              aria-label="Collapse banner image"
-              aria-expanded="true"
-            />
-            <Button
-              icon={mdiPencil}
-              iconOnly
-              variant="ghost"
-              size="sm"
-              onClick={onSelectImage}
-              title="Change image"
-            />
-            <Button
-              icon={mdiClose}
-              iconOnly
-              variant="ghost"
-              size="sm"
-              onClick={handleRemove}
-              title="Remove image"
-            />
-          </FloatingButtonArray>
-        )}
-      </Card>
       
       <ImageModal
         isOpen={isModalOpen}

@@ -27,7 +27,7 @@ import { Button } from './core/Button';
 import { Card } from './core/Card';
 import { ImageModal } from './core/ImageModal';
 import { FloatingButtonArray } from './core/FloatingButtonArray';
-import { mdiImageOutline, mdiChevronRight, mdiChevronLeft, mdiPencil, mdiClose } from '@mdi/js';
+import { mdiImageOutline, mdiChevronLeft, mdiPencil, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import './CoverImage.css';
 
@@ -238,150 +238,110 @@ export function CoverImage({
     // Show collapsed strip if editable
     if (!editable) return null;
     
-    // Collapsed state - just the expand arrow
-    if (isCollapsed) {
-      return (
-        <div 
-          className="cover-image-card cover-image-card--collapsed cover-image-card--empty-collapsed"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <button
-            className="cover-image-card__collapse-btn cover-image-card__collapse-btn--collapsed"
-            onClick={handleToggleCollapse}
-            onKeyDown={handleCollapseKeyDown}
-            title="Expand to add cover"
-            aria-label="Expand cover area"
-            aria-expanded="false"
-          >
-            <Icon path={mdiChevronLeft} size={0.7} />
-          </button>
-        </div>
-      );
-    }
-    
-    // Expanded empty state - show add button with collapse option
     return (
       <div 
         className={`cover-image-card cover-image-card--empty ${isDragging ? 'cover-image-card--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragOver={!isCollapsed ? handleDragOver : undefined}
+        onDragLeave={!isCollapsed ? handleDragLeave : undefined}
+        onDrop={!isCollapsed ? handleDrop : undefined}
       >
+        <div className={`cover-image-card__content ${isCollapsed ? 'cover-image-card__content--collapsed' : 'cover-image-card__content--expanded'}`}>
+          <button 
+            className="cover-image-card__add-btn"
+            onClick={onSelectImage}
+            title="Add cover image"
+          >
+            <Icon path={mdiImageOutline} size={0.7} />
+          </button>
+        </div>
         <button
-          className="cover-image-card__collapse-btn cover-image-card__collapse-btn--empty-expanded"
+          className="cover-image-card__collapse-btn"
           onClick={handleToggleCollapse}
           onKeyDown={handleCollapseKeyDown}
-          title="Collapse cover area"
-          aria-label="Collapse cover area"
-          aria-expanded="true"
+          title={isCollapsed ? "Expand to add cover" : "Collapse cover area"}
+          aria-label={isCollapsed ? "Expand cover area" : "Collapse cover area"}
+          aria-expanded={!isCollapsed}
         >
-          <Icon path={mdiChevronRight} size={0.6} />
-        </button>
-        <button 
-          className="cover-image-card__add-btn"
-          onClick={onSelectImage}
-          title="Add cover image"
-        >
-          <Icon path={mdiImageOutline} size={0.7} />
+          <Icon path={mdiChevronLeft} size={0.7} rotate={isCollapsed ? 0 : 180} />
         </button>
       </div>
     );
   }
   
-  // Collapsed state with image - show only the expand arrow
-  if (isCollapsed) {
-    return (
-      <div 
-        className="cover-image-card cover-image-card--collapsed"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        <button
-          className="cover-image-card__collapse-btn cover-image-card__collapse-btn--collapsed"
-          onClick={handleToggleCollapse}
-          onKeyDown={handleCollapseKeyDown}
-          title="Expand cover image"
-          aria-label="Expand cover image"
-          aria-expanded="false"
-        >
-          <Icon path={mdiChevronLeft} size={0.7} />
-        </button>
-        
-        {/* Preview tooltip on hover */}
-        {isHovered && (
-          <div className="cover-image-card__preview-tooltip">
-            <img 
-              src={imageUrl} 
-              alt="Cover preview" 
-              className="cover-image-card__preview-img"
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
-  
-  // Expanded state - show full card
+  // Has cover image
   return (
     <div 
-      className={`cover-image-card cover-image-card--expanded ${isDragging ? 'cover-image-card--dragging' : ''}`}
+      className={`cover-image-card cover-image-card--with-image ${isDragging ? 'cover-image-card--dragging' : ''}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={!isCollapsed ? handleDragOver : undefined}
+      onDragLeave={!isCollapsed ? handleDragLeave : undefined}
+      onDrop={!isCollapsed ? handleDrop : undefined}
     >
-      {/* Action buttons - vertical stack on left side of image */}
-      {editable && isHovered && (
-        <FloatingButtonArray
-          className="cover-image-card__actions"
-          direction="vertical"
-          size="sm"
-        >
-          <Button
-            icon={mdiChevronRight}
-            iconOnly
-            variant="ghost"
+      <div className={`cover-image-card__content cover-image-card__content--with-image ${isCollapsed ? 'cover-image-card__content--collapsed' : 'cover-image-card__content--expanded'}`}>
+        {/* Action buttons - vertical stack on left side of image */}
+        {editable && isHovered && !isCollapsed && (
+          <FloatingButtonArray
+            className="cover-image-card__actions"
+            direction="vertical"
             size="sm"
-            onClick={handleToggleCollapse}
-            title="Collapse cover"
-            aria-label="Collapse cover image"
-            aria-expanded="true"
+          >
+            <Button
+              icon={mdiPencil}
+              iconOnly
+              variant="ghost"
+              size="sm"
+              onClick={onSelectImage}
+              title="Change image"
+            />
+            <Button
+              icon={mdiClose}
+              iconOnly
+              variant="ghost"
+              size="sm"
+              onClick={handleRemove}
+              title="Remove image"
+            />
+          </FloatingButtonArray>
+        )}
+        
+        <Card padding={false} radius="md" elevation="low">
+          <img 
+            key={imageUrl}
+            src={imageUrl} 
+            alt="Cover" 
+            className="cover-image-card__img"
+            onClick={() => setIsModalOpen(true)}
+            style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
+            title="Click to view full size"
+            draggable="false"
           />
-          <Button
-            icon={mdiPencil}
-            iconOnly
-            variant="ghost"
-            size="sm"
-            onClick={onSelectImage}
-            title="Change image"
-          />
-          <Button
-            icon={mdiClose}
-            iconOnly
-            variant="ghost"
-            size="sm"
-            onClick={handleRemove}
-            title="Remove image"
-          />
-        </FloatingButtonArray>
-      )}
+        </Card>
+      </div>
       
-      <Card padding={false} radius="md" elevation="low">
-        <img 
-          key={imageUrl}
-          src={imageUrl} 
-          alt="Cover" 
-          className="cover-image-card__img"
-          onClick={() => setIsModalOpen(true)}
-          style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
-          title="Click to view full size"
-          draggable="false"
-        />
-      </Card>
+      <button
+        className="cover-image-card__collapse-btn"
+        onClick={handleToggleCollapse}
+        onKeyDown={handleCollapseKeyDown}
+        title={isCollapsed ? "Expand cover image" : "Collapse cover"}
+        aria-label={isCollapsed ? "Expand cover image" : "Collapse cover image"}
+        aria-expanded={!isCollapsed}
+      >
+        <Icon path={mdiChevronLeft} size={0.7} rotate={isCollapsed ? 0 : 180} />
+      </button>
+      
+      {/* Preview tooltip on hover */}
+      {isCollapsed && isHovered && (
+        <div className="cover-image-card__preview-tooltip">
+          <img 
+            src={imageUrl} 
+            alt="Cover preview" 
+            className="cover-image-card__preview-img"
+          />
+        </div>
+      )}
       
       <ImageModal
         isOpen={isModalOpen}

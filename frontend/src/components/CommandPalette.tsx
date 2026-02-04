@@ -19,7 +19,7 @@ import type { Node } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon } from './icons';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from './SuggestionPopup';
-import { NodeClassPill } from './NodeClassPill';
+import { NodePill } from './NodePill';
 
 export interface CommandPaletteProps {
   /** Whether the palette is open */
@@ -471,9 +471,9 @@ export function CommandPalette({
           {selectedClasses.length > 0 && (
             <div className="command-palette__class-pills">
               {selectedClasses.map(classNode => (
-                <NodeClassPill
+                <NodePill
                   key={classNode.id}
-                  classNode={classNode}
+                  node={classNode}
                   onRemove={() => handleRemoveClass(classNode.id)}
                   readOnly={false}
                 />
