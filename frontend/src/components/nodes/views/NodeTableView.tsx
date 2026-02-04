@@ -20,7 +20,7 @@ import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
-import { useProperties, useClasses } from '@/hooks';
+import { useProperties, useClasses, useAddClass, useRemoveClass } from '@/hooks';
 import type { TableColumn, ExpandableConfig, ReorderableConfig } from '../../core/Table';
 import { Table } from '../../core/Table';
 import { Button } from '../../core/Button';
@@ -28,7 +28,8 @@ import { Block } from '../../blocks/Block';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
-import { NodeClassPill } from '../../NodeClassPill';
+import { NodePillRow } from '../../NodePillRow';
+import { isNonRemovableClass } from '@/constants';
 import './NodeTableView.css';
 
 // Virtual column UUIDs (match PropertyColumnSelector)
@@ -108,6 +109,10 @@ export function NodeTableView({
   
   // Get classes for rendering class pills in Classes column
   const { data: allClasses = [] } = useClasses();
+  
+  // Mutations for class operations in Classes column
+  const addClass = useAddClass();
+  const removeClass = useRemoveClass();
   
   // Internal selection state (used when not controlled)
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
@@ -287,28 +292,29 @@ export function NodeTableView({
             label: 'Classes',
             width: '200px',
             render: (node: Node): ReactNode => {
-              if (!node.classes || node.classes.length === 0) {
-                return <span className="node-table__empty-cell">—</span>;
-              }
-              
               // Resolve class nodes
-              const classNodes = node.classes
+              const classNodes = (node.classes || [])
                 .map(classId => allClasses.find(c => c.id === classId))
                 .filter((c): c is Node => c !== undefined);
               
               return (
-                <div className="node-table__classes">
-                  {classNodes.map(classNode => (
-                    <NodeClassPill
-                      key={classNode.id}
-                      classNode={classNode}
-                      onClick={() => {
-                        openNode(classNode.id);
-                      }}
-                      readOnly={true}
-                    />
-                  ))}
-                </div>
+                <NodePillRow
+                  nodes={classNodes}
+                  searchMode="classes"
+                  emptyText="Add class"
+                  searchPlaceholder="Search classes..."
+                  onNodeClick={(classNode) => {
+                    openNode(classNode.id);
+                  }}
+                  onAdd={editable ? (classNode) => {
+                    addClass.mutate({ nodeId: node.id, classId: classNode.id });
+                  } : undefined}
+                  onRemove={editable ? (classNode) => {
+                    removeClass.mutate({ nodeId: node.id, classId: classNode.id });
+                  } : undefined}
+                  canRemove={(classNode) => !isNonRemovableClass(classNode.uuid)}
+                  readOnly={!editable}
+                />
               );
             },
           };
