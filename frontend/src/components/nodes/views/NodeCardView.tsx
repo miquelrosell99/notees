@@ -298,7 +298,7 @@ function NodeCard({
   onSelectionChange,
   customContextMenu,
 }: NodeCardProps) {
-  const children = node.children ?? [];
+  const children = useMemo(() => node.children ?? [], [node.children]);
   const hasChildren = children.length > 0;
   
   // Get all nodes for class/tag resolution
@@ -343,7 +343,7 @@ function NodeCard({
         if (t.is_class) return false;
         return true;
       });
-  }, [node?.tags, allTags, allNodes]);
+  }, [node.tags, allTags, allNodes]);
   
   // Get effective icon (from node or inherited from class)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, propsAllClasses), [node, propsAllClasses]);
@@ -404,7 +404,7 @@ function NodeCard({
   const coverImageId = useMemo(() => {
     const coverValue = node?.properties?.cover;
     return typeof coverValue === 'number' ? coverValue : null;
-  }, [node?.properties, node.id]);
+  }, [node?.properties?.cover]);
   
   // Get the asset node for the cover image (for bullet)
   const { data: assetNode } = useNode(coverImageId, { include_children: false });

@@ -676,7 +676,7 @@ export function NodeTimelineRenderer({
       const newPanX = panStartRef.current.panX - actualDx * scale;
       setTransform(prev => ({ ...prev, panX: newPanX }));
     }
-  }, [dimensions, transform, isDraggingHandle, isDraggingViewZone, dateRange]);
+  }, [dimensions, transform, isDraggingHandle, isDraggingViewZone]);
   
   const handleMinimapMouseUp = useCallback(() => {
     setIsDraggingViewZone(false);

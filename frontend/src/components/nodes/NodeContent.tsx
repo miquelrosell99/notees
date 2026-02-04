@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useCreateNode, useAddTag, useAddClass, useBlockSelection, useClasses, useAddTagLink, useContentSave, useSystemClasses } from '@/hooks';
+import { useCreateNode, useAddTag, useAddClass, useBlockSelection, useAddTagLink, useContentSave, useSystemClasses } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -60,7 +60,6 @@ export function NodeContent({
   const addTag = useAddTag();
   const addClass = useAddClass();
   const addTagLink = useAddTagLink();
-  const { data: allClasses } = useClasses();
   const { systemClassIds } = useSystemClasses();
   const { addSidebarCard, openNode, openCommentsForNode } = useNodesStore();
   
@@ -184,7 +183,7 @@ export function NodeContent({
     },
     getCommentCount: (block) => block.comment_count ?? 0,
     getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, allClasses, openCommentsForNode, addSidebarCard, systemClassIds, children]);
+  }), [addClass, addTag, addTagLink, createNode, openCommentsForNode, addSidebarCard, systemClassIds, children]);
 
   const viewMode = toViewMode(displayMode);
 
