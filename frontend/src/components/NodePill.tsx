@@ -291,27 +291,44 @@ export function NodePill({
       {contextMenu && (
         <>
           {onColorChange && !readOnly && (
-            <div 
-              className="node-pill-context-menu-wrapper"
-              style={{
-                position: 'fixed',
-                left: contextMenu.x,
-                top: contextMenu.y,
-                zIndex: 9999,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <ColorPickerRow
-                currentColor={node?.color ?? null}
-                onColorChange={handleColorChangeFromMenu}
+            <>
+              {/* Backdrop to catch clicks outside */}
+              <div 
+                className="node-pill-context-menu-backdrop"
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 9998,
+                }}
+                onClick={handleCloseContextMenu}
               />
-              <ContextMenu
-                items={contextMenuItems}
-                position={{ x: 0, y: 0 }}
-                onClose={handleCloseContextMenu}
-              />
-            </div>
+              <div 
+                className="node-pill-context-menu-wrapper"
+                style={{
+                  position: 'fixed',
+                  left: contextMenu.x,
+                  top: contextMenu.y,
+                  zIndex: 9999,
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <ColorPickerRow
+                  currentColor={node?.color ?? null}
+                  onColorChange={handleColorChangeFromMenu}
+                />
+                <ContextMenu
+                  items={contextMenuItems}
+                  position={{ x: 0, y: 0 }}
+                  onClose={handleCloseContextMenu}
+                />
+              </div>
+            </>
           )}
           {(!onColorChange || readOnly) && (
             <ContextMenu

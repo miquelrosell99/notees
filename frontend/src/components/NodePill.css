@@ -7,15 +7,20 @@
   display: inline-flex;
 }
 
-/* Link variant - faded colors */
-.node-pill--link.node-pill--page .pill {
+/* Link variant - faded colors (only when no custom color is set) */
+.node-pill--link.node-pill--page .pill:not([style*="background"]) {
   background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
   color: var(--color-on-surface);
 }
 
-.node-pill--link.node-pill--block .pill {
+.node-pill--link.node-pill--block .pill:not([style*="background"]) {
   background-color: color-mix(in srgb, var(--color-secondary) 8%, var(--color-surface));
   color: var(--color-on-surface-variant);
+}
+
+/* When pill has a custom color, adjust text color for contrast */
+.node-pill--link .pill[style*="background"] {
+  color: var(--color-on-surface);
 }
 
 /* Click count badge */
