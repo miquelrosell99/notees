@@ -9,57 +9,6 @@
   width: 100%;
 }
 
-/* Name cell with Block component and action buttons */
-.node-table__name-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-}
-
-.node-table__name-content {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Override Block styles for table context - name column */
-.node-table__name-content .block {
-  padding: 0;
-  margin: 0;
-}
-
-.node-table__name-content .block__container {
-  padding: 0;
-  min-height: auto;
-}
-
-.node-table__name-content .block__content {
-  padding: 0.25rem 0;
-}
-
-/* Prevent word breaking in table cells - keep text on one line */
-.node-table__name-content .block-content-view,
-.node-table__name-content .block-content-pills {
-  word-break: normal;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.node-table__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Action buttons container */
-.node-table__actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
 /* Node-specific date cell */
 .node-table__date-cell {
   display: flex;

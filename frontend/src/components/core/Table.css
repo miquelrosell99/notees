@@ -549,7 +549,7 @@
   transition: opacity 0.15s ease;
 }
 
-.table-row:hover .table-node-cell__actions,
+.table-node-cell:hover .table-node-cell__actions,
 .table-node-cell__actions:focus-within {
   opacity: 1;
 }
