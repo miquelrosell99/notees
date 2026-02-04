@@ -31,8 +31,10 @@ import { PropertyCell } from '../../properties/PropertyCell';
 import { NodeClassPill } from '../../NodeClassPill';
 import './NodeTableView.css';
 
-// Virtual column UUID for Classes (matches PropertyColumnSelector)
+// Virtual column UUIDs (match PropertyColumnSelector)
 const CLASSES_VIRTUAL_UUID = '__classes__';
+const CREATED_VIRTUAL_UUID = '__created__';
+const MODIFIED_VIRTUAL_UUID = '__modified__';
 
 // Custom column definition for node tables (external API)
 interface NodeTableColumn {
@@ -294,7 +296,7 @@ export function NodeTableView({
         if (uuid === CLASSES_VIRTUAL_UUID) {
           return {
             key: 'classes',
-            label: '@ Classes',
+            label: 'Classes',
             width: '200px',
             render: (node: Node): ReactNode => {
               if (!node.classes || node.classes.length === 0) {
@@ -321,6 +323,26 @@ export function NodeTableView({
                 </div>
               );
             },
+          };
+        }
+        
+        // Handle virtual Created column
+        if (uuid === CREATED_VIRTUAL_UUID) {
+          return {
+            key: 'create_date',
+            label: '📅 Created',
+            width: '150px',
+            render: dateColumnRenderer('create_date'),
+          };
+        }
+        
+        // Handle virtual Modified column
+        if (uuid === MODIFIED_VIRTUAL_UUID) {
+          return {
+            key: 'write_date',
+            label: '✏️ Modified',
+            width: '150px',
+            render: dateColumnRenderer('write_date'),
           };
         }
         

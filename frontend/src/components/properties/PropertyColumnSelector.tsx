@@ -17,11 +17,11 @@ import type { Property } from '@/types';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyColumnSelector.css';
 
-// Virtual column for Classes (not a real property)
+// Virtual columns (not real properties, but can be shown as table columns)
 const CLASSES_VIRTUAL_COLUMN = {
   uuid: '__classes__',
   name: 'Classes',
-  icon: '@',
+  icon: '',
   type: 'virtual',
   id: -1,
   multi: true,
@@ -30,9 +30,33 @@ const CLASSES_VIRTUAL_COLUMN = {
   write_date: '',
 } as const;
 
+const CREATED_VIRTUAL_COLUMN = {
+  uuid: '__created__',
+  name: 'Created',
+  icon: '📅',
+  type: 'virtual',
+  id: -2,
+  multi: false,
+  is_system: true,
+  create_date: '',
+  write_date: '',
+} as const;
+
+const MODIFIED_VIRTUAL_COLUMN = {
+  uuid: '__modified__',
+  name: 'Modified',
+  icon: '✏️',
+  type: 'virtual',
+  id: -3,
+  multi: false,
+  is_system: true,
+  create_date: '',
+  write_date: '',
+} as const;
+
 // ==================== SortablePropertyItem ====================
 
-type ColumnItem = Property | typeof CLASSES_VIRTUAL_COLUMN;
+type ColumnItem = Property | typeof CLASSES_VIRTUAL_COLUMN | typeof CREATED_VIRTUAL_COLUMN | typeof MODIFIED_VIRTUAL_COLUMN;
 
 interface SortablePropertyItemProps {
   property: ColumnItem;
@@ -110,8 +134,8 @@ export function PropertyColumnSelector({
     const filtered = properties.filter(
       prop => prop.uuid !== SYSTEM_PROPERTY_UUIDS.show_hierarchy
     );
-    // Add Classes as the first virtual column
-    return [CLASSES_VIRTUAL_COLUMN, ...filtered];
+    // Add virtual columns first: Created, Modified, Classes, then regular properties
+    return [CREATED_VIRTUAL_COLUMN, MODIFIED_VIRTUAL_COLUMN, CLASSES_VIRTUAL_COLUMN, ...filtered];
   }, [properties]);
 
   // Filter columns based on search
