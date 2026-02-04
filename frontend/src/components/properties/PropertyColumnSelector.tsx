@@ -33,7 +33,7 @@ const CLASSES_VIRTUAL_COLUMN = {
 const CREATED_VIRTUAL_COLUMN = {
   uuid: '__created__',
   name: 'Created',
-  icon: '📅',
+  icon: '',
   type: 'virtual',
   id: -2,
   multi: false,
@@ -45,7 +45,7 @@ const CREATED_VIRTUAL_COLUMN = {
 const MODIFIED_VIRTUAL_COLUMN = {
   uuid: '__modified__',
   name: 'Modified',
-  icon: '✏️',
+  icon: '',
   type: 'virtual',
   id: -3,
   multi: false,

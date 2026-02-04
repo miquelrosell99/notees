@@ -330,7 +330,7 @@ export function NodeTableView({
         if (uuid === CREATED_VIRTUAL_UUID) {
           return {
             key: 'create_date',
-            label: '📅 Created',
+            label: 'Created',
             width: '150px',
             render: dateColumnRenderer('create_date'),
           };
@@ -340,7 +340,7 @@ export function NodeTableView({
         if (uuid === MODIFIED_VIRTUAL_UUID) {
           return {
             key: 'write_date',
-            label: '✏️ Modified',
+            label: 'Modified',
             width: '150px',
             render: dateColumnRenderer('write_date'),
           };
