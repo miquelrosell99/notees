@@ -83,6 +83,7 @@ class ScopeNode:
 class ConditionType(str, Enum):
     """Types of conditions."""
     CLASS = "class"
+    EXTENDS = "extends"
     PROPERTY = "property"
     CONTENT = "content"
     REFERENCE = "reference"
@@ -170,6 +171,14 @@ class ClassCondition(BaseConditionNode):
     class_uuid: str = ""
     class_id: Optional[int] = None
     operator: Optional[str] = None  # 'contains' | 'does_not_contain' | 'is' | 'is_not' | 'defined' | 'not_defined'
+
+
+@dataclass
+class ExtendsCondition(BaseConditionNode):
+    """Extends condition - filter by classes that extend a given class."""
+    condition_type: Literal[ConditionType.EXTENDS] = ConditionType.EXTENDS
+    extends_class_uuid: str = ""  # UUID of the class being extended
+    extends_class_id: Optional[int] = None
 
 
 @dataclass
@@ -264,6 +273,7 @@ class ChildPathCondition(BaseConditionNode):
 # Union type for all conditions
 ConditionNode = Union[
     ClassCondition,
+    ExtendsCondition,
     PropertyCondition,
     ContentCondition,
     ReferenceCondition,
@@ -411,6 +421,11 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         return ClassCondition(
             class_uuid=data.get("class_uuid", ""),
             class_id=data.get("class_id"),
+        )
+    elif condition_type == ConditionType.EXTENDS:
+        return ExtendsCondition(
+            extends_class_uuid=data.get("extends_class_uuid", ""),
+            extends_class_id=data.get("extends_class_id"),
         )
     elif condition_type == ConditionType.PROPERTY:
         return PropertyCondition(

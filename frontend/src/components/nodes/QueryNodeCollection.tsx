@@ -204,7 +204,7 @@ export function QueryNodeCollection({
   const persistedViewMode = getNodeViewMode(nodeId);
   
   // Default to 'table' for classed_nodes, 'list' for others
-  const defaultViewMode: NodeCollectionViewMode = viewType === 'classed_nodes' ? 'table' : 'list';
+  const defaultViewMode: NodeCollectionViewMode = (viewType === 'classed_nodes' || viewType === 'extended_by') ? 'table' : 'list';
   
   const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>(
     persistedViewMode ?? defaultViewMode
@@ -670,7 +670,7 @@ export function QueryNodeCollection({
                     });
                   }
                 }}
-                readOnly={['linked_references', 'child_pages', 'classed_nodes'].includes(viewType)}
+                readOnly={['linked_references', 'child_pages', 'classed_nodes', 'extended_by'].includes(viewType)}
               />
             </div>
             
