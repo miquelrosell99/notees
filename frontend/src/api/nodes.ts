@@ -109,6 +109,14 @@ export async function listDailyPages(): Promise<Node[]> {
 }
 
 /**
+ * Get list of all existing daily pages
+ */
+export async function getDailyPages(): Promise<Node[]> {
+  const response = await api.get<{ nodes: Node[] }>(`${BASE}/daily/list`);
+  return response.data.nodes;
+}
+
+/**
  * Get or create a daily note
  */
 export async function getOrCreateDaily(dateStr: string): Promise<Node> {

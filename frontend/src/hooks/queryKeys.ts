@@ -22,6 +22,7 @@ export const nodeKeys = {
   backlinks: (id: number) => [...nodeKeys.all, 'backlinks', id] as const,
   linkedRefs: (id: number) => [...nodeKeys.all, 'linked-refs', id] as const,
   propertyBacklinks: (id: number) => [...nodeKeys.all, 'property-backlinks', id] as const,
+  dailyList: () => [...nodeKeys.all, 'daily-list'] as const,
   daily: (date: string) => [...nodeKeys.all, 'daily', date] as const,
   monthly: (year: number, month: number) => [...nodeKeys.all, 'monthly', year, month] as const,
   yearly: (year: number) => [...nodeKeys.all, 'yearly', year] as const,

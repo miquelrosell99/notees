@@ -1,8 +1,8 @@
 /**
  * Calendar popup component for navigating to daily pages
  */
-import { useState, useRef, useEffect } from 'react';
-import { useDailyNote, useMonthlyNote, useYearlyNote } from '@/hooks';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useDailyNote, useMonthlyNote, useYearlyNote, useDailyPages } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { Button } from './Button';
 import './CalendarPopup.css';
@@ -38,6 +38,34 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   const popupRef = useRef<HTMLDivElement>(null);
   
   const { openNode } = useNodesStore();
+  
+  // Fetch list of existing daily pages
+  const { data: dailyPages } = useDailyPages();
+  
+  // Create a set of dates that have daily pages for the current month
+  const existingDates = useMemo(() => {
+    if (!dailyPages) return new Set<string>();
+    
+    const dates = new Set<string>();
+    for (const page of dailyPages) {
+      // UUID format is: 00000000-0000-0000-00dd-YYYYMMDD0000
+      // Extract the date from the last segment
+      if (page.uuid) {
+        const match = page.uuid.match(/(\d{4})(\d{2})(\d{2})0000$/);
+        if (match) {
+          const year = parseInt(match[1]);
+          const month = parseInt(match[2]) - 1; // 0-indexed
+          const day = parseInt(match[3]);
+          
+          // Only include dates from the currently displayed month
+          if (year === currentYear && month === currentMonth) {
+            dates.add(`${year}-${month}-${day}`);
+          }
+        }
+      }
+    }
+    return dates;
+  }, [dailyPages, currentYear, currentMonth]);
   
   // Calculate popup position based on anchor
   useEffect(() => {
@@ -167,6 +195,10 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     );
   };
   
+  const hasNote = (day: number) => {
+    return existingDates.has(`${currentYear}-${currentMonth}-${day}`);
+  };
+  
   const handleMonthClick = () => {
     setNavigateToMonth({ year: currentYear, month: currentMonth });
   };
@@ -229,7 +261,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
               <Button
                 variant="ghost"
                 size="xs"
-                className={`calendar-day ${isToday(day) ? 'today' : ''}`}
+                className={`calendar-day ${isToday(day) ? 'today' : ''} ${hasNote(day) ? 'has-note' : ''}`}
                 onClick={() => handleDayClick(day)}
               >
                 {day}
