@@ -30,7 +30,7 @@ export async function listProperties(): Promise<Property[]> {
  * Create a new property
  */
 export async function createProperty(data: PropertyCreate): Promise<Property> {
-  const response = await api.post<Property>(BASE, data);
+  const response = await api.post<Property>(`${BASE}/`, data);
   return response.data;
 }
 
