@@ -25,7 +25,7 @@ import {
   useKeyboardStore, 
   type ShortcutContext,
 } from '@/stores/keyboardStore';
-import { processKeyboardEvent, SHORTCUT_IDS, formatShortcutKey } from './keyboardShortcutHelpers';
+import { processKeyboardEvent } from './keyboardShortcutHelpers';
 
 // Re-export for convenience
 export { SHORTCUT_IDS, formatShortcutKey } from './keyboardShortcutHelpers';

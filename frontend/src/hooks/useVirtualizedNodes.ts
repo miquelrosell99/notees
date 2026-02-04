@@ -225,13 +225,13 @@ export function useVirtualizedNodes({
 
   // Check if a node should be rendered (visible + overscan)
   const shouldRender = useCallback((nodeId: number) => {
-    return !enabled || renderIds.has(nodeId);
-  }, [renderIds, enabled]);
+    return !enabled || nodesToRender.has(nodeId);
+  }, [nodesToRender, enabled]);
 
   // Check if a node is in overscan (not directly visible but should be rendered)
   const isInOverscan = useCallback((nodeId: number) => {
-    return !enabled || (renderIds.has(nodeId) && !visibleIds.has(nodeId));
-  }, [renderIds, visibleIds, enabled]);
+    return !enabled || (nodesToRender.has(nodeId) && !visibleIds.has(nodeId));
+  }, [nodesToRender, visibleIds, enabled]);
 
   return {
     visibleIds,
