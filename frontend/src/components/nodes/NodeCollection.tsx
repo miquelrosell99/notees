@@ -469,7 +469,7 @@ export function NodeCollection({
   // Property column selection state (for table view)
   // Use controlled props if provided, otherwise manage internally
   // Default to Created and Modified columns (matches default table columns)
-  const [internalPropertyUuids, setInternalPropertyUuids] = useState<string[]>(['__created__', '__modified__']);
+  const [internalPropertyUuids, setInternalPropertyUuids] = useState<string[]>([]);
   const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
   const updateNodeView = useUpdateNodeView();
   
