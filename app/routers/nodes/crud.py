@@ -290,18 +290,20 @@ async def get_node(
                     if values:
                         # Extract the actual value based on property type
                         val = values[0]  # Get first value
+                        # Normalize property name to match frontend expectation
+                        prop_key = prop.name.lower().replace(' ', '_')
                         if hasattr(val, 'target_id'):
                             # Relation type
-                            node_properties_map[nid][prop.name] = val.target_id
+                            node_properties_map[nid][prop_key] = val.target_id
                         elif hasattr(val, 'value_integer'):
                             # Scalar type
-                            node_properties_map[nid][prop.name] = (
+                            node_properties_map[nid][prop_key] = (
                                 val.value_integer or val.value_float or 
                                 val.value_text or val.value_boolean
                             )
                         elif hasattr(val, 'selection_line_id'):
                             # Selection type
-                            node_properties_map[nid][prop.name] = val.selection_line_id
+                            node_properties_map[nid][prop_key] = val.selection_line_id
         
         # Build tree structure from flat list using parent_id
         node_map: Dict[int, NodeResponse] = {}
@@ -371,18 +373,20 @@ async def get_node(
             if values:
                 # Extract the actual value based on property type
                 val = values[0]  # Get first value
+                # Normalize property name to match frontend expectation (lowercase with underscores)
+                prop_key = prop.name.lower().replace(' ', '_')
                 if hasattr(val, 'target_id'):
                     # Relation type
-                    response.properties[prop.name] = val.target_id
+                    response.properties[prop_key] = val.target_id
                 elif hasattr(val, 'value_integer'):
                     # Scalar type
-                    response.properties[prop.name] = (
+                    response.properties[prop_key] = (
                         val.value_integer or val.value_float or 
                         val.value_text or val.value_boolean
                     )
                 elif hasattr(val, 'selection_line_id'):
                     # Selection type
-                    response.properties[prop.name] = val.selection_line_id
+                    response.properties[prop_key] = val.selection_line_id
     
     return response
 
@@ -521,19 +525,21 @@ async def get_page_content(
         if values:
             # Extract the actual value based on property type
             val = values[0]  # Get first value
+            # Normalize property name to match frontend expectation
+            prop_key = prop.name.lower().replace(' ', '_')
             if hasattr(val, 'target_id'):
                 # Relation type
                 logger.info(f"    -> target_id={val.target_id}")
-                page_response.properties[prop.name] = val.target_id
+                page_response.properties[prop_key] = val.target_id
             elif hasattr(val, 'value_integer'):
                 # Scalar type
-                page_response.properties[prop.name] = (
+                page_response.properties[prop_key] = (
                     val.value_integer or val.value_float or 
                     val.value_text or val.value_boolean
                 )
             elif hasattr(val, 'selection_line_id'):
                 # Selection type
-                page_response.properties[prop.name] = val.selection_line_id
+                page_response.properties[prop_key] = val.selection_line_id
     
     # Add backlinks with context
     page_response.linked_references = []

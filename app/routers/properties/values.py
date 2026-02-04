@@ -97,18 +97,20 @@ async def set_property_value(
         if values:
             # Extract the actual value based on property type
             val = values[0]  # Get first value
+            # Normalize property name to match frontend expectation (lowercase with underscores)
+            prop_key = prop_entity.name.lower().replace(' ', '_')
             if hasattr(val, 'target_id'):
                 # Relation type
-                response.properties[prop_entity.name] = val.target_id
+                response.properties[prop_key] = val.target_id
             elif hasattr(val, 'value_integer'):
                 # Scalar type
-                response.properties[prop_entity.name] = (
+                response.properties[prop_key] = (
                     val.value_integer or val.value_float or 
                     val.value_text or val.value_boolean
                 )
             elif hasattr(val, 'selection_line_id'):
                 # Selection type
-                response.properties[prop_entity.name] = val.selection_line_id
+                response.properties[prop_key] = val.selection_line_id
     
     return response
 
