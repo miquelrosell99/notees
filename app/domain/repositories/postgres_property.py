@@ -573,7 +573,9 @@ class PostgresPropertyRepository(PropertyRepository):
             value_float = None
             value_integer = None
             
-            if prop.type == PropertyType.INTEGER:
+            if prop.type == PropertyType.TEXT:
+                value_text = str(value) if value is not None else None
+            elif prop.type == PropertyType.INTEGER:
                 value_integer = int(value) if value is not None else None
             elif prop.type == PropertyType.FLOAT:
                 value_float = float(value) if value is not None else None
