@@ -242,25 +242,13 @@ export function BannerImage({
     
     return (
       <div 
-        className={`banner-image banner-image--empty ${isCollapsed ? 'banner-image--collapsed' : 'banner-image--expanded'} ${isDragging ? 'banner-image--dragging' : ''}`}
+        className={`banner-image banner-image--empty ${isDragging ? 'banner-image--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onDragOver={!isCollapsed ? handleDragOver : undefined}
         onDragLeave={!isCollapsed ? handleDragLeave : undefined}
         onDrop={!isCollapsed ? handleDrop : undefined}
       >
-        {!isCollapsed && (
-          <Button 
-            variant="ghost"
-            size="sm"
-            className="banner-image__add-btn"
-            onClick={onSelectImage}
-            title="Add banner image"
-          >
-            <Icon path={mdiImageOutline} size={0.8} />
-            <span>Add banner</span>
-          </Button>
-        )}
         <button
           className="banner-image__collapse-btn"
           onClick={handleToggleCollapse}
@@ -271,6 +259,18 @@ export function BannerImage({
         >
           <Icon path={mdiChevronDown} size={0.7} rotate={isCollapsed ? 0 : 180} />
         </button>
+        <div className={`banner-image__content ${isCollapsed ? 'banner-image__content--collapsed' : 'banner-image__content--expanded'}`}>
+          <Button 
+            variant="ghost"
+            size="sm"
+            className="banner-image__add-btn"
+            onClick={onSelectImage}
+            title="Add banner image"
+          >
+            <Icon path={mdiImageOutline} size={0.8} />
+            <span>Add banner</span>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -279,56 +279,10 @@ export function BannerImage({
   return (
     <>
       <div 
-        className={`banner-image banner-image--with-image ${isCollapsed ? 'banner-image--collapsed' : `banner-image--expanded banner-image--${height}`} ${isDragging ? 'banner-image--dragging' : ''}`}
+        className={`banner-image banner-image--with-image ${isDragging ? 'banner-image--dragging' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <Card 
-          className="banner-image__card"
-          elevation="low"
-          variant="default"
-          padding={false}
-          radius="md"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <img 
-            key={imageUrl}
-            src={imageUrl} 
-            alt="Banner" 
-            className="banner-image__img"
-            onClick={() => setIsModalOpen(true)}
-            style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
-            title="Click to view full size"
-            draggable="false"
-          />
-          
-          {editable && isHovered && !isCollapsed && (
-            <FloatingButtonArray
-              className="banner-image__actions"
-              size="md"
-            >
-              <Button
-                icon={mdiPencil}
-                iconOnly
-                variant="ghost"
-                size="sm"
-                onClick={onSelectImage}
-                title="Change image"
-              />
-              <Button
-                icon={mdiClose}
-                iconOnly
-                variant="ghost"
-                size="sm"
-                onClick={handleRemove}
-                title="Remove image"
-              />
-            </FloatingButtonArray>
-          )}
-        </Card>
-        
         <button
           className="banner-image__collapse-btn"
           onClick={handleToggleCollapse}
@@ -340,7 +294,55 @@ export function BannerImage({
           <Icon path={mdiChevronDown} size={0.7} rotate={isCollapsed ? 0 : 180} />
         </button>
         
-        {/* Preview tooltip on hover */}
+        <div className={`banner-image__content banner-image__content--with-image ${isCollapsed ? 'banner-image__content--collapsed' : `banner-image__content--expanded banner-image--${height}`}`}>
+          <Card 
+            className="banner-image__card"
+            elevation="low"
+            variant="default"
+            padding={false}
+            radius="md"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <img 
+              key={imageUrl}
+              src={imageUrl} 
+              alt="Banner" 
+              className="banner-image__img"
+              onClick={() => setIsModalOpen(true)}
+              style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
+              title="Click to view full size"
+              draggable="false"
+            />
+            
+            {editable && isHovered && !isCollapsed && (
+              <FloatingButtonArray
+                className="banner-image__actions"
+                size="md"
+              >
+                <Button
+                  icon={mdiPencil}
+                  iconOnly
+                  variant="ghost"
+                  size="sm"
+                  onClick={onSelectImage}
+                  title="Change image"
+                />
+                <Button
+                  icon={mdiClose}
+                  iconOnly
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemove}
+                  title="Remove image"
+                />
+              </FloatingButtonArray>
+            )}
+          </Card>
+        </div>
+        
+        {/* Preview tooltip on hover when collapsed */}
         {isCollapsed && isHovered && (
           <div className="banner-image__preview-tooltip">
             <img 
