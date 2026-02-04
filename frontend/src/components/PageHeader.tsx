@@ -38,6 +38,7 @@ export function PageHeader({
   onContextMenu,
 }: PageHeaderProps) {
   const iconRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -57,6 +58,15 @@ export function PageHeader({
   useEffect(() => {
     setInputValue(page.name || '');
   }, [page.name]);
+  
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const textarea = titleRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [inputValue]);
   
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
@@ -264,7 +274,7 @@ export function PageHeader({
   }, [page.id, updateNode]);
 
   // Handle Ctrl+C on page title to copy page link when nothing is selected
-  const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       const input = e.currentTarget;
       const hasSelection = input.selectionStart !== input.selectionEnd;
@@ -273,6 +283,11 @@ export function PageHeader({
         const pageLink = `[[${page.name}]]`;
         navigator.clipboard.writeText(pageLink);
       }
+    }
+    // Prevent Enter from creating newlines - treat as blur instead
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
     }
   }, [page.name]);
 
@@ -321,8 +336,8 @@ export function PageHeader({
               </h1>
             ) : (
               <>
-                <input
-                  type="text"
+                <textarea
+                  ref={titleRef}
                   className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
                   value={inputValue}
                   onChange={(e) => handleInputChange(e.target.value)}
@@ -332,6 +347,7 @@ export function PageHeader({
                   onClick={(e) => e.stopPropagation()}
                   readOnly={!isNameEditable}
                   title={!isNameEditable ? 'System page names cannot be edited' : undefined}
+                  rows={1}
                 />
                 {renamePreview && (
                   <span className="page-title-child-preview">

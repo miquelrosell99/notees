@@ -91,6 +91,7 @@
   flex: 1;
   min-width: 150px;
   max-width: 100%;
+  width: 100%;
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.2;
@@ -99,10 +100,13 @@
   padding: 0;
   outline: none;
   color: inherit;
-  white-space: normal;
+  white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
   resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  field-sizing: content;
 }
 
 .page-title-child-preview {
