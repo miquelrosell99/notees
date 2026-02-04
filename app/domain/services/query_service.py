@@ -1097,7 +1097,7 @@ class QueryExecutor:
     def _substitute_in_group(self, group, runtime_params: Dict[str, Any]):
         """Recursively substitute parameters in a group."""
         from ..entities.query_ast import (
-            GroupNode, ClassCondition, ReferenceCondition, NotNode, 
+            GroupNode, ClassCondition, ExtendsCondition, ReferenceCondition, NotNode, 
             PropertyCondition, ParentCondition
         )
         
@@ -1112,6 +1112,8 @@ class QueryExecutor:
                     self._substitute_in_group(child.child, runtime_params)
                 elif isinstance(child.child, ClassCondition):
                     child.child.class_uuid = self._resolve_placeholder(child.child.class_uuid, runtime_params)
+                elif isinstance(child.child, ExtendsCondition):
+                    child.child.extends_class_uuid = self._resolve_placeholder(child.child.extends_class_uuid, runtime_params)
                 elif isinstance(child.child, ReferenceCondition):
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
                 elif isinstance(child.child, PropertyCondition):
@@ -1125,6 +1127,8 @@ class QueryExecutor:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
             elif isinstance(child, ClassCondition):
                 child.class_uuid = self._resolve_placeholder(child.class_uuid, runtime_params)
+            elif isinstance(child, ExtendsCondition):
+                child.extends_class_uuid = self._resolve_placeholder(child.extends_class_uuid, runtime_params)
             elif isinstance(child, ReferenceCondition):
                 child.target_uuid = self._resolve_placeholder(child.target_uuid, runtime_params)
             elif isinstance(child, PropertyCondition):
