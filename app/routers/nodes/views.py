@@ -489,15 +489,12 @@ async def update_query_ast(
         raise HTTPException(status_code=404, detail="NodeView not found")
     
     # Check if existing query is a system query
-    try:
-        existing_query = view.get('query_json', {})
-        if existing_query and existing_query.get('is_system'):
-            raise HTTPException(
-                status_code=403,
-                detail="Cannot modify system query. System queries (linked references, child pages, etc.) are read-only."
-            )
-    except Exception:
-        pass  # If we can't parse existing, continue with validation
+    existing_query = view.query_json or {}
+    if existing_query and existing_query.get('is_system'):
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot modify system query. System queries (linked references, child pages, etc.) are read-only."
+        )
     
     # Validate AST
     try:
