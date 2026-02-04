@@ -203,8 +203,11 @@ export function QueryNodeCollection({
   const openNode = useNodesStore(state => state.openNode);
   const persistedViewMode = getNodeViewMode(nodeId);
   
+  // Default to 'table' for classed_nodes, 'list' for others
+  const defaultViewMode: NodeCollectionViewMode = viewType === 'classed_nodes' ? 'table' : 'list';
+  
   const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>(
-    persistedViewMode ?? 'list'
+    persistedViewMode ?? defaultViewMode
   );
   
   const handleViewModeChange = (mode: NodeCollectionViewMode) => {
