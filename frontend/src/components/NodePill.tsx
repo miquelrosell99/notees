@@ -66,6 +66,8 @@ export function NodePill({
   const [showReplacePopup, setShowReplacePopup] = useState(false);
   const [replacePopupPos, setReplacePopupPos] = useState({ top: 0, left: 0 });
   
+  const pillRef = useRef<HTMLDivElement>(null);
+  
   const { openNode, addSidebarCard } = useNodesStore();
   const { data: allClasses } = useClasses();
   
