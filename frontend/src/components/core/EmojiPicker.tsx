@@ -14,6 +14,174 @@ import { mdiShapeOutline } from '@mdi/js';
 import { Button } from './Button';
 import './EmojiPicker.css';
 
+// Emoji name mappings for search
+const EMOJI_NAMES: Record<string, string[]> = {
+  '😀': ['grinning', 'smile', 'happy'],
+  '😃': ['grinning', 'smile', 'happy', 'joy'],
+  '😄': ['smile', 'happy', 'joy', 'laugh', 'pleased'],
+  '😁': ['grin', 'smile', 'happy'],
+  '😊': ['blush', 'smile', 'happy', 'pleased'],
+  '😍': ['heart', 'love', 'crush', 'adore'],
+  '😘': ['kiss', 'love', 'heart'],
+  '🥰': ['love', 'hearts', 'adore'],
+  '😎': ['cool', 'sunglasses'],
+  '🤔': ['thinking', 'hmm', 'consider'],
+  '😂': ['joy', 'laugh', 'tears', 'lol'],
+  '🤣': ['rofl', 'laugh', 'lol'],
+  '😭': ['cry', 'tears', 'sad', 'sob'],
+  '😡': ['angry', 'mad', 'rage'],
+  '🤬': ['swear', 'curse', 'angry'],
+  '😴': ['sleep', 'tired', 'zzz'],
+  '🤯': ['mind', 'blown', 'explode'],
+  '👍': ['thumbs', 'up', 'yes', 'ok', 'good'],
+  '👎': ['thumbs', 'down', 'no', 'bad'],
+  '👏': ['clap', 'applause', 'congrats'],
+  '🙏': ['pray', 'thanks', 'please', 'namaste'],
+  '💪': ['muscle', 'strong', 'flex'],
+  '👀': ['eyes', 'look', 'see', 'watching'],
+  '❤️': ['heart', 'love', 'red'],
+  '💔': ['broken', 'heart', 'sad'],
+  '💯': ['hundred', 'perfect', '100'],
+  '🔥': ['fire', 'hot', 'lit'],
+  '✨': ['sparkle', 'shine', 'star'],
+  '⭐': ['star'],
+  '🌟': ['star', 'glow'],
+  '💡': ['light', 'bulb', 'idea'],
+  '🎉': ['party', 'celebrate', 'tada'],
+  '🎊': ['confetti', 'celebrate', 'party'],
+  '🎈': ['balloon', 'party'],
+  '🎁': ['gift', 'present', 'box'],
+  '🏆': ['trophy', 'win', 'award'],
+  '🥇': ['gold', 'medal', 'first', 'win'],
+  '📝': ['memo', 'note', 'write', 'pencil'],
+  '📌': ['pin', 'pushpin'],
+  '📍': ['pin', 'location', 'map'],
+  '🔖': ['bookmark', 'tag'],
+  '📅': ['calendar', 'date'],
+  '📆': ['calendar', 'date'],
+  '⏰': ['clock', 'alarm', 'time'],
+  '⌚': ['watch', 'time'],
+  '📱': ['phone', 'mobile', 'iphone'],
+  '💻': ['computer', 'laptop', 'mac'],
+  '⌨️': ['keyboard', 'type'],
+  '🖱️': ['mouse', 'click'],
+  '🖥️': ['desktop', 'computer', 'monitor'],
+  '📧': ['email', 'mail'],
+  '📨': ['email', 'mail', 'incoming'],
+  '📩': ['email', 'mail', 'envelope'],
+  '📮': ['mailbox', 'post'],
+  '📬': ['mailbox', 'mail'],
+  '📂': ['folder', 'file'],
+  '📁': ['folder', 'file'],
+  '🔍': ['search', 'magnify', 'find'],
+  '🔎': ['search', 'magnify', 'find'],
+  '✅': ['check', 'yes', 'done', 'complete'],
+  '✔️': ['check', 'yes', 'done'],
+  '❌': ['x', 'cross', 'no', 'cancel'],
+  '⚠️': ['warning', 'caution', 'alert'],
+  '❗': ['exclamation', 'warning', 'important'],
+  '❓': ['question', 'help'],
+  '💭': ['thought', 'thinking', 'bubble'],
+  '💬': ['speech', 'comment', 'chat'],
+  '🚀': ['rocket', 'space', 'launch'],
+  '✈️': ['airplane', 'plane', 'flight'],
+  '🚗': ['car', 'vehicle'],
+  '🏠': ['house', 'home'],
+  '🏢': ['building', 'office'],
+  '🌍': ['earth', 'world', 'globe'],
+  '🌎': ['earth', 'world', 'globe', 'americas'],
+  '🌏': ['earth', 'world', 'globe', 'asia'],
+  '☀️': ['sun', 'sunny', 'weather'],
+  '🌙': ['moon', 'night'],
+  '⭐': ['star'],
+  '🌈': ['rainbow', 'colors'],
+  '☁️': ['cloud', 'weather'],
+  '⛈️': ['storm', 'thunder', 'lightning'],
+  '❄️': ['snow', 'cold', 'winter'],
+  '🔔': ['bell', 'notification', 'alert'],
+  '🔕': ['bell', 'mute', 'silent'],
+  '🎵': ['music', 'note'],
+  '🎶': ['music', 'notes', 'song'],
+  '🎤': ['microphone', 'sing', 'karaoke'],
+  '🎧': ['headphones', 'music'],
+  '📷': ['camera', 'photo'],
+  '📸': ['camera', 'photo', 'flash'],
+  '🎨': ['art', 'palette', 'paint'],
+  '✏️': ['pencil', 'write', 'edit'],
+  '✂️': ['scissors', 'cut'],
+  '📏': ['ruler', 'measure'],
+  '📐': ['triangle', 'ruler', 'measure'],
+  '🔧': ['wrench', 'tool', 'settings'],
+  '🔨': ['hammer', 'tool'],
+  '⚙️': ['gear', 'settings', 'config'],
+  '🔗': ['link', 'chain'],
+  '🔒': ['lock', 'secure', 'private'],
+  '🔓': ['unlock', 'open'],
+  '🔑': ['key', 'password'],
+  '🎯': ['target', 'goal', 'dart'],
+  '🎲': ['dice', 'game', 'random'],
+  '🎮': ['game', 'controller', 'gaming'],
+  '🍕': ['pizza', 'food'],
+  '🍔': ['burger', 'food', 'hamburger'],
+  '🍟': ['fries', 'food'],
+  '🌮': ['taco', 'food'],
+  '🌯': ['burrito', 'food'],
+  '🍎': ['apple', 'fruit', 'red'],
+  '🍌': ['banana', 'fruit'],
+  '🍇': ['grapes', 'fruit'],
+  '🍓': ['strawberry', 'fruit'],
+  '🍉': ['watermelon', 'fruit'],
+  '🍊': ['orange', 'fruit'],
+  '☕': ['coffee', 'drink', 'cafe'],
+  '🍵': ['tea', 'drink', 'green'],
+  '🍺': ['beer', 'drink', 'cheers'],
+  '🍷': ['wine', 'drink'],
+  '🎂': ['cake', 'birthday', 'dessert'],
+  '🍰': ['cake', 'dessert', 'slice'],
+  '🍪': ['cookie', 'dessert'],
+  '🍩': ['donut', 'doughnut', 'dessert'],
+  '🐶': ['dog', 'puppy', 'pet'],
+  '🐱': ['cat', 'kitty', 'pet'],
+  '🐭': ['mouse', 'rodent'],
+  '🐹': ['hamster', 'pet'],
+  '🐰': ['rabbit', 'bunny'],
+  '🦊': ['fox'],
+  '🐻': ['bear'],
+  '🐼': ['panda', 'bear'],
+  '🐨': ['koala'],
+  '🐯': ['tiger', 'face'],
+  '🦁': ['lion'],
+  '🐸': ['frog'],
+  '🐵': ['monkey', 'face'],
+  '🐔': ['chicken'],
+  '🐧': ['penguin'],
+  '🐦': ['bird'],
+  '🦅': ['eagle', 'bird'],
+  '🦉': ['owl', 'bird'],
+  '🦋': ['butterfly'],
+  '🐝': ['bee', 'honey'],
+  '🐛': ['bug', 'caterpillar'],
+  '🌸': ['flower', 'blossom', 'cherry'],
+  '🌹': ['rose', 'flower'],
+  '🌺': ['flower', 'hibiscus'],
+  '🌻': ['sunflower', 'flower'],
+  '🌷': ['tulip', 'flower'],
+  '🌵': ['cactus', 'desert'],
+  '🌲': ['tree', 'evergreen', 'pine'],
+  '🌳': ['tree', 'deciduous'],
+  '🎄': ['christmas', 'tree', 'xmas'],
+  '🍀': ['clover', 'luck', 'four'],
+  '🍁': ['maple', 'leaf', 'fall'],
+  '🍂': ['leaves', 'fall', 'autumn'],
+  '🍃': ['leaf', 'wind'],
+  '⚡': ['lightning', 'bolt', 'electricity', 'fast'],
+  '☄️': ['comet', 'space'],
+  '💫': ['dizzy', 'star'],
+  '💥': ['boom', 'explosion', 'bang'],
+  '💦': ['water', 'drops', 'sweat'],
+  '💨': ['wind', 'fast', 'dash'],
+};
+
 // Common emoji categories
 const EMOJI_CATEGORIES = {
   'Smileys': ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '🥸', '😎', '🤓', '🧐'],
@@ -29,30 +197,92 @@ const EMOJI_CATEGORIES = {
   'Flags': ['🏳️', '🏴', '🏴‍☠️', '🏁', '🚩', '🎌', '🏳️‍🌈', '🏳️‍⚧️', '🇺🇳', '🇦🇫', '🇦🇱', '🇩🇿', '🇦🇸', '🇦🇩', '🇦🇴', '🇦🇮', '🇦🇶', '🇦🇬', '🇦🇷', '🇦🇲', '🇦🇼', '🇦🇺', '🇦🇹', '🇦🇿', '🇧🇸', '🇧🇭', '🇧🇩', '🇧🇧', '🇧🇾', '🇧🇪', '🇧🇿', '🇧🇯', '🇧🇲', '🇧🇹', '🇧🇴', '🇧🇦', '🇧🇼', '🇧🇷', '🇮🇴', '🇻🇬', '🇧🇳', '🇧🇬', '🇧🇫', '🇧🇮', '🇰🇭', '🇨🇲', '🇨🇦', '🇮🇨', '🇨🇻', '🇧🇶', '🇰🇾', '🇨🇫', '🇹🇩', '🇨🇱', '🇨🇳', '🇨🇽', '🇨🇨', '🇨🇴', '🇰🇲', '🇨🇬', '🇨🇩', '🇨🇰', '🇨🇷', '🇨🇮', '🇭🇷', '🇨🇺', '🇨🇼', '🇨🇾', '🇨🇿', '🇩🇰', '🇩🇯', '🇩🇲', '🇩🇴', '🇪🇨', '🇪🇬', '🇸🇻', '🇬🇶', '🇪🇷', '🇪🇪', '🇸🇿', '🇪🇹', '🇪🇺', '🇫🇰', '🇫🇴', '🇫🇯', '🇫🇮', '🇫🇷', '🇬🇫', '🇵🇫', '🇹🇫', '🇬🇦', '🇬🇲', '🇬🇪', '🇩🇪', '🇬🇭', '🇬🇮', '🇬🇷', '🇬🇱', '🇬🇩', '🇬🇵', '🇬🇺', '🇬🇹', '🇬🇬', '🇬🇳', '🇬🇼', '🇬🇾', '🇭🇹', '🇭🇳', '🇭🇰', '🇭🇺', '🇮🇸', '🇮🇳', '🇮🇩', '🇮🇷', '🇮🇶', '🇮🇪', '🇮🇲', '🇮🇱', '🇮🇹', '🇯🇲', '🇯🇵', '🎌', '🇯🇪', '🇯🇴', '🇰🇿', '🇰🇪', '🇰🇮', '🇽🇰', '🇰🇼', '🇰🇬', '🇱🇦', '🇱🇻', '🇱🇧', '🇱🇸', '🇱🇷', '🇱🇾', '🇱🇮', '🇱🇹', '🇱🇺', '🇲🇴', '🇲🇬', '🇲🇼', '🇲🇾', '🇲🇻', '🇲🇱', '🇲🇹', '🇲🇭', '🇲🇶', '🇲🇷', '🇲🇺', '🇾🇹', '🇲🇽', '🇫🇲', '🇲🇩', '🇲🇨', '🇲🇳', '🇲🇪', '🇲🇸', '🇲🇦', '🇲🇿', '🇲🇲', '🇳🇦', '🇳🇷', '🇳🇵', '🇳🇱', '🇳🇨', '🇳🇿', '🇳🇮', '🇳🇪', '🇳🇬', '🇳🇺', '🇳🇫', '🇰🇵', '🇲🇰', '🇲🇵', '🇳🇴', '🇴🇲', '🇵🇰', '🇵🇼', '🇵🇸', '🇵🇦', '🇵🇬', '🇵🇾', '🇵🇪', '🇵🇭', '🇵🇳', '🇵🇱', '🇵🇹', '🇵🇷', '🇶🇦', '🇷🇪', '🇷🇴', '🇷🇺', '🇷🇼', '🇼🇸', '🇸🇲', '🇸🇹', '🇸🇦', '🇸🇳', '🇷🇸', '🇸🇨', '🇸🇱', '🇸🇬', '🇸🇽', '🇸🇰', '🇸🇮', '🇬🇸', '🇸🇧', '🇸🇴', '🇿🇦', '🇰🇷', '🇸🇸', '🇪🇸', '🇱🇰', '🇧🇱', '🇸🇭', '🇰🇳', '🇱🇨', '🇵🇲', '🇻🇨', '🇸🇩', '🇸🇷', '🇸🇪', '🇨🇭', '🇸🇾', '🇹🇼', '🇹🇯', '🇹🇿', '🇹🇭', '🇹🇱', '🇹🇬', '🇹🇰', '🇹🇴', '🇹🇹', '🇹🇳', '🇹🇷', '🇹🇲', '🇹🇨', '🇹🇻', '🇻🇮', '🇺🇬', '🇺🇦', '🇦🇪', '🇬🇧', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', '🏴󠁧󠁢󠁷󠁬󠁳󠁿', '🇺🇸', '🇺🇾', '🇺🇿', '🇻🇺', '🇻🇦', '🇻🇪', '🇻🇳', '🇼🇫', '🇪🇭', '🇾🇪', '🇿🇲', '🇿🇼'],
 };
 
-// Common/popular MDI icons for quick access
-const POPULAR_MDI_ICONS = [
-  'mdiFileDocumentOutline', 'mdiCalendarToday', 'mdiBookOpenPageVariant', 'mdiNotebookOutline',
-  'mdiGraphOutline', 'mdiTag', 'mdiLink', 'mdiClipboardTextOutline', 'mdiPlus', 'mdiMenu',
-  'mdiMagnify', 'mdiHome', 'mdiFolderOutline', 'mdiStar', 'mdiStarOutline', 'mdiCog',
-  'mdiPencil', 'mdiTrashCanOutline', 'mdiClose', 'mdiCheck', 'mdiAlertOutline',
-  'mdiImageOutline', 'mdiPaperclip', 'mdiMusicNoteOutline', 'mdiDatabaseOutline',
-  'mdiAccountOutline', 'mdiEmailOutline', 'mdiPhoneOutline', 'mdiMapMarkerOutline',
-  'mdiClockOutline', 'mdiCalendarMonthOutline', 'mdiHeartOutline', 'mdiThumbUpOutline',
-  'mdiCommentOutline', 'mdiShareVariantOutline', 'mdiDownloadOutline', 'mdiUploadOutline',
-  'mdiRefresh', 'mdiSyncOutline', 'mdiCloudOutline', 'mdiLockOutline', 'mdiLockOpenOutline',
-  'mdiEyeOutline', 'mdiEyeOffOutline', 'mdiFilterOutline', 'mdiSortVariant',
-  'mdiFormatListBulletedSquare', 'mdiViewGridOutline', 'mdiTableOutline', 'mdiChartLineVariant',
-  'mdiCodeTags', 'mdiGitOutline', 'mdiLightbulbOutline', 'mdiBookmarkOutline',
-  'mdiFlagOutline', 'mdiBellOutline', 'mdiCameraOutline', 'mdiVideoOutline',
-  'mdiMicrophoneOutline', 'mdiPrinterOutline', 'mdiWifiOutline', 'mdiBluetoothOutline',
-  'mdiBatteryOutline', 'mdiWeatherSunny', 'mdiWeatherNight', 'mdiWeatherCloudy',
-  'mdiCurrencyUsd', 'mdiCartOutline', 'mdiCreditCardOutline', 'mdiGiftOutline',
-  'mdiTrophyOutline', 'mdiMedalOutline', 'mdiSchoolOutline', 'mdiBriefcaseOutline',
-  'mdiHammerWrench', 'mdiWrenchOutline', 'mdiPaletteOutline', 'mdiFormatPaintOutline',
-  'mdiRocketLaunchOutline', 'mdiAirplane', 'mdiCarOutline', 'mdiTrainVariant',
-  'mdiRunFast', 'mdiWeightLifter', 'mdiYoga', 'mdiMeditation',
-  'mdiCoffee', 'mdiFoodAppleOutline', 'mdiGlassCocktail', 'mdiPizzaOutline',
-];
+// MDI icon categories
+const MDI_CATEGORIES: Record<string, string[]> = {
+  'Popular': [
+    'mdiFileDocumentOutline', 'mdiCalendarToday', 'mdiBookOpenPageVariant', 'mdiNotebookOutline',
+    'mdiGraphOutline', 'mdiTag', 'mdiLink', 'mdiClipboardTextOutline', 'mdiPlus', 'mdiMenu',
+    'mdiMagnify', 'mdiHome', 'mdiFolderOutline', 'mdiStar', 'mdiStarOutline', 'mdiCog',
+    'mdiPencil', 'mdiTrashCanOutline', 'mdiClose', 'mdiCheck', 'mdiAlertOutline',
+    'mdiHeartOutline', 'mdiThumbUpOutline', 'mdiCommentOutline', 'mdiShareVariantOutline',
+    'mdiDownloadOutline', 'mdiUploadOutline', 'mdiRefresh', 'mdiLightbulbOutline',
+  ],
+  'Editor': [
+    'mdiPencil', 'mdiPencilOutline', 'mdiSquareEditOutline', 'mdiFileDocumentEditOutline',
+    'mdiFormatBold', 'mdiFormatItalic', 'mdiFormatUnderline', 'mdiFormatStrikethrough',
+    'mdiFormatListBulleted', 'mdiFormatListNumbered', 'mdiFormatQuoteClose', 'mdiCodeTags',
+    'mdiFormatColorText', 'mdiFormatColorFill', 'mdiFormatSize', 'mdiFormatAlignLeft',
+    'mdiFormatAlignCenter', 'mdiFormatAlignRight', 'mdiFormatIndentIncrease', 'mdiFormatIndentDecrease',
+  ],
+  'Files': [
+    'mdiFileOutline', 'mdiFile', 'mdiFileDocumentOutline', 'mdiFileDocument', 'mdiFolderOutline',
+    'mdiFolder', 'mdiFolderOpenOutline', 'mdiFileMultiple', 'mdiFilePlus', 'mdiFileFind',
+    'mdiFileDownload', 'mdiFileUpload', 'mdiFileExport', 'mdiFileImport', 'mdiFileCloud',
+    'mdiFilePdfBox', 'mdiFileImageOutline', 'mdiFileVideoOutline', 'mdiFileMusicOutline',
+  ],
+  'Actions': [
+    'mdiPlus', 'mdiMinus', 'mdiClose', 'mdiCheck', 'mdiCheckCircle', 'mdiCheckCircleOutline',
+    'mdiCloseCircle', 'mdiCloseCircleOutline', 'mdiDelete', 'mdiDeleteOutline', 'mdiTrashCan',
+    'mdiTrashCanOutline', 'mdiRefresh', 'mdiReload', 'mdiUndo', 'mdiRedo', 'mdiContentCopy',
+    'mdiContentCut', 'mdiContentPaste', 'mdiContentSave', 'mdiContentSaveOutline',
+  ],
+  'Arrows': [
+    'mdiArrowUp', 'mdiArrowDown', 'mdiArrowLeft', 'mdiArrowRight', 'mdiArrowUpBold',
+    'mdiArrowDownBold', 'mdiArrowLeftBold', 'mdiArrowRightBold', 'mdiChevronUp',
+    'mdiChevronDown', 'mdiChevronLeft', 'mdiChevronRight', 'mdiMenuUp', 'mdiMenuDown',
+    'mdiMenuLeft', 'mdiMenuRight', 'mdiArrowExpand', 'mdiArrowCollapse',
+  ],
+  'UI': [
+    'mdiMenu', 'mdiDotsVertical', 'mdiDotsHorizontal', 'mdiCog', 'mdiCogOutline',
+    'mdiTune', 'mdiFilter', 'mdiFilterOutline', 'mdiSort', 'mdiSortVariant',
+    'mdiViewGrid', 'mdiViewGridOutline', 'mdiViewList', 'mdiViewModule', 'mdiViewDashboard',
+    'mdiFullscreen', 'mdiFullscreenExit', 'mdiWindowMaximize', 'mdiWindowMinimize',
+  ],
+  'Communication': [
+    'mdiEmail', 'mdiEmailOutline', 'mdiMessage', 'mdiMessageOutline', 'mdiChat',
+    'mdiChatOutline', 'mdiComment', 'mdiCommentOutline', 'mdiPhone', 'mdiPhoneOutline',
+    'mdiBellOutline', 'mdiBell', 'mdiBellRing', 'mdiSend', 'mdiSendOutline',
+  ],
+  'Time': [
+    'mdiCalendar', 'mdiCalendarOutline', 'mdiCalendarToday', 'mdiCalendarMonth',
+    'mdiCalendarWeek', 'mdiClock', 'mdiClockOutline', 'mdiClockTimeEight',
+    'mdiTimer', 'mdiTimerOutline', 'mdiAlarm', 'mdiHistory',
+  ],
+  'Media': [
+    'mdiImage', 'mdiImageOutline', 'mdiCamera', 'mdiCameraOutline', 'mdiVideo',
+    'mdiVideoOutline', 'mdiMusic', 'mdiMusicNote', 'mdiMusicNoteOutline', 'mdiPlayCircle',
+    'mdiPauseCircle', 'mdiStopCircle', 'mdiVolumeHigh', 'mdiVolumeMute',
+  ],
+  'Social': [
+    'mdiHeart', 'mdiHeartOutline', 'mdiStar', 'mdiStarOutline', 'mdiThumbUp',
+    'mdiThumbUpOutline', 'mdiThumbDown', 'mdiThumbDownOutline', 'mdiShare',
+    'mdiShareVariant', 'mdiShareOutline', 'mdiAccountOutline', 'mdiAccountCircle',
+  ],
+  'Navigation': [
+    'mdiHome', 'mdiHomeOutline', 'mdiMagnify', 'mdiEarth', 'mdiMapMarker',
+    'mdiMapMarkerOutline', 'mdiCompass', 'mdiCompassOutline', 'mdiNavigation',
+  ],
+  'Objects': [
+    'mdiLightbulb', 'mdiLightbulbOutline', 'mdiBook', 'mdiBookOutline', 'mdiBookOpenPageVariant',
+    'mdiNotebook', 'mdiNotebookOutline', 'mdiPaperclip', 'mdiPin', 'mdiPinOutline',
+    'mdiFlag', 'mdiFlagOutline', 'mdiBookmark', 'mdiBookmarkOutline', 'mdiTag',
+    'mdiTagOutline', 'mdiGift', 'mdiGiftOutline', 'mdiTrophy', 'mdiTrophyOutline',
+  ],
+  'Tech': [
+    'mdiLaptop', 'mdiMonitor', 'mdiCellphone', 'mdiTablet', 'mdiKeyboard',
+    'mdiMouse', 'mdiPrinter', 'mdiServer', 'mdiDatabase', 'mdiDatabaseOutline',
+    'mdiCloud', 'mdiCloudOutline', 'mdiWifi', 'mdiBluetooth', 'mdiUsb',
+  ],
+  'Security': [
+    'mdiLock', 'mdiLockOutline', 'mdiLockOpen', 'mdiLockOpenOutline', 'mdiKey',
+    'mdiKeyOutline', 'mdiShield', 'mdiShieldOutline', 'mdiEye', 'mdiEyeOutline',
+    'mdiEyeOff', 'mdiEyeOffOutline', 'mdiFingerprint', 'mdiSecurity',
+  ],
+  'Weather': [
+    'mdiWeatherSunny', 'mdiWeatherNight', 'mdiWeatherCloudy', 'mdiWeatherPartlyCloudy',
+    'mdiWeatherRainy', 'mdiWeatherSnowy', 'mdiWeatherLightning', 'mdiWeatherFog',
+  ],
+};
 
 type TabType = 'emojis' | 'symbols';
 
@@ -79,6 +309,7 @@ export function EmojiPicker({
   const [activeTab, setActiveTab] = useState<TabType>('emojis');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>(Object.keys(EMOJI_CATEGORIES)[0]);
+  const [selectedMdiCategory, setSelectedMdiCategory] = useState<string>('Popular');
   const pickerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   
@@ -113,18 +344,32 @@ export function EmojiPicker({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
   
-  // Filter emojis based on search
+  // Filter emojis based on search (by name or character)
   const filteredEmojis = useMemo(() => {
     if (!search) {
       return EMOJI_CATEGORIES[selectedCategory as keyof typeof EMOJI_CATEGORIES] || [];
     }
     
-    // Search across all categories
+    const searchLower = search.toLowerCase();
     const results: string[] = [];
+    
+    // Search across all categories
     for (const emojis of Object.values(EMOJI_CATEGORIES)) {
-      results.push(...emojis.filter(emoji => emoji.includes(search)));
+      for (const emoji of emojis) {
+        // Search by emoji character or by name
+        if (emoji.includes(search)) {
+          results.push(emoji);
+        } else if (EMOJI_NAMES[emoji]) {
+          const names = EMOJI_NAMES[emoji];
+          if (names.some(name => name.includes(searchLower))) {
+            results.push(emoji);
+          }
+        }
+      }
     }
-    return results;
+    
+    // Remove duplicates
+    return Array.from(new Set(results));
   }, [search, selectedCategory]);
   
   // Get all MDI icon names
@@ -134,16 +379,19 @@ export function EmojiPicker({
       .sort();
   }, []);
   
-  // Filter MDI icons based on search
+  // Filter MDI icons based on search and category
   const filteredMdiIcons = useMemo(() => {
-    const icons = search ? allMdiIcons : POPULAR_MDI_ICONS;
-    if (!search) return icons;
+    if (search) {
+      // When searching, search all icons (no limit)
+      const searchLower = search.toLowerCase();
+      return allMdiIcons.filter(name => 
+        name.toLowerCase().includes(searchLower)
+      );
+    }
     
-    const searchLower = search.toLowerCase();
-    return allMdiIcons.filter(name => 
-      name.toLowerCase().includes(searchLower)
-    ).slice(0, 200); // Limit results for performance
-  }, [search, allMdiIcons]);
+    // When not searching, show selected category
+    return MDI_CATEGORIES[selectedMdiCategory] || MDI_CATEGORIES['Popular'];
+  }, [search, selectedMdiCategory, allMdiIcons]);
   
   // Handle emoji selection
   const handleEmojiSelect = useCallback((emoji: string) => {
@@ -261,6 +509,21 @@ export function EmojiPicker({
         </div>
       ) : (
         <div className="emoji-picker-content">
+          {/* MDI Category selector (only when not searching) */}
+          {!search && (
+            <div className="emoji-picker-mdi-categories">
+              {Object.keys(MDI_CATEGORIES).map(category => (
+                <button
+                  key={category}
+                  className={`emoji-picker-mdi-category ${selectedMdiCategory === category ? 'active' : ''}`}
+                  onClick={() => setSelectedMdiCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          )}
+          
           {/* MDI icon grid */}
           <div className="emoji-picker-grid mdi-grid">
             {filteredMdiIcons.map(iconName => {
@@ -290,7 +553,12 @@ export function EmojiPicker({
           </div>
           {!search && (
             <div className="emoji-picker-hint">
-              Showing popular icons. Search to find more.
+              {filteredMdiIcons.length} icons in {selectedMdiCategory}. Search to find from all {allMdiIcons.length}+ icons.
+            </div>
+          )}
+          {search && filteredMdiIcons.length > 0 && (
+            <div className="emoji-picker-hint">
+              Found {filteredMdiIcons.length} icons
             </div>
           )}
         </div>
