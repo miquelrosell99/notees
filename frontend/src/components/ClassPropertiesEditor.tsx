@@ -9,7 +9,7 @@
  * - "Add description" placeholder on right
  * - Bullet before value area
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import './ClassPropertiesEditor.css';
 import { 
   useClassProperties, 
@@ -20,6 +20,7 @@ import {
 import { mdiPlus } from '@mdi/js';
 import { Button } from './core/Button';
 import { Card } from './core/Card';
+import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import './PropertiesSection.css';
 
 interface ClassPropertiesEditorProps {
@@ -39,33 +40,26 @@ export function ClassPropertiesEditor({
   className = '',
   readOnly = false,
 }: ClassPropertiesEditorProps) {
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   
   // Fetch current class properties (direct only, not inherited)
   const { data: classProperties, isLoading } = useClassProperties(classNodeId, false);
-  
-  // Fetch all available properties
-  const { data: allProperties } = useProperties();
   
   // Mutations
   const addPropertyMutation = useAddPropertyToClass();
   const removePropertyMutation = useRemovePropertyFromClass();
   
-  // Filter available properties (exclude already added)
-  const availableProperties = allProperties?.filter(prop => {
-    if (classProperties?.some(cp => cp.property_id === prop.id)) return false;
-    if (searchQuery && !prop.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  }) ?? [];
+  // Get IDs of properties already applied to this class
+  const appliedPropertyIds = useMemo(() => {
+    return classProperties?.map(cp => cp.property_id) ?? [];
+  }, [classProperties]);
   
-  const handleAddProperty = useCallback((propertyId: number) => {
+  const handleAddProperty = useCallback((property: { id: number }) => {
     addPropertyMutation.mutate(
-      { classId: classNodeId, propertyId },
+      { classId: classNodeId, propertyId: property.id },
       {
         onSuccess: () => {
-          setIsAddingNew(false);
-          setSearchQuery('');
+          setShowPropertyPopup(false);
         },
       }
     );
@@ -124,64 +118,27 @@ export function ClassPropertiesEditor({
       
       {/* Add new property */}
       {!readOnly && (
-        <div className="properties-add">
-          {isAddingNew ? (
-            <div className="class-properties-picker">
-              <input
-                type="text"
-                className="class-properties-search"
-                placeholder="Search properties..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-              />
-              <div className="class-properties-options">
-                {availableProperties.slice(0, 10).map((prop) => (
-                  <Button
-                    key={prop.id}
-                    className="class-property-option"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleAddProperty(prop.id)}
-                    disabled={addPropertyMutation.isPending}
-                  >
-                    {prop.icon && <span>{prop.icon}</span>}
-                    {prop.name}
-                    <span className="class-property-type">({prop.type})</span>
-                  </Button>
-                ))}
-                {availableProperties.length === 0 && (
-                  <p className="class-properties-no-results">
-                    {allProperties?.length === 0 
-                      ? 'No properties exist. Create a property first.'
-                      : 'No matching properties found'}
-                  </p>
-                )}
-              </div>
-              <Button
-                className="class-properties-cancel"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setIsAddingNew(false);
-                  setSearchQuery('');
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              icon={mdiPlus}
-              className="properties-add-btn"
-              onClick={() => setIsAddingNew(true)}
-              title="Add property"
-              size="sm"
-              variant="ghost"
-            >
-              Add property
-            </Button>
-          )}
+        <div className="properties-add-wrapper">
+          <Button
+            icon={mdiPlus}
+            className="properties-add-btn"
+            onClick={() => setShowPropertyPopup(!showPropertyPopup)}
+            title="Add property"
+            size="sm"
+            variant="ghost"
+          >
+            Add property
+          </Button>
+          <PropertySuggestionPopup
+            isOpen={showPropertyPopup}
+            onClose={() => setShowPropertyPopup(false)}
+            onSelect={handleAddProperty}
+            onCreate={() => {
+              // Close popup - user will need to create property first
+              setShowPropertyPopup(false);
+            }}
+            excludeIds={appliedPropertyIds}
+          />
         </div>
       )}
     </Card>
