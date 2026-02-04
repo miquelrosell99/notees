@@ -335,7 +335,8 @@
 
 /* ==================== Add Property Button ==================== */
 
-.properties-add {
+.properties-add-wrapper {
+  position: relative;
   margin-top: 0;
 }
 
