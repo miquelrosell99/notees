@@ -78,3 +78,16 @@
   color: var(--text-tertiary);
   font-size: 0.75rem;
 }
+
+/* Classes column */
+.node-table__classes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+}
+
+.node-table__empty-cell {
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+}

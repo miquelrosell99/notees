@@ -4,6 +4,8 @@
  * A panel for selecting which property columns to show in table view.
  * Includes a searchbox and checkboxes for each property.
  * Supports drag-and-drop reordering of selected properties.
+ * 
+ * Also supports special virtual columns like "Classes" that aren't actual properties.
  */
 import { useState, useMemo } from 'react';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -12,12 +14,28 @@ import { useProperties } from '@/hooks';
 import { Checkbox } from '../core/Checkbox';
 import { SearchIcon } from '../icons';
 import type { Property } from '@/types';
+import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyColumnSelector.css';
+
+// Virtual column for Classes (not a real property)
+const CLASSES_VIRTUAL_COLUMN = {
+  uuid: '__classes__',
+  name: 'Classes',
+  icon: '@',
+  type: 'virtual',
+  id: -1,
+  multi: true,
+  is_system: true,
+  create_date: '',
+  write_date: '',
+} as const;
 
 // ==================== SortablePropertyItem ====================
 
+type ColumnItem = Property | typeof CLASSES_VIRTUAL_COLUMN;
+
 interface SortablePropertyItemProps {
-  property: Property;
+  property: ColumnItem;
   onToggle: (uuid: string) => void;
 }
 
@@ -87,22 +105,31 @@ export function PropertyColumnSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const { data: properties = [], isLoading } = useProperties();
 
-  // Filter properties based on search
+  // Filter out hidden properties (show_hierarchy) and combine with virtual columns
+  const allColumns = useMemo<ColumnItem[]>(() => {
+    const filtered = properties.filter(
+      prop => prop.uuid !== SYSTEM_PROPERTY_UUIDS.show_hierarchy
+    );
+    // Add Classes as the first virtual column
+    return [CLASSES_VIRTUAL_COLUMN, ...filtered];
+  }, [properties]);
+
+  // Filter columns based on search
   const filteredProperties = useMemo(() => {
-    if (!searchQuery) return properties;
+    if (!searchQuery) return allColumns;
     const query = searchQuery.toLowerCase();
-    return properties.filter(prop => 
+    return allColumns.filter(prop => 
       prop.name.toLowerCase().includes(query) ||
       (prop.icon && prop.icon.toLowerCase().includes(query))
     );
-  }, [properties, searchQuery]);
+  }, [allColumns, searchQuery]);
   
   // Create ordered list of selected properties for display
   const selectedProperties = useMemo(() => {
     return selectedPropertyUuids
-      .map(uuid => properties.find(p => p.uuid === uuid))
+      .map(uuid => allColumns.find(p => p.uuid === uuid))
       .filter(p => p !== undefined);
-  }, [selectedPropertyUuids, properties]);
+  }, [selectedPropertyUuids, allColumns]);
 
   // Handle checkbox change
   const handleToggle = (propertyUuid: string) => {
