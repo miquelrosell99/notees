@@ -213,7 +213,6 @@ export function DndProvider({ children }: DndProviderProps) {
             padding: '0.5rem',
             opacity: 0.8,
           }}>
-            Dragging block...
           </div>
         ) : null}
       </DndKitDragOverlay>
