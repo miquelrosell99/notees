@@ -21,7 +21,7 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends } from '@/hooks';
-import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
+import { useNodesStore, useBlockSelectionStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -39,6 +39,8 @@ import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
+import { Button } from '../components/core/Button';
+import { mdiPlus } from '@mdi/js';
 
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import type { Asset } from '../api/assets';
@@ -74,6 +76,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const { data: allClasses } = useClasses();
   const { pageClassId } = usePageClass();
   const { openCommentsForNode, openNode } = useNodesStore();
+  const { enterEditMode } = useBlockSelectionStore();
   
   // Debounced content save - batches rapid edits to reduce API calls
   const { handleContentChange } = useContentSave();
@@ -87,6 +90,21 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
     onAddSidebarCard(clickedNode.id);
   }, [onAddSidebarCard]);
+
+  // Handle add block (adds child to the focused block)
+  const handleAddBlock = useCallback(async () => {
+    // Compute next sequence from node's children
+    const maxSequence = node.children?.reduce((max, child) => 
+      Math.max(max, child.sequence ?? 0), -1) ?? -1;
+    
+    const newNode = await createNode.mutateAsync({
+      name: '',
+      parent_id: node.id,
+      sequence: maxSequence + 1,
+    });
+    // Set the new block to edit mode so the user can start typing right away
+    enterEditMode(newNode.id);
+  }, [createNode, node.id, node.children, enterEditMode]);
 
   // Block callbacks for context provider
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
@@ -155,6 +173,11 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
         blockCallbacks={blockCallbacks}
         suppressRootColor={true}
       />
+      <div className="focused-block-content-add">
+        <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+          Add block
+        </Button>
+      </div>
     </div>
   );
 }
