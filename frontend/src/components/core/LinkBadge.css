@@ -1,0 +1,68 @@
+/**
+ * LinkBadge Component Styles
+ * 
+ * Shared styles for node link visual display.
+ */
+
+.link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  font-size: 0.875em;
+  line-height: 1.4;
+  max-width: 200px;
+  border-radius: var(--shape-small);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.link-badge__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  font-size: 0.75em;
+}
+
+.link-badge__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.link-badge__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--spacing-1);
+  padding: 0 var(--spacing-1);
+  min-width: 14px;
+  height: 14px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1;
+  background-color: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  color: var(--color-on-surface);
+  border-radius: var(--shape-full);
+}
+
+/* Page link style - faded primary color */
+.link-badge--page {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  color: var(--color-on-surface);
+}
+
+.link-badge--page:hover {
+  background-color: color-mix(in srgb, var(--color-primary) 15%, var(--color-surface));
+}
+
+/* Block link style - faded secondary color */
+.link-badge--block {
+  background-color: color-mix(in srgb, var(--color-secondary) 8%, var(--color-surface));
+  color: var(--color-on-surface-variant);
+}
+
+.link-badge--block:hover {
+  background-color: color-mix(in srgb, var(--color-secondary) 15%, var(--color-surface));
+}

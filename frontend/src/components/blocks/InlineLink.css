@@ -1,0 +1,194 @@
+/**
+ * LinkPill Component Styles
+ * 
+ * Wrapper styles for inline links in BlockContent.
+ * Applies faded colors to Pill component for page/block links.
+ */
+
+.link-pill {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  cursor: pointer;
+  user-select: none;
+  margin: 0 2px;
+  
+  /* Atomic inline behavior */
+  white-space: nowrap;
+  -webkit-user-modify: read-only;
+  -moz-user-modify: read-only;
+}
+
+/* Style the pill for page links - faded primary color */
+.link-pill--page .pill {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  color: var(--color-on-surface);
+}
+
+/* Style the pill for block links - faded secondary color */
+.link-pill--block .pill {
+  background-color: color-mix(in srgb, var(--color-secondary) 8%, var(--color-surface));
+  color: var(--color-on-surface-variant);
+}
+
+/* Click count badge */
+.link-pill__badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-1);
+  min-width: 14px;
+  height: 14px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1;
+  background-color: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  color: var(--color-on-surface);
+  border-radius: var(--shape-full);
+}
+
+.link-pill--selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  border-radius: var(--shape-small);
+}
+
+/* When used inside contenteditable, prevent editing */
+.external-link {
+  display: inline;
+  color: var(--color-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s, text-decoration 0.15s;
+  border-bottom: 1px solid var(--color-primary-container);
+}
+
+.external-link:hover {
+  color: var(--color-primary-variant, var(--color-primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  border-bottom-color: var(--color-primary);
+}
+
+.external-link:visited {
+  color: var(--color-secondary, var(--color-primary));
+  border-bottom-color: var(--color-secondary-container, var(--color-primary-container));
+}
+
+.link-pill--readonly {
+  cursor: default;
+}
+
+/* When used inside contenteditable, prevent editing */
+.link-pill[contenteditable="false"] {
+  outline: none;
+}
+
+/* Selection styles for contenteditable parent */
+[contenteditable] .link-pill::selection,
+[contenteditable] .link-pill *::selection {
+  background: transparent;
+}
+
+/**
+ * TypePill Component Styles
+ */
+
+.type-pill {
+  display: inline;
+  position: relative;
+  padding: 2px 6px;
+  margin: 0 2px;
+  background: var(--color-tertiary-container);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.95em;
+  line-height: inherit;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: baseline;
+  color: var(--color-on-tertiary-container);
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  
+  /* Allow wrapping for multi-line content */
+  white-space: normal;
+  word-break: break-word;
+  
+  /* Make it behave as inline block for proper wrapping */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.type-pill:hover {
+  background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-tertiary) 20%);
+}
+
+/* Icon */
+.type-pill__icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+/* Text */
+.type-pill__text {
+  vertical-align: middle;
+}
+
+/* When used inside contenteditable, prevent editing */
+.type-pill[contenteditable="false"] {
+  outline: none;
+}
+
+/* Selection styles for contenteditable parent */
+[contenteditable] .type-pill::selection,
+[contenteditable] .type-pill *::selection {
+  background: transparent;
+}
+
+/* =============== Inline Image Styles =============== */
+
+.inline-image-container {
+  position: relative;
+  display: block;
+  margin: var(--spacing-2) 0;
+}
+
+.inline-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--shape-medium);
+  cursor: pointer;
+  transition: box-shadow var(--motion-duration-short) var(--motion-easing-standard), transform var(--motion-duration-short) var(--motion-easing-standard);
+  box-shadow: var(--elevation-1);
+}
+
+.inline-image:hover {
+  box-shadow: var(--elevation-2);
+  transform: scale(1.005);
+}
+
+.inline-image-bullet {
+  position: absolute;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: 10;
+  background: var(--color-surface);
+  border-radius: var(--shape-full);
+  box-shadow: var(--elevation-2);
+  padding: 2px;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.inline-image-error {
+  display: inline;
+  color: var(--color-error);
+  font: var(--font-body-small);
+  font-style: italic;
+}
