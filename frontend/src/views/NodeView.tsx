@@ -657,6 +657,21 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         </>
       )}
       
+      {/* Extended By section - shows classes that extend this class (class nodes only) */}
+      {isClassNode && (
+        <QuerySection
+          nodeId={node.id}
+          nodeUuid={node.uuid}
+          viewType="extended_by"
+          title="Extended By"
+          icon={<TableIcon size="sm" />}
+          hideWhenEmpty={true}
+          defaultExpanded={true}
+          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+        />
+      )}
+
       {/* Show nodes that have this node as their class - only for class nodes */}
       {isClassNode && (
         <QuerySection
@@ -680,21 +695,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
           viewType="child_pages"
           title="Children"
           icon={<PageIcon size="sm" />}
-          hideWhenEmpty={true}
-          defaultExpanded={true}
-          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-        />
-      )}
-      
-      {/* Extended By section - shows classes that extend this class (class nodes only) */}
-      {isClassNode && (
-        <QuerySection
-          nodeId={node.id}
-          nodeUuid={node.uuid}
-          viewType="extended_by"
-          title="Extended By"
-          icon={<TableIcon size="sm" />}
           hideWhenEmpty={true}
           defaultExpanded={true}
           onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
