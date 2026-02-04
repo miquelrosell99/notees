@@ -12,7 +12,7 @@
  * - Hide options
  * - Actions (delete, go to property page)
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import type { Property, PropertyType, SelectionOption } from '@/types/api';
 import { updateProperty, addSelectionOption, deleteSelectionOption, deleteProperty } from '@/api/properties';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
@@ -84,7 +84,8 @@ export function PropertyConfigPanel({
   const nameInputRef = useRef<HTMLInputElement>(null);
   
   // Initialize form when property changes
-  useEffect(() => {
+  // Using useLayoutEffect to sync state before paint, avoiding cascading renders
+  useLayoutEffect(() => {
     if (isOpen && property) {
       setName(property.name);
       setIcon(property.icon || '');

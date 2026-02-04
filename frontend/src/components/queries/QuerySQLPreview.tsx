@@ -5,6 +5,8 @@
  * Collapsed by default, helps users understand the underlying query.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState } from 'react';
 import { mdiChevronDown, mdiChevronRight, mdiCodeTags } from '@mdi/js';
 import Icon from '@mdi/react';
