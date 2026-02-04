@@ -176,6 +176,17 @@ function BlockInternal({
   const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
   const createNode = useCreateNode();
+
+  // Handle replacing a link in block content
+  const handleReplaceLink = useCallback((oldRaw: string, newNodeId: number, newLinkUuid: string) => {
+    if (!block) return;
+    const newLinkText = `[[${newNodeId}:${newLinkUuid}]]`;
+    const newContent = block.name.replace(oldRaw, newLinkText);
+    updateNode.mutate({
+      id: block.id,
+      data: { name: newContent },
+    });
+  }, [block, updateNode]);
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
   const { data: allClasses } = useClasses();
@@ -1762,6 +1773,7 @@ function BlockInternal({
                 content={block.name || ''}
                 blockId={block.id}
                 onClick={() => {}}
+                onReplaceLink={handleReplaceLink}
               />
               
               {/* Comment count badge */}
@@ -1924,6 +1936,7 @@ function BlockInternal({
                       content={block.name || ''}
                       blockId={block.id}
                       onClick={() => {}}
+                      onReplaceLink={handleReplaceLink}
                     />
                     
                     {/* Comment count badge */}

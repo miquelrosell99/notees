@@ -42,6 +42,7 @@ export interface BlockContentProps {
   onClick?: () => void;
   className?: string;
   onDeleteLink?: (raw: string) => void;
+  onReplaceLink?: (oldRaw: string, newNodeId: number, newLinkUuid: string) => void;
 }
 
 function parseContent(content: string): ContentPart[] {
@@ -219,6 +220,7 @@ export function BlockContent({
   onClick,
   className = '',
   onDeleteLink,
+  onReplaceLink,
 }: BlockContentProps) {
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
   const { openNode, addSidebarCard } = useNodesStore();
@@ -250,6 +252,14 @@ export function BlockContent({
   const handleColorChange = useCallback((nodeId: number, color: string | null) => {
     updateNode.mutate({ id: nodeId, data: { color } });
   }, [updateNode]);
+
+  const handleReplaceLink = useCallback((oldRaw: string, newNode: Node) => {
+    if (onReplaceLink) {
+      // Generate new link UUID for the replacement
+      const newLinkUuid = crypto.randomUUID();
+      onReplaceLink(oldRaw, newNode.id, newLinkUuid);
+    }
+  }, [onReplaceLink]);
   
   if (parts.length === 1 && parts[0].type === 'text') {
     return (
@@ -309,6 +319,7 @@ export function BlockContent({
             variant="link"
             readOnly={false}
             onColorChange={(color) => handleColorChange(parseInt(part.id!, 10), color)}
+            onReplace={(newNode) => handleReplaceLink(part.raw!, newNode)}
           />
         );
       })}
