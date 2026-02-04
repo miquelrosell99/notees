@@ -9,7 +9,7 @@ import { sanitizeContent, hasEditorArtifacts } from './linkSanitization';
 
 // Link pattern constants
 export const LINK_PATTERN = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
-export const TYPE_PATTERN = /\{\{([^\}]+)\}\}/g;
+export const TYPE_PATTERN = /\{\{([^}]+)\}\}/g;
 
 /**
  * Validate that a string contains a valid node ID.

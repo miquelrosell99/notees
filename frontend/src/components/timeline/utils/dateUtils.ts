@@ -47,23 +47,26 @@ export function formatDateLabel(date: Date, precision: 'decade' | 'year' | 'quar
   const hour = date.getHours();
   
   switch (precision) {
-    case 'decade':
+    case 'decade': {
       const decade = Math.floor(year / 10) * 10;
       return `${decade}s`;
+    }
     case 'year':
       return String(year);
-    case 'quarter':
+    case 'quarter': {
       const q = Math.floor(date.getMonth() / 3) + 1;
       return `Q${q} ${year}`;
+    }
     case 'month':
       return `${month} ${year}`;
     case 'week':
     case 'day':
       return `${month} ${day}`;
-    case 'hour':
+    case 'hour': {
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const hour12 = hour % 12 || 12;
       return `${hour12}${ampm}`;
+    }
     default:
       return date.toLocaleDateString();
   }
@@ -119,13 +122,14 @@ export function alignToInterval(date: Date, precision: 'decade' | 'year' | 'quar
       aligned.setDate(1);
       aligned.setHours(0, 0, 0, 0);
       break;
-    case 'week':
+    case 'week': {
       // Align to Monday
       const day = aligned.getDay();
       const diff = day === 0 ? -6 : 1 - day;
       aligned.setDate(aligned.getDate() + diff);
       aligned.setHours(0, 0, 0, 0);
       break;
+    }
     case 'day':
       aligned.setHours(0, 0, 0, 0);
       break;
