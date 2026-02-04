@@ -1229,8 +1229,11 @@ export function useRemoveClass() {
       // Cancel any outgoing refetches to avoid overwriting our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       
-      // Get the old node to compare flags after mutation
-      const oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      // Get the old node - try direct cache first, then search in nested children
+      let oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      if (!oldNode) {
+        oldNode = findNodeInCache(queryClient, nodeId) ?? undefined;
+      }
       
       // Helper to update classes on a node
       const updateClasses = (node: Node): Node => ({
@@ -1247,53 +1250,35 @@ export function useRemoveClass() {
         (old) => old ? updateClasses(old) : old
       );
       
-      // Also update parent page caches that may contain this node as a child
-      // This handles the case where the node is a block inside a page
-      if (oldNode?.parent_id) {
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(oldNode.parent_id), exact: false },
-          (old) => {
-            if (!old?.children) return old;
-            const newChildren = updateNodeInTree(old.children, nodeId, { 
-              classes: oldNode.classes?.filter((id: number) => id !== classId) ?? []
-            });
-            return newChildren !== old.children ? { ...old, children: newChildren } : old;
-          }
-        );
-      }
-      if (oldNode?.page_id && oldNode.page_id !== oldNode.parent_id) {
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(oldNode.page_id), exact: false },
-          (old) => {
-            if (!old?.children) return old;
-            const newChildren = updateNodeInTree(old.children, nodeId, { 
-              classes: oldNode.classes?.filter((id: number) => id !== classId) ?? []
-            });
-            return newChildren !== old.children ? { ...old, children: newChildren } : old;
-          }
-        );
-      }
+      // Also update ALL detail caches that may contain this node as a nested child
+      const newClasses = oldNode?.classes?.filter((id: number) => id !== classId) ?? [];
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.details(), exact: false },
+        (old) => {
+          if (!old?.children) return old;
+          const newChildren = updateNodeInTree(old.children, nodeId, { classes: newClasses });
+          return newChildren !== old.children ? { ...old, children: newChildren } : old;
+        }
+      );
       
       return { oldNode };
     },
     onError: (_err, { nodeId }, context) => {
-      // Rollback on error - restore the old node data
+      // Rollback on error - restore original classes in all caches
       if (context?.oldNode) {
         queryClient.setQueriesData<Node>(
           { queryKey: nodeKeys.detailBase(nodeId), exact: false },
           () => context.oldNode
         );
-        // Also rollback parent caches
-        if (context.oldNode.parent_id) {
-          queryClient.setQueriesData<Node>(
-            { queryKey: nodeKeys.detailBase(context.oldNode.parent_id), exact: false },
-            (old) => {
-              if (!old?.children) return old;
-              const newChildren = updateNodeInTree(old.children, nodeId, { classes: context.oldNode!.classes });
-              return newChildren !== old.children ? { ...old, children: newChildren } : old;
-            }
-          );
-        }
+        // Also rollback in all detail caches that may contain this node as a child
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.details(), exact: false },
+          (old) => {
+            if (!old?.children) return old;
+            const newChildren = updateNodeInTree(old.children, nodeId, { classes: context.oldNode!.classes });
+            return newChildren !== old.children ? { ...old, children: newChildren } : old;
+          }
+        );
       }
     },
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
@@ -1316,27 +1301,15 @@ export function useRemoveClass() {
         (old) => old ? { ...old, ...classUpdates } : updatedNode
       );
       
-      // Also update parent page caches that contain this node as a child
-      if (updatedNode.parent_id !== null) {
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(updatedNode.parent_id), exact: false },
-          (old) => {
-            if (!old?.children) return old;
-            const newChildren = updateNodeInTree(old.children, nodeId, classUpdates);
-            return newChildren !== old.children ? { ...old, children: newChildren } : old;
-          }
-        );
-      }
-      if (updatedNode.page_id !== null && updatedNode.page_id !== updatedNode.parent_id) {
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(updatedNode.page_id), exact: false },
-          (old) => {
-            if (!old?.children) return old;
-            const newChildren = updateNodeInTree(old.children, nodeId, classUpdates);
-            return newChildren !== old.children ? { ...old, children: newChildren } : old;
-          }
-        );
-      }
+      // Also update ALL detail caches that may contain this node as a nested child
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.details(), exact: false },
+        (old) => {
+          if (!old?.children) return old;
+          const newChildren = updateNodeInTree(old.children, nodeId, classUpdates);
+          return newChildren !== old.children ? { ...old, children: newChildren } : old;
+        }
+      );
       
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
