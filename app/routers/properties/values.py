@@ -79,7 +79,7 @@ async def set_property_value(
         raise HTTPException(400, str(e))
     
     # Fetch and return the updated node
-    node = await node_service.get_node(node_id, include_children=False)
+    node = await node_service.get_node(node_id)
     if not node:
         raise HTTPException(404, f"Node {node_id} not found")
     
