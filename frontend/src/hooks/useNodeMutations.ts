@@ -470,6 +470,12 @@ export function useUpdateNode() {
           };
         }
       );
+      // Force refetch the specific node detail query to ensure UI updates
+      // This is needed for node color updates on inline link pills
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.detailBase(updatedNode.id),
+        refetchType: 'active',
+      });
       // SOFT invalidate to prevent race conditions with concurrent mutations
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.lists(),
