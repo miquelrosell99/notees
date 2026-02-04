@@ -32,7 +32,6 @@ export interface Node {
   active: boolean;
   is_page: boolean; // Whether this node is a page
   is_class?: boolean; // Whether this node defines a class
-  usable_in?: 'pages' | 'blocks' | 'both'; // Where this class can be applied (only meaningful when is_class=true)
   create_date: string;
   write_date: string;
   open_date?: string | null; // When the page was last opened/viewed
@@ -326,6 +325,7 @@ export interface ClassExtends {
   class_node_name: string;
   extends_class_node_id: number;
   extends_class_node_name: string;
+  extends_class_icon?: string | null;
   sequence: number;
 }
 

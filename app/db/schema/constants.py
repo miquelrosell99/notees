@@ -154,7 +154,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "cover": "00000000-0000-0000-0000-000000000005",
     "banner": "00000000-0000-0000-0000-000000000006",
     "_query_ast": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes
-    "extends": "00000000-0000-0000-0000-000000000008",  # Class inheritance/extension
+    # "extends" removed - now stored directly in class_extend table
 }
 
 SYSTEM_PROPERTIES = [
@@ -165,7 +165,7 @@ SYSTEM_PROPERTIES = [
     {"name": "cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
     {"name": "banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
     {"name": "_query_ast", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_ast"]},
-    {"name": "extends", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["extends"]},
+    # "extends" removed - now stored directly in class_extend table
 ]
 
 # Default view classes for NodeViews

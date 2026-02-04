@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from ..entities import Node, NodeCreateData, NodeUpdateData
     from ..entities import (
         Property, PropertyType, PropertySelectionLine,
-        PropertyClassFilter, ClassProperty, ClassExtend,
+        PropertyClassFilter, ClassProperty,
         NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     )
     from ..entities import NodeLink
