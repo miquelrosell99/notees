@@ -100,6 +100,23 @@
   color: var(--color-on-surface-variant);
 }
 
+.command-palette__class-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-extra-small);
+  font: var(--font-label-small);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.command-palette__class-badge--invalid {
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+}
+
 .command-palette__results {
   flex: 1;
   overflow-y: auto;
