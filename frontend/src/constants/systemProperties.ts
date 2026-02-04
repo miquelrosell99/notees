@@ -53,7 +53,7 @@ export function isTagsProperty(uuid: string): boolean {
 }
 
 /**
- * Check if a property is the 'cover' system property
+ * Check if a property is the 'Cover' system property
  */
 export function isCoverProperty(uuid: string): boolean {
   return uuid === SYSTEM_PROPERTY_UUIDS.cover;
@@ -76,7 +76,7 @@ export function isBlockOnlyClass(uuid: string): boolean {
 }
 
 /**
- * Check if a property is the 'banner' system property
+ * Check if a property is the 'Banner' system property
  */
 export function isBannerProperty(uuid: string): boolean {
   return uuid === SYSTEM_PROPERTY_UUIDS.banner;

@@ -335,10 +335,10 @@ export function PropertiesSection({
       for (const prop of allProperties) {
         if (addedPropertyIds.has(prop.id)) continue;
         
-        // Skip the system 'cover' property - it has its own UI element (CoverImage)
+        // Skip the system 'Cover' property - it has its own UI element (CoverImage)
         if (prop.uuid === SYSTEM_PROPERTY_UUIDS.cover) continue;
         
-        // Skip the system 'banner' property - it has its own UI element (BannerImage)
+        // Skip the system 'Banner' property - it has its own UI element (BannerImage)
         if (prop.uuid === SYSTEM_PROPERTY_UUIDS.banner) continue;
         
         const key = prop.name.toLowerCase().replace(/\s+/g, '_');

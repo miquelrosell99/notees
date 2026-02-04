@@ -115,28 +115,28 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         ON CONFLICT (graph_id, uuid) DO NOTHING
     """, show_hier_uuid, graph_id, now, user_id)
     
-    # Create 'cover' property
+    # Create 'Cover' property
     cover_uuid = SYSTEM_PROPERTY_UUIDS["cover"]
     cover_row = await conn.fetchrow("""
         INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'cover', 'image', FALSE, TRUE, $3, $3, $4, $4)
+        VALUES ($1, $2, 'Cover', 'image', FALSE, TRUE, $3, $3, $4, $4)
         ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
     """, cover_uuid, graph_id, now, user_id)
     if cover_row is None:
-        raise RuntimeError("Failed to create 'cover' property")
+        raise RuntimeError("Failed to create 'Cover' property")
     cover_property_id = cover_row['id']
     
-    # Create 'banner' property
+    # Create 'Banner' property
     banner_uuid = SYSTEM_PROPERTY_UUIDS["banner"]
     banner_row = await conn.fetchrow("""
         INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'banner', 'image', FALSE, TRUE, $3, $3, $4, $4)
+        VALUES ($1, $2, 'Banner', 'image', FALSE, TRUE, $3, $3, $4, $4)
         ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
     """, banner_uuid, graph_id, now, user_id)
     if banner_row is None:
-        raise RuntimeError("Failed to create 'banner' property")
+        raise RuntimeError("Failed to create 'Banner' property")
     banner_property_id = banner_row['id']
     
     # Note: 'extends' property removed - class inheritance now uses class_extend table directly
@@ -168,7 +168,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             UPDATE node SET class_ids = $1 WHERE id = $2
         """, [class_node_id, page_class_id], new_class_id)
     
-    # Set class filter for 'cover' and 'banner' properties
+    # Set class filter for 'Cover' and 'Banner' properties
     if asset_type_id:
         await conn.execute("""
             INSERT INTO property_class_filter (property_id, class_node_id)
