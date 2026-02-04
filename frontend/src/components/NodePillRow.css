@@ -14,7 +14,7 @@
   color: var(--color-on-surface-variant);
   opacity: 0.6;
   transition: opacity 0.15s ease;
-  padding-left: 0;  /* Align with other add buttons */
+  padding-left: var(--spacing-2);  /* Add spacing from border */
 }
 
 .node-pill-row__add-btn:hover {
