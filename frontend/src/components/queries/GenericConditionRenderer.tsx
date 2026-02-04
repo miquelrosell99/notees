@@ -294,7 +294,7 @@ export function GenericConditionRenderer({
     }
     
     switch (config.staticMode.inputType) {
-      case 'text':
+      case 'text': {
         const value = (condition as any).value ?? '';
         const isEmpty = value === '' || value === null || value === undefined;
         const showError = isEmpty && config.staticMode.required && !readOnly;
@@ -309,8 +309,9 @@ export function GenericConditionRenderer({
             className={`prose-condition__input ${showError ? 'prose-condition__input--error' : ''}`}
           />
         );
+      }
       
-      case 'node-selector':
+      case 'node-selector': {
         const selectedId = (condition as any).target_id || (condition as any).parent_id || null;
         return (
           <SingleNodeSelector
@@ -321,8 +322,9 @@ export function GenericConditionRenderer({
             readOnly={readOnly}
           />
         );
+      }
       
-      case 'class-selector':
+      case 'class-selector': {
         const classNodes = selectedClassNode ? [selectedClassNode] : [];
         return (
           <NodePillRow
@@ -335,6 +337,7 @@ export function GenericConditionRenderer({
             readOnly={readOnly}
           />
         );
+      }
       
       case 'property-selector':
         // Special handling for property condition

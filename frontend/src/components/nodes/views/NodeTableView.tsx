@@ -127,10 +127,10 @@ export function NodeTableView({
     }
   }, [onSelectionChange]);
 
-  // Handler for content changes
-  const handleContentChange = useCallback((blockId: number, content: string) => {
-    onContentChange?.(blockId, content);
-  }, [onContentChange]);
+  // Note: handleContentChange not implemented yet for table cells
+  // const handleContentChange = useCallback((blockId: number, content: string) => {
+  //   onContentChange?.(blockId, content);
+  // }, [onContentChange]);
 
   // Helper to open daily page for a date
   const openDailyPage = useCallback(async (dateStr: string, inSidebar: boolean) => {

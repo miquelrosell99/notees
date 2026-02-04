@@ -189,12 +189,13 @@ function processHtmlNode(domNode: globalThis.Node): string {
       return `\`\`\`\n${children}\n\`\`\``;
     
     // Links
-    case 'a':
+    case 'a': {
       const href = el.getAttribute('href');
       if (href) {
         return `[${children}](${href})`;
       }
       return children;
+    }
     
     // Headers (strip for block content, keep text)
     case 'h1':
@@ -314,10 +315,10 @@ function cleanListContent(text: string): string {
   // - numbered lists: 1., 2., 1), 2), (1), (2)
   // - letter lists: a., b., a), b)
   return text
-    .replace(/^[\s]*[•\-\*·]\s*/, '')
-    .replace(/^[\s]*\d+[\.\)]\s*/, '')
+    .replace(/^[\s]*[•\-*·]\s*/, '')
+    .replace(/^[\s]*\d+[.)]\s*/, '')
     .replace(/^[\s]*\(\d+\)\s*/, '')
-    .replace(/^[\s]*[a-zA-Z][\.\)]\s*/, '')
+    .replace(/^[\s]*[a-zA-Z][.)]\s*/, '')
     .replace(/^[\s]*\([a-zA-Z]\)\s*/, '')
     .trim();
 }
@@ -429,17 +430,84 @@ export function parseHtmlTable(html: string): TableData | null {
 // ==================== Plain Text Parsing ====================
 
 /**
- * Parse plain text into blocks (one per line)
+ * Detect the indentation unit used in text (tabs or spaces)
+ * Returns the number of characters per indent level
+ */
+function detectIndentUnit(lines: string[]): { char: string; size: number } {
+  // Check for tabs first (common in outliners)
+  for (const line of lines) {
+    const tabMatch = line.match(/^\t+/);
+    if (tabMatch) {
+      return { char: '\t', size: 1 };
+    }
+  }
+  
+  // Check for space-based indentation
+  const spaceCounts: number[] = [];
+  for (const line of lines) {
+    const spaceMatch = line.match(/^( +)/);
+    if (spaceMatch) {
+      spaceCounts.push(spaceMatch[1].length);
+    }
+  }
+  
+  if (spaceCounts.length > 0) {
+    // Find the GCD of all space counts to determine indent size
+    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+    const indentSize = spaceCounts.reduce((a, b) => gcd(a, b));
+    return { char: ' ', size: Math.max(indentSize, 2) }; // Minimum 2 spaces per indent
+  }
+  
+  // Default to tabs
+  return { char: '\t', size: 1 };
+}
+
+/**
+ * Get the indentation depth of a line
+ */
+function getLineDepth(line: string, indentChar: string, indentSize: number): number {
+  if (indentChar === '\t') {
+    const match = line.match(/^\t*/);
+    return match ? match[0].length : 0;
+  } else {
+    const match = line.match(/^ */);
+    return match ? Math.floor(match[0].length / indentSize) : 0;
+  }
+}
+
+/**
+ * Parse plain text into blocks (one per line), respecting indentation for hierarchy
  */
 export function parsePlainText(text: string): ParsedBlock[] {
   const lines = text.split(/\r?\n/);
   const blocks: ParsedBlock[] = [];
   
+  // Detect indentation style
+  const { char: indentChar, size: indentSize } = detectIndentUnit(lines);
+  
+  // Track minimum depth to normalize (in case all lines are indented)
+  let minDepth = Infinity;
+  const lineData: Array<{ content: string; depth: number }> = [];
+  
   for (const line of lines) {
-    const content = cleanListContent(line);
+    const depth = getLineDepth(line, indentChar, indentSize);
+    // Remove indentation, then clean list markers
+    const trimmedLine = indentChar === '\t' 
+      ? line.replace(/^\t+/, '')
+      : line.replace(/^ +/, '');
+    const content = cleanListContent(trimmedLine);
+    
     if (content) {
-      blocks.push({ content, depth: 0 });
+      minDepth = Math.min(minDepth, depth);
+      lineData.push({ content, depth });
     }
+  }
+  
+  // Normalize depths (subtract minimum so first item is at depth 0)
+  if (minDepth === Infinity) minDepth = 0;
+  
+  for (const { content, depth } of lineData) {
+    blocks.push({ content, depth: depth - minDepth });
   }
   
   return blocks;

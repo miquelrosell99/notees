@@ -176,12 +176,12 @@ function GanttRow({
  */
 export function NodeGanttView({
   nodes,
-  editable: _editable,
+  // editable,  // Not used in this view
   dateProperty,
   timeScale = 'week',
   onNodeClick,
   onNodeShiftClick,
-  onContentChange: _onContentChange,
+  // onContentChange,  // Not used in this view
   className = '',
 }: NodeGanttViewProps) {
   // Convert nodes to timeline items
