@@ -40,7 +40,7 @@ import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { getAssetUrlAsync, uploadAsset } from '@/api/assets';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
-import { mdiPlus, mdiChevronRight, mdiChevronDown, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
+import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
 import './NodeCardView.css';
 
 // ==================== Internal NodeCard Component ====================
@@ -79,15 +79,15 @@ interface CommonCardLayoutProps {
   showBullet: boolean;
   editable: boolean;
   classDetails: Node[];
-  tagDetails: Node[];
-  children: Node[];
+  tagDetails: Node[];  removeClass: ReturnType<typeof useRemoveClass>;
+  updateNode: ReturnType<typeof useUpdateNode>;  children: Node[];
   hasChildren: boolean;
-  contentExpanded: boolean;
-  setContentExpanded: (expanded: boolean) => void;
-  sortable?: boolean;
+  // contentExpanded: boolean;  // Not used in this layout
+  // setContentExpanded: (expanded: boolean) => void;  // Not used
+  sortable: boolean;
   tempCollapsedChildren: Set<number>;
-  isBottomHovered: boolean;
-  setIsBottomHovered: (hovered: boolean) => void;
+  // isBottomHovered: boolean;  // Not used
+  // setIsBottomHovered: (hovered: boolean) => void;  // Not used
   handleContentChange: (nodeId: number, content: string) => void;
   handleHeaderMouseDown: (e: React.MouseEvent) => void;
   handleOpenInSidebar: (e: React.MouseEvent) => void;
@@ -101,19 +101,21 @@ interface CommonCardLayoutProps {
 
 function CommonCardLayout({
   node,
-  effectiveIcon,
+  // effectiveIcon,  // Used in passed-down components
   showBullet,
   editable,
   classDetails,
   tagDetails,
+  removeClass,
+  updateNode,
   children,
   hasChildren,
-  contentExpanded,
-  setContentExpanded,
+  // contentExpanded,  // Not used
+  // setContentExpanded,  // Not used
   sortable,
   tempCollapsedChildren,
-  isBottomHovered,
-  setIsBottomHovered,
+  // isBottomHovered,  // Not used
+  // setIsBottomHovered,  // Not used
   handleContentChange,
   handleHeaderMouseDown,
   handleOpenInSidebar,
@@ -304,12 +306,12 @@ function NodeCard({
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
   
-  // Store actions for navigation
-  const { openNode, addSidebarCard } = useNodesStore();
-  
   // Mutations for class/tag management
   const removeClass = useRemoveClass();
   const updateNode = useUpdateNode();
+  
+  // Store actions for navigation
+  const { openNode, addSidebarCard } = useNodesStore();
   
   // Drag state for cover replacement
   const [isCoverDragging, setIsCoverDragging] = useState(false);
@@ -352,8 +354,8 @@ function NodeCard({
   // Use the layout as-is - the layout determines if cover should be shown
   const effectiveLayout = layout;
   
-  const isHorizontalLayout = effectiveLayout === 'cover-left' || effectiveLayout === 'cover-right';
-  const isGridLayout = true; // All layouts now use grid
+  // const isHorizontalLayout = effectiveLayout === 'cover-left' || effectiveLayout === 'cover-right';
+  // const isGridLayout = true; // All layouts now use grid
   
   // Track temporary collapsed states (for system-initiated collapses)
   // Only applies to direct children - they start collapsed but this isn't persisted
@@ -379,10 +381,10 @@ function NodeCard({
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
   
   // Content section collapse state (collapsed by default)
-  const [contentExpanded, setContentExpanded] = useState(false);
+  // const [contentExpanded, setContentExpanded] = useState(false);
   
   // Bottom hover state for add button
-  const [isBottomHovered, setIsBottomHovered] = useState(false);
+  // const [isBottomHovered, setIsBottomHovered] = useState(false);
   
   // Get all properties to find cover property ID
   const { data: allProperties } = useProperties();
@@ -712,19 +714,17 @@ function NodeCard({
         {/* All layouts use CommonCardLayout with grid */}
         <CommonCardLayout
             node={node}
-            effectiveIcon={effectiveIcon}
+            effectiveIcon={effectiveIcon ?? null}
             showBullet={showBullet}
             editable={editable}
             classDetails={classDetails}
             tagDetails={tagDetails}
+            removeClass={removeClass}
+            updateNode={updateNode}
             children={children}
             hasChildren={hasChildren}
-            contentExpanded={contentExpanded}
-            setContentExpanded={setContentExpanded}
-            sortable={sortable}
+            sortable={sortable ?? false}
             tempCollapsedChildren={tempCollapsedChildren}
-            isBottomHovered={isBottomHovered}
-            setIsBottomHovered={setIsBottomHovered}
             handleContentChange={handleContentChange}
             handleHeaderMouseDown={handleHeaderMouseDown}
             handleOpenInSidebar={handleOpenInSidebar}

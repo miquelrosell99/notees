@@ -141,9 +141,9 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          (child as Record<string, unknown>).condition_type === 'extends' &&
-          ((child as Record<string, unknown>).extends_class_uuid === context.nodeUuid || 
-           (child as Record<string, unknown>).extends_class_uuid === '{current_node_uuid}')
+          (child as unknown as Record<string, unknown>).condition_type === 'extends' &&
+          ((child as unknown as Record<string, unknown>).extends_class_uuid === context.nodeUuid || 
+           (child as unknown as Record<string, unknown>).extends_class_uuid === '{current_node_uuid}')
       );
     },
   },

@@ -25,7 +25,9 @@ import { Table } from '../../core/Table';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
 import { NodePillRow } from '../../NodePillRow';
+import { Button } from '../../core/Button';
 import { isNonRemovableClass } from '@/constants';
+import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import './NodeTableView.css';
 
 // Virtual column UUIDs (match PropertyColumnSelector)
@@ -67,7 +69,7 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
     accessor: col.render 
       ? col.render 
       : col.key === 'name'
-        ? (node: Node) => node
+        ? (node: Node) => node.name
         : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
     // Enable automatic node cell rendering for name column
     renderNodeCell: col.key === 'name',
@@ -91,7 +93,7 @@ export function NodeTableView({
   onReorder,
   onNodeClick,
   onNodeShiftClick,
-  onContentChange,
+  // onContentChange,  // Not implemented yet
   propertyUuids = [],
   className = '',
   customContextMenu,
@@ -219,7 +221,7 @@ export function NodeTableView({
                   emptyText="Add class"
                   searchPlaceholder="Search classes..."
                   onNodeClick={(classNode) => {
-                    openNode(classNode.id);
+                    openNode(classNode.id, 'page');
                   }}
                   onAdd={editable ? (classNode) => {
                     addClass.mutate({ nodeId: node.id, classId: classNode.id });
