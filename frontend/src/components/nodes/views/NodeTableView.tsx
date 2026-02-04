@@ -46,26 +46,14 @@ interface NodeTableColumn {
 
 /**
  * Default columns for the table view
- * Note: 'name' and date columns use special markers - actual rendering happens in NodeTableView
+ * Only includes Name column - date columns are now virtual columns controlled by propertyUuids
  */
 function getDefaultColumns(): NodeTableColumn[] {
   return [
     {
       key: 'name',
       label: 'Name',
-      width: '50%',
-      // Render function is provided dynamically by NodeTableView to access callbacks
-    },
-    {
-      key: 'create_date',
-      label: 'Created',
-      width: '25%',
-      // Render function is provided dynamically by NodeTableView to access callbacks
-    },
-    {
-      key: 'write_date',
-      label: 'Modified',
-      width: '25%',
+      width: '100%',
       // Render function is provided dynamically by NodeTableView to access callbacks
     },
   ];
