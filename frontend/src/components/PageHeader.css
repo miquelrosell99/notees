@@ -98,6 +98,9 @@
   padding: 0;
   outline: none;
   color: inherit;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .page-title-child-preview {
