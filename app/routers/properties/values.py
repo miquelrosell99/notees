@@ -1,7 +1,10 @@
 """Node property value endpoints (scalar, relation, selection)."""
+from typing import Any, Union
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 
 from ..auth import get_current_user
+from ..nodes.helpers import _get_node_service, _node_to_response
 from ...models import User
 from ...domain.entities import PropertyType, SCALAR_TYPES, RELATION_TYPES
 from .models import (
@@ -20,6 +23,57 @@ from .helpers import (
 
 
 router = APIRouter()
+
+
+class SetPropertyRequest(BaseModel):
+    """Unified property value request."""
+    property_id: int
+    value: Any
+
+
+@router.post("/nodes/{node_id}/properties")
+async def set_property_value(
+    node_id: int,
+    request: SetPropertyRequest,
+    user: User = Depends(get_current_user),
+):
+    """Set a property value for a node (auto-detects type and dispatches to correct handler).
+    
+    This is a convenience endpoint that determines the property type and calls
+    the appropriate type-specific endpoint. Returns the updated node.
+    """
+    repo = await _get_property_repo(user)
+    node_service = await _get_node_service(user)
+    
+    # Get the property to determine its type
+    prop = await repo.get_by_id(request.property_id)
+    if not prop:
+        raise HTTPException(404, f"Property {request.property_id} not found")
+    
+    # Dispatch to the appropriate handler based on property type
+    try:
+        if prop.type in SCALAR_TYPES:
+            # Scalar value
+            await repo.set_scalar_value(node_id, request.property_id, request.value, order=None)
+        elif prop.type in RELATION_TYPES:
+            # Relation value (expects node_id as value)
+            if not isinstance(request.value, int):
+                raise ValueError(f"Relation property expects node ID as value, got {type(request.value)}")
+            await repo.set_relation_value(node_id, request.property_id, request.value, order=None)
+        else:
+            # Selection value (expects selection_line_id as value)
+            if not isinstance(request.value, int):
+                raise ValueError(f"Selection property expects selection_line_id as value, got {type(request.value)}")
+            await repo.set_selection_value(node_id, request.property_id, request.value, order=None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    
+    # Fetch and return the updated node
+    node = await node_service.get_node(node_id, include_children=False)
+    if not node:
+        raise HTTPException(404, f"Node {node_id} not found")
+    
+    return _node_to_response(node)
 
 
 @router.get("/nodes/{node_id}/properties")

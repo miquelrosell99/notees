@@ -24,6 +24,7 @@ from .links import router as links_router
 from .comments import router as comments_router
 from .settings import router as settings_router
 from .views import router as views_router
+from ..properties.values import router as property_values_router
 
 # Re-export models for backwards compatibility
 from .models import (
@@ -79,6 +80,9 @@ router.include_router(favorites_router)
 
 # Settings endpoints (POST /settings/update-date-format)
 router.include_router(settings_router)
+
+# Property values endpoints (GET/POST/DELETE /{node_id}/properties/...)
+router.include_router(property_values_router)
 
 # Views endpoints (NodeViews for dynamic query tabs)
 router.include_router(views_router, prefix="/views")
