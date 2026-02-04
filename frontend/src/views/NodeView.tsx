@@ -529,9 +529,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 2: Classes */}
+            {/* Row 1: Classes (right side of header) */}
             <div className="page-header-section__types">
-              <div className="section-label">Classes</div>
               <NodePillRow
                 nodes={pageClassDetails}
                 searchMode="classes"
@@ -547,7 +546,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 3: Extends (only for classes) */}
+            {/* Row 2: Extends (only for classes) */}
             {node.is_class && (
               <div className="page-header-section__extends">
                 <div className="section-label">Extends</div>
@@ -565,7 +564,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               </div>
             )}
             
-            {/* Row 4: Tags */}
+            {/* Row 3: Tags */}
             <div className="page-header-section__tags">
               <div className="section-label">Tags</div>
               <NodePillRow
@@ -581,7 +580,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 5: Properties Section */}
+            {/* Row 4: Properties Section */}
             <div className="page-header-section__properties">
               <PropertiesSection 
                 nodeId={node.id}
