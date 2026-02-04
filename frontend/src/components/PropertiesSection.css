@@ -344,16 +344,12 @@
   /* Match NodePillRow add button styling */
   align-self: flex-start;
   color: var(--color-on-surface-variant);
-  border: none;
-  background: transparent;
   opacity: 0.6;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
   padding-left: 0;  /* Align with other add buttons */
 }
 
 .properties-add-btn:hover {
-  color: var(--color-on-surface-variant);
-  background: transparent;
   opacity: 1;
 }
 
