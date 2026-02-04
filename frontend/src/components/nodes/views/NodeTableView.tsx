@@ -14,7 +14,6 @@
  * - Row selection with checkboxes
  */
 import React, { useMemo, useCallback, useState, type ReactNode } from 'react';
-import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useNodesStore, useSettingsStore } from '@/stores';
@@ -23,9 +22,6 @@ import * as nodesApi from '@/api/nodes';
 import { useProperties, useClasses, useAddClass, useRemoveClass } from '@/hooks';
 import type { TableColumn, ExpandableConfig, ReorderableConfig } from '../../core/Table';
 import { Table } from '../../core/Table';
-import { Button } from '../../core/Button';
-import { Block } from '../../blocks/Block';
-import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
 import { NodePillRow } from '../../NodePillRow';
@@ -70,9 +66,11 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
     width: col.width,
     accessor: col.render 
       ? col.render 
-      : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
-    // Disable automatic node cell rendering for name column since it uses Block component
-    renderNodeCell: col.key !== 'name',
+      : col.key === 'name'
+        ? (node: Node) => node
+        : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
+    // Enable automatic node cell rendering for name column
+    renderNodeCell: col.key === 'name',
   }));
 }
 
@@ -98,9 +96,6 @@ export function NodeTableView({
   className = '',
   customContextMenu,
 }: NodeTableViewProps) {
-  // Get block callbacks from context (for editable mode)
-  const blockCallbacks = useBlockCallbacks();
-  
   // Get openNode and addSidebarCard from store for navigation
   const { openNode, addSidebarCard } = useNodesStore();
   
@@ -136,86 +131,6 @@ export function NodeTableView({
   const handleContentChange = useCallback((blockId: number, content: string) => {
     onContentChange?.(blockId, content);
   }, [onContentChange]);
-
-  // Create name column renderer that uses Block component
-  const nameColumnRenderer = useCallback((node: Node) => {
-    // Build block-specific callbacks from context
-    const blockProps = blockCallbacks && editable ? {
-      onAddClass: blockCallbacks.onAddClass 
-        ? (classNodeId: number, keepInline: boolean, className: string) => 
-            blockCallbacks.onAddClass!(node.id, classNodeId, keepInline, className)
-        : undefined,
-      onAddTag: blockCallbacks.onAddTag
-        ? (tagNodeId: number, keepInline: boolean, tagName: string) =>
-            blockCallbacks.onAddTag!(node.id, tagNodeId, keepInline, tagName)
-        : undefined,
-      onCreateClass: blockCallbacks.onCreateClass
-        ? (name: string, keepInline: boolean) =>
-            blockCallbacks.onCreateClass!(node.id, name, keepInline)
-        : undefined,
-      onCreateTag: blockCallbacks.onCreateTag
-        ? (name: string, keepInline: boolean) =>
-            blockCallbacks.onCreateTag!(node.id, name, keepInline)
-        : undefined,
-      onCreatePageLink: blockCallbacks.onCreatePageLink,
-      onOpenComments: blockCallbacks.onOpenComments
-        ? () => blockCallbacks.onOpenComments!(node.id)
-        : undefined,
-      onAssetUpload: blockCallbacks.onAssetUpload
-        ? (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) =>
-            blockCallbacks.onAssetUpload!(node.id, assetTypesOrFile)
-        : undefined,
-      onOpenBacklinks: blockCallbacks.onOpenBacklinks
-        ? () => blockCallbacks.onOpenBacklinks!(node.id)
-        : undefined,
-      commentCount: blockCallbacks.getCommentCount?.(node) ?? node.comment_count ?? 0,
-      backlinkCount: blockCallbacks.getBacklinkCount?.(node) ?? node.backlink_count ?? 0,
-    } : {};
-
-    return (
-      <div className="node-table__name-cell">
-        <div className="node-table__name-content">
-          <Block
-            block={node}
-            children={[]}
-            siblings={[]}
-            depth={0}
-            parentId={node.parent_id}
-            onContentChange={handleContentChange}
-            showBullet={false}
-            showClasses={false}
-            showQueryResults={false}
-            canEdit={editable}
-            canMove={false}
-            canSelect={false}
-            {...blockProps}
-          />
-        </div>
-        <div className="node-table__actions">
-          <Button
-            icon={mdiDockRight}
-            variant="ghost"
-            size="xs"
-            title="Open in sidebar"
-            onClick={(e) => {
-              e.stopPropagation();
-              addSidebarCard(node.id, node.is_page ? 'page' : 'block');
-            }}
-          />
-          <Button
-            icon={mdiArrowRight}
-            variant="ghost"
-            size="xs"
-            title="Open node"
-            onClick={(e) => {
-              e.stopPropagation();
-              openNode(node.id, node.is_page ? 'page' : 'block');
-            }}
-          />
-        </div>
-      </div>
-    );
-  }, [editable, blockCallbacks, handleContentChange, openNode, addSidebarCard]);
 
   // Helper to open daily page for a date
   const openDailyPage = useCallback(async (dateStr: string, inSidebar: boolean) => {
@@ -370,7 +285,7 @@ export function NodeTableView({
     // Inject renderers for special columns
     const baseColumns = cols.map(col => {
       if (col.render) return col;
-      if (col.key === 'name') return { ...col, render: nameColumnRenderer };
+      // Name column uses default node cell rendering from core Table
       if (col.key === 'create_date') return { ...col, render: dateColumnRenderer('create_date') };
       if (col.key === 'write_date') return { ...col, render: dateColumnRenderer('write_date') };
       return col;
@@ -378,7 +293,7 @@ export function NodeTableView({
     
     // Add property columns after base columns
     return [...baseColumns, ...propertyColumns];
-  }, [customColumns, nameColumnRenderer, dateColumnRenderer, propertyColumns]);
+  }, [customColumns, dateColumnRenderer, propertyColumns]);
   
   // Convert NodeTableColumn to TableColumn<Node>
   const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
