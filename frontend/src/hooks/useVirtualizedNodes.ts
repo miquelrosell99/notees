@@ -91,7 +91,6 @@ export function useVirtualizedNodes({
   }, [nodeIds]);
 
   // Calculate which nodes should render (visible + overscan)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const nodesToRender = useMemo(() => {
     if (!enabled) {
       return new Set(nodeIds);

@@ -150,13 +150,17 @@ export function useFocusTrap(
     // Add keyboard listener
     document.addEventListener('keydown', handleKeyDown);
     
+    // Capture ref values for cleanup
+    const finalElement = finalFocusRef?.current;
+    const previousElement = previousFocusRef.current;
+    
     // Cleanup
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       
       // Restore focus
       if (restoreFocus) {
-        const elementToFocus = finalFocusRef?.current || previousFocusRef.current;
+        const elementToFocus = finalElement || previousElement;
         if (elementToFocus && typeof elementToFocus.focus === 'function') {
           // Small delay to ensure the modal is fully unmounted
           requestAnimationFrame(() => {

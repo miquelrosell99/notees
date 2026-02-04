@@ -372,6 +372,7 @@ export function useRenderTracking(componentName: string) {
   const renderStartRef = useRef<number>(0);
   
   // Track render start - intentionally impure for performance monitoring
+  // eslint-disable-next-line react-hooks/purity
   renderStartRef.current = performance.now();
   
   useEffect(() => {

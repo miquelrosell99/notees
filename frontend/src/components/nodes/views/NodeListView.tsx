@@ -189,7 +189,7 @@ function NodeListItem({
   suppressColor = false,
   customContextMenuItems,
 }: NodeListItemProps) {
-  const rawChildren = node.children ?? [];
+  const rawChildren = useMemo(() => node.children ?? [], [node.children]);
   // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
   const children = useMemo(() => 
     pagesOnly ? filterPagesRecursively(rawChildren) : rawChildren,

@@ -94,7 +94,6 @@ function useCommonMenuItems(
   onDeleteClick: () => void,
   onArchiveClick: () => void
 ): ContextMenuItem[] {
-  const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const { addSidebarCard, openLocalGraph } = useNodesStore();
   
@@ -169,7 +168,7 @@ function useCommonMenuItems(
     });
     
     return items;
-  }, [node, onClose, archiveNode, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick]);
+  }, [node, onClose, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick]);
 }
 
 // ==================== Node Context Menu (Base) ====================
@@ -494,7 +493,6 @@ export function BlockContextMenu({
   }, []);
   
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
-  const { openNode } = useNodesStore();
   const updateNode = useUpdateNode();
   
   const blockItems = useMemo((): ContextMenuItem[] => {
@@ -526,7 +524,7 @@ export function BlockContextMenu({
     items.push(...commonItems);
     
     return items;
-  }, [node, onClose, openNode, onConvertToPage, onMoveBlock, commonItems]);
+  }, [onClose, onConvertToPage, onMoveBlock, commonItems]);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };

@@ -432,7 +432,7 @@ export function QueryNodeCollection({
     setEditAST(ast);
     const validationResult = validateQueryAST(ast);
     setValidation(validationResult);
-  }, [viewType]);
+  }, [viewType, nodeUuid]);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editingView || !editAST) return;

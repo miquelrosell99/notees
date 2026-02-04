@@ -722,8 +722,9 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
           
           // If down to single selection, reset direction
           if (visibleSelected.length <= 2) {
+            const anchorBlockId = anchor?.blockId ?? state.primarySelectedBlockId!;
             set({
-              selectionAnchor: { blockId: anchor?.blockId!, direction: null },
+              selectionAnchor: { blockId: anchorBlockId, direction: null },
             });
           }
         }

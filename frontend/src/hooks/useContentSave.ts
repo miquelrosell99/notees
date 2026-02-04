@@ -137,13 +137,14 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   
   // Flush on unmount
   useEffect(() => {
+    const pending = pendingChangesRef.current;
     return () => {
-      pendingChangesRef.current.forEach((pending, blockId) => {
-        clearTimeout(pending.timeoutId);
+      pending.forEach((pendingItem, blockId) => {
+        clearTimeout(pendingItem.timeoutId);
         // Save synchronously on unmount
-        saveBlock(blockId, pending.content);
+        saveBlock(blockId, pendingItem.content);
       });
-      pendingChangesRef.current.clear();
+      pending.clear();
     };
   }, [saveBlock]);
   
