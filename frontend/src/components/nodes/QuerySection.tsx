@@ -36,6 +36,8 @@ export interface QuerySectionProps {
   hideViewManagement?: boolean;
   /** Whether new items can be created (default: true) */
   can_create?: boolean;
+  /** Whether to show class pills in list view (default: true) */
+  showClasses?: boolean;
 }
 
 export function QuerySection({
@@ -51,6 +53,7 @@ export function QuerySection({
   className = '',
   hideViewManagement = false,
   can_create = true,
+  showClasses = true,
 }: QuerySectionProps): React.JSX.Element | null {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   
@@ -70,6 +73,7 @@ export function QuerySection({
       hideContent={!isExpanded}
       hideViewManagement={hideViewManagement}
       can_create={can_create}
+      showClasses={showClasses}
       leftElement={(count) => (
         <div className="node-view-section__header-content" onClick={handleToggle}>
           <Button 
