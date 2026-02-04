@@ -1,9 +1,14 @@
 """Class extension/inheritance service.
 
-Handles class extension logic, including:
+Handles class extension logic using the class_extend table, including:
 - Multi-level inheritance of class properties
 - Circular reference detection
 - Inherited property resolution with override support
+
+The class_extend table stores inheritance relationships:
+- target_id: The child class that extends another class
+- source_id: The parent class being extended
+- sequence: Order when extending multiple classes
 """
 from __future__ import annotations
 
@@ -11,7 +16,6 @@ from typing import Optional, List, Dict, Set, Any, TYPE_CHECKING
 from dataclasses import dataclass
 
 from ...logging_config import get_logger
-from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
 if TYPE_CHECKING:
     from ..repositories import PropertyRepository
@@ -34,6 +38,17 @@ class InheritedProperty:
     is_overridden: bool = False  # True if the property exists as a dedicated class property
 
 
+@dataclass
+class ClassExtend:
+    """Represents a class extension relationship."""
+    id: int
+    target_id: int  # The child class
+    source_id: int  # The parent class being extended
+    sequence: int
+    source_name: str = ""
+    source_icon: Optional[str] = None
+
+
 class CircularInheritanceError(Exception):
     """Raised when a circular inheritance is detected."""
     def __init__(self, cycle_path: List[int]):
@@ -42,7 +57,7 @@ class CircularInheritanceError(Exception):
 
 
 class ClassExtensionService:
-    """Service for handling class extension/inheritance."""
+    """Service for handling class extension/inheritance using class_extend table."""
     
     def __init__(
         self,
@@ -53,41 +68,117 @@ class ClassExtensionService:
         self._pool = pool
         self._graph_id = graph_id
         self._property_repo = property_repository
-        self._extends_property_id: Optional[int] = None
-    
-    async def _get_extends_property_id(self) -> int:
-        """Get the ID of the 'extends' system property."""
-        if self._extends_property_id is None:
-            async with self._pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT id FROM property WHERE uuid = $1",
-                    SYSTEM_PROPERTY_UUIDS["extends"]
-                )
-                if not row:
-                    raise RuntimeError("extends system property not found")
-                self._extends_property_id = row['id']
-        # Type checker: after the above check, _extends_property_id is always int
-        assert self._extends_property_id is not None
-        return self._extends_property_id
     
     async def get_extended_classes(self, class_node_id: int) -> List[int]:
         """Get the list of class IDs that this class extends (direct only).
         
-        Returns class IDs in the order they are defined.
+        Returns class IDs in the order they are defined (by sequence).
         """
-        extends_prop_id = await self._get_extends_property_id()
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT ce.source_id
+                FROM class_extend ce
+                JOIN node n ON n.id = ce.source_id
+                WHERE ce.target_id = $1
+                  AND n.graph_id = $2
+                  AND n.active = TRUE
+                ORDER BY ce.sequence, ce.id
+            """, class_node_id, self._graph_id)
+            
+            return [row['source_id'] for row in rows]
+    
+    async def get_extended_classes_with_details(self, class_node_id: int) -> List[ClassExtend]:
+        """Get the list of classes that this class extends with full details.
+        
+        Returns ClassExtend objects with source class name and icon.
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT ce.id, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
+                FROM class_extend ce
+                JOIN node n ON n.id = ce.source_id
+                WHERE ce.target_id = $1
+                  AND n.graph_id = $2
+                  AND n.active = TRUE
+                ORDER BY ce.sequence, ce.id
+            """, class_node_id, self._graph_id)
+            
+            return [
+                ClassExtend(
+                    id=row['id'],
+                    target_id=row['target_id'],
+                    source_id=row['source_id'],
+                    sequence=row['sequence'],
+                    source_name=row['name'],
+                    source_icon=row['icon'],
+                )
+                for row in rows
+            ]
+    
+    async def add_extends(self, class_node_id: int, extends_class_id: int, sequence: int = 0) -> ClassExtend:
+        """Add an extends relationship between two classes.
+        
+        Args:
+            class_node_id: The child class that will extend another
+            extends_class_id: The parent class to extend
+            sequence: Order when extending multiple classes
+            
+        Returns:
+            The created ClassExtend relationship
+            
+        Raises:
+            CircularInheritanceError: If this would create a cycle
+            ValueError: If the relationship already exists
+        """
+        # First validate this won't create a cycle
+        await self.validate_extends_acyclic(class_node_id, [extends_class_id])
         
         async with self._pool.acquire() as conn:
-            # Get the extends property values for this class
-            rows = await conn.fetch("""
-                SELECT pvr.target_id
-                FROM node_property np
-                JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-                WHERE np.node_id = $1 AND np.property_id = $2
-                ORDER BY pvr.id
-            """, class_node_id, extends_prop_id)
+            # Check if already exists
+            existing = await conn.fetchrow("""
+                SELECT id FROM class_extend 
+                WHERE target_id = $1 AND source_id = $2
+            """, class_node_id, extends_class_id)
             
-            return [row['target_id'] for row in rows]
+            if existing:
+                raise ValueError(f"Class {class_node_id} already extends {extends_class_id}")
+            
+            # Get the source class details
+            source = await conn.fetchrow("""
+                SELECT name, icon FROM node WHERE id = $1 AND graph_id = $2
+            """, extends_class_id, self._graph_id)
+            
+            if not source:
+                raise ValueError(f"Class {extends_class_id} not found")
+            
+            # Insert the relationship
+            row = await conn.fetchrow("""
+                INSERT INTO class_extend (target_id, source_id, sequence)
+                VALUES ($1, $2, $3)
+                RETURNING id, target_id, source_id, sequence
+            """, class_node_id, extends_class_id, sequence)
+            
+            return ClassExtend(
+                id=row['id'],
+                target_id=row['target_id'],
+                source_id=row['source_id'],
+                sequence=row['sequence'],
+                source_name=source['name'],
+                source_icon=source['icon'],
+            )
+    
+    async def remove_extends(self, class_node_id: int, extends_class_id: int) -> bool:
+        """Remove an extends relationship.
+        
+        Returns True if deleted, False if not found.
+        """
+        async with self._pool.acquire() as conn:
+            result = await conn.execute("""
+                DELETE FROM class_extend
+                WHERE target_id = $1 AND source_id = $2
+            """, class_node_id, extends_class_id)
+            
+            return result == "DELETE 1"
     
     async def get_all_extended_classes(
         self,
@@ -223,7 +314,6 @@ class ClassExtensionService:
         
         Returns True if valid, raises CircularInheritanceError if cycle detected.
         """
-        # Temporarily simulate the new extends relationships
         # For each new extend, check if it would create a cycle
         for extend_id in new_extends_ids:
             # Check if extend_id itself extends class_node_id (directly or indirectly)
@@ -241,22 +331,17 @@ class ClassExtensionService:
         
         Returns a flat list of classes (not hierarchical).
         """
-        extends_prop_id = await self._get_extends_property_id()
-        
         async with self._pool.acquire() as conn:
-            # Find all classes that reference this class in their extends property
             rows = await conn.fetch("""
                 SELECT DISTINCT n.id, n.uuid, n.name, n.icon
                 FROM node n
-                JOIN node_property np ON np.node_id = n.id
-                JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-                WHERE pvr.target_id = $1 
-                  AND np.property_id = $2
-                  AND n.graph_id = $3
+                JOIN class_extend ce ON ce.target_id = n.id
+                WHERE ce.source_id = $1
+                  AND n.graph_id = $2
                   AND n.active = TRUE
                   AND n.is_class = TRUE
                 ORDER BY n.name
-            """, class_node_id, extends_prop_id, self._graph_id)
+            """, class_node_id, self._graph_id)
             
             return [
                 {
@@ -274,22 +359,19 @@ class ClassExtensionService:
         Returns all subclasses that directly or indirectly extend this class.
         Example: A <- B <- C means if we query A, we get [B, C]
         """
-        extends_prop_id = await self._get_extends_property_id()
         result = []
         
         async with self._pool.acquire() as conn:
-            # Get direct subclasses
+            # Get direct subclasses using class_extend table
             rows = await conn.fetch("""
                 SELECT DISTINCT n.id
                 FROM node n
-                JOIN node_property np ON np.node_id = n.id
-                JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-                WHERE pvr.target_id = $1 
-                  AND np.property_id = $2
-                  AND n.graph_id = $3
+                JOIN class_extend ce ON ce.target_id = n.id
+                WHERE ce.source_id = $1
+                  AND n.graph_id = $2
                   AND n.active = TRUE
                   AND n.is_class = TRUE
-            """, class_node_id, extends_prop_id, self._graph_id)
+            """, class_node_id, self._graph_id)
             
             direct_subclasses = [row['id'] for row in rows]
         

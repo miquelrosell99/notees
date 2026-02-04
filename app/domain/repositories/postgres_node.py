@@ -132,7 +132,6 @@ class PostgresNodeRepository(NodeRepository):
             write_date=write_date,
             create_uid=row.get('create_uid'),
             write_uid=row.get('write_uid'),
-            usable_in=row.get('usable_in', 'both'),
             class_ids=class_ids,
             classes_path=classes_path,
             version=row.get('version', 1),

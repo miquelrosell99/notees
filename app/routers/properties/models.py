@@ -95,6 +95,7 @@ class ClassExtendsResponse(BaseModel):
     class_node_name: str
     extends_class_node_id: int
     extends_class_node_name: str
+    extends_class_icon: Optional[str] = None
     sequence: int = 0
 
 

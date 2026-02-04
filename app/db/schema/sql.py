@@ -104,8 +104,7 @@ CREATE TABLE IF NOT EXISTS node (
     is_asset BOOLEAN DEFAULT FALSE,
     is_template BOOLEAN DEFAULT FALSE,
     is_comment BOOLEAN DEFAULT FALSE,
-    -- Class-specific fields
-    usable_in VARCHAR(10) DEFAULT 'both' CHECK (usable_in IN ('page', 'block', 'both')),
+    -- Class IDs stored directly on the node
     class_ids INTEGER[] DEFAULT '{}',
     classes_path JSONB DEFAULT '[]'::jsonb,
     open_date TIMESTAMPTZ,

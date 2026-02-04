@@ -82,9 +82,6 @@ class Node:
     is_template: bool = False  # Template page
     is_comment: bool = False   # Comment block
     
-    # Class-specific fields
-    usable_in: str = "both"  # Where this class can be applied: 'page', 'block', or 'both'
-    
     # Open date - when the page was last opened/viewed (NULL by default)
     open_date: Optional[str] = None
     
