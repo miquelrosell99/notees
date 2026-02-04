@@ -47,6 +47,7 @@ export function InlineConfirmButton({
   // Reset confirming state when disabled changes
   useEffect(() => {
     if (disabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset UI state when disabled prop changes
       setIsConfirming(false);
     }
   }, [disabled]);

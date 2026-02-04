@@ -123,6 +123,7 @@ export function NodeContent({
   }, [targetBlockId, convertToAsset, children, saveImmediate]);
 
   // Build block callbacks for context provider
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Callbacks match BlockCallbacks interface signature
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
     onAddClass: (blockId, classNodeId, _keepInline, _className) => {
       addClass.mutate({ nodeId: blockId, classId: classNodeId });

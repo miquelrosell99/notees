@@ -102,7 +102,7 @@ export interface NodeGraphRendererProps {
   /** Class colors for node coloring */
   classColors?: ClassColor[];
   /** Whether to show type nodes */
-  showTypeNodes?: boolean;
+  showClassNodes?: boolean;
   /** Currently highlighted node (for minimap mode) */
   currentNodeId?: number | null;
   /** Selected node IDs */
@@ -297,7 +297,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
   const classColorsRef = useRef(classColors);
-  const showTypeNodesRef = useRef(showTypeNodes);
+  const showClassNodesRef = useRef(showClassNodes);
   const selectedNodeIdsRef = useRef(selectedNodeIds);
   const currentNodeIdRef = useRef(currentNodeId);
   
@@ -411,12 +411,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
   useEffect(() => { 
-    showTypeNodesRef.current = showTypeNodes;
+    showClassNodesRef.current = showClassNodes;
     // Recalculate positions when type node visibility changes (affects circle/tree layout)
     if (nodesRef.current.length > 0 && (viewMode === 'circle' || viewMode === 'tree')) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodes);
     }
-  }, [showTypeNodes, viewMode, dimensions, calculatePositions]);
+  }, [showClassNodes, viewMode, dimensions, calculatePositions]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
 
@@ -541,12 +541,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     linksRef.current = [...inputLinks];
     
-    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showTypeNodes);
+    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodes);
     startSimulation();
     
     return () => {
       cancelAnimationFrame(animationRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation and showClassNodes intentionally excluded to prevent re-simulation on every render
   }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions]);
 
   // Update glare states
@@ -625,7 +626,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodes = nodesRef.current;
       const links = linksRef.current;
       const currentSettings = settingsRef.current;
-      const showTypes = showTypeNodesRef.current;
+      const showTypes = showClassNodesRef.current;
       const isConstrainedMode = viewMode === 'circle' || viewMode === 'tree';
       
       // Filter to only visible nodes for force calculations
@@ -771,7 +772,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     const currentClassColors = classColorsRef.current;
-    const showTypes = showTypeNodesRef.current;
+    const showTypes = showClassNodesRef.current;
     const nodes = nodesRef.current;
     const links = linksRef.current;
     
@@ -1030,7 +1031,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const { x, y } = screenToWorld(screenX, screenY);
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
-    const showTypes = showTypeNodesRef.current;
+    const showTypes = showClassNodesRef.current;
     
     let maxBacklinks = 0, maxInternalLinks = 0, maxTotalLinks = 0;
     for (const node of nodesRef.current) {
