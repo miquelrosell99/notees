@@ -67,13 +67,21 @@ export function NodePill({
   const [replacePopupPos, setReplacePopupPos] = useState({ top: 0, left: 0 });
   
   const pillRef = useRef<HTMLDivElement>(null);
+  const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
   
   const { openNode, addSidebarCard } = useNodesStore();
   const { data: allClasses } = useClasses();
   
-  // Fetch node if not provided directly
-  const { data: fetchedNode } = useNode(providedNode ? null : (nodeId ?? null));
-  const node = providedNode ?? fetchedNode;
+  // Always fetch node to subscribe to cache updates
+  // Use providedNode's id if available, otherwise use nodeId prop
+  const effectiveNodeId = providedNode?.id ?? nodeId ?? null;
+  const { data: fetchedNode } = useNode(effectiveNodeId);
+  
+  // Prefer fetched node (has latest cache data) over provided node
+  const node = fetchedNode ?? providedNode;
+  
+  // Debug log for color updates
+  console.log('[NodePill] nodeId:', effectiveNodeId, 'color:', node?.color);
   
   // Get effective icon (considers inherited icons from classes)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
@@ -308,6 +316,7 @@ export function NodePill({
                 onClick={handleCloseContextMenu}
               />
               <div 
+                ref={contextMenuWrapperRef}
                 className="node-pill-context-menu-wrapper"
                 style={{
                   position: 'fixed',
@@ -328,6 +337,7 @@ export function NodePill({
                   items={contextMenuItems}
                   position={{ x: 0, y: 0 }}
                   onClose={handleCloseContextMenu}
+                  containerRef={contextMenuWrapperRef}
                 />
               </div>
             </>

@@ -48,16 +48,24 @@ interface ColorPickerRowProps {
 export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowProps) {
   // Stop propagation to prevent ContextMenu's outside click handler from closing the menu
   const handleMouseDown = (e: React.MouseEvent) => {
+    console.log('[ColorPickerRow] mousedown on row');
     e.stopPropagation();
+    e.preventDefault();
   };
 
-  const handleColorClick = (color: string | null) => {
+  const handleColorClick = (e: React.MouseEvent, color: string | null) => {
     console.log('[ColorPickerRow] Color clicked:', color);
+    e.stopPropagation();
+    e.preventDefault();
     onColorChange(color);
   };
 
   return (
-    <div className="context-menu-color-row" onMouseDown={handleMouseDown}>
+    <div 
+      className="context-menu-color-row" 
+      onMouseDown={handleMouseDown}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+    >
       <span className="context-menu-color-label">Color</span>
       <div className="context-menu-color-swatches">
         {NODE_COLORS.map((color) => (
@@ -65,7 +73,8 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
             key={color || 'none'}
             className={`context-menu-color-swatch ${currentColor === color ? 'selected' : ''} ${!color ? 'no-color' : ''}`}
             style={color ? { backgroundColor: color } : undefined}
-            onClick={() => handleColorClick(color)}
+            onClick={(e) => handleColorClick(e, color)}
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
             title={color || 'No color'}
           >
             {!color && <span className="context-menu-color-swatch-line" />}
