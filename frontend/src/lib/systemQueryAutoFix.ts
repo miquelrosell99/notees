@@ -185,7 +185,7 @@ export function autoFixSystemQuery(
     'linked_references': 'entire_graph',
     'child_pages': 'pages',
     'classed_nodes': 'entire_graph',
-    'extended_by': 'entire_graph',
+    'extended_by': 'pages',
   };
   
   const correctScope: ScopeNode = {
