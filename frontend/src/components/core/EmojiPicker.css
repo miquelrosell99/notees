@@ -111,6 +111,44 @@
   opacity: 1;
 }
 
+/* MDI Category selector (horizontal tabs) */
+.emoji-picker-mdi-categories {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  overflow-x: auto;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.emoji-picker-mdi-category {
+  padding: 4px 12px;
+  border: 1px solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.emoji-picker-mdi-category:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+  border-color: var(--color-primary);
+}
+
+.emoji-picker-mdi-category.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
 /* Emoji/icon grid */
 .emoji-picker-grid {
   display: grid;
