@@ -252,8 +252,9 @@ export function ButtonWithPanel({
     top = Math.max(16, Math.min(result.top, viewportHeight - estimatedHeight - 16));
     left = Math.max(16, Math.min(result.left, viewportWidth - actualWidth - 16));
     
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronous position calculation based on DOM measurements
     setPortalPosition({ top, left });
-  }, [usePortal, isOpen, panelPosition, panelAlignment, panelWidth]);
+  }, [isOpen, usePortal, panelWidth, panelPosition, panelAlignment]);
   
   // Calculate panel position styles
   const getPanelStyle = (): React.CSSProperties => {

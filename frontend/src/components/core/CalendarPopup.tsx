@@ -88,8 +88,9 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
       top = anchorRect.top - popupHeight - 4;
     }
     
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Positioning based on DOM rect measurements
     setPosition({ top, left });
-  }, [isOpen, anchorRef]);
+  }, [isOpen]);
   
   // Fetch daily note when a date is selected
   const { data: dailyNote } = useDailyNote(selectedDate ?? undefined);
@@ -108,6 +109,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     if (monthlyNote && navigateToMonth) {
       openNode(monthlyNote.id, 'page');
       onClose();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
       setNavigateToMonth(null);
     }
   }, [monthlyNote, navigateToMonth, openNode, onClose]);
@@ -117,6 +119,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     if (yearlyNote && navigateToYear) {
       openNode(yearlyNote.id, 'page');
       onClose();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
       setNavigateToYear(null);
     }
   }, [yearlyNote, navigateToYear, openNode, onClose]);
@@ -126,6 +129,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     if (dailyNote && selectedDate) {
       openNode(dailyNote.id, 'page');
       onClose();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
       setSelectedDate(null);
     }
   }, [dailyNote, selectedDate, openNode, onClose]);

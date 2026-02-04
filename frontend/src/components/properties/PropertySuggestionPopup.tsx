@@ -87,12 +87,14 @@ export function PropertySuggestionPopup({
   // Reset selection when list changes
   // Using useLayoutEffect to sync before paint
   useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset selection index when list changes in useLayoutEffect
     setSelectedIndex(0);
   }, [filteredProperties.length, showCreateOption]);
   
   // Focus input and reset state when popup opens
   useLayoutEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset popup state when opened in useLayoutEffect
       setQuery('');
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);

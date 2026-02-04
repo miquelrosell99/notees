@@ -286,6 +286,7 @@ export function operatorNeedsValue(conditionType: string, operator: string): boo
 /**
  * Check if a condition type always uses nested groups
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Parameter reserved for future condition type checking
 export function alwaysUsesNestedGroup(_conditionType: string): boolean {
   // All conditions now support both static and dynamic modes
   return false;

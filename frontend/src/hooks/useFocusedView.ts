@@ -150,6 +150,7 @@ export function useFocusedView(nodeId: number | null): FocusedViewData {
 
   // Reset backlinks state when node changes
   useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset load flag when navigating to different node
     setShouldLoadBacklinks(false);
   }, [nodeId]);
 

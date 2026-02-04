@@ -327,7 +327,7 @@ function NodeCard({
         return allNodes?.find((n: Node) => n.id === classId);
       })
       .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
-  }, [node?.classes, allClasses, allNodes]);
+  }, [node.classes, allClasses, allNodes]);
   
   // Resolve tag details
   const tagDetails = useMemo(() => {
@@ -365,6 +365,7 @@ function NodeCard({
   
   // Reset temporary collapsed state when node changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset UI state when switching nodes
     setTempCollapsedChildren(new Set(children.map(child => child.id)));
   }, [node.id, children]);
   
@@ -404,7 +405,7 @@ function NodeCard({
   const coverImageId = useMemo(() => {
     const coverValue = node?.properties?.cover;
     return typeof coverValue === 'number' ? coverValue : null;
-  }, [node?.properties?.cover]);
+  }, [node.properties?.cover]);
   
   // Get the asset node for the cover image (for bullet)
   const { data: assetNode } = useNode(coverImageId, { include_children: false });
@@ -431,6 +432,7 @@ function NodeCard({
   useEffect(() => {
     // Reset if no cover - this is async cleanup, not cascading render
     if (!coverImageId || !assetNode?.uuid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Async image loading pattern
       setCoverUrl(null);
       return;
     }

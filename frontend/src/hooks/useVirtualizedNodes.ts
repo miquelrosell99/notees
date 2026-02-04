@@ -98,6 +98,7 @@ export function useVirtualizedNodes({
     
     const result = new Set<number>();
     // Reading ref here is intentional - we want to access the latest order without re-triggering
+    // eslint-disable-next-line react-hooks/refs -- Performance optimization: stable ref access without deps
     const order = nodeOrderRef.current;
     
     // Add visible nodes and their neighbors

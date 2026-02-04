@@ -64,6 +64,7 @@ export function useSearchableList({
   // Reset selection when total items change
   // Using useLayoutEffect to sync before paint
   useLayoutEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset selection when list changes in useLayoutEffect
     setSelectedIndex(0);
   }, [totalItems]);
 

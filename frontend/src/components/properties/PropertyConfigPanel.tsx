@@ -87,6 +87,7 @@ export function PropertyConfigPanel({
   // Using useLayoutEffect to sync state before paint, avoiding cascading renders
   useLayoutEffect(() => {
     if (isOpen && property) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize form state from prop in useLayoutEffect before paint
       setName(property.name);
       setIcon(property.icon || '');
       setDescription(property.description || '');

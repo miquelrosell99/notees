@@ -96,6 +96,7 @@ export const LazyImage = memo(function LazyImage({
   useEffect(() => {
     // Skip if already visible or priority
     if (isVisible || priority || loadedImages.has(src)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Skip lazy loading for priority images
       setIsVisible(true);
       return;
     }

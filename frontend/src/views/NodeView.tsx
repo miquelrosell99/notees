@@ -106,6 +106,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   }, [createNode, node.id, node.children, enterEditMode]);
 
   // Block callbacks for context provider
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for BlockCallbacks interface
   const blockCallbacks = useMemo<BlockCallbacks>(() => ({
     onAddClass: (blockId: number, classNodeId: number, _keepInline: boolean, _className: string) => {
       addClass.mutate({ nodeId: blockId, classId: classNodeId });

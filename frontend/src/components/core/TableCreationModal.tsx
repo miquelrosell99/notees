@@ -47,6 +47,7 @@ export function TableCreationModal({
   useEffect(() => {
     if (isOpen) {
       // Default to adapt mode if there are existing children
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initialize modal state based on prop when opened
       setMode(existingChildCount > 0 ? 'adapt' : 'select');
     }
   }, [isOpen, existingChildCount]);
