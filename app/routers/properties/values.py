@@ -7,6 +7,7 @@ from ..auth import get_current_user
 from ..nodes.helpers import _get_node_service, _node_to_response
 from ...models import User
 from ...domain.entities import PropertyType, SCALAR_TYPES, RELATION_TYPES
+from ...logging_config import get_logger
 from .models import (
     NodePropertyResponse,
     ScalarValueRequest,
@@ -20,6 +21,8 @@ from .helpers import (
     _relation_value_to_response,
     _selection_value_to_response,
 )
+
+logger = get_logger(__name__)
 
 
 router = APIRouter()
@@ -54,7 +57,7 @@ async def set_property_value(
     try:
         if prop.type in SCALAR_TYPES:
             # Scalar value - allow empty strings
-            await repo.set_scalar_value(node_id, request.property_id, request.value, order=None)
+            await repo.set_scalar_value(node_id, request.property_id, request.value)
         elif prop.type in RELATION_TYPES:
             # Relation value (expects node_id as value)
             # Skip if empty string (placeholder value from frontend)
@@ -64,7 +67,7 @@ async def set_property_value(
             elif not isinstance(request.value, int):
                 raise ValueError(f"Relation property expects node ID as value, got {type(request.value)}")
             else:
-                await repo.set_relation_value(node_id, request.property_id, request.value, order=None)
+                await repo.set_relation_value(node_id, request.property_id, request.value)
         else:
             # Selection value (expects selection_line_id as value)
             # Skip if empty string (placeholder value from frontend)
@@ -74,7 +77,7 @@ async def set_property_value(
             elif not isinstance(request.value, int):
                 raise ValueError(f"Selection property expects selection_line_id as value, got {type(request.value)}")
             else:
-                await repo.set_selection_value(node_id, request.property_id, request.value, order=None)
+                await repo.set_selection_value(node_id, request.property_id, request.value)
     except ValueError as e:
         raise HTTPException(400, str(e))
     
@@ -91,9 +94,11 @@ async def set_property_value(
     response = _node_to_response(node, classes=class_ids)
     response.properties = {}
     all_prop_values = await repo.get_all_property_values(node_id)
+    logger.info(f"[SET_PROPERTY] Node {node_id} has {len(all_prop_values)} property values")
     for prop_id, prop_data in all_prop_values.items():
         prop_entity = prop_data['property']
         values = prop_data['values']
+        logger.info(f"[SET_PROPERTY] Property {prop_id} ({prop_entity.name}): {len(values)} values")
         if values:
             # Extract the actual value based on property type
             val = values[0]  # Get first value
@@ -102,11 +107,15 @@ async def set_property_value(
                 # Relation type
                 response.properties[str(prop_id)] = val.target_id
             elif hasattr(val, 'value_integer'):
-                # Scalar type
-                response.properties[str(prop_id)] = (
-                    val.value_integer or val.value_float or 
-                    val.value_text or val.value_boolean
-                )
+                # Scalar type - check each field, not using `or` since empty string is falsy
+                if val.value_text is not None:
+                    response.properties[str(prop_id)] = val.value_text
+                elif val.value_integer is not None:
+                    response.properties[str(prop_id)] = val.value_integer
+                elif val.value_float is not None:
+                    response.properties[str(prop_id)] = val.value_float
+                elif val.value_boolean is not None:
+                    response.properties[str(prop_id)] = val.value_boolean
             elif hasattr(val, 'selection_line_id'):
                 # Selection type
                 response.properties[str(prop_id)] = val.selection_line_id
