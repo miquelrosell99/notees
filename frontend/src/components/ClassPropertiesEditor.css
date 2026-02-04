@@ -2,11 +2,21 @@
  * Class Properties Editor styles
  */
 
+/* Main container for Class Properties section */
+.properties-view.class-definition-variant {
+  padding: var(--spacing-4);
+  border: 1px dashed color-mix(in srgb, var(--color-outline-variant) 50%, transparent);
+  border-radius: var(--shape-large);
+  background: color-mix(in srgb, var(--color-surface-variant) 30%, transparent);
+  margin-bottom: var(--spacing-4);
+}
+
 .class-properties-editor {
   padding: var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
+  border: 1px dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface-variant);
+  background: var(--color-surface-container-low);
+  opacity: 0.95;
 }
 
 .class-properties-title {
