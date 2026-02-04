@@ -1,5 +1,5 @@
 /**
- * PropertySuggestionPopup - Floating popup for selecting or creating properties
+ * PropertySuggestionPopup - Inline dropdown for selecting or creating properties
  * 
  * Shows a list of available properties filtered by search query.
  * If no exact match exists, shows "Create new property" option.
@@ -7,13 +7,14 @@
  * When selecting an existing property, it's added to the node.
  * When creating a new property, creates a text property by default
  * and opens the PropertyConfigPanel for editing.
+ * 
+ * Uses the same dropdown pattern as NodePillRow for consistency.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';
 import type { Property } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { AddIcon, PropertiesIcon, SearchIcon } from '../icons';
-import { TextField } from '../core/TextField';
+import { AddIcon, PropertiesIcon } from '../icons';
 import './PropertySuggestionPopup.css';
 
 /** System property UUIDs that should be hidden from the "Add property" menu */
@@ -26,8 +27,6 @@ const HIDDEN_PROPERTY_UUIDS = new Set<string>([
 export interface PropertySuggestionPopupProps {
   /** Whether the popup is visible */
   isOpen: boolean;
-  /** Position to render the popup */
-  position: { top: number; left: number };
   /** Callback when an existing property is selected */
   onSelect: (property: Property) => void;
   /** Callback to close the popup */
@@ -40,7 +39,6 @@ export interface PropertySuggestionPopupProps {
 
 export function PropertySuggestionPopup({
   isOpen,
-  position,
   onSelect,
   onClose,
   onCreate,
@@ -99,6 +97,18 @@ export function PropertySuggestionPopup({
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
+
+  // Handle property selection
+  const handleSelect = useCallback((property: Property) => {
+    onSelect(property);
+    setQuery('');
+  }, [onSelect]);
+
+  const handleCreate = useCallback(() => {
+    if (!query.trim()) return;
+    onCreate(query.trim());
+    setQuery('');
+  }, [query, onCreate]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -113,28 +123,19 @@ export function PropertySuggestionPopup({
         break;
       case 'Enter':
         e.preventDefault();
-        if (showCreateOption && selectedIndex === 0) {
-          // Create new property
-          onCreate(query.trim());
-        } else {
-          // Select existing property
-          const propIndex = showCreateOption ? selectedIndex - 1 : selectedIndex;
-          const property = filteredProperties[propIndex];
-          if (property) {
-            onSelect(property);
-          }
+        if (selectedIndex < filteredProperties.length) {
+          handleSelect(filteredProperties[selectedIndex]);
+        } else if (showCreateOption) {
+          handleCreate();
         }
         break;
       case 'Escape':
         e.preventDefault();
         onClose();
-        break;
-      case 'Tab':
-        e.preventDefault();
-        onClose();
+        setQuery('');
         break;
     }
-  }, [totalItems, showCreateOption, selectedIndex, filteredProperties, query, onSelect, onCreate, onClose]);
+  }, [totalItems, showCreateOption, selectedIndex, filteredProperties, handleSelect, handleCreate, onClose]);
   
   // Close on click outside
   useEffect(() => {
@@ -150,126 +151,66 @@ export function PropertySuggestionPopup({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
   
-  // Adjust position to stay within viewport
-  const adjustedPosition = useMemo(() => {
-    if (!isOpen) return position;
-    
-    const popupWidth = 280;
-    const popupHeight = 320;
-    const padding = 8;
-    
-    let { top, left } = position;
-    
-    // Adjust horizontal position
-    if (left + popupWidth > window.innerWidth - padding) {
-      left = window.innerWidth - popupWidth - padding;
-    }
-    if (left < padding) {
-      left = padding;
-    }
-    
-    // Adjust vertical position - flip above if not enough space below
-    if (top + popupHeight > window.innerHeight - padding) {
-      top = position.top - popupHeight - 24;
-    }
-    
-    return { top, left };
-  }, [isOpen, position]);
-  
   if (!isOpen) return null;
   
   return (
     <div
       ref={containerRef}
       className="property-suggestion-popup"
-      style={{
-        position: 'fixed',
-        top: adjustedPosition.top,
-        left: adjustedPosition.left,
-        zIndex: 1000,
-      }}
     >
-      <div className="property-suggestion-popup__header">
-        <span className="property-suggestion-popup__icon">
-          <PropertiesIcon size="sm" />
-        </span>
-        <span>Add property</span>
-      </div>
-      
-      <div className="property-suggestion-popup__search">
-        <TextField
-          ref={inputRef}
-          type="text"
-          className="property-suggestion-popup__input"
-          placeholder="Search properties..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          icon={<SearchIcon size="sm" />}
-        />
-      </div>
-      
-      <div className="property-suggestion-popup__list">
+      <input
+        ref={inputRef}
+        type="text"
+        className="property-suggestion-popup__search"
+        placeholder="Search properties..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+      <div className="property-suggestion-popup__options">
         {isLoading && query.length > 0 ? (
           <div className="property-suggestion-popup__loading">Searching...</div>
-        ) : totalItems === 0 ? (
-          <div className="property-suggestion-popup__empty">
-            {query ? 'No matches found. Press Enter to create.' : 'Start typing to search or create'}
+        ) : filteredProperties.length === 0 && !showCreateOption ? (
+          <div className="property-suggestion-popup__no-results">
+            {query ? 'No matches found' : 'Start typing to search'}
           </div>
         ) : (
           <>
-            {/* Create new option (shown first when there's a query with no exact match) */}
+            {/* Existing properties */}
+            {filteredProperties.map((property, index) => (
+              <button
+                key={property.id}
+                className={`property-suggestion-popup__option ${index === selectedIndex ? 'property-suggestion-popup__option--selected' : ''}`}
+                onClick={() => handleSelect(property)}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                {property.icon && (
+                  <span className="property-suggestion-popup__option-icon">
+                    {property.icon}
+                  </span>
+                )}
+                <span className="property-suggestion-popup__option-name">{property.name}</span>
+                <span className="property-suggestion-popup__option-type">{property.type}</span>
+              </button>
+            ))}
+            
+            {/* Create new option */}
             {showCreateOption && (
               <button
-                className={`property-suggestion-popup__item property-suggestion-popup__item--create ${
-                  selectedIndex === 0 ? 'property-suggestion-popup__item--selected' : ''
+                className={`property-suggestion-popup__option property-suggestion-popup__option--create ${
+                  selectedIndex === filteredProperties.length ? 'property-suggestion-popup__option--selected' : ''
                 }`}
-                onClick={() => onCreate(query.trim())}
-                onMouseEnter={() => setSelectedIndex(0)}
+                onClick={handleCreate}
+                onMouseEnter={() => setSelectedIndex(filteredProperties.length)}
               >
-                <span className="property-suggestion-popup__item-icon">
-                  <AddIcon size="sm" />
+                <span className="property-suggestion-popup__option-icon">
+                  <AddIcon size="xs" />
                 </span>
-                <span className="property-suggestion-popup__item-name">
-                  Create "{query.trim()}"
-                </span>
-                <span className="property-suggestion-popup__item-type">text</span>
+                <span>Create "{query.trim()}"</span>
               </button>
             )}
-            
-            {/* Existing properties */}
-            {filteredProperties.map((property, index) => {
-              const itemIndex = showCreateOption ? index + 1 : index;
-              const isSelected = selectedIndex === itemIndex;
-              
-              return (
-                <button
-                  key={property.id}
-                  className={`property-suggestion-popup__item${isSelected ? ' property-suggestion-popup__item--selected' : ''}`}
-                  onClick={() => onSelect(property)}
-                  onMouseEnter={() => setSelectedIndex(itemIndex)}
-                >
-                  {property.icon && (
-                    <span className="property-suggestion-popup__item-icon">
-                      {property.icon}
-                    </span>
-                  )}
-                  <span className="property-suggestion-popup__item-name">{property.name}</span>
-                  <span className="property-suggestion-popup__item-type">{property.type}</span>
-                </button>
-              );
-            })}
           </>
         )}
-      </div>
-      
-      <div className="property-suggestion-popup__footer">
-        <span className="property-suggestion-popup__hint">
-          <kbd>↑↓</kbd> navigate
-        </span>
-        <span className="property-suggestion-popup__hint">
-          <kbd>Enter</kbd> select
-        </span>
       </div>
     </div>
   );
