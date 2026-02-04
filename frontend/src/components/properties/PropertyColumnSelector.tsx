@@ -7,8 +7,9 @@
  * 
  * Also supports special virtual columns like "Classes" that aren't actual properties.
  */
-import { useState, useMemo } from 'react';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useState, useMemo, useCallback } from 'react';
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '../core/Checkbox';
@@ -175,6 +176,21 @@ export function PropertyColumnSelector({
     onSelectionChange([]);
   };
 
+  // Handle drag end to reorder selected properties
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+    
+    const oldIndex = selectedPropertyUuids.indexOf(active.id as string);
+    const newIndex = selectedPropertyUuids.indexOf(over.id as string);
+    
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reordered = arrayMove(selectedPropertyUuids, oldIndex, newIndex);
+      onSelectionChange(reordered);
+    }
+  }, [selectedPropertyUuids, onSelectionChange]);
+
   if (isLoading) {
     return (
       <div className="property-column-selector">
@@ -184,8 +200,12 @@ export function PropertyColumnSelector({
   }
 
   return (
-    <div className="property-column-selector">
-      <div className="property-column-selector__header">
+    <DndContext
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="property-column-selector">
+        <div className="property-column-selector__header">
         <h3 className="property-column-selector__title">Select Columns</h3>
         <div className="property-column-selector__actions">
           <button 
@@ -283,5 +303,6 @@ export function PropertyColumnSelector({
         </span>
       </div>
     </div>
+    </DndContext>
   );
 }
