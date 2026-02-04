@@ -269,7 +269,7 @@ export function SuggestionPopup({
         ) : type === 'type' ? (
           <>
             <span className="suggestion-popup__icon">@</span>
-            <span>Set type</span>
+            <span>Add class</span>
           </>
         ) : type === 'class' ? (
           <>

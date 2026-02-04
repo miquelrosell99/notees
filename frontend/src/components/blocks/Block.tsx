@@ -45,6 +45,7 @@ import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodeClassPill } from '../NodeClassPill';
+import { useBlockCallbacks } from './BlockCallbacksContext';
 import { SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import type { ContextMenuItem } from '../core/ContextMenu';
@@ -180,6 +181,9 @@ function BlockInternal({
   const addClass = useAddClass();
   const { data: allClasses } = useClasses();
   useSystemClasses(); // Keep hook call for side effects
+  
+  // Get context callbacks for passing to children (binds child's ID instead of this block's)
+  const contextCallbacks = useBlockCallbacks();
   
   // Table creation modal state
   const [tableCreationState, setTableCreationState] = useState<{
@@ -2028,7 +2032,47 @@ function BlockInternal({
               strategy={verticalListSortingStrategy}
             >
               <div className="nested-blocks">
-                {children.map((child) => (
+                {children.map((child) => {
+                  // Build child-specific callbacks bound to child.id (using context callbacks if available)
+                  const childCallbacks = contextCallbacks ? {
+                    onAddClass: contextCallbacks.onAddClass 
+                      ? (classNodeId: number, keepInline: boolean, className: string) => 
+                          contextCallbacks.onAddClass!(child.id, classNodeId, keepInline, className)
+                      : undefined,
+                    onAddTag: contextCallbacks.onAddTag
+                      ? (tagNodeId: number, keepInline: boolean, tagName: string) =>
+                          contextCallbacks.onAddTag!(child.id, tagNodeId, keepInline, tagName)
+                      : undefined,
+                    onCreateClass: contextCallbacks.onCreateClass
+                      ? (name: string, keepInline: boolean) =>
+                          contextCallbacks.onCreateClass!(child.id, name, keepInline)
+                      : undefined,
+                    onCreateTag: contextCallbacks.onCreateTag
+                      ? (name: string, keepInline: boolean) =>
+                          contextCallbacks.onCreateTag!(child.id, name, keepInline)
+                      : undefined,
+                    onOpenComments: contextCallbacks.onOpenComments
+                      ? () => contextCallbacks.onOpenComments!(child.id)
+                      : undefined,
+                    onAssetUpload: contextCallbacks.onAssetUpload
+                      ? (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) =>
+                          contextCallbacks.onAssetUpload!(child.id, assetTypesOrFile)
+                      : undefined,
+                    onOpenBacklinks: contextCallbacks.onOpenBacklinks
+                      ? () => contextCallbacks.onOpenBacklinks!(child.id)
+                      : undefined,
+                  } : {
+                    // Fallback to passed props (maintains backward compatibility)
+                    onAddClass: onAddClass,
+                    onAddTag: onAddTag,
+                    onCreateClass: onCreateClass,
+                    onCreateTag: onCreateTag,
+                    onOpenComments: onOpenComments,
+                    onAssetUpload: onAssetUpload,
+                    onOpenBacklinks: onOpenBacklinks,
+                  };
+                  
+                  return (
                   <BlockErrorBoundary key={child.id} blockId={String(child.id)}>
                     <Block
                       key={child.id}
@@ -2041,24 +2085,25 @@ function BlockInternal({
                       onContentChange={onContentChange}
                       onBulletClick={onBulletClick}
                       onShiftClick={onShiftClick}
-                      onAddClass={handleAddClass}
-                    onAddTag={onAddTag}
-                    onCreateClass={onCreateClass}
-                    onCreateTag={onCreateTag}
-                    onLinkPage={onLinkPage}
-                    onCreatePageLink={onCreatePageLink}
-                    onOpenComments={onOpenComments}
-                    onAssetUpload={onAssetUpload}
-                    commentCount={child.comment_count}
-                    backlinkCount={child.backlink_count}
-                    canMove={canMove}
-                    canEdit={canEdit}
-                    canSelect={canSelect}
-                    onTaskStateChange={onTaskStateChange}
-                    onOpenBacklinks={onOpenBacklinks}
-                  />
+                      onAddClass={childCallbacks.onAddClass}
+                      onAddTag={childCallbacks.onAddTag}
+                      onCreateClass={childCallbacks.onCreateClass}
+                      onCreateTag={childCallbacks.onCreateTag}
+                      onLinkPage={onLinkPage}
+                      onCreatePageLink={contextCallbacks?.onCreatePageLink ?? onCreatePageLink}
+                      onOpenComments={childCallbacks.onOpenComments}
+                      onAssetUpload={childCallbacks.onAssetUpload}
+                      commentCount={child.comment_count}
+                      backlinkCount={child.backlink_count}
+                      canMove={canMove}
+                      canEdit={canEdit}
+                      canSelect={canSelect}
+                      onTaskStateChange={onTaskStateChange}
+                      onOpenBacklinks={childCallbacks.onOpenBacklinks}
+                    />
                   </BlockErrorBoundary>
-                ))}
+                  );
+                })}
               </div>
             </SortableContext>
           </div>
