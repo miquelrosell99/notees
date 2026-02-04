@@ -389,7 +389,7 @@ export function CommandPalette({
         break;
         
       case 'quick-add':
-        // Quick add as block (to daily page or inbox)
+        // Quick add as block (to daily page or inbox) with selected classes
         if (!destinationPage) {
           console.error('[CommandPalette] No destination page for quick add');
           break;
@@ -398,6 +398,7 @@ export function CommandPalette({
           await createNodeMutation.mutateAsync({
             name: searchTerm.trim(),
             parent_id: destinationPage.id,
+            classes: selectedClasses.map(c => c.id),
           });
         } catch (error) {
           console.error('Failed to quick add:', error);
