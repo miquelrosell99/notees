@@ -15,7 +15,7 @@
  * - Enables focused view to load in <200ms regardless of graph size
  */
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useLayoutEffect } from 'react';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './useNodes';
 import type { Node, Backlink } from '@/types';
@@ -149,7 +149,7 @@ export function useFocusedView(nodeId: number | null): FocusedViewData {
   }, [shouldLoadBacklinks]);
 
   // Reset backlinks state when node changes
-  useMemo(() => {
+  useLayoutEffect(() => {
     setShouldLoadBacklinks(false);
   }, [nodeId]);
 

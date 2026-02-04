@@ -23,13 +23,12 @@
 import { useEffect } from 'react';
 import { 
   useKeyboardStore, 
-  processKeyboardEvent,
   type ShortcutContext,
-  SHORTCUT_IDS,
-  formatShortcutKey,
 } from '@/stores/keyboardStore';
+import { processKeyboardEvent, SHORTCUT_IDS, formatShortcutKey } from './keyboardShortcutHelpers';
 
-export { SHORTCUT_IDS, formatShortcutKey };
+// Re-export for convenience
+export { SHORTCUT_IDS, formatShortcutKey } from './keyboardShortcutHelpers';
 
 interface UseKeyboardShortcutOptions {
   /** Whether the shortcut is currently enabled (default: true) */

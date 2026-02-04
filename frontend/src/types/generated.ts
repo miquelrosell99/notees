@@ -4,6 +4,8 @@
  * DO NOT EDIT MANUALLY - Run: python scripts/generate_types.py
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // ==================== ENUMS ====================
 
 export const NodeType = {

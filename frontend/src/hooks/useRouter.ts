@@ -15,7 +15,7 @@
  * 
  * The database is determined by the active database in the user's session.
  */
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNodesStore, type MainViewType } from '@/stores';
 import { listDatabases, type DatabaseListResponse } from '@/api/databases';
@@ -356,7 +356,8 @@ export function useCurrentNodeUuid(): string | null {
   const { currentNodeId } = useNodesStore();
   const [uuid, setUuid] = useState<string | null>(null);
   
-  useEffect(() => {
+  // Using useLayoutEffect to sync state before paint
+  useLayoutEffect(() => {
     if (!currentNodeId) {
       setUuid(null);
       return;

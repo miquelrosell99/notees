@@ -12,7 +12,7 @@
  * - Auto-reset selection when results change
  * - Scroll selected item into view
  */
-import { useState, useCallback, useRef, useEffect, type RefObject } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, type RefObject } from 'react';
 
 export interface UseSearchableListOptions {
   /** Total number of items in the list */
@@ -62,7 +62,8 @@ export function useSearchableList({
   const listRef = useRef<HTMLDivElement>(null);
 
   // Reset selection when total items change
-  useEffect(() => {
+  // Using useLayoutEffect to sync before paint
+  useLayoutEffect(() => {
     setSelectedIndex(0);
   }, [totalItems]);
 

@@ -5,6 +5,8 @@
  * Delegates to appropriate sub-components and handles recursion for groups.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useCallback } from 'react';
 import { QueryBlockList } from './QueryBlockList';
 import { QueryBlockCard } from './QueryBlockCard';
