@@ -84,7 +84,7 @@ export function ClassPropertiesEditor({
         Class Properties
       </h4>
       <p className="class-properties-description">
-        Class properties are inherited by all nodes with this class. For example, each @Task node inherits 'Status' and 'Priority'.
+        Class properties are inherited by all nodes with this class.
       </p>
       
       {/* Current properties list */}
