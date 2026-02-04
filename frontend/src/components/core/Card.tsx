@@ -12,7 +12,7 @@ import { Button } from './Button';
 import './Card.css';
 
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';
-export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent';
+export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Card content */

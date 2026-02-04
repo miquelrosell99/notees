@@ -19,6 +19,7 @@ import {
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
 import { Button } from './core/Button';
+import { Card } from './core/Card';
 import './PropertiesSection.css';
 
 interface ClassPropertiesEditorProps {
@@ -79,7 +80,13 @@ export function ClassPropertiesEditor({
   }
   
   return (
-    <div className={`properties-view class-definition-variant ${className}`}>
+    <Card 
+      variant="dashed" 
+      elevation="none" 
+      radius="lg" 
+      paddingSize="lg"
+      className={`class-properties-card ${className}`}
+    >
       <h4 className="class-properties-section-title">
         Class Properties
       </h4>
@@ -177,7 +184,7 @@ export function ClassPropertiesEditor({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
