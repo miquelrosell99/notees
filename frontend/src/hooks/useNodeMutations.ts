@@ -470,6 +470,31 @@ export function useUpdateNode() {
           };
         }
       );
+      
+      // IMPORTANT: Explicitly update all detail queries for this node
+      // The setQueriesData above may not trigger re-renders for all subscribed components
+      // because React Query's query key matching can be inconsistent.
+      // This ensures pills and other components showing this node get the updated color.
+      const queryCache = queryClient.getQueryCache();
+      const detailQueries = queryCache.findAll({ 
+        queryKey: nodeKeys.detailBase(updatedNode.id),
+        exact: false 
+      });
+      for (const query of detailQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData && oldData.id === updatedNode.id) {
+          const { children, backlinks, linked_references, properties, ...rest } = updatedNode;
+          queryClient.setQueryData(query.queryKey, {
+            ...oldData,
+            ...rest,
+            ...(children !== null && children !== undefined ? { children } : {}),
+            ...(backlinks !== null && backlinks !== undefined ? { backlinks } : {}),
+            ...(linked_references !== null && linked_references !== undefined ? { linked_references } : {}),
+            ...(properties !== null && properties !== undefined && Object.keys(properties).length > 0 ? { properties } : {}),
+          });
+        }
+      }
+      
       // Force refetch the specific node detail query to ensure UI updates
       // This is needed for node color updates on inline link pills
       queryClient.invalidateQueries({ 
