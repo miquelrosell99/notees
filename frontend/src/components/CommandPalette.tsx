@@ -12,11 +12,11 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass } from '@/hooks';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties } from '@/hooks';
 import { listNodes } from '@/api/nodes';
 import { useNodesStore, useSettingsStore } from '@/stores';
-import type { Node } from '@/types';
-import { NodeIcon, BulletIcon, AddIcon } from './icons';
+import type { Node, Property } from '@/types';
+import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon } from './icons';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from './SuggestionPopup';
 import { NodePill } from './NodePill';
@@ -31,8 +31,9 @@ export interface CommandPaletteProps {
 }
 
 interface SearchResult {
-  node: Node;
-  type: 'page' | 'block';
+  node?: Node;
+  property?: Property;
+  type: 'page' | 'block' | 'property';
   breadcrumb?: string;
 }
 
@@ -105,11 +106,16 @@ function parseQueryWithClass(query: string): {
 }
 
 /**
- * Categorize search results into pages and blocks
+ * Categorize search results into pages, blocks, and properties
  */
-function categorizeResults(nodes: Node[]): { pages: SearchResult[]; blocks: SearchResult[] } {
+function categorizeResults(
+  nodes: Node[], 
+  properties: Property[], 
+  query: string
+): { pages: SearchResult[]; blocks: SearchResult[]; properties: SearchResult[] } {
   const pages: SearchResult[] = [];
   const blocks: SearchResult[] = [];
+  const propertiesResults: SearchResult[] = [];
   
   for (const node of nodes) {
     const isPage = node.parent_id === null;
@@ -124,7 +130,17 @@ function categorizeResults(nodes: Node[]): { pages: SearchResult[]; blocks: Sear
     }
   }
   
-  return { pages, blocks };
+  // Filter properties by query
+  if (query.trim()) {
+    const lowerQuery = query.toLowerCase();
+    for (const property of properties) {
+      if (property.name.toLowerCase().includes(lowerQuery)) {
+        propertiesResults.push({ property, type: 'property' });
+      }
+    }
+  }
+  
+  return { pages, blocks, properties: propertiesResults };
 }
 
 /**
@@ -147,6 +163,36 @@ function ResultItem({
       ref.current.scrollIntoView({ block: 'nearest' });
     }
   }, [isSelected]);
+  
+  // Handle property results
+  if (result.type === 'property' && result.property) {
+    return (
+      <button
+        ref={ref}
+        className={`command-palette__result ${isSelected ? 'command-palette__result--selected' : ''}`}
+        onClick={onClick}
+      >
+        <span className="command-palette__result-icon">
+          {result.property.icon ? (
+            <span style={{ fontSize: '1.2em' }}>{result.property.icon}</span>
+          ) : (
+            <PropertiesIcon size="sm" />
+          )}
+        </span>
+        <span className="command-palette__result-content">
+          <span className="command-palette__result-name">
+            {result.property.name}
+          </span>
+        </span>
+        <span className="command-palette__result-type">
+          property
+        </span>
+      </button>
+    );
+  }
+  
+  // Handle node results
+  if (!result.node) return null;
   
   return (
     <button
@@ -193,11 +239,14 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { openNode } = useNodesStore();
+  const { openNode, openPropertyView } = useNodesStore();
   const { quickAddDestination } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
+  
+  // Fetch all properties for search
+  const { data: allProperties = [] } = useProperties();
   
   // Parse query for @classname syntax
   const { searchTerm, isTypingClass, classQuery } = useMemo(() => parseQueryWithClass(query), [query]);
@@ -220,10 +269,10 @@ export function CommandPalette({
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
   
   // Categorize results
-  const { pages, blocks } = useMemo(() => {
-    if (!searchResults) return { pages: [], blocks: [] };
-    return categorizeResults(searchResults);
-  }, [searchResults]);
+  const { pages, blocks, properties } = useMemo(() => {
+    if (!searchResults) return { pages: [], blocks: [], properties: [] };
+    return categorizeResults(searchResults, allProperties, searchTerm);
+  }, [searchResults, allProperties, searchTerm]);
   
   // Analyze hierarchical path structure (use searchTerm without the @class part)
   const pathInfo = useHierarchicalPath(searchTerm, true);
@@ -231,9 +280,9 @@ export function CommandPalette({
   // Display name for page creation (without @class suffix)
   const pageNameForCreation = searchTerm.trim();
   
-  // All selectable items (pages, blocks, quick-add actions)
+  // All selectable items (pages, blocks, properties, quick-add actions)
   const allItems = useMemo(() => {
-    const items: Array<{ type: 'page' | 'block' | 'add-page' | 'quick-add'; result?: SearchResult; label?: string }> = [];
+    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add'; result?: SearchResult; label?: string }> = [];
     
     // Pages section
     pages.forEach(result => items.push({ type: 'page', result }));
@@ -242,12 +291,15 @@ export function CommandPalette({
     const classLabels = selectedClasses.length > 0 
       ? ` with ${selectedClasses.length === 1 ? `class "${selectedClasses[0].name}"` : `${selectedClasses.length} classes`}`
       : '';
-    if (pageNameForCreation && !pages.some(p => p.node.name?.toLowerCase() === pageNameForCreation.toLowerCase())) {
+    if (pageNameForCreation && !pages.some(p => p.node?.name?.toLowerCase() === pageNameForCreation.toLowerCase())) {
       items.push({ type: 'add-page', label: `Create page "${pageNameForCreation}"${classLabels}` });
     }
     
     // Blocks section
     blocks.forEach(result => items.push({ type: 'block', result }));
+    
+    // Properties section
+    properties.forEach(result => items.push({ type: 'property', result }));
     
     // Quick add option
     if (searchTerm.trim()) {
@@ -255,7 +307,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [pages, blocks, searchTerm, pageNameForCreation, selectedClasses]);
+  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses]);
   
   // Reset selection when results change
   useEffect(() => {
@@ -333,12 +385,19 @@ export function CommandPalette({
     switch (item.type) {
       case 'page':
       case 'block':
-        if (item.result) {
+        if (item.result?.node) {
           if (onSelect) {
             onSelect(item.result.node);
           } else {
             openNode(item.result.node.id, item.type === 'page' ? 'page' : 'block');
           }
+        }
+        onClose();
+        break;
+      
+      case 'property':
+        if (item.result?.property) {
+          openPropertyView(item.result.property.id);
         }
         onClose();
         break;
@@ -406,7 +465,7 @@ export function CommandPalette({
         onClose();
         break;
     }
-  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, createNodeMutation, onClose]);
+  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose]);
   
   // Handle keyboard navigation (only when class popup is not open)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -452,6 +511,7 @@ export function CommandPalette({
   // Group items for rendering
   const pageItems = allItems.filter(i => i.type === 'page' || i.type === 'add-page');
   const blockItems = allItems.filter(i => i.type === 'block');
+  const propertyItems = allItems.filter(i => i.type === 'property');
   const quickAddItems = allItems.filter(i => i.type === 'quick-add');
   
   return (
@@ -465,7 +525,7 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search pages and blocks..."
+            placeholder="Search pages, blocks, and properties..."
           />
           {/* Class pills */}
           {selectedClasses.length > 0 && (
@@ -535,7 +595,7 @@ export function CommandPalette({
               
               {!isLoading && !query && (
                 <div className="command-palette__hint">
-                  Start typing to search pages and blocks
+                  Start typing to search pages, blocks, and properties
                 </div>
               )}
               
@@ -563,7 +623,7 @@ export function CommandPalette({
                 }
                 return (
                   <ResultItem
-                    key={item.result?.node.id}
+                    key={item.result?.node?.id}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
@@ -581,7 +641,25 @@ export function CommandPalette({
                 const globalIndex = allItems.indexOf(item);
                 return (
                   <ResultItem
-                    key={item.result?.node.id}
+                    key={item.result?.node?.id}
+                    result={item.result!}
+                    isSelected={selectedIndex === globalIndex}
+                    onClick={() => handleSelect(globalIndex)}
+                  />
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Properties section */}
+          {propertyItems.length > 0 && (
+            <div className="command-palette__section">
+              <div className="command-palette__section-header">Properties</div>
+              {propertyItems.map((item) => {
+                const globalIndex = allItems.indexOf(item);
+                return (
+                  <ResultItem
+                    key={item.result?.property?.id}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}

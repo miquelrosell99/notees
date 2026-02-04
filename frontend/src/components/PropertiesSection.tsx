@@ -32,7 +32,7 @@ import { Button } from './core/Button';
 import { NodePicker } from './nodes/NodePicker';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
-import { PropertyConfigPanel } from './properties/PropertyConfigPanel';
+import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
 import { Bullet } from './blocks/Bullet';
 import { NodeViewSection } from './nodes/NodeViewSection';
 import './PropertiesSection.css';
@@ -267,9 +267,9 @@ export function PropertiesSection({
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
-  const [showConfigPanel, setShowConfigPanel] = useState(false);
-  const [configPanelPosition, setConfigPanelPosition] = useState<{ x: number; y: number } | undefined>();
-  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [contextMenuProperty, setContextMenuProperty] = useState<Property | null>(null);
   
   const { data: node, isLoading: nodeLoading } = useNode(nodeId, { include_properties: true });
   const { data: allProperties } = useProperties();
@@ -419,51 +419,55 @@ export function PropertiesSection({
       onSuccess: (newProperty) => {
         // Add the property to this node with empty value
         setPropertyMutation.mutate({ nodeId, propertyId: newProperty.id, value: '' });
-        // Open config panel to edit the newly created property (positioned at center of screen)
-        setConfigPanelPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-        setEditingProperty(newProperty);
-        setShowConfigPanel(true);
       },
     });
   }, [createPropertyMutation, setPropertyMutation, nodeId]);
 
-  // Handler for clicking on a property name to edit it
-  const handlePropertyNameClick = useCallback((property: Property, event: React.MouseEvent) => {
-    // Position the config panel near the click
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
-    setConfigPanelPosition({ x: rect.left, y: rect.bottom + 4 });
-    setEditingProperty(property);
-    setShowConfigPanel(true);
-  }, []);
-
-  // Handler for property updates from config panel
-  const handlePropertyUpdate = useCallback((updatedProperty: Property) => {
-    // The config panel handles the API call, we just need to refresh
-    // This will trigger a re-fetch of properties
-    setEditingProperty(updatedProperty);
-  }, []);
-
-  // Handler for property deletion from config panel
-  const handlePropertyDelete = useCallback((_propertyId: number) => {
-    // Property was deleted, close the panel
-    setShowConfigPanel(false);
-    setEditingProperty(null);
-    // The properties will refresh automatically via React Query
+  // Handler for right-clicking on a property name to show context menu
+  const handlePropertyContextMenu = useCallback((property: Property, event: React.MouseEvent) => {
+    event.preventDefault();
+    setContextMenuPosition({ x: event.clientX, y: event.clientY });
+    setContextMenuProperty(property);
+    setShowContextMenu(true);
   }, []);
 
   // Get openPropertyView and openNode from store
   const openPropertyView = useNodesStore(state => state.openPropertyView);
   const openNode = useNodesStore(state => state.openNode);
 
-  // Handler for opening property view
-  const handleOpenPropertyView = useCallback((propertyId: number) => {
-    openPropertyView(propertyId);
-  }, [openPropertyView]);
-
   // Handler for text property bullet click - opens block in focused view with property context
   const handleTextPropertyBulletClick = useCallback((blockId: number, property: Property) => {
     openNode(blockId, 'block', { propertyId: property.id, propertyName: property.name });
   }, [openNode]);
+  
+  // Handler for removing property from this node
+  const handleRemovePropertyFromNode = useCallback((property: Property) => {
+    setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: null });
+    setShowContextMenu(false);
+  }, [nodeId, setPropertyMutation]);
+  
+  // Generate context menu items for property
+  const propertyContextMenuItems = useMemo<ContextMenuItem[]>(() => {
+    if (!contextMenuProperty) return [];
+    
+    return [
+      {
+        id: 'open-property',
+        label: 'Open property',
+        onClick: () => {
+          openPropertyView(contextMenuProperty.id);
+          setShowContextMenu(false);
+        },
+      },
+      {
+        id: 'remove-property',
+        label: 'Remove from node',
+        danger: true,
+        disabled: contextMenuProperty.is_system,
+        onClick: () => handleRemovePropertyFromNode(contextMenuProperty),
+      },
+    ];
+  }, [contextMenuProperty, openPropertyView, handleRemovePropertyFromNode]);
 
   // Get IDs of properties already applied to this node
   const appliedPropertyIds = useMemo(() => {
@@ -549,8 +553,8 @@ export function PropertiesSection({
               <Button 
                 variant="ghost"
                 className="property-label property-label-clickable"
-                onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
-                title="Click to edit property"
+                onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
+                title="Right-click to open menu"
               >
                 {property.icon && <span className="property-icon">{property.icon}</span>}
                 <span className="property-name">{property.name}</span>
@@ -609,8 +613,8 @@ export function PropertiesSection({
                     <Button 
                       variant="ghost"
                       className="property-label property-label-clickable"
-                      onClick={(e) => !readOnly && handlePropertyNameClick(property, e)}
-                      title="Click to edit property"
+                      onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
+                      title="Right-click to open menu"
                     >
                       {property.icon && <span className="property-icon">{property.icon}</span>}
                       <span className="property-name">{property.name}</span>
@@ -682,19 +686,14 @@ export function PropertiesSection({
           </div>
         )}
 
-        {/* Property Config Panel */}
-        <PropertyConfigPanel
-          isOpen={showConfigPanel}
-          property={editingProperty}
-          position={configPanelPosition}
-          onClose={() => {
-            setShowConfigPanel(false);
-            setEditingProperty(null);
-          }}
-          onUpdate={handlePropertyUpdate}
-          onDelete={handlePropertyDelete}
-          onOpenPropertyView={handleOpenPropertyView}
-        />
+        {/* Property Context Menu */}
+        {showContextMenu && (
+          <ContextMenu
+            items={propertyContextMenuItems}
+            position={contextMenuPosition}
+            onClose={() => setShowContextMenu(false)}
+          />
+        )}
       </section>
     </NodeViewSection>
   );

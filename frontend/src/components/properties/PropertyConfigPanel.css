@@ -28,6 +28,41 @@
   padding: var(--spacing-2);
 }
 
+/* Compact panel for node context menu */
+.property-config-panel--compact {
+  min-width: 280px;
+  max-width: 320px;
+}
+
+.property-config-panel--compact .property-view-icon {
+  font-size: 1.5rem;
+}
+
+.property-config-panel--compact .property-view-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.property-config-panel--compact .property-view-title {
+  font: var(--font-body-large);
+  font-weight: 500;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.property-config-panel--compact .property-view-type {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.property-config-panel--compact .config-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+}
+
 /* ==================== Sections ====================  */
 
 .config-section {
