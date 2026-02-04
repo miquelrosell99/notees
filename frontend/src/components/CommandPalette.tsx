@@ -19,6 +19,7 @@ import type { Node } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon } from './icons';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from './SuggestionPopup';
+import { NodeClassPill } from './NodeClassPill';
 
 export interface CommandPaletteProps {
   /** Whether the palette is open */
@@ -187,6 +188,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedClasses, setSelectedClasses] = useState<Node[]>([]);
   const [classPopupPosition, setClassPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -199,18 +201,12 @@ export function CommandPalette({
   const { data: allClasses } = useClasses();
   
   // Parse query for @classname syntax
-  const { searchTerm, className, isTypingClass, classQuery } = useMemo(() => parseQueryWithClass(query), [query]);
+  const { searchTerm, isTypingClass, classQuery } = useMemo(() => parseQueryWithClass(query), [query]);
   
-  // Find matching class if @classname is completed (followed by space)
-  const matchedClass = useMemo(() => {
-    if (!className || !allClasses) return null;
-    return allClasses.find(c => 
-      c.name?.toLowerCase() === className.toLowerCase()
-    ) ?? null;
-  }, [className, allClasses]);
-  
-  // Build class filter for search
-  const classFilter = matchedClass?.id ? String(matchedClass.id) : undefined;
+  // Build class filter for search from selected classes
+  const classFilter = selectedClasses.length > 0 
+    ? selectedClasses.map(c => c.id).join(',')
+    : undefined;
   
   // Search with optional class filter (only search when not typing class)
   const { data: searchResults, isLoading } = useSearch(
@@ -244,9 +240,11 @@ export function CommandPalette({
     pages.forEach(result => items.push({ type: 'page', result }));
     
     // Add page option if query exists and no exact match
-    const classLabel = matchedClass ? ` with class "${matchedClass.name}"` : '';
+    const classLabels = selectedClasses.length > 0 
+      ? ` with ${selectedClasses.length === 1 ? `class "${selectedClasses[0].name}"` : `${selectedClasses.length} classes`}`
+      : '';
     if (pageNameForCreation && !pages.some(p => p.node.name?.toLowerCase() === pageNameForCreation.toLowerCase())) {
-      items.push({ type: 'add-page', label: `Create page "${pageNameForCreation}"${classLabel}` });
+      items.push({ type: 'add-page', label: `Create page "${pageNameForCreation}"${classLabels}` });
     }
     
     // Blocks section
@@ -258,7 +256,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [pages, blocks, searchTerm, pageNameForCreation, matchedClass]);
+  }, [pages, blocks, searchTerm, pageNameForCreation, selectedClasses]);
   
   // Reset selection when results change
   useEffect(() => {
@@ -270,6 +268,7 @@ export function CommandPalette({
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
+      setSelectedClasses([]);
       setClassPopupPosition(null);
       setTimeout(() => inputRef.current?.focus(), 0);
     }
@@ -292,12 +291,21 @@ export function CommandPalette({
   
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
-    // Replace @partial with @classname followed by space
+    // Add class to selected classes if not already there
+    if (!selectedClasses.find(c => c.id === classNode.id)) {
+      setSelectedClasses(prev => [...prev, classNode]);
+    }
+    // Remove the @ text from query
     const beforeAt = query.substring(0, query.lastIndexOf('@'));
-    setQuery(`${beforeAt}@${classNode.name} `);
+    setQuery(beforeAt.trim());
     // Keep focus on input
     inputRef.current?.focus();
-  }, [query]);
+  }, [query, selectedClasses]);
+  
+  // Handle removing a class pill
+  const handleRemoveClass = useCallback((classId: number) => {
+    setSelectedClasses(prev => prev.filter(c => c.id !== classId));
+  }, []);
   
   // Handle creating a new class from popup
   const handleClassCreate = useCallback(async (name: string) => {
@@ -307,9 +315,11 @@ export function CommandPalette({
         name,
         classes: [classClassId, pageClassId],
       });
-      // Add the new class to query
+      // Add the new class to selected classes
+      setSelectedClasses(prev => [...prev, newClass]);
+      // Remove the @ text from query
       const beforeAt = query.substring(0, query.lastIndexOf('@'));
-      setQuery(`${beforeAt}@${newClass.name} `);
+      setQuery(beforeAt.trim());
       inputRef.current?.focus();
     } catch (error) {
       console.error('Failed to create class:', error);
@@ -346,11 +356,8 @@ export function CommandPalette({
           const parsed = parseHierarchicalPath(pageNameForCreation);
           let parentId: number | null = null;
           
-          // Build classes array - always include page class, optionally add matched class
-          const classes = [pageClassId];
-          if (matchedClass?.id) {
-            classes.push(matchedClass.id);
-          }
+          // Build classes array - always include page class, plus any selected classes
+          const classes = [pageClassId, ...selectedClasses.map(c => c.id)];
           
           // If hierarchical path, create parent pages as needed
           if (parsed.isHierarchical) {
@@ -399,7 +406,7 @@ export function CommandPalette({
         onClose();
         break;
     }
-  }, [allItems, searchTerm, pageNameForCreation, matchedClass, pageClassId, destinationPage, onSelect, openNode, createNodeMutation, onClose]);
+  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, createNodeMutation, onClose]);
   
   // Handle keyboard navigation (only when class popup is not open)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -460,15 +467,18 @@ export function CommandPalette({
             onKeyDown={handleKeyDown}
             placeholder="Search pages and blocks..."
           />
-          {matchedClass && (
-            <span className="command-palette__class-badge" title={`Filtering by class: ${matchedClass.name}`}>
-              @{matchedClass.name}
-            </span>
-          )}
-          {className && !matchedClass && (
-            <span className="command-palette__class-badge command-palette__class-badge--invalid" title={`Class "${className}" not found`}>
-              @{className} ?
-            </span>
+          {/* Class pills */}
+          {selectedClasses.length > 0 && (
+            <div className="command-palette__class-pills">
+              {selectedClasses.map(classNode => (
+                <NodeClassPill
+                  key={classNode.id}
+                  classNode={classNode}
+                  onRemove={() => handleRemoveClass(classNode.id)}
+                  readOnly={false}
+                />
+              ))}
+            </div>
           )}
           <kbd className="command-palette__shortcut">Esc</kbd>
         </div>

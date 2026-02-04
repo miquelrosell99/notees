@@ -98,23 +98,14 @@
   border-radius: var(--shape-extra-small);
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
+  flex-shrink: 0;
 }
 
-.command-palette__class-badge {
-  display: inline-flex;
+.command-palette__class-pills {
+  display: flex;
   align-items: center;
-  padding: var(--spacing-1) var(--spacing-2);
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
-  border-radius: var(--shape-extra-small);
-  font: var(--font-label-small);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.command-palette__class-badge--invalid {
-  background: var(--color-error-container);
-  color: var(--color-on-error-container);
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
 }
 
 .command-palette__results {
