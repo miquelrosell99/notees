@@ -137,6 +137,7 @@ export interface ScopeNode {
  */
 export type ConditionType =
   | 'class'
+  | 'extends'
   | 'property'
   | 'content'
   | 'reference'
