@@ -350,7 +350,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   ), [node.parent_id, parentPage, handleParentSelect, handleRemoveParent]);
   
   const pageItems = useMemo((): ContextMenuItem[] => {
-    return [
+    const items: ContextMenuItem[] = [
       {
         id: 'favorite',
         label: isPageFavorited ? 'Remove from Favorites' : 'Add to Favorites',
@@ -358,15 +358,22 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         onClick: handleToggleFavorite
       },
       { id: 'sep-page-1', label: '', separator: true },
-      {
+    ];
+    
+    // Hide parent selector for day and month pages
+    if (!node.is_daily && !node.is_monthly) {
+      items.push({
         id: 'change-parent',
         label: `Parent: ${parentPage?.name || 'None'}`,
         submenu: parentSubmenu
-      },
-      { id: 'sep-page-2', label: '', separator: true },
-      ...commonItems,
-    ];
-  }, [isPageFavorited, parentPage, parentSubmenu, commonItems, handleToggleFavorite]);
+      });
+      items.push({ id: 'sep-page-2', label: '', separator: true });
+    }
+    
+    items.push(...commonItems);
+    
+    return items;
+  }, [isPageFavorited, parentPage, parentSubmenu, commonItems, handleToggleFavorite, node.is_daily, node.is_monthly]);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };
