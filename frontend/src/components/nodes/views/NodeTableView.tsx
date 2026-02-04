@@ -20,7 +20,7 @@ import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
-import { useProperties } from '@/hooks';
+import { useProperties, useClasses } from '@/hooks';
 import type { TableColumn, ExpandableConfig, ReorderableConfig } from '../../core/Table';
 import { Table } from '../../core/Table';
 import { Button } from '../../core/Button';
@@ -28,7 +28,11 @@ import { Block } from '../../blocks/Block';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
+import { NodeClassPill } from '../../NodeClassPill';
 import './NodeTableView.css';
+
+// Virtual column UUID for Classes (matches PropertyColumnSelector)
+const CLASSES_VIRTUAL_UUID = '__classes__';
 
 // Custom column definition for node tables (external API)
 interface NodeTableColumn {
@@ -111,6 +115,9 @@ export function NodeTableView({
   
   // Get user's date format preference
   const dateFormat = useSettingsStore((state) => state.dateFormat);
+  
+  // Get classes for rendering class pills in Classes column
+  const { data: allClasses = [] } = useClasses();
   
   // Internal selection state (used when not controlled)
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
@@ -283,6 +290,41 @@ export function NodeTableView({
     
     return propertyUuids
       .map((uuid: string): NodeTableColumn | null => {
+        // Handle virtual Classes column
+        if (uuid === CLASSES_VIRTUAL_UUID) {
+          return {
+            key: 'classes',
+            label: '@ Classes',
+            width: '200px',
+            render: (node: Node): ReactNode => {
+              if (!node.classes || node.classes.length === 0) {
+                return <span className="node-table__empty-cell">—</span>;
+              }
+              
+              // Resolve class nodes
+              const classNodes = node.classes
+                .map(classId => allClasses.find(c => c.id === classId))
+                .filter((c): c is Node => c !== undefined);
+              
+              return (
+                <div className="node-table__classes">
+                  {classNodes.map(classNode => (
+                    <NodeClassPill
+                      key={classNode.id}
+                      classNode={classNode}
+                      onClick={() => {
+                        openNode(classNode.id);
+                      }}
+                      readOnly={true}
+                    />
+                  ))}
+                </div>
+              );
+            },
+          };
+        }
+        
+        // Handle regular property columns
         const property = allProperties.find(p => p.uuid === uuid);
         if (!property) return null;
         
@@ -304,7 +346,7 @@ export function NodeTableView({
         };
       })
       .filter((col): col is NodeTableColumn => col !== null);
-  }, [propertyUuids, allProperties, editable]);
+  }, [propertyUuids, allProperties, allClasses, editable, openNode]);
   
   // Convert node columns to Table columns, injecting column renderers
   const nodeColumns = useMemo<NodeTableColumn[]>(() => {
