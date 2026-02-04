@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from ..auth import get_current_user
 from ...models import User
 from ...domain.entities import Property, PropertyType, SCALAR_TYPES, RELATION_TYPES
+from ...logging_config import get_logger
 from .models import (
     PropertyCreateRequest,
     PropertyUpdateRequest,
@@ -13,6 +14,7 @@ from .models import (
 )
 from .helpers import _get_property_repo, _property_to_response
 
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -26,6 +28,7 @@ async def list_properties(
     repo = await _get_property_repo(user)
     
     properties = await repo.get_all(include_local=include_local)
+    logger.info(f"[LIST_PROPERTIES] Returning {len(properties)} properties: {[(p.id, p.name) for p in properties]}")
     return {"properties": [_property_to_response(p) for p in properties]}
 
 
