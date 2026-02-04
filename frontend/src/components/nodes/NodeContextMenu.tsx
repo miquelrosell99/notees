@@ -8,7 +8,7 @@
  * 
  * The menus are composable - page and block menus include the common items.
  */
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useRef } from 'react';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -51,6 +51,11 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
     e.stopPropagation();
   };
 
+  const handleColorClick = (color: string | null) => {
+    console.log('[ColorPickerRow] Color clicked:', color);
+    onColorChange(color);
+  };
+
   return (
     <div className="context-menu-color-row" onMouseDown={handleMouseDown}>
       <span className="context-menu-color-label">Color</span>
@@ -60,7 +65,7 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
             key={color || 'none'}
             className={`context-menu-color-swatch ${currentColor === color ? 'selected' : ''} ${!color ? 'no-color' : ''}`}
             style={color ? { backgroundColor: color } : undefined}
-            onClick={() => onColorChange(color)}
+            onClick={() => handleColorClick(color)}
             title={color || 'No color'}
           >
             {!color && <span className="context-menu-color-swatch-line" />}
@@ -168,6 +173,7 @@ interface NodeContextMenuProps extends BaseContextMenuProps {}
 export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
   
@@ -225,12 +231,13 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   return (
     <>
       {!showDeleteModal && !showArchiveModal && (
-        <div className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
+        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={commonItems}
             position={{ x: 0, y: 0 }}
             onClose={onClose}
+            containerRef={wrapperRef}
           />
         </div>
       )}
@@ -273,6 +280,7 @@ interface PageContextMenuProps extends BaseContextMenuProps {
 export function PageContextMenu({ node, position, onClose, onParentChange }: PageContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
   
@@ -376,6 +384,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   }, [isPageFavorited, parentPage, parentSubmenu, commonItems, handleToggleFavorite, node.is_daily, node.is_monthly]);
   
   const handleColorChange = useCallback((color: string | null) => {
+    console.log('[PageContextMenu] handleColorChange called:', { nodeId: node.id, color });
     const data: NodeUpdate = { color };
     updateNode.mutate({ id: node.id, data });
   }, [node.id, updateNode]);
@@ -405,12 +414,13 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   return (
     <>
       {!showDeleteModal && !showArchiveModal && (
-        <div className="page-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
+        <div ref={wrapperRef} className="page-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={pageItems}
             position={{ x: 0, y: 0 }}
             onClose={onClose}
+            containerRef={wrapperRef}
           />
         </div>
       )}
@@ -460,6 +470,7 @@ export function BlockContextMenu({
   onMoveBlock 
 }: BlockContextMenuProps) {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
   
@@ -527,12 +538,13 @@ export function BlockContextMenu({
   return (
     <>
       {!showArchiveModal && (
-        <div className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
+        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={blockItems}
             position={{ x: 0, y: 0 }}
             onClose={onClose}
+            containerRef={wrapperRef}
           />
         </div>
       )}

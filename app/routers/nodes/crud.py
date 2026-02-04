@@ -570,6 +570,11 @@ async def update_node(
     user: User = Depends(get_current_user),
 ):
     """Update a node."""
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    logger.info(f"[UPDATE_NODE] node_id={node_id}, request.color={request.color!r}, fields_set={request.model_fields_set}")
+    
     service = await _get_node_service(user)
     
     data = NodeUpdateData(
@@ -584,6 +589,8 @@ async def update_node(
         collapsed=request.collapsed,
     )
     
+    logger.info(f"[UPDATE_NODE] NodeUpdateData color={data.color!r}, clear_color={data.clear_color}")
+    
     try:
         node = await service.update_node(
             node_id, 
@@ -592,6 +599,8 @@ async def update_node(
         )
         if not node:
             raise HTTPException(404, "Node not found")
+        
+        logger.info(f"[UPDATE_NODE] result node.color={node.color!r}")
         
         return _node_to_response(node)
     except OptimisticLockError as e:
