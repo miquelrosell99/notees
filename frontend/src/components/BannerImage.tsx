@@ -2,7 +2,7 @@
  * BannerImage Component
  * 
  * Displays a full-width banner image at the top of a page header.
- * Uses the 'banner' system property to store the asset node reference.
+ * Uses the 'Banner' system property to store the asset node reference.
  * 
  * The banner replaces the old cover behavior - appearing as a full-width
  * header background above the page title.

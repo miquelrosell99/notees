@@ -2,7 +2,7 @@
  * CoverImage Component
  * 
  * Displays a cover image as a small card aligned to the right of the page header.
- * Uses the 'cover' system property to store the asset node reference.
+ * Uses the 'Cover' system property to store the asset node reference.
  * 
  * The cover appears as a card with fixed height and adaptive width to maintain
  * the image's aspect ratio. It floats to the right of the header title.
