@@ -218,7 +218,7 @@ export function NodePill({
   }, [onColorChange, handleCloseContextMenu]);
 
   // Handler for replace popup selection
-  const handleReplaceSelect = useCallback((newNode: Node, keepInline: boolean) => {
+  const handleReplaceSelect = useCallback((newNode: Node) => {
     onReplace?.(newNode);
     setShowReplacePopup(false);
   }, [onReplace]);

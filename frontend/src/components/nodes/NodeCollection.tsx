@@ -438,8 +438,8 @@ export function NodeCollection({
   showAddButton = false,
   onAdd,
   can_create = true,
-  can_edit = true,
-  can_delete = true,
+  // can_edit = true,  // Not currently used
+  // can_delete = true,  // Not currently used
   cardLayout,
   onCardLayoutChange,
   selectedPropertyUuids: selectedPropertyUuidsProp,

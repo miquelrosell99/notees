@@ -14,8 +14,7 @@ import './ClassPropertiesEditor.css';
 import { 
   useClassProperties, 
   useAddPropertyToClass, 
-  useRemovePropertyFromClass,
-  useProperties 
+  useRemovePropertyFromClass
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
 import { Button } from './core/Button';

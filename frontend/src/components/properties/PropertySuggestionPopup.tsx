@@ -14,7 +14,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';
 import type { Property } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { AddIcon, PropertiesIcon } from '../icons';
+import { AddIcon } from '../icons';
 import './PropertySuggestionPopup.css';
 
 /** System property UUIDs that should be hidden from the "Add property" menu */

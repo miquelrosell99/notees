@@ -11,14 +11,13 @@
  * - ExternalLink: [text](url) markdown links
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useLinkClicks, useNode, useClasses, useTrackLinkClick, useUpdateNode } from '@/hooks';
+import { useLinkClicks, useNode, useTrackLinkClick, useUpdateNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
 import { ContextMenu } from '../core/ContextMenu';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
-import { NodeIcon, TagIcon } from '../icons';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { TagIcon } from '../icons';
 import { sanitizeContent } from '@/utils/linkSanitization';
 
 // Regex patterns
@@ -219,7 +218,7 @@ export function BlockContent({
   blockId,
   onClick,
   className = '',
-  onDeleteLink,
+  // onDeleteLink,  // Not currently used
   onReplaceLink,
 }: BlockContentProps) {
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
@@ -239,15 +238,22 @@ export function BlockContent({
     return map;
   }, [linkClicksData]);
   
-  const handleNavigate = useCallback((targetId: string | number, type: 'page-link' | 'block-link') => {
-    const nodeId = typeof targetId === 'number' ? targetId : parseInt(String(targetId), 10);
+  const handleNavigate = useCallback((typeId: string, node: Node | undefined, openInSidebar: boolean) => {
+    const nodeId = parseInt(typeId, 10);
     if (!isNaN(nodeId) && blockId) {
       trackLinkClick.mutate({
         sourceNodeId: blockId,
         targetNodeId: nodeId,
       });
     }
-  }, [blockId, trackLinkClick]);
+    if (node) {
+      if (openInSidebar) {
+        addSidebarCard(node.id, 'page');
+      } else {
+        openNode(node.id, 'page');
+      }
+    }
+  }, [blockId, trackLinkClick, openNode, addSidebarCard]);
 
   const handleColorChange = useCallback((nodeId: number, color: string | null) => {
     console.log('[BlockContent] handleColorChange called:', { nodeId, color });
