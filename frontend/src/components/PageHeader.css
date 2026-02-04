@@ -81,7 +81,7 @@
 .page-title-container {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   flex-wrap: wrap;
   min-width: 200px;
@@ -90,6 +90,7 @@
 .page-title-input {
   flex: 1;
   min-width: 150px;
+  max-width: 100%;
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.2;
@@ -101,6 +102,7 @@
   white-space: normal;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  resize: none;
 }
 
 .page-title-child-preview {
