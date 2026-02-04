@@ -174,6 +174,12 @@ export function NodePill({
     return items;
   }, [isLink, node, isPage, onRemove, openNode, addSidebarCard, handleCloseContextMenu]);
 
+  // Handler for color change from context menu
+  const handleColorChangeFromMenu = useCallback((color: string | null) => {
+    onColorChange?.(color);
+    handleCloseContextMenu();
+  }, [onColorChange, handleCloseContextMenu]);
+
   // Build title tooltip
   const title = useMemo(() => {
     if (!node) return '';
@@ -227,11 +233,38 @@ export function NodePill({
       
       {/* Context menu (for link variant) */}
       {contextMenu && (
-        <ContextMenu
-          items={contextMenuItems}
-          position={contextMenu}
-          onClose={handleCloseContextMenu}
-        />
+        <>
+          {onColorChange && !readOnly && (
+            <div 
+              className="node-pill-context-menu-wrapper"
+              style={{
+                position: 'fixed',
+                left: contextMenu.x,
+                top: contextMenu.y,
+                zIndex: 9999,
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <ColorPickerRow
+                currentColor={node?.color ?? null}
+                onColorChange={handleColorChangeFromMenu}
+              />
+              <ContextMenu
+                items={contextMenuItems}
+                position={{ x: 0, y: 0 }}
+                onClose={handleCloseContextMenu}
+              />
+            </div>
+          )}
+          {(!onColorChange || readOnly) && (
+            <ContextMenu
+              items={contextMenuItems}
+              position={contextMenu}
+              onClose={handleCloseContextMenu}
+            />
+          )}
+        </>
       )}
     </>
   );

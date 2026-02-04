@@ -11,7 +11,7 @@
  * - ExternalLink: [text](url) markdown links
  */
 import { useMemo, useCallback, useState } from 'react';
-import { useLinkClicks, useNode, useClasses, useTrackLinkClick } from '@/hooks';
+import { useLinkClicks, useNode, useClasses, useTrackLinkClick, useUpdateNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
 import { ContextMenu } from '../core/ContextMenu';
@@ -223,6 +223,7 @@ export function BlockContent({
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
   const { openNode, addSidebarCard } = useNodesStore();
   const trackLinkClick = useTrackLinkClick();
+  const updateNode = useUpdateNode();
   
   const parts = useMemo(() => parseContent(content), [content]);
   
@@ -245,6 +246,10 @@ export function BlockContent({
       });
     }
   }, [blockId, trackLinkClick]);
+
+  const handleColorChange = useCallback((nodeId: number, color: string | null) => {
+    updateNode.mutate({ id: nodeId, data: { color } });
+  }, [updateNode]);
   
   if (parts.length === 1 && parts[0].type === 'text') {
     return (
@@ -303,6 +308,7 @@ export function BlockContent({
             clickCount={clickCounts.get(part.id!) ?? 0}
             variant="link"
             readOnly={false}
+            onColorChange={(color) => handleColorChange(parseInt(part.id!, 10), color)}
           />
         );
       })}

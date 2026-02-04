@@ -53,3 +53,15 @@
   padding: var(--spacing-2);
   z-index: 1001;
 }
+
+/* Context menu wrapper for link variant with color picker */
+.node-pill-context-menu-wrapper .context-menu {
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+  border-radius: 0 0 var(--shape-large) var(--shape-large);
+}
+
+.node-pill-context-menu-wrapper .context-menu-color-row {
+  border-radius: var(--shape-large) var(--shape-large) 0 0;
+}
