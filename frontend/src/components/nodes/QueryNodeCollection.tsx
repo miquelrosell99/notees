@@ -216,7 +216,9 @@ export function QueryNodeCollection({
   };
   
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
-  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
+  // Property column selection state (for table view)
+  // Default to Created and Modified columns (matches default table columns)
+  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>(['__created__', '__modified__']);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Check if this is a pseudo-node (nodeId <= 0, used for all_pages view)
