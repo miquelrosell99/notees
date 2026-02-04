@@ -35,6 +35,7 @@ export {
   useLinkedReferences,
   usePropertyBacklinks,
   useExistingDailyPages,
+  useDailyPages,
   useDailyNote,
   useTodayNote,
   useMonthlyNote,

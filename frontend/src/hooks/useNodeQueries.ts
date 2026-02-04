@@ -218,6 +218,17 @@ export function useExistingDailyPages() {
 }
 
 /**
+ * Hook to fetch all existing daily pages (without creating them)
+ */
+export function useDailyPages() {
+  return useQuery({
+    queryKey: nodeKeys.dailyList(),
+    queryFn: () => nodesApi.getDailyPages(),
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+}
+
+/**
  * Hook to fetch/create daily note
  * 
  * Note: This can create new daily, monthly, and yearly pages.
@@ -236,6 +247,7 @@ export function useDailyNote(date?: Date) {
       // Invalidate pages list since this might have created new day/month/year pages
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
       return node;
     },
     // IMPORTANT: See useNode comment - structuralSharing must be disabled for nested children.

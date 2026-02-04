@@ -108,7 +108,7 @@
   justify-content: center;
 }
 
-.calendar-day {
+.calendar-day.btn {
   width: 32px;
   height: 32px;
   display: flex;
@@ -124,32 +124,31 @@
   position: relative;
 }
 
-.calendar-day:hover {
-  background: var(--color-hover-overlay);
+.calendar-day.btn.has-note {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font-weight: 500;
 }
 
-.calendar-day.today {
+.calendar-day.btn:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.calendar-day.btn.has-note:hover {
+  background: var(--color-primary-container-hover, var(--color-primary-container));
+  color: var(--color-on-primary-container);
+}
+
+.calendar-day.btn.today {
   background: var(--color-primary);
   color: var(--color-on-primary);
   font-weight: 600;
 }
 
-.calendar-day.today:hover {
+.calendar-day.btn.today:hover {
   background: var(--color-primary-hover);
-}
-
-.calendar-day.has-note::after {
-  content: '';
-  position: absolute;
-  bottom: 4px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-accent);
-}
-
-.calendar-day.today.has-note::after {
-  background: var(--color-on-primary);
+  color: var(--color-on-primary);
 }
 
 /* ==================== Calendar Footer ==================== */
