@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClasses, useClassClass } from '@/hooks';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass } from '@/hooks';
 import { listNodes } from '@/api/nodes';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import type { Node } from '@/types';
@@ -193,12 +193,11 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { openNode, addSidebarCard } = useNodesStore();
+  const { openNode } = useNodesStore();
   const { quickAddDestination } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
-  const { data: allClasses } = useClasses();
   
   // Parse query for @classname syntax
   const { searchTerm, isTypingClass, classQuery } = useMemo(() => parseQueryWithClass(query), [query]);
