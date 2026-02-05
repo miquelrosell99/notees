@@ -91,6 +91,8 @@ interface BlockEditorProps {
   onOpenComments?: () => void;
   /** Callback for asset upload. Can pass types filter or a file to upload directly */
   onAssetUpload?: (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) => void;
+  /** Callback for adding a property to this block */
+  onAddProperty?: () => void;
   readOnly?: boolean;
   /** Called when user presses Escape to exit edit mode */
   onEscape?: () => void;
@@ -768,6 +770,7 @@ export function BlockEditor({
   onCreatePageLink,
   onOpenComments,
   onAssetUpload,
+  onAddProperty,
   readOnly = false,
   onEscape,
   onNavigateUp,
@@ -1769,6 +1772,8 @@ export function BlockEditor({
     // Execute the command
     if (command === 'comment' && onOpenComments) {
       onOpenComments();
+    } else if (command === 'property' && onAddProperty) {
+      onAddProperty();
     } else if (command === 'image' && onAssetUpload) {
       onAssetUpload(['image']);
     } else if (command === 'audio' && onAssetUpload) {
@@ -1780,7 +1785,7 @@ export function BlockEditor({
     setSlashCommand(prev => ({ ...prev, isOpen: false }));
     
     setTimeout(() => editorRef.current?.focus(), 0);
-  }, [slashCommand.triggerPosition, onChange, onOpenComments, onAssetUpload, linkNames, typeNames, checkTriggers]);
+  }, [slashCommand.triggerPosition, onChange, onOpenComments, onAddProperty, onAssetUpload, linkNames, typeNames, checkTriggers]);
 
   const handleSlashCommandClose = useCallback(() => {
     setSlashCommand(prev => ({ ...prev, isOpen: false }));

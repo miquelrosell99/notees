@@ -73,6 +73,7 @@ export const SHORTCUT_IDS = {
   GO_TODAY: 'global.goToday',
   NEW_PAGE: 'global.newPage',
   SETTINGS: 'global.settings',
+  ADD_PROPERTY: 'global.addProperty',
   
   // Editor
   BOLD: 'editor.bold',
@@ -113,6 +114,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   { id: SHORTCUT_IDS.GO_TODAY, description: 'Go to Today', key: 't', modifiers: { ctrl: true, shift: true }, context: 'global', configurable: true },
   { id: SHORTCUT_IDS.NEW_PAGE, description: 'New Page', key: 'n', modifiers: { ctrl: true }, context: 'global', configurable: true },
   { id: SHORTCUT_IDS.SETTINGS, description: 'Open Settings', key: ',', modifiers: { ctrl: true }, context: 'global', configurable: true },
+  { id: SHORTCUT_IDS.ADD_PROPERTY, description: 'Add Property', key: 'p', modifiers: { ctrl: true, alt: true }, context: 'global', configurable: true },
   
   // Editor shortcuts
   { id: SHORTCUT_IDS.BOLD, description: 'Bold', key: 'b', modifiers: { ctrl: true }, context: 'editor', priority: 10 },
