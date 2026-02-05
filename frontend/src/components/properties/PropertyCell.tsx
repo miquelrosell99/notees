@@ -9,8 +9,7 @@ import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { getNode } from '@/api/nodes';
-import { getAssetUrl } from '@/api/assets';
-import { ImageModal } from '../core/ImageModal';
+import { ImageNode } from '../ImageNode';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -31,7 +30,6 @@ export function PropertyCell({
 }: PropertyCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
   
@@ -42,14 +40,6 @@ export function PropertyCell({
     queryFn: () => getNode(assetNodeId!),
     enabled: assetNodeId !== null,
   });
-  
-  // Get asset URL if it's an asset node
-  const assetUrl = useMemo(() => {
-    if (assetNode?.uuid) {
-      return getAssetUrl(assetNode.uuid);
-    }
-    return null;
-  }, [assetNode]);
 
   // Format value for display
   const displayValue = useMemo(() => {
@@ -193,33 +183,24 @@ export function PropertyCell({
 
   // Display mode
   return (
-    <>
-      <div 
-        className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue && !assetUrl ? 'property-cell--empty' : ''} ${assetUrl ? 'property-cell--image' : ''}`}
-        onClick={assetUrl ? (e) => { e.stopPropagation(); setIsModalOpen(true); } : handleClick}
-        title={assetUrl ? 'Click to view full size' : (editable ? 'Click to edit' : undefined)}
-        style={assetUrl ? { cursor: 'pointer' } : undefined}
-      >
-        {assetUrl ? (
-          <img 
-            src={assetUrl} 
-            alt={displayValue} 
-            className="property-cell__image"
-            loading="lazy"
-          />
-        ) : (
-          displayValue || (editable ? '—' : '')
-        )}
-      </div>
-      
-      {assetUrl && (
-        <ImageModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          src={assetUrl}
+    <div 
+      className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue && !assetNodeId ? 'property-cell--empty' : ''} ${assetNodeId ? 'property-cell--image' : ''}`}
+      onClick={!assetNodeId ? handleClick : undefined}
+      title={!assetNodeId && editable ? 'Click to edit' : undefined}
+    >
+      {assetNodeId ? (
+        <ImageNode
+          assetNodeId={assetNodeId}
           alt={displayValue}
+          className="property-cell__image"
+          showCard={false}
+          clickable={true}
+          showActions={false}
+          showModalBullet={true}
         />
+      ) : (
+        displayValue || (editable ? '—' : '')
       )}
-    </>
+    </div>
   );
 }

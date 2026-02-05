@@ -18,15 +18,12 @@
  * - Changing cover image (opens asset selector)
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useNode, useProperties, useSetNodeProperty } from '@/hooks';
-import { useNodesStore } from '@/stores';
-import { getAssetUrlAsync, uploadAsset, type Asset } from '@/api/assets';
+import { useProperties, useSetNodeProperty } from '@/hooks';
+import { uploadAsset, type Asset } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { Button } from './core/Button';
-import { Card } from './core/Card';
-import { ImageModal } from './core/ImageModal';
-import { FloatingButtonArray } from './core/FloatingButtonArray';
+import { ImageNode } from './ImageNode';
 import { mdiImageOutline, mdiChevronLeft, mdiPencil, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import './CoverImage.css';
@@ -51,17 +48,17 @@ function getCollapsedState(pageId: number, hasImage: boolean): boolean {
   } catch {
     // Ignore parse errors
   }
-  // Default: collapsed when empty, expanded when has image
+  // Default: collapsed if no image, expanded if has image
   return !hasImage;
 }
 
 /**
- * Save collapsed state for a specific node to localStorage
+ * Set collapsed state for a specific node in localStorage
  */
 function setCollapsedState(pageId: number, collapsed: boolean): void {
   try {
     const stored = localStorage.getItem(COVER_COLLAPSED_KEY);
-    const states = stored ? JSON.parse(stored) as Record<string, boolean> : {};
+    const states = stored ? (JSON.parse(stored) as Record<string, boolean>) : {};
     states[pageId.toString()] = collapsed;
     localStorage.setItem(COVER_COLLAPSED_KEY, JSON.stringify(states));
   } catch {
@@ -70,33 +67,27 @@ function setCollapsedState(pageId: number, collapsed: boolean): void {
 }
 
 interface CoverImageProps {
-  /** Page node ID */
   pageId: number;
-  /** Cover image asset node ID (from properties.cover) */
   coverImageId: number | null;
-  /** Callback to open asset picker */
-  onSelectImage?: () => void;
-  /** Callback when image uploaded (for handling after drag-drop) */
-  onImageUploaded?: (asset: Asset) => void;
-  /** Whether cover can be edited */
   editable?: boolean;
+  onSelectImage: () => void;
+  onImageUploaded?: (asset: Asset) => void;
 }
 
-export function CoverImage({ 
-  pageId, 
-  coverImageId, 
+/**
+ * CoverImage - Displays a cover image card in page header
+ */
+export function CoverImage({
+  pageId,
+  coverImageId,
+  editable = false,
   onSelectImage,
   onImageUploaded,
-  editable = true,
 }: CoverImageProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => getCollapsedState(pageId, !!coverImageId));
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
-  const { data: assetNode, isLoading } = useNode(coverImageId, { include_children: false });
-  const { openNode, addSidebarCard } = useNodesStore();
   
   // Persist collapsed state when it changes
   useEffect(() => {
@@ -107,21 +98,6 @@ export function CoverImage({
   useEffect(() => {
     setIsCollapsed(getCollapsedState(pageId, !!coverImageId));
   }, [pageId, coverImageId]);
-  
-  // Bullet handlers
-  const handleBulletClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (assetNode) {
-      openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
-    }
-  }, [assetNode, openNode]);
-  
-  const handleBulletShiftClick = useCallback(() => {
-    if (assetNode) {
-      addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
-    }
-  }, [assetNode, addSidebarCard]);
   
   // Find the cover property by UUID
   const coverProperty = useMemo(() => {
@@ -192,80 +168,43 @@ export function CoverImage({
     }
   }, [editable, coverProperty, pageId, setPropertyMutation, onImageUploaded, isCollapsed]);
   
-  // State for the image URL (needs to be async to get token)
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  
-  // Get the image URL from the asset node's uuid (async with token)
-  useEffect(() => {
-    if (!coverImageId || !assetNode?.uuid) {
-      setImageUrl(null);
-      return;
-    }
-    
-    let cancelled = false;
-    
-    getAssetUrlAsync(assetNode.uuid)
-      .then(url => {
-        if (!cancelled) {
-          setImageUrl(url);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load cover image URL:', err);
-        if (!cancelled) {
-          setImageUrl(null);
-        }
-      });
-    
-    return () => {
-      cancelled = true;
-    };
-  }, [coverImageId, assetNode?.uuid]);
-  
-  // Loading state
-  if (coverImageId && isLoading) {
-    return (
-      <div className="cover-image-card cover-image-card--loading">
-        <Card padding={false} radius="md" elevation="low">
-          <div className="cover-image-card__placeholder" />
-        </Card>
-      </div>
-    );
-  }
-  
   // No cover image
-  if (!coverImageId || !imageUrl) {
+  if (!coverImageId) {
     // Show collapsed strip if editable
     if (!editable) return null;
     
     return (
       <div 
         className={`cover-image-card cover-image-card--empty ${isDragging ? 'cover-image-card--dragging' : ''}`}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onDragOver={!isCollapsed ? handleDragOver : undefined}
-        onDragLeave={!isCollapsed ? handleDragLeave : undefined}
-        onDrop={!isCollapsed ? handleDrop : undefined}
       >
-        <div className={`cover-image-card__content ${isCollapsed ? 'cover-image-card__content--collapsed' : 'cover-image-card__content--expanded'}`}>
-          <button 
-            className="cover-image-card__add-btn"
-            onClick={onSelectImage}
-            title="Add cover image"
-          >
-            <Icon path={mdiImageOutline} size={0.7} />
-          </button>
-        </div>
         <button
           className="cover-image-card__collapse-btn"
           onClick={handleToggleCollapse}
           onKeyDown={handleCollapseKeyDown}
-          title={isCollapsed ? "Expand to add cover" : "Collapse cover area"}
-          aria-label={isCollapsed ? "Expand cover area" : "Collapse cover area"}
+          title={isCollapsed ? "Expand to add cover" : "Collapse cover"}
+          aria-label={isCollapsed ? "Expand cover" : "Collapse cover"}
           aria-expanded={!isCollapsed}
         >
           <Icon path={mdiChevronLeft} size={0.7} rotate={isCollapsed ? 0 : 180} />
         </button>
+        <div className={`cover-image-card__content ${isCollapsed ? 'cover-image-card__content--collapsed' : 'cover-image-card__content--expanded'}`}>
+          <div
+            className="cover-image-card__dropzone"
+            onDragOver={!isCollapsed ? handleDragOver : undefined}
+            onDragLeave={!isCollapsed ? handleDragLeave : undefined}
+            onDrop={!isCollapsed ? handleDrop : undefined}
+          >
+            <Button 
+              variant="ghost"
+              size="sm"
+              className="cover-image-card__add-btn"
+              onClick={onSelectImage}
+              title="Add cover image"
+            >
+              <Icon path={mdiImageOutline} size={0.8} />
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -274,53 +213,7 @@ export function CoverImage({
   return (
     <div 
       className={`cover-image-card cover-image-card--with-image ${isDragging ? 'cover-image-card--dragging' : ''}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onDragOver={!isCollapsed ? handleDragOver : undefined}
-      onDragLeave={!isCollapsed ? handleDragLeave : undefined}
-      onDrop={!isCollapsed ? handleDrop : undefined}
     >
-      <div className={`cover-image-card__content cover-image-card__content--with-image ${isCollapsed ? 'cover-image-card__content--collapsed' : 'cover-image-card__content--expanded'}`}>
-        {/* Action buttons - vertical stack on left side of image */}
-        {editable && isHovered && !isCollapsed && (
-          <FloatingButtonArray
-            className="cover-image-card__actions"
-            direction="vertical"
-            size="sm"
-          >
-            <Button
-              icon={mdiPencil}
-              iconOnly
-              variant="ghost"
-              size="sm"
-              onClick={onSelectImage}
-              title="Change image"
-            />
-            <Button
-              icon={mdiClose}
-              iconOnly
-              variant="ghost"
-              size="sm"
-              onClick={handleRemove}
-              title="Remove image"
-            />
-          </FloatingButtonArray>
-        )}
-        
-        <Card padding={false} radius="md" elevation="low">
-          <img 
-            key={imageUrl}
-            src={imageUrl} 
-            alt="Cover" 
-            className="cover-image-card__img"
-            onClick={() => setIsModalOpen(true)}
-            style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
-            title="Click to view full size"
-            draggable="false"
-          />
-        </Card>
-      </div>
-      
       <button
         className="cover-image-card__collapse-btn"
         onClick={handleToggleCollapse}
@@ -332,26 +225,46 @@ export function CoverImage({
         <Icon path={mdiChevronLeft} size={0.7} rotate={isCollapsed ? 0 : 180} />
       </button>
       
-      {/* Preview tooltip on hover */}
-      {isCollapsed && isHovered && (
-        <div className="cover-image-card__preview-tooltip">
-          <img 
-            src={imageUrl} 
-            alt="Cover preview" 
-            className="cover-image-card__preview-img"
-          />
-        </div>
-      )}
-      
-      <ImageModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        src={imageUrl}
-        alt="Cover"
-        assetNode={assetNode}
-        onBulletClick={handleBulletClick}
-        onBulletShiftClick={handleBulletShiftClick}
-      />
+      <div 
+        className={`cover-image-card__content ${isCollapsed ? 'cover-image-card__content--collapsed' : 'cover-image-card__content--expanded'}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <ImageNode
+          assetNodeId={coverImageId}
+          alt="Cover"
+          className="cover-image-card__image-node"
+          showCard={true}
+          elevation="low"
+          radius="md"
+          clickable={true}
+          showActions={editable && !isCollapsed}
+          actions={
+            <>
+              <Button
+                icon={mdiPencil}
+                iconOnly
+                variant="ghost"
+                size="sm"
+                onClick={onSelectImage}
+                title="Change image"
+              />
+              <Button
+                icon={mdiClose}
+                iconOnly
+                variant="ghost"
+                size="sm"
+                onClick={handleRemove}
+                title="Remove image"
+              />
+            </>
+          }
+          actionsDirection="vertical"
+          isDragging={isDragging}
+          showModalBullet={true}
+        />
+      </div>
     </div>
   );
 }

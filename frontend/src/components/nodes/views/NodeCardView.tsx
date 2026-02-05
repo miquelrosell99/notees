@@ -28,16 +28,15 @@ import { Button } from '../../core/Button';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
 import { NodePill } from '../../NodePill';
-import { ImageModal } from '../../core/ImageModal';
+import { ImageNode } from '../../ImageNode';
 import { AddCoverButton } from '../../core/AddCoverButton';
-import { FloatingButtonArray } from '../../core/FloatingButtonArray';
 import { AssetUploadModal } from '../../assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
-import { getAssetUrlAsync, uploadAsset } from '@/api/assets';
+import { uploadAsset } from '@/api/assets';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
@@ -372,12 +371,6 @@ function NodeCard({
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   
-  // Cover hover state
-  const [isCoverHovered, setIsCoverHovered] = useState(false);
-  
-  // Cover image modal state
-  const [isCoverModalOpen, setIsCoverModalOpen] = useState(false);
-  
   // Asset upload state for cover
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
   
@@ -406,57 +399,6 @@ function NodeCard({
     const coverValue = node?.properties?.cover;
     return typeof coverValue === 'number' ? coverValue : null;
   }, [node.properties?.cover]);
-  
-  // Get the asset node for the cover image (for bullet)
-  const { data: assetNode } = useNode(coverImageId, { include_children: false });
-  
-  // Bullet handlers for cover asset
-  const handleCoverBulletClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (assetNode) {
-      onNodeClick?.(assetNode);
-    }
-  }, [assetNode, onNodeClick]);
-  
-  const handleCoverBulletShiftClick = useCallback(() => {
-    if (assetNode) {
-      onNodeShiftClick?.(assetNode);
-    }
-  }, [assetNode, onNodeShiftClick]);
-  
-  // State for the cover URL (needs to be async to get token)
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  
-  // Get the image URL from the asset node's uuid (async with token)
-  useEffect(() => {
-    // Reset if no cover - this is async cleanup, not cascading render
-    if (!coverImageId || !assetNode?.uuid) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Async image loading pattern
-      setCoverUrl(null);
-      return;
-    }
-    
-    let cancelled = false;
-    
-    getAssetUrlAsync(assetNode.uuid)
-      .then(url => {
-        if (!cancelled) {
-          setCoverUrl(url);
-        }
-      })
-      .catch(err => {
-        if (!cancelled) {
-          console.error(`[NodeCard ${node.id}] Failed to load cover URL:`, err);
-          setCoverUrl(null);
-        }
-      });
-    
-    return () => {
-      cancelled = true;
-    };
-  }, [coverImageId, assetNode?.uuid, node.id]);
-  
   
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -640,32 +582,20 @@ function NodeCard({
 
   // Cover element for grid layouts (reused for left/right/no-cover)
   const coverElement = effectiveLayout !== 'no-cover' && (
-    <div 
-      className={`node-card__cover ${isCoverDragging ? 'node-card__cover--dragging' : ''}`}
-      onClick={(e) => e.stopPropagation()}
-      onMouseEnter={() => setIsCoverHovered(true)}
-      onMouseLeave={() => setIsCoverHovered(false)}
-      onDragOver={coverUrl ? handleDragOver : undefined}
-      onDragLeave={coverUrl ? handleDragLeave : undefined}
-      onDrop={coverUrl ? handleDrop : undefined}
-    >
-      {coverUrl ? (
-        <>
-          <img 
-            key={coverUrl}
-            src={coverUrl} 
-            alt="" 
-            className="node-card__cover-image"
-            onClick={() => setIsCoverModalOpen(true)}
-            style={{ cursor: 'pointer', pointerEvents: isCoverDragging ? 'none' : 'auto' }}
-            title="Click to view full size"
-            draggable="false"
-          />
-          {editable && isCoverHovered && (
-            <FloatingButtonArray
-              className="node-card__cover-actions"
-              size="sm"
-            >
+    coverImageId ? (
+      <div 
+        className="node-card__cover"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ImageNode
+          assetNodeId={coverImageId}
+          alt="Cover"
+          className="node-card__cover-image"
+          showCard={false}
+          clickable={true}
+          showActions={editable}
+          actions={
+            <>
               <Button
                 icon={mdiPencil}
                 iconOnly
@@ -682,13 +612,22 @@ function NodeCard({
                 onClick={handleRemove}
                 title="Remove image"
               />
-            </FloatingButtonArray>
-          )}
-        </>
-      ) : (
-        editable && <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} onDrop={handleCoverDropped} size="sm" />
-      )}
-    </div>
+            </>
+          }
+          actionsDirection="horizontal"
+          showModalBullet={true}
+        />
+      </div>
+    ) : (
+      editable ? (
+        <div 
+          className="node-card__cover"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} onDrop={handleCoverDropped} size="sm" />
+        </div>
+      ) : null
+    )
   );
 
   return (
@@ -759,20 +698,6 @@ function NodeCard({
         onUpload={handleCoverUploaded}
         acceptedTypes={['image']}
       />
-      
-      {/* Cover Image Modal */}
-      {coverUrl && (
-        <ImageModal
-          isOpen={isCoverModalOpen}
-          onClose={() => setIsCoverModalOpen(false)}
-          src={coverUrl}
-          alt={assetNode?.name || 'Cover'}
-          filename={assetNode?.name}
-          assetNode={assetNode}
-          onBulletClick={handleCoverBulletClick}
-          onBulletShiftClick={handleCoverBulletShiftClick}
-        />
-      )}
     </>
   );
 }
