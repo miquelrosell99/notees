@@ -28,11 +28,29 @@ import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api'
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
+import type { PropertyType } from '@/types/api';
+
+/** Default icons for each property type */
+const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
+  text: '📝',
+  integer: '#️⃣',
+  float: '🔢',
+  boolean: '☑️',
+  date: '📅',
+  selection: '📋',
+  node: '🔗',
+};
+
+/** Get icon for a property - uses custom icon if set, otherwise default for type */
+function getPropertyIcon(property: Property): string {
+  return property.icon || PROPERTY_TYPE_ICONS[property.type] || '📄';
+}
 import { Button } from './core/Button';
 import { Dropdown } from './core/Dropdown';
 import { NodePicker } from './nodes/NodePicker';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
+import { PropertyList, type PropertyEntry } from './properties/PropertyList';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
 import { Bullet } from './blocks/Bullet';
 import { NodeViewSection } from './nodes/NodeViewSection';
@@ -334,9 +352,6 @@ export function PropertiesSection({
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [contextMenuProperty, setContextMenuProperty] = useState<Property | null>(null);
   
   const { data: node, isLoading: nodeLoading } = useNode(nodeId, { include_properties: true });
   const { data: allProperties } = useProperties();
@@ -499,12 +514,10 @@ export function PropertiesSection({
     });
   }, [createPropertyMutation, setPropertyMutation, nodeId]);
 
-  // Handler for right-clicking on a property name to show context menu
+  // Handler for right-clicking on a property name - PropertyList will call getPropertyContextMenuItems
   const handlePropertyContextMenu = useCallback((property: Property, event: React.MouseEvent) => {
+    // PropertyList handles showing the context menu
     event.preventDefault();
-    setContextMenuPosition({ x: event.clientX, y: event.clientY });
-    setContextMenuProperty(property);
-    setShowContextMenu(true);
   }, []);
 
   // Get openPropertyView and openNode from store
@@ -516,35 +529,6 @@ export function PropertiesSection({
     openNode(blockId, 'block', { propertyId: property.id, propertyName: property.name });
   }, [openNode]);
   
-  // Handler for removing property from this node
-  const handleRemovePropertyFromNode = useCallback((property: Property) => {
-    setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: null });
-    setShowContextMenu(false);
-  }, [nodeId, setPropertyMutation]);
-  
-  // Generate context menu items for property
-  const propertyContextMenuItems = useMemo<ContextMenuItem[]>(() => {
-    if (!contextMenuProperty) return [];
-    
-    return [
-      {
-        id: 'open-property',
-        label: 'Open property',
-        onClick: () => {
-          openPropertyView(contextMenuProperty.id);
-          setShowContextMenu(false);
-        },
-      },
-      {
-        id: 'remove-property',
-        label: 'Remove from node',
-        danger: true,
-        disabled: contextMenuProperty.is_system,
-        onClick: () => handleRemovePropertyFromNode(contextMenuProperty),
-      },
-    ];
-  }, [contextMenuProperty, openPropertyView, handleRemovePropertyFromNode]);
-
   // Get IDs of properties already applied to this node
   const appliedPropertyIds = useMemo(() => {
     return nodeProperties.map(p => p.property.id);
@@ -574,6 +558,48 @@ export function PropertiesSection({
   }, [nodeProperties, filterPropertyIds]);
 
   const variantClass = variant === 'block' ? 'block-variant' : '';
+  
+  // Render property value function for PropertyList
+  const renderPropertyValue = useCallback((entry: PropertyEntry, isReadOnly: boolean) => {
+    const { property, value } = entry;
+    
+    return (
+      <PropertyValue
+        property={property}
+        nodeId={nodeId}
+        value={value}
+        readOnly={isReadOnly || setPropertyMutation.isPending}
+        onChange={(newValue) => handlePropertyChange(property.id, newValue)}
+        onNavigateToNode={onNavigateToNode}
+        onCreatePage={handleCreatePage}
+        onOpenInSidebar={onOpenInSidebar}
+        onPropertyChange={handlePropertyChange}
+        onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
+      />
+    );
+  }, [nodeId, setPropertyMutation.isPending, handlePropertyChange, onNavigateToNode, handleCreatePage, onOpenInSidebar, handleTextPropertyBulletClick]);
+  
+  // Get context menu items for a property
+  const getPropertyContextMenuItems = useCallback((property: Property): ContextMenuItem[] => {
+    return [
+      {
+        id: 'open-property',
+        label: 'Open property',
+        onClick: () => {
+          openPropertyView(property.id);
+        },
+      },
+      {
+        id: 'remove-property',
+        label: 'Remove from node',
+        danger: true,
+        disabled: property.is_system,
+        onClick: () => {
+          setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: null });
+        },
+      },
+    ];
+  }, [openPropertyView, setPropertyMutation, nodeId]);
 
   if (nodeLoading) {
     return (
@@ -624,70 +650,16 @@ export function PropertiesSection({
     }
 
     return (
-      <div className={`properties-list properties-inline ${variantClass} ${className}`}>
-        {visibleProperties.map(({ property, value, source }) => (
-          <div key={property.id} className="property-row">
-            <div
-              className="property-label"
-              onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
-              title={readOnly ? undefined : "Right-click to open menu"}
-            >
-              {property.icon && <span className="property-icon">{property.icon}</span>}
-              <span className="property-name">{property.name}</span>
-              {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
-            </div>
-            <div className="property-value-container">
-              <div className="property-value-wrapper">
-                {/* Decorative bullet for properties other than text and node */}
-                {property.type !== 'text' && property.type !== 'node' && (
-                  <Bullet interactive={false} size="xs" />
-                )}
-                {/* Interactive bullet for text properties - clicking opens block in focused view */}
-                {property.type === 'text' && (
-                  <Bullet 
-                    nodeId={typeof value === 'number' ? value : undefined}
-                    interactive={!readOnly && typeof value === 'number'}
-                    onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
-                    onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
-                    size="xs"
-                  />
-                )}
-                {/* Interactive bullet for node properties - clicking navigates to the selected node */}
-                {property.type === 'node' && !property.multi && (
-                  <Bullet 
-                    nodeId={typeof value === 'number' ? value : undefined}
-                    interactive={!readOnly && typeof value === 'number'}
-                    onClick={() => typeof value === 'number' && onNavigateToNode?.(value)}
-                    onShiftClick={(nodeId) => onOpenInSidebar?.(nodeId)}
-                    size="xs"
-                  />
-                )}
-                <PropertyValue
-                  property={property}
-                  nodeId={nodeId}
-                  value={value}
-                  readOnly={readOnly || setPropertyMutation.isPending}
-                  onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-                  onNavigateToNode={onNavigateToNode}
-                  onCreatePage={handleCreatePage}
-                  onOpenInSidebar={onOpenInSidebar}
-                  onPropertyChange={handlePropertyChange}
-                  onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-        
-        {/* Property Context Menu */}
-        {showContextMenu && (
-          <ContextMenu
-            items={propertyContextMenuItems}
-            position={contextMenuPosition}
-            onClose={() => setShowContextMenu(false)}
-          />
-        )}
-      </div>
+      <PropertyList
+        properties={visibleProperties}
+        readOnly={readOnly}
+        showHiddenSection={false}
+        renderValue={renderPropertyValue}
+        onPropertyContextMenu={handlePropertyContextMenu}
+        getContextMenuItems={getPropertyContextMenuItems}
+        className={`properties-inline ${className}`}
+        variant={variant}
+      />
     );
   }
 
@@ -702,123 +674,17 @@ export function PropertiesSection({
       hideWhenEmpty={true}
     >
       <section className={`properties-view ${variantClass}`}>
-        {/* Visible properties (those with values) */}
-        <div className="properties-list">
-          {visibleProperties.map(({ property, value, source }) => (
-            <div key={property.id} className="property-row">
-              <div
-                className="property-label"
-                onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
-                title="Right-click to open menu"
-              >
-                {property.icon && <span className="property-icon">{property.icon}</span>}
-                <span className="property-name">{property.name}</span>
-                {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
-              </div>
-              <div className="property-value-container">
-                <div className="property-value-wrapper">
-                  {/* Decorative bullet for properties other than text and node */}
-                  {property.type !== 'text' && property.type !== 'node' && (
-                    <Bullet interactive={false} size="xs" />
-                  )}
-                  {/* Interactive bullet for text properties - clicking opens block in focused view */}
-                  {property.type === 'text' && (
-                    <Bullet 
-                      nodeId={typeof value === 'number' ? value : undefined}
-                      interactive={!readOnly && typeof value === 'number'}
-                      onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
-                      onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
-                      size="xs"
-                    />
-                  )}
-                  {/* Interactive bullet for node properties - clicking navigates to the selected node */}
-                  {property.type === 'node' && !property.multi && (
-                    <Bullet 
-                      nodeId={typeof value === 'number' ? value : undefined}
-                      interactive={!readOnly && typeof value === 'number'}
-                      onClick={() => typeof value === 'number' && onNavigateToNode?.(value)}
-                      onShiftClick={(nodeId) => onOpenInSidebar?.(nodeId)}
-                      size="xs"
-                    />
-                  )}
-                  <PropertyValue
-                    property={property}
-                    nodeId={nodeId}
-                    value={value}
-                    readOnly={readOnly || setPropertyMutation.isPending}
-                    onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-                    onNavigateToNode={onNavigateToNode}
-                    onCreatePage={handleCreatePage}
-                    onOpenInSidebar={onOpenInSidebar}
-                    onPropertyChange={handlePropertyChange}
-                    onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Hidden properties section (properties without values) */}
-        {showHiddenSection && hiddenProperties.length > 0 && (
-          <div className="properties-hidden-section">
-            <Button 
-              variant="ghost"
-              className={`properties-hidden-toggle ${showHidden ? 'expanded' : ''}`}
-              onClick={() => setShowHidden(!showHidden)}
-            >
-              <ChevronRightIcon size="xs" />
-              <span>Hidden properties</span>
-            </Button>
-            
-            {showHidden && (
-              <div className="properties-hidden-list">
-                {hiddenProperties.map(({ property, value, source: _source }) => (
-                  <div key={property.id} className="property-row">
-                    <div
-                      className="property-label"
-                      onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
-                      title="Right-click to open menu"
-                    >
-                      {property.icon && <span className="property-icon">{property.icon}</span>}
-                      <span className="property-name">{property.name}</span>
-                    </div>
-                    <div className="property-value-container">
-                      <div className="property-value-wrapper">
-                        {/* Decorative bullet for non-text properties */}
-                        {property.type !== 'text' && (
-                          <Bullet interactive={false} size="xs" />
-                        )}
-                        {/* Interactive bullet for text properties */}
-                        {property.type === 'text' && (
-                          <Bullet 
-                            nodeId={typeof value === 'number' ? value : undefined}
-                            interactive={!readOnly && typeof value === 'number'}
-                            onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
-                            onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
-                            size="xs"
-                          />
-                        )}
-                        <PropertyValue
-                          property={property}
-                          nodeId={nodeId}
-                          value={value}
-                          readOnly={readOnly || setPropertyMutation.isPending}
-                          onChange={(newValue) => handlePropertyChange(property.id, newValue)}
-                          onNavigateToNode={onNavigateToNode}
-                          onCreatePage={handleCreatePage}
-                          onOpenInSidebar={onOpenInSidebar}
-                          onPropertyChange={handlePropertyChange}
-                          onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Properties List using standard PropertyList component */}
+        <PropertyList
+          properties={[...visibleProperties, ...hiddenProperties]}
+          readOnly={readOnly}
+          showHiddenSection={showHiddenSection}
+          defaultShowHidden={showHidden}
+          renderValue={renderPropertyValue}
+          onPropertyContextMenu={handlePropertyContextMenu}
+          getContextMenuItems={getPropertyContextMenuItems}
+          variant={variant}
+        />
 
         {/* Inherited Properties Section - only for class nodes */}
         {firstClassId && (
@@ -848,15 +714,6 @@ export function PropertiesSection({
               excludeIds={appliedPropertyIds}
             />
           </div>
-        )}
-
-        {/* Property Context Menu */}
-        {showContextMenu && (
-          <ContextMenu
-            items={propertyContextMenuItems}
-            position={contextMenuPosition}
-            onClose={() => setShowContextMenu(false)}
-          />
         )}
       </section>
     </NodeViewSection>
