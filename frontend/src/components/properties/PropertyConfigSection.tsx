@@ -14,7 +14,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption } from '@/api/properties';
-import { useDeleteProperty } from '@/hooks';
+import { useDeleteProperty, useUpdateProperty } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
