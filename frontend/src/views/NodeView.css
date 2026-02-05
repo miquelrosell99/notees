@@ -120,7 +120,16 @@
 .page-header-section .cover-image-card {
   grid-column: 2;
   grid-row: 1 / 5;
-  align-self: stretch;
+  height: 200px;
+  overflow: hidden;
+}
+
+.page-header-section .cover-image-card,
+.page-header-section .cover-image-card .cover-image-card__content,
+.page-header-section .cover-image-card .image-node,
+.page-header-section .cover-image-card .card {
+  height: 100%;
+  max-height: 200px;
 }
 
 /* Focused Block Content - renders block as a top-level list item */
