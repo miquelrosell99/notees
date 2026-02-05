@@ -44,7 +44,7 @@
   min-height: 28px;
 }
 
-/* Property Label - clickable button */
+/* Property Label - no longer clickable */
 .property-label {
   display: flex;
   align-items: center;
@@ -54,24 +54,17 @@
   flex-shrink: 0;
   font: var(--font-body-medium);
   color: var(--color-on-surface-variant);
-  border: none;
-  background: transparent;
-  padding: 0;
+  padding: var(--spacing-1);
   text-align: left;
+  cursor: default;
 }
 
 .property-label-clickable {
-  cursor: pointer;
-  border-radius: var(--shape-small);
-  padding: var(--spacing-1);
-  margin: calc(-1 * var(--spacing-1));
-  transition: background var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard);
+  /* Deprecated - kept for backward compatibility */
 }
 
 .property-label-clickable:hover {
-  background: var(--color-surface-container);
-  color: var(--color-on-surface);
+  /* Deprecated - kept for backward compatibility */
 }
 
 .property-label .property-icon {

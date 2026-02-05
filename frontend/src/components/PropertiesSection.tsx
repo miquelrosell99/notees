@@ -557,16 +557,15 @@ export function PropertiesSection({
         <div className="properties-list">
           {visibleProperties.map(({ property, value, source }) => (
             <div key={property.id} className="property-row">
-              <Button 
-                variant="ghost"
-                className="property-label property-label-clickable"
+              <div
+                className="property-label"
                 onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
                 title="Right-click to open menu"
               >
                 {property.icon && <span className="property-icon">{property.icon}</span>}
                 <span className="property-name">{property.name}</span>
                 {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
-              </Button>
+              </div>
               <div className="property-value-container">
                 <div className="property-value-wrapper">
                   {/* Decorative bullet for non-text properties */}
@@ -617,15 +616,14 @@ export function PropertiesSection({
               <div className="properties-hidden-list">
                 {hiddenProperties.map(({ property, value, source: _source }) => (
                   <div key={property.id} className="property-row">
-                    <Button 
-                      variant="ghost"
-                      className="property-label property-label-clickable"
+                    <div
+                      className="property-label"
                       onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
                       title="Right-click to open menu"
                     >
                       {property.icon && <span className="property-icon">{property.icon}</span>}
                       <span className="property-name">{property.name}</span>
-                    </Button>
+                    </div>
                     <div className="property-value-container">
                       <div className="property-value-wrapper">
                         {/* Decorative bullet for non-text properties */}
