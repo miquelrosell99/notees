@@ -199,32 +199,44 @@ function NodeListItem({
   localExpandedNodes,
   onToggleNodeCollapse,
 }: NodeListItemProps) {
-  const rawChildren = useMemo(() => node.children ?? [], [node.children]);
-  // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
-  const children = useMemo(() => 
-    pagesOnly ? filterPagesRecursively(rawChildren) : rawChildren,
-    [rawChildren, pagesOnly]
-  );
-  const shouldRenderChildren = depth < maxDepth && children.length > 0;
-  
   // Track initial depth for relative depth calculation
   const initialDepth = initialDepthProp ?? depth;
   const relativeDepth = depth - initialDepth;
   
-  // Override collapsed state for pages and level-2 blocks using local state (cosmetic only)
-  // Pages: always collapsed on load
-  // Level 2 blocks (relative depth === 1): always collapsed on load
-  // Other blocks: use their stored collapsed state
-  const effectiveNode = useMemo(() => {
-    const shouldUseLocalState = (node.is_page || relativeDepth === 1) && localExpandedNodes && onToggleNodeCollapse;
-    if (shouldUseLocalState) {
+  // Recursively apply collapsed override to the entire subtree
+  // Pages and blocks at relativeDepth >= 1 should be collapsed by default (use local state)
+  const applyCollapsedOverride = useCallback((n: Node, nodeDepth: number): Node => {
+    const nodeRelativeDepth = nodeDepth - initialDepth;
+    const shouldUseLocalState = (n.is_page || nodeRelativeDepth >= 1) && localExpandedNodes && onToggleNodeCollapse;
+    
+    const overriddenNode = shouldUseLocalState
+      ? { ...n, collapsed: !localExpandedNodes.has(n.id) }
+      : n;
+    
+    // Recursively process children
+    if (overriddenNode.children && overriddenNode.children.length > 0) {
       return {
-        ...node,
-        collapsed: !localExpandedNodes.has(node.id),
+        ...overriddenNode,
+        children: overriddenNode.children.map(child => applyCollapsedOverride(child, nodeDepth + 1)),
       };
     }
-    return node;
-  }, [node, relativeDepth, localExpandedNodes, onToggleNodeCollapse]);
+    
+    return overriddenNode;
+  }, [initialDepth, localExpandedNodes, onToggleNodeCollapse]);
+  
+  // Apply collapsed override to current node and all descendants
+  const effectiveNode = useMemo(() => {
+    return applyCollapsedOverride(node, depth);
+  }, [node, depth, applyCollapsedOverride]);
+  
+  // Get children from effective node (already has collapsed overrides applied)
+  // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
+  const children = useMemo(() => {
+    const nodeChildren = effectiveNode.children ?? [];
+    return pagesOnly ? filterPagesRecursively(nodeChildren) : nodeChildren;
+  }, [effectiveNode.children, pagesOnly]);
+  
+  const shouldRenderChildren = depth < maxDepth && children.length > 0;
   
   // Get block callbacks from context (only available in editable mode with provider)
   const blockCallbacks = useBlockCallbacks();
