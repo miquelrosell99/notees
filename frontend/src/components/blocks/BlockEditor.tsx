@@ -1970,6 +1970,7 @@ export function BlockEditor({
             onClose={handleClose}
             onCreate={handleCreate}
             excludeNodeId={!isPage ? nodeId : undefined}
+            showInlineOption={true}
           />
           
           <SlashCommandPopup
