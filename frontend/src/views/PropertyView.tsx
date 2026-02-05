@@ -326,7 +326,6 @@ export function PropertyView({
               viewMode={viewMode}
               availableViewModes={['table', 'list', 'card']}
               onViewModeChange={setViewMode}
-              hideToolbarControls={false}
             />
           ) : undefined
         }
