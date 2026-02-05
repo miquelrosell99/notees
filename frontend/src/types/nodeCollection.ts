@@ -226,6 +226,9 @@ export interface NodeCollectionProps {
   
   /** Custom context menu items generator (for list view with Block component) */
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
+  
+  /** Whether to auto-collapse nodes at configured depth (default: false, enabled for linked refs and queries) */
+  autoCollapse?: boolean;
 }
 
 // ==================== View-Specific Props ====================
@@ -276,6 +279,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Custom context menu items generator (for list view with Block component) */
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
+  
+  /** Whether to auto-collapse nodes at configured depth (default: false) */
+  autoCollapse?: boolean;
 }
 
 /**
