@@ -6,7 +6,7 @@ from ...models import User
 from ...domain.entities import Property, PropertyType, SCALAR_TYPES, RELATION_TYPES
 from ...logging_config import get_logger
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from ...utils.date_utils import utc_now
+from ...utils.datetime_utils import utc_now
 from .models import (
     PropertyCreateRequest,
     PropertyUpdateRequest,
