@@ -70,6 +70,8 @@ export interface Node {
     propertyId?: number;
     propertyName?: string;
     targetNodeId: number;
+    // The actual source node ID (when displaying page in list view, this is the block with the property)
+    sourceNodeId?: number;
   };
 }
 
