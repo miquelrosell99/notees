@@ -536,7 +536,7 @@ function GroupHeader({
               isolatedBlockState={isolatedBlockState}
               customContextMenuItems={customContextMenuItems}
               localExpandedNodes={localExpandedNodes}
-              onToggleNodeCollapse={handleToggleNodeCollapse}
+              onToggleNodeCollapse={onToggleNodeCollapse}
             />
           ))}
         </div>
