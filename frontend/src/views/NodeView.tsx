@@ -766,24 +766,43 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 1: Classes (right side of header) */}
-            <div className="page-header-section__types">
-              <NodePillRow
-                nodes={pageClassDetails}
-                searchMode="classes"
-                emptyText="Add class"
-                searchPlaceholder="Search classes..."
-                onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemoveClass}
-                onColorChange={handleNodeColorChange}
-                onAdd={handleAddClass}
-                onCreateNew={handleCreateClass}
-                canRemove={(n) => !isNonRemovableClass(n.uuid)}
-                canAdd={(n) => !isBlockOnlyClass(n.uuid)}
-              />
+            {/* Row 2: Classes and Tags side by side */}
+            <div className="page-header-section__types-and-tags">
+              <div className="page-header-section__types">
+                <NodePillRow
+                  nodes={pageClassDetails}
+                  searchMode="classes"
+                  emptyText="Add class"
+                  searchPlaceholder="Search classes..."
+                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onRemove={handleRemoveClass}
+                  onColorChange={handleNodeColorChange}
+                  onAdd={handleAddClass}
+                  onCreateNew={handleCreateClass}
+                  canRemove={(n) => !isNonRemovableClass(n.uuid)}
+                  canAdd={(n) => !isBlockOnlyClass(n.uuid)}
+                />
+              </div>
+              
+              <div className="page-header-section__types-and-tags-divider" />
+              
+              <div className="page-header-section__tags">
+                <div className="section-label">Tags:</div>
+                <NodePillRow
+                  nodes={pageTagDetails}
+                  searchMode="tags"
+                  emptyText="Add tag"
+                  searchPlaceholder="Search tags..."
+                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onRemove={handleRemoveTag}
+                  onColorChange={handleNodeColorChange}
+                  onAdd={handleAddTag}
+                  onCreateNew={handleCreateTag}
+                />
+              </div>
             </div>
             
-            {/* Row 2: Extends (only for classes) */}
+            {/* Row 3: Extends (only for classes) */}
             {node.is_class && (
               <div className="page-header-section__extends">
                 <div className="section-label">Extends:</div>
@@ -800,22 +819,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 />
               </div>
             )}
-            
-            {/* Row 3: Tags */}
-            <div className="page-header-section__tags">
-              <div className="section-label">Tags:</div>
-              <NodePillRow
-                nodes={pageTagDetails}
-                searchMode="tags"
-                emptyText="Add tag"
-                searchPlaceholder="Search tags..."
-                onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemoveTag}
-                onColorChange={handleNodeColorChange}
-                onAdd={handleAddTag}
-                onCreateNew={handleCreateTag}
-              />
-            </div>
             
             {/* Cover Image - spans rows 1-3 */}
             <div 
