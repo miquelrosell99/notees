@@ -54,6 +54,8 @@ interface PropertiesSectionProps {
   onOpenInSidebar?: (nodeId: number) => void;
   /** Whether the section is collapsed by default */
   defaultCollapsed?: boolean;
+  /** Optional filter: only show properties with these IDs (for linked references) */
+  filterPropertyIds?: number[];
 }
 
 interface PropertyValueProps {
@@ -359,6 +361,7 @@ export function PropertiesSection({
   onNavigateToNode,
   onOpenInSidebar,
   defaultCollapsed = false,
+  filterPropertyIds,
 }: PropertiesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
@@ -579,10 +582,15 @@ export function PropertiesSection({
 
   // Split properties into visible and hidden (based on hidden attribute, not value)
   const { visibleProperties, hiddenProperties } = useMemo(() => {
+    // Apply filter if filterPropertyIds is provided
+    const propertiesToSplit = filterPropertyIds && filterPropertyIds.length > 0
+      ? nodeProperties.filter(({ property }) => filterPropertyIds.includes(property.id))
+      : nodeProperties;
+    
     const visible: typeof nodeProperties = [];
     const hidden: typeof nodeProperties = [];
     
-    for (const entry of nodeProperties) {
+    for (const entry of propertiesToSplit) {
       // Properties are hidden if they have the hidden attribute set to true
       // NOT based on whether they have a value
       if (entry.hidden) {
@@ -593,7 +601,7 @@ export function PropertiesSection({
     }
     
     return { visibleProperties: visible, hiddenProperties: hidden };
-  }, [nodeProperties]);
+  }, [nodeProperties, filterPropertyIds]);
 
   const variantClass = variant === 'block' ? 'block-variant' : '';
 

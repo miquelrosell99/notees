@@ -24,7 +24,7 @@ import { Block } from '../../blocks/Block';
 import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useNodesStore } from '@/stores';
-import { PropertyReferencesDisplay } from '../PropertyReferencesDisplay';
+import { PropertiesSection } from '../../PropertiesSection';
 import { Button } from '../../core/Button';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
@@ -259,13 +259,15 @@ function CommonCardLayout({
               })}
             </div>
           )}
-          {/* Show property references for property-type linked references */}
-          {node._linkedRefMetadata?.linkType === 'property' && (
-            <PropertyReferencesDisplay
-              node={node}
-              propertyId={node._linkedRefMetadata.propertyId}
-              propertyName={node._linkedRefMetadata.propertyName}
-              targetNodeId={node._linkedRefMetadata.targetNodeId}
+          {/* Show properties section for property-type linked references */}
+          {node._linkedRefMetadata?.linkType === 'property' && node._linkedRefMetadata.sourceNodeId && (
+            <PropertiesSection
+              nodeId={node._linkedRefMetadata.sourceNodeId}
+              variant="block"
+              readOnly={true}
+              showHiddenSection={false}
+              showAddProperty={false}
+              filterPropertyIds={node._linkedRefMetadata.propertyId ? [node._linkedRefMetadata.propertyId] : undefined}
               onNavigateToNode={onNodeClick ? (nodeId) => {
                 const targetNode = { id: nodeId } as Node;
                 onNodeClick(targetNode);

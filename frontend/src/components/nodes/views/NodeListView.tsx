@@ -25,7 +25,7 @@ import { Bullet } from '../../blocks/Bullet';
 import { Button } from '../../core/Button';
 import { ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
-import { PropertyReferencesDisplay } from '../PropertyReferencesDisplay';
+import { PropertiesSection } from '../../PropertiesSection';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { useNodesStore } from '@/stores/nodesStore';
@@ -315,13 +315,15 @@ function NodeListItem({
           customContextMenuItems={generatedContextMenuItems}
           {...blockProps}
         />
-        {/* Show property references for property-type linked references */}
-        {node._linkedRefMetadata?.linkType === 'property' && (
-          <PropertyReferencesDisplay
-            node={node}
-            propertyId={node._linkedRefMetadata.propertyId}
-            propertyName={node._linkedRefMetadata.propertyName}
-            targetNodeId={node._linkedRefMetadata.targetNodeId}
+        {/* Show properties section for property-type linked references */}
+        {node._linkedRefMetadata?.linkType === 'property' && node._linkedRefMetadata.sourceNodeId && (
+          <PropertiesSection
+            nodeId={node._linkedRefMetadata.sourceNodeId}
+            variant="block"
+            readOnly={true}
+            showHiddenSection={false}
+            showAddProperty={false}
+            filterPropertyIds={node._linkedRefMetadata.propertyId ? [node._linkedRefMetadata.propertyId] : undefined}
             onNavigateToNode={(nodeId) => {
               const targetNode = { id: nodeId } as Node;
               onNodeClick?.(targetNode);
@@ -373,13 +375,15 @@ function NodeListItem({
         canSelect={false}
         customContextMenuItems={generatedContextMenuItems}
       />
-      {/* Show property references for property-type linked references */}
-      {node._linkedRefMetadata?.linkType === 'property' && (
-        <PropertyReferencesDisplay
-          node={node}
-          propertyId={node._linkedRefMetadata.propertyId}
-          propertyName={node._linkedRefMetadata.propertyName}
-          targetNodeId={node._linkedRefMetadata.targetNodeId}
+      {/* Show properties section for property-type linked references */}
+      {node._linkedRefMetadata?.linkType === 'property' && node._linkedRefMetadata.sourceNodeId && (
+        <PropertiesSection
+          nodeId={node._linkedRefMetadata.sourceNodeId}
+          variant="block"
+          readOnly={true}
+          showHiddenSection={false}
+          showAddProperty={false}
+          filterPropertyIds={node._linkedRefMetadata.propertyId ? [node._linkedRefMetadata.propertyId] : undefined}
           onNavigateToNode={(nodeId) => {
             const targetNode = { id: nodeId } as Node;
             onNodeClick?.(targetNode);
