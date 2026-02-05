@@ -1,0 +1,122 @@
+/**
+ * SelectTrigger Component Styles
+ * 
+ * Common styles for select/dropdown triggers
+ */
+
+/* Base trigger */
+.select-trigger {
+  cursor: pointer;
+  width: 100%;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  transition: 
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.select-trigger:hover:not(.select-trigger--disabled) {
+  border-color: var(--color-outline);
+}
+
+.select-trigger:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 59, 130, 246), 0.2);
+}
+
+.select-trigger--open {
+  border-color: var(--color-primary);
+}
+
+.select-trigger--error {
+  border-color: var(--color-error);
+}
+
+.select-trigger--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Content wrapper */
+.select-trigger__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: 0 var(--spacing-3);
+  min-height: 38px;
+}
+
+/* Size variants */
+.select-trigger--sm .select-trigger__content {
+  padding: 0 var(--spacing-2);
+  font-size: var(--font-size-sm, 12px);
+  min-height: 32px;
+}
+
+.select-trigger--lg .select-trigger__content {
+  padding: 0 var(--spacing-4);
+  font-size: var(--font-size-base, 16px);
+  min-height: 46px;
+}
+
+/* Value area (main content) */
+.select-trigger__value {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* Icons container */
+.select-trigger__icons {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* Clear button */
+.select-trigger__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.select-trigger__clear:hover {
+  color: var(--color-on-surface);
+  background: var(--color-surface-container);
+}
+
+.select-trigger__clear:focus {
+  outline: none;
+  background: var(--color-surface-container);
+}
+
+/* Chevron */
+.select-trigger__chevron {
+  display: flex;
+  align-items: center;
+  color: var(--color-on-surface-variant);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.select-trigger__chevron-icon--open {
+  transform: rotate(180deg);
+}
+
+/* Placeholder styling (when used with text content) */
+.select-trigger__placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
+}

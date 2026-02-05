@@ -5,12 +5,20 @@
  * - Pages are always included by default
  * - Additional node types can be included via class_filters on the property
  * - Shows a searchable dropdown with matching nodes
+ * 
+ * Enhanced with:
+ * - Dropdown-like trigger with chevron icon
+ * - Portal rendering for proper z-index layering
+ * - Recent nodes shown when query is empty
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNodeSearch, usePages, useNodes } from '@/hooks';
 import type { Node, Property } from '@/types/api';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from '../icons';
 import { Button } from '../core/Button';
+import { Card } from '../core/Card';
+import { SelectTrigger } from '../core/SelectTrigger';
 import './NodePicker.css';
 
 interface NodePickerProps {
@@ -52,7 +60,9 @@ export function NodePicker({
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Fetch data for selected node lookup
@@ -66,8 +76,31 @@ export function NodePicker({
     maxResults: 15,
   });
   
-  // Convert search results to Node array
-  const filteredResults = useMemo(() => allResults.map(r => r.node), [allResults]);
+  // When no query, show recent pages (up to 10) based on class filters
+  const recentNodes = useMemo(() => {
+    if (query || !allPages) return [];
+    
+    let nodes = allPages;
+    
+    // Filter by class if class_filters are specified
+    if (property.class_filters && property.class_filters.length > 0) {
+      nodes = nodes.filter(node => {
+        const nodeClasses = node.classes || [];
+        return property.class_filters!.some(filterId => nodeClasses.includes(filterId));
+      });
+    }
+    
+    // Return most recent 10
+    return nodes.slice(0, 10);
+  }, [query, allPages, property.class_filters]);
+  
+  // Convert search results to Node array, or use recent nodes when no query
+  const filteredResults = useMemo(() => {
+    if (query) {
+      return allResults.map(r => r.node);
+    }
+    return recentNodes;
+  }, [query, allResults, recentNodes]);
   
   // Only show create option if onCreate is provided
   const showCreateOption = searchShowCreate && !!onCreate;
@@ -107,6 +140,41 @@ export function NodePicker({
   useEffect(() => {
     setSelectedIndex(0);
   }, [filteredResults.length, query]);
+  
+  // Update menu position when opened (for portal)
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const maxDropdownHeight = 320;
+      const gap = 4;
+      
+      // Determine if dropdown should open above or below
+      let top: number;
+      let maxHeight: number;
+      
+      if (spaceBelow >= maxDropdownHeight || spaceBelow > spaceAbove) {
+        // Open below
+        top = rect.bottom + window.scrollY + gap;
+        maxHeight = Math.min(maxDropdownHeight, spaceBelow - gap * 2);
+      } else {
+        // Open above
+        maxHeight = Math.min(maxDropdownHeight, spaceAbove - gap * 2);
+        top = rect.top + window.scrollY - maxHeight - gap;
+      }
+      
+      setMenuPosition({
+        top,
+        left: rect.left + window.scrollX,
+        width: Math.max(rect.width, 240),
+        maxHeight,
+      });
+    } else {
+      setMenuPosition(null);
+    }
+  }, [isOpen]);
   
   // Handle node selection
   const handleSelect = useCallback((node: Node) => {
@@ -185,20 +253,49 @@ export function NodePicker({
       onChange(null);
     }
   }, [multi, value, onChange]);
+
+  // Handle clearing all selections
+  const handleClearAll = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (multi) {
+      onChange([]);
+    } else {
+      onChange(null);
+    }
+    setIsOpen(false);
+  }, [multi, onChange]);
   
-  // Close on click outside
+  // Close on click outside (handle both container and portaled menu)
   useEffect(() => {
     if (!isOpen) return;
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
+      const target = e.target as globalThis.Node;
+      // Check if click is outside both container and menu
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        menuRef.current &&
+        !menuRef.current.contains(target)
+      ) {
+        setIsOpen(false);
+        setQuery('');
+      }
+    };
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         setIsOpen(false);
         setQuery('');
       }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [isOpen]);
   
   // Focus input when opening
@@ -237,74 +334,101 @@ export function NodePicker({
   
   return (
     <div className="node-picker" ref={containerRef}>
-      {/* Selected nodes display */}
-      <div className="node-picker__selected">
-        {selectedNodes.map(node => (
-          <span key={node.id} className="node-picker__chip">
-            {node.isPage ? (
-              <NodeIcon icon={node.icon} isPage={true} size="xs" />
-            ) : (
-              <BulletIcon size="xs" />
-            )}
-            <Button 
-              variant="ghost"
-              size="xs"
-              className="node-picker__chip-name"
-              onClick={() => onNavigate?.(node.id)}
-            >
-              {node.name}
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="node-picker__chip-remove"
-              onClick={() => handleRemove(node.id)}
-              aria-label={`Remove ${node.name}`}
-            >
-              ×
-            </Button>
-          </span>
-        ))}
-        
-        {/* Input trigger */}
-        <Button
-          variant="ghost"
-          size="xs"
-          className="node-picker__trigger"
-          onClick={() => setIsOpen(true)}
-          onKeyDown={handleKeyDown}
-        >
-          {selectedNodes.length === 0 && (
-            <span className="node-picker__placeholder">Select...</span>
-          )}
-          {multi && selectedNodes.length > 0 && (
-            <span className="node-picker__add-more">+</span>
-          )}
-        </Button>
-      </div>
+      {/* Trigger - Using common SelectTrigger */}
+      <SelectTrigger
+        isOpen={isOpen}
+        disabled={readOnly}
+        clearable={true}
+        hasValue={selectedNodes.length > 0}
+        onClick={() => !readOnly && setIsOpen(true)}
+        onClear={readOnly ? undefined : handleClearAll}
+      >
+        {/* Selected nodes as chips */}
+        {selectedNodes.length > 0 ? (
+          <div className="node-picker__selected-chips">
+            {selectedNodes.map(node => (
+              <span key={node.id} className="node-picker__chip">
+                {node.isPage ? (
+                  <NodeIcon icon={node.icon} isPage={true} size="xs" />
+                ) : (
+                  <BulletIcon size="xs" />
+                )}
+                <Button 
+                  variant="ghost"
+                  size="xs"
+                  className="node-picker__chip-name"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigate?.(node.id);
+                  }}
+                >
+                  {node.name}
+                </Button>
+                {!readOnly && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="node-picker__chip-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemove(node.id);
+                    }}
+                    aria-label={`Remove ${node.name}`}
+                  >
+                    ×
+                  </Button>
+                )}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="node-picker__placeholder">Select node...</span>
+        )}
+      </SelectTrigger>
       
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="node-picker__dropdown">
-          <input
-            ref={inputRef}
-            type="text"
-            className="node-picker__search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search pages..."
-          />
+      {/* Dropdown Menu - Rendered in Portal */}
+      {isOpen && menuPosition && createPortal(
+        <Card
+          ref={menuRef}
+          className="node-picker__dropdown node-picker__dropdown--portal"
+          elevation="high"
+          padding={false}
+          style={{
+            position: 'absolute',
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+            minWidth: `${menuPosition.width}px`,
+            maxHeight: `${menuPosition.maxHeight}px`,
+          }}
+        >
+          {/* Search Input */}
+          <div className="node-picker__search-wrapper">
+            <input
+              ref={inputRef}
+              type="text"
+              className="node-picker__search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search pages..."
+            />
+          </div>
           
+          {/* Results List */}
           <div className="node-picker__list">
             {isLoading && query.length > 0 ? (
               <div className="node-picker__loading">Searching...</div>
             ) : filteredResults.length === 0 && !showCreateOption ? (
               <div className="node-picker__empty">
-                {query ? 'No matches found' : 'Start typing to search'}
+                {query ? 'No matches found' : 'No pages available'}
               </div>
             ) : (
               <>
+                {/* Section header for recent nodes */}
+                {!query && filteredResults.length > 0 && (
+                  <div className="node-picker__section-header">Recent Pages</div>
+                )}
+                
                 {filteredResults.map((node, index) => {
                   const isSelected = Array.isArray(value) 
                     ? value.includes(node.id) 
@@ -314,7 +438,11 @@ export function NodePicker({
                   return (
                     <button
                       key={node.id}
-                      className={`node-picker__item ${index === selectedIndex ? 'node-picker__item--highlighted' : ''} ${isSelected ? 'node-picker__item--selected' : ''}`}
+                      className={`node-picker__item ${
+                        index === selectedIndex ? 'node-picker__item--highlighted' : ''
+                      } ${
+                        isSelected ? 'node-picker__item--selected' : ''
+                      }`}
                       onClick={() => handleSelect(node)}
                       onMouseEnter={() => setSelectedIndex(index)}
                     >
@@ -355,12 +483,16 @@ export function NodePicker({
             )}
           </div>
           
+          {/* Footer with hint */}
           <div className="node-picker__footer">
             <span className="node-picker__hint">
-              Pages only{property.class_filters?.length ? ' + filtered classes' : ''}
+              {property.class_filters?.length 
+                ? `Filtered by ${property.class_filters.length} class${property.class_filters.length > 1 ? 'es' : ''}`
+                : 'All pages'}
             </span>
           </div>
-        </div>
+        </Card>,
+        document.body
       )}
     </div>
   );

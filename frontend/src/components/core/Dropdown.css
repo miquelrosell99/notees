@@ -1,14 +1,8 @@
 /**
  * Dropdown Component Styles
+ * 
+ * Note: Trigger styles now in SelectTrigger.css
  */
-
-/* Container for dropdown + delete button */
-.dropdown-container {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2, 8px);
-  width: 100%;
-}
 
 .dropdown {
   position: relative;
@@ -23,58 +17,6 @@
   pointer-events: none;
 }
 
-/* Trigger - now using Card component */
-.dropdown-trigger {
-  cursor: pointer;
-  width: 100%;
-  border-radius: var(--radius-lg, 12px);
-  transition: 
-    border-color var(--motion-duration-short) var(--motion-easing-standard),
-    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.dropdown-trigger:hover {
-  border-color: var(--color-outline);
-}
-
-.dropdown-trigger:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
-}
-
-.dropdown--open .dropdown-trigger {
-  border-color: var(--color-primary);
-}
-
-.dropdown--error .dropdown-trigger {
-  border-color: var(--color-danger);
-}
-
-/* Content wrapper inside Card trigger */
-.dropdown-trigger-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2, 8px);
-  width: 100%;
-  padding: 0 var(--spacing-3, 12px);
-  height: 38px;
-}
-
-/* Size variants */
-.dropdown--sm .dropdown-trigger-content {
-  padding: 0 var(--spacing-2, 8px);
-  font-size: var(--text-xs, 12px);
-  height: 32px;
-}
-
-.dropdown--lg .dropdown-trigger-content {
-  padding: 0 var(--spacing-4, 16px);
-  font-size: var(--text-base, 16px);
-  height: 46px;
-}
-
 /* Value */
 .dropdown-value {
   flex: 1;
@@ -82,46 +24,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .dropdown-value--placeholder {
-  color: var(--text-tertiary);
-}
-
-/* Icons */
-.dropdown-icons {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1, 4px);
-  flex-shrink: 0;
-}
-
-.dropdown-clear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-  background: none;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  color: var(--text-tertiary);
-  transition: color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.dropdown-clear:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.dropdown-chevron {
-  color: var(--text-tertiary);
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.dropdown-chevron--open {
-  transform: rotate(180deg);
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
 }
 
 /* Menu */
