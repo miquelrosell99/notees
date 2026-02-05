@@ -126,6 +126,33 @@ async def get_graph_data_endpoint(
                     "type": "parent",
                 })
         
+        # Get property-based links (node-type properties)
+        property_link_rows = await conn.fetch(
+            """
+            SELECT DISTINCT pvr.node_id, pvr.target_id
+            FROM property_value_relation pvr
+            JOIN node source ON pvr.node_id = source.id
+            JOIN node target ON pvr.target_id = target.id
+            WHERE source.graph_id = $1 
+              AND target.graph_id = $1
+              AND source.is_page = TRUE
+              AND target.is_page = TRUE
+              AND source.active = TRUE
+              AND target.active = TRUE
+            """,
+            service._graph_id
+        )
+        
+        for row in property_link_rows:
+            source_id = row['node_id']
+            target_id = row['target_id']
+            if source_id in page_id_set and target_id in page_id_set:
+                links.append({
+                    "source": source_id,
+                    "target": target_id,
+                    "type": "reference",
+                })
+        
         # Remove duplicate links (keeping first occurrence)
         seen = set()
         unique_links = []
