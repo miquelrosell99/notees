@@ -258,10 +258,8 @@ export function PropertyView({
         {property.is_system && (
           <span className="property-view-badge system">System</span>
         )}
-        {property.is_local ? (
+        {property.is_local && (
           <span className="property-view-badge">📍 Local</span>
-        ) : (
-          <span className="property-view-badge">🌐 Global</span>
         )}
       </div>
       
