@@ -13,7 +13,7 @@
  * - Sortable mode with drag-and-drop reordering
  * - Breadcrumbs for top-level nodes (showing page hierarchy)
  * - GroupBy support: groups blocks by page (pages shown as collapsed headers)
- * - Local collapse state for page nodes (cosmetic, not persisted)
+ * - Local collapse state for page nodes and level-2 blocks (cosmetic, not persisted)
  */
 import { useCallback, useMemo, useState } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
@@ -148,6 +148,8 @@ function groupBlocksByPage(
 interface NodeListItemProps {
   node: Node;
   depth: number;
+  /** Initial depth when this list view was started (for calculating relative depth) */
+  initialDepth?: number;
   editable: boolean;
   maxDepth: number;
   showBullets: boolean;
@@ -167,15 +169,16 @@ interface NodeListItemProps {
   suppressColor?: boolean;
   /** Custom context menu items generator */
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
-  /** Set of locally expanded page IDs (for cosmetic collapse state) */
-  localExpandedPages?: Set<number>;
-  /** Callback to toggle local page collapse state */
-  onTogglePageCollapse?: (pageId: number) => void;
+  /** Set of locally expanded node IDs (for cosmetic collapse state of pages and level-2 blocks) */
+  localExpandedNodes?: Set<number>;
+  /** Callback to toggle local node collapse state */
+  onToggleNodeCollapse?: (nodeId: number) => void;
 }
 
 function NodeListItem({
   node,
   depth,
+  initialDepth: initialDepthProp,
   editable,
   maxDepth,
   showBullets,
@@ -193,8 +196,8 @@ function NodeListItem({
   isolatedBlockState = false,
   suppressColor = false,
   customContextMenuItems,
-  localExpandedPages,
-  onTogglePageCollapse,
+  localExpandedNodes,
+  onToggleNodeCollapse,
 }: NodeListItemProps) {
   const rawChildren = useMemo(() => node.children ?? [], [node.children]);
   // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
@@ -204,16 +207,24 @@ function NodeListItem({
   );
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
   
-  // Override collapsed state for pages using local state (cosmetic only)
+  // Track initial depth for relative depth calculation
+  const initialDepth = initialDepthProp ?? depth;
+  const relativeDepth = depth - initialDepth;
+  
+  // Override collapsed state for pages and level-2 blocks using local state (cosmetic only)
+  // Pages: always collapsed on load
+  // Level 2 blocks (relative depth === 2): always collapsed on load
+  // Other blocks: use their stored collapsed state
   const effectiveNode = useMemo(() => {
-    if (node.is_page && localExpandedPages && onTogglePageCollapse) {
+    const shouldUseLocalState = (node.is_page || relativeDepth === 2) && localExpandedNodes && onToggleNodeCollapse;
+    if (shouldUseLocalState) {
       return {
         ...node,
-        collapsed: !localExpandedPages.has(node.id),
+        collapsed: !localExpandedNodes.has(node.id),
       };
     }
     return node;
-  }, [node, localExpandedPages, onTogglePageCollapse]);
+  }, [node, relativeDepth, localExpandedNodes, onToggleNodeCollapse]);
   
   // Get block callbacks from context (only available in editable mode with provider)
   const blockCallbacks = useBlockCallbacks();
@@ -260,15 +271,15 @@ function NodeListItem({
     });
   }, [customContextMenuItems, node]);
   
-  // Handle collapse toggle for pages - use local state instead of persisting
+  // Handle collapse toggle for pages and level-2 blocks - use local state instead of persisting
   const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
-    if (node.is_page && onTogglePageCollapse) {
+    if ((node.is_page || relativeDepth === 2) && onToggleNodeCollapse) {
       e.preventDefault();
       e.stopPropagation();
-      onTogglePageCollapse(node.id);
+      onToggleNodeCollapse(node.id);
     }
-    // For non-pages, let Block component handle normally (will persist to DB)
-  }, [node.is_page, node.id, onTogglePageCollapse]);
+    // For other blocks, let Block component handle normally (will persist to DB)
+  }, [node.is_page, node.id, relativeDepth, onToggleNodeCollapse]);
 
   // Editable mode: render full Block component
   if (editable) {
@@ -340,7 +351,7 @@ function NodeListItem({
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
           customContextMenuItems={generatedContextMenuItems}
-          onCollapseToggle={node.is_page && onTogglePageCollapse ? handleCollapseToggle : undefined}
+          onCollapseToggle={(node.is_page || relativeDepth === 2) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
           {...blockProps}
         />
       </div>
@@ -376,7 +387,7 @@ function NodeListItem({
         parentBlock={parentBlock}
         onBulletClick={() => onNodeClick?.(node)}
         onShiftClick={() => onNodeShiftClick?.(node)}
-        onCollapseToggle={node.is_page && onTogglePageCollapse ? handleCollapseToggle : undefined}
+        onCollapseToggle={(node.is_page || relativeDepth === 2) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
         showBullet={showBullets}
         showChildren={shouldRenderChildren}
         showClasses={showClasses}
@@ -504,6 +515,7 @@ function GroupHeader({
               key={block.id}
               node={block}
               depth={1} // Start at depth 1 since page header is depth 0
+              initialDepth={1} // Track initial depth for relative level-2 calculation
               editable={editable}
               maxDepth={maxDepth}
               showBullets={showBullets}
@@ -556,17 +568,18 @@ export function NodeListView({
   suppressRootColor = false,
   customContextMenuItems,
 }: NodeListViewProps) {
-  // Local state for expanded pages (cosmetic only, not persisted)
-  const [localExpandedPages, setLocalExpandedPages] = useState<Set<number>>(new Set());
+  // Local state for cosmetically collapsed nodes (pages and level-2 blocks)
+  // These are always collapsed on load, but users can temporarily expand them
+  const [localExpandedNodes, setLocalExpandedNodes] = useState<Set<number>>(new Set());
   
-  // Toggle page collapse state locally
-  const handleTogglePageCollapse = useCallback((pageId: number) => {
-    setLocalExpandedPages(prev => {
+  // Toggle node collapse state locally (for pages and level-2 blocks)
+  const handleToggleNodeCollapse = useCallback((nodeId: number) => {
+    setLocalExpandedNodes(prev => {
       const next = new Set(prev);
-      if (next.has(pageId)) {
-        next.delete(pageId);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
       } else {
-        next.add(pageId);
+        next.add(nodeId);
       }
       return next;
     });
@@ -621,6 +634,7 @@ export function NodeListView({
                 key={node.id}
                 node={node}
                 depth={depth}
+                initialDepth={depth} // Track initial depth for relative level-2 calculation
                 editable={editable}
                 maxDepth={maxDepth}
                 showBullets={showBullets}
@@ -635,8 +649,8 @@ export function NodeListView({
                 onContentChange={onContentChange}
                 isolatedBlockState={isolatedBlockState}
                 customContextMenuItems={customContextMenuItems}
-                localExpandedPages={localExpandedPages}
-                onTogglePageCollapse={handleTogglePageCollapse}
+                localExpandedNodes={localExpandedNodes}
+                onToggleNodeCollapse={handleToggleNodeCollapse}
               />
             ))}
           </div>
@@ -683,6 +697,7 @@ export function NodeListView({
             key={node.id}
             node={node}
             depth={depth}
+            initialDepth={depth} // Track initial depth for relative level-2 calculation
             editable={editable}
             maxDepth={maxDepth}
             showBullets={showBullets}
@@ -699,8 +714,8 @@ export function NodeListView({
             isolatedBlockState={isolatedBlockState}
             suppressColor={shouldSuppressColor}
             customContextMenuItems={customContextMenuItems}
-            localExpandedPages={localExpandedPages}
-            onTogglePageCollapse={handleTogglePageCollapse}
+            localExpandedNodes={localExpandedNodes}
+            onToggleNodeCollapse={handleToggleNodeCollapse}
           />
         );
       })}
