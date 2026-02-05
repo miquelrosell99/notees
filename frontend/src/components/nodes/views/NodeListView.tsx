@@ -13,6 +13,7 @@
  * - Sortable mode with drag-and-drop reordering
  * - Breadcrumbs for top-level nodes (showing page hierarchy)
  * - GroupBy support: groups blocks by page (pages shown as collapsed headers)
+ * - Local collapse state for page nodes (cosmetic, not persisted)
  */
 import { useCallback, useMemo, useState } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
@@ -166,6 +167,10 @@ interface NodeListItemProps {
   suppressColor?: boolean;
   /** Custom context menu items generator */
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
+  /** Set of locally expanded page IDs (for cosmetic collapse state) */
+  localExpandedPages?: Set<number>;
+  /** Callback to toggle local page collapse state */
+  onTogglePageCollapse?: (pageId: number) => void;
 }
 
 function NodeListItem({
@@ -188,6 +193,8 @@ function NodeListItem({
   isolatedBlockState = false,
   suppressColor = false,
   customContextMenuItems,
+  localExpandedPages,
+  onTogglePageCollapse,
 }: NodeListItemProps) {
   const rawChildren = useMemo(() => node.children ?? [], [node.children]);
   // When pagesOnly is true, recursively filter the entire subtree so Block gets a fully filtered tree
@@ -196,6 +203,17 @@ function NodeListItem({
     [rawChildren, pagesOnly]
   );
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
+  
+  // Override collapsed state for pages using local state (cosmetic only)
+  const effectiveNode = useMemo(() => {
+    if (node.is_page && localExpandedPages && onTogglePageCollapse) {
+      return {
+        ...node,
+        collapsed: !localExpandedPages.has(node.id),
+      };
+    }
+    return node;
+  }, [node, localExpandedPages, onTogglePageCollapse]);
   
   // Get block callbacks from context (only available in editable mode with provider)
   const blockCallbacks = useBlockCallbacks();
@@ -241,6 +259,16 @@ function NodeListItem({
       // closeMenu callback - handled by Block component internally
     });
   }, [customContextMenuItems, node]);
+  
+  // Handle collapse toggle for pages - use local state instead of persisting
+  const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
+    if (node.is_page && onTogglePageCollapse) {
+      e.preventDefault();
+      e.stopPropagation();
+      onTogglePageCollapse(node.id);
+    }
+    // For non-pages, let Block component handle normally (will persist to DB)
+  }, [node.is_page, node.id, onTogglePageCollapse]);
 
   // Editable mode: render full Block component
   if (editable) {
@@ -298,7 +326,7 @@ function NodeListItem({
           />
         )}
         <Block
-          block={node}
+          block={effectiveNode}
           children={children}
           siblings={siblings}
           depth={showIndentation ? depth : 0}
@@ -312,6 +340,7 @@ function NodeListItem({
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
           customContextMenuItems={generatedContextMenuItems}
+          onCollapseToggle={node.is_page && onTogglePageCollapse ? handleCollapseToggle : undefined}
           {...blockProps}
         />
       </div>
@@ -339,7 +368,7 @@ function NodeListItem({
         />
       )}
       <Block
-        block={node}
+        block={effectiveNode}
         children={children}
         siblings={siblings}
         depth={showIndentation ? depth : 0}
@@ -347,6 +376,7 @@ function NodeListItem({
         parentBlock={parentBlock}
         onBulletClick={() => onNodeClick?.(node)}
         onShiftClick={() => onNodeShiftClick?.(node)}
+        onCollapseToggle={node.is_page && onTogglePageCollapse ? handleCollapseToggle : undefined}
         showBullet={showBullets}
         showChildren={shouldRenderChildren}
         showClasses={showClasses}
@@ -489,6 +519,8 @@ function GroupHeader({
               onContentChange={onContentChange}
               isolatedBlockState={isolatedBlockState}
               customContextMenuItems={customContextMenuItems}
+              localExpandedPages={localExpandedPages}
+              onTogglePageCollapse={handleTogglePageCollapse}
             />
           ))}
         </div>
@@ -524,6 +556,22 @@ export function NodeListView({
   suppressRootColor = false,
   customContextMenuItems,
 }: NodeListViewProps) {
+  // Local state for expanded pages (cosmetic only, not persisted)
+  const [localExpandedPages, setLocalExpandedPages] = useState<Set<number>>(new Set());
+  
+  // Toggle page collapse state locally
+  const handleTogglePageCollapse = useCallback((pageId: number) => {
+    setLocalExpandedPages(prev => {
+      const next = new Set(prev);
+      if (next.has(pageId)) {
+        next.delete(pageId);
+      } else {
+        next.add(pageId);
+      }
+      return next;
+    });
+  }, []);
+  
   // If sortable, use ListSortable wrapper (no grouping in sortable mode)
   if (sortable && onReorder) {
     return (
@@ -587,6 +635,8 @@ export function NodeListView({
                 onContentChange={onContentChange}
                 isolatedBlockState={isolatedBlockState}
                 customContextMenuItems={customContextMenuItems}
+                localExpandedPages={localExpandedPages}
+                onTogglePageCollapse={handleTogglePageCollapse}
               />
             ))}
           </div>
@@ -649,6 +699,8 @@ export function NodeListView({
             isolatedBlockState={isolatedBlockState}
             suppressColor={shouldSuppressColor}
             customContextMenuItems={customContextMenuItems}
+            localExpandedPages={localExpandedPages}
+            onTogglePageCollapse={handleTogglePageCollapse}
           />
         );
       })}

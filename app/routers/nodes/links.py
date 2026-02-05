@@ -248,7 +248,7 @@ async def get_linked_references(
     
     # Collect all source node IDs for batch type fetching
     source_node_ids = []
-    sources_data = []  # Store (source, children, source_page, source_page_children, link) tuples
+    sources_data = []  # Store (source, children, source_page, link) tuples
     
     for link in backlinks:
         source = await service._node_repo.get_by_id(link.source_node_id)
@@ -259,22 +259,18 @@ async def get_linked_references(
         children = await _get_descendants(service._node_repo, source.id) if source.id else []
         
         source_page = None
-        source_page_children = []
         if source.page_id:
             source_page = await service._node_repo.get_by_id(source.page_id)
-            # Fetch children for the source page as well (for list view display)
-            if source_page and source_page.id:
-                source_page_children = await _get_descendants(service._node_repo, source_page.id)
         
         if source.id:
             source_node_ids.append(source.id)
-        sources_data.append((source, children, source_page, source_page_children, link))
+        sources_data.append((source, children, source_page, link))
     
     # Batch fetch class_ids for all source nodes
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, source_node_ids)
     
     result = []
-    for source, children, source_page, source_page_children, link in sources_data:
+    for source, children, source_page, link in sources_data:
         # Extract context around the link
         context = source.name or ""
         # Use position from the inner NodeLink object
@@ -299,15 +295,9 @@ async def get_linked_references(
         source_response = _node_to_response(source, classes=source_classes)
         source_response.children = _build_children_response(children) if children else []
         
-        # Convert source page to response with children
-        source_page_response = None
-        if source_page:
-            source_page_response = _node_to_response(source_page)
-            source_page_response.children = _build_children_response(source_page_children) if source_page_children else []
-        
         result.append(LinkedReferenceResponse(
             source_node=source_response,
-            source_page=source_page_response,
+            source_page=_node_to_response(source_page) if source_page else None,
             link_type="property" if link.property_id else "text",
             context=context,
             breadcrumb_path=breadcrumb_segments,
