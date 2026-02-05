@@ -6,9 +6,9 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@mdi/react';
-import { mdiChevronDown, mdiClose, mdiCheck } from '@mdi/js';
+import { mdiCheck } from '@mdi/js';
 import { Card } from './Card';
-import { Button } from './Button';
+import { SelectTrigger } from './SelectTrigger';
 import './Dropdown.css';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
@@ -63,8 +63,6 @@ export interface DropdownProps<T = string> {
   emptyContent?: ReactNode;
   /** Additional className */
   className?: string;
-  /** Delete button callback - shows delete button with X icon next to dropdown */
-  onDelete?: () => void;
 }
 
 /**
@@ -88,7 +86,6 @@ export function Dropdown<T = string>({
   renderOption,
   emptyContent = 'No options',
   className = '',
-  onDelete,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -223,6 +220,7 @@ export function Dropdown<T = string>({
     } else {
       onChange?.(null);
     }
+    setIsOpen(false);
   }, [multiple, onChange, onChangeMultiple]);
 
   const isSelected = (option: DropdownOption<T>): boolean => {
@@ -241,166 +239,117 @@ export function Dropdown<T = string>({
     .join(' ');
 
   return (
-    <div className="dropdown-container">
-      <div className={containerClasses} ref={containerRef}>
-        {/* Trigger */}
-        {renderTrigger ? (
-          <div onClick={handleToggle}>
-            {renderTrigger({ isOpen, selectedLabel })}
-          </div>
-        ) : (
+    <div className={containerClasses} ref={containerRef}>
+      {/* Trigger */}
+      {renderTrigger ? (
+        <div onClick={handleToggle}>
+          {renderTrigger({ isOpen, selectedLabel })}
+        </div>
+      ) : (
+        <SelectTrigger
+          isOpen={isOpen}
+          disabled={disabled}
+          error={error}
+          size={size}
+          clearable={clearable}
+          hasValue={!!(value || values.length > 0)}
+          onClick={handleToggle}
+          onClear={clearable ? handleClear : undefined}
+        >
+          <span className={`dropdown-value ${!value && !values.length ? 'dropdown-value--placeholder' : ''}`}>
+            {selectedLabel}
+          </span>
+        </SelectTrigger>
+      )}
+
+        {/* Dropdown menu - rendered in portal */}
+        {isOpen && menuPosition && createPortal(
           <Card
-            className="dropdown-trigger"
-            onClick={handleToggle}
-            variant="default"
+            ref={menuRef}
+            className="dropdown-menu dropdown-menu--portal" 
+            elevation="high" 
             padding={false}
-            elevation="none"
-            interactive
-            role="button"
-            tabIndex={disabled ? -1 : 0}
-            aria-haspopup="listbox"
-            aria-expanded={isOpen}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleToggle();
-              }
+            style={{
+              position: 'absolute',
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+              minWidth: `${menuPosition.width}px`,
+              maxHeight: `${menuPosition.maxHeight}px`,
             }}
           >
-            <div className="dropdown-trigger-content">
-              <span className={`dropdown-value ${!value && !values.length ? 'dropdown-value--placeholder' : ''}`}>
-                {selectedLabel}
-              </span>
-              <div className="dropdown-icons">
-                {clearable && (value || values.length > 0) && (
-                  <div
-                    className="dropdown-clear"
-                    onClick={handleClear}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Clear selection"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleClear(e as any);
-                      }
-                    }}
-                  >
-                    <Icon path={mdiClose} size={0.6} />
-                  </div>
-                )}
-                <Icon
-                  path={mdiChevronDown}
-                  size={0.7}
-                  className={`dropdown-chevron ${isOpen ? 'dropdown-chevron--open' : ''}`}
+            {searchable && (
+              <div className="dropdown-search">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="dropdown-search-input"
                 />
               </div>
-            </div>
-          </Card>
-        )}
+            )}
 
-      {/* Dropdown menu - rendered in portal */}
-      {isOpen && menuPosition && createPortal(
-        <Card
-          ref={menuRef}
-          className="dropdown-menu dropdown-menu--portal" 
-          elevation="high" 
-          padding={false}
-          style={{
-            position: 'absolute',
-            top: `${menuPosition.top}px`,
-            left: `${menuPosition.left}px`,
-            minWidth: `${menuPosition.width}px`,
-            maxHeight: `${menuPosition.maxHeight}px`,
-          }}
-        >
-          {searchable && (
-            <div className="dropdown-search">
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search..."
-                className="dropdown-search-input"
-              />
-            </div>
-          )}
+            <div className="dropdown-options" role="listbox">
+              {filteredOptions.length === 0 ? (
+                <div className="dropdown-empty">{emptyContent}</div>
+              ) : (
+                groups.map(group => (
+                  <div key={group || 'default'} className="dropdown-group">
+                    {group && <div className="dropdown-group-label">{group}</div>}
+                    {groupedOptions[group].map(option => {
+                      const selected = isSelected(option);
+                      
+                      if (renderOption) {
+                        return (
+                          <div
+                            key={String(option.value)}
+                            onClick={() => handleSelect(option)}
+                            className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
+                            role="option"
+                            aria-selected={selected}
+                          >
+                            {renderOption(option, selected)}
+                          </div>
+                        );
+                      }
 
-          <div className="dropdown-options" role="listbox">
-            {filteredOptions.length === 0 ? (
-              <div className="dropdown-empty">{emptyContent}</div>
-            ) : (
-              groups.map(group => (
-                <div key={group || 'default'} className="dropdown-group">
-                  {group && <div className="dropdown-group-label">{group}</div>}
-                  {groupedOptions[group].map(option => {
-                    const selected = isSelected(option);
-                    
-                    if (renderOption) {
                       return (
-                        <div
+                        <button
                           key={String(option.value)}
-                          onClick={() => handleSelect(option)}
+                          type="button"
                           className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
+                          onClick={() => handleSelect(option)}
+                          disabled={option.disabled}
                           role="option"
                           aria-selected={selected}
                         >
-                          {renderOption(option, selected)}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <button
-                        key={String(option.value)}
-                        type="button"
-                        className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
-                        onClick={() => handleSelect(option)}
-                        disabled={option.disabled}
-                        role="option"
-                        aria-selected={selected}
-                      >
-                        {option.icon && (
-                          <Icon path={option.icon} size={0.7} className="dropdown-option-icon" />
-                        )}
-                        <div className="dropdown-option-content">
-                          <span className="dropdown-option-label">{option.label}</span>
-                          {option.description && (
-                            <span className="dropdown-option-description">{option.description}</span>
+                          {option.icon && (
+                            <Icon path={option.icon} size={0.7} className="dropdown-option-icon" />
                           )}
-                        </div>
-                        {selected && (
-                          <Icon path={mdiCheck} size={0.6} className="dropdown-option-check" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))
-            )}
-          </div>
-        </Card>,
-        document.body
-      )}
-
-        {/* Error message */}
-        {error && errorMessage && (
-          <span className="dropdown-error-message">{errorMessage}</span>
+                          <div className="dropdown-option-content">
+                            <span className="dropdown-option-label">{option.label}</span>
+                            {option.description && (
+                              <span className="dropdown-option-description">{option.description}</span>
+                            )}
+                          </div>
+                          {selected && (
+                            <Icon path={mdiCheck} size={0.6} className="dropdown-option-check" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>,
+          document.body
         )}
-      </div>
-      
-      {/* Delete button */}
-      {onDelete && (
-        <Button
-          icon={mdiClose}
-          iconOnly
-          variant="ghost"
-          size={size}
-          onClick={onDelete}
-          aria-label="Delete"
-          className="dropdown-delete-btn"
-        />
+
+      {/* Error message */}
+      {error && errorMessage && (
+        <span className="dropdown-error-message">{errorMessage}</span>
       )}
     </div>
   );
