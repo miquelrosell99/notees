@@ -766,7 +766,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 2: Classes and Tags side by side */}
+            {/* Row 2: Classes and Tags stacked */}
             <div className="page-header-section__types-and-tags">
               <div className="page-header-section__types">
                 <NodePillRow
@@ -783,8 +783,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                   canAdd={(n) => !isBlockOnlyClass(n.uuid)}
                 />
               </div>
-              
-              <div className="page-header-section__types-and-tags-divider" />
               
               <div className="page-header-section__tags">
                 <div className="section-label">Tags:</div>
