@@ -8,9 +8,22 @@
  * - Pan and zoom
  * - Node interaction (hover, click, drag)
  * - Type-based coloring
+ * - Dynamic node management (create/destroy in real-time)
  * 
  * This is a pure visualization component - all data filtering and
  * UI chrome (settings panels, buttons) are handled by parent components.
+ * 
+ * ## Dynamic Node Management
+ * The renderer supports dynamic addition and removal of nodes from the physics
+ * simulation in real-time through the exposed ref methods:
+ * - `createNode(node)` - Adds a node to the simulation with physics
+ * - `destroyNode(nodeId)` - Removes a node and its links from the simulation
+ * - `updateLinks(links)` - Updates the link structure dynamically
+ * 
+ * These methods enable:
+ * - Real-time filtering without re-initializing the entire graph
+ * - Creation date animation where nodes appear sequentially
+ * - Dynamic arrow generation based on current node/link state
  */
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import './NodeGraphRenderer.css';
@@ -124,6 +137,9 @@ export interface NodeGraphRendererProps {
 export interface NodeGraphRendererRef {
   recenter: () => void;
   triggerCreationAnimation: () => void;
+  createNode: (node: GraphNode) => void;
+  destroyNode: (nodeId: number) => void;
+  updateLinks: (links: GraphLink[]) => void;
 }
 
 // ==================== Helper Functions ====================
@@ -411,10 +427,21 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
   useEffect(() => { 
+    const previousValue = showClassNodesRef.current;
     showClassNodesRef.current = showClassNodes;
-    // Recalculate positions when type node visibility changes (affects circle/tree layout)
-    if (nodesRef.current.length > 0 && (viewMode === 'circle' || viewMode === 'tree')) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
+    
+    // Toggle visibility of type nodes dynamically
+    if (previousValue !== showClassNodes && nodesRef.current.length > 0) {
+      nodesRef.current.forEach(node => {
+        if (node.isTypeNode) {
+          node.visible = showClassNodes;
+        }
+      });
+      
+      // Recalculate positions when type node visibility changes (affects circle/tree layout)
+      if (viewMode === 'circle' || viewMode === 'tree') {
+        calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodes);
+      }
     }
   }, [showClassNodes, viewMode, dimensions, calculatePositions]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
@@ -458,6 +485,62 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     });
   }, [dimensions]);
 
+  // Dynamic node management
+  const createNode = useCallback((node: GraphNode) => {
+    // Check if node already exists
+    const exists = nodesRef.current.find(n => n.id === node.id);
+    if (exists) {
+      // Update existing node to make it visible
+      exists.visible = true;
+      exists.x = node.x;
+      exists.y = node.y;
+      exists.vx = node.vx || 0;
+      exists.vy = node.vy || 0;
+      return;
+    }
+    
+    // Add new node to the simulation
+    const newNode: GraphNode = {
+      ...node,
+      x: node.x || dimensions.width / 2,
+      y: node.y || dimensions.height / 2,
+      vx: node.vx || 0,
+      vy: node.vy || 0,
+      targetX: node.targetX || node.x || dimensions.width / 2,
+      targetY: node.targetY || node.y || dimensions.height / 2,
+      visible: node.visible !== undefined ? node.visible : true,
+    };
+    
+    nodesRef.current.push(newNode);
+    
+    // Recalculate positions if in constrained mode
+    if (viewMode === 'circle' || viewMode === 'tree') {
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
+    }
+  }, [viewMode, dimensions, calculatePositions]);
+  
+  const destroyNode = useCallback((nodeId: number) => {
+    // Find and remove the node
+    const index = nodesRef.current.findIndex(n => n.id === nodeId);
+    if (index !== -1) {
+      nodesRef.current.splice(index, 1);
+    }
+    
+    // Remove associated links
+    linksRef.current = linksRef.current.filter(
+      link => link.source !== nodeId && link.target !== nodeId
+    );
+    
+    // Recalculate positions if in constrained mode
+    if (viewMode === 'circle' || viewMode === 'tree') {
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
+    }
+  }, [viewMode, dimensions, calculatePositions]);
+  
+  const updateLinks = useCallback((links: GraphLink[]) => {
+    linksRef.current = [...links];
+  }, []);
+
   // Creation time animation
   const creationAnimationRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   
@@ -475,41 +558,39 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       return dateA - dateB;
     });
     
-    // Hide all nodes and move them to center with slight random offset
     const centerX = dimensions.width / 2;
     const centerY = dimensions.height / 2;
     const spawnRadius = 50; // Nodes spawn within this radius of center
     
-    nodes.forEach(n => {
-      n.visible = false;
-    });
-    
-    // Build node lookup map for O(1) access
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    // Remove all nodes from simulation
+    nodesRef.current = [];
     
     const revealDelay = 80;
     sortedNodes.forEach((sortedNode, index) => {
       const timer = setTimeout(() => {
-        const node = nodeMap.get(sortedNode.id);
-        if (node) {
-          // Spawn at center with random offset
-          node.x = centerX + (Math.random() - 0.5) * spawnRadius;
-          node.y = centerY + (Math.random() - 0.5) * spawnRadius;
-          node.visible = true;
-          // Give small initial velocity for organic spread
-          node.vx = (Math.random() - 0.5) * 3;
-          node.vy = (Math.random() - 0.5) * 3;
-        }
+        // Dynamically create node at spawn position
+        const nodeData: GraphNode = {
+          ...sortedNode,
+          x: centerX + (Math.random() - 0.5) * spawnRadius,
+          y: centerY + (Math.random() - 0.5) * spawnRadius,
+          vx: (Math.random() - 0.5) * 3,
+          vy: (Math.random() - 0.5) * 3,
+          visible: true,
+        };
+        createNode(nodeData);
       }, index * revealDelay);
       creationAnimationRef.current.push(timer);
     });
-  }, [dimensions.width, dimensions.height]);
+  }, [dimensions.width, dimensions.height, createNode]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     recenter,
     triggerCreationAnimation,
-  }), [recenter, triggerCreationAnimation]);
+    createNode,
+    destroyNode,
+    updateLinks,
+  }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks]);
 
   // Initialize nodes from input
   useEffect(() => {
@@ -518,37 +599,60 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const centerX = dimensions.width / 2;
     const centerY = dimensions.height / 2;
     
-    // Preserve existing node positions if they exist
-    const existingPositions = new Map<number, { x: number; y: number }>();
-    for (const node of nodesRef.current) {
-      existingPositions.set(node.id, { x: node.x, y: node.y });
-    }
+    // Build maps of existing and input nodes
+    const existingMap = new Map(nodesRef.current.map(n => [n.id, n]));
+    const inputMap = new Map(inputNodes.map(n => [n.id, n]));
     
-    nodesRef.current = inputNodes.map(inputNode => {
-      const existing = existingPositions.get(inputNode.id);
-      const initialSpread = 30;
-      
-      return {
-        ...inputNode,
-        x: existing?.x ?? centerX + (Math.random() - 0.5) * initialSpread,
-        y: existing?.y ?? centerY + (Math.random() - 0.5) * initialSpread,
-        vx: 0,
-        vy: 0,
-        targetX: 0,
-        targetY: 0,
-      };
+    // Remove nodes that are no longer in input
+    const nodesToRemove = nodesRef.current.filter(n => !inputMap.has(n.id));
+    nodesToRemove.forEach(n => destroyNode(n.id));
+    
+    // Add or update nodes
+    inputNodes.forEach(inputNode => {
+      const existing = existingMap.get(inputNode.id);
+      if (existing) {
+        // Update existing node properties but preserve position/velocity
+        Object.assign(existing, {
+          ...inputNode,
+          x: existing.x,
+          y: existing.y,
+          vx: existing.vx,
+          vy: existing.vy,
+          targetX: existing.targetX,
+          targetY: existing.targetY,
+        });
+      } else {
+        // Create new node
+        const initialSpread = 30;
+        const newNode: GraphNode = {
+          ...inputNode,
+          x: centerX + (Math.random() - 0.5) * initialSpread,
+          y: centerY + (Math.random() - 0.5) * initialSpread,
+          vx: 0,
+          vy: 0,
+          targetX: 0,
+          targetY: 0,
+        };
+        createNode(newNode);
+      }
     });
     
     linksRef.current = [...inputLinks];
     
     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
-    startSimulation();
+    
+    // Start simulation only once
+    if (animationRef.current === 0) {
+      startSimulation();
+    }
     
     return () => {
-      cancelAnimationFrame(animationRef.current);
+      if (animationRef.current !== 0) {
+        cancelAnimationFrame(animationRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation and showClassNodes intentionally excluded to prevent re-simulation on every render
-  }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions]);
+  }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions, createNode, destroyNode]);
 
   // Update glare states
   useEffect(() => {
