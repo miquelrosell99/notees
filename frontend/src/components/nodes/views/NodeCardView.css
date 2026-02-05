@@ -47,6 +47,7 @@
   break-inside: avoid;
   margin-bottom: 1rem;
   width: 100%;
+  min-width: 0;
 }
 
 /* Vertical layouts with natural cover heights */
@@ -63,6 +64,13 @@
 .node-card.card {
   cursor: pointer;
   display: flex;
+  min-width: 0;
+}
+
+/* Use overflow:clip instead of hidden so it doesn't create a BFC that constrains image sizing */
+.node-card--cover-top.card,
+.node-card--cover-left.card,
+.node-card--cover-right.card {
   overflow: clip;
 }
 
@@ -238,7 +246,7 @@
   height: auto;
 }
 
-/* Ensure ImageNode and img show complete image without cropping */
+/* Ensure ImageNode and img scale naturally with column width */
 .node-card__cover .image-node {
   width: 100% !important;
   height: auto !important;
@@ -248,7 +256,6 @@
 .node-card__cover .image-node__img {
   width: 100% !important;
   height: auto !important;
-  object-fit: contain !important;
   display: block;
 }
 
@@ -382,6 +389,11 @@
   border-right: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
+.node-card__metadata-row {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .node-card__add-metadata-btn {
   opacity: 0.5;
   transition: opacity 0.15s ease;
@@ -414,6 +426,8 @@
 
 .node-card__title-block .block-content {
   font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-size: 0.9375rem;
 }
 
