@@ -441,18 +441,26 @@ class QueryASTToSQL:
         return None
     
     def _generate_reference_condition(self, condition: ReferenceCondition) -> Optional[str]:
-        """Generate SQL for reference condition."""
+        """Generate SQL for reference condition.
+        
+        Includes both text-based links (node_link) and property-based links (property_value_relation).
+        """
         if not condition.target_uuid:
             return None
         
         param_name = self._add_param(condition.target_uuid)
+        param_name2 = self._add_param(condition.target_uuid)
         
-        # Check if node has a link to target
+        # Check if node has a link to target via node_link OR property_value_relation
         return f"""(EXISTS (
             SELECT 1 FROM node_link
             WHERE source_id = n.id
             AND target_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
             AND graph_id = %(graph_id)s
+        ) OR EXISTS (
+            SELECT 1 FROM property_value_relation pvr
+            WHERE pvr.node_id = n.id
+            AND pvr.target_id = (SELECT id FROM node WHERE uuid = %({param_name2})s AND graph_id = %(graph_id)s)
         ))"""
     
     def _generate_reference_path_condition(self, condition: ReferencePathCondition) -> Optional[str]:
