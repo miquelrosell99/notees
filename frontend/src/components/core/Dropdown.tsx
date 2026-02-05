@@ -213,8 +213,7 @@ export function Dropdown<T = string>({
     }
   }, [multiple, values, onChange, onChangeMultiple]);
 
-  const handleClear = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClear = useCallback(() => {
     if (multiple) {
       onChangeMultiple?.([]);
     } else {
@@ -222,6 +221,8 @@ export function Dropdown<T = string>({
     }
     setIsOpen(false);
   }, [multiple, onChange, onChangeMultiple]);
+
+  const hasValue = multiple ? values.length > 0 : value != null;
 
   const isSelected = (option: DropdownOption<T>): boolean => {
     return multiple ? values.includes(option.value) : option.value === value;
@@ -239,28 +240,29 @@ export function Dropdown<T = string>({
     .join(' ');
 
   return (
-    <div className={containerClasses} ref={containerRef}>
-      {/* Trigger */}
-      {renderTrigger ? (
-        <div onClick={handleToggle}>
-          {renderTrigger({ isOpen, selectedLabel })}
-        </div>
-      ) : (
-        <SelectTrigger
-          isOpen={isOpen}
-          disabled={disabled}
-          error={error}
-          size={size}
-          clearable={clearable}
-          hasValue={!!(value || values.length > 0)}
-          onClick={handleToggle}
-          onClear={clearable ? handleClear : undefined}
-        >
-          <span className={`dropdown-value ${!value && !values.length ? 'dropdown-value--placeholder' : ''}`}>
-            {selectedLabel}
-          </span>
-        </SelectTrigger>
-      )}
+    <div className="dropdown-container">
+      <div className={containerClasses} ref={containerRef}>
+        {/* Trigger */}
+        {renderTrigger ? (
+          <div onClick={handleToggle}>
+            {renderTrigger({ isOpen, selectedLabel })}
+          </div>
+        ) : (
+          <SelectTrigger
+            isOpen={isOpen}
+            disabled={disabled}
+            error={error}
+            size={size}
+            clearable={clearable}
+            hasValue={hasValue}
+            onClear={handleClear}
+            onClick={handleToggle}
+          >
+            <span className={`dropdown-value ${!hasValue ? 'dropdown-value--placeholder' : ''}`}>
+              {selectedLabel}
+            </span>
+          </SelectTrigger>
+        )}
 
         {/* Dropdown menu - rendered in portal */}
         {isOpen && menuPosition && createPortal(
@@ -351,6 +353,7 @@ export function Dropdown<T = string>({
       {error && errorMessage && (
         <span className="dropdown-error-message">{errorMessage}</span>
       )}
+      </div>
     </div>
   );
 }
