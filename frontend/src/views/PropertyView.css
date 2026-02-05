@@ -32,7 +32,7 @@
 .property-view .page-header-section {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--spacing-3);
+  gap: var(--spacing-1);
   margin-bottom: var(--spacing-2);
 }
 
