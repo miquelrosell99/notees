@@ -63,6 +63,14 @@ export interface Node {
   
   // For comments
   comment_count?: number;
+  
+  // Metadata for linked references (attached client-side)
+  _linkedRefMetadata?: {
+    linkType: 'text' | 'property';
+    propertyId?: number;
+    propertyName?: string;
+    targetNodeId: number;
+  };
 }
 
 /**
@@ -187,9 +195,11 @@ export interface BreadcrumbSegment {
 export interface LinkedReference {
   source_node: Node;
   source_page: Node | null;
-  link_type: LinkType;
+  link_type: 'text' | 'property';
   context: string;
   breadcrumb_path: BreadcrumbSegment[];
+  property_id?: number;
+  property_name?: string;
 }
 
 export type LinkType = 'page' | 'block';

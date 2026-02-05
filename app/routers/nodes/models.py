@@ -79,6 +79,9 @@ class LinkedReferenceResponse(BaseModel):
     link_type: str
     context: str  # Text around the link
     breadcrumb_path: List[BreadcrumbSegment] = []  # Path from source to page
+    # For property-type links
+    property_id: Optional[int] = None
+    property_name: Optional[str] = None
 
 
 class PropertyValueResponse(BaseModel):

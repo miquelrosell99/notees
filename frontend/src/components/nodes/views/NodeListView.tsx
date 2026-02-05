@@ -25,6 +25,7 @@ import { Bullet } from '../../blocks/Bullet';
 import { Button } from '../../core/Button';
 import { ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
+import { PropertyReferencesDisplay } from '../PropertyReferencesDisplay';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { useNodesStore } from '@/stores/nodesStore';
@@ -314,6 +315,23 @@ function NodeListItem({
           customContextMenuItems={generatedContextMenuItems}
           {...blockProps}
         />
+        {/* Show property references for property-type linked references */}
+        {node._linkedRefMetadata?.linkType === 'property' && (
+          <PropertyReferencesDisplay
+            node={node}
+            propertyId={node._linkedRefMetadata.propertyId}
+            propertyName={node._linkedRefMetadata.propertyName}
+            targetNodeId={node._linkedRefMetadata.targetNodeId}
+            onNavigateToNode={(nodeId) => {
+              const targetNode = { id: nodeId } as Node;
+              onNodeClick?.(targetNode);
+            }}
+            onOpenInSidebar={onNodeShiftClick ? (nodeId) => {
+              const targetNode = { id: nodeId } as Node;
+              onNodeShiftClick?.(targetNode);
+            } : undefined}
+          />
+        )}
       </div>
     );
   }
@@ -355,6 +373,23 @@ function NodeListItem({
         canSelect={false}
         customContextMenuItems={generatedContextMenuItems}
       />
+      {/* Show property references for property-type linked references */}
+      {node._linkedRefMetadata?.linkType === 'property' && (
+        <PropertyReferencesDisplay
+          node={node}
+          propertyId={node._linkedRefMetadata.propertyId}
+          propertyName={node._linkedRefMetadata.propertyName}
+          targetNodeId={node._linkedRefMetadata.targetNodeId}
+          onNavigateToNode={(nodeId) => {
+            const targetNode = { id: nodeId } as Node;
+            onNodeClick?.(targetNode);
+          }}
+          onOpenInSidebar={onNodeShiftClick ? (nodeId) => {
+            const targetNode = { id: nodeId } as Node;
+            onNodeShiftClick?.(targetNode);
+          } : undefined}
+        />
+      )}
     </div>
   );
 }

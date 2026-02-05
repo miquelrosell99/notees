@@ -301,6 +301,8 @@ async def get_linked_references(
             link_type="property" if link.property_id else "text",
             context=context,
             breadcrumb_path=breadcrumb_segments,
+            property_id=link.property_id,
+            property_name=link.property_name,
         ))
     
     return {"linked_references": result}

@@ -20,7 +20,7 @@ import {
   useDeleteNodeView,
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
-import { useClasses } from '@/hooks/useNodeQueries';
+import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
 import type { NodeView, NodeViewType } from '@/types/query';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
@@ -335,8 +335,29 @@ export function QueryNodeCollection({
     },
     includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || collectionViewMode === 'card',
     includeProperties: true,
-    enabled: !!activeView && nodeId > 0,
+    enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
   });
+
+  // For linked_references, use dedicated API to get full metadata
+  const {
+    data: linkedReferencesData,
+    isLoading: linkedReferencesLoading,
+  } = useLinkedReferences(viewType === 'linked_references' ? nodeId : null);
+
+  // Extract nodes from linked references and attach metadata
+  const linkedReferencesNodes = useMemo(() => {
+    if (!linkedReferencesData) return [];
+    return linkedReferencesData.map(ref => ({
+      ...ref.source_node,
+      // Attach metadata for property references
+      _linkedRefMetadata: {
+        linkType: ref.link_type,
+        propertyId: ref.property_id,
+        propertyName: ref.property_name,
+        targetNodeId: nodeId,
+      },
+    }));
+  }, [linkedReferencesData, nodeId]);
 
   // Execute ad-hoc query for pseudo-nodes
   const {
@@ -358,10 +379,14 @@ export function QueryNodeCollection({
     }
   );
 
-  const rawResults = isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []);
+  const rawResults = viewType === 'linked_references' 
+    ? linkedReferencesNodes 
+    : (isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []));
   const activeAST = isPseudoNode ? pseudoNodeAST : activeView?.query_ast;
   const resultNodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
-  const isQueryLoading = isPseudoNode ? pseudoQueryLoading : queryLoading;
+  const isQueryLoading = viewType === 'linked_references' 
+    ? linkedReferencesLoading 
+    : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
   // Preview query for edit modal
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
