@@ -357,8 +357,13 @@ export function QueryNodeCollection({
       // For table/card views, use the actual source node (could be a block)
       const displayNode = isListView ? (ref.source_page ?? ref.source_node) : ref.source_node;
       
+      // For list view, if displaying a page, set it to collapsed
+      const shouldCollapse = isListView && displayNode.is_page;
+      
       return {
         ...displayNode,
+        // Set collapsed state for pages in list view
+        collapsed: shouldCollapse ? true : displayNode.collapsed,
         // Attach metadata for property references
         _linkedRefMetadata: {
           linkType: ref.link_type,
