@@ -130,6 +130,7 @@
 .property-list--block .property-row {
   padding: 2px 0;
   min-height: 24px;
+  align-items: center;
 }
 
 .property-list--block .property-row__label {

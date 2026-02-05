@@ -16,10 +16,12 @@
 import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { Property, PropertyType, Node } from '@/types/api';
 import { useNodesStore } from '@/stores';
+import { useNode } from '@/hooks';
 import { Block } from '../blocks/Block';
 import { Bullet } from '../blocks/Bullet';
 import { ChevronRightIcon } from '../icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { PageContextMenu } from '../nodes/NodeContextMenu';
 import './PropertyList.css';
 
 /** Default icons for each property type */
@@ -72,6 +74,10 @@ export interface PropertyListProps {
   variant?: 'page' | 'block';
   /** Whether to show bullets before values */
   showBullets?: boolean;
+  /** Handler when clicking on a node value bullet */
+  onNodeValueClick?: (nodeId: number) => void;
+  /** Handler when shift+clicking on a node value bullet */
+  onNodeValueShiftClick?: (nodeId: number) => void;
 }
 
 /**
@@ -89,9 +95,31 @@ export function PropertyList({
   className = '',
   variant = 'page',
   showBullets = true,
+  onNodeValueClick,
+  onNodeValueShiftClick,
 }: PropertyListProps) {
   const [showHidden, setShowHidden] = useState(defaultShowHidden);
-
+  
+  // Default handlers using store if not provided
+  const openNode = useNodesStore(state => state.openNode);
+  const addSidebarCard = useNodesStore(state => state.addSidebarCard);
+  
+  const handleNodeValueClick = useCallback((nodeId: number) => {
+    if (onNodeValueClick) {
+      onNodeValueClick(nodeId);
+    } else {
+      openNode(nodeId, 'page');
+    }
+  }, [onNodeValueClick, openNode]);
+  
+  const handleNodeValueShiftClick = useCallback((nodeId: number) => {
+    if (onNodeValueShiftClick) {
+      onNodeValueShiftClick(nodeId);
+    } else {
+      addSidebarCard({ type: 'node', id: nodeId });
+    }
+  }, [onNodeValueShiftClick, addSidebarCard]);
+  
   // Split into visible and hidden properties
   const visibleProperties = properties.filter(p => !p.hidden);
   const hiddenProperties = properties.filter(p => p.hidden);
@@ -112,6 +140,8 @@ export function PropertyList({
             onPropertyContextMenu={onPropertyContextMenu}
             getContextMenuItems={getContextMenuItems}
             showBullet={showBullets && entry.property.type !== 'text'}
+            onValueBulletClick={handleNodeValueClick}
+            onValueBulletShiftClick={handleNodeValueShiftClick}
           />
         ))}
       </div>
@@ -139,6 +169,8 @@ export function PropertyList({
                   onPropertyContextMenu={onPropertyContextMenu}
                   getContextMenuItems={getContextMenuItems}
                   showBullet={showBullets && entry.property.type !== 'text'}
+                  onValueBulletClick={handleNodeValueClick}
+                  onValueBulletShiftClick={handleNodeValueShiftClick}
                 />
               ))}
             </div>
@@ -157,6 +189,10 @@ interface PropertyRowProps {
   onPropertyContextMenu?: (property: Property, event: React.MouseEvent) => void;
   getContextMenuItems?: (property: Property) => ContextMenuItem[];
   showBullet: boolean;
+  /** Handler when clicking on the value bullet (for node properties) */
+  onValueBulletClick?: (nodeId: number) => void;
+  /** Handler when shift+clicking on the value bullet */
+  onValueBulletShiftClick?: (nodeId: number) => void;
 }
 
 /**
@@ -171,10 +207,18 @@ function PropertyRow({
   onPropertyContextMenu,
   getContextMenuItems,
   showBullet,
+  onValueBulletClick,
+  onValueBulletShiftClick,
 }: PropertyRowProps) {
-  const { property, source } = entry;
+  const { property, source, value } = entry;
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [showNodeValueContextMenu, setShowNodeValueContextMenu] = useState(false);
+  const [nodeValueContextMenuPosition, setNodeValueContextMenuPosition] = useState({ x: 0, y: 0 });
+  
+  // Fetch the node for the value if it's a node property
+  const nodeValueId = property.type === 'node' && !property.multi && typeof value === 'number' ? value : null;
+  const { data: nodeValueData } = useNode(nodeValueId);
   
   // Get navigation functions from store
   const openPropertyView = useNodesStore(state => state.openPropertyView);
@@ -206,6 +250,14 @@ function PropertyRow({
   const handleBulletShiftClick = useCallback(() => {
     addSidebarCard({ type: 'property', id: property.id });
   }, [addSidebarCard, property.id]);
+  
+  // Handle context menu on node value bullet
+  const handleNodeValueContextMenu = useCallback((nodeId: number, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setNodeValueContextMenuPosition({ x: event.clientX, y: event.clientY });
+    setShowNodeValueContextMenu(true);
+  }, []);
 
   // Create a minimal node for the Block component to display the property name
   const propertyAsNode = useMemo<Node>(() => ({
@@ -251,9 +303,18 @@ function PropertyRow({
         </div>
         <div className="property-row__value-container">
           <div className="property-row__value-wrapper">
-            {showBullet && (
+            {showBullet && property.type === 'node' && !property.multi && typeof value === 'number' ? (
+              <Bullet
+                nodeId={value}
+                interactive={true}
+                size="xs"
+                onClick={() => onValueBulletClick?.(value)}
+                onShiftClick={() => onValueBulletShiftClick?.(value)}
+                onContextMenu={handleNodeValueContextMenu}
+              />
+            ) : showBullet ? (
               <Bullet interactive={false} size="xs" />
-            )}
+            ) : null}
             {renderValue(entry, readOnly)}
           </div>
         </div>
@@ -265,6 +326,15 @@ function PropertyRow({
           items={contextMenuItems}
           position={contextMenuPosition}
           onClose={() => setShowContextMenu(false)}
+        />
+      )}
+      
+      {/* Node Value Context Menu - standard page context menu for node properties */}
+      {showNodeValueContextMenu && nodeValueData && (
+        <PageContextMenu
+          node={nodeValueData}
+          position={nodeValueContextMenuPosition}
+          onClose={() => setShowNodeValueContextMenu(false)}
         />
       )}
     </>
