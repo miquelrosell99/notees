@@ -53,6 +53,7 @@ import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
+import { NodePropertiesSection } from '../nodes/NodePropertiesSection';
 import { ImageNode } from '../ImageNode';
 import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
@@ -2078,7 +2079,7 @@ function BlockInternal({
         </div>
       ) : (
         /* Children blocks with vertical collapse line */
-        showChildren && hasChildren && !isCollapsed && (
+        showChildren && !isCollapsed && (hasChildren || block.properties) && (
           <div className="children-container">
             {/* Vertical line for collapsing children */}
             <div 
@@ -2089,11 +2090,29 @@ function BlockInternal({
               title="Click to collapse children"
             />
             <SortableContext 
-              items={children.map(child => `block-${child.id}`)}
+              items={children?.map(child => `block-${child.id}`) || []}
               strategy={verticalListSortingStrategy}
             >
               <div className="nested-blocks">
-                {children.map((child) => {
+                {/* Properties section - rendered before children */}
+                {block.properties && Object.keys(block.properties).length > 0 && (
+                  <div className="block-properties">
+                    <NodePropertiesSection
+                      nodeId={block.id}
+                      readOnly={!canEdit}
+                      onNavigateToNode={(targetId) => {
+                        openNodeAction(targetId, 'page');
+                      }}
+                      onOpenInSidebar={(targetId) => {
+                        const { addSidebarCard } = useNodesStore.getState();
+                        addSidebarCard(targetId, 'page');
+                      }}
+                      showBullets={false}
+                      compact={true}
+                    />
+                  </div>
+                )}
+                {children?.map((child) => {
                   // Build child-specific callbacks bound to child.id (using context callbacks if available)
                   const childCallbacks = contextCallbacks ? {
                     onAddClass: contextCallbacks.onAddClass 
