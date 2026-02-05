@@ -14,7 +14,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption } from '@/api/properties';
-import { useDeleteProperty, useUpdateProperty, useNodes } from '@/hooks';
+import { useDeleteProperty, useNodes } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
@@ -38,9 +38,7 @@ export function PropertyConfigSection({
   onUpdate,
   onDelete,
 }: PropertyConfigSectionProps) {
-  // Form state
-  const [name, setName] = useState(property.name);
-  const [icon, setIcon] = useState(property.icon || '');
+  // Form state (name and icon removed - they're in PageHeader now)
   const [isLocal] = useState(property.is_local || false);
   const [isMultiValue] = useState(false); // TODO: Get from property
   const [defaultValue] = useState(''); // TODO: Get from property
@@ -53,7 +51,6 @@ export function PropertyConfigSection({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Mutations
-  const updatePropertyMutation = useUpdateProperty();
   const deletePropertyMutation = useDeleteProperty();
   
   // Data
@@ -74,42 +71,6 @@ export function PropertyConfigSection({
     allNodes?.filter(n => n.is_class) || [],
     [allNodes]
   );
-  
-  // Check for name errors
-  const nameError = useMemo(() => {
-    if (!name.trim()) return 'Property name is required';
-    return null;
-  }, [name]);
-  
-  // Save property name/icon
-  const handleSave = useCallback(async () => {
-    if (nameError) {
-      setError(nameError);
-      return;
-    }
-    
-    const updates: { name?: string; icon?: string } = {};
-    if (name.trim() !== property.name) {
-      updates.name = name.trim();
-    }
-    if (icon !== (property.icon || '')) {
-      updates.icon = icon || undefined;
-    }
-    
-    if (Object.keys(updates).length > 0) {
-      try {
-        await updatePropertyMutation.mutateAsync({
-          id: property.id,
-          data: updates,
-        });
-        onUpdate({ ...property, ...updates });
-        setError(null);
-      } catch (err) {
-        setError('Failed to update property');
-        console.error(err);
-      }
-    }
-  }, [property, name, icon, nameError, updatePropertyMutation, onUpdate]);
   
   // Selection option handlers
   const handleAddSelectionOption = useCallback(async () => {
@@ -202,10 +163,10 @@ export function PropertyConfigSection({
   return (
     <div className="property-config-section">
       <PropertyForm
-        icon={icon}
-        onIconChange={setIcon}
-        name={name}
-        onNameChange={setName}
+        icon=""
+        onIconChange={() => {}}
+        name={property.name}
+        onNameChange={() => {}}
         propertyType={property.type}
         isLocal={isLocal}
         onIsLocalChange={() => {}}
@@ -236,6 +197,8 @@ export function PropertyConfigSection({
         typeClasses={typeClasses}
         showTypeSelection={false}
         showScopeSelection={false}
+        showIconSelection={false}
+        showNameField={false}
       />
       
       {error && (
@@ -243,12 +206,6 @@ export function PropertyConfigSection({
           {error}
         </div>
       )}
-      
-      <div className="property-config-section__actions">
-        <Button onClick={handleSave} disabled={!!nameError || updatePropertyMutation.isPending}>
-          {updatePropertyMutation.isPending ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
       
       {onDelete && (
         <>
