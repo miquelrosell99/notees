@@ -24,7 +24,7 @@ import {
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getNodeByUuid } from '@/api/nodes';
-import type { Property, Node, ClassProperty } from '@/types/api';
+import type { Property, Node, ClassProperty, PropertyType, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
@@ -412,13 +412,20 @@ export function PropertiesSection({
     setShowPropertyPopup(false);
   }, [nodeId, setPropertyMutation]);
 
-  // Handler for creating a new property (always text type by default)
-  const handleCreateNewProperty = useCallback((name: string) => {
+  // Handler for creating a new property with full configuration
+  const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     setShowPropertyPopup(false);
-    createPropertyMutation.mutate({ name, type: 'text', is_local: false }, {
-      onSuccess: (newProperty) => {
-        // Add the property to this node with empty value
-        setPropertyMutation.mutate({ nodeId, propertyId: newProperty.id, value: '' });
+    createPropertyMutation.mutate(data, {
+      onSuccess: async (newProperty) => {
+        // Add selection options if provided
+        if (data.selection_options && data.selection_options.length > 0) {
+          // TODO: Add API call to create selection options
+          // For now, they should be created by the backend if supported
+        }
+        
+        // Add the property to this node with appropriate default value
+        const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
+        setPropertyMutation.mutate({ nodeId, propertyId: newProperty.id, value: defaultValue });
       },
     });
   }, [createPropertyMutation, setPropertyMutation, nodeId]);
