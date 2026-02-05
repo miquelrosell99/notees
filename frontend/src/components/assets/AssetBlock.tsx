@@ -48,9 +48,9 @@ interface AssetBlockProps {
   onReplace?: () => void;
 }
 
-exnodeId,
-  port function AssetBlock({
+export function AssetBlock({
   uuid,
+  nodeId,
   category,
   contentType,
   filename,
@@ -99,7 +99,8 @@ exnodeId,
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
     >
-      <d{/* Use ImageNode for images if nodeId is provided */}
+      <div className="asset-block-content">
+        {/* Use ImageNode for images if nodeId is provided */}
         {category === 'image' && nodeId ? (
           <div style={{ maxWidth: width ? `${width}px` : '100%' }}>
             <ImageNode
