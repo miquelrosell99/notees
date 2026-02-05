@@ -123,7 +123,7 @@ interface BlockProps {
   /** Called when arrow down is pressed in table cell (for navigating between rows or exiting table) */
   onNavigateDown?: () => void;
   /** Custom collapse toggle handler (if provided, replaces default DB persistence behavior) */
-  onCollapseToggle?: (e: React.MouseEvent) => void;
+  onCollapseToggle?: (e: React.MouseEvent, blockDepth: number) => void;
 }
 
 // Internal component function - use Block or MemoizedBlock exports
@@ -566,7 +566,7 @@ function BlockInternal({
     
     // Use custom handler if provided (e.g., for local state management)
     if (onCollapseToggleProp) {
-      onCollapseToggleProp(e);
+      onCollapseToggleProp(e, depth);
       return;
     }
     
@@ -575,7 +575,7 @@ function BlockInternal({
       id: block.id,
       data: { collapsed: !isCollapsed }
     });
-  }, [block.id, isCollapsed, updateNode, onCollapseToggleProp]);
+  }, [block.id, depth, isCollapsed, updateNode, onCollapseToggleProp]);
   
   // Handle bullet context menu (right-click)
   const handleBulletContextMenu = useCallback((_nodeId: number, event: React.MouseEvent) => {
@@ -2263,6 +2263,7 @@ function BlockInternal({
                       canSelect={canSelect}
                       onTaskStateChange={onTaskStateChange}
                       onOpenBacklinks={childCallbacks.onOpenBacklinks}
+                      onCollapseToggle={onCollapseToggleProp}
                     />
                   </BlockErrorBoundary>
                   );
