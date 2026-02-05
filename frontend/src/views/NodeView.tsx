@@ -831,7 +831,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 aria-label={isCoverCollapsed ? "Expand cover image" : "Collapse cover image"}
                 aria-expanded={!isCoverCollapsed}
               >
-                <Icon path={mdiChevronLeft} size={0.7} rotate={isCoverCollapsed ? 180 : 0} />
+                <Icon path={mdiChevronLeft} size={0.7} rotate={isCoverCollapsed ? 0 : 180} />
               </button>
               
               <div 
