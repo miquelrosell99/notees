@@ -448,19 +448,19 @@ async def get_asset(
     if not asset_folder.exists() or not asset_folder.is_dir():
         raise HTTPException(status_code=404, detail="Asset not found")
     
-    # Find the asset file: main.{ext}
-    for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = asset_folder / f"main{ext}"
-        if asset_path.exists():
+    # Find the asset file: main.{ext} (any extension)
+    for file_path in asset_folder.iterdir():
+        if file_path.is_file() and file_path.stem == "main":
             # Determine content type from extension
+            ext = file_path.suffix.lower()
             content_type = "application/octet-stream"
             for ct, e in ALLOWED_CONTENT_TYPES.items():
-                if e == ext:
+                if e == ext or (ext == ".jpeg" and e == ".jpg"):
                     content_type = ct
                     break
             
             return FileResponse(
-                asset_path,
+                file_path,
                 media_type=content_type,
                 filename=f"{asset_uuid}{ext}"
             )
@@ -553,12 +553,13 @@ async def get_asset_info(
     if not asset_folder.exists() or not asset_folder.is_dir():
         raise HTTPException(status_code=404, detail="Asset folder not found")
     
-    for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = asset_folder / f"main{ext}"
-        if asset_path.exists():
+    # Find the asset file: main.{ext} (any extension)
+    for file_path in asset_folder.iterdir():
+        if file_path.is_file() and file_path.stem == "main":
+            ext = file_path.suffix.lower()
             content_type = "application/octet-stream"
             for ct, e in ALLOWED_CONTENT_TYPES.items():
-                if e == ext:
+                if e == ext or (ext == ".jpeg" and e == ".jpg"):
                     content_type = ct
                     break
             
@@ -571,7 +572,7 @@ async def get_asset_info(
                 filename=node.name,
                 content_type=content_type,
                 category=get_asset_category(content_type),
-                size_bytes=asset_path.stat().st_size,
+                size_bytes=file_path.stat().st_size,
                 url=f"/api/assets/{asset_uuid}"
             )
     
@@ -651,26 +652,28 @@ async def list_assets(
     assets_dir = get_graph_assets_dir(graph_uuid)
     
     for node in paged_nodes:
-        # Find the file for this asset
-        for ext in ALLOWED_CONTENT_TYPES.values():
-            asset_path = assets_dir / f"{node.uuid}{ext}"
-            if asset_path.exists():
-                content_type = "application/octet-stream"
-                for ct, e in ALLOWED_CONTENT_TYPES.items():
-                    if e == ext:
-                        content_type = ct
-                        break
-                
-                if node.id is not None:
-                    assets.append(AssetResponse(
-                        uuid=node.uuid,
-                        node_id=node.id,
-                        filename=node.name,
-                        content_type=content_type,
-                        category=get_asset_category(content_type),
-                        size_bytes=asset_path.stat().st_size,
-                        url=f"/api/assets/{node.uuid}"
-                    ))
-                break
+        # Find the file for this asset in its folder
+        asset_folder = assets_dir / node.uuid
+        if asset_folder.exists() and asset_folder.is_dir():
+            for file_path in asset_folder.iterdir():
+                if file_path.is_file() and file_path.stem == "main":
+                    ext = file_path.suffix.lower()
+                    content_type = "application/octet-stream"
+                    for ct, e in ALLOWED_CONTENT_TYPES.items():
+                        if e == ext or (ext == ".jpeg" and e == ".jpg"):
+                            content_type = ct
+                            break
+                    
+                    if node.id is not None:
+                        assets.append(AssetResponse(
+                            uuid=node.uuid,
+                            node_id=node.id,
+                            filename=node.name,
+                            content_type=content_type,
+                            category=get_asset_category(content_type),
+                            size_bytes=file_path.stat().st_size,
+                            url=f"/api/assets/{node.uuid}"
+                        ))
+                    break
     
     return AssetListResponse(assets=assets, total=len(nodes))
