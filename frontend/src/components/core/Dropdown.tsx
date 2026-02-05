@@ -252,7 +252,7 @@ export function Dropdown<T = string>({
           <Card
             className="dropdown-trigger"
             onClick={handleToggle}
-            variant="outlined"
+            variant="default"
             padding={false}
             elevation="none"
             interactive
