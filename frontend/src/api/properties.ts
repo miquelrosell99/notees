@@ -43,6 +43,14 @@ export async function getProperty(id: number): Promise<Property> {
 }
 
 /**
+ * Get a property by UUID
+ */
+export async function getPropertyByUuid(uuid: string): Promise<Property> {
+  const response = await api.get<Property>(`${BASE}/uuid/${uuid}`);
+  return response.data;
+}
+
+/**
  * Update a property
  */
 export async function updateProperty(

@@ -112,6 +112,21 @@ async def get_property(
     return _property_to_response(prop)
 
 
+@router.get("/uuid/{uuid}")
+async def get_property_by_uuid(
+    uuid: str,
+    user: User = Depends(get_current_user),
+):
+    """Get a property definition by UUID."""
+    repo = await _get_property_repo(user)
+    
+    prop = await repo.get_by_uuid(uuid)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    
+    return _property_to_response(prop)
+
+
 @router.put("/{property_id}")
 async def update_property(
     property_id: int,
