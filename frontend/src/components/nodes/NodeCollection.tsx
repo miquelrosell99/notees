@@ -446,6 +446,7 @@ export function NodeCollection({
   onPropertyColumnsChange,
   customContextMenu,
   customContextMenuItems,
+  autoCollapse = false,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -545,6 +546,7 @@ export function NodeCollection({
     suppressRootColor,
     customContextMenu,
     customContextMenuItems,
+    autoCollapse,
   };
 
   // Check if empty
