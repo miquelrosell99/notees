@@ -887,6 +887,8 @@ export function NodeTimelineRenderer({
               viewMode="list"
               editable={false}
               showClasses={true}
+              onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
+              onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
             />
           </div>
         </Card>
