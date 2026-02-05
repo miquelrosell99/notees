@@ -158,12 +158,12 @@ async def update_property(
         if not prop:
             raise HTTPException(404, "Property not found")
         
-        # If changing from multi to single, delete extra values
-        if prop.is_multi and not request.multi:
-            # Delete all values except the first one for each node
-            from ...db.connection import get_pool
-            pool = await get_pool()
-            async with pool.acquire() as conn:
+        from ...db.connection import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # If changing from multi to single, delete extra values
+            if prop.is_multi and not request.multi:
+                # Delete all values except the first one for each node
                 # For scalar values
                 if prop.type in SCALAR_TYPES:
                     await conn.execute("""
@@ -196,12 +196,12 @@ async def update_property(
                             GROUP BY node_id
                         ) AND property_id = $1
                     """, property_id)
-                
-                # Update the property
-                await conn.execute(
-                    "UPDATE property SET is_multi = $1, write_date = $2, write_uid = $3 WHERE id = $4",
-                    request.multi, utc_now(), user.id, property_id
-                )
+            
+            # Update the property's is_multi flag (for both single->multi and multi->single)
+            await conn.execute(
+                "UPDATE property SET is_multi = $1, write_date = $2, write_uid = $3 WHERE id = $4",
+                request.multi, utc_now(), user.id, property_id
+            )
     
     try:
         prop = await repo.update(property_id, name=request.name, icon=request.icon)
