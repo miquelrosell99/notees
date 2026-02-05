@@ -4,6 +4,18 @@
  * Note: Trigger styles now in SelectTrigger.css
  */
 
+/* Container for dropdown + clear button */
+.dropdown-container {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  width: 100%;
+}
+
+.dropdown-clear-btn {
+  flex-shrink: 0;
+}
+
 .dropdown {
   position: relative;
   display: inline-flex;
