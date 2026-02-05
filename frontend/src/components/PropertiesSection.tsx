@@ -21,6 +21,8 @@ import {
   useClassProperties,
   useInheritedProperties,
   usePageClass,
+  useNodes,
+  usePages,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getNodeByUuid } from '@/api/nodes';
@@ -29,7 +31,9 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
 import { Button } from './core/Button';
+import { Dropdown } from './core/Dropdown';
 import { NodePicker } from './nodes/NodePicker';
+import { NodePillRow } from './NodePillRow';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
@@ -176,37 +180,129 @@ function PropertyValue({
       );
 
     case 'node':
-      // For node references, use NodePicker which filters to pages + tag_filters
-      return (
-        <NodePicker
-          property={property}
-          value={value as number | number[] | null}
-          multi={property.multi}
-          readOnly={readOnly}
-          onChange={(newValue) => onChange(newValue)}
-          onNavigate={onNavigateToNode}
-          onCreate={onCreatePage}
-        />
-      );
+      // For node references
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const { data: allNodesForNode } = useNodes();
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const { data: allPagesForNode } = usePages();
+      
+      if (property.multi) {
+        // Multi-value: use NodePillRow
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const selectedNodes = useMemo(() => {
+          if (!Array.isArray(value)) return [];
+          return value
+            .map(id => allNodesForNode?.find(n => n.id === id))
+            .filter((n): n is Node => n !== undefined);
+        }, [value, allNodesForNode]);
+        
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const handleAddNode = useCallback((node: Node) => {
+          const currentIds = Array.isArray(value) ? value : [];
+          onChange([...currentIds, node.id]);
+        }, [value, onChange]);
+        
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const handleRemoveNode = useCallback((node: Node) => {
+          const currentIds = Array.isArray(value) ? value : [];
+          onChange(currentIds.filter(id => id !== node.id));
+        }, [value, onChange]);
+        
+        return (
+          <NodePillRow
+            nodes={selectedNodes}
+            searchMode="pages"
+            emptyText="Add page"
+            searchPlaceholder="Search pages..."
+            onNodeClick={(node) => onNavigateToNode?.(node.id)}
+            onRemove={readOnly ? undefined : handleRemoveNode}
+            onAdd={readOnly ? undefined : handleAddNode}
+            readOnly={readOnly}
+          />
+        );
+      } else {
+        // Single-value: use Dropdown with pages
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const nodeOptions = useMemo(() => 
+          (allPagesForNode ?? [])
+            .filter(p => property.class_filters.length === 0 || property.class_filters.some(cf => p.classes?.includes(cf)))
+            .map(p => ({
+              value: p.id,
+              label: p.name || 'Untitled',
+              icon: p.icon || undefined,
+            })),
+          [allPagesForNode, property.class_filters]
+        );
+        
+        return (
+          <Dropdown
+            options={nodeOptions}
+            value={typeof value === 'number' ? value : null}
+            onChange={(newValue) => onChange(newValue)}
+            placeholder="Select a page..."
+            searchable
+            clearable
+            disabled={readOnly}
+            size="sm"
+          />
+        );
+      }
 
     case 'selection':
       // Selection with options
       const options = property.options ?? [];
-      return (
-        <select
-          value={String(value ?? '')}
-          disabled={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-          className="property-value-select"
-        >
-          <option value="">Select...</option>
-          {options.map((opt) => (
-            <option key={opt.id} value={opt.name}>
-              {opt.icon ? `${opt.icon} ` : ''}{opt.name}
-            </option>
-          ))}
-        </select>
-      );
+      
+      if (property.multi) {
+        // Multi-value selection: use Dropdown with multiple
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const selectionOptions = useMemo(() => 
+          options.map(opt => ({
+            value: opt.id,
+            label: opt.name,
+            icon: opt.icon || undefined,
+          })),
+          [options]
+        );
+        
+        return (
+          <Dropdown
+            options={selectionOptions}
+            values={Array.isArray(value) ? value.map(v => typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v) : []}
+            onChangeMultiple={(newValues) => onChange(newValues)}
+            placeholder="Select options..."
+            multiple
+            searchable
+            disabled={readOnly}
+            size="sm"
+          />
+        );
+      } else {
+        // Single-value selection: use Dropdown
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const selectionOptions = useMemo(() => 
+          options.map(opt => ({
+            value: opt.id,
+            label: opt.name,
+            icon: opt.icon || undefined,
+          })),
+          [options]
+        );
+        
+        const currentValue = typeof value === 'object' && value !== null && 'id' in value ? (value as { id: number }).id : value;
+        
+        return (
+          <Dropdown
+            options={selectionOptions}
+            value={typeof currentValue === 'number' ? currentValue : null}
+            onChange={(newValue) => onChange(newValue)}
+            placeholder="Select an option..."
+            searchable
+            clearable
+            disabled={readOnly}
+            size="sm"
+          />
+        );
+      }
 
     case 'date':
       // Date picker that links to day page when clicked

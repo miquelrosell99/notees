@@ -3,7 +3,7 @@
  * 
  * For node-type properties:
  * - Pages are always included by default
- * - Additional node types can be included via tag_filters on the property
+ * - Additional node types can be included via class_filters on the property
  * - Shows a searchable dropdown with matching nodes
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -14,7 +14,7 @@ import { Button } from '../core/Button';
 import './NodePicker.css';
 
 interface NodePickerProps {
-  /** The property definition (for tag_filters) */
+  /** The property definition (for class_filters) */
   property: Property;
   /** Currently selected node ID(s) */
   value: number | number[] | null;
@@ -59,10 +59,10 @@ export function NodePicker({
   const { data: allPages } = usePages();
   const { data: allNodes } = useNodes();
   
-  // Use shared search hook with tag filters from property
+  // Use shared search hook with class filters from property
   const { allResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(query, {
     mode: 'all',
-    tagFilters: property.tag_filters ?? [],
+    classFilters: property.class_filters ?? [],
     maxResults: 15,
   });
   
@@ -357,7 +357,7 @@ export function NodePicker({
           
           <div className="node-picker__footer">
             <span className="node-picker__hint">
-              Pages only{property.tag_filters?.length ? ' + filtered types' : ''}
+              Pages only{property.class_filters?.length ? ' + filtered classes' : ''}
             </span>
           </div>
         </div>

@@ -18,6 +18,7 @@ import { useDeleteProperty, useNodes } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { mdiTrashCan } from '@mdi/js';
 import './PropertyConfigSection.css';
 
@@ -66,9 +67,9 @@ export function PropertyConfigSection({
     [property.options]
   );
   
-  // Get type classes for display
+  // Get type classes for display (exclude page class)
   const typeClasses = useMemo(() => 
-    allNodes?.filter(n => n.is_class) || [],
+    allNodes?.filter(n => n.is_class && n.uuid !== SYSTEM_CLASS_UUIDS.page) || [],
     [allNodes]
   );
   

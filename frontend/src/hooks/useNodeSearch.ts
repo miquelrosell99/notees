@@ -30,8 +30,6 @@ export interface NodeSearchFilters {
   excludeNodeId?: number;
   /** Maximum number of results per section */
   maxResults?: number;
-  /** @deprecated Use classFilters instead */
-  tagFilters?: number[];
 }
 
 export interface NodeSearchItem {
@@ -80,7 +78,7 @@ export function useNodeSearch(
 ): UseNodeSearchReturn {
   const {
     mode = 'all',
-    classFilters = filters.tagFilters ?? [], // Support both new and deprecated prop
+    classFilters = [],
     excludeNodeId,
     maxResults = 10,
   } = filters;
@@ -210,8 +208,6 @@ export function useNodeSearch(
     // Now that list/search endpoints reliably populate `classes`, we can use it directly
     if (classFilters.length > 0) {
       baseResults = baseResults.filter(node => {
-        // Always include pages
-        if (node.is_page || node.parent_id === null) return true;
         // Include nodes with matching class - classes is now reliably populated
         if (node.classes && node.classes.length > 0) {
           return classFilters.some(filterId => node.classes!.includes(filterId));
