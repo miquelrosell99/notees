@@ -664,8 +664,8 @@ export function PropertiesSection({
               </div>
               <div className="property-value-container">
                 <div className="property-value-wrapper">
-                  {/* Decorative bullet for non-text properties */}
-                  {property.type !== 'text' && (
+                  {/* Decorative bullet for properties other than text and node */}
+                  {property.type !== 'text' && property.type !== 'node' && (
                     <Bullet interactive={false} size="xs" />
                   )}
                   {/* Interactive bullet for text properties - clicking opens block in focused view */}
@@ -675,6 +675,16 @@ export function PropertiesSection({
                       interactive={!readOnly && typeof value === 'number'}
                       onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
                       onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
+                      size="xs"
+                    />
+                  )}
+                  {/* Interactive bullet for node properties - clicking navigates to the selected node */}
+                  {property.type === 'node' && !property.multi && (
+                    <Bullet 
+                      nodeId={typeof value === 'number' ? value : undefined}
+                      interactive={!readOnly && typeof value === 'number'}
+                      onClick={() => typeof value === 'number' && onNavigateToNode?.(value)}
+                      onShiftClick={(nodeId) => onOpenInSidebar?.(nodeId)}
                       size="xs"
                     />
                   )}
