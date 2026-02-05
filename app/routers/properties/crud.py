@@ -1,4 +1,4 @@
-"""Property CRUD and type filter endpoints."""
+"""Property CRUD and class filter endpoints."""
 from fastapi import APIRouter, HTTPException, Depends
 
 from ..auth import get_current_user
@@ -275,49 +275,49 @@ async def delete_property(
     return {"status": "ok"}
 
 
-# ============== Type Filters ==============
+# ============== Class Filters ==============
 
-@router.get("/{property_id}/type-filters")
-async def list_type_filters(
+@router.get("/{property_id}/class-filters")
+async def list_class_filters(
     property_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Get all type filters for a property."""
+    """Get all class filters for a property."""
     repo = await _get_property_repo(user)
     
-    filters = await repo.get_type_filters(property_id)
-    return {"type_filters": filters}
+    filters = await repo.get_class_filters(property_id)
+    return {"class_filters": filters}
 
 
-@router.post("/{property_id}/type-filters")
-async def add_type_filter(
+@router.post("/{property_id}/class-filters")
+async def add_class_filter(
     property_id: int,
-    type_node_id: int,
+    class_node_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Add a type filter to a relation-type property."""
+    """Add a class filter to a node-type property."""
     repo = await _get_property_repo(user)
     
     try:
-        filter = await repo.add_type_filter(property_id, type_node_id)
+        filter_obj = await repo.add_class_filter(property_id, class_node_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     
-    return {"id": filter.id, "type_node_id": filter.type_node_id}
+    return {"id": filter_obj.id, "class_node_id": filter_obj.class_node_id}
 
 
-@router.delete("/{property_id}/type-filters/{type_node_id}")
-async def remove_type_filter(
+@router.delete("/{property_id}/class-filters/{class_node_id}")
+async def remove_class_filter(
     property_id: int,
-    type_node_id: int,
+    class_node_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Remove a type filter from a property."""
+    """Remove a class filter from a property."""
     repo = await _get_property_repo(user)
     
-    success = await repo.remove_type_filter(property_id, type_node_id)
+    success = await repo.remove_class_filter(property_id, class_node_id)
     if not success:
-        raise HTTPException(404, "Type filter not found")
+        raise HTTPException(404, "Class filter not found")
     
     return {"status": "ok"}
 

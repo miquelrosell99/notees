@@ -99,31 +99,31 @@ export async function deleteSelectionOption(
   await api.delete(`${BASE}/${propertyId}/options/${optionId}`);
 }
 
-// ============== Tag Filters ==============
+// ============== Class Filters ==============
 
 /**
- * Add a tag filter to a node-type property
+ * Add a class filter to a node-type property
  */
-export async function addTagFilter(
+export async function addClassFilter(
   propertyId: number,
-  tagNodeId: number
-): Promise<{ id: number; tag_node_id: number }> {
-  const response = await api.post<{ id: number; tag_node_id: number }>(
-    `${BASE}/${propertyId}/tag-filters`,
+  classNodeId: number
+): Promise<{ id: number; class_node_id: number }> {
+  const response = await api.post<{ id: number; class_node_id: number }>(
+    `${BASE}/${propertyId}/class-filters`,
     null,
-    { params: { tag_node_id: tagNodeId } }
+    { params: { class_node_id: classNodeId } }
   );
   return response.data;
 }
 
 /**
- * Remove a tag filter from a property
+ * Remove a class filter from a property
  */
-export async function removeTagFilter(
+export async function removeClassFilter(
   propertyId: number,
-  tagNodeId: number
+  classNodeId: number
 ): Promise<void> {
-  await api.delete(`${BASE}/${propertyId}/tag-filters/${tagNodeId}`);
+  await api.delete(`${BASE}/${propertyId}/class-filters/${classNodeId}`);
 }
 
 // ============== Type Properties ==============
