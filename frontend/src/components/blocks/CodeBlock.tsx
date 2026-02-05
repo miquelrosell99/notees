@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { Dropdown } from '../core/Dropdown';
 import type { DropdownOption } from '../core/Dropdown';
+import { Card } from '../core/Card';
 import './CodeBlock.css';
 
 export interface CodeBlockProps {
@@ -93,8 +94,10 @@ export function CodeBlock({
   const languageLabel = LANGUAGE_OPTIONS.find(opt => opt.value === displayLanguage)?.label ?? 'Plain Text';
 
   return (
-    <div 
+    <Card 
       className="code-block"
+      variant="outlined"
+      padding={false}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
@@ -130,7 +133,7 @@ export function CodeBlock({
           <span className="code-block-language-label">{languageLabel}</span>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
