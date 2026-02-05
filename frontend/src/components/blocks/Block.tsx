@@ -2276,19 +2276,11 @@ function BlockInternal({
       {/* Context menu for bullet right-click */}
       {contextMenu && (
         customContextMenuItems ? (
-          <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000 }}>
-            <ColorPickerRow 
-              currentColor={block.color ?? null} 
-              onColorChange={(color) => {
-                updateNode.mutate({ id: block.id, data: { color } });
-              }} 
-            />
-            <ContextMenu
-              items={customContextMenuItems}
-              position={{ x: 0, y: 0 }}
-              onClose={handleCloseContextMenu}
-            />
-          </div>
+          <ContextMenu
+            items={customContextMenuItems}
+            position={contextMenu}
+            onClose={handleCloseContextMenu}
+          />
         ) : block.is_page ? (
           <PageContextMenu
             node={block}
