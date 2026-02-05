@@ -272,14 +272,15 @@ function NodeListItem({
   }, [customContextMenuItems, node]);
   
   // Handle collapse toggle for pages and level-2 blocks - use local state instead of persisting
-  const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
-    if ((node.is_page || relativeDepth === 2) && onToggleNodeCollapse) {
+  const handleCollapseToggle = useCallback((e: React.MouseEvent, blockDepth: number) => {
+    const relativeDepthAtToggle = blockDepth - (initialDepth ?? depth);
+    if ((node.is_page || relativeDepthAtToggle === 2) && onToggleNodeCollapse) {
       e.preventDefault();
       e.stopPropagation();
       onToggleNodeCollapse(node.id);
     }
     // For other blocks, let Block component handle normally (will persist to DB)
-  }, [node.is_page, node.id, relativeDepth, onToggleNodeCollapse]);
+  }, [node.is_page, node.id, initialDepth, depth, onToggleNodeCollapse]);
 
   // Editable mode: render full Block component
   if (editable) {
@@ -423,6 +424,7 @@ interface GroupHeaderProps {
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
   localExpandedNodes?: Set<number>;
   onToggleNodeCollapse?: (nodeId: number) => void;
+  initialDepth?: number;
 }
 
 function GroupHeader({
@@ -443,6 +445,7 @@ function GroupHeader({
   customContextMenuItems,
   localExpandedNodes,
   onToggleNodeCollapse,
+  initialDepth,
 }: GroupHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const openNode = useNodesStore(state => state.openNode);
@@ -576,6 +579,9 @@ export function NodeListView({
   // These are always collapsed on load, but users can temporarily expand them
   const [localExpandedNodes, setLocalExpandedNodes] = useState<Set<number>>(new Set());
   
+  // Store the initial depth for this NodeListView instance
+  const initialDepth = useMemo(() => depth, []);
+  
   // Toggle node collapse state locally (for pages and level-2 blocks)
   const handleToggleNodeCollapse = useCallback((nodeId: number) => {
     setLocalExpandedNodes(prev => {
@@ -638,7 +644,7 @@ export function NodeListView({
                 key={node.id}
                 node={node}
                 depth={depth}
-                initialDepth={depth} // Track initial depth for relative level-2 calculation
+                initialDepth={initialDepth} // Track initial depth for relative level-2 calculation
                 editable={editable}
                 maxDepth={maxDepth}
                 showBullets={showBullets}
@@ -703,7 +709,7 @@ export function NodeListView({
             key={node.id}
             node={node}
             depth={depth}
-            initialDepth={depth} // Track initial depth for relative level-2 calculation
+            initialDepth={initialDepth} // Track initial depth for relative level-2 calculation
             editable={editable}
             maxDepth={maxDepth}
             showBullets={showBullets}
