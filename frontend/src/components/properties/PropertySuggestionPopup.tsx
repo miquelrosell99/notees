@@ -5,16 +5,16 @@
  * If no exact match exists, shows "Create new property" option.
  * 
  * When selecting an existing property, it's added to the node.
- * When creating a new property, creates a text property by default
- * and opens the PropertyConfigPanel for editing.
+ * When creating a new property, opens PropertyCreateModal for configuration.
  * 
  * Uses the same dropdown pattern as NodePillRow for consistency.
  */
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';
-import type { Property } from '@/types/api';
+import type { Property, PropertyType, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { AddIcon } from '../icons';
+import { PropertyCreateModal } from './PropertyCreateModal';
 import './PropertySuggestionPopup.css';
 
 /** System property UUIDs that should be hidden from the "Add property" menu */
@@ -32,7 +32,7 @@ export interface PropertySuggestionPopupProps {
   /** Callback to close the popup */
   onClose: () => void;
   /** Callback when a new property should be created */
-  onCreate: (name: string) => void;
+  onCreate: (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => void;
   /** Property IDs to exclude from the list (already applied) */
   excludeIds?: number[];
 }
@@ -46,6 +46,8 @@ export function PropertySuggestionPopup({
 }: PropertySuggestionPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [initialPropertyName, setInitialPropertyName] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
@@ -97,6 +99,8 @@ export function PropertySuggestionPopup({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset popup state when opened in useLayoutEffect
       setQuery('');
       setSelectedIndex(0);
+      setShowCreateModal(false);
+      setInitialPropertyName('');
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
@@ -109,9 +113,21 @@ export function PropertySuggestionPopup({
 
   const handleCreate = useCallback(() => {
     if (!query.trim()) return;
-    onCreate(query.trim());
+    setInitialPropertyName(query.trim());
+    setShowCreateModal(true);
+  }, [query]);
+  
+  const handleCreateConfirm = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
+    onCreate(data);
     setQuery('');
-  }, [query, onCreate]);
+    setInitialPropertyName('');
+    setShowCreateModal(false);
+  }, [onCreate]);
+  
+  const handleCreateCancel = useCallback(() => {
+    setShowCreateModal(false);
+    setInitialPropertyName('');
+  }, []);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -157,20 +173,21 @@ export function PropertySuggestionPopup({
   if (!isOpen) return null;
   
   return (
-    <div
-      ref={containerRef}
-      className="property-suggestion-popup"
-    >
-      <input
-        ref={inputRef}
-        type="text"
-        className="property-suggestion-popup__search"
-        placeholder="Search properties..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-      <div className="property-suggestion-popup__options">
+    <>
+      <div
+        ref={containerRef}
+        className="property-suggestion-popup"
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          className="property-suggestion-popup__search"
+          placeholder="Search properties..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <div className="property-suggestion-popup__options">
         {isLoading && query.length > 0 ? (
           <div className="property-suggestion-popup__loading">Searching...</div>
         ) : filteredProperties.length === 0 && !showCreateOption ? (
@@ -216,6 +233,15 @@ export function PropertySuggestionPopup({
         )}
       </div>
     </div>
+    
+    {/* Property creation modal */}
+    <PropertyCreateModal
+      isOpen={showCreateModal}
+      onClose={handleCreateCancel}
+      onCreate={handleCreateConfirm}
+      initialName={initialPropertyName}
+    />
+  </>
   );
 }
 
