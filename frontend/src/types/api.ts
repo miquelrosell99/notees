@@ -359,6 +359,7 @@ export interface PropertyCreate {
 export interface PropertyUpdate {
   name?: string | null;
   icon?: string | null;
+  is_multi?: boolean | null;
 }
 
 // ==================== User Types ====================

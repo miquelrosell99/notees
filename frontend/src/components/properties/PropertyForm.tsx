@@ -12,7 +12,7 @@ import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
 import { ListSortable } from '../core/ListSortable';
-import { SuggestionPopup } from '../SuggestionPopup';
+import { NodePillRow } from '../NodePillRow';
 import './PropertyForm.css';
 
 export interface PropertyTypeOption {
@@ -56,8 +56,6 @@ export interface PropertyFormProps {
   
   // Allowed classes (for node type)
   allowedClasses: Node[];
-  showClassSelector: boolean;
-  typeClasses: Node[];
   
   // Handlers
   onIconChange: (icon: string) => void;
@@ -76,12 +74,10 @@ export interface PropertyFormProps {
   
   onAddClass: (node: Node) => void;
   onRemoveClass: (id: number) => void;
-  onShowClassSelectorChange: (show: boolean) => void;
   
   // Config
   readOnly?: boolean;
   showTypeSelection?: boolean;
-  showScopeSelection?: boolean;
   showMultiValueSelection?: boolean;
   showDefaultValue?: boolean;
   showSelectionOptions?: boolean;
@@ -106,8 +102,6 @@ export function PropertyForm({
   showAddOption,
   
   allowedClasses,
-  showClassSelector,
-  typeClasses,
   
   onIconChange,
   onNameChange,
@@ -125,11 +119,9 @@ export function PropertyForm({
   
   onAddClass,
   onRemoveClass,
-  onShowClassSelectorChange,
   
   readOnly = false,
   showTypeSelection = true,
-  showScopeSelection = true,
   showMultiValueSelection = true,
   showDefaultValue = true,
   showSelectionOptions = true,
@@ -211,29 +203,6 @@ export function PropertyForm({
           </div>
           <div className="property-form__help-text">
             Property type cannot be changed after creation.
-          </div>
-        </div>
-      )}
-      
-      {/* Scope */}
-      {showScopeSelection && (
-        <div className="property-form__field">
-          <label className="property-form__label">Scope</label>
-          <SelectionButton
-            options={[
-              { value: 'global', icon: mdiEarth, label: 'Global' },
-              { value: 'local', icon: mdiLock, label: 'Local' },
-            ]}
-            value={isLocal ? 'local' : 'global'}
-            onChange={(value) => !readOnly && onIsLocalChange(value === 'local')}
-            size="md"
-            disabled={readOnly}
-          />
-          <div className="property-form__help-text">
-            {isLocal 
-              ? 'Local properties are only available for specific nodes and their typed nodes'
-              : 'Global properties are available for all nodes'
-            }
           </div>
         </div>
       )}
@@ -335,48 +304,19 @@ export function PropertyForm({
       {showAllowedClasses && propertyType === 'node' && (
         <div className="property-form__field">
           <label className="property-form__label">Allowed Classes</label>
-          {allowedClasses.length > 0 && (
-            <div className="property-form__allowed-classes">
-              {allowedClasses.map((cls) => (
-                <div key={cls.id} className="property-form__class-pill">
-                  {cls.icon && <span>{cls.icon}</span>}
-                  <span>{cls.name}</span>
-                  {!readOnly && (
-                    <button
-                      onClick={() => onRemoveClass(cls.id)}
-                      className="property-form__class-remove"
-                      aria-label="Remove class"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {!readOnly && (
-            <Button
-              variant="default"
-              size="sm"
-              icon={mdiPlus}
-              onClick={() => onShowClassSelectorChange(true)}
-            >
-              {allowedClasses.length > 0 ? 'Add Another Class' : 'Add Class'}
-            </Button>
-          )}
-          
-          {showClassSelector && (
-            <SuggestionPopup
-              isOpen={showClassSelector}
-              query=""
-              type="class"
-              position={{ top: 0, left: 0 }}
-              onSelect={onAddClass}
-              onClose={() => onShowClassSelectorChange(false)}
-              multiSelect={false}
-              allNodes={typeClasses.filter(cls => !allowedClasses.some(ac => ac.id === cls.id))}
-            />
-          )}
+          <NodePillRow
+            nodes={allowedClasses}
+            searchMode="classes"
+            emptyText="Add class"
+            searchPlaceholder="Search classes..."
+            onNodeClick={(node) => {
+              // Optional: navigate to class node
+              console.log('Class clicked:', node);
+            }}
+            onRemove={!readOnly ? (node) => onRemoveClass(node.id) : undefined}
+            onAdd={!readOnly ? onAddClass : undefined}
+            readOnly={readOnly}
+          />
         </div>
       )}
       

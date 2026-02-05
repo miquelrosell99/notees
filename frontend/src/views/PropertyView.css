@@ -38,6 +38,21 @@
 
 .property-view .page-header-section__header {
   grid-column: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.property-view__type-badge {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+  padding: var(--spacing-1) var(--spacing-2);
+  flex-shrink: 0;
+  align-self: center;
 }
 
 /* ==================== Meta Info ====================  */
