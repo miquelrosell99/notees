@@ -143,7 +143,6 @@ export { AssetUploadModal } from './assets/AssetUploadModal';
 
 // Asset components
 export { AssetPreview } from './assets/AssetPreview';
-export { AssetBlock } from './assets/AssetBlock';
 
 // Emoji/Icon picker
 export { EmojiPicker, EmojiPickerTrigger } from './core/EmojiPicker';

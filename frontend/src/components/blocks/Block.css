@@ -588,3 +588,18 @@
 .block-query-results .node-collection__header {
   width: 100%;
 }
+
+/* Asset image - displayed below block row for asset class blocks */
+.block-asset-image {
+  margin-top: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  max-width: 500px;
+}
+
+.block-asset-image .image-node {
+  width: 100%;
+}
+
+.block-asset-image .image-node__wrapper {
+  width: 100%;
+}
