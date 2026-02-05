@@ -241,9 +241,9 @@ function PropertyValue({
             onChange={(newValue) => onChange(newValue)}
             placeholder="Select a page..."
             searchable
-            clearable
             disabled={readOnly}
             size="sm"
+            onDelete={!readOnly && value != null ? () => onChange(null) : undefined}
           />
         );
       }
@@ -297,9 +297,9 @@ function PropertyValue({
             onChange={(newValue) => onChange(newValue)}
             placeholder="Select an option..."
             searchable
-            clearable
             disabled={readOnly}
             size="sm"
+            onDelete={!readOnly && currentValue != null ? () => onChange(null) : undefined}
           />
         );
       }
