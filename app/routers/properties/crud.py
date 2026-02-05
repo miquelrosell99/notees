@@ -200,7 +200,7 @@ async def update_property(
             # Update the property's is_multi flag (for both single->multi and multi->single)
             await conn.execute(
                 "UPDATE property SET is_multi = $1, write_date = $2, write_uid = $3 WHERE id = $4",
-                request.multi, utc_now(), user.id, property_id
+                request.multi, utc_now(), int(user.id), property_id
             )
     
     try:
