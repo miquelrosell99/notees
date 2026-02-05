@@ -19,7 +19,7 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useSystemClasses, useClassExtends, useAddClassExtends, useRemoveClassExtends } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore, useSettingsStore, formatDate } from '@/stores';
 import type { Node } from '@/types';
@@ -28,8 +28,7 @@ import type { ViewMode, NodeViewType } from '@/stores';
 // Components
 import { PageHeader } from '../components/PageHeader';
 import { NodePillRow } from '../components/NodePillRow';
-import { BannerImage } from '../components/BannerImage';
-import { CoverImage } from '../components/CoverImage';
+import { ImageNode } from '../components/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
@@ -40,12 +39,53 @@ import { PropertiesSection } from '../components/PropertiesSection';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus } from '@mdi/js';
+import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline } from '@mdi/js';
+import Icon from '@mdi/react';
 
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import type { Asset } from '../api/assets';
+import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
+import { uploadAsset } from '@/api/assets';
 
 import './NodeView.css';
+
+// Local storage keys for collapse state
+const BANNER_COLLAPSED_KEY = 'notees:banner-collapsed';
+const COVER_COLLAPSED_KEY = 'notees:cover-collapsed';
+
+/**
+ * Get collapsed state for a specific node from localStorage
+ */
+function getCollapsedState(key: string, pageId: number, hasImage: boolean): boolean {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const states = JSON.parse(stored) as Record<string, boolean>;
+      const storedState = states[pageId.toString()];
+      if (storedState !== undefined) {
+        return storedState;
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  // Default: collapsed when empty, expanded when has image
+  return !hasImage;
+}
+
+/**
+ * Save collapsed state for a specific node to localStorage
+ */
+function setCollapsedState(key: string, pageId: number, collapsed: boolean): void {
+  try {
+    const stored = localStorage.getItem(key);
+    const states = stored ? JSON.parse(stored) as Record<string, boolean> : {};
+    states[pageId.toString()] = collapsed;
+    localStorage.setItem(key, JSON.stringify(states));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 /**
  * Check if a time is during "late night" hours (10PM - 4AM)
@@ -368,6 +408,14 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const [isCoverImagePickerOpen, setIsCoverImagePickerOpen] = useState(false);
   const setPropertyMutation = useSetNodeProperty();
   
+  // Banner and cover collapse/drag states
+  const [isBannerCollapsed, setIsBannerCollapsed] = useState(true);
+  const [isCoverCollapsed, setIsCoverCollapsed] = useState(true);
+  const [isBannerDragging, setIsBannerDragging] = useState(false);
+  const [isCoverDragging, setIsCoverDragging] = useState(false);
+  const [isBannerHovered, setIsBannerHovered] = useState(false);
+  const [isCoverHovered, setIsCoverHovered] = useState(false);
+  
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = nodeType ?? (node?.is_page ? 'page' : 'block');
   
@@ -400,6 +448,131 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     const bannerValue = node?.properties?.[bannerProperty.id];
     return typeof bannerValue === 'number' ? bannerValue : null;
   }, [node?.properties, bannerProperty?.id]);
+  
+  // Initialize and persist collapse states
+  React.useEffect(() => {
+    if (node?.id) {
+      setIsBannerCollapsed(getCollapsedState(BANNER_COLLAPSED_KEY, node.id, !!bannerImageId));
+      setIsCoverCollapsed(getCollapsedState(COVER_COLLAPSED_KEY, node.id, !!coverImageId));
+    }
+  }, [node?.id, bannerImageId, coverImageId]);
+  
+  // Collapse handlers
+  const handleToggleBannerCollapse = useCallback(() => {
+    if (!node) return;
+    setIsBannerCollapsed(prev => {
+      const newState = !prev;
+      setCollapsedState(BANNER_COLLAPSED_KEY, node.id, newState);
+      return newState;
+    });
+  }, [node]);
+  
+  const handleToggleCoverCollapse = useCallback(() => {
+    if (!node) return;
+    setIsCoverCollapsed(prev => {
+      const newState = !prev;
+      setCollapsedState(COVER_COLLAPSED_KEY, node.id, newState);
+      return newState;
+    });
+  }, [node]);
+  
+  // Banner remove handler
+  const handleRemoveBanner = useCallback(() => {
+    if (!bannerProperty || !node) return;
+    setPropertyMutation.mutate({
+      nodeId: node.id,
+      propertyId: bannerProperty.id,
+      value: null
+    });
+  }, [node, bannerProperty, setPropertyMutation]);
+  
+  // Cover remove handler
+  const handleRemoveCover = useCallback(() => {
+    if (!coverProperty || !node) return;
+    setPropertyMutation.mutate({
+      nodeId: node.id,
+      propertyId: coverProperty.id,
+      value: null
+    });
+  }, [node, coverProperty, setPropertyMutation]);
+  
+  // Banner drag handlers
+  const handleBannerDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsBannerDragging(true);
+  }, []);
+  
+  const handleBannerDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsBannerDragging(false);
+  }, []);
+  
+  const handleBannerDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsBannerDragging(false);
+    
+    if (!bannerProperty || !node) return;
+    
+    try {
+      const result = await extractImageFromDragEvent(e);
+      if (result) {
+        const asset = await uploadAsset(result.file);
+        setPropertyMutation.mutate({
+          nodeId: node.id,
+          propertyId: bannerProperty.id,
+          value: asset.node_id
+        });
+        if (isBannerCollapsed) {
+          setIsBannerCollapsed(false);
+          setCollapsedState(BANNER_COLLAPSED_KEY, node.id, false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to upload dropped banner:', error);
+    }
+  }, [bannerProperty, node, setPropertyMutation, isBannerCollapsed]);
+  
+  // Cover drag handlers
+  const handleCoverDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCoverDragging(true);
+  }, []);
+  
+  const handleCoverDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCoverDragging(false);
+  }, []);
+  
+  const handleCoverDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCoverDragging(false);
+    
+    if (!coverProperty || !node) return;
+    
+    try {
+      const result = await extractImageFromDragEvent(e);
+      if (result) {
+        const asset = await uploadAsset(result.file);
+        setPropertyMutation.mutate({
+          nodeId: node.id,
+          propertyId: coverProperty.id,
+          value: asset.node_id
+        });
+        if (isCoverCollapsed) {
+          setIsCoverCollapsed(false);
+          setCollapsedState(COVER_COLLAPSED_KEY, node.id, false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to upload dropped cover:', error);
+    }
+  }, [coverProperty, node, setPropertyMutation, isCoverCollapsed]);
   
   // Collect block IDs that are referenced by text properties (these should not appear in content)
   const textPropertyBlockIds = useMemo(() => {
@@ -530,14 +703,57 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       {resolvedType === 'page' ? (
         <>
           {/* Banner Image - before entire header section */}
-          <BannerImage
-            pageId={node.id}
-            bannerImageId={bannerImageId}
-            onSelectImage={handleSelectBannerImage}
-            onImageUploaded={handleBannerImageUploaded}
-            editable={true}
-            height="medium"
-          />
+          <div 
+            className={`node-view__banner ${isBannerDragging ? 'node-view__banner--dragging' : ''}`}
+            onMouseEnter={() => setIsBannerHovered(true)}
+            onMouseLeave={() => setIsBannerHovered(false)}
+          >
+            <button
+              className="node-view__banner-collapse-btn"
+              onClick={handleToggleBannerCollapse}
+              title={isBannerCollapsed ? "Expand banner image" : "Collapse banner"}
+              aria-label={isBannerCollapsed ? "Expand banner image" : "Collapse banner image"}
+              aria-expanded={!isBannerCollapsed}
+            >
+              <Icon path={mdiChevronDown} size={0.7} rotate={isBannerCollapsed ? 0 : 180} />
+            </button>
+            
+            <div 
+              className={`node-view__banner-content ${isBannerCollapsed ? 'node-view__banner-content--collapsed' : 'node-view__banner-content--expanded'}`}
+              onDragOver={handleBannerDragOver}
+              onDragLeave={handleBannerDragLeave}
+              onDrop={handleBannerDrop}
+            >
+              {bannerImageId ? (
+                <ImageNode
+                  assetNodeId={bannerImageId}
+                  alt="Banner"
+                  className="node-view__banner-image"
+                  showCard={true}
+                  elevation="low"
+                  radius="md"
+                  clickable={true}
+                  showActions={isBannerHovered && !isBannerCollapsed}
+                  onEdit={handleSelectBannerImage}
+                  onRemove={handleRemoveBanner}
+                  actionsDirection="horizontal"
+                  isDragging={isBannerDragging}
+                  showModalBullet={true}
+                />
+              ) : (
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  className="node-view__banner-add-btn"
+                  onClick={handleSelectBannerImage}
+                  title="Add banner image"
+                >
+                  <Icon path={mdiImageOutline} size={0.8} />
+                  <span>Add banner</span>
+                </Button>
+              )}
+            </div>
+          </div>
           
           {/* Grid layout: Header content on left | Cover spanning all rows on right */}
           <div className="page-header-section">
@@ -602,13 +818,54 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             </div>
             
             {/* Cover Image - spans rows 1-3 */}
-            <CoverImage
-              pageId={node.id}
-              coverImageId={coverImageId}
-              onSelectImage={handleSelectCoverImage}
-              onImageUploaded={handleCoverImageUploaded}
-              editable={true}
-            />
+            <div 
+              className={`node-view__cover ${isCoverDragging ? 'node-view__cover--dragging' : ''}`}
+              onMouseEnter={() => setIsCoverHovered(true)}
+              onMouseLeave={() => setIsCoverHovered(false)}
+            >
+              <button
+                className="node-view__cover-collapse-btn"
+                onClick={handleToggleCoverCollapse}
+                title={isCoverCollapsed ? "Expand cover image" : "Collapse cover"}
+                aria-label={isCoverCollapsed ? "Expand cover image" : "Collapse cover image"}
+                aria-expanded={!isCoverCollapsed}
+              >
+                <Icon path={mdiChevronLeft} size={0.7} rotate={isCoverCollapsed ? 180 : 0} />
+              </button>
+              
+              <div 
+                className={`node-view__cover-content ${isCoverCollapsed ? 'node-view__cover-content--collapsed' : 'node-view__cover-content--expanded'}`}
+                onDragOver={handleCoverDragOver}
+                onDragLeave={handleCoverDragLeave}
+                onDrop={handleCoverDrop}
+              >
+                {coverImageId ? (
+                  <ImageNode
+                    assetNodeId={coverImageId}
+                    alt="Cover"
+                    className="node-view__cover-image"
+                    showCard={true}
+                    elevation="low"
+                    radius="md"
+                    clickable={true}
+                    showActions={isCoverHovered && !isCoverCollapsed}
+                    onEdit={handleSelectCoverImage}
+                    onRemove={handleRemoveCover}
+                    actionsDirection="vertical"
+                    isDragging={isCoverDragging}
+                    showModalBullet={true}
+                  />
+                ) : (
+                  <button
+                    className="node-view__cover-add-btn"
+                    onClick={handleSelectCoverImage}
+                    title="Add cover image"
+                  >
+                    <Icon path={mdiImageOutline} size={0.8} />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           
           {/* Properties Section - full width row below header section */}

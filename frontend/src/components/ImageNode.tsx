@@ -2,8 +2,8 @@
  * ImageNode Component
  * 
  * A reusable component for displaying image assets within Card containers.
- * Used by BannerImage, CoverImage, and AssetBlock to provide consistent
- * image rendering with loading states, click-to-view, and drag-drop support.
+ * Used for banner images, cover images, and asset blocks to provide consistent
+ * image rendering with loading states, click-to-view, and action buttons.
  * 
  * The component adapts to its parent container size using CSS containment,
  * and supports various display modes and interactions.
@@ -13,8 +13,10 @@ import { useNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getAssetUrlAsync } from '@/api/assets';
 import { Card } from './core/Card';
+import { Button } from './core/Button';
 import { ImageModal } from './core/ImageModal';
 import { FloatingButtonArray } from './core/FloatingButtonArray';
+import { mdiPencil, mdiClose } from '@mdi/js';
 import './ImageNode.css';
 
 interface ImageNodeProps {
@@ -34,10 +36,14 @@ interface ImageNodeProps {
   clickable?: boolean;
   /** Whether to show action buttons on hover */
   showActions?: boolean;
-  /** Action buttons to show */
+  /** Custom action buttons to show (overrides onEdit/onRemove) */
   actions?: React.ReactNode;
   /** Direction for action buttons */
   actionsDirection?: 'horizontal' | 'vertical';
+  /** Callback when edit button is clicked (shows default edit button) */
+  onEdit?: () => void;
+  /** Callback when remove button is clicked (shows default remove button) */
+  onRemove?: () => void;
   /** Callback when image is clicked */
   onClick?: () => void;
   /** Whether drag events are happening (disables pointer events) */
@@ -59,6 +65,8 @@ export function ImageNode({
   showActions = false,
   actions,
   actionsDirection = 'horizontal',
+  onEdit,
+  onRemove,
   onClick,
   isDragging = false,
   loadingPlaceholder,
@@ -155,17 +163,45 @@ export function ImageNode({
     />
   );
 
+  // Render default action buttons if onEdit/onRemove provided
+  const defaultActions = (onEdit || onRemove) ? (
+    <>
+      {onEdit && (
+        <Button
+          icon={mdiPencil}
+          iconOnly
+          variant="ghost"
+          size="sm"
+          onClick={onEdit}
+          title="Change image"
+        />
+      )}
+      {onRemove && (
+        <Button
+          icon={mdiClose}
+          iconOnly
+          variant="ghost"
+          size="sm"
+          onClick={onRemove}
+          title="Remove image"
+        />
+      )}
+    </>
+  ) : null;
+
+  const actionButtons = actions || defaultActions;
+
   return (
     <>
       <div className={`image-node ${className}`}>
         {/* Action buttons */}
-        {showActions && actions && (
+        {showActions && actionButtons && (
           <FloatingButtonArray
             className="image-node__actions"
             direction={actionsDirection}
             size="sm"
           >
-            {actions}
+            {actionButtons}
           </FloatingButtonArray>
         )}
 

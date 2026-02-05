@@ -165,10 +165,6 @@ export { NodePreview } from './nodes/NodePreview';
 export { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
 export type { NodeActivity } from './nodes/NodeActivityLogSection';
 
-// Banner and Cover images
-export { BannerImage } from './BannerImage';
-export { CoverImage } from './CoverImage';
-
 // NodeCollection - Universal node collection system
 export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './nodes/NodeCollection';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCollection';

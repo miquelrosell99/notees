@@ -87,6 +87,8 @@ export interface PropertyFormProps {
   showSelectionOptions?: boolean;
   showAllowedClasses?: boolean;
   autoFocusName?: boolean;
+  showIconSelection?: boolean;
+  showNameField?: boolean;
 }
 
 export function PropertyForm({
@@ -133,6 +135,8 @@ export function PropertyForm({
   showSelectionOptions = true,
   showAllowedClasses = true,
   autoFocusName = false,
+  showIconSelection = true,
+  showNameField = true,
 }: PropertyFormProps) {
   const typeOption = PROPERTY_TYPE_OPTIONS.find(t => t.type === propertyType);
   
@@ -150,25 +154,31 @@ export function PropertyForm({
   return (
     <div className="property-form">
       {/* Icon and Name */}
-      <div className="property-form__field">
-        <label className="property-form__label">Name</label>
-        <div className="property-form__name-row">
-          <EmojiPickerTrigger
-            value={icon}
-            onSelect={onIconChange}
-            className="property-form__icon-picker"
-          />
-          <TextField
-            value={name}
-            onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Property name"
-            error={!!nameError}
-            errorMessage={nameError || undefined}
-            disabled={readOnly}
-            autoFocus={autoFocusName}
-          />
+      {(showIconSelection || showNameField) && (
+        <div className="property-form__field">
+          <label className="property-form__label">Name</label>
+          <div className="property-form__name-row">
+            {showIconSelection && (
+              <EmojiPickerTrigger
+                value={icon}
+                onSelect={onIconChange}
+                className="property-form__icon-picker"
+              />
+            )}
+            {showNameField && (
+              <TextField
+                value={name}
+                onChange={(e) => onNameChange(e.target.value)}
+                placeholder="Property name"
+                error={!!nameError}
+                errorMessage={nameError || undefined}
+                disabled={readOnly}
+                autoFocus={autoFocusName}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Type Selection */}
       {showTypeSelection && onTypeChange && (
