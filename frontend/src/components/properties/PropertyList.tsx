@@ -226,11 +226,9 @@ function PropertyRow({
 
   return (
     <>
-      <div className="property-row" onClick={handleNameClick} onContextMenu={handleContextMenu}>
-        <div
-          className="property-row__label"
-          title={!readOnly && getContextMenuItems ? 'Right-click for options' : undefined}
-        >
+      <div className="property-row" onClick={handleNameClick}>
+        <div className="property-row__label">
+
           <Block
             block={propertyAsNode}
             parentId={null}
