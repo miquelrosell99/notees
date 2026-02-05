@@ -340,7 +340,7 @@ export function NodePicker({
         disabled={readOnly}
         clearable={!readOnly}
         hasValue={selectedNodes.length > 0}
-        onClick={() => !readOnly && setIsOpen(true)}
+        onClick={() => !readOnly && setIsOpen(prev => !prev)}
         onClear={readOnly ? undefined : handleClearAll}
       >
         {/* Display selected value(s) */}
