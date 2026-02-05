@@ -26,37 +26,28 @@
   font: var(--font-body-medium);
 }
 
-/* ==================== Header ====================  */
+/* ==================== Header (using PageHeader component) ====================  */
 
-.property-view-header {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-4);
-  padding-bottom: var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
+/* Reuse page header section styles from NodeView */
+.property-view .page-header-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
 }
 
-.property-view-icon {
-  font-size: 2.5rem;
-  line-height: 1;
+.property-view .page-header-section__header {
+  grid-column: 1;
 }
 
-.property-view-info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
-
-.property-view-title {
-  margin: 0;
-  font: var(--font-headline-medium);
-  color: var(--color-on-surface);
-}
+/* ==================== Meta Info ====================  */
 
 .property-view-meta {
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  margin-bottom: var(--spacing-2);
 }
 
 .property-view-type {
@@ -89,6 +80,7 @@
   padding: var(--spacing-4);
   background: var(--color-surface-container-low);
   border-radius: var(--shape-medium);
+  margin-bottom: var(--spacing-4);
 }
 
 .property-view-options-title {
@@ -119,10 +111,14 @@
   font-size: 0.9rem;
 }
 
-/* ==================== Nodes Section ====================  */
+/* ==================== Empty/Loading States ====================  */
 
-.property-view-nodes {
-  flex: 1;
+.property-view-empty,
+.property-view-loading {
+  padding: var(--spacing-6);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
 }
 
 /* ==================== Value Display ====================  */

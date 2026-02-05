@@ -5,18 +5,23 @@
  * Shows the property information at the top and a NodeCollection table of all nodes with values.
  * 
  * Features:
- * - Property header with icon, name, type info
- * - NodeCollection table with property value as a column
+ * - Property header with icon, name, type info (using PageHeader component)
+ * - NodeCollection table with property value as a column (wrapped in NodeViewSection)
  * - Navigation to nodes on click
+ * - Delete property action in context menu
  */
 import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { useProperty, useNodesWithProperty } from '@/hooks';
+import { useProperty, useNodesWithProperty, useDeleteProperty } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeIcon } from '../components/icons';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
+import { PageHeader } from '../components/PageHeader';
+import { NodeViewSection } from '../components/nodes/NodeViewSection';
+import { ContextMenu, type ContextMenuItem } from '../components/core/ContextMenu';
+import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import './PropertyView.css';
 
 /** Property type display info */
@@ -45,6 +50,9 @@ export function PropertyView({
   onOpenInSidebar,
 }: PropertyViewProps) {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Fetch property details
   const { data: fetchedProperty, isLoading: propertyLoading } = useProperty(propertyId);
@@ -66,13 +74,45 @@ export function PropertyView({
   
   // Get navigation function
   const { openNode } = useNodesStore();
+  const deletePropertyMutation = useDeleteProperty();
   
   // Handle property deletion
-  const handlePropertyDelete = useCallback(() => {
-    // Navigate to home or a default page after deletion
-    // The property data will be removed from cache automatically by the mutation
-    openNode(1, 'page'); // Navigate to a safe page (adjust ID as needed)
-  }, [openNode]);
+  const handlePropertyDelete = useCallback(async () => {
+    if (!property) return;
+    
+    try {
+      await deletePropertyMutation.mutateAsync(property.id);
+      // Navigate to home or a default page after deletion
+      openNode(1, 'page'); // Navigate to a safe page
+    } catch (err) {
+      console.error('Failed to delete property:', err);
+    }
+  }, [property, deletePropertyMutation, openNode]);
+  
+  // Context menu handlers
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+    setShowContextMenu(true);
+  }, []);
+  
+  const handleCloseContextMenu = useCallback(() => {
+    setShowContextMenu(false);
+  }, []);
+  
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteModal(true);
+  }, []);
+  
+  const handleConfirmDelete = useCallback(() => {
+    handlePropertyDelete();
+    setShowDeleteModal(false);
+    setShowContextMenu(false);
+  }, [handlePropertyDelete]);
+  
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteModal(false);
+  }, []);
   
   // Fetch nodes with this property using property ID
   const { data: nodesWithProperty, isLoading: nodesLoading } = useNodesWithProperty(
@@ -125,6 +165,21 @@ export function PropertyView({
     onOpenInSidebar?.(node.id);
   };
   
+  // Build context menu items
+  const contextMenuItems = useMemo<ContextMenuItem[]>(() => {
+    if (!property) return [];
+    
+    return [
+      {
+        id: 'delete-property',
+        label: 'Delete Property',
+        danger: true,
+        keepOpen: true,
+        onClick: handleDeleteClick
+      }
+    ];
+  }, [property, handleDeleteClick]);
+  
   const isLoading = propertyLoading || nodesLoading;
   const typeInfo = property ? PROPERTY_TYPES[property.type] : null;
   const nodes = nodesWithProperty ?? [];
@@ -147,26 +202,34 @@ export function PropertyView({
   
   return (
     <div className="property-view">
-      {/* Property Header */}
-      <header className="property-view-header">
-        <div className="property-view-icon">
-          {property.icon || typeInfo?.icon || ''}
+      {/* Property Header - using PageHeader for consistency */}
+      <div className="page-header-section">
+        <div className="page-header-section__header">
+          <PageHeader
+            page={property as unknown as Node}
+            compactMode={false}
+            onContextMenu={handleContextMenu}
+          />
         </div>
-        <div className="property-view-info">
-          <h1 className="property-view-title">{property.name}</h1>
-          <div className="property-view-meta">
-            <span className="property-view-type">
-              {typeInfo?.icon} {typeInfo?.label || property.type}
-            </span>
-            {property.multi && (
-              <span className="property-view-badge">Multi-value</span>
-            )}
-            {property.is_system && (
-              <span className="property-view-badge system">System</span>
-            )}
-          </div>
-        </div>
-      </header>
+      </div>
+      
+      {/* Property Type and Meta Info */}
+      <div className="property-view-meta">
+        <span className="property-view-type">
+          {typeInfo?.icon} {typeInfo?.label || property.type}
+        </span>
+        {property.multi && (
+          <span className="property-view-badge">Multi-value</span>
+        )}
+        {property.is_system && (
+          <span className="property-view-badge system">System</span>
+        )}
+        {property.is_local ? (
+          <span className="property-view-badge">📍 Local</span>
+        ) : (
+          <span className="property-view-badge">🌐 Global</span>
+        )}
+      </div>
       
       {/* Property Options (for selection type) */}
       {property.type === 'selection' && property.options.length > 0 && (
@@ -187,12 +250,14 @@ export function PropertyView({
       <PropertyConfigSection
         property={property}
         onUpdate={handlePropertyUpdate}
-        onDelete={handlePropertyDelete}
       />
       
       {/* Nodes with this property */}
-      <section className="property-view-nodes">
-        <h2 className="property-view-section-title">Nodes with "{property.name}"</h2>
+      <NodeViewSection
+        title={`Nodes with "${property.name}"`}
+        count={nodes.length}
+        defaultExpanded={true}
+      >
         {nodesLoading ? (
           <div className="property-view-loading">Loading nodes...</div>
         ) : nodes.length === 0 ? (
@@ -212,7 +277,30 @@ export function PropertyView({
             tableColumns={columns}
           />
         )}
-      </section>
+      </NodeViewSection>
+      
+      {/* Context Menu */}
+      {showContextMenu && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenuPos}
+          onClose={handleCloseContextMenu}
+        />
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <ConfirmationModal
+          isOpen={showDeleteModal}
+          title="Delete Property"
+          message={`Are you sure you want to delete the property "${property.name}"? This will remove the property and all its values from all nodes.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          variant="danger"
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+        />
+      )}
     </div>
   );
 }

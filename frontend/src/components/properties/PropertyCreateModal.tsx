@@ -12,16 +12,11 @@
  * - Allowed classes selector (for node type)
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { mdiEarth, mdiLock, mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, PropertyCreate, Node } from '@/types/api';
 import { useProperties, useNodes } from '@/hooks';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
-import { SelectionButton } from '../core/SelectionButton';
-import { EmojiPickerTrigger } from '../core/EmojiPicker';
-import { ListSortable } from '../core/ListSortable';
-import { TextField } from '../core/TextField';
-import { SuggestionPopup } from '../SuggestionPopup';
+import { PropertyForm } from './PropertyForm';
 import './PropertyCreateModal.css';
 
 export interface PropertyTypeOption {
@@ -30,16 +25,6 @@ export interface PropertyTypeOption {
   description: string;
   supportsMultiValue: boolean;
 }
-
-export const PROPERTY_TYPES: PropertyTypeOption[] = [
-  { type: 'text', label: 'Text', description: 'Single or multi-line text', supportsMultiValue: false },
-  { type: 'integer', label: 'Number', description: 'Whole numbers', supportsMultiValue: false },
-  { type: 'float', label: 'Decimal', description: 'Numbers with decimals', supportsMultiValue: false },
-  { type: 'boolean', label: 'Checkbox', description: 'True/false value', supportsMultiValue: false },
-  { type: 'date', label: 'Date', description: 'Date picker', supportsMultiValue: false },
-  { type: 'selection', label: 'Selection', description: 'Choose from options', supportsMultiValue: true },
-  { type: 'node', label: 'Node', description: 'Link to another node', supportsMultiValue: true },
-];
 
 interface SelectionOption {
   id: string;
@@ -91,12 +76,6 @@ export function PropertyCreateModal({
     }
     return null;
   }, [name, existingProperties]);
-  
-  // Get type option
-  const typeOption = useMemo(() => 
-    PROPERTY_TYPES.find(t => t.type === selectedType),
-    [selectedType]
-  );
   
   // Validation
   const canCreate = useMemo(() => {
@@ -241,252 +220,38 @@ export function PropertyCreateModal({
         </div>
       }
     >
-      <div className="property-create-modal__content">
-        {/* Icon and Name */}
-        <div className="property-create-modal__field">
-          <label className="property-create-modal__label">Name</label>
-          <div className="property-create-modal__name-row">
-            <EmojiPickerTrigger
-              value={icon}
-              onSelect={setIcon}
-              className="property-create-modal__icon-picker"
-            />
-            <TextField
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Property name"
-              error={!!nameError}
-              errorMessage={nameError || undefined}
-              autoFocus
-            />
-          </div>
-        </div>
-        
-        {/* Type Selection */}
-        <div className="property-create-modal__field">
-          <label className="property-create-modal__label">Type</label>
-          <div className="property-create-modal__type-grid">
-            {PROPERTY_TYPES.map((type) => (
-              <button
-                key={type.type}
-                className={`property-create-modal__type-option ${
-                  selectedType === type.type ? 'property-create-modal__type-option--selected' : ''
-                }`}
-                onClick={() => handleTypeChange(type.type)}
-              >
-                <div className="property-create-modal__type-label">{type.label}</div>
-                <div className="property-create-modal__type-description">{type.description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Scope */}
-        <div className="property-create-modal__field">
-          <label className="property-create-modal__label">Scope</label>
-          <SelectionButton
-            options={[
-              { value: 'global', icon: mdiEarth, label: 'Global' },
-              { value: 'local', icon: mdiLock, label: 'Local' },
-            ]}
-            value={isLocal ? 'local' : 'global'}
-            onChange={(value) => setIsLocal(value === 'local')}
-            size="md"
-          />
-          <div className="property-create-modal__help-text">
-            {isLocal 
-              ? 'Local properties are only available for specific nodes and their typed nodes'
-              : 'Global properties are available for all nodes'
-            }
-          </div>
-        </div>
-        
-        {/* Multi-value (for applicable types) */}
-        {typeOption?.supportsMultiValue && (
-          <div className="property-create-modal__field">
-            <label className="property-create-modal__label">Values</label>
-            <SelectionButton
-              options={[
-                { value: 'single', icon: mdiNumeric1, label: 'Single value' },
-                { value: 'multi', icon: mdiNumeric9Plus, label: 'Multiple values' },
-              ]}
-              value={isMultiValue ? 'multi' : 'single'}
-              onChange={(value) => setIsMultiValue(value === 'multi')}
-              size="md"
-            />
-          </div>
-        )}
-        
-        {/* Selection Options (for selection type) */}
-        {selectedType === 'selection' && (
-          <div className="property-create-modal__field">
-            <label className="property-create-modal__label">Options</label>
-            {selectionOptions.length > 0 && (
-              <ListSortable
-                items={selectionOptions}
-                onReorder={handleReorderOptions}
-                renderIcon={(opt) => opt.icon || ''}
-                renderText={(opt) => opt.name}
-                renderActions={(opt) => [
-                  <Button
-                    key="delete"
-                    variant="ghost"
-                    size="sm"
-                    icon={mdiTrashCan}
-                    onClick={() => handleRemoveOption(opt.id)}
-                    aria-label="Remove option"
-                  />,
-                ]}
-                className="property-create-modal__options-list"
-              />
-            )}
-            
-            {showAddOption ? (
-              <div className="property-create-modal__add-option">
-                <EmojiPickerTrigger
-                  value={newOptionIcon}
-                  onSelect={setNewOptionIcon}
-                  className="property-create-modal__option-icon-picker"
-                />
-                <TextField
-                  value={newOptionName}
-                  onChange={(e) => setNewOptionName(e.target.value)}
-                  placeholder="Option name"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddOption();
-                    } else if (e.key === 'Escape') {
-                      setShowAddOption(false);
-                      setNewOptionName('');
-                      setNewOptionIcon('');
-                    }
-                  }}
-                  autoFocus
-                />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleAddOption}
-                  disabled={!newOptionName.trim()}
-                >
-                  Add
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowAddOption(false);
-                    setNewOptionName('');
-                    setNewOptionIcon('');
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                icon={mdiPlus}
-                onClick={() => setShowAddOption(true)}
-              >
-                Add Option
-              </Button>
-            )}
-          </div>
-        )}
-        
-        {/* Allowed Classes (for node type) */}
-        {selectedType === 'node' && (
-          <div className="property-create-modal__field">
-            <label className="property-create-modal__label">Allowed Classes</label>
-            {allowedClasses.length > 0 && (
-              <div className="property-create-modal__allowed-classes">
-                {allowedClasses.map((cls) => (
-                  <div key={cls.id} className="property-create-modal__class-pill">
-                    {cls.icon && <span>{cls.icon}</span>}
-                    <span>{cls.name}</span>
-                    <button
-                      onClick={() => handleRemoveClass(cls.id)}
-                      className="property-create-modal__class-remove"
-                      aria-label="Remove class"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <Button
-              variant="default"
-              size="sm"
-              icon={mdiPlus}
-              onClick={() => setShowClassSelector(true)}
-            >
-              {allowedClasses.length > 0 ? 'Add Another Class' : 'Add Class'}
-            </Button>
-            
-            {showClassSelector && (
-              <SuggestionPopup
-                isOpen={showClassSelector}
-                query=""
-                type="class"
-                position={{ top: 0, left: 0 }}
-                onSelect={handleSelectClass}
-                onClose={() => setShowClassSelector(false)}
-                multiSelect={false}
-                allNodes={typeClasses.filter(cls => !allowedClasses.some(ac => ac.id === cls.id))}
-              />
-            )}
-          </div>
-        )}
-        
-        {/* Default Value */}
-        {selectedType !== 'selection' && selectedType !== 'node' && (
-          <div className="property-create-modal__field">
-            <label className="property-create-modal__label">Default Value (Optional)</label>
-            {selectedType === 'boolean' ? (
-              <SelectionButton
-                options={[
-                  { value: '', icon: mdiNumeric1, label: 'None' },
-                  { value: 'true', icon: mdiNumeric1, label: 'Checked' },
-                  { value: 'false', icon: mdiNumeric1, label: 'Unchecked' },
-                ]}
-                value={defaultValue}
-                onChange={setDefaultValue}
-                size="md"
-              />
-            ) : (
-              <TextField
-                value={defaultValue}
-                onChange={(e) => setDefaultValue(e.target.value)}
-                placeholder={`Default ${typeOption?.label.toLowerCase() || 'value'}`}
-                type={selectedType === 'integer' || selectedType === 'float' ? 'number' : 'text'}
-              />
-            )}
-          </div>
-        )}
-        
-        {/* Selection Default Value */}
-        {selectedType === 'selection' && selectionOptions.length > 0 && (
-          <div className="property-create-modal__field">
-            <label className="property-create-modal__label">Default Value (Optional)</label>
-            <select
-              value={defaultValue}
-              onChange={(e) => setDefaultValue(e.target.value)}
-              className="property-create-modal__select"
-            >
-              <option value="">None</option>
-              {selectionOptions.map((opt) => (
-                <option key={opt.id} value={opt.name}>
-                  {opt.icon} {opt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      <PropertyForm
+        icon={icon}
+        name={name}
+        propertyType={selectedType}
+        isLocal={isLocal}
+        isMultiValue={isMultiValue}
+        defaultValue={defaultValue}
+        nameError={nameError}
+        selectionOptions={selectionOptions}
+        newOptionName={newOptionName}
+        newOptionIcon={newOptionIcon}
+        showAddOption={showAddOption}
+        allowedClasses={allowedClasses}
+        showClassSelector={showClassSelector}
+        typeClasses={typeClasses}
+        onIconChange={setIcon}
+        onNameChange={setName}
+        onTypeChange={handleTypeChange}
+        onIsLocalChange={setIsLocal}
+        onIsMultiValueChange={setIsMultiValue}
+        onDefaultValueChange={setDefaultValue}
+        onAddOption={handleAddOption}
+        onRemoveOption={handleRemoveOption}
+        onReorderOptions={handleReorderOptions}
+        onNewOptionNameChange={setNewOptionName}
+        onNewOptionIconChange={setNewOptionIcon}
+        onShowAddOptionChange={setShowAddOption}
+        onAddClass={handleSelectClass}
+        onRemoveClass={handleRemoveClass}
+        onShowClassSelectorChange={setShowClassSelector}
+        autoFocusName
+      />
     </Modal>
   );
 }
