@@ -396,9 +396,10 @@ function NodeCard({
   
   // Get cover image ID from properties
   const coverImageId = useMemo(() => {
-    const coverValue = node?.properties?.cover;
+    if (!coverProperty?.id) return null;
+    const coverValue = node?.properties?.[coverProperty.id];
     return typeof coverValue === 'number' ? coverValue : null;
-  }, [node.properties?.cover]);
+  }, [node.properties, coverProperty?.id]);
   
   // Handle context menu
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
