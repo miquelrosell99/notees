@@ -122,6 +122,8 @@ interface BlockProps {
   onNavigateUp?: () => void;
   /** Called when arrow down is pressed in table cell (for navigating between rows or exiting table) */
   onNavigateDown?: () => void;
+  /** Custom collapse toggle handler (if provided, replaces default DB persistence behavior) */
+  onCollapseToggle?: (e: React.MouseEvent) => void;
 }
 
 // Internal component function - use Block or MemoizedBlock exports
@@ -163,6 +165,7 @@ function BlockInternal({
   onNavigateRight,
   onNavigateUp,
   onNavigateDown,
+  onCollapseToggle: onCollapseToggleProp,
 }: BlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -560,11 +563,19 @@ function BlockInternal({
   const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // Use custom handler if provided (e.g., for local state management)
+    if (onCollapseToggleProp) {
+      onCollapseToggleProp(e);
+      return;
+    }
+    
+    // Default behavior: persist to database
     updateNode.mutate({
       id: block.id,
       data: { collapsed: !isCollapsed }
     });
-  }, [block.id, isCollapsed, updateNode]);
+  }, [block.id, isCollapsed, updateNode, onCollapseToggleProp]);
   
   // Handle bullet context menu (right-click)
   const handleBulletContextMenu = useCallback((_nodeId: number, event: React.MouseEvent) => {
@@ -2129,7 +2140,7 @@ function BlockInternal({
         </div>
       ) : (
         /* Children blocks with vertical collapse line */
-        showChildren && !isCollapsed && (hasChildren || block.properties) && (
+        showChildren && !isCollapsed && (hasChildren || block.properties || (block._linkedRefMetadata?.linkType === 'property' && block._linkedRefMetadata.sourceNodeId)) && (
           <div className="children-container">
             {/* Vertical line for collapsing children */}
             <div 
@@ -2145,7 +2156,27 @@ function BlockInternal({
             >
               <div className="nested-blocks">
                 {/* Properties section - rendered before children */}
-                {block.properties && Object.keys(block.properties).length > 0 && (
+                {/* Show for property-type linked references (using sourceNodeId and filtering by propertyId) */}
+                {block._linkedRefMetadata?.linkType === 'property' && block._linkedRefMetadata.sourceNodeId && (
+                  <div className="block-properties">
+                    <NodePropertiesSection
+                      nodeId={block._linkedRefMetadata.sourceNodeId}
+                      filterPropertyIds={block._linkedRefMetadata.propertyId ? [block._linkedRefMetadata.propertyId] : undefined}
+                      readOnly={true}
+                      onNavigateToNode={(targetId) => {
+                        openNodeAction(targetId, 'page');
+                      }}
+                      onOpenInSidebar={(targetId) => {
+                        const { addSidebarCard } = useNodesStore.getState();
+                        addSidebarCard(targetId, 'page');
+                      }}
+                      showBullets={false}
+                      compact={true}
+                    />
+                  </div>
+                )}
+                {/* Show for regular blocks with properties */}
+                {!block._linkedRefMetadata && block.properties && Object.keys(block.properties).length > 0 && (
                   <div className="block-properties">
                     <NodePropertiesSection
                       nodeId={block.id}
