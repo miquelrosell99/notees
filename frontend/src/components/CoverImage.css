@@ -172,11 +172,17 @@
 .cover-image-card__img {
   width: 100px;
   height: auto;
-  max-height: 400px;
+  max-height: 200px;
   object-fit: contain;
   border-radius: var(--radius-md);
   display: block;
   transition: opacity 0.2s ease;
+}
+
+/* Override ImageNode's default height: 100% for cover images */
+.cover-image-card .image-node {
+  height: auto !important;
+  max-height: 200px;
 }
 
 /* Preview tooltip for collapsed state */
