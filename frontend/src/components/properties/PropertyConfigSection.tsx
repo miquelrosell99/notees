@@ -188,7 +188,7 @@ export function PropertyConfigSection({
       try {
         const updated = await updatePropertyMutation.mutateAsync({
           id: property.id,
-          data: { is_multi: newIsMulti },
+          data: { multi: newIsMulti },
         });
         setIsMultiValue(newIsMulti);
         onUpdate(updated);
@@ -205,7 +205,7 @@ export function PropertyConfigSection({
     try {
       const updated = await updatePropertyMutation.mutateAsync({
         id: property.id,
-        data: { is_multi: false },
+        data: { multi: false },
       });
       setIsMultiValue(false);
       onUpdate(updated);
