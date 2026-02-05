@@ -270,7 +270,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   viewMode = 'normal',
   settings = { linkCountAttraction: false, nodeSizeMode: 'uniform' },
   classColors = [],
-  showTypeNodes = true,
+  showClassNodes = true,
   currentNodeId = null,
   selectedNodeIds = [],
   className = '',
@@ -414,7 +414,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     showClassNodesRef.current = showClassNodes;
     // Recalculate positions when type node visibility changes (affects circle/tree layout)
     if (nodesRef.current.length > 0 && (viewMode === 'circle' || viewMode === 'tree')) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodes);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
     }
   }, [showClassNodes, viewMode, dimensions, calculatePositions]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
@@ -541,7 +541,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     linksRef.current = [...inputLinks];
     
-    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodes);
+    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
     startSimulation();
     
     return () => {
