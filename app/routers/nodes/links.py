@@ -269,6 +269,38 @@ async def get_linked_references(
     # Batch fetch class_ids for all source nodes
     class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, source_node_ids)
     
+    # Batch fetch properties for all source nodes
+    node_properties_map = {}
+    if source_node_ids:
+        for nid in source_node_ids:
+            node_properties_map[nid] = {}
+            all_prop_values = await service._property_repo.get_all_property_values(nid)
+            for prop_id, prop_data in all_prop_values.items():
+                prop = prop_data['property']
+                values = prop_data['values']
+                if values:
+                    val = values[0]
+                    # Use property ID as key (not name!)
+                    if hasattr(val, 'target_id'):
+                        # Relation type
+                        node_properties_map[nid][str(prop_id)] = val.target_id
+                    elif hasattr(val, 'value_integer'):
+                        # Scalar type - check each field explicitly
+                        if val.value_text is not None:
+                            node_properties_map[nid][str(prop_id)] = val.value_text
+                        elif val.value_integer is not None:
+                            node_properties_map[nid][str(prop_id)] = val.value_integer
+                        elif val.value_float is not None:
+                            node_properties_map[nid][str(prop_id)] = val.value_float
+                        elif val.value_boolean is not None:
+                            node_properties_map[nid][str(prop_id)] = val.value_boolean
+                    elif hasattr(val, 'selection_line_id'):
+                        # Selection type
+                        node_properties_map[nid][str(prop_id)] = val.selection_line_id
+                else:
+                    # Property assigned but no value yet - include with null
+                    node_properties_map[nid][str(prop_id)] = None
+    
     result = []
     for source, children, source_page, link in sources_data:
         # Extract context around the link
@@ -294,6 +326,10 @@ async def get_linked_references(
         source_classes = class_ids_map.get(source.id, []) if source.id else []
         source_response = _node_to_response(source, classes=source_classes)
         source_response.children = _build_children_response(children) if children else []
+        
+        # Add properties if they were loaded
+        if source.id and source.id in node_properties_map:
+            source_response.properties = node_properties_map[source.id]
         
         result.append(LinkedReferenceResponse(
             source_node=source_response,
@@ -374,6 +410,8 @@ async def get_property_backlinks(
         raise HTTPException(status_code=404, detail="Node not found")
     
     result = []
+    page_ids = []  # Collect all page IDs for batch property fetching
+    pages_data = []  # Store (page, property_id, property_name) tuples
     
     # Check if target is a day node (UUID format YYYYMMDD with non-zero day)
     date_info = parse_date_uuid(target.uuid)
@@ -406,11 +444,9 @@ async def get_property_backlinks(
                 if not page:
                     page = node
             
-            result.append(PropertyBacklinkResponse(
-                source_page=_node_to_response(page),
-                property_id=row['property_id'],
-                property_name=row['property_name'],
-            ))
+            if page.id:
+                page_ids.append(page.id)
+                pages_data.append((page, row['property_id'], row['property_name']))
     
     # Also check for node-class properties pointing to this node
     # Classes are now in class_ids column, not a property
@@ -433,10 +469,54 @@ async def get_property_backlinks(
             if not page:
                 page = node
         
+        if page.id:
+            page_ids.append(page.id)
+            pages_data.append((page, row['property_id'], row['property_name']))
+    
+    # Batch fetch properties for all pages
+    node_properties_map = {}
+    if page_ids:
+        for page_id in page_ids:
+            node_properties_map[page_id] = {}
+            all_prop_values = await service._property_repo.get_all_property_values(page_id)
+            for prop_id, prop_data in all_prop_values.items():
+                prop = prop_data['property']
+                values = prop_data['values']
+                if values:
+                    val = values[0]
+                    # Use property ID as key (not name!)
+                    if hasattr(val, 'target_id'):
+                        # Relation type
+                        node_properties_map[page_id][str(prop_id)] = val.target_id
+                    elif hasattr(val, 'value_integer'):
+                        # Scalar type - check each field explicitly
+                        if val.value_text is not None:
+                            node_properties_map[page_id][str(prop_id)] = val.value_text
+                        elif val.value_integer is not None:
+                            node_properties_map[page_id][str(prop_id)] = val.value_integer
+                        elif val.value_float is not None:
+                            node_properties_map[page_id][str(prop_id)] = val.value_float
+                        elif val.value_boolean is not None:
+                            node_properties_map[page_id][str(prop_id)] = val.value_boolean
+                    elif hasattr(val, 'selection_line_id'):
+                        # Selection type
+                        node_properties_map[page_id][str(prop_id)] = val.selection_line_id
+                else:
+                    # Property assigned but no value yet - include with null
+                    node_properties_map[page_id][str(prop_id)] = None
+    
+    # Build result with properties attached
+    for page, property_id, property_name in pages_data:
+        page_response = _node_to_response(page)
+        
+        # Add properties if they were loaded
+        if page.id and page.id in node_properties_map:
+            page_response.properties = node_properties_map[page.id]
+        
         result.append(PropertyBacklinkResponse(
-            source_page=_node_to_response(page),
-            property_id=row['property_id'],
-            property_name=row['property_name'],
+            source_page=page_response,
+            property_id=property_id,
+            property_name=property_name,
         ))
     
     return {"property_backlinks": result}
