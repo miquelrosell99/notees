@@ -257,14 +257,21 @@ export function Dropdown<T = string>({
           </span>
           <div className="dropdown-icons">
             {clearable && (value || values.length > 0) && (
-              <button
-                type="button"
+              <div
                 className="dropdown-clear"
                 onClick={handleClear}
+                role="button"
+                tabIndex={0}
                 aria-label="Clear selection"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleClear(e as any);
+                  }
+                }}
               >
                 <Icon path={mdiClose} size={0.6} />
-              </button>
+              </div>
             )}
             <Icon
               path={mdiChevronDown}
