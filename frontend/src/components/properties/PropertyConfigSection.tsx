@@ -11,10 +11,10 @@
  * - Selection options management
  * - Delete property action
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { Property, Node } from '@/types/api';
-import { addSelectionOption, deleteSelectionOption } from '@/api/properties';
-import { useDeleteProperty, useUpdateProperty } from '@/hooks';
+import { addSelectionOption, deleteSelectionOption, addClassFilter, removeClassFilter } from '@/api/properties';
+import { useDeleteProperty, useUpdateProperty, useClasses } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
@@ -46,13 +46,31 @@ export function PropertyConfigSection({
   const [newOptionName, setNewOptionName] = useState('');
   const [newOptionIcon, setNewOptionIcon] = useState('');
   const [showAddOption, setShowAddOption] = useState(false);
-  const [allowedClasses] = useState<Node[]>([]); // TODO: Get from property
+  const [allowedClasses, setAllowedClasses] = useState<Node[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Mutations
   const deletePropertyMutation = useDeleteProperty();
   const updatePropertyMutation = useUpdateProperty();
+  
+  // Get all classes to resolve class_filters IDs to Node objects
+  const { data: allClasses } = useClasses();
+  
+  // Sync isMultiValue with property.multi when property changes
+  useEffect(() => {
+    setIsMultiValue(property.multi || false);
+  }, [property.multi]);
+  
+  // Load allowed classes from property.class_filters
+  useEffect(() => {
+    if (allClasses && property.class_filters) {
+      const classNodes = property.class_filters
+        .map(classId => allClasses.find(c => c.id === classId))
+        .filter((c): c is Node => c !== undefined);
+      setAllowedClasses(classNodes);
+    }
+  }, [allClasses, property.class_filters]);
   
   // Convert property options to form format
   const selectionOptions: SelectionOptionWithId[] = useMemo(() => 
@@ -117,15 +135,48 @@ export function PropertyConfigSection({
   }, []);
   
   // Allowed class handlers
-  const handleAddAllowedClass = useCallback((node: Node) => {
-    // TODO: Call API to add allowed class
-    console.log('Add allowed class:', node);
-  }, []);
+  const handleAddAllowedClass = useCallback(async (node: Node) => {
+    // Don't add if already in the list
+    if (allowedClasses.some(c => c.id === node.id)) return;
+    
+    try {
+      await addClassFilter(property.id, node.id);
+      
+      // Update local state
+      setAllowedClasses(prev => [...prev, node]);
+      
+      // Update property with new class_filters
+      const updatedProperty: Property = {
+        ...property,
+        class_filters: [...property.class_filters, node.id],
+      };
+      onUpdate(updatedProperty);
+      setError(null);
+    } catch (err) {
+      setError('Failed to add class filter');
+      console.error(err);
+    }
+  }, [property, allowedClasses, onUpdate]);
   
-  const handleRemoveAllowedClass = useCallback((nodeId: number) => {
-    // TODO: Call API to remove allowed class
-    console.log('Remove allowed class:', nodeId);
-  }, []);
+  const handleRemoveAllowedClass = useCallback(async (nodeId: number) => {
+    try {
+      await removeClassFilter(property.id, nodeId);
+      
+      // Update local state
+      setAllowedClasses(prev => prev.filter(c => c.id !== nodeId));
+      
+      // Update property with removed class_filter
+      const updatedProperty: Property = {
+        ...property,
+        class_filters: property.class_filters.filter(id => id !== nodeId),
+      };
+      onUpdate(updatedProperty);
+      setError(null);
+    } catch (err) {
+      setError('Failed to remove class filter');
+      console.error(err);
+    }
+  }, [property, onUpdate]);
   
   // Handle multi-value change
   const handleMultiValueChange = useCallback(async (newIsMulti: boolean) => {
