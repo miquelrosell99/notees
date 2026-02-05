@@ -5,6 +5,5 @@
  */
 
 export { AssetActions } from './AssetActions';
-export { AssetBlock } from './AssetBlock';
 export { AssetPreview } from './AssetPreview';
 export { AssetUploadModal } from './AssetUploadModal';

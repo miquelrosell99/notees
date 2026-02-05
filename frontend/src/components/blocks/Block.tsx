@@ -53,6 +53,8 @@ import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
+import { ImageNode } from '../ImageNode';
+import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
 import './Block.css';
 
@@ -231,6 +233,17 @@ function BlockInternal({
     if (!allClasses) return null;
     return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query) ?? null;
   }, [allClasses]);
+  
+  // Get asset class ID from system classes
+  const assetClass = useMemo(() => {
+    if (!allClasses) return null;
+    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.asset) ?? null;
+  }, [allClasses]);
+  
+  // Check if this block has the asset class
+  const hasAssetClass = useMemo(() => {
+    return !!(assetClass && block.classes?.includes(assetClass.id));
+  }, [assetClass, block.classes]);
   
   // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
   const openNode = useOpenNodeAction();
@@ -557,6 +570,23 @@ function BlockInternal({
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
+  
+  // Handle asset delete (for asset class blocks)
+  const handleAssetDelete = useCallback(async () => {
+    try {
+      await deleteAsset(block.uuid);
+      // Optionally delete the block itself after asset is deleted
+      deleteNode.mutate(block.id);
+    } catch (error) {
+      console.error('Failed to delete asset:', error);
+    }
+  }, [block.uuid, block.id, deleteNode]);
+  
+  // Handle asset replace (for asset class blocks)
+  const handleAssetReplace = useCallback(() => {
+    // Trigger asset upload flow with the existing block
+    onAssetUpload?.(['image']);
+  }, [onAssetUpload]);
   
   // Handle keyboard events
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -1840,6 +1870,23 @@ function BlockInternal({
           />
         )}
       </div>
+      )}
+      
+      {/* Asset image - rendered below block row for asset class blocks */}
+      {hasAssetClass && (
+        <div className="block-asset-image" style={{ paddingLeft: `${(depth + 1) * 24 + 8}px` }}>
+          <ImageNode
+            assetNodeId={block.id}
+            alt={block.name || 'Asset'}
+            showCard={true}
+            elevation="low"
+            radius="md"
+            clickable={true}
+            showActions={true}
+            onEdit={canEdit ? handleAssetReplace : undefined}
+            onRemove={canEdit ? handleAssetDelete : undefined}
+          />
+        </div>
       )}
       
       {/* Drop indicator - after or inside (inside shows as indented line at bottom) */}
