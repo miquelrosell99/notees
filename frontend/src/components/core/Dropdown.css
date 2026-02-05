@@ -2,11 +2,20 @@
  * Dropdown Component Styles
  */
 
+/* Container for dropdown + delete button */
+.dropdown-container {
+  display: inline-flex;
+  align-items: stretch;
+  gap: var(--spacing-2, 8px);
+  width: 100%;
+}
+
 .dropdown {
   position: relative;
   display: inline-flex;
   flex-direction: column;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .dropdown--disabled {
@@ -14,18 +23,10 @@
   pointer-events: none;
 }
 
-/* Trigger */
+/* Trigger - now using Card component */
 .dropdown-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2, 8px);
-  width: 100%;
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant, var(--border-color));
-  border-radius: var(--shape-medium, 6px);
   cursor: pointer;
+  width: 100%;
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
     box-shadow var(--motion-duration-short) var(--motion-easing-standard);
@@ -49,13 +50,23 @@
   border-color: var(--color-danger);
 }
 
+/* Content wrapper inside Card trigger */
+.dropdown-trigger-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+  width: 100%;
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+}
+
 /* Size variants */
-.dropdown--sm .dropdown-trigger {
+.dropdown--sm .dropdown-trigger-content {
   padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
   font-size: var(--text-xs, 12px);
 }
 
-.dropdown--lg .dropdown-trigger {
+.dropdown--lg .dropdown-trigger-content {
   padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
   font-size: var(--text-base, 16px);
 }
@@ -263,4 +274,9 @@
   margin-top: var(--spacing-1, 4px);
   font-size: var(--text-xs, 12px);
   color: var(--color-danger);
+}
+
+/* Delete button */
+.dropdown-delete-btn {
+  flex-shrink: 0;
 }
