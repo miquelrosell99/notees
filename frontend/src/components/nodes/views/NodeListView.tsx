@@ -25,7 +25,6 @@ import { Bullet } from '../../blocks/Bullet';
 import { Button } from '../../core/Button';
 import { ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
-import { PropertiesSection } from '../../PropertiesSection';
 import { ListSortable } from '../../core/ListSortable';
 import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { useNodesStore } from '@/stores/nodesStore';
@@ -315,25 +314,6 @@ function NodeListItem({
           customContextMenuItems={generatedContextMenuItems}
           {...blockProps}
         />
-        {/* Show properties section for property-type linked references */}
-        {node._linkedRefMetadata?.linkType === 'property' && node._linkedRefMetadata.sourceNodeId && (
-          <PropertiesSection
-            nodeId={node._linkedRefMetadata.sourceNodeId}
-            variant="block"
-            readOnly={true}
-            showHiddenSection={false}
-            showAddProperty={false}
-            filterPropertyIds={node._linkedRefMetadata.propertyId ? [node._linkedRefMetadata.propertyId] : undefined}
-            onNavigateToNode={(nodeId) => {
-              const targetNode = { id: nodeId } as Node;
-              onNodeClick?.(targetNode);
-            }}
-            onOpenInSidebar={onNodeShiftClick ? (nodeId) => {
-              const targetNode = { id: nodeId } as Node;
-              onNodeShiftClick?.(targetNode);
-            } : undefined}
-          />
-        )}
       </div>
     );
   }
@@ -375,25 +355,6 @@ function NodeListItem({
         canSelect={false}
         customContextMenuItems={generatedContextMenuItems}
       />
-      {/* Show properties section for property-type linked references */}
-      {node._linkedRefMetadata?.linkType === 'property' && node._linkedRefMetadata.sourceNodeId && (
-        <PropertiesSection
-          nodeId={node._linkedRefMetadata.sourceNodeId}
-          variant="block"
-          readOnly={true}
-          showHiddenSection={false}
-          showAddProperty={false}
-          filterPropertyIds={node._linkedRefMetadata.propertyId ? [node._linkedRefMetadata.propertyId] : undefined}
-          onNavigateToNode={(nodeId) => {
-            const targetNode = { id: nodeId } as Node;
-            onNodeClick?.(targetNode);
-          }}
-          onOpenInSidebar={onNodeShiftClick ? (nodeId) => {
-            const targetNode = { id: nodeId } as Node;
-            onNodeShiftClick?.(targetNode);
-          } : undefined}
-        />
-      )}
     </div>
   );
 }
