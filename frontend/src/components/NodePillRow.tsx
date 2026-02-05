@@ -22,6 +22,8 @@ interface NodePillRowProps {
   nodes: Node[];
   /** Search mode for the picker - determines what types of nodes to show */
   searchMode?: NodeSearchMode;
+  /** Class IDs to filter search results by (nodes must have at least one of these classes) */
+  classFilters?: number[];
   /** Placeholder text for empty state add button */
   emptyText?: string;
   /** Placeholder for search input */
@@ -49,6 +51,7 @@ interface NodePillRowProps {
 export function NodePillRow({
   nodes,
   searchMode = 'pages',
+  classFilters,
   emptyText = 'Add',
   searchPlaceholder = 'Search...',
   onNodeClick,
@@ -70,6 +73,7 @@ export function NodePillRow({
   // Use shared search hook (same as SuggestionPopup)
   const { pageResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(searchQuery, {
     mode: searchMode,
+    classFilters,
     maxResults: 10,
   });
 
