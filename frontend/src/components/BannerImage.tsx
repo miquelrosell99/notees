@@ -19,15 +19,12 @@
  * - Changing banner image (opens asset selector)
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useNode, useProperties, useSetNodeProperty } from '@/hooks';
-import { useNodesStore } from '@/stores';
-import { getAssetUrlAsync, uploadAsset, type Asset } from '@/api/assets';
+import { useProperties, useSetNodeProperty } from '@/hooks';
+import { uploadAsset, type Asset } from '@/api/assets';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { Button } from './core/Button';
-import { Card } from './core/Card';
-import { ImageModal } from './core/ImageModal';
-import { FloatingButtonArray } from './core/FloatingButtonArray';
+import { ImageNode } from './ImageNode';
 import { mdiImageOutline, mdiChevronDown, mdiPencil, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import './BannerImage.css';
@@ -95,12 +92,9 @@ export function BannerImage({
 }: BannerImageProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => getCollapsedState(pageId, !!bannerImageId));
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const { data: allProperties } = useProperties();
   const setPropertyMutation = useSetNodeProperty();
-  const { data: assetNode, isLoading } = useNode(bannerImageId, { include_children: false });
-  const { openNode, addSidebarCard } = useNodesStore();
   
   // Persist collapsed state when it changes
   useEffect(() => {
@@ -111,21 +105,6 @@ export function BannerImage({
   useEffect(() => {
     setIsCollapsed(getCollapsedState(pageId, !!bannerImageId));
   }, [pageId, bannerImageId]);
-  
-  // Bullet handlers
-  const handleBulletClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (assetNode) {
-      openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
-    }
-  }, [assetNode, openNode]);
-  
-  const handleBulletShiftClick = useCallback(() => {
-    if (assetNode) {
-      addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
-    }
-  }, [assetNode, addSidebarCard]);
   
   // Find the banner property by UUID
   const bannerProperty = useMemo(() => {
@@ -196,47 +175,8 @@ export function BannerImage({
     }
   }, [editable, bannerProperty, pageId, setPropertyMutation, onImageUploaded, isCollapsed]);
   
-  // State for the image URL (needs to be async to get token)
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  
-  // Get the image URL from the asset node's uuid (async with token)
-  useEffect(() => {
-    if (!bannerImageId || !assetNode?.uuid) {
-      setImageUrl(null);
-      return;
-    }
-    
-    let cancelled = false;
-    
-    getAssetUrlAsync(assetNode.uuid)
-      .then(url => {
-        if (!cancelled) {
-          setImageUrl(url);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load banner image URL:', err);
-        if (!cancelled) {
-          setImageUrl(null);
-        }
-      });
-    
-    return () => {
-      cancelled = true;
-    };
-  }, [bannerImageId, assetNode?.uuid]);
-  
-  // Loading state
-  if (bannerImageId && isLoading) {
-    return (
-      <div className={`banner-image banner-image--${height} banner-image--loading`}>
-        <div className="banner-image__placeholder" />
-      </div>
-    );
-  }
-  
   // No banner image
-  if (!bannerImageId || !imageUrl) {
+  if (!bannerImageId) {
     // Show collapsed strip if editable
     if (!editable) return null;
     
@@ -294,33 +234,23 @@ export function BannerImage({
           <Icon path={mdiChevronDown} size={0.7} rotate={isCollapsed ? 0 : 180} />
         </button>
         
-        <div className={`banner-image__content banner-image__content--with-image ${isCollapsed ? 'banner-image__content--collapsed' : `banner-image__content--expanded banner-image--${height}`}`}>
-          <Card 
-            className="banner-image__card"
+        <div 
+          className={`banner-image__content banner-image__content--with-image ${isCollapsed ? 'banner-image__content--collapsed' : `banner-image__content--expanded banner-image--${height}`}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <ImageNode
+            assetNodeId={bannerImageId}
+            alt="Banner"
+            className="banner-image__image-node"
+            showCard={true}
             elevation="low"
-            variant="default"
-            padding={false}
             radius="md"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <img 
-              key={imageUrl}
-              src={imageUrl} 
-              alt="Banner" 
-              className="banner-image__img"
-              onClick={() => setIsModalOpen(true)}
-              style={{ cursor: 'pointer', pointerEvents: isDragging ? 'none' : 'auto' }}
-              title="Click to view full size"
-              draggable="false"
-            />
-            
-            {editable && isHovered && !isCollapsed && (
-              <FloatingButtonArray
-                className="banner-image__actions"
-                size="md"
-              >
+            clickable={true}
+            showActions={editable && isHovered && !isCollapsed}
+            actions={
+              <>
                 <Button
                   icon={mdiPencil}
                   iconOnly
@@ -337,32 +267,14 @@ export function BannerImage({
                   onClick={handleRemove}
                   title="Remove image"
                 />
-              </FloatingButtonArray>
-            )}
-          </Card>
+              </>
+            }
+            actionsDirection="horizontal"
+            isDragging={isDragging}
+            showModalBullet={true}
+          />
         </div>
-        
-        {/* Preview tooltip on hover when collapsed */}
-        {isCollapsed && isHovered && (
-          <div className="banner-image__preview-tooltip">
-            <img 
-              src={imageUrl} 
-              alt="Banner preview" 
-              className="banner-image__preview-img"
-            />
-          </div>
-        )}
       </div>
-      
-      <ImageModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        src={imageUrl}
-        alt="Banner"
-        assetNode={assetNode}
-        onBulletClick={handleBulletClick}
-        onBulletShiftClick={handleBulletShiftClick}
-      />
     </>
   );
 }
