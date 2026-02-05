@@ -913,8 +913,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const accentColor = style.getPropertyValue('--color-secondary').trim() || '#6366f1';
     const dimColor = style.getPropertyValue('--color-surface-variant').trim() || '#404040';
     
-    // Filter visible nodes
-    const visibleNodes = showTypes ? nodes : nodes.filter(n => !n.isTypeNode);
+    // Filter visible nodes - must check both visible property and type visibility
+    const visibleNodes = nodes.filter(n => n.visible && (showTypes || !n.isTypeNode));
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
     const visibleLinks = links.filter(l => visibleNodeIds.has(l.source) && visibleNodeIds.has(l.target));
     
