@@ -54,6 +54,8 @@ export interface SuggestionPopupProps {
   headerIcon?: string;
   /** All available nodes for multi-select mode (used to show selected items) */
   allNodes?: Node[];
+  /** Show the "add inline too" option in footer (default: false) */
+  showInlineOption?: boolean;
 }
 
 /**
@@ -74,6 +76,7 @@ export function SuggestionPopup({
   headerText,
   headerIcon,
   allNodes = [],
+  showInlineOption = false,
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -485,7 +488,7 @@ export function SuggestionPopup({
           <span className="suggestion-popup__hint">
             <kbd>Enter</kbd> insert link
           </span>
-        ) : (
+        ) : showInlineOption ? (
           <>
             <span className="suggestion-popup__hint">
               <kbd>Enter</kbd> add to property
@@ -494,6 +497,10 @@ export function SuggestionPopup({
               <kbd>Ctrl+Enter</kbd> add inline too
             </span>
           </>
+        ) : (
+          <span className="suggestion-popup__hint">
+            <kbd>Enter</kbd> add to property
+          </span>
         )}
       </div>
     </div>
