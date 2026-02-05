@@ -9,13 +9,14 @@
  * Features:
  * - Card-based appearance with border
  * - Chevron icon that rotates when open
- * - Optional clear button
+ * - Optional clear button (outside to the right)
  * - Keyboard navigation support
  */
 import { type ReactNode, type KeyboardEvent, type MouseEvent } from 'react';
 import Icon from '@mdi/react';
 import { mdiChevronDown, mdiClose } from '@mdi/js';
 import { Card } from './Card';
+import { Button } from './Button';
 import './SelectTrigger.css';
 
 export type SelectTriggerSize = 'sm' | 'md' | 'lg';
@@ -77,12 +78,12 @@ export function SelectTrigger({
     onClear?.(e);
   };
 
-  const handleClearKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClearClick(e as any);
-    }
-  };
+  const containerClasses = [
+    'select-trigger-container',
+    clearable && hasValue && onClear && 'select-trigger-container--with-clear',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const triggerClasses = [
     'select-trigger',
@@ -96,40 +97,28 @@ export function SelectTrigger({
     .join(' ');
 
   return (
-    <Card
-      className={triggerClasses}
-      onClick={disabled ? undefined : onClick}
-      variant="default"
-      padding={false}
-      elevation="none"
-      interactive={!disabled}
-      role="button"
-      tabIndex={disabled ? -1 : tabIndex}
-      aria-haspopup="listbox"
-      aria-expanded={isOpen}
-      aria-label={ariaLabel}
-      onKeyDown={handleKeyDown}
-    >
-      <div className="select-trigger__content">
-        {/* Main content area */}
-        <div className="select-trigger__value">
-          {children}
-        </div>
+    <div className={containerClasses}>
+      <Card
+        className={triggerClasses}
+        onClick={disabled ? undefined : onClick}
+        variant="default"
+        padding={false}
+        elevation="none"
+        interactive={!disabled}
+        role="button"
+        tabIndex={disabled ? -1 : tabIndex}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="select-trigger__content">
+          {/* Main content area */}
+          <div className="select-trigger__value">
+            {children}
+          </div>
 
-        {/* Icons (clear + chevron) */}
-        <div className="select-trigger__icons">
-          {clearable && hasValue && onClear && (
-            <div
-              className="select-trigger__clear"
-              onClick={handleClearClick}
-              onKeyDown={handleClearKeyDown}
-              role="button"
-              tabIndex={0}
-              aria-label="Clear selection"
-            >
-              <Icon path={mdiClose} size={0.6} />
-            </div>
-          )}
+          {/* Chevron icon */}
           <div className="select-trigger__chevron">
             <Icon
               path={mdiChevronDown}
@@ -138,7 +127,20 @@ export function SelectTrigger({
             />
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+
+      {/* Clear button - outside the trigger */}
+      {clearable && hasValue && onClear && (
+        <Button
+          icon={mdiClose}
+          iconOnly
+          variant="ghost"
+          size={size}
+          onClick={handleClearClick}
+          aria-label="Clear selection"
+          className="select-trigger__clear-btn"
+        />
+      )}
+    </div>
   );
 }

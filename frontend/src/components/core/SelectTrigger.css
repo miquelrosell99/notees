@@ -4,6 +4,18 @@
  * Common styles for select/dropdown triggers
  */
 
+/* Container for trigger + clear button */
+.select-trigger-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  width: 100%;
+}
+
+.select-trigger-container--with-clear {
+  /* No extra styling needed, gap handles spacing */
+}
+
 /* Base trigger */
 .select-trigger {
   cursor: pointer;
@@ -49,19 +61,6 @@
   min-height: 38px;
 }
 
-/* Size variants */
-.select-trigger--sm .select-trigger__content {
-  padding: 0 var(--spacing-2);
-  font-size: var(--font-size-sm, 12px);
-  min-height: 32px;
-}
-
-.select-trigger--lg .select-trigger__content {
-  padding: 0 var(--spacing-4);
-  font-size: var(--font-size-base, 16px);
-  min-height: 46px;
-}
-
 /* Value area (main content) */
 .select-trigger__value {
   flex: 1;
@@ -84,39 +83,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
-  background: none;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.select-trigger__clear:hover {
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-}
-
-.select-trigger__clear:focus {
-  outline: none;
-  background: var(--color-surface-container);
-}
-
-/* Chevron */
+  pChevron */
 .select-trigger__chevron {
   display: flex;
   align-items: center;
   color: var(--color-on-surface-variant);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+  flex-shrink: 0;
 }
 
 .select-trigger__chevron-icon--open {
   transform: rotate(180deg);
 }
 
-/* Placeholder styling (when used with text content) */
-.select-trigger__placeholder {
-  color: var(--color-on-surface-variant);
-  opacity: 0.7;
-}
+/* Clear button (outside trigger) */
+.select-trigger__clear-btn {
+  flex-shrink: 0
