@@ -344,24 +344,34 @@ export function QueryNodeCollection({
   } = useLinkedReferences(viewType === 'linked_references' ? nodeId : null);
 
   // Extract nodes from linked references and attach metadata
-  // For list view: show page (collapsed) with properties below
-  // For table/card views: show the actual node that has the property
+  // For property links: show page (collapsed) with property displayed below
+  // For text links: show the actual block that contains the link (with breadcrumbs to page)
   const linkedReferencesNodes = useMemo(() => {
     if (!linkedReferencesData) return [];
     
     const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
     
     return linkedReferencesData.map(ref => {
-      // For list view, prefer the page (if it exists) to show as collapsed element
-      // For table/card views, use the actual source node (could be a block)
-      const displayNode = isListView ? (ref.source_page ?? ref.source_node) : ref.source_node;
+      // For property links in list view: show the page collapsed with property info below
+      // For text links: always show the actual source node (the block with the link)
+      const isPropertyLink = ref.link_type === 'property';
+      const displayNode = (isListView && isPropertyLink && ref.source_page) 
+        ? ref.source_page 
+        : ref.source_node;
       
-      // For list view, if displaying a page, always set it to collapsed initially
-      // (NodeListView manages local expand state for cosmetic toggling)
-      const shouldCollapse = isListView && displayNode.is_page;
+      // Only collapse pages that are shown via property links
+      const shouldCollapse = isListView && isPropertyLink && displayNode.is_page;
+      
+      // For text links, add page info from source_page for breadcrumbs
+      const pageInfo = (!isPropertyLink && ref.source_page) ? {
+        page_id: ref.source_page.id,
+        page_name: ref.source_page.name,
+        page_uuid: ref.source_page.uuid,
+      } : {};
       
       return {
         ...displayNode,
+        ...pageInfo,
         // Set collapsed state for pages in list view - always collapsed on load
         collapsed: shouldCollapse ? true : displayNode.collapsed,
         // Attach metadata for property references
