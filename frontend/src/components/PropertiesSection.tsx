@@ -21,8 +21,6 @@ import {
   useClassProperties,
   useInheritedProperties,
   usePageClass,
-  useNodes,
-  usePages,
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getNodeByUuid } from '@/api/nodes';
@@ -33,7 +31,6 @@ import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
 import { Button } from './core/Button';
 import { Dropdown } from './core/Dropdown';
 import { NodePicker } from './nodes/NodePicker';
-import { NodePillRow } from './NodePillRow';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
@@ -67,7 +64,7 @@ interface PropertyValueProps {
   readOnly?: boolean;
   onChange: (value: unknown) => void;
   onNavigateToNode?: (nodeId: number) => void;
-  onCreatePage?: (name: string) => Promise<Node>;
+  onCreatePage?: (name: string, additionalClasses?: number[]) => Promise<Node>;
   onOpenInSidebar?: (nodeId: number) => void;
   onPropertyChange: (propertyId: number, value: unknown) => void;
   /** Callback when text property bullet is clicked (opens focused block view) */
@@ -184,70 +181,38 @@ function PropertyValue({
       );
 
     case 'node':
-      // For node references
+      // For node references - use NodePicker for both single and multi-value
       // eslint-disable-next-line react-hooks/rules-of-hooks
-      const { data: allNodesForNode } = useNodes();
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const { data: allPagesForNode } = usePages();
+      const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
+        const newPage = await onCreatePage?.(name, property.class_filters);
+        if (!newPage) throw new Error('Failed to create page');
+        return newPage;
+      }, [onCreatePage, property.class_filters]);
       
       if (property.multi) {
-        // Multi-value: use NodePillRow
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const selectedNodes = useMemo(() => {
-          if (!Array.isArray(value)) return [];
-          return value
-            .map(id => allNodesForNode?.find(n => n.id === id))
-            .filter((n): n is Node => n !== undefined);
-        }, [value, allNodesForNode]);
-        
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const handleAddNode = useCallback((node: Node) => {
-          const currentIds = Array.isArray(value) ? value : [];
-          onChange([...currentIds, node.id]);
-        }, [value, onChange]);
-        
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const handleRemoveNode = useCallback((node: Node) => {
-          const currentIds = Array.isArray(value) ? value : [];
-          onChange(currentIds.filter(id => id !== node.id));
-        }, [value, onChange]);
-        
+        // Multi-value: use NodePicker with multi mode
         return (
-          <NodePillRow
-            nodes={selectedNodes}
-            searchMode="pages"
-            emptyText="Add page"
-            searchPlaceholder="Search pages..."
-            onNodeClick={(node) => onNavigateToNode?.(node.id)}
-            onRemove={readOnly ? undefined : handleRemoveNode}
-            onAdd={readOnly ? undefined : handleAddNode}
+          <NodePicker
+            property={property}
+            value={Array.isArray(value) ? value : value ? [value as number] : []}
+            multi={true}
             readOnly={readOnly}
+            onChange={(newValue) => onChange(newValue)}
+            onNavigate={onNavigateToNode}
+            onCreate={readOnly ? undefined : handleCreateNodeForProperty}
           />
         );
       } else {
-        // Single-value: use Dropdown with pages
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const nodeOptions = useMemo(() => 
-          (allPagesForNode ?? [])
-            .filter(p => property.class_filters.length === 0 || property.class_filters.some(cf => p.classes?.includes(cf)))
-            .map(p => ({
-              value: p.id,
-              label: p.name || 'Untitled',
-              icon: p.icon || undefined,
-            })),
-          [allPagesForNode, property.class_filters]
-        );
-        
+        // Single-value: use NodePicker for consistent UX with search and create
         return (
-          <Dropdown
-            options={nodeOptions}
+          <NodePicker
+            property={property}
             value={typeof value === 'number' ? value : null}
+            multi={false}
+            readOnly={readOnly}
             onChange={(newValue) => onChange(newValue)}
-            placeholder="Select a page..."
-            searchable
-            disabled={readOnly}
-            size="sm"
-            onDelete={!readOnly && value != null ? () => onChange(null) : undefined}
+            onNavigate={onNavigateToNode}
+            onCreate={readOnly ? undefined : handleCreateNodeForProperty}
           />
         );
       }
@@ -471,13 +436,15 @@ export function PropertiesSection({
     setPropertyMutation.mutate({ nodeId, propertyId, value });
   }, [nodeId, setPropertyMutation]);
 
-  const handleCreatePage = useCallback(async (name: string): Promise<Node> => {
+  const handleCreatePage = useCallback(async (name: string, additionalClasses?: number[]): Promise<Node> => {
     return new Promise((resolve, reject) => {
       if (!pageClassId) {
         reject(new Error('Page class not found'));
         return;
       }
-      createNodeMutation.mutate({ name, classes: [pageClassId] }, {
+      // Include page class + any additional classes (e.g., from class_filters)
+      const classes = [pageClassId, ...(additionalClasses ?? [])];
+      createNodeMutation.mutate({ name, classes }, {
         onSuccess: (newPage) => resolve(newPage),
         onError: (error) => reject(error),
       });
