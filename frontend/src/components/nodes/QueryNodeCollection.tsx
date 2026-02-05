@@ -42,8 +42,7 @@ import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNodesStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
-import './DynamicNodeViewSection.css';
-import './QueryPreview.css';
+import './QueryNodeCollection.css';
 
 // ==================== Helper Functions ====================
 
@@ -624,7 +623,7 @@ export function QueryNodeCollection({
           )}
           
           {activeView && (
-            <div className="dynamic-section__filter-btn-wrapper">
+            <div className="query-section__filter-btn-wrapper">
               <Button
                 icon={mdiFilterOutline}
                 iconOnly
@@ -634,7 +633,7 @@ export function QueryNodeCollection({
                 title="Edit view"
               />
               {filterBlockCount > 0 && (
-                <Badge variant="primary" size="xs" className="dynamic-section__filter-badge">
+                <Badge variant="primary" size="xs" className="query-section__filter-badge">
                   {filterBlockCount}
                 </Badge>
               )}
@@ -658,7 +657,7 @@ export function QueryNodeCollection({
   const results = (
     <>
       {isQueryLoading ? (
-        <div className="dynamic-section__loading">Loading...</div>
+        <div className="query-section__loading">Loading...</div>
       ) : (
         <NodeCollection
           nodes={resultNodes}
@@ -710,9 +709,9 @@ export function QueryNodeCollection({
           />
         }
         size="xl"
-        className="dynamic-section__edit-modal"
+        className="query-section__edit-modal"
         footer={editingView && (
-          <div className="dynamic-section__modal-footer">
+          <div className="query-section__modal-footer">
             <div className="view-builder__footer-left">
               <ProseScopeSelector
                 scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
@@ -741,14 +740,14 @@ export function QueryNodeCollection({
               </div>
             )}
             
-            <div className="dynamic-section__footer-spacer" />
+            <div className="query-section__footer-spacer" />
             
             <TextField
               value={editViewName}
               onChange={(e) => setEditViewName(e.target.value)}
               placeholder="View name"
               size="sm"
-              className="dynamic-section__view-name-field"
+              className="query-section__view-name-field"
             />
             
             {!editingView?.is_default && (
@@ -774,7 +773,7 @@ export function QueryNodeCollection({
         )}
       >
         {editingView && editAST && (
-          <div className="dynamic-section__edit-content">
+          <div className="query-section__edit-content">
             <ViewBuilder
               ast={editAST}
               onChange={handleASTChange}
