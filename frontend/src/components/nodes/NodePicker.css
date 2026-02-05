@@ -116,6 +116,13 @@
 /* ==================== Single Value Display ==================== */
 
 .node-picker__single-value {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.node-picker__single-value-name {
   font: var(--font-body-medium);
   color: var(--color-on-surface);
   white-space: nowrap;

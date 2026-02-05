@@ -135,7 +135,7 @@ export function SelectTrigger({
           icon={mdiClose}
           iconOnly
           variant="ghost"
-          size={size}
+          size="sm"
           onClick={handleClearClick}
           aria-label="Clear selection"
           className="select-trigger__clear-btn"
