@@ -7,7 +7,7 @@
 .property-view {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6);
+  gap: var(--spacing-4);
   padding: var(--spacing-4);
   max-width: 900px;
   margin: 0 auto;
@@ -26,6 +26,39 @@
   font: var(--font-body-medium);
 }
 
+/* ==================== Topbar ==================== */
+
+.property-view__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) 0;
+  border-bottom: 1px solid var(--color-outline-variant);
+  margin-bottom: var(--spacing-2);
+}
+
+.property-view__topbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.property-view__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.property-view__type-badge {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+  padding: var(--spacing-1) var(--spacing-2);
+  flex-shrink: 0;
+}
+
 /* ==================== Header (using PageHeader component) ====================  */
 
 /* Reuse page header section styles from NodeView */
@@ -38,28 +71,6 @@
 
 .property-view .page-header-section__header {
   grid-column: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-}
-
-.property-view__badges {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
-}
-
-.property-view__type-badge {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: var(--color-on-surface-variant);
-  opacity: 0.5;
-  padding: var(--spacing-1) var(--spacing-2);
-  flex-shrink: 0;
-  align-self: center;
 }
 
 /* ==================== Meta Info ====================  */
