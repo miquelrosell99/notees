@@ -45,6 +45,8 @@ interface SettingsState {
   showDailyNotes: boolean;
   fontSize: 'small' | 'medium' | 'large';
   quickAddDestination: QuickAddDestination;
+  /** Level at which to collapse nodes in linked references (0 = disabled, 1 = collapse at level 1, 2 = at level 2, etc.) */
+  linkedRefsCollapseLevel: number;
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -53,6 +55,7 @@ interface SettingsState {
   setShowDailyNotes: (show: boolean) => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setQuickAddDestination: (destination: QuickAddDestination) => void;
+  setLinkedRefsCollapseLevel: (level: number) => void;
 }
 
 /**
@@ -158,6 +161,7 @@ export const useSettingsStore = create<SettingsState>()(
       showDailyNotes: true,
       fontSize: 'medium',
       quickAddDestination: 'today',
+      linkedRefsCollapseLevel: 1,
       
       // Actions
       setTheme: (theme) => {
@@ -183,7 +187,12 @@ export const useSettingsStore = create<SettingsState>()(
       
       setQuickAddDestination: (quickAddDestination) => {
         set({ quickAddDestination });
-      },    }),
+      },
+      
+      setLinkedRefsCollapseLevel: (linkedRefsCollapseLevel) => {
+        set({ linkedRefsCollapseLevel });
+      },
+    }),
     {
       name: 'notees-settings',
       // Initialize theme on rehydration
