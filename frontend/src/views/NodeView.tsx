@@ -384,9 +384,10 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Get cover image ID from properties
   const coverImageId = useMemo(() => {
-    const coverValue = node?.properties?.cover;
+    if (!coverProperty?.id) return null;
+    const coverValue = node?.properties?.[coverProperty.id];
     return typeof coverValue === 'number' ? coverValue : null;
-  }, [node?.properties]);
+  }, [node?.properties, coverProperty?.id]);
   
   // Find the banner property by UUID
   const bannerProperty = useMemo(() => {
@@ -395,9 +396,10 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Get banner image ID from properties
   const bannerImageId = useMemo(() => {
-    const bannerValue = node?.properties?.banner;
+    if (!bannerProperty?.id) return null;
+    const bannerValue = node?.properties?.[bannerProperty.id];
     return typeof bannerValue === 'number' ? bannerValue : null;
-  }, [node?.properties]);
+  }, [node?.properties, bannerProperty?.id]);
   
   // Collect block IDs that are referenced by text properties (these should not appear in content)
   const textPropertyBlockIds = useMemo(() => {
