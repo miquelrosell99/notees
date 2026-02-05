@@ -8,6 +8,8 @@
 export { Block } from './Block';
 export { BlockEditor, TASK_STATES } from './BlockEditor';
 export type { TaskState } from './BlockEditor';
+export { CodeBlock } from './CodeBlock';
+export type { CodeBlockProps } from './CodeBlock';
 
 // Block preview (deprecated - use Block with capability flags)
 export { BlockPreview } from './BlockPreview';

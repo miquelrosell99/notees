@@ -32,7 +32,7 @@ import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty, useProperties } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
 import { useNodesStore } from '@/stores/nodesStore';
@@ -54,6 +54,7 @@ import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node, Property, PropertyCreate } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
+import { CodeBlock } from './CodeBlock';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
 import { ImageNode } from '../ImageNode';
@@ -184,6 +185,10 @@ function BlockInternal({
   const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
   const createNode = useCreateNode();
+  
+  // Property mutations
+  const setNodeProperty = useSetNodeProperty();
+  const { data: allProperties } = useProperties();
 
   // Handle replacing a link in block content
   const handleReplaceLink = useCallback((oldRaw: string, newNodeId: number, newLinkUuid: string) => {
@@ -266,6 +271,17 @@ function BlockInternal({
   const hasQuoteClass = useMemo(() => {
     return !!(quoteClass && block.classes?.includes(quoteClass.id));
   }, [quoteClass, block.classes]);
+  
+  // Get code class ID from system classes
+  const codeClass = useMemo(() => {
+    if (!allClasses) return null;
+    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.code) ?? null;
+  }, [allClasses]);
+  
+  // Check if this block has the code class
+  const hasCodeClass = useMemo(() => {
+    return !!(codeClass && block.classes?.includes(codeClass.id));
+  }, [codeClass, block.classes]);
   
   // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
   const openNode = useOpenNodeAction();
@@ -1149,6 +1165,24 @@ function BlockInternal({
   const handleAddProperty = useCallback(() => {
     setShowPropertyPopup(true);
   }, []);
+  
+  // Handler for code block language change
+  const handleLanguageChange = useCallback((language: string | null) => {
+    // Find or create the 'language' property
+    const languageProperty = allProperties?.find(p => p.name === 'language');
+    if (!languageProperty) {
+      // Property doesn't exist yet - would need to create it
+      // For now, we'll just update the node with the language in properties
+      console.warn('Language property not found. Consider creating it first.');
+      return;
+    }
+    
+    setNodeProperty.mutate({
+      nodeId: block.id,
+      propertyId: languageProperty.id,
+      value: language,
+    });
+  }, [allProperties, block.id, setNodeProperty]);
 
   // Wrapped onAddClass that intercepts table class additions
   const handleAddClass = useCallback((classNodeId: number, keepInline: boolean, className: string) => {
@@ -1875,12 +1909,22 @@ function BlockInternal({
               ref={contentRef}
               className={`block-content-view${!block.name ? ' block-content-view--empty' : ''}`}
             >
-              <BlockContent
-                content={block.name || ''}
-                blockId={block.id}
-                onClick={() => {}}
-                onReplaceLink={handleReplaceLink}
-              />
+              {hasCodeClass ? (
+                <CodeBlock
+                  content={block.name || ''}
+                  language={(block.properties?.language as string) || 'plaintext'}
+                  editable={canEdit}
+                  onLanguageChange={handleLanguageChange}
+                  onClick={handleContentClick}
+                />
+              ) : (
+                <BlockContent
+                  content={block.name || ''}
+                  blockId={block.id}
+                  onClick={() => {}}
+                  onReplaceLink={handleReplaceLink}
+                />
+              )}
               
               {/* Comment count badge */}
               {commentCount > 0 && (
@@ -2056,12 +2100,22 @@ function BlockInternal({
                     ref={contentRef}
                     className={`block-content-view${!block.name ? ' block-content-view--empty' : ''}`}
                   >
-                    <BlockContent
-                      content={block.name || ''}
-                      blockId={block.id}
-                      onClick={() => {}}
-                      onReplaceLink={handleReplaceLink}
-                    />
+                    {hasCodeClass ? (
+                      <CodeBlock
+                        content={block.name || ''}
+                        language={(block.properties?.language as string) || 'plaintext'}
+                        editable={canEdit}
+                        onLanguageChange={handleLanguageChange}
+                        onClick={handleContentClick}
+                      />
+                    ) : (
+                      <BlockContent
+                        content={block.name || ''}
+                        blockId={block.id}
+                        onClick={() => {}}
+                        onReplaceLink={handleReplaceLink}
+                      />
+                    )}
                     
                     {/* Comment count badge */}
                     {commentCount > 0 && (
