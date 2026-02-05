@@ -12,7 +12,7 @@ class PropertyResponse(BaseModel):
     name: str
     icon: Optional[str] = None
     type: str
-    is_multi: bool = False
+    multi: bool = False  # Aligned with frontend naming
     is_system: bool = False
     is_local: bool = False
     node_id: Optional[int] = None  # For local properties
@@ -21,7 +21,7 @@ class PropertyResponse(BaseModel):
     # For relation-type properties
     class_filters: List[int] = []
     # For selection-type properties
-    selection_lines: List["SelectionLineResponse"] = []
+    options: List["SelectionLineResponse"] = []  # Aligned with frontend naming
 
 
 class SelectionLineResponse(BaseModel):
@@ -119,7 +119,7 @@ class PropertyUpdateRequest(BaseModel):
     """Request to update a property."""
     name: Optional[str] = None
     icon: Optional[str] = None
-    is_multi: Optional[bool] = None
+    multi: Optional[bool] = None  # Aligned with frontend naming
 
 
 class PropertyTypeChangeRequest(BaseModel):

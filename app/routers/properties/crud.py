@@ -149,17 +149,17 @@ async def update_property(
     request: PropertyUpdateRequest,
     user: User = Depends(get_current_user),
 ):
-    """Update a property definition (name, icon, and optionally is_multi)."""
+    """Update a property definition (name, icon, and optionally multi)."""
     repo = await _get_property_repo(user)
     
-    # Check if we're changing is_multi
-    if request.is_multi is not None:
+    # Check if we're changing multi
+    if request.multi is not None:
         prop = await repo.get_by_id(property_id)
         if not prop:
             raise HTTPException(404, "Property not found")
         
         # If changing from multi to single, delete extra values
-        if prop.is_multi and not request.is_multi:
+        if prop.is_multi and not request.multi:
             # Delete all values except the first one for each node
             from ...db.connection import get_pool
             pool = await get_pool()
@@ -200,7 +200,7 @@ async def update_property(
                 # Update the property
                 await conn.execute(
                     "UPDATE property SET is_multi = $1, write_date = $2, write_uid = $3 WHERE id = $4",
-                    request.is_multi, utc_now(), user.id, property_id
+                    request.multi, utc_now(), user.id, property_id
                 )
     
     try:
