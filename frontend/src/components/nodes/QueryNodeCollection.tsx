@@ -344,26 +344,32 @@ export function QueryNodeCollection({
   } = useLinkedReferences(viewType === 'linked_references' ? nodeId : null);
 
   // Extract nodes from linked references and attach metadata
-  // For property links: show page (collapsed) with property displayed below
-  // For text links: show the actual block that contains the link (with breadcrumbs to page)
+  // Show page collapsed only when link comes from a property on a PAGE
+  // For links in blocks (including text properties of blocks), show the block
   const linkedReferencesNodes = useMemo(() => {
     if (!linkedReferencesData) return [];
     
     const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
     
     return linkedReferencesData.map(ref => {
-      // For property links in list view: show the page collapsed with property info below
-      // For text links: always show the actual source node (the block with the link)
+      // Check if link has property context (direct property link or text link in text property)
       const isPropertyLink = ref.link_type === 'property';
-      const displayNode = (isListView && isPropertyLink && ref.source_page) 
-        ? ref.source_page 
+      const hasPropertyInBreadcrumbs = ref.breadcrumb_path?.some(seg => seg.is_property) ?? false;
+      const isPropertyContext = isPropertyLink || hasPropertyInBreadcrumbs;
+      
+      // Show page collapsed only when:
+      // 1. It's a property-context link AND
+      // 2. The source_node is a page (meaning the property is on the page, not on a block)
+      const showPageCollapsed = isPropertyContext && ref.source_node.is_page && ref.source_page;
+      
+      const displayNode = (isListView && showPageCollapsed) 
+        ? ref.source_page! 
         : ref.source_node;
       
-      // Only collapse pages that are shown via property links
-      const shouldCollapse = isListView && isPropertyLink && displayNode.is_page;
+      const shouldCollapse = isListView && showPageCollapsed;
       
-      // For text links, add page info from source_page for breadcrumbs
-      const pageInfo = (!isPropertyLink && ref.source_page) ? {
+      // For non-page-collapsed cases, add page info for breadcrumbs
+      const pageInfo = (!showPageCollapsed && ref.source_page) ? {
         page_id: ref.source_page.id,
         page_name: ref.source_page.name,
         page_uuid: ref.source_page.uuid,
