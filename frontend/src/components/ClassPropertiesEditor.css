@@ -20,22 +20,6 @@
   font-style: italic;
 }
 
-/* Remove button inside property value */
-.class-property-remove-btn {
-  margin-left: var(--spacing-2);
-  padding: 0;
-  width: 20px;
-  height: 20px;
-  font-size: 1.25rem;
-  line-height: 1;
-  color: var(--color-error);
-}
-
-.class-property-remove-btn:hover {
-  background: var(--color-error-container);
-  color: var(--color-on-error-container);
-}
-
 /* Placeholder text */
 .class-property-placeholder {
   font: var(--font-body-small);
