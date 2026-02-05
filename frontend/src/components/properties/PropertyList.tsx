@@ -15,6 +15,7 @@
  */
 import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { Property, PropertyType, Node } from '@/types/api';
+import { useNodesStore } from '@/stores';
 import { Block } from '../blocks/Block';
 import { Bullet } from '../blocks/Bullet';
 import { ChevronRightIcon } from '../icons';
@@ -174,6 +175,10 @@ function PropertyRow({
   const { property, source } = entry;
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  
+  // Get navigation functions from store
+  const openPropertyView = useNodesStore(state => state.openPropertyView);
+  const addSidebarCard = useNodesStore(state => state.addSidebarCard);
 
   const handleNameClick = useCallback((e: React.MouseEvent) => {
     if (!readOnly && onNameClick) {
@@ -191,6 +196,16 @@ function PropertyRow({
 
   // Generate context menu items for this row
   const contextMenuItems = getContextMenuItems ? getContextMenuItems(property) : [];
+  
+  // Handle bullet click - opens property page
+  const handleBulletClick = useCallback(() => {
+    openPropertyView(property.id);
+  }, [openPropertyView, property.id]);
+  
+  // Handle shift+click on bullet - opens property in sidebar
+  const handleBulletShiftClick = useCallback(() => {
+    addSidebarCard({ type: 'property', id: property.id });
+  }, [addSidebarCard, property.id]);
 
   // Create a minimal node for the Block component to display the property name
   const propertyAsNode = useMemo<Node>(() => ({
@@ -226,6 +241,9 @@ function PropertyRow({
             canEdit={false}
             canSelect={false}
             isolatedState={true}
+            onBulletClick={handleBulletClick}
+            onShiftClick={handleBulletShiftClick}
+            customContextMenuItems={contextMenuItems}
           />
           {source && (
             <span className="property-row__source" title={`From ${source}`}>
