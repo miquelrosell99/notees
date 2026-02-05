@@ -34,8 +34,12 @@ export function PropertyReferencesDisplay({
   onNavigateToNode,
   onOpenInSidebar,
 }: PropertyReferencesDisplayProps) {
+  // Use sourceNodeId from metadata if available (when displaying page in list view),
+  // otherwise use the node's own ID
+  const actualNodeId = node._linkedRefMetadata?.sourceNodeId ?? node.id;
+  
   // Fetch node with properties
-  const { data: nodeWithProps, isLoading: nodeLoading } = useNode(node.id, { include_properties: true });
+  const { data: nodeWithProps, isLoading: nodeLoading } = useNode(actualNodeId, { include_properties: true });
   
   // Fetch all property definitions
   const { data: allProperties = [], isLoading: propsLoading } = useProperties();

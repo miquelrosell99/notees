@@ -345,19 +345,32 @@ export function QueryNodeCollection({
   } = useLinkedReferences(viewType === 'linked_references' ? nodeId : null);
 
   // Extract nodes from linked references and attach metadata
+  // For list view: show page (collapsed) with properties below
+  // For table/card views: show the actual node that has the property
   const linkedReferencesNodes = useMemo(() => {
     if (!linkedReferencesData) return [];
-    return linkedReferencesData.map(ref => ({
-      ...ref.source_node,
-      // Attach metadata for property references
-      _linkedRefMetadata: {
-        linkType: ref.link_type,
-        propertyId: ref.property_id,
-        propertyName: ref.property_name,
-        targetNodeId: nodeId,
-      },
-    }));
-  }, [linkedReferencesData, nodeId]);
+    
+    const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
+    
+    return linkedReferencesData.map(ref => {
+      // For list view, prefer the page (if it exists) to show as collapsed element
+      // For table/card views, use the actual source node (could be a block)
+      const displayNode = isListView ? (ref.source_page ?? ref.source_node) : ref.source_node;
+      
+      return {
+        ...displayNode,
+        // Attach metadata for property references
+        _linkedRefMetadata: {
+          linkType: ref.link_type,
+          propertyId: ref.property_id,
+          propertyName: ref.property_name,
+          targetNodeId: nodeId,
+          // Store the actual node ID (for fetching properties in PropertyReferencesDisplay)
+          sourceNodeId: ref.source_node.id,
+        },
+      };
+    });
+  }, [linkedReferencesData, nodeId, collectionViewMode]);
 
   // Execute ad-hoc query for pseudo-nodes
   const {

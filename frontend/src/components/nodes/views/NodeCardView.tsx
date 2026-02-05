@@ -24,6 +24,7 @@ import { Block } from '../../blocks/Block';
 import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useNodesStore } from '@/stores';
+import { PropertyReferencesDisplay } from '../PropertyReferencesDisplay';
 import { Button } from '../../core/Button';
 import { Card } from '../../core/Card';
 import { Checkbox } from '../../core/Checkbox';
@@ -257,6 +258,23 @@ function CommonCardLayout({
                 );
               })}
             </div>
+          )}
+          {/* Show property references for property-type linked references */}
+          {node._linkedRefMetadata?.linkType === 'property' && (
+            <PropertyReferencesDisplay
+              node={node}
+              propertyId={node._linkedRefMetadata.propertyId}
+              propertyName={node._linkedRefMetadata.propertyName}
+              targetNodeId={node._linkedRefMetadata.targetNodeId}
+              onNavigateToNode={onNodeClick ? (nodeId) => {
+                const targetNode = { id: nodeId } as Node;
+                onNodeClick(targetNode);
+              } : undefined}
+              onOpenInSidebar={onNodeShiftClick ? (nodeId) => {
+                const targetNode = { id: nodeId } as Node;
+                onNodeShiftClick(targetNode);
+              } : undefined}
+            />
           )}
           {editable && (
             <div className="node-card__add-block">
