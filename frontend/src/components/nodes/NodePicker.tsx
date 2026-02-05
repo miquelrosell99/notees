@@ -338,49 +338,57 @@ export function NodePicker({
       <SelectTrigger
         isOpen={isOpen}
         disabled={readOnly}
-        clearable={true}
+        clearable={!readOnly}
         hasValue={selectedNodes.length > 0}
         onClick={() => !readOnly && setIsOpen(true)}
         onClear={readOnly ? undefined : handleClearAll}
       >
-        {/* Selected nodes as chips */}
+        {/* Display selected value(s) */}
         {selectedNodes.length > 0 ? (
-          <div className="node-picker__selected-chips">
-            {selectedNodes.map(node => (
-              <span key={node.id} className="node-picker__chip">
-                {node.isPage ? (
-                  <NodeIcon icon={node.icon} isPage={true} size="xs" />
-                ) : (
-                  <BulletIcon size="xs" />
-                )}
-                <Button 
-                  variant="ghost"
-                  size="xs"
-                  className="node-picker__chip-name"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onNavigate?.(node.id);
-                  }}
-                >
-                  {node.name}
-                </Button>
-                {!readOnly && (
-                  <Button
+          multi ? (
+            // Multi-select: Show chips with remove buttons
+            <div className="node-picker__selected-chips">
+              {selectedNodes.map(node => (
+                <span key={node.id} className="node-picker__chip">
+                  {node.isPage ? (
+                    <NodeIcon icon={node.icon} isPage={true} size="xs" />
+                  ) : (
+                    <BulletIcon size="xs" />
+                  )}
+                  <Button 
                     variant="ghost"
                     size="xs"
-                    className="node-picker__chip-remove"
+                    className="node-picker__chip-name"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleRemove(node.id);
+                      onNavigate?.(node.id);
                     }}
-                    aria-label={`Remove ${node.name}`}
                   >
-                    ×
+                    {node.name}
                   </Button>
-                )}
-              </span>
-            ))}
-          </div>
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="node-picker__chip-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(node.id);
+                      }}
+                      aria-label={`Remove ${node.name}`}
+                    >
+                      ×
+                    </Button>
+                  )}
+                </span>
+              ))}
+            </div>
+          ) : (
+            // Single-select: Just show the node name (clear via SelectTrigger button)
+            <span className="node-picker__single-value">
+              {selectedNodes[0].name}
+            </span>
+          )
         ) : (
           <span className="node-picker__placeholder">Select node...</span>
         )}
