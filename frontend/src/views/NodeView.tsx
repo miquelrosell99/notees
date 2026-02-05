@@ -599,26 +599,26 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               />
             </div>
             
-            {/* Row 4: Properties Section */}
-            <div className="page-header-section__properties">
-              <PropertiesSection 
-                nodeId={node.id}
-                variant={resolvedType}
-                showHiddenSection={true}
-                showAddProperty={true}
-                onNavigateToNode={handleNavigateToNode}
-                onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
-                defaultCollapsed={propertiesCollapsed}
-              />
-            </div>
-            
-            {/* Cover Image - spans all rows */}
+            {/* Cover Image - spans rows 1-3 */}
             <CoverImage
               pageId={node.id}
               coverImageId={coverImageId}
               onSelectImage={handleSelectCoverImage}
               onImageUploaded={handleCoverImageUploaded}
               editable={true}
+            />
+          </div>
+          
+          {/* Properties Section - full width row below header section */}
+          <div className="page-properties-section">
+            <PropertiesSection 
+              nodeId={node.id}
+              variant={resolvedType}
+              showHiddenSection={true}
+              showAddProperty={true}
+              onNavigateToNode={handleNavigateToNode}
+              onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+              defaultCollapsed={propertiesCollapsed}
             />
           </div>
           
