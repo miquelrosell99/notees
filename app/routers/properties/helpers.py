@@ -42,14 +42,14 @@ def _property_to_response(prop: Property) -> PropertyResponse:
         name=prop.name,
         icon=prop.icon,
         type=prop.type.value,
-        is_multi=prop.is_multi,
+        multi=prop.is_multi,  # Aligned with frontend naming
         is_system=prop.is_system,
         is_local=prop.is_local,
         node_id=prop.node_id,
         create_date=prop.create_date,
         write_date=prop.write_date,
         class_filters=prop._class_filters,
-        selection_lines=[
+        options=[  # Aligned with frontend naming
             SelectionLineResponse(
                 id=l.id,  # type: ignore[arg-type]  # id is always set for persisted lines
                 property_id=l.property_id,
