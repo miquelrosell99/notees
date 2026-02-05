@@ -23,17 +23,18 @@ import { PageHeader } from '../components/PageHeader';
 import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { ContextMenu, type ContextMenuItem } from '../components/core/ContextMenu';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
+import { ToggleSwitch } from '../components/core/ToggleSwitch';
 import './PropertyView.css';
 
 /** Property type display info */
-const PROPERTY_TYPES: Record<string, { label: string; icon: string }> = {
-  text: { label: 'Text', icon: '' },
-  integer: { label: 'Number', icon: '' },
-  float: { label: 'Decimal', icon: '' },
-  boolean: { label: 'Checkbox', icon: '' },
-  date: { label: 'Date', icon: '' },
-  selection: { label: 'Selection', icon: '' },
-  node: { label: 'Node', icon: '' },
+const PROPERTY_TYPES: Record<string, { label: string; icon: string; supportsMulti: boolean }> = {
+  text: { label: 'Text', icon: '', supportsMulti: false },
+  integer: { label: 'Number', icon: '', supportsMulti: false },
+  float: { label: 'Decimal', icon: '', supportsMulti: false },
+  boolean: { label: 'Checkbox', icon: '', supportsMulti: false },
+  date: { label: 'Date', icon: '', supportsMulti: false },
+  selection: { label: 'Selection', icon: '', supportsMulti: true },
+  node: { label: 'Node', icon: '', supportsMulti: true },
 };
 
 interface PropertyViewProps {
@@ -105,6 +106,21 @@ export function PropertyView({
       setProperty(updated);
     } catch (err) {
       console.error('Failed to update property icon:', err);
+    }
+  }, [property, updatePropertyMutation]);
+  
+  // Handle multi-value toggle change
+  const handleMultiChange = useCallback(async (multi: boolean) => {
+    if (!property) return;
+    
+    try {
+      const updated = await updatePropertyMutation.mutateAsync({
+        id: property.id,
+        data: { multi },
+      });
+      setProperty(updated);
+    } catch (err) {
+      console.error('Failed to update property multi setting:', err);
     }
   }, [property, updatePropertyMutation]);
   
@@ -244,8 +260,19 @@ export function PropertyView({
             onNameChange={handlePropertyNameChange}
             onIconChange={handlePropertyIconChange}
           />
-          <div className="property-view__type-badge">
-            {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
+          <div className="property-view__badges">
+            {typeInfo?.supportsMulti && (
+              <ToggleSwitch
+                leftLabel="SINGLE"
+                rightLabel="MULTI"
+                checked={property.multi}
+                onChange={handleMultiChange}
+                size="sm"
+              />
+            )}
+            <div className="property-view__type-badge">
+              {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
+            </div>
           </div>
         </div>
       </div>
