@@ -2,51 +2,35 @@
  * PropertyConfigSection Component
  * 
  * A dedicated section on the property page for configuring property settings.
- * Similar in style to ClassPropertiesEditor with Card component and expandable sections.
+ * Uses the same layout as PropertyCreateModal via the shared PropertyForm component.
  * 
  * Features:
  * - Property name and icon editing
- * - Property type display
- * - Default value configuration (future)
+ * - Property type display (read-only)
+ * - Scope display (read-only)
  * - Selection options management
  * - Delete property action
  */
-import { useState, useCallback } from 'react';
-import type { Property, PropertyType, SelectionOption } from '@/types/api';
-import { updateProperty, addSelectionOption, deleteSelectionOption } from '@/api/properties';
-import { useDeleteProperty } from '@/hooks';
-import { EmojiPickerTrigger } from '../core/EmojiPicker';
+import { useState, useCallback, useMemo } from 'react';
+import type { Property, Node } from '@/types/api';
+import { addSelectionOption, deleteSelectionOption } from '@/api/properties';
+import { useDeleteProperty, useUpdateProperty, useNodes } from '@/hooks';
 import { Button } from '../core/Button';
-import { Card } from '../core/Card';
-import { ConfirmationModal } from '../core/ConfirmationModal';
-import { ChevronRightIcon } from '../icons';
+import { Modal } from '../core/Modal';
+import { PropertyForm } from './PropertyForm';
+import { mdiTrashCan } from '@mdi/js';
 import './PropertyConfigSection.css';
 
-/** Property type display info */
-const PROPERTY_TYPES: { type: PropertyType; label: string; icon: string }[] = [
-  { type: 'text', label: 'Text', icon: '' },
-  { type: 'integer', label: 'Number', icon: '' },
-  { type: 'float', label: 'Decimal', icon: '' },
-  { type: 'boolean', label: 'Checkbox', icon: '' },
-  { type: 'date', label: 'Date', icon: '' },
-  { type: 'selection', label: 'Selection', icon: '' },
-  { type: 'node', label: 'Node', icon: '' },
-];
+interface SelectionOptionWithId {
+  id: string;
+  name: string;
+  icon?: string;
+}
 
 interface PropertyConfigSectionProps {
   property: Property;
   onUpdate: (property: Property) => void;
   onDelete?: (propertyId: number) => void;
-}
-
-interface SectionState {
-  name: boolean;
-  description: boolean;
-  type: boolean;
-  defaultValue: boolean;
-  choices: boolean;
-  addChoice: boolean;
-  deleteProperty: boolean;
 }
 
 export function PropertyConfigSection({
@@ -57,42 +41,56 @@ export function PropertyConfigSection({
   // Form state
   const [name, setName] = useState(property.name);
   const [icon, setIcon] = useState(property.icon || '');
-  // const [description, setDescription] = useState(property.description || ''); // For future use
-  const [newChoiceName, setNewChoiceName] = useState('');
-  const [newChoiceIcon, setNewChoiceIcon] = useState('');
+  const [isLocal] = useState(property.is_local || false);
+  const [isMultiValue] = useState(false); // TODO: Get from property
+  const [defaultValue] = useState(''); // TODO: Get from property
+  const [newOptionName, setNewOptionName] = useState('');
+  const [newOptionIcon, setNewOptionIcon] = useState('');
+  const [showAddOption, setShowAddOption] = useState(false);
+  const [allowedClasses] = useState<Node[]>([]); // TODO: Get from property
+  const [showClassSelector, setShowClassSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
-  // Mutation for deleting property
+  // Mutations
+  const updatePropertyMutation = useUpdateProperty();
   const deletePropertyMutation = useDeleteProperty();
   
-  // Section expansion state
-  const [sections, setSections] = useState<SectionState>({
-    name: false,
-    description: false,
-    type: false,
-    defaultValue: false,
-    choices: false,
-    addChoice: false,
-    deleteProperty: false,
-  });
+  // Data
+  const { data: allNodes } = useNodes();
   
-  // Toggle section expansion
-  const toggleSection = useCallback((section: keyof SectionState) => {
-    setSections(prev => ({ ...prev, [section]: !prev[section] }));
-  }, []);
+  // Convert property options to form format
+  const selectionOptions: SelectionOptionWithId[] = useMemo(() => 
+    (property.options || []).map(opt => ({
+      id: String(opt.id),
+      name: opt.name,
+      icon: opt.icon || undefined,
+    })),
+    [property.options]
+  );
+  
+  // Get type classes for display
+  const typeClasses = useMemo(() => 
+    allNodes?.filter(n => n.is_class) || [],
+    [allNodes]
+  );
+  
+  // Check for name errors
+  const nameError = useMemo(() => {
+    if (!name.trim()) return 'Property name is required';
+    return null;
+  }, [name]);
   
   // Save property name/icon
-  const handleSaveName = useCallback(async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError('Property name is required');
+  const handleSave = useCallback(async () => {
+    if (nameError) {
+      setError(nameError);
       return;
     }
     
     const updates: { name?: string; icon?: string } = {};
-    if (trimmedName !== property.name) {
-      updates.name = trimmedName;
+    if (name.trim() !== property.name) {
+      updates.name = name.trim();
     }
     if (icon !== (property.icon || '')) {
       updates.icon = icon || undefined;
@@ -100,33 +98,28 @@ export function PropertyConfigSection({
     
     if (Object.keys(updates).length > 0) {
       try {
-        const updated = await updateProperty(property.id, updates);
-        onUpdate(updated);
+        await updatePropertyMutation.mutateAsync({
+          id: property.id,
+          data: updates,
+        });
+        onUpdate({ ...property, ...updates });
         setError(null);
       } catch (err) {
         setError('Failed to update property');
         console.error(err);
       }
     }
-    
-    toggleSection('name');
-  }, [property, name, icon, onUpdate, toggleSection]);
+  }, [property, name, icon, nameError, updatePropertyMutation, onUpdate]);
   
-  // Add a new choice
-  const handleAddChoice = useCallback(async () => {
-    if (property.type !== 'selection') return;
-    
-    const trimmedName = newChoiceName.trim();
-    if (!trimmedName) {
-      setError('Choice name is required');
-      return;
-    }
+  // Selection option handlers
+  const handleAddSelectionOption = useCallback(async () => {
+    if (!newOptionName.trim()) return;
     
     try {
       const newOption = await addSelectionOption(
         property.id,
-        trimmedName,
-        newChoiceIcon || null,
+        newOptionName.trim(),
+        newOptionIcon || null,
         null, // color
         property.options.length // sequence
       );
@@ -138,33 +131,49 @@ export function PropertyConfigSection({
       };
       onUpdate(updatedProperty);
       
-      setNewChoiceName('');
-      setNewChoiceIcon('');
+      setNewOptionName('');
+      setNewOptionIcon('');
+      setShowAddOption(false);
       setError(null);
-      toggleSection('addChoice');
     } catch (err) {
-      setError('Failed to add choice');
+      setError('Failed to add selection option');
       console.error(err);
     }
-  }, [property, newChoiceName, newChoiceIcon, onUpdate, toggleSection]);
+  }, [property, newOptionName, newOptionIcon, onUpdate]);
   
-  // Delete a choice
-  const handleDeleteChoice = useCallback(async (option: SelectionOption) => {
+  const handleRemoveSelectionOption = useCallback(async (id: string) => {
     try {
-      await deleteSelectionOption(property.id, option.id);
+      await deleteSelectionOption(property.id, Number(id));
       
       // Update property without the deleted option
       const updatedProperty: Property = {
         ...property,
-        options: property.options.filter(o => o.id !== option.id),
+        options: property.options.filter(o => String(o.id) !== id),
       };
       onUpdate(updatedProperty);
       setError(null);
     } catch (err) {
-      setError('Failed to delete choice');
+      setError('Failed to remove selection option');
       console.error(err);
     }
   }, [property, onUpdate]);
+  
+  const handleReorderSelectionOptions = useCallback((reordered: SelectionOptionWithId[]) => {
+    // TODO: Call API to reorder options
+    console.log('Reorder selection options:', reordered);
+  }, []);
+  
+  // Allowed class handlers
+  const handleAddAllowedClass = useCallback((node: Node) => {
+    // TODO: Call API to add allowed class
+    console.log('Add allowed class:', node);
+    setShowClassSelector(false);
+  }, []);
+  
+  const handleRemoveAllowedClass = useCallback((nodeId: string) => {
+    // TODO: Call API to remove allowed class
+    console.log('Remove allowed class:', nodeId);
+  }, []);
   
   // Delete the property
   const handleDeleteClick = useCallback(() => {
@@ -190,235 +199,95 @@ export function PropertyConfigSection({
     setShowDeleteModal(false);
   }, []);
   
-  const typeInfo = PROPERTY_TYPES.find(t => t.type === property.type);
-  
   return (
-    <Card 
-      variant="dashed" 
-      elevation="none" 
-      radius="lg" 
-      paddingSize="lg"
-      className="property-config-section"
-    >
-      <h3 className="property-config-section__title">Property Configuration</h3>
+    <div className="property-config-section">
+      <PropertyForm
+        icon={icon}
+        onIconChange={setIcon}
+        name={name}
+        onNameChange={setName}
+        propertyType={property.type}
+        isLocal={isLocal}
+        onIsLocalChange={() => {}}
+        isMultiValue={isMultiValue}
+        onIsMultiValueChange={() => {}}
+        defaultValue={defaultValue}
+        onDefaultValueChange={() => {}}
+        selectionOptions={selectionOptions}
+        onAddOption={handleAddSelectionOption}
+        onRemoveOption={handleRemoveSelectionOption}
+        onReorderOptions={(fromIndex, toIndex) => {
+          const reordered = [...selectionOptions];
+          const [moved] = reordered.splice(fromIndex, 1);
+          reordered.splice(toIndex, 0, moved);
+          handleReorderSelectionOptions(reordered);
+        }}
+        newOptionName={newOptionName}
+        onNewOptionNameChange={setNewOptionName}
+        newOptionIcon={newOptionIcon}
+        onNewOptionIconChange={setNewOptionIcon}
+        showAddOption={showAddOption}
+        onShowAddOptionChange={setShowAddOption}
+        allowedClasses={allowedClasses}
+        onAddClass={handleAddAllowedClass}
+        onRemoveClass={(id) => handleRemoveAllowedClass(String(id))}
+        showClassSelector={showClassSelector}
+        onShowClassSelectorChange={setShowClassSelector}
+        typeClasses={typeClasses}
+        showTypeSelection={false}
+        showScopeSelection={false}
+      />
       
       {error && (
-        <div className="property-config-section__error">{error}</div>
+        <div className="property-config-section__error">
+          {error}
+        </div>
       )}
       
-      {/* Property name section */}
-      <div className="property-config-section__item">
-        <button
-          className={`property-config-section__header ${sections.name ? 'expanded' : ''}`}
-          onClick={() => toggleSection('name')}
-        >
-          <ChevronRightIcon size="xs" />
-          <span className="property-config-section__label">Property name</span>
-          <span className="property-config-section__value">
-            {property.icon && <span className="property-config-section__icon">{property.icon}</span>}
-            {property.name}
-          </span>
-        </button>
-        
-        {sections.name && (
-          <div className="property-config-section__content">
-            <div className="property-config-section__field">
-              <label className="property-config-section__field-label">Name</label>
-              <input
-                type="text"
-                className="property-config-section__input"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setError(null);
-                }}
-                placeholder="Property name"
-              />
-            </div>
-            
-            <div className="property-config-section__field">
-              <label className="property-config-section__field-label">Icon</label>
-              <EmojiPickerTrigger
-                value={icon}
-                onSelect={setIcon}
-                placeholder="Add icon"
-              />
-            </div>
-            
-            <div className="property-config-section__actions">
-              <Button variant="default" size="sm" onClick={() => toggleSection('name')}>
-                Cancel
-              </Button>
-              <Button variant="primary" size="sm" onClick={handleSaveName}>
-                Save
-              </Button>
-            </div>
-          </div>
-        )}
+      <div className="property-config-section__actions">
+        <Button onClick={handleSave} disabled={!!nameError || updatePropertyMutation.isPending}>
+          {updatePropertyMutation.isPending ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
       
-      {/* Property type section */}
-      <div className="property-config-section__item">
-        <button
-          className="property-config-section__header"
-          onClick={() => toggleSection('type')}
-        >
-          <ChevronRightIcon size="xs" />
-          <span className="property-config-section__label">Property type</span>
-          <span className="property-config-section__value">
-            {typeInfo && <span className="property-config-section__icon">{typeInfo.icon}</span>}
-            {typeInfo?.label || property.type}
-          </span>
-        </button>
-        
-        {sections.type && (
-          <div className="property-config-section__content">
-            <p className="property-config-section__hint">
-              Property type cannot be changed after creation.
-            </p>
+      {onDelete && (
+        <>
+          <div className="property-config-section__delete">
+            <Button
+              onClick={handleDeleteClick}
+              variant="ghost"
+              icon={mdiTrashCan}
+            >
+              Delete Property
+            </Button>
           </div>
-        )}
-      </div>
-      
-      {/* Available choices section (for selection type) */}
-      {property.type === 'selection' && (
-        <div className="property-config-section__item">
-          <button
-            className={`property-config-section__header ${sections.choices ? 'expanded' : ''}`}
-            onClick={() => toggleSection('choices')}
-          >
-            <ChevronRightIcon size="xs" />
-            <span className="property-config-section__label">Available choices</span>
-            <span className="property-config-section__value">
-              {property.options.length} choice{property.options.length !== 1 ? 's' : ''}
-            </span>
-          </button>
           
-          {sections.choices && (
-            <div className="property-config-section__content">
-              {/* Existing choices */}
-              <div className="property-config-section__choices">
-                {property.options.map(option => (
-                  <div key={option.id} className="property-config-section__choice">
-                    <span className="property-config-section__choice-icon">
-                      {option.icon || '○'}
-                    </span>
-                    <span className="property-config-section__choice-name">{option.name}</span>
-                    <button
-                      className="property-config-section__choice-delete"
-                      onClick={() => handleDeleteChoice(option)}
-                      title="Delete choice"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                
-                {property.options.length === 0 && (
-                  <p className="property-config-section__empty">No choices defined yet.</p>
-                )}
-              </div>
-              
-              {/* Add choice sub-section */}
-              <div className="property-config-section__subsection">
-                <button
-                  className={`property-config-section__header ${sections.addChoice ? 'expanded' : ''}`}
-                  onClick={() => toggleSection('addChoice')}
-                >
-                  <ChevronRightIcon size="xs" />
-                  <span className="property-config-section__label">Add choice</span>
-                </button>
-                
-                {sections.addChoice && (
-                  <div className="property-config-section__content">
-                    <div className="property-config-section__field">
-                      <label className="property-config-section__field-label">Name</label>
-                      <input
-                        type="text"
-                        className="property-config-section__input"
-                        value={newChoiceName}
-                        onChange={(e) => setNewChoiceName(e.target.value)}
-                        placeholder="Choice name"
-                      />
-                    </div>
-                    
-                    <div className="property-config-section__field">
-                      <label className="property-config-section__field-label">Icon (optional)</label>
-                      <EmojiPickerTrigger
-                        value={newChoiceIcon}
-                        onSelect={setNewChoiceIcon}
-                        placeholder="Add icon"
-                      />
-                    </div>
-                    
-                    <div className="property-config-section__actions">
-                      <Button variant="default" size="sm" onClick={() => toggleSection('addChoice')}>
-                        Cancel
-                      </Button>
-                      <Button variant="primary" size="sm" onClick={handleAddChoice}>
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+          {showDeleteModal && (
+            <Modal
+              isOpen={showDeleteModal}
+              title="Delete Property"
+              onClose={handleCancelDelete}
+              footer={
+                <>
+                  <Button onClick={handleCancelDelete}>Cancel</Button>
+                  <Button 
+                    onClick={handleConfirmDelete}
+                    variant="danger"
+                    disabled={deletePropertyMutation.isPending}
+                  >
+                    {deletePropertyMutation.isPending ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </>
+              }
+            >
+              <p>
+                Are you sure you want to delete the property &quot;{property.name}&quot;?
+                This will remove the property and all its values from all nodes.
+              </p>
+            </Modal>
           )}
-        </div>
+        </>
       )}
-      
-      {/* Property scope section - read-only indicator */}
-      <div className="property-config-section__item">
-        <div className="property-config-section__header property-config-section__header--readonly">
-          <span className="property-config-section__label">Scope</span>
-          <span className="property-config-section__value">
-            <span className="property-config-section__badge" data-scope={property.is_local ? 'local' : 'global'}>
-              {property.is_local ? '📍 Local' : '🌐 Global'}
-            </span>
-          </span>
-        </div>
-        <p className="property-config-section__hint">
-          {property.is_local 
-            ? 'This property is local - only available for specific nodes and their typed nodes.'
-            : 'This property is global - available for any node with a unique name.'
-          }
-        </p>
-      </div>
-      
-      {/* Delete property section */}
-      {!property.is_system && onDelete && (
-        <div className="property-config-section__item">
-          <Button 
-            variant="ghost" 
-            className="property-config-section__delete-btn" 
-            onClick={handleDeleteClick}
-          >
-            Delete property from database
-          </Button>
-          <p className="property-config-section__hint property-config-section__hint--warning">
-            This action cannot be undone and will remove all values of this property from all nodes.
-          </p>
-        </div>
-      )}
-      
-      {property.is_system && (
-        <p className="property-config-section__hint property-config-section__hint--info">
-          This is a system property and cannot be deleted.
-        </p>
-      )}
-      
-      <ConfirmationModal
-        isOpen={showDeleteModal}
-        title="Delete Property"
-        message={`Are you sure you want to delete the property "${property.name}"? This action cannot be undone and will remove all values of this property from all nodes.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
-      />
-    </Card>
+    </div>
   );
 }
-
-export default PropertyConfigSection;
