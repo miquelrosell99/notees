@@ -20,6 +20,9 @@ import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { NodeViewSection } from './nodes/NodeViewSection';
 import { PropertiesIcon } from './icons';
 import { PropertyList, type PropertyEntry } from './properties/PropertyList';
+import { useNodesStore } from '@/stores';
+import type { ContextMenuItem } from './core/ContextMenu';
+import type { Property } from '@/types/api';
 import './PropertiesSection.css';
 
 interface ClassPropertiesEditorProps {
@@ -85,26 +88,35 @@ export function ClassPropertiesEditor({
     removePropertyMutation.mutate({ classId: classNodeId, propertyId });
   }, [classNodeId, removePropertyMutation]);
 
+  // Get openPropertyView from store
+  const openPropertyView = useNodesStore(state => state.openPropertyView);
+
+  // Generate context menu items for property
+  const getContextMenuItems = useCallback((property: Property): ContextMenuItem[] => {
+    return [
+      {
+        id: 'open-property',
+        label: 'Open property',
+        onClick: () => {
+          openPropertyView(property.id);
+        },
+      },
+      {
+        id: 'remove-property',
+        label: 'Remove from class',
+        danger: true,
+        disabled: property.is_system,
+        onClick: () => handleRemoveProperty(property.id),
+      },
+    ];
+  }, [openPropertyView, handleRemoveProperty]);
+
   // Render value function for PropertyList
   const renderValue = useCallback((entry: PropertyEntry, readOnly: boolean) => {
     return (
-      <>
-        <span className="class-property-placeholder">Add description</span>
-        {!readOnly && (
-          <Button
-            className="class-property-remove-btn"
-            variant="ghost"
-            size="xs"
-            onClick={() => handleRemoveProperty(entry.property.id)}
-            disabled={removePropertyMutation.isPending}
-            title="Remove property from class"
-          >
-            ×
-          </Button>
-        )}
-      </>
+      <span className="class-property-placeholder">Add description</span>
     );
-  }, [handleRemoveProperty, removePropertyMutation.isPending]);
+  }, []);
   
   if (isLoading) {
     return <div className={`properties-view class-definition-variant loading ${className}`}>Loading...</div>;
@@ -131,6 +143,7 @@ export function ClassPropertiesEditor({
             readOnly={readOnly}
             showHiddenSection={true}
             renderValue={renderValue}
+            getContextMenuItems={getContextMenuItems}
             variant="page"
             showBullets={true}
           />

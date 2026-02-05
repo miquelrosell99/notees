@@ -4,12 +4,19 @@
  * A reusable component for displaying a list of property rows.
  * Extracted from PropertiesSection to be reusable in other contexts.
  * 
+ * Features:
+ * - Property rows with labels and values
+ * - Hidden properties section
+ * - Context menu support (at row level)
+ * - Bullet points for non-text properties
+ * 
  * NOTE: Moved out of core/ - has domain knowledge (Property type)
  */
 import { useState, useCallback, type ReactNode } from 'react';
 import type { Property } from '@/types/api';
 import { Bullet } from '../blocks/Bullet';
 import { ChevronRightIcon } from '../icons';
+import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import './PropertyList.css';
 
 export interface PropertyEntry {
@@ -36,6 +43,10 @@ export interface PropertyListProps {
   renderValue: (entry: PropertyEntry, readOnly: boolean) => ReactNode;
   /** Handler for property name clicks (for editing) */
   onPropertyNameClick?: (property: Property, event: React.MouseEvent) => void;
+  /** Handler for property name right-clicks (context menu) */
+  onPropertyContextMenu?: (property: Property, event: React.MouseEvent) => void;
+  /** Context menu items generator */
+  getContextMenuItems?: (property: Property) => ContextMenuItem[];
   /** Additional className */
   className?: string;
   /** Variant for styling */
@@ -54,6 +65,8 @@ export function PropertyList({
   defaultShowHidden = false,
   renderValue,
   onPropertyNameClick,
+  onPropertyContextMenu,
+  getContextMenuItems,
   className = '',
   variant = 'page',
   showBullets = true,
@@ -77,6 +90,8 @@ export function PropertyList({
             readOnly={readOnly}
             renderValue={renderValue}
             onNameClick={onPropertyNameClick}
+            onPropertyContextMenu={onPropertyContextMenu}
+            getContextMenuItems={getContextMenuItems}
             showBullet={showBullets && entry.property.type !== 'text'}
           />
         ))}
@@ -102,6 +117,8 @@ export function PropertyList({
                   readOnly={readOnly}
                   renderValue={renderValue}
                   onNameClick={onPropertyNameClick}
+                  onPropertyContextMenu={onPropertyContextMenu}
+                  getContextMenuItems={getContextMenuItems}
                   showBullet={showBullets && entry.property.type !== 'text'}
                 />
               ))}
@@ -118,17 +135,26 @@ interface PropertyRowProps {
   readOnly: boolean;
   renderValue: (entry: PropertyEntry, readOnly: boolean) => ReactNode;
   onNameClick?: (property: Property, event: React.MouseEvent) => void;
+  onPropertyContextMenu?: (property: Property, event: React.MouseEvent) => void;
+  getContextMenuItems?: (property: Property) => ContextMenuItem[];
   showBullet: boolean;
 }
 
+/**
+ * PropertyRow component - renders a single property row with context menu
+ */
 function PropertyRow({
   entry,
   readOnly,
   renderValue,
   onNameClick,
+  onPropertyContextMenu,
+  getContextMenuItems,
   showBullet,
 }: PropertyRowProps) {
   const { property, source } = entry;
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
   const handleNameClick = useCallback((e: React.MouseEvent) => {
     if (!readOnly && onNameClick) {
@@ -136,31 +162,52 @@ function PropertyRow({
     }
   }, [readOnly, onNameClick, property]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (readOnly || !getContextMenuItems) return;
+    e.preventDefault();
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setShowContextMenu(true);
+    onPropertyContextMenu?.(property, e);
+  }, [readOnly, property, onPropertyContextMenu, getContextMenuItems]);
+
+  // Generate context menu items for this row
+  const contextMenuItems = getContextMenuItems ? getContextMenuItems(property) : [];
+
   return (
-    <div className="property-row">
-      <button
-        className={`property-row__label ${!readOnly && onNameClick ? 'property-row__label--clickable' : ''}`}
-        onClick={handleNameClick}
-        disabled={readOnly || !onNameClick}
-        title={!readOnly && onNameClick ? 'Click to edit property' : undefined}
-      >
-        {property.icon && <span className="property-row__icon">{property.icon}</span>}
-        <span className="property-row__name">{property.name}</span>
-        {source && (
-          <span className="property-row__source" title={`From ${source}`}>
-            ({source})
-          </span>
-        )}
-      </button>
-      <div className="property-row__value-container">
-        <div className="property-row__value-wrapper">
-          {showBullet && (
-            <Bullet interactive={false} size="xs" />
+    <>
+      <div className="property-row">
+        <div
+          className="property-row__label"
+          onContextMenu={handleContextMenu}
+          title={!readOnly && getContextMenuItems ? 'Right-click for options' : undefined}
+        >
+          {property.icon && <span className="property-row__icon">{property.icon}</span>}
+          <span className="property-row__name">{property.name}</span>
+          {source && (
+            <span className="property-row__source" title={`From ${source}`}>
+              ({source})
+            </span>
           )}
-          {renderValue(entry, readOnly)}
+        </div>
+        <div className="property-row__value-container">
+          <div className="property-row__value-wrapper">
+            {showBullet && (
+              <Bullet interactive={false} size="xs" />
+            )}
+            {renderValue(entry, readOnly)}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Context Menu - rendered at row level */}
+      {showContextMenu && contextMenuItems.length > 0 && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={contextMenuPosition}
+          onClose={() => setShowContextMenu(false)}
+        />
+      )}
+    </>
   );
 }
 
