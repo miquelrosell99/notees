@@ -421,6 +421,8 @@ interface GroupHeaderProps {
   onContentChange?: (nodeId: number, content: string) => void;
   isolatedBlockState?: boolean;
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
+  localExpandedNodes?: Set<number>;
+  onToggleNodeCollapse?: (nodeId: number) => void;
 }
 
 function GroupHeader({
@@ -439,6 +441,8 @@ function GroupHeader({
   onContentChange,
   isolatedBlockState = false,
   customContextMenuItems,
+  localExpandedNodes,
+  onToggleNodeCollapse,
 }: GroupHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const openNode = useNodesStore(state => state.openNode);
@@ -676,6 +680,8 @@ export function NodeListView({
             onContentChange={onContentChange}
             isolatedBlockState={isolatedBlockState}
             customContextMenuItems={customContextMenuItems}
+            localExpandedNodes={localExpandedNodes}
+            onToggleNodeCollapse={handleToggleNodeCollapse}
           />
         ))}
       </div>
