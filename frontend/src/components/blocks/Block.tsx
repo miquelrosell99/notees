@@ -32,7 +32,7 @@ import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
 import { BlockEditor, type TaskState, type PastedTable } from './BlockEditor';
@@ -45,11 +45,12 @@ import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodePill } from '../NodePill';
+import { PropertySuggestionPopup } from '../properties/PropertySuggestionPopup';
 import { useBlockCallbacks } from './BlockCallbacksContext';
 import { SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import type { ContextMenuItem } from '../core/ContextMenu';
-import type { Node } from '@/types';
+import type { Node, Property, PropertyCreate } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
@@ -192,6 +193,8 @@ function BlockInternal({
   }, [block, updateNode]);
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
+  const setPropertyMutation = useSetNodeProperty();
+  const createPropertyMutation = useCreateProperty();
   const { data: allClasses } = useClasses();
   useSystemClasses(); // Keep hook call for side effects
   
@@ -205,6 +208,9 @@ function BlockInternal({
     keepInline: boolean;
     className: string;
   }>({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
+  
+  // Property suggestion popup state
+  const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   
   // Track when table structure is being created to disable auto-balance
   const isCreatingTableStructure = useRef(false);
@@ -1078,6 +1084,49 @@ function BlockInternal({
     setTableCreationState({ isOpen: false, classNodeId: null, keepInline: false, className: '' });
   }, []);
 
+  // Handler for selecting an existing property to add
+  const handleSelectProperty = useCallback((property: Property) => {
+    // Set a default value based on property type
+    let defaultValue: unknown;
+    switch (property.type) {
+      case 'boolean':
+        defaultValue = false;
+        break;
+      case 'integer':
+      case 'float':
+        defaultValue = 0;
+        break;
+      case 'text':
+      case 'selection':
+        defaultValue = '';
+        break;
+      case 'node':
+      case 'date':
+      default:
+        defaultValue = '';
+        break;
+    }
+    setPropertyMutation.mutate({ nodeId: block.id, propertyId: property.id, value: defaultValue });
+    setShowPropertyPopup(false);
+  }, [block.id, setPropertyMutation]);
+
+  // Handler for creating a new property
+  const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
+    setShowPropertyPopup(false);
+    createPropertyMutation.mutate(data, {
+      onSuccess: async (newProperty) => {
+        // Add the property to this node with appropriate default value
+        const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
+        setPropertyMutation.mutate({ nodeId: block.id, propertyId: newProperty.id, value: defaultValue });
+      },
+    });
+  }, [createPropertyMutation, setPropertyMutation, block.id]);
+
+  // Handler for opening property popup from slash command
+  const handleAddProperty = useCallback(() => {
+    setShowPropertyPopup(true);
+  }, []);
+
   // Wrapped onAddClass that intercepts table class additions
   const handleAddClass = useCallback((classNodeId: number, keepInline: boolean, className: string) => {
     // Check if this is the table class - show size selector modal
@@ -1777,6 +1826,7 @@ function BlockInternal({
               onCreatePageLink={onCreatePageLink}
               onOpenComments={onOpenComments ?? undefined}
               onAssetUpload={onAssetUpload}
+              onAddProperty={handleAddProperty}
               readOnly={!canEdit}
               isTask={Boolean(block.properties?.state)}
               taskState={(block.properties?.state as TaskState) || 'todo'}
@@ -2229,6 +2279,19 @@ function BlockInternal({
         onAdaptExisting={handleTableAdaptExisting}
         onCancel={handleTableCreationCancel}
       />
+
+      {/* Property Suggestion Popup */}
+      {showPropertyPopup && containerRef.current && (
+        <div style={{ position: 'relative' }}>
+          <PropertySuggestionPopup
+            isOpen={showPropertyPopup}
+            onClose={() => setShowPropertyPopup(false)}
+            onSelect={handleSelectProperty}
+            onCreate={handleCreateNewProperty}
+            excludeIds={[]}
+          />
+        </div>
+      )}
 
     </div>
   );
