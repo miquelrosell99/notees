@@ -13,7 +13,8 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNodeSearch, usePages, useNodes } from '@/hooks';
+import { useNodeSearch, usePages, useNodes, useClasses } from '@/hooks';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node, Property } from '@/types/api';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from '../icons';
 import { Card } from '../core/Card';
@@ -43,6 +44,7 @@ interface SelectedNode {
   name: string;
   icon: string | null;
   isPage: boolean;
+  node: Node | null; // Full node for effective icon calculation
 }
 
 /**
@@ -68,6 +70,7 @@ export function NodePicker({
   // Fetch data for selected node lookup
   const { data: allPages } = usePages();
   const { data: allNodes } = useNodes();
+  const { data: allClasses } = useClasses();
   
   // Use shared search hook with class filters from property
   const { allResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(query, {
@@ -119,6 +122,7 @@ export function NodePicker({
           name: node.name || 'Untitled',
           icon: node.icon,
           isPage: node.parent_id === null,
+          node: node,
         });
       } else {
         // Fallback if node not found
@@ -127,6 +131,7 @@ export function NodePicker({
           name: `Node #${id}`,
           icon: null,
           isPage: true,
+          node: null,
         });
       }
     }
@@ -359,10 +364,23 @@ export function NodePicker({
               ))}
             </div>
           ) : (
-            // Single-select: Just show the node name (clear via SelectTrigger button)
-            <span className="node-picker__single-value">
-              {selectedNodes[0].name}
-            </span>
+            // Single-select: Show effective icon + node name (clear via SelectTrigger button)
+            (() => {
+              const selectedNode = selectedNodes[0];
+              const effectiveIcon = selectedNode.node ? getEffectiveIcon(selectedNode.node, allClasses) : null;
+              return (
+                <span className="node-picker__single-value">
+                  {effectiveIcon ? (
+                    <NodeIcon icon={effectiveIcon} isPage={selectedNode.isPage} size="sm" />
+                  ) : (
+                    <BulletIcon size="sm" />
+                  )}
+                  <span className="node-picker__single-value-name">
+                    {selectedNode.name}
+                  </span>
+                </span>
+              );
+            })()
           )
         ) : (
           <span className="node-picker__placeholder">Select node...</span>
