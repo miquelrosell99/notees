@@ -1,0 +1,336 @@
+/**
+ * QueryNodeCollection Styles
+ * 
+ * Styles for query-based node collections, including:
+ * - Query section controls and filter buttons
+ * - Query edit modal
+ * - Query preview modal
+ */
+
+/* ==================== Query Section ==================== */
+
+.query-node-collection {
+  container-type: inline-size;
+}
+
+/* Header actions container */
+.query-section__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Filter button wrapper for badge positioning */
+.query-section__filter-btn-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.query-section__filter-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
+}
+
+/* Loading/empty states */
+.query-section__loading,
+.query-section__empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* ==================== Query Edit Modal ==================== */
+
+.query-section__edit-modal {
+  width: 1200px !important;
+  max-width: 95vw !important;
+  min-height: 70vh;
+  max-height: 85vh;
+}
+
+.query-section__edit-modal .modal__content {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Edit form */
+.query-section__edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  min-height: 300px;
+}
+
+/* Subtitle below modal title */
+.query-section__subtitle {
+  margin: 0;
+  padding: 0 0 var(--spacing-md);
+  font-size: 0.875rem;
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+/* Modal footer with view name field */
+.query-section__modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.query-section__footer-spacer {
+  flex: 1;
+}
+
+.query-section__view-name-field {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+/* Delete button in footer */
+.query-section__delete-btn {
+  flex-shrink: 0;
+}
+
+/* ==================== Query Builder ==================== */
+
+/* Mode toggle section at the top */
+.query-section__mode-toggle-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.query-section__mode-warning {
+  font-size: 0.8125rem;
+  color: var(--color-warning);
+  font-weight: 500;
+}
+
+/* Builder mode container */
+.query-section__builder-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+/* Individual section styles */
+.query-section__scope-section,
+.query-section__conditions-section,
+.query-section__logic-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+}
+
+/* Section titles */
+.query-section__section-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+/* Section hints */
+.query-section__section-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+/* Logic controls */
+.query-section__logic-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+}
+
+/* Result preview */
+.query-section__result-preview {
+  padding: var(--spacing-md);
+  background: var(--color-success-container);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.query-section__result-count {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-on-success-container);
+}
+
+/* SQL editor area */
+.query-section__sql-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.query-section__sql-textarea {
+  flex: 1;
+  min-height: 200px;
+  padding: 0.75rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.query-section__sql-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.query-section__sql-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ==================== Validation Messages ==================== */
+
+.query-section__validation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  background: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline);
+}
+
+.query-section__validation-issue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.query-section__validation-issue--error {
+  background: var(--color-error-container);
+  border: 1px solid var(--color-error);
+  color: var(--color-on-error-container);
+}
+
+.query-section__validation-issue--warning {
+  background: var(--color-warning-container);
+  border: 1px solid var(--color-warning);
+  color: var(--color-on-warning-container);
+}
+
+.query-section__validation-issue--info {
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline);
+  color: var(--color-on-surface-variant);
+}
+
+.query-section__validation-message {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.query-section__validation-suggestion {
+  font-size: 0.8125rem;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+/* ==================== Headless Mode ==================== */
+
+.query-node-collection--headless {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.query-node-collection--headless .query-section__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
+  flex-wrap: wrap;
+}
+
+/* ==================== Query Preview Modal ==================== */
+
+.query-preview-modal {
+  width: 1200px !important;
+  max-width: 95vw !important;
+  max-height: none !important;
+}
+
+.query-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.query-preview__section-header {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.query-preview__prose {
+  padding: var(--spacing-md);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+.query-preview__ast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-sm);
+}
+
+.query-preview__ast {
+  padding: var(--spacing-md);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background-color: var(--color-surface-tertiary);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  max-height: 300px;
+}
+
+.query-preview__sql-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.query-preview__sql-note {
+  font-size: 0.75rem;
+  color: var(--color-text-quaternary);
+  font-style: italic;
+}
