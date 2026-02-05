@@ -250,19 +250,6 @@ export function PropertyView({
         </div>
       </div>
       
-      {/* Property Type and Meta Info */}
-      <div className="property-view-meta">
-        {property.multi && (
-          <span className="property-view-badge">Multi-value</span>
-        )}
-        {property.is_system && (
-          <span className="property-view-badge system">System</span>
-        )}
-        {property.is_local && (
-          <span className="property-view-badge">📍 Local</span>
-        )}
-      </div>
-      
       {/* Property Options (for selection type) */}
       {property.type === 'selection' && property.options.length > 0 && (
         <div className="property-view-options">
