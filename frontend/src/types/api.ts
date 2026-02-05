@@ -260,6 +260,7 @@ export interface Property {
   multi: boolean;
   is_system: boolean;
   is_local: boolean;  // Local properties apply only to specific nodes, not globally unique
+  node_id: number | null;  // For local properties, the node this property is scoped to
   create_date: string;
   write_date: string;
   // For node-type properties
@@ -372,6 +373,7 @@ export interface PropertyUpdate {
   name?: string | null;
   icon?: string | null;
   is_multi?: boolean | null;
+  class_filters?: number[] | null;
 }
 
 // ==================== User Types ====================

@@ -442,7 +442,7 @@ class PostgresPropertyRepository(PropertyRepository):
             
             if new_type not in RELATION_TYPES:
                 await conn.execute(
-                    "DELETE FROM property_type_filter WHERE property_id = $1",
+                    "DELETE FROM property_class_filter WHERE property_id = $1",
                     property_id
                 )
             
