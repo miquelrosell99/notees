@@ -20,9 +20,10 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useSystemClasses, useClassExtends, useAddClassExtends, useRemoveClassExtends } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useSystemClasses, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore, useSettingsStore, formatDate } from '@/stores';
-import type { Node } from '@/types';
+import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
+import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
@@ -36,7 +37,9 @@ import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext'
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
+import { PropertySuggestionPopup } from '../components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
+import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
 import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline } from '@mdi/js';
@@ -254,6 +257,18 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const removeTag = useRemoveTag();
   const addTag = useAddTag();
   const createNode = useCreateNode();
+  const setPropertyMutation = useSetNodeProperty();
+  const createPropertyMutation = useCreateProperty();
+  
+  // Property popup state
+  const [showPropertyPopup, setShowPropertyPopup] = useState(false);
+  const selectedBlocksSet = useBlockSelectionStore(state => state.blockStates);
+  const selectedBlocks = useMemo(() => 
+    Array.from(selectedBlocksSet.entries())
+      .filter(([_, state]) => state === 'selected')
+      .map(([id]) => id),
+    [selectedBlocksSet]
+  );
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
@@ -343,6 +358,59 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     if (!node) return;
     removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
   }, [node, removeTag]);
+
+  // Handler for selecting an existing property to add
+  const handleSelectProperty = useCallback((property: Property) => {
+    if (!node) return;
+    // Determine target node: selected block or page
+    const targetNodeId = selectedBlocks.length === 1 ? selectedBlocks[0] : node.id;
+    
+    // Set a default value based on property type
+    let defaultValue: unknown;
+    switch (property.type) {
+      case 'boolean':
+        defaultValue = false;
+        break;
+      case 'integer':
+      case 'float':
+        defaultValue = 0;
+        break;
+      case 'text':
+      case 'selection':
+        defaultValue = '';
+        break;
+      case 'node':
+      case 'date':
+      default:
+        defaultValue = '';
+        break;
+    }
+    setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: property.id, value: defaultValue });
+    setShowPropertyPopup(false);
+  }, [node, selectedBlocks, setPropertyMutation]);
+
+  // Handler for creating a new property
+  const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
+    if (!node) return;
+    setShowPropertyPopup(false);
+    const targetNodeId = selectedBlocks.length === 1 ? selectedBlocks[0] : node.id;
+    
+    createPropertyMutation.mutate(data, {
+      onSuccess: async (newProperty) => {
+        // Add the property to the target node with appropriate default value
+        const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
+        setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: newProperty.id, value: defaultValue });
+      },
+    });
+  }, [node, selectedBlocks, createPropertyMutation, setPropertyMutation]);
+
+  // Handle keyboard shortcut Ctrl+Alt+P to add property
+  useKeyboardShortcut(SHORTCUT_IDS.ADD_PROPERTY, () => {
+    // Only open if on a node view (page or block)
+    if (node) {
+      setShowPropertyPopup(true);
+    }
+  });
   
   // Handle color change for class/tag nodes via NodePillRow
   const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
@@ -406,7 +474,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Cover image picker state
   const [isCoverImagePickerOpen, setIsCoverImagePickerOpen] = useState(false);
-  const setPropertyMutation = useSetNodeProperty();
   
   // Banner and cover collapse/drag states
   const [isBannerCollapsed, setIsBannerCollapsed] = useState(true);
@@ -1021,6 +1088,24 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             onClose={handleCloseContextMenu}
           />
         )
+      )}
+
+      {/* Property Suggestion Modal for Ctrl+Alt+P */}
+      {showPropertyPopup && (
+        <Modal
+          isOpen={showPropertyPopup}
+          onClose={() => setShowPropertyPopup(false)}
+          title="Add Property"
+          size="sm"
+        >
+          <PropertySuggestionPopup
+            isOpen={showPropertyPopup}
+            onClose={() => setShowPropertyPopup(false)}
+            onSelect={handleSelectProperty}
+            onCreate={handleCreateNewProperty}
+            excludeIds={[]}
+          />
+        </Modal>
       )}
     </article>
   );
