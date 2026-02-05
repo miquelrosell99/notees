@@ -249,10 +249,36 @@ export function autoFixSystemQuery(
     };
   }
   
-  // Remove any old system-marked conditions and add the new one
-  const nonSystemChildren = ast.root_group.children.filter(
-    (child) => !isSystemNode(child)
-  );
+  // Remove any old system-marked conditions AND any conditions that match the system condition pattern
+  // This prevents duplicates when conditions exist but aren't properly marked
+  const nonSystemChildren = ast.root_group.children.filter((child) => {
+    // Remove conditions already marked as system
+    if (isSystemNode(child)) return false;
+    
+    // Also remove conditions that match the system condition pattern
+    // to prevent duplicates when unmarked system conditions exist
+    if (child.type === 'condition') {
+      if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
+        const refCond = child as ReferenceCondition;
+        if (refCond.target_uuid === context.nodeUuid) return false;
+      } else if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
+        const parentCond = child as ParentCondition;
+        if (parentCond.parent_uuid && (
+          parentCond.parent_uuid === '{current_node_uuid}' ||
+          parentCond.parent_uuid === context.parentUuid ||
+          parentCond.parent_uuid === context.nodeUuid
+        )) return false;
+      } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
+        const classCond = child as ClassCondition;
+        if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') return false;
+      } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
+        const extCond = child as ExtendsCondition;
+        if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') return false;
+      }
+    }
+    
+    return true;
+  });
   
   return {
     ...ast,

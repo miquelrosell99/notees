@@ -480,7 +480,8 @@ async def update_query_ast(
 ) -> NodeViewResponse:
     """Update the query AST for a NodeView (preferred endpoint).
     
-    Validates the AST before saving. System queries cannot be modified.
+    Validates the AST before saving. For system views (linked references, child pages), 
+    allows user-added filters but preserves the system condition and is_system flag.
     """
     repo = await _get_node_view_repo(user)
     
@@ -488,28 +489,31 @@ async def update_query_ast(
     if not view:
         raise HTTPException(status_code=404, detail="NodeView not found")
     
-    # Check if existing query is a system query
+    # Check if existing view is a system query
     existing_query = view.query_json or {}
-    if existing_query and existing_query.get('is_system'):
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot modify system query. System queries (linked references, child pages, etc.) are read-only."
-        )
+    is_system_view = existing_query.get('is_system', False)
     
     # Validate AST
     try:
         ast = QueryAST.from_dict(request.query_ast)
         
-        # Prevent creation of system queries through API
-        if ast.is_system:
-            raise HTTPException(
-                status_code=403,
-                detail="Cannot create or modify system queries through this endpoint"
-            )
+        # If this is a system view, preserve the is_system flag regardless of what client sends
+        # This prevents users from accidentally removing the system flag
+        if is_system_view:
+            ast.is_system = True
+        else:
+            # For non-system views, prevent clients from marking queries as system
+            if ast.is_system:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot create system queries through this endpoint"
+                )
         
-        validation = validate_query_ast(ast, allow_system_modification=False)
+        # Validate with appropriate flags
+        # For system views, we allow modification but validate that system conditions are preserved
+        validation = validate_query_ast(ast, allow_system_modification=is_system_view)
         
-        can_save, reason = can_save_query(ast, allow_system_modification=False)
+        can_save, reason = can_save_query(ast, allow_system_modification=is_system_view)
         if not can_save:
             raise HTTPException(
                 status_code=400,
