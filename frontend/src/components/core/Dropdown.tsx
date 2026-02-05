@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import Icon from '@mdi/react';
 import { mdiChevronDown, mdiClose, mdiCheck } from '@mdi/js';
 import { Card } from './Card';
+import { Button } from './Button';
 import './Dropdown.css';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
@@ -62,6 +63,8 @@ export interface DropdownProps<T = string> {
   emptyContent?: ReactNode;
   /** Additional className */
   className?: string;
+  /** Delete button callback - shows delete button with X icon next to dropdown */
+  onDelete?: () => void;
 }
 
 /**
@@ -85,6 +88,7 @@ export function Dropdown<T = string>({
   renderOption,
   emptyContent = 'No options',
   className = '',
+  onDelete,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -237,50 +241,63 @@ export function Dropdown<T = string>({
     .join(' ');
 
   return (
-    <div className={containerClasses} ref={containerRef}>
-      {/* Trigger */}
-      {renderTrigger ? (
-        <div onClick={handleToggle}>
-          {renderTrigger({ isOpen, selectedLabel })}
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="dropdown-trigger"
-          onClick={handleToggle}
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={isOpen}
-        >
-          <span className={`dropdown-value ${!value && !values.length ? 'dropdown-value--placeholder' : ''}`}>
-            {selectedLabel}
-          </span>
-          <div className="dropdown-icons">
-            {clearable && (value || values.length > 0) && (
-              <div
-                className="dropdown-clear"
-                onClick={handleClear}
-                role="button"
-                tabIndex={0}
-                aria-label="Clear selection"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleClear(e as any);
-                  }
-                }}
-              >
-                <Icon path={mdiClose} size={0.6} />
-              </div>
-            )}
-            <Icon
-              path={mdiChevronDown}
-              size={0.7}
-              className={`dropdown-chevron ${isOpen ? 'dropdown-chevron--open' : ''}`}
-            />
+    <div className="dropdown-container">
+      <div className={containerClasses} ref={containerRef}>
+        {/* Trigger */}
+        {renderTrigger ? (
+          <div onClick={handleToggle}>
+            {renderTrigger({ isOpen, selectedLabel })}
           </div>
-        </button>
-      )}
+        ) : (
+          <Card
+            className="dropdown-trigger"
+            onClick={handleToggle}
+            variant="outlined"
+            padding={false}
+            elevation="none"
+            interactive
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleToggle();
+              }
+            }}
+          >
+            <div className="dropdown-trigger-content">
+              <span className={`dropdown-value ${!value && !values.length ? 'dropdown-value--placeholder' : ''}`}>
+                {selectedLabel}
+              </span>
+              <div className="dropdown-icons">
+                {clearable && (value || values.length > 0) && (
+                  <div
+                    className="dropdown-clear"
+                    onClick={handleClear}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Clear selection"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleClear(e as any);
+                      }
+                    }}
+                  >
+                    <Icon path={mdiClose} size={0.6} />
+                  </div>
+                )}
+                <Icon
+                  path={mdiChevronDown}
+                  size={0.7}
+                  className={`dropdown-chevron ${isOpen ? 'dropdown-chevron--open' : ''}`}
+                />
+              </div>
+            </div>
+          </Card>
+        )}
 
       {/* Dropdown menu - rendered in portal */}
       {isOpen && menuPosition && createPortal(
@@ -367,9 +384,23 @@ export function Dropdown<T = string>({
         document.body
       )}
 
-      {/* Error message */}
-      {error && errorMessage && (
-        <span className="dropdown-error-message">{errorMessage}</span>
+        {/* Error message */}
+        {error && errorMessage && (
+          <span className="dropdown-error-message">{errorMessage}</span>
+        )}
+      </div>
+      
+      {/* Delete button */}
+      {onDelete && (
+        <Button
+          icon={mdiClose}
+          iconOnly
+          variant="ghost"
+          size={size}
+          onClick={onDelete}
+          aria-label="Delete"
+          className="dropdown-delete-btn"
+        />
       )}
     </div>
   );
