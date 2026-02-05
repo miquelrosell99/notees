@@ -194,19 +194,6 @@ export function PropertyForm({
         </div>
       )}
       
-      {/* Type Display (read-only) */}
-      {!showTypeSelection && (
-        <div className="property-form__field">
-          <label className="property-form__label">Type</label>
-          <div className="property-form__type-display">
-            {typeOption?.label || propertyType}
-          </div>
-          <div className="property-form__help-text">
-            Property type cannot be changed after creation.
-          </div>
-        </div>
-      )}
-      
       {/* Multi-value (for applicable types) */}
       {showMultiValueSelection && typeOption?.supportsMultiValue && (
         <div className="property-form__field">
