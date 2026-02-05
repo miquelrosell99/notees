@@ -564,10 +564,30 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     } else if (selectedIds.length === 0) {
       nodes.forEach(n => n.glare = 'normal');
     } else if (selectedIds.length === 1) {
+      // Single selection - highlight selected node, keep directly connected nodes normal, dim others
+      const selectedId = selectedIds[0];
+      
+      // Find all nodes directly connected to the selected node
+      const connectedNodeIds = new Set<number>();
+      for (const link of linksRef.current) {
+        if (link.source === selectedId) {
+          connectedNodeIds.add(link.target);
+        } else if (link.target === selectedId) {
+          connectedNodeIds.add(link.source);
+        }
+      }
+      
       nodes.forEach(n => {
-        n.glare = n.id === selectedIds[0] ? 'bright' : 'dim';
+        if (n.id === selectedId) {
+          n.glare = 'bright';
+        } else if (connectedNodeIds.has(n.id)) {
+          n.glare = 'normal';
+        } else {
+          n.glare = 'dim';
+        }
       });
     } else {
+      // Multiple selection - dim all, highlight selected, show paths
       // Build node lookup map for O(1) access
       const nodeMap = new Map(nodes.map(n => [n.id, n]));
       
