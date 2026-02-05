@@ -240,18 +240,26 @@ async def _include_properties_for_results(user: User, results: List[Dict[str, An
                 if values:
                     # Extract the actual value based on property type
                     val = values[0]  # Get first value
+                    # Use property ID as key (not name!) to match crud.py format
                     if hasattr(val, 'target_id'):
                         # Relation type
-                        props_dict[prop.name] = val.target_id
+                        props_dict[str(prop_id)] = val.target_id
                     elif hasattr(val, 'value_integer'):
-                        # Scalar type
-                        props_dict[prop.name] = (
-                            val.value_integer or val.value_float or 
-                            val.value_text or val.value_boolean
-                        )
+                        # Scalar type - check each field explicitly
+                        if val.value_text is not None:
+                            props_dict[str(prop_id)] = val.value_text
+                        elif val.value_integer is not None:
+                            props_dict[str(prop_id)] = val.value_integer
+                        elif val.value_float is not None:
+                            props_dict[str(prop_id)] = val.value_float
+                        elif val.value_boolean is not None:
+                            props_dict[str(prop_id)] = val.value_boolean
                     elif hasattr(val, 'selection_line_id'):
                         # Selection type
-                        props_dict[prop.name] = val.selection_line_id
+                        props_dict[str(prop_id)] = val.selection_line_id
+                else:
+                    # Property assigned but no value yet - include with null
+                    props_dict[str(prop_id)] = None
             
             if props_dict:
                 result["properties"] = props_dict
