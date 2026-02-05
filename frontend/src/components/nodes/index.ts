@@ -20,9 +20,6 @@ export { NodePicker } from './NodePicker';
 
 export { NodePreview } from './NodePreview';
 
-export { PropertyReferencesDisplay } from './PropertyReferencesDisplay';
-export { NodeProperty } from './PropertyReferenceDisplay';
-
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';
 

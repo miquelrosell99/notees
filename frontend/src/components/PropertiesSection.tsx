@@ -56,6 +56,8 @@ interface PropertiesSectionProps {
   defaultCollapsed?: boolean;
   /** Optional filter: only show properties with these IDs (for linked references) */
   filterPropertyIds?: number[];
+  /** Render inline without section header (for use in blocks) */
+  inline?: boolean;
 }
 
 interface PropertyValueProps {
@@ -362,6 +364,7 @@ export function PropertiesSection({
   onOpenInSidebar,
   defaultCollapsed = false,
   filterPropertyIds,
+  inline = false,
 }: PropertiesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
@@ -643,6 +646,81 @@ export function PropertiesSection({
           </div>
         )}
       </section>
+    );
+  }
+
+  // Inline mode: render just the property rows without section wrapper
+  if (inline) {
+    // Return null if no visible properties
+    if (visibleProperties.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className={`properties-list properties-inline ${variantClass} ${className}`}>
+        {visibleProperties.map(({ property, value, source }) => (
+          <div key={property.id} className="property-row">
+            <div
+              className="property-label"
+              onContextMenu={(e) => !readOnly && handlePropertyContextMenu(property, e)}
+              title={readOnly ? undefined : "Right-click to open menu"}
+            >
+              {property.icon && <span className="property-icon">{property.icon}</span>}
+              <span className="property-name">{property.name}</span>
+              {source && <span className="property-source" title={`From ${source}`}>({source})</span>}
+            </div>
+            <div className="property-value-container">
+              <div className="property-value-wrapper">
+                {/* Decorative bullet for properties other than text and node */}
+                {property.type !== 'text' && property.type !== 'node' && (
+                  <Bullet interactive={false} size="xs" />
+                )}
+                {/* Interactive bullet for text properties - clicking opens block in focused view */}
+                {property.type === 'text' && (
+                  <Bullet 
+                    nodeId={typeof value === 'number' ? value : undefined}
+                    interactive={!readOnly && typeof value === 'number'}
+                    onClick={() => typeof value === 'number' && handleTextPropertyBulletClick(value, property)}
+                    onShiftClick={(blockId) => onOpenInSidebar?.(blockId)}
+                    size="xs"
+                  />
+                )}
+                {/* Interactive bullet for node properties - clicking navigates to the selected node */}
+                {property.type === 'node' && !property.multi && (
+                  <Bullet 
+                    nodeId={typeof value === 'number' ? value : undefined}
+                    interactive={!readOnly && typeof value === 'number'}
+                    onClick={() => typeof value === 'number' && onNavigateToNode?.(value)}
+                    onShiftClick={(nodeId) => onOpenInSidebar?.(nodeId)}
+                    size="xs"
+                  />
+                )}
+                <PropertyValue
+                  property={property}
+                  nodeId={nodeId}
+                  value={value}
+                  readOnly={readOnly || setPropertyMutation.isPending}
+                  onChange={(newValue) => handlePropertyChange(property.id, newValue)}
+                  onNavigateToNode={onNavigateToNode}
+                  onCreatePage={handleCreatePage}
+                  onOpenInSidebar={onOpenInSidebar}
+                  onPropertyChange={handlePropertyChange}
+                  onBulletClick={(blockId) => handleTextPropertyBulletClick(blockId, property)}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        
+        {/* Property Context Menu */}
+        {showContextMenu && (
+          <ContextMenu
+            items={propertyContextMenuItems}
+            position={contextMenuPosition}
+            onClose={() => setShowContextMenu(false)}
+          />
+        )}
+      </div>
     );
   }
 

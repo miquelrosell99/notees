@@ -54,7 +54,7 @@ import type { Node, Property, PropertyCreate } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { BlockContent } from './BlockContent';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
-import { NodePropertiesSection } from '../nodes/NodePropertiesSection';
+import { PropertiesSection } from '../PropertiesSection';
 import { ImageNode } from '../ImageNode';
 import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
@@ -2159,10 +2159,13 @@ function BlockInternal({
                 {/* Show for property-type linked references (using sourceNodeId and filtering by propertyId) */}
                 {block._linkedRefMetadata?.linkType === 'property' && block._linkedRefMetadata.sourceNodeId && (
                   <div className="block-properties">
-                    <NodePropertiesSection
+                    <PropertiesSection
                       nodeId={block._linkedRefMetadata.sourceNodeId}
                       filterPropertyIds={block._linkedRefMetadata.propertyId ? [block._linkedRefMetadata.propertyId] : undefined}
                       readOnly={true}
+                      inline={true}
+                      showHiddenSection={false}
+                      showAddProperty={false}
                       onNavigateToNode={(targetId) => {
                         openNodeAction(targetId, 'page');
                       }}
@@ -2170,17 +2173,18 @@ function BlockInternal({
                         const { addSidebarCard } = useNodesStore.getState();
                         addSidebarCard(targetId, 'page');
                       }}
-                      showBullets={false}
-                      compact={true}
                     />
                   </div>
                 )}
                 {/* Show for regular blocks with properties */}
                 {!block._linkedRefMetadata && block.properties && Object.keys(block.properties).length > 0 && (
                   <div className="block-properties">
-                    <NodePropertiesSection
+                    <PropertiesSection
                       nodeId={block.id}
                       readOnly={!canEdit}
+                      inline={true}
+                      showHiddenSection={false}
+                      showAddProperty={false}
                       onNavigateToNode={(targetId) => {
                         openNodeAction(targetId, 'page');
                       }}
@@ -2188,8 +2192,6 @@ function BlockInternal({
                         const { addSidebarCard } = useNodesStore.getState();
                         addSidebarCard(targetId, 'page');
                       }}
-                      showBullets={false}
-                      compact={true}
                     />
                   </div>
                 )}
