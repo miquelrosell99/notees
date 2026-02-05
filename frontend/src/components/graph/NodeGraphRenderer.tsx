@@ -641,16 +641,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
     
-    // Start simulation only once
-    if (animationRef.current === 0) {
-      startSimulation();
-    }
-    
-    return () => {
-      if (animationRef.current !== 0) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation and showClassNodes intentionally excluded to prevent re-simulation on every render
   }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions, createNode, destroyNode]);
 
@@ -889,6 +879,18 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     simulate();
   }, [viewMode, getConnectedNodes]);
+
+  // Start simulation once on mount
+  useEffect(() => {
+    startSimulation();
+    
+    return () => {
+      if (animationRef.current !== 0) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = 0;
+      }
+    };
+  }, [startSimulation]);
 
   // Render function
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
