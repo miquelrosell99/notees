@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNodesStore, type MainViewType } from '@/stores';
 import { listDatabases, type DatabaseListResponse } from '@/api/databases';
 import { getNodeByUuid, getNode } from '@/api/nodes';
+import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, pushUrl, replaceUrl, type ParsedRoute } from './useRouter';
 import { getLogger } from '@/utils/logger';
 
@@ -31,13 +32,16 @@ export function RouterSync({ children }: RouterSyncProps) {
   const prevStateRef = useRef<{
     mainViewType: MainViewType;
     currentNodeId: number | null;
+    currentPropertyId: number | null;
   } | null>(null);
   
   const { 
     mainViewType, 
     currentNodeId,
+    currentPropertyId,
     setMainViewType,
     openNode,
+    openPropertyView,
   } = useNodesStore();
   
   // Fetch databases
@@ -81,6 +85,20 @@ export function RouterSync({ children }: RouterSyncProps) {
         return;
       }
       
+      if (route.type === 'property' && route.propertyUuid) {
+        // Open property view by UUID
+        try {
+          const property = await getPropertyByUuid(route.propertyUuid);
+          log.debug('Found property from URL', { uuid: route.propertyUuid, id: property.id });
+          openPropertyView(property.id);
+        } catch (err) {
+          log.warn('Property not found for UUID in URL, going home', { uuid: route.propertyUuid });
+          useNodesStore.setState({ currentPropertyId: null });
+          goHome();
+        }
+        return;
+      }
+      
       if (route.type === 'node' && route.nodeUuid) {
         // Open the node by UUID
         try {
@@ -97,7 +115,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     } finally {
       isProcessingUrl.current = false;
     }
-  }, [goHome, openNode, setMainViewType]);
+  }, [goHome, openNode, openPropertyView, setMainViewType]);
   
   /**
    * Handle special view routes immediately on mount
@@ -131,7 +149,7 @@ export function RouterSync({ children }: RouterSyncProps) {
   }, [setMainViewType]);
   
   /**
-   * Handle routes that require database data (node routes)
+   * Handle routes that require database data (node and property routes)
    */
   useEffect(() => {
     if (hasInitialized.current || isLoadingDbs || !dbData) return;
@@ -139,10 +157,10 @@ export function RouterSync({ children }: RouterSyncProps) {
     const currentPath = window.location.pathname;
     const route = parseUrl(currentPath);
     
-    // Only handle node routes here (they need the database to be ready)
-    if (route.type !== 'node') return;
+    // Only handle node and property routes here (they need the database to be ready)
+    if (route.type !== 'node' && route.type !== 'property') return;
     
-    log.info('Processing node URL', { path: currentPath, route });
+    log.info('Processing URL', { path: currentPath, route });
     hasInitialized.current = true;
     
     // Process the route
@@ -164,31 +182,50 @@ export function RouterSync({ children }: RouterSyncProps) {
     const prevState = prevStateRef.current;
     const stateChanged = !prevState || 
       prevState.mainViewType !== mainViewType ||
-      prevState.currentNodeId !== currentNodeId;
+      prevState.currentNodeId !== currentNodeId ||
+      prevState.currentPropertyId !== currentPropertyId;
     
     if (!stateChanged) return;
     
     // Update ref
-    prevStateRef.current = { mainViewType, currentNodeId };
+    prevStateRef.current = { mainViewType, currentNodeId, currentPropertyId };
     
     // Build and push URL
     const updateUrlAsync = async () => {
-      // Special views
-      if (mainViewType !== 'node') {
+      // Property view
+      if (mainViewType === 'property' && currentPropertyId) {
+        try {
+          const { getProperty } = await import('@/api/properties');
+          const property = await getProperty(currentPropertyId);
+          pushUrl({
+            viewType: 'property',
+            nodeUuid: null,
+            propertyUuid: property.uuid,
+          });
+        } catch (err) {
+          log.error('Failed to get property UUID for URL', err);
+        }
+        return;
+      }
+      
+      // Special views (non-node, non-property)
+      if (mainViewType !== 'node' && mainViewType !== 'property') {
         pushUrl({ 
           viewType: mainViewType, 
-          nodeUuid: null 
+          nodeUuid: null,
+          propertyUuid: null,
         });
         return;
       }
       
       // Node view
-      if (currentNodeId) {
+      if (mainViewType === 'node' && currentNodeId) {
         try {
           const node = await getNode(currentNodeId);
           pushUrl({
             viewType: 'node',
             nodeUuid: node.uuid,
+            propertyUuid: null,
           });
         } catch (err) {
           log.error('Failed to get node UUID for URL', err);
@@ -197,13 +234,14 @@ export function RouterSync({ children }: RouterSyncProps) {
         // No node selected, go to home
         pushUrl({ 
           viewType: 'node', 
-          nodeUuid: null 
+          nodeUuid: null,
+          propertyUuid: null,
         });
       }
     };
     
     updateUrlAsync();
-  }, [mainViewType, currentNodeId]);
+  }, [mainViewType, currentNodeId, currentPropertyId]);
   
   /**
    * Handle browser back/forward navigation
