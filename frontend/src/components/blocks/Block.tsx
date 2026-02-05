@@ -35,6 +35,7 @@ import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelection
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
+import { useNodesStore } from '@/stores/nodesStore';
 import { BlockEditor, type TaskState, type PastedTable } from './BlockEditor';
 import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
@@ -254,6 +255,17 @@ function BlockInternal({
   const hasAssetClass = useMemo(() => {
     return !!(assetClass && block.classes?.includes(assetClass.id));
   }, [assetClass, block.classes]);
+  
+  // Get quote class ID from system classes
+  const quoteClass = useMemo(() => {
+    if (!allClasses) return null;
+    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.quote) ?? null;
+  }, [allClasses]);
+  
+  // Check if this block has the quote class
+  const hasQuoteClass = useMemo(() => {
+    return !!(quoteClass && block.classes?.includes(quoteClass.id));
+  }, [quoteClass, block.classes]);
   
   // PERFORMANCE: Use action-only selector to avoid re-renders on state changes
   const openNode = useOpenNodeAction();
@@ -1809,15 +1821,17 @@ function BlockInternal({
         
         {/* Block content - fixed width, no placeholder for empty blocks */}
         {/* When suppressColor is true, treat as if there's no color (for focused blocks where color is on container) */}
+        {/* Quote blocks get special Card wrapper with faded background */}
         <Card 
-          className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}`}
+          className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}${hasQuoteClass ? ' block-content--quote' : ''}`}
           style={contentColorStyle} 
           onClick={handleContentClick}
           onFocus={handleFocus}
-          elevation="none"
-          variant="transparent"
-          padding={false}
-          radius="none"
+          elevation={hasQuoteClass ? "low" : "none"}
+          variant={hasQuoteClass ? "filled" : "transparent"}
+          padding={hasQuoteClass}
+          paddingSize={hasQuoteClass ? "md" : undefined}
+          radius={hasQuoteClass ? "md" : "none"}
         >
           {blockState === 'edit' ? (
             <BlockEditor
@@ -1991,14 +2005,15 @@ function BlockInternal({
               
               {/* Block content */}
               <Card 
-                className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}`}
+                className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}${hasQuoteClass ? ' block-content--quote' : ''}`}
                 style={contentColorStyle} 
                 onClick={handleContentClick}
                 onFocus={handleFocus}
-                elevation="none"
-                variant="transparent"
-                padding={false}
-                radius="none"
+                elevation={hasQuoteClass ? "low" : "none"}
+                variant={hasQuoteClass ? "filled" : "transparent"}
+                padding={hasQuoteClass}
+                paddingSize={hasQuoteClass ? "md" : undefined}
+                radius={hasQuoteClass ? "md" : "none"}
               >
                 {blockState === 'edit' ? (
                   <BlockEditor
@@ -2167,7 +2182,7 @@ function BlockInternal({
                       showHiddenSection={false}
                       showAddProperty={false}
                       onNavigateToNode={(targetId) => {
-                        openNodeAction(targetId, 'page');
+                        openNode(targetId, 'page');
                       }}
                       onOpenInSidebar={(targetId) => {
                         const { addSidebarCard } = useNodesStore.getState();
@@ -2186,7 +2201,7 @@ function BlockInternal({
                       showHiddenSection={false}
                       showAddProperty={false}
                       onNavigateToNode={(targetId) => {
-                        openNodeAction(targetId, 'page');
+                        openNode(targetId, 'page');
                       }}
                       onOpenInSidebar={(targetId) => {
                         const { addSidebarCard } = useNodesStore.getState();
