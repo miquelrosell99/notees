@@ -6,11 +6,13 @@
  * 
  * Features:
  * - Property header with icon, name, type info (using PageHeader component)
+ * - Topbar with mode toggle, type indicator, and delete button
  * - NodeCollection table with property value as a column (wrapped in NodeViewSection)
  * - Navigation to nodes on click
  * - Delete property action in context menu
  */
 import { useState, useMemo, useCallback, type ReactNode } from 'react';
+import { mdiDelete } from '@mdi/js';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { useProperty, useNodesWithProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
@@ -24,6 +26,7 @@ import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { ContextMenu, type ContextMenuItem } from '../components/core/ContextMenu';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import { ToggleSwitch } from '../components/core/ToggleSwitch';
+import { Button } from '../components/core/Button';
 import './PropertyView.css';
 
 /** Property type display info */
@@ -250,6 +253,34 @@ export function PropertyView({
   
   return (
     <div className="property-view">
+      {/* Topbar with mode toggle, type indicator, and delete button */}
+      <div className="property-view__topbar">
+        <div className="property-view__topbar-left">
+          {typeInfo?.supportsMulti && (
+            <ToggleSwitch
+              leftLabel="SINGLE"
+              rightLabel="MULTI"
+              checked={property.multi}
+              onChange={handleMultiChange}
+              size="sm"
+            />
+          )}
+        </div>
+        <div className="property-view__topbar-right">
+          <div className="property-view__type-badge">
+            {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
+          </div>
+          <Button
+            icon={mdiDelete}
+            variant="ghost"
+            size="sm"
+            onClick={handleDeleteClick}
+            title="Delete property"
+            aria-label="Delete property"
+          />
+        </div>
+      </div>
+      
       {/* Property Header - using PageHeader for consistency */}
       <div className="page-header-section">
         <div className="page-header-section__header">
@@ -260,20 +291,6 @@ export function PropertyView({
             onNameChange={handlePropertyNameChange}
             onIconChange={handlePropertyIconChange}
           />
-          <div className="property-view__badges">
-            {typeInfo?.supportsMulti && (
-              <ToggleSwitch
-                leftLabel="SINGLE"
-                rightLabel="MULTI"
-                checked={property.multi}
-                onChange={handleMultiChange}
-                size="sm"
-              />
-            )}
-            <div className="property-view__type-badge">
-              {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
-            </div>
-          </div>
         </div>
       </div>
       

@@ -5,19 +5,37 @@
  * Extracted from PropertiesSection to be reusable in other contexts.
  * 
  * Features:
- * - Property rows with labels and values
+ * - Property rows with labels and values using Block component for consistent styling
  * - Hidden properties section
  * - Context menu support (at row level)
  * - Bullet points for non-text properties
+ * - Default icons for property types when no custom icon is set
  * 
  * NOTE: Moved out of core/ - has domain knowledge (Property type)
  */
-import { useState, useCallback, type ReactNode } from 'react';
-import type { Property } from '@/types/api';
+import { useState, useCallback, useMemo, type ReactNode } from 'react';
+import type { Property, PropertyType, Node } from '@/types/api';
+import { Block } from '../blocks/Block';
 import { Bullet } from '../blocks/Bullet';
 import { ChevronRightIcon } from '../icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import './PropertyList.css';
+
+/** Default icons for each property type */
+const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
+  text: '📝',
+  integer: '#️⃣',
+  float: '🔢',
+  boolean: '☑️',
+  date: '📅',
+  selection: '📋',
+  node: '🔗',
+};
+
+/** Get icon for a property - uses custom icon if set, otherwise default for type */
+function getPropertyIcon(property: Property): string {
+  return property.icon || PROPERTY_TYPE_ICONS[property.type] || '📄';
+}
 
 export interface PropertyEntry {
   /** The property definition */
@@ -142,6 +160,7 @@ interface PropertyRowProps {
 
 /**
  * PropertyRow component - renders a single property row with context menu
+ * Uses Block component in readonly mode for the property name display
  */
 function PropertyRow({
   entry,
@@ -173,16 +192,41 @@ function PropertyRow({
   // Generate context menu items for this row
   const contextMenuItems = getContextMenuItems ? getContextMenuItems(property) : [];
 
+  // Create a minimal node for the Block component to display the property name
+  const propertyAsNode = useMemo<Node>(() => ({
+    id: property.id,
+    uuid: property.uuid,
+    name: property.name,
+    icon: getPropertyIcon(property),
+    color: null,
+    parent_id: null,
+    page_id: null,
+    sequence: 0,
+    collapsed: false,
+    active: true,
+    is_page: false,
+    create_date: property.create_date,
+    write_date: property.write_date,
+  }), [property]);
+
   return (
     <>
-      <div className="property-row">
+      <div className="property-row" onClick={handleNameClick} onContextMenu={handleContextMenu}>
         <div
           className="property-row__label"
-          onContextMenu={handleContextMenu}
           title={!readOnly && getContextMenuItems ? 'Right-click for options' : undefined}
         >
-          {property.icon && <span className="property-row__icon">{property.icon}</span>}
-          <span className="property-row__name">{property.name}</span>
+          <Block
+            block={propertyAsNode}
+            parentId={null}
+            showBullet={true}
+            showChildren={false}
+            showClasses={false}
+            canMove={false}
+            canEdit={false}
+            canSelect={false}
+            isolatedState={true}
+          />
           {source && (
             <span className="property-row__source" title={`From ${source}`}>
               ({source})
