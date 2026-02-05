@@ -63,6 +63,7 @@
 .node-card.card {
   cursor: pointer;
   display: flex;
+  overflow: clip;
 }
 
 /* Card layouts */
@@ -85,13 +86,13 @@
 .node-card--cover-left,
 .node-card--cover-right {
   display: grid !important;
-  grid-template-columns: 30% 1fr;
+  grid-template-columns: auto 1fr;
   grid-template-rows: auto auto auto 1fr;
   gap: 0;
 }
 
 .node-card--cover-right {
-  grid-template-columns: 1fr 30%;
+  grid-template-columns: 1fr auto;
 }
 
 /* Cover in horizontal layouts - spans first 3 rows (title, classes, tags) */
@@ -99,12 +100,14 @@
   grid-column: 1;
   grid-row: 1;
   height: auto;
+  width: 100%;
 }
 
 .node-card--cover-left .node-card__cover {
   grid-column: 1;
   grid-row: 1 / 4;
   height: auto;
+  min-height: 200px;
   border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
@@ -112,6 +115,7 @@
   grid-column: 2;
   grid-row: 1 / 4;
   height: auto;
+  min-height: 200px;
   border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
 }
 
@@ -199,7 +203,6 @@
 /* Cover image */
 .node-card__cover {
   position: relative;
-  overflow: hidden;
   background: var(--bg-tertiary);
   width: 100%;
 }
@@ -232,8 +235,21 @@
 
 .node-card__cover-image {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+}
+
+/* Ensure ImageNode and img show complete image without cropping */
+.node-card__cover .image-node {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+
+.node-card__cover .image-node__img {
+  width: 100% !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block;
 }
 
 /* Card body */

@@ -315,6 +315,9 @@ function NodeCard({
   // Drag state for cover replacement
   const [isCoverDragging, setIsCoverDragging] = useState(false);
   
+  // Hover state for cover to show actions only on hover
+  const [isCoverHovered, setIsCoverHovered] = useState(false);
+  
   // Resolve class details (excluding the implicit "page" class)
   const classDetails = useMemo(() => {
     if (!node?.classes) return [];
@@ -587,6 +590,8 @@ function NodeCard({
       <div 
         className="node-card__cover"
         onClick={(e) => e.stopPropagation()}
+        onMouseEnter={() => setIsCoverHovered(true)}
+        onMouseLeave={() => setIsCoverHovered(false)}
       >
         <ImageNode
           assetNodeId={coverImageId}
@@ -594,7 +599,7 @@ function NodeCard({
           className="node-card__cover-image"
           showCard={false}
           clickable={true}
-          showActions={editable}
+          showActions={editable && isCoverHovered}
           actions={
             <>
               <Button
