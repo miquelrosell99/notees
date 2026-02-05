@@ -448,9 +448,9 @@ async def get_asset(
     if not asset_folder.exists() or not asset_folder.is_dir():
         raise HTTPException(status_code=404, detail="Asset not found")
     
-    # Find the asset file: {uuid}.{ext}
+    # Find the asset file: main.{ext}
     for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = asset_folder / f"{asset_uuid}{ext}"
+        asset_path = asset_folder / f"main{ext}"
         if asset_path.exists():
             # Determine content type from extension
             content_type = "application/octet-stream"
@@ -554,7 +554,7 @@ async def get_asset_info(
         raise HTTPException(status_code=404, detail="Asset folder not found")
     
     for ext in ALLOWED_CONTENT_TYPES.values():
-        asset_path = asset_folder / f"{asset_uuid}{ext}"
+        asset_path = asset_folder / f"main{ext}"
         if asset_path.exists():
             content_type = "application/octet-stream"
             for ct, e in ALLOWED_CONTENT_TYPES.items():

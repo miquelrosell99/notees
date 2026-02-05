@@ -76,7 +76,7 @@ class AssetService:
         ext = extension.lower()
         if not ext.startswith('.'):
             ext = f'.{ext}'
-        return self.get_asset_folder(asset_uuid) / f"{asset_uuid}{ext}"
+        return self.get_asset_folder(asset_uuid) / f"main{ext}"
     
     def get_thumbnail_path(self, asset_uuid: str) -> Path:
         """Get the thumbnail path for an asset."""
@@ -99,10 +99,10 @@ class AssetService:
                 f"Asset path exists but is not a folder: {asset_uuid}"
             )
         
-        # Find all files that match <uuid>.<ext> pattern
+        # Find all files that match main.<ext> pattern
         source_files = [
             f for f in folder.iterdir()
-            if f.is_file() and f.stem == asset_uuid and f.name != "thumbnail.webp"
+            if f.is_file() and f.stem == "main" and f.name != "thumbnail.webp"
         ]
         
         if len(source_files) == 0:
@@ -177,7 +177,7 @@ class AssetService:
                 final_path = self.get_source_file(asset_uuid, extension)
                 tmp_path.rename(final_path)
                 
-                logger.info(f"Created asset {asset_uuid}{extension} ({len(file_bytes)} bytes)")
+                logger.info(f"Created asset {asset_uuid}/main{extension} ({len(file_bytes)} bytes)")
                 
                 # Generate thumbnail asynchronously if image
                 if extension in THUMBNAIL_FORMATS:
