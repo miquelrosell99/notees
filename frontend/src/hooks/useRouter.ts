@@ -12,6 +12,7 @@
  * - /trash                -> Trash view
  * - /assets               -> Assets view
  * - /{uuid}               -> Node view (UUID format: 8-4-4-4-12 hex chars)
+ * - /property/{uuid}      -> Property view (property UUID)
  * 
  * The database is determined by the active database in the user's session.
  */
@@ -59,9 +60,10 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
 };
 
 export interface ParsedRoute {
-  type: 'home' | 'special-view' | 'node' | 'auth';
+  type: 'home' | 'special-view' | 'node' | 'property' | 'auth';
   viewType?: MainViewType;
   nodeUuid?: string;
+  propertyUuid?: string;
 }
 
 /**
@@ -87,6 +89,14 @@ export function parseUrl(pathname: string): ParsedRoute {
     };
   }
   
+  // Check for property route: /property/{uuid}
+  if (firstPart === 'property' && parts.length === 2 && isUuid(parts[1])) {
+    return {
+      type: 'property',
+      propertyUuid: parts[1],
+    };
+  }
+  
   // Check if it's a UUID (node route)
   if (isUuid(parts[0])) {
     return {
@@ -106,11 +116,17 @@ export function parseUrl(pathname: string): ParsedRoute {
 export function buildUrl(params: {
   viewType: MainViewType;
   nodeUuid?: string | null;
+  propertyUuid?: string | null;
 }): string {
-  const { viewType, nodeUuid } = params;
+  const { viewType, nodeUuid, propertyUuid } = params;
   
   // Get the view path
   const viewPath = VIEW_TO_PATH[viewType];
+  
+  // Property view with UUID
+  if (viewType === 'property' && propertyUuid) {
+    return `/property/${propertyUuid}`;
+  }
   
   // Node view with UUID
   if (viewType === 'node' && nodeUuid) {
@@ -122,7 +138,7 @@ export function buildUrl(params: {
     return `/${viewPath}`;
   }
   
-  // Home (node view without UUID, or property view)
+  // Home (node view without UUID, or property view without UUID)
   return '/';
 }
 
@@ -132,6 +148,7 @@ export function buildUrl(params: {
 export function pushUrl(params: {
   viewType: MainViewType;
   nodeUuid?: string | null;
+  propertyUuid?: string | null;
 }) {
   const url = buildUrl(params);
   const currentPath = window.location.pathname;
@@ -148,6 +165,7 @@ export function pushUrl(params: {
 export function replaceUrl(params: {
   viewType: MainViewType;
   nodeUuid?: string | null;
+  propertyUuid?: string | null;
 }) {
   const url = buildUrl(params);
   const currentPath = window.location.pathname;
