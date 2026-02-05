@@ -266,7 +266,7 @@ export function NodeTableView({
           label: property.icon ? `${property.icon} ${property.name}` : property.name,
           width: '150px',
           render: (node: Node): ReactNode => {
-            const value = node.properties?.[property.uuid];
+            const value = node.properties?.[property.id];
             return (
               <PropertyCell
                 node={node}
