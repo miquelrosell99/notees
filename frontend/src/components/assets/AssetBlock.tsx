@@ -6,8 +6,11 @@
  */
 import { useState, useCallback } from 'react';
 import { AssetPreview } from './AssetPreview';
+import { ImageNode } from '../ImageNode';
+import { Button } from '../core/Button';
 import { deleteAsset, type AssetCategory } from '@/api/assets';
 import { getLogger } from '@/utils/logger';
+import { mdiPencil, mdiClose } from '@mdi/js';
 import './AssetBlock.css';
 
 const log = getLogger('asset-block');
@@ -15,6 +18,8 @@ const log = getLogger('asset-block');
 interface AssetBlockProps {
   /** Asset UUID */
   uuid: string;
+  /** Asset node ID (for images to use ImageNode component) */
+  nodeId?: number;
   /** Asset category */
   category: AssetCategory;
   /** Content type (MIME type) */
@@ -43,7 +48,8 @@ interface AssetBlockProps {
   onReplace?: () => void;
 }
 
-export function AssetBlock({
+exnodeId,
+  port function AssetBlock({
   uuid,
   category,
   contentType,
@@ -93,42 +99,83 @@ export function AssetBlock({
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
     >
-      <div className="asset-block-content">
-        <AssetPreview
-          asset={uuid}
-          category={category}
-          contentType={contentType}
-          alt={caption || filename}
-          resizable={editable && category === 'image'}
-          width={width}
-          height={height}
-          onResize={onResize}
-          selected={selected}
-        />
-        
-        {showControls && (
-          <div className="asset-block-controls">
-            {onReplace && (
-              <button
-                className="asset-control-btn"
-                onClick={(e) => { e.stopPropagation(); onReplace(); }}
-                title="Replace"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                </svg>
-              </button>
+      <d{/* Use ImageNode for images if nodeId is provided */}
+        {category === 'image' && nodeId ? (
+          <div style={{ maxWidth: width ? `${width}px` : '100%' }}>
+            <ImageNode
+              assetNodeId={nodeId}
+              alt={caption || filename}
+              showCard={true}
+              elevation="low"
+              radius="md"
+              clickable={true}
+              showActions={showControls}
+              actions={
+                <>
+                  {onReplace && (
+                    <Button
+                      icon={mdiPencil}
+                      iconOnly
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                      title="Replace"
+                    />
+                  )}
+                  <Button
+                    icon={mdiClose}
+                    iconOnly
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                    disabled={isDeleting}
+                    title="Delete"
+                  />
+                </>
+              }
+              actionsDirection="horizontal"
+            />
+          </div>
+        ) : (
+          <>
+            <AssetPreview
+              asset={uuid}
+              category={category}
+              contentType={contentType}
+              alt={caption || filename}
+              resizable={editable && category === 'image'}
+              width={width}
+              height={height}
+              onResize={onResize}
+              selected={selected}
+            />
+            
+            {showControls && (
+              <div className="asset-block-controls">
+                {onReplace && (
+                  <button
+                    className="asset-control-btn"
+                    onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                    title="Replace"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                  </button>
+                )}
+                <button
+                  className="asset-control-btn asset-control-delete"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  disabled={isDeleting}
+                  title="Delete"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                  </svg>
+                </button>
+              </div>
             )}
-            <button
-              className="asset-control-btn asset-control-delete"
-              onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-              disabled={isDeleting}
-              title="Delete"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-              </svg>
-            </button>
+          </utton>
           </div>
         )}
       </div>
