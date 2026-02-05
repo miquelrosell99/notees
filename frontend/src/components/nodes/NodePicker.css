@@ -19,9 +19,9 @@
   pointer-events: none;
 }
 
-/* ==================== Selected Chips (inside trigger) ==================== */
+/* ==================== Selected Pills (Multi-select) ==================== */
 
-.node-picker__selected-chips {
+.node-picker__selected-pills {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

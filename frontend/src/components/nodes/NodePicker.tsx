@@ -16,9 +16,9 @@ import { createPortal } from 'react-dom';
 import { useNodeSearch, usePages, useNodes } from '@/hooks';
 import type { Node, Property } from '@/types/api';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from '../icons';
-import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { SelectTrigger } from '../core/SelectTrigger';
+import { NodePill } from '../NodePill';
 import './NodePicker.css';
 
 interface NodePickerProps {
@@ -346,41 +346,16 @@ export function NodePicker({
         {/* Display selected value(s) */}
         {selectedNodes.length > 0 ? (
           multi ? (
-            // Multi-select: Show chips with remove buttons
-            <div className="node-picker__selected-chips">
+            // Multi-select: Show NodePills with remove buttons
+            <div className="node-picker__selected-pills">
               {selectedNodes.map(node => (
-                <span key={node.id} className="node-picker__chip">
-                  {node.isPage ? (
-                    <NodeIcon icon={node.icon} isPage={true} size="xs" />
-                  ) : (
-                    <BulletIcon size="xs" />
-                  )}
-                  <Button 
-                    variant="ghost"
-                    size="xs"
-                    className="node-picker__chip-name"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigate?.(node.id);
-                    }}
-                  >
-                    {node.name}
-                  </Button>
-                  {!readOnly && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="node-picker__chip-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemove(node.id);
-                      }}
-                      aria-label={`Remove ${node.name}`}
-                    >
-                      ×
-                    </Button>
-                  )}
-                </span>
+                <NodePill
+                  key={node.id}
+                  nodeId={node.id}
+                  onClick={() => onNavigate?.(node.id)}
+                  onRemove={readOnly ? undefined : () => handleRemove(node.id)}
+                  readOnly={readOnly}
+                />
               ))}
             </div>
           ) : (
