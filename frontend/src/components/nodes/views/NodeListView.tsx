@@ -213,10 +213,10 @@ function NodeListItem({
   
   // Override collapsed state for pages and level-2 blocks using local state (cosmetic only)
   // Pages: always collapsed on load
-  // Level 2 blocks (relative depth === 2): always collapsed on load
+  // Level 2 blocks (relative depth === 1): always collapsed on load
   // Other blocks: use their stored collapsed state
   const effectiveNode = useMemo(() => {
-    const shouldUseLocalState = (node.is_page || relativeDepth === 2) && localExpandedNodes && onToggleNodeCollapse;
+    const shouldUseLocalState = (node.is_page || relativeDepth === 1) && localExpandedNodes && onToggleNodeCollapse;
     if (shouldUseLocalState) {
       return {
         ...node,
@@ -274,7 +274,7 @@ function NodeListItem({
   // Handle collapse toggle for pages and level-2 blocks - use local state instead of persisting
   const handleCollapseToggle = useCallback((e: React.MouseEvent, blockDepth: number) => {
     const relativeDepthAtToggle = blockDepth - (initialDepth ?? depth);
-    if ((node.is_page || relativeDepthAtToggle === 2) && onToggleNodeCollapse) {
+    if ((node.is_page || relativeDepthAtToggle === 1) && onToggleNodeCollapse) {
       e.preventDefault();
       e.stopPropagation();
       onToggleNodeCollapse(node.id);
@@ -352,7 +352,7 @@ function NodeListItem({
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
           customContextMenuItems={generatedContextMenuItems}
-          onCollapseToggle={(node.is_page || relativeDepth === 2) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
+          onCollapseToggle={(node.is_page || relativeDepth === 1) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
           {...blockProps}
         />
       </div>
@@ -388,7 +388,7 @@ function NodeListItem({
         parentBlock={parentBlock}
         onBulletClick={() => onNodeClick?.(node)}
         onShiftClick={() => onNodeShiftClick?.(node)}
-        onCollapseToggle={(node.is_page || relativeDepth === 2) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
+        onCollapseToggle={(node.is_page || relativeDepth === 1) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
         showBullet={showBullets}
         showChildren={shouldRenderChildren}
         showClasses={showClasses}
