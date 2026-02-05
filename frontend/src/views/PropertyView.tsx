@@ -252,9 +252,6 @@ export function PropertyView({
       
       {/* Property Type and Meta Info */}
       <div className="property-view-meta">
-        <span className="property-view-type">
-          {typeInfo?.icon} {typeInfo?.label || property.type}
-        </span>
         {property.multi && (
           <span className="property-view-badge">Multi-value</span>
         )}
