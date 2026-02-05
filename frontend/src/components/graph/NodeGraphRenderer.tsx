@@ -740,11 +740,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodes = nodesRef.current;
       const links = linksRef.current;
       const currentSettings = settingsRef.current;
-      const showTypes = showClassNodesRef.current;
+      const showClasses = showClassNodesRef.current;
       const isConstrainedMode = viewMode === 'circle' || viewMode === 'tree';
       
       // Filter to only visible nodes for force calculations
-      const visibleNodes = nodes.filter(n => n.visible && (showTypes || !n.isTypeNode));
+      const visibleNodes = nodes.filter(n => n.visible && (showClasses || !n.isTypeNode));
       const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
       
       const connectedPairs = new Set<string>();
@@ -839,7 +839,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         for (const connectedId of connected) {
           const connectedNode = nodeMap.get(connectedId);
           if (!connectedNode || connectedNode.pinned || !connectedNode.visible) continue;
-          if (!showTypes && connectedNode.isTypeNode) continue;
+          if (!showClasses && connectedNode.isTypeNode) continue;
           
           const dx = dragNode.x - connectedNode.x;
           const dy = dragNode.y - connectedNode.y;
@@ -898,7 +898,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     const currentClassColors = classColorsRef.current;
-    const showTypes = showClassNodesRef.current;
+    const showClasses = showClassNodesRef.current;
     const nodes = nodesRef.current;
     const links = linksRef.current;
     
@@ -914,7 +914,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const dimColor = style.getPropertyValue('--color-surface-variant').trim() || '#404040';
     
     // Filter visible nodes - must check both visible property and type visibility
-    const visibleNodes = nodes.filter(n => n.visible && (showTypes || !n.isTypeNode));
+    const visibleNodes = nodes.filter(n => n.visible && (showClasses || !n.isTypeNode));
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
     const visibleLinks = links.filter(l => visibleNodeIds.has(l.source) && visibleNodeIds.has(l.target));
     
