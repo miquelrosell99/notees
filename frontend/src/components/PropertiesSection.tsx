@@ -24,7 +24,7 @@ import {
 } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getNodeByUuid } from '@/api/nodes';
-import type { Property, Node, ClassProperty, PropertyType, PropertyCreate } from '@/types/api';
+import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from './icons';
