@@ -30,12 +30,18 @@ interface PageHeaderProps {
   compactMode?: boolean;
   /** Callback when right-clicking the header (for context menu) */
   onContextMenu?: (e: React.MouseEvent) => void;
+  /** Custom handler for name changes (overrides default node update) */
+  onNameChange?: (name: string) => void;
+  /** Custom handler for icon changes (overrides default node update) */
+  onIconChange?: (icon: string) => void;
 }
 
 export function PageHeader({ 
   page, 
   compactMode = false, 
   onContextMenu,
+  onNameChange,
+  onIconChange,
 }: PageHeaderProps) {
   const iconRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -250,9 +256,13 @@ export function PageHeader({
     }
     
     // Normal name change (no hierarchy, date pages, or fallback on error)
-    const data: NodeUpdate = { name: newName };
-    updateNode.mutate({ id: page.id, data });
-  }, [page.id, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassId, updateNode, createNode]);
+    if (onNameChange) {
+      onNameChange(newName);
+    } else {
+      const data: NodeUpdate = { name: newName };
+      updateNode.mutate({ id: page.id, data });
+    }
+  }, [page.id, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassId, updateNode, createNode, onNameChange]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -268,10 +278,14 @@ export function PageHeader({
   }, []);
 
   const handleIconSelect = useCallback((icon: string) => {
-    const data: NodeUpdate = { icon: icon || null };
-    updateNode.mutate({ id: page.id, data });
+    if (onIconChange) {
+      onIconChange(icon);
+    } else {
+      const data: NodeUpdate = { icon: icon || null };
+      updateNode.mutate({ id: page.id, data });
+    }
     setShowIconPicker(false);
-  }, [page.id, updateNode]);
+  }, [page.id, updateNode, onIconChange]);
 
   // Handle Ctrl+C on page title to copy page link when nothing is selected
   const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {

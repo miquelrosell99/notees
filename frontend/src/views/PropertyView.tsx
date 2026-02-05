@@ -13,9 +13,10 @@
 import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { useProperty, useNodesWithProperty, useDeleteProperty } from '@/hooks';
+import { useProperty, useNodesWithProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodeCollection } from '../components/nodes/NodeCollection';
+import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { NodeIcon } from '../components/icons';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
 import { PageHeader } from '../components/PageHeader';
@@ -75,6 +76,37 @@ export function PropertyView({
   // Get navigation function
   const { openNode } = useNodesStore();
   const deletePropertyMutation = useDeleteProperty();
+  const updatePropertyMutation = useUpdateProperty();
+  
+  // Handle property name change
+  const handlePropertyNameChange = useCallback(async (name: string) => {
+    if (!property || name === property.name) return;
+    
+    try {
+      const updated = await updatePropertyMutation.mutateAsync({
+        id: property.id,
+        data: { name },
+      });
+      setProperty(updated);
+    } catch (err) {
+      console.error('Failed to update property name:', err);
+    }
+  }, [property, updatePropertyMutation]);
+  
+  // Handle property icon change
+  const handlePropertyIconChange = useCallback(async (icon: string) => {
+    if (!property) return;
+    
+    try {
+      const updated = await updatePropertyMutation.mutateAsync({
+        id: property.id,
+        data: { icon: icon || undefined },
+      });
+      setProperty(updated);
+    } catch (err) {
+      console.error('Failed to update property icon:', err);
+    }
+  }, [property, updatePropertyMutation]);
   
   // Handle property deletion
   const handlePropertyDelete = useCallback(async () => {
@@ -209,6 +241,8 @@ export function PropertyView({
             page={property as unknown as Node}
             compactMode={false}
             onContextMenu={handleContextMenu}
+            onNameChange={handlePropertyNameChange}
+            onIconChange={handlePropertyIconChange}
           />
         </div>
       </div>
@@ -257,6 +291,16 @@ export function PropertyView({
         title={`Nodes with "${property.name}"`}
         count={nodes.length}
         defaultExpanded={true}
+        headerActions={
+          nodes.length > 0 && !nodesLoading ? (
+            <NodeCollectionToolbar
+              viewMode={viewMode}
+              availableViewModes={['table', 'list', 'card']}
+              onViewModeChange={setViewMode}
+              hideToolbarControls={false}
+            />
+          ) : undefined
+        }
       >
         {nodesLoading ? (
           <div className="property-view-loading">Loading nodes...</div>
@@ -275,6 +319,7 @@ export function PropertyView({
             onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}
             tableColumns={columns}
+            hideToolbar={true}
           />
         )}
       </NodeViewSection>
