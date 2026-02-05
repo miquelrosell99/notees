@@ -47,6 +47,13 @@
   min-width: 0;
 }
 
+/* Quote blocks - special styling with faded background */
+.block .block-content--quote {
+  background: var(--color-surface-container-low) !important;
+  border-left: 3px solid var(--color-outline-variant);
+  opacity: 0.92;
+}
+
 /* When block has color, apply gradient border + tint (same pattern as NodeView)
  * Uses CSS custom properties set by getNodeColorStylesAuto():
  *   --node-color: the raw color value
