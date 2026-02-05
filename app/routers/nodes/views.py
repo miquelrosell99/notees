@@ -825,11 +825,12 @@ async def reset_node_views(
     # otherwise they'll conflict with ON CONFLICT when creating new defaults
     existing_views = await repo.list_by_node(node_id, include_inactive=True)
     
-    # Hard delete all existing views (soft delete would conflict with ON CONFLICT constraint)
+    # Hard delete all existing views (both default and non-default)
+    # This ensures we remove any duplicate views that might exist
     for view in existing_views:
         await repo.hard_delete(view.id)
     
-    logger.info(f"Deleted {len(existing_views)} views for node {node_id}")
+    logger.info(f"Deleted {len(existing_views)} views (including non-default views) for node {node_id}")
     
     # Create new default views for all standard view types
     from ...db.schema.constants import DEFAULT_VIEW_CLASSES

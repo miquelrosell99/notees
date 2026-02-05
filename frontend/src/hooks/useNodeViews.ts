@@ -312,19 +312,38 @@ export function useResetNodeViews() {
         queryKey: nodeViewKeys.queryResults(),
       });
       
-      // Then invalidate and wait for refetch of view lists
-      await queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.lists(),
-        refetchType: 'all',
-      });
-      await queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(nodeId),
-        refetchType: 'all',
-      });
-      
-      // Set the new views in cache
+      // Set the new views in cache for individual view queries
       newViews.forEach((view) => {
         queryClient.setQueryData(nodeViewKeys.detail(view.id), view);
+      });
+      
+      // Group views by view_type and set list queries to prevent duplicate creation
+      const viewsByType = new Map<string, typeof newViews>();
+      newViews.forEach((view) => {
+        if (!viewsByType.has(view.view_type)) {
+          viewsByType.set(view.view_type, []);
+        }
+        viewsByType.get(view.view_type)!.push(view);
+      });
+      
+      // Set list query cache for each view type
+      viewsByType.forEach((views, viewType) => {
+        queryClient.setQueryData(
+          nodeViewKeys.list(nodeId, viewType),
+          views
+        );
+      });
+      
+      // Also set the full list (all view types)
+      queryClient.setQueryData(
+        nodeViewKeys.list(nodeId),
+        newViews
+      );
+      
+      // Invalidate byType queries
+      await queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.byType(nodeId),
+        refetchType: 'none', // Don't refetch, we just set the data
       });
     },
   });
