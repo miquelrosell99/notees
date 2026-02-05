@@ -179,12 +179,6 @@
   transition: opacity 0.2s ease;
 }
 
-/* Override ImageNode's default height: 100% for cover images */
-.cover-image-card .image-node {
-  height: auto !important;
-  max-height: 200px;
-}
-
 /* Preview tooltip for collapsed state */
 .cover-image-card__preview-tooltip {
   position: absolute;
