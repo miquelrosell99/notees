@@ -173,6 +173,8 @@ interface NodeListItemProps {
   localExpandedNodes?: Set<number>;
   /** Callback to toggle local node collapse state */
   onToggleNodeCollapse?: (nodeId: number) => void;
+  /** Whether auto-collapse is enabled (default: false) */
+  autoCollapse?: boolean;
 }
 
 function NodeListItem({
@@ -198,19 +200,21 @@ function NodeListItem({
   customContextMenuItems,
   localExpandedNodes,
   onToggleNodeCollapse,
+  autoCollapse = false,
 }: NodeListItemProps) {
   // Track initial depth for relative depth calculation
   const initialDepth = initialDepthProp ?? depth;
   const relativeDepth = depth - initialDepth;
   
-  // Get collapse level setting (0 = disabled)
+  // Get collapse level setting (0 = disabled) - only used when autoCollapse is true
   const collapseLevel = useSettingsStore((state) => state.linkedRefsCollapseLevel);
   
   // Recursively apply collapsed override to the entire subtree
+  // Only applies when autoCollapse is enabled
   // Pages and blocks at relativeDepth >= collapseLevel should be collapsed by default (use local state)
   const applyCollapsedOverride = useCallback((n: Node, nodeDepth: number): Node => {
-    // If collapse is disabled (collapseLevel === 0), don't apply any overrides
-    if (collapseLevel === 0) return n;
+    // If auto-collapse is disabled or collapse level is 0, don't apply any overrides
+    if (!autoCollapse || collapseLevel === 0) return n;
     
     const nodeRelativeDepth = nodeDepth - initialDepth;
     const shouldUseLocalState = (n.is_page || nodeRelativeDepth >= collapseLevel) && localExpandedNodes && onToggleNodeCollapse;
@@ -228,7 +232,7 @@ function NodeListItem({
     }
     
     return overriddenNode;
-  }, [initialDepth, collapseLevel, localExpandedNodes, onToggleNodeCollapse]);
+  }, [initialDepth, collapseLevel, autoCollapse, localExpandedNodes, onToggleNodeCollapse]);
   
   // Apply collapsed override to current node and all descendants
   const effectiveNode = useMemo(() => {
@@ -291,8 +295,8 @@ function NodeListItem({
   
   // Handle collapse toggle for pages and configurable level blocks - use local state instead of persisting
   const handleCollapseToggle = useCallback((e: React.MouseEvent, blockDepth: number) => {
-    // If collapse is disabled, don't intercept - let Block handle it
-    if (collapseLevel === 0) return;
+    // If auto-collapse is disabled, don't intercept - let Block handle it
+    if (!autoCollapse || collapseLevel === 0) return;
     
     const relativeDepthAtToggle = blockDepth - (initialDepth ?? depth);
     if ((node.is_page || relativeDepthAtToggle >= collapseLevel) && onToggleNodeCollapse) {
@@ -301,7 +305,7 @@ function NodeListItem({
       onToggleNodeCollapse(node.id);
     }
     // For other blocks, let Block component handle normally (will persist to DB)
-  }, [node.is_page, node.id, initialDepth, depth, collapseLevel, onToggleNodeCollapse]);
+  }, [node.is_page, node.id, initialDepth, depth, autoCollapse, collapseLevel, onToggleNodeCollapse]);
 
   // Editable mode: render full Block component
   if (editable) {
@@ -373,7 +377,7 @@ function NodeListItem({
           isolatedState={isolatedBlockState}
           suppressColor={suppressColor}
           customContextMenuItems={generatedContextMenuItems}
-          onCollapseToggle={collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
+          onCollapseToggle={autoCollapse && collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
           {...blockProps}
         />
       </div>
@@ -409,7 +413,7 @@ function NodeListItem({
         parentBlock={parentBlock}
         onBulletClick={() => onNodeClick?.(node)}
         onShiftClick={() => onNodeShiftClick?.(node)}
-        onCollapseToggle={collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
+        onCollapseToggle={autoCollapse && collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
         showBullet={showBullets}
         showChildren={shouldRenderChildren}
         showClasses={showClasses}
@@ -446,6 +450,7 @@ interface GroupHeaderProps {
   localExpandedNodes?: Set<number>;
   onToggleNodeCollapse?: (nodeId: number) => void;
   initialDepth?: number;
+  autoCollapse?: boolean;
 }
 
 function GroupHeader({
@@ -467,6 +472,7 @@ function GroupHeader({
   localExpandedNodes,
   onToggleNodeCollapse,
   initialDepth,
+  autoCollapse = false,
 }: GroupHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const openNode = useNodesStore(state => state.openNode);
@@ -561,6 +567,7 @@ function GroupHeader({
               customContextMenuItems={customContextMenuItems}
               localExpandedNodes={localExpandedNodes}
               onToggleNodeCollapse={onToggleNodeCollapse}
+              autoCollapse={autoCollapse}
             />
           ))}
         </div>
@@ -595,16 +602,19 @@ export function NodeListView({
   isolatedBlockState = false,
   suppressRootColor = false,
   customContextMenuItems,
+  autoCollapse = false,
 }: NodeListViewProps) {
-  // Local state for cosmetically collapsed nodes (pages and level-2 blocks)
+  // Local state for cosmetically collapsed nodes (pages and configurable level blocks)
+  // Only used when autoCollapse is true
   // These are always collapsed on load, but users can temporarily expand them
   const [localExpandedNodes, setLocalExpandedNodes] = useState<Set<number>>(new Set());
   
   // Store the initial depth for this NodeListView instance
   const initialDepth = useMemo(() => depth, []);
   
-  // Toggle node collapse state locally (for pages and level-2 blocks)
+  // Toggle node collapse state locally (only active when autoCollapse is true)
   const handleToggleNodeCollapse = useCallback((nodeId: number) => {
+    if (!autoCollapse) return;
     setLocalExpandedNodes(prev => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
@@ -614,7 +624,7 @@ export function NodeListView({
       }
       return next;
     });
-  }, []);
+  }, [autoCollapse]);
   
   // If sortable, use ListSortable wrapper (no grouping in sortable mode)
   if (sortable && onReorder) {
@@ -682,6 +692,7 @@ export function NodeListView({
                 customContextMenuItems={customContextMenuItems}
                 localExpandedNodes={localExpandedNodes}
                 onToggleNodeCollapse={handleToggleNodeCollapse}
+                autoCollapse={autoCollapse}
               />
             ))}
           </div>
@@ -709,6 +720,7 @@ export function NodeListView({
             customContextMenuItems={customContextMenuItems}
             localExpandedNodes={localExpandedNodes}
             onToggleNodeCollapse={handleToggleNodeCollapse}
+            autoCollapse={autoCollapse}
           />
         ))}
       </div>
@@ -749,6 +761,7 @@ export function NodeListView({
             customContextMenuItems={customContextMenuItems}
             localExpandedNodes={localExpandedNodes}
             onToggleNodeCollapse={handleToggleNodeCollapse}
+            autoCollapse={autoCollapse}
           />
         );
       })}
