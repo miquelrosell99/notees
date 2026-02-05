@@ -14,11 +14,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption } from '@/api/properties';
-import { useDeleteProperty, useNodes } from '@/hooks';
+import { useDeleteProperty } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
-import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { mdiTrashCan } from '@mdi/js';
 import './PropertyConfigSection.css';
 
@@ -41,21 +40,19 @@ export function PropertyConfigSection({
 }: PropertyConfigSectionProps) {
   // Form state (name and icon removed - they're in PageHeader now)
   const [isLocal] = useState(property.is_local || false);
-  const [isMultiValue] = useState(false); // TODO: Get from property
+  const [isMultiValue, setIsMultiValue] = useState(property.multi || false);
+  const [showMultiValueConfirm, setShowMultiValueConfirm] = useState(false);
   const [defaultValue] = useState(''); // TODO: Get from property
   const [newOptionName, setNewOptionName] = useState('');
   const [newOptionIcon, setNewOptionIcon] = useState('');
   const [showAddOption, setShowAddOption] = useState(false);
   const [allowedClasses] = useState<Node[]>([]); // TODO: Get from property
-  const [showClassSelector, setShowClassSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Mutations
   const deletePropertyMutation = useDeleteProperty();
-  
-  // Data
-  const { data: allNodes } = useNodes();
+  const updatePropertyMutation = useUpdateProperty();
   
   // Convert property options to form format
   const selectionOptions: SelectionOptionWithId[] = useMemo(() => 
@@ -65,12 +62,6 @@ export function PropertyConfigSection({
       icon: opt.icon || undefined,
     })),
     [property.options]
-  );
-  
-  // Get type classes for display (exclude page class)
-  const typeClasses = useMemo(() => 
-    allNodes?.filter(n => n.is_class && n.uuid !== SYSTEM_CLASS_UUIDS.page) || [],
-    [allNodes]
   );
   
   // Selection option handlers
@@ -129,12 +120,55 @@ export function PropertyConfigSection({
   const handleAddAllowedClass = useCallback((node: Node) => {
     // TODO: Call API to add allowed class
     console.log('Add allowed class:', node);
-    setShowClassSelector(false);
   }, []);
   
-  const handleRemoveAllowedClass = useCallback((nodeId: string) => {
+  const handleRemoveAllowedClass = useCallback((nodeId: number) => {
     // TODO: Call API to remove allowed class
     console.log('Remove allowed class:', nodeId);
+  }, []);
+  
+  // Handle multi-value change
+  const handleMultiValueChange = useCallback(async (newIsMulti: boolean) => {
+    // If changing from multi to single, show confirmation
+    if (isMultiValue && !newIsMulti) {
+      setShowMultiValueConfirm(true);
+    } else {
+      // Changing from single to multi is safe, no confirmation needed
+      try {
+        const updated = await updatePropertyMutation.mutateAsync({
+          id: property.id,
+          data: { is_multi: newIsMulti },
+        });
+        setIsMultiValue(newIsMulti);
+        onUpdate(updated);
+        setError(null);
+      } catch (err) {
+        setError('Failed to update multi-value setting');
+        console.error(err);
+      }
+    }
+  }, [property, isMultiValue, updatePropertyMutation, onUpdate]);
+  
+  // Confirm multi-value to single-value change
+  const handleConfirmMultiValueChange = useCallback(async () => {
+    try {
+      const updated = await updatePropertyMutation.mutateAsync({
+        id: property.id,
+        data: { is_multi: false },
+      });
+      setIsMultiValue(false);
+      onUpdate(updated);
+      setShowMultiValueConfirm(false);
+      setError(null);
+    } catch (err) {
+      setError('Failed to update multi-value setting');
+      console.error(err);
+      setShowMultiValueConfirm(false);
+    }
+  }, [property, updatePropertyMutation, onUpdate]);
+  
+  const handleCancelMultiValueChange = useCallback(() => {
+    setShowMultiValueConfirm(false);
   }, []);
   
   // Delete the property
@@ -163,6 +197,24 @@ export function PropertyConfigSection({
   
   return (
     <div className="property-config-section">
+      {/* Scope Display (for local properties only) */}
+      {property.is_local && property.node_id && (
+        <div className="property-config-section__scope">
+          <span className="property-config-section__scope-label">Applies to </span>
+          <a 
+            href="#" 
+            className="property-config-section__scope-link"
+            onClick={(e) => {
+              e.preventDefault();
+              // TODO: Navigate to node
+              console.log('Navigate to node:', property.node_id);
+            }}
+          >
+            Page #{property.node_id}
+          </a>
+        </div>
+      )}
+      
       <PropertyForm
         icon=""
         onIconChange={() => {}}
@@ -172,7 +224,7 @@ export function PropertyConfigSection({
         isLocal={isLocal}
         onIsLocalChange={() => {}}
         isMultiValue={isMultiValue}
-        onIsMultiValueChange={() => {}}
+        onIsMultiValueChange={handleMultiValueChange}
         defaultValue={defaultValue}
         onDefaultValueChange={() => {}}
         selectionOptions={selectionOptions}
@@ -192,12 +244,8 @@ export function PropertyConfigSection({
         onShowAddOptionChange={setShowAddOption}
         allowedClasses={allowedClasses}
         onAddClass={handleAddAllowedClass}
-        onRemoveClass={(id) => handleRemoveAllowedClass(String(id))}
-        showClassSelector={showClassSelector}
-        onShowClassSelectorChange={setShowClassSelector}
-        typeClasses={typeClasses}
+        onRemoveClass={handleRemoveAllowedClass}
         showTypeSelection={false}
-        showScopeSelection={false}
         showIconSelection={false}
         showNameField={false}
       />
@@ -245,6 +293,34 @@ export function PropertyConfigSection({
             </Modal>
           )}
         </>
+      )}
+      
+      {/* Multi-value Change Confirmation Modal */}
+      {showMultiValueConfirm && (
+        <Modal
+          isOpen={showMultiValueConfirm}
+          title="Change to Single Value"
+          onClose={handleCancelMultiValueChange}
+          footer={
+            <>
+              <Button onClick={handleCancelMultiValueChange}>Cancel</Button>
+              <Button 
+                onClick={handleConfirmMultiValueChange}
+                variant="danger"
+                disabled={updatePropertyMutation.isPending}
+              >
+                {updatePropertyMutation.isPending ? 'Changing...' : 'Change to Single Value'}
+              </Button>
+            </>
+          }
+        >
+          <p>
+            Changing this property to single-value will <strong>delete all extra values</strong> and keep only the first value for each node.
+          </p>
+          <p>
+            This action cannot be undone. Are you sure you want to continue?
+          </p>
+        </Modal>
       )}
     </div>
   );
