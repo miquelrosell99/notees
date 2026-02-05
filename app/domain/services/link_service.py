@@ -538,6 +538,59 @@ class LinkParsingService:
             )
             backlinks.append(backlink_info)
         
+        # Also get references from node-type properties (property_value_relation)
+        # These are nodes that have a property value pointing to this target node
+        property_rows = await pool.fetch("""
+            SELECT DISTINCT
+                pvr.node_id as source_id,
+                pvr.property_id,
+                n.name as source_name,
+                n.uuid as source_uuid,
+                n.is_page as source_is_page,
+                n.page_id as source_page_id,
+                p.name as property_name,
+                page.name as page_name,
+                page.uuid as page_uuid
+            FROM property_value_relation pvr
+            JOIN property p ON pvr.property_id = p.id
+            JOIN node n ON pvr.node_id = n.id
+            LEFT JOIN node page ON n.page_id = page.id
+            WHERE pvr.target_id = $1 
+              AND p.type = 'node'
+              AND p.name NOT IN ('classes', 'extends')
+        """, target_node_id)
+        
+        for row in property_rows:
+            # Create a pseudo NodeLink for property references
+            # Use source_id as the node with the property
+            link = NodeLink(
+                id=None,  # No actual node_link record
+                source_id=row['source_id'],
+                target_id=target_node_id,
+                position=0,
+            )
+            
+            # Build breadcrumb path
+            breadcrumb_path = await self._build_breadcrumb_path(
+                source_node_id=row['source_id'],
+                property_name=row['property_name'],
+            )
+            
+            backlink_info = BacklinkInfo(
+                link=link,
+                source_node_id=row['source_id'],
+                source_node_name=row['source_name'] or '',
+                source_node_uuid=row['source_uuid'],
+                source_is_page=bool(row['source_is_page']),
+                source_page_id=row['source_page_id'],
+                source_page_name=row['page_name'],
+                source_page_uuid=row['page_uuid'],
+                property_id=row['property_id'],
+                property_name=row['property_name'],
+                breadcrumb_path=breadcrumb_path,
+            )
+            backlinks.append(backlink_info)
+        
         return backlinks
     
     async def _build_breadcrumb_path(
