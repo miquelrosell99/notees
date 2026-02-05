@@ -6,6 +6,7 @@ from ...models import User
 from ...domain.entities import Property, PropertyType, SCALAR_TYPES, RELATION_TYPES
 from ...logging_config import get_logger
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+from ...utils.date_utils import utc_now
 from .models import (
     PropertyCreateRequest,
     PropertyUpdateRequest,
@@ -148,8 +149,59 @@ async def update_property(
     request: PropertyUpdateRequest,
     user: User = Depends(get_current_user),
 ):
-    """Update a property definition (name and icon only)."""
+    """Update a property definition (name, icon, and optionally is_multi)."""
     repo = await _get_property_repo(user)
+    
+    # Check if we're changing is_multi
+    if request.is_multi is not None:
+        prop = await repo.get_by_id(property_id)
+        if not prop:
+            raise HTTPException(404, "Property not found")
+        
+        # If changing from multi to single, delete extra values
+        if prop.is_multi and not request.is_multi:
+            # Delete all values except the first one for each node
+            from ...db.connection import get_pool
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                # For scalar values
+                if prop.type in SCALAR_TYPES:
+                    await conn.execute("""
+                        DELETE FROM property_value_scalar
+                        WHERE id NOT IN (
+                            SELECT MIN(id) FROM property_value_scalar
+                            WHERE property_id = $1
+                            GROUP BY node_id
+                        ) AND property_id = $1
+                    """, property_id)
+                
+                # For relation values
+                elif prop.type in RELATION_TYPES:
+                    await conn.execute("""
+                        DELETE FROM property_value_relation
+                        WHERE id NOT IN (
+                            SELECT MIN(id) FROM property_value_relation
+                            WHERE property_id = $1
+                            GROUP BY node_id
+                        ) AND property_id = $1
+                    """, property_id)
+                
+                # For selection values
+                elif prop.type == PropertyType.SELECTION:
+                    await conn.execute("""
+                        DELETE FROM property_value_selection
+                        WHERE id NOT IN (
+                            SELECT MIN(id) FROM property_value_selection
+                            WHERE property_id = $1
+                            GROUP BY node_id
+                        ) AND property_id = $1
+                    """, property_id)
+                
+                # Update the property
+                await conn.execute(
+                    "UPDATE property SET is_multi = $1, write_date = $2, write_uid = $3 WHERE id = $4",
+                    request.is_multi, utc_now(), user.id, property_id
+                )
     
     try:
         prop = await repo.update(property_id, name=request.name, icon=request.icon)

@@ -244,6 +244,9 @@ export function PropertyView({
             onNameChange={handlePropertyNameChange}
             onIconChange={handlePropertyIconChange}
           />
+          <div className="property-view__type-badge">
+            {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
+          </div>
         </div>
       </div>
       

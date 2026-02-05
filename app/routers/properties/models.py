@@ -119,6 +119,7 @@ class PropertyUpdateRequest(BaseModel):
     """Request to update a property."""
     name: Optional[str] = None
     icon: Optional[str] = None
+    is_multi: Optional[bool] = None
 
 
 class PropertyTypeChangeRequest(BaseModel):
