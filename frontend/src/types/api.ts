@@ -251,7 +251,7 @@ export interface Property {
   create_date: string;
   write_date: string;
   // For node-type properties
-  tag_filters: number[];
+  class_filters: number[];
   // For selection-type properties
   options: SelectionOption[];
 }
@@ -349,7 +349,7 @@ export interface PropertyCreate {
   type?: PropertyType;
   multi?: boolean;
   is_local?: boolean;  // Local properties only apply to specific nodes
-  tag_filters?: number[];
+  class_filters?: number[];
   options?: string[];
 }
 

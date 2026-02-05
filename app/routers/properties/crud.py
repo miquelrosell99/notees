@@ -5,6 +5,7 @@ from ..auth import get_current_user
 from ...models import User
 from ...domain.entities import Property, PropertyType, SCALAR_TYPES, RELATION_TYPES
 from ...logging_config import get_logger
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from .models import (
     PropertyCreateRequest,
     PropertyUpdateRequest,
@@ -82,7 +83,21 @@ async def create_property(
     
     # Add class filters for relation-type properties
     if prop_type in RELATION_TYPES:
-        for class_id in request.class_filters:
+        # For node-type properties, default to page class if no filters specified
+        class_filters = request.class_filters
+        if prop_type == PropertyType.NODE and not class_filters:
+            # Get the 'page' class ID
+            from ...db.connection import get_pool
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                page_class_row = await conn.fetchrow(
+                    "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
+                    SYSTEM_CLASS_UUIDS["page"], user.graph_id
+                )
+                if page_class_row:
+                    class_filters = [page_class_row['id']]
+        
+        for class_id in class_filters:
             await repo.add_class_filter(created.id, class_id)
     
     # Add selection lines for selection-type properties

@@ -17,6 +17,7 @@ import { useProperties, useNodes } from '@/hooks';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { PropertyForm } from './PropertyForm';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import './PropertyCreateModal.css';
 
 export interface PropertyTypeOption {
@@ -192,9 +193,9 @@ export function PropertyCreateModal({
     onClose();
   }, [canCreate, name, selectedType, isLocal, icon, selectionOptions, onCreate, onClose]);
   
-  // Get type classes for display
+  // Get type classes for display (exclude page class)
   const typeClasses = useMemo(() => 
-    allNodes?.filter(n => n.is_class) || [],
+    allNodes?.filter(n => n.is_class && n.uuid !== SYSTEM_CLASS_UUIDS.page) || [],
     [allNodes]
   );
   
