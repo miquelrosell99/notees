@@ -3,13 +3,16 @@
  * 
  * Editable property cell for table view.
  * Click to edit or create property value for a node.
+ * 
+ * Node-type properties render as NodePill(s) showing the referenced node name/icon.
+ * Selection-type properties render as pills with selection option labels.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
-import { useQuery } from '@tanstack/react-query';
-import { getNode } from '@/api/nodes';
-import { ImageNode } from '../ImageNode';
+import { useNodesStore } from '@/stores';
+import { NodePill } from '../NodePill';
+import { Pill } from '../core/Pill';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -32,16 +35,9 @@ export function PropertyCell({
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
-  
-  // Fetch asset node if property type is 'node' and value is a number (asset ID)
-  const assetNodeId = property.type === 'node' && typeof value === 'number' ? value : null;
-  const { data: assetNode } = useQuery({
-    queryKey: ['node', assetNodeId],
-    queryFn: () => getNode(assetNodeId!),
-    enabled: assetNodeId !== null,
-  });
+  const { openNode } = useNodesStore();
 
-  // Format value for display
+  // Format value for display (used for non-node, non-selection types)
   const displayValue = useMemo(() => {
     if (value === null || value === undefined) return '';
     
@@ -54,22 +50,15 @@ export function PropertyCell({
       case 'text':
         return String(value);
       case 'selection':
-        // Handle selection type - value might be option id
-        if (property.options && Array.isArray(property.options)) {
-          const option = property.options.find(opt => opt.id === value);
-          return option ? option.name : String(value);
-        }
-        return String(value);
+        // Handled separately with pills
+        return '';
       case 'node':
-        // If we have the asset node, show its name
-        if (assetNode) {
-          return assetNode.name || 'Unnamed node';
-        }
-        return typeof value === 'number' ? `Node ${value}` : String(value);
+        // Handled separately with NodePill
+        return '';
       default:
         return String(value);
     }
-  }, [value, property, assetNode]);
+  }, [value, property.type]);
 
   // Start editing
   const handleClick = useCallback(() => {
@@ -142,6 +131,88 @@ export function PropertyCell({
     }
   }, [isEditing]);
 
+  // Node-type property: render NodePill(s) for referenced nodes
+  if (property.type === 'node') {
+    if (value === null || value === undefined) {
+      return (
+        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+          {editable ? '—' : ''}
+        </div>
+      );
+    }
+    
+    // Support both single value (number) and multi-value (array of numbers)
+    const nodeIds: number[] = Array.isArray(value)
+      ? value.filter((v): v is number => typeof v === 'number')
+      : typeof value === 'number'
+        ? [value]
+        : [];
+    
+    if (nodeIds.length === 0) {
+      return (
+        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+          {editable ? '—' : ''}
+        </div>
+      );
+    }
+    
+    return (
+      <div className="property-cell property-cell--node">
+        {nodeIds.map((nodeId) => (
+          <NodePill
+            key={nodeId}
+            nodeId={nodeId}
+            variant="link"
+            readOnly={true}
+            onClick={() => openNode(nodeId, 'page')}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Selection-type property: render pills with option labels
+  if (property.type === 'selection') {
+    if (value === null || value === undefined) {
+      return (
+        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+          {editable ? '—' : ''}
+        </div>
+      );
+    }
+    
+    const options = property.options ?? [];
+    // Support both single value and multi-value (array)
+    const selectedValues = Array.isArray(value) ? value : [value];
+    const resolvedOptions = selectedValues
+      .map(v => {
+        // Value might be option id or an object with id
+        const optionId = typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v;
+        return options.find(opt => opt.id === optionId);
+      })
+      .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined);
+    
+    if (resolvedOptions.length === 0) {
+      return (
+        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+          {String(value)}
+        </div>
+      );
+    }
+    
+    return (
+      <div className="property-cell property-cell--selection">
+        {resolvedOptions.map((option) => (
+          <Pill
+            key={option.id}
+            label={option.icon ? `${option.icon} ${option.name}` : option.name}
+            size="sm"
+          />
+        ))}
+      </div>
+    );
+  }
+
   // Handle boolean toggle
   if (property.type === 'boolean' && !isEditing) {
     return (
@@ -181,26 +252,14 @@ export function PropertyCell({
     );
   }
 
-  // Display mode
+  // Display mode for scalar types (text, integer, float, date)
   return (
     <div 
-      className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue && !assetNodeId ? 'property-cell--empty' : ''} ${assetNodeId ? 'property-cell--image' : ''}`}
-      onClick={!assetNodeId ? handleClick : undefined}
-      title={!assetNodeId && editable ? 'Click to edit' : undefined}
+      className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''}`}
+      onClick={handleClick}
+      title={editable ? 'Click to edit' : undefined}
     >
-      {assetNodeId ? (
-        <ImageNode
-          assetNodeId={assetNodeId}
-          alt={displayValue}
-          className="property-cell__image"
-          showCard={false}
-          clickable={true}
-          showActions={false}
-          showModalBullet={true}
-        />
-      ) : (
-        displayValue || (editable ? '—' : '')
-      )}
+      {displayValue || (editable ? '—' : '')}
     </div>
   );
 }

@@ -25,6 +25,7 @@ from .helpers import (
     _get_tag_ids,
     _get_tag_ids_batch,
     _get_class_ids_batch,
+    extract_properties_dict,
 )
 
 
@@ -282,34 +283,8 @@ async def get_node(
         node_properties_map: Dict[int, Dict[str, any]] = {}
         if include_properties and descendant_ids:
             for nid in descendant_ids:
-                node_properties_map[nid] = {}
                 all_prop_values = await service._property_repo.get_all_property_values(nid)
-                for prop_id, prop_data in all_prop_values.items():
-                    prop = prop_data['property']
-                    values = prop_data['values']
-                    if values:
-                        # Extract the actual value based on property type
-                        val = values[0]  # Get first value
-                        # Use property ID as key (not name!)
-                        if hasattr(val, 'target_id'):
-                            # Relation type
-                            node_properties_map[nid][str(prop_id)] = val.target_id
-                        elif hasattr(val, 'value_integer'):
-                            # Scalar type - check each field, not using `or` since empty string is falsy
-                            if val.value_text is not None:
-                                node_properties_map[nid][str(prop_id)] = val.value_text
-                            elif val.value_integer is not None:
-                                node_properties_map[nid][str(prop_id)] = val.value_integer
-                            elif val.value_float is not None:
-                                node_properties_map[nid][str(prop_id)] = val.value_float
-                            elif val.value_boolean is not None:
-                                node_properties_map[nid][str(prop_id)] = val.value_boolean
-                        elif hasattr(val, 'selection_line_id'):
-                            # Selection type
-                            node_properties_map[nid][str(prop_id)] = val.selection_line_id
-                    else:
-                        # Property assigned but no value yet - include with null
-                        node_properties_map[nid][str(prop_id)] = None
+                node_properties_map[nid] = extract_properties_dict(all_prop_values)
         
         # Build tree structure from flat list using parent_id
         node_map: Dict[int, NodeResponse] = {}
@@ -371,34 +346,8 @@ async def get_node(
             ))
     
     if include_properties:
-        response.properties = {}
         all_prop_values = await service._property_repo.get_all_property_values(node_id)
-        for prop_id, prop_data in all_prop_values.items():
-            prop = prop_data['property']
-            values = prop_data['values']
-            if values:
-                # Extract the actual value based on property type
-                val = values[0]  # Get first value
-                # Use property ID as key (not name!)
-                if hasattr(val, 'target_id'):
-                    # Relation type
-                    response.properties[str(prop_id)] = val.target_id
-                elif hasattr(val, 'value_integer'):
-                    # Scalar type - check each field, not using `or` since empty string is falsy
-                    if val.value_text is not None:
-                        response.properties[str(prop_id)] = val.value_text
-                    elif val.value_integer is not None:
-                        response.properties[str(prop_id)] = val.value_integer
-                    elif val.value_float is not None:
-                        response.properties[str(prop_id)] = val.value_float
-                    elif val.value_boolean is not None:
-                        response.properties[str(prop_id)] = val.value_boolean
-                elif hasattr(val, 'selection_line_id'):
-                    # Selection type
-                    response.properties[str(prop_id)] = val.selection_line_id
-            else:
-                # Property assigned but no value yet - include with null
-                response.properties[str(prop_id)] = None
+        response.properties = extract_properties_dict(all_prop_values)
     
     return response
 
@@ -527,37 +476,9 @@ async def get_page_content(
     page_response.children = root_children
     
     # Add properties - get the full property values
-    page_response.properties = {}
     all_prop_values = await service._property_repo.get_all_property_values(page_id)
     logger.info(f"Page {page_id} properties: {list(all_prop_values.keys())}")
-    for prop_id, prop_data in all_prop_values.items():
-        prop = prop_data['property']
-        values = prop_data['values']
-        logger.info(f"  Property {prop.name} (id={prop_id}): {len(values)} values")
-        if values:
-            # Extract the actual value based on property type
-            val = values[0]  # Get first value
-            # Use property ID as key (not name!)
-            if hasattr(val, 'target_id'):
-                # Relation type
-                logger.info(f"    -> target_id={val.target_id}")
-                page_response.properties[str(prop_id)] = val.target_id
-            elif hasattr(val, 'value_integer'):
-                # Scalar type - check each field, not using `or` since empty string is falsy
-                if val.value_text is not None:
-                    page_response.properties[str(prop_id)] = val.value_text
-                elif val.value_integer is not None:
-                    page_response.properties[str(prop_id)] = val.value_integer
-                elif val.value_float is not None:
-                    page_response.properties[str(prop_id)] = val.value_float
-                elif val.value_boolean is not None:
-                    page_response.properties[str(prop_id)] = val.value_boolean
-            elif hasattr(val, 'selection_line_id'):
-                # Selection type
-                page_response.properties[str(prop_id)] = val.selection_line_id
-        else:
-            # Property assigned but no value yet - include with null
-            page_response.properties[str(prop_id)] = None
+    page_response.properties = extract_properties_dict(all_prop_values)
     
     # Add backlinks with context
     page_response.linked_references = []

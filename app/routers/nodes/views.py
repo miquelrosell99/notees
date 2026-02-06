@@ -15,7 +15,7 @@ from ...domain.services.query_ast_sql import generate_sql_from_ast
 from ..auth import get_current_user
 from ...models import User
 from ...logging_config import get_logger
-from .helpers import _get_node_service
+from .helpers import _get_node_service, extract_properties_dict
 
 
 logger = get_logger(__name__)
@@ -232,34 +232,7 @@ async def _include_properties_for_results(user: User, results: List[Dict[str, An
                 
             # Get all property values for this node
             all_prop_values = await property_repo.get_all_property_values(node_id)
-            props_dict = {}
-            
-            for prop_id, prop_data in all_prop_values.items():
-                prop = prop_data['property']
-                values = prop_data['values']
-                if values:
-                    # Extract the actual value based on property type
-                    val = values[0]  # Get first value
-                    # Use property ID as key (not name!) to match crud.py format
-                    if hasattr(val, 'target_id'):
-                        # Relation type
-                        props_dict[str(prop_id)] = val.target_id
-                    elif hasattr(val, 'value_integer'):
-                        # Scalar type - check each field explicitly
-                        if val.value_text is not None:
-                            props_dict[str(prop_id)] = val.value_text
-                        elif val.value_integer is not None:
-                            props_dict[str(prop_id)] = val.value_integer
-                        elif val.value_float is not None:
-                            props_dict[str(prop_id)] = val.value_float
-                        elif val.value_boolean is not None:
-                            props_dict[str(prop_id)] = val.value_boolean
-                    elif hasattr(val, 'selection_line_id'):
-                        # Selection type
-                        props_dict[str(prop_id)] = val.selection_line_id
-                else:
-                    # Property assigned but no value yet - include with null
-                    props_dict[str(prop_id)] = None
+            props_dict = extract_properties_dict(all_prop_values)
             
             if props_dict:
                 result["properties"] = props_dict

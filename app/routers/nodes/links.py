@@ -23,6 +23,7 @@ from .helpers import (
     _get_descendants,
     _build_children_response,
     _get_class_ids_batch,
+    extract_properties_dict,
 )
 
 
@@ -273,33 +274,8 @@ async def get_linked_references(
     node_properties_map = {}
     if source_node_ids:
         for nid in source_node_ids:
-            node_properties_map[nid] = {}
             all_prop_values = await service._property_repo.get_all_property_values(nid)
-            for prop_id, prop_data in all_prop_values.items():
-                prop = prop_data['property']
-                values = prop_data['values']
-                if values:
-                    val = values[0]
-                    # Use property ID as key (not name!)
-                    if hasattr(val, 'target_id'):
-                        # Relation type
-                        node_properties_map[nid][str(prop_id)] = val.target_id
-                    elif hasattr(val, 'value_integer'):
-                        # Scalar type - check each field explicitly
-                        if val.value_text is not None:
-                            node_properties_map[nid][str(prop_id)] = val.value_text
-                        elif val.value_integer is not None:
-                            node_properties_map[nid][str(prop_id)] = val.value_integer
-                        elif val.value_float is not None:
-                            node_properties_map[nid][str(prop_id)] = val.value_float
-                        elif val.value_boolean is not None:
-                            node_properties_map[nid][str(prop_id)] = val.value_boolean
-                    elif hasattr(val, 'selection_line_id'):
-                        # Selection type
-                        node_properties_map[nid][str(prop_id)] = val.selection_line_id
-                else:
-                    # Property assigned but no value yet - include with null
-                    node_properties_map[nid][str(prop_id)] = None
+            node_properties_map[nid] = extract_properties_dict(all_prop_values)
     
     result = []
     for source, children, source_page, link in sources_data:
@@ -477,33 +453,8 @@ async def get_property_backlinks(
     node_properties_map = {}
     if page_ids:
         for page_id in page_ids:
-            node_properties_map[page_id] = {}
             all_prop_values = await service._property_repo.get_all_property_values(page_id)
-            for prop_id, prop_data in all_prop_values.items():
-                prop = prop_data['property']
-                values = prop_data['values']
-                if values:
-                    val = values[0]
-                    # Use property ID as key (not name!)
-                    if hasattr(val, 'target_id'):
-                        # Relation type
-                        node_properties_map[page_id][str(prop_id)] = val.target_id
-                    elif hasattr(val, 'value_integer'):
-                        # Scalar type - check each field explicitly
-                        if val.value_text is not None:
-                            node_properties_map[page_id][str(prop_id)] = val.value_text
-                        elif val.value_integer is not None:
-                            node_properties_map[page_id][str(prop_id)] = val.value_integer
-                        elif val.value_float is not None:
-                            node_properties_map[page_id][str(prop_id)] = val.value_float
-                        elif val.value_boolean is not None:
-                            node_properties_map[page_id][str(prop_id)] = val.value_boolean
-                    elif hasattr(val, 'selection_line_id'):
-                        # Selection type
-                        node_properties_map[page_id][str(prop_id)] = val.selection_line_id
-                else:
-                    # Property assigned but no value yet - include with null
-                    node_properties_map[page_id][str(prop_id)] = None
+            node_properties_map[page_id] = extract_properties_dict(all_prop_values)
     
     # Build result with properties attached
     for page, property_id, property_name in pages_data:
