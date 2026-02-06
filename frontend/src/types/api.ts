@@ -245,7 +245,7 @@ export interface NodeUpdate {
 /**
  * Property types
  */
-export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'node' | 'selection' | 'date';
+export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'node' | 'selection' | 'date' | 'image';
 
 /**
  * Property definition
