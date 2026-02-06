@@ -463,26 +463,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Calculate radii for each level adaptively based on node count
-      // Each level needs enough circumference to fit all nodes comfortably
+      // Calculate radii for each level with uniform spacing
       const maxRadius = Math.min(centerX, centerY) * 0.85;
       const minRadius = Math.min(centerX, centerY) * 0.15;
       
       const radiusByDepth = new Map<number, number>();
-      let currentRadius = minRadius;
       
+      // Use uniform level gaps instead of adaptive spacing
       for (let depth = 0; depth <= maxDepth; depth++) {
-        const nodesAtLevel = nodesByDepth.get(depth)?.length || 1;
-        // Calculate minimum radius needed to fit all nodes with proper spacing
-        // Circumference = 2 * PI * radius, so radius = (nodes * spacing) / (2 * PI)
-        const minRadiusForNodes = (nodesAtLevel * nodeSpacing) / (2 * Math.PI);
-        
-        // Radius must be at least: previous level + gap, or minimum for node count
-        const requiredRadius = Math.max(currentRadius, minRadiusForNodes);
-        const clampedRadius = Math.min(requiredRadius, maxRadius);
-        
-        radiusByDepth.set(depth, clampedRadius);
-        currentRadius = clampedRadius + levelGap;
+        const radius = Math.min(minRadius + (depth * levelGap), maxRadius);
+        radiusByDepth.set(depth, radius);
       }
       
       // Position level 0 nodes evenly around the circle
