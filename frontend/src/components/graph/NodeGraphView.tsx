@@ -407,39 +407,33 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
         >
-          <div className="settings-panel-content">
-            <div className="settings-group">
-              <label className="settings-label">
-                <input
-                  type="checkbox"
-                  checked={graphSettings.linkCountAttraction}
-                  onChange={(e) => setGraphSettings(prev => ({
-                    ...prev,
-                    linkCountAttraction: e.target.checked
-                  }))}
-                />
-                <span>Link-count attraction</span>
-              </label>
-              <p className="settings-hint">
-                More connected nodes attract more strongly
-              </p>
+          <div className="visibility-panel-content">
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Link-count attraction"
+                description="More connected nodes attract more strongly"
+                labelPosition="left"
+                checked={graphSettings.linkCountAttraction}
+                onChange={(e) => setGraphSettings(prev => ({
+                  ...prev,
+                  linkCountAttraction: e.target.checked
+                }))}
+              />
             </div>
             
-            <div className="settings-group">
-              <label className="settings-label">
-                <input
-                  type="checkbox"
-                  checked={graphSettings.massAccumulation}
-                  onChange={(e) => setGraphSettings(prev => ({
-                    ...prev,
-                    massAccumulation: e.target.checked
-                  }))}
-                />
-                <span>Mass accumulation</span>
-              </label>
-              <p className="settings-hint">
-                Parent nodes resist movement based on how many descendants they have
-              </p>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Mass accumulation"
+                description="Parent nodes resist movement based on descendants"
+                labelPosition="left"
+                checked={graphSettings.massAccumulation}
+                onChange={(e) => setGraphSettings(prev => ({
+                  ...prev,
+                  massAccumulation: e.target.checked
+                }))}
+              />
             </div>
             
             <div className="settings-group">
