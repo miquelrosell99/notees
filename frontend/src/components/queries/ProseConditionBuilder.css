@@ -44,11 +44,11 @@
 @keyframes validation-pulse {
   0%, 100% {
     border-color: var(--color-error);
-    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-error) 40%, transparent);
   }
   50% {
     border-color: var(--color-error);
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 10%, transparent);
   }
 }
 
@@ -98,12 +98,12 @@
   align-items: center;
   gap: var(--spacing-1);
   padding: 4px 10px;
-  background: var(--color-primary-container, rgba(59, 130, 246, 0.1));
-  color: var(--color-on-primary-container, #1e40af);
-  border-radius: var(--shape-small, 6px);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-small);
   font-size: 0.8125rem;
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
-  border: 1px solid var(--color-primary, rgba(59, 130, 246, 0.3));
+  border: 1px solid var(--color-primary);
 }

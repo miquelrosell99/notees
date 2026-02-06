@@ -23,7 +23,7 @@
 }
 
 .timeline-view-all__loading {
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-size: 14px;
 }
 
@@ -36,7 +36,7 @@
 
 .timeline-view-all__empty {
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
 }
 
 .timeline-view-all__empty h3 {

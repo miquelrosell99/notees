@@ -36,6 +36,7 @@ import { ListSortable } from '../core/ListSortable';
 import { BooleanToggle } from '../core/BooleanToggle';
 import { ClassColorsPanel } from '../shared/ClassColorsPanel';
 import type { ClassColor } from '../shared/ClassColorsPanel';
+import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './NodeGraphView.css';
 
 // Default class colors
@@ -45,6 +46,8 @@ const DEFAULT_CLASS_COLORS = [
 ];
 
 export interface NodeGraphViewProps {
+  /** Unique ID for this view to persist settings separately */
+  viewId?: string;
   /** CSS class */
   className?: string;
 }
@@ -55,7 +58,10 @@ interface SelectedNodeItem {
   order: number;
 }
 
-export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
+// Helper to get localStorage key for a view
+const getStorageKey = (viewId: string, key: string) => `graph_${viewId}_${key}`;
+
+export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphViewProps) {
   const rendererRef = useRef<NodeGraphRendererRef>(null);
   
   // Data hooks
@@ -83,9 +89,11 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
   // Visibility filters
   const [visibilityFilters, setVisibilityFilters] = useState<VisibilityFilters>({
     showClassNodes: true,
+    showClassLinks: true,
     showDayPages: true,
     showMonthPages: true,
     showYearPages: true,
+    showSystemPages: true,
   });
   const visibilityFiltersLoadedRef = useRef(false);
   
@@ -164,39 +172,36 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     return () => clearTimeout(timer);
   }, [graphSettings]);
   
-  // Load visibility filters from database
+  // Load visibility filters from localStorage (per-view)
   useEffect(() => {
     if (visibilityFiltersLoadedRef.current) return;
     
-    getSettings().then(settings => {
-      const saved = settings['graph_visibility_filters'];
+    try {
+      const saved = localStorage.getItem(getStorageKey(viewId, 'visibility_filters'));
       if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setVisibilityFilters(prev => ({ ...prev, ...parsed }));
-        } catch (e) {
-          console.error('Failed to parse graph_visibility_filters:', e);
-        }
+        const parsed = JSON.parse(saved);
+        setVisibilityFilters(prev => ({ ...prev, ...parsed }));
       }
-      visibilityFiltersLoadedRef.current = true;
-    }).catch(e => {
+    } catch (e) {
       console.error('Failed to load visibility filters:', e);
-      visibilityFiltersLoadedRef.current = true;
-    });
-  }, []);
+    }
+    visibilityFiltersLoadedRef.current = true;
+  }, [viewId]);
   
-  // Save visibility filters (debounced)
+  // Save visibility filters to localStorage (debounced, per-view)
   useEffect(() => {
     if (!visibilityFiltersLoadedRef.current) return;
     
     const timer = setTimeout(() => {
-      setSetting('graph_visibility_filters', JSON.stringify(visibilityFilters)).catch(e => {
-        console.error('Failed to save graph_visibility_filters:', e);
-      });
+      try {
+        localStorage.setItem(getStorageKey(viewId, 'visibility_filters'), JSON.stringify(visibilityFilters));
+      } catch (e) {
+        console.error('Failed to save visibility filters:', e);
+      }
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [visibilityFilters]);
+  }, [visibilityFilters, viewId]);
   
   // Build class ID set
   const classIds = useMemo(() => {
@@ -213,39 +218,52 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
   const { nodes, links } = useMemo(() => {
     if (!graphData) return { nodes: [], links: [] };
     
+    // Build parent map from links
+    // - 'parent' links: actual parent-child relationships (target is child of source)
+    // - 'extends' links: class inheritance (source extends target, so target is parent)
     const parentMap = new Map<number, number>();
     for (const link of graphData.links) {
       if (link.type === 'parent') {
         parentMap.set(link.target, link.source);
+      } else if (link.type === 'extends') {
+        // Class extends: source extends target, so target is the parent
+        parentMap.set(link.source, link.target);
       }
     }
     
-    const nodes: GraphNode[] = graphData.nodes.map((apiNode: ApiGraphNode) => ({
-      id: apiNode.id,
-      uuid: apiNode.uuid,
-      x: 0,
-      y: 0,
-      vx: 0,
-      vy: 0,
-      targetX: 0,
-      targetY: 0,
-      name: apiNode.name || 'Untitled',
-      type: apiNode.type || 'page',
-      isDaily: apiNode.is_daily || false,
-      isMonthly: apiNode.is_monthly || false,
-      isYearly: apiNode.is_yearly || false,
-      tags: apiNode.tags || [],
-      types: apiNode.class_ids || [],
-      parentId: parentMap.get(apiNode.id) ?? null,
-      glare: 'normal',
-      pinned: pinnedNodes.has(apiNode.id),
-      color: (apiNode.properties?.color as string) || undefined,
-      backlinkCount: apiNode.backlink_count ?? 0,
-      internalLinkCount: apiNode.internal_link_count ?? 0,
-      createdAt: apiNode.created_at,
-      visible: true,
-      isTypeNode: apiNode.is_class || classIds.has(apiNode.id),
-    }));
+    const nodes: GraphNode[] = graphData.nodes.map((apiNode: ApiGraphNode) => {
+      const nodeName = apiNode.name || 'Untitled';
+      const isSystemPage = DEFAULT_SYSTEM_PAGES.some(
+        sysName => sysName.toLowerCase() === nodeName.toLowerCase()
+      );
+      return {
+        id: apiNode.id,
+        uuid: apiNode.uuid,
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        targetX: 0,
+        targetY: 0,
+        name: nodeName,
+        type: apiNode.type || 'page',
+        isDaily: apiNode.is_daily || false,
+        isMonthly: apiNode.is_monthly || false,
+        isYearly: apiNode.is_yearly || false,
+        isSystemPage,
+        tags: apiNode.tags || [],
+        types: apiNode.class_ids || [],
+        parentId: parentMap.get(apiNode.id) ?? null,
+        glare: 'normal',
+        pinned: pinnedNodes.has(apiNode.id),
+        color: (apiNode.properties?.color as string) || undefined,
+        backlinkCount: apiNode.backlink_count ?? 0,
+        internalLinkCount: apiNode.internal_link_count ?? 0,
+        createdAt: apiNode.created_at,
+        visible: true,
+        isTypeNode: apiNode.is_class || classIds.has(apiNode.id),
+      };
+    });
     
     const links: GraphLink[] = graphData.links.map(link => ({
       source: link.source,
@@ -447,7 +465,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={visibilityFilters.showClassNodes && visibilityFilters.showDayPages && visibilityFilters.showMonthPages && visibilityFilters.showYearPages ? mdiEye : mdiEyeOff}
+          icon={visibilityFilters.showClassNodes && visibilityFilters.showClassLinks && visibilityFilters.showDayPages && visibilityFilters.showMonthPages && visibilityFilters.showYearPages && visibilityFilters.showSystemPages ? mdiEye : mdiEyeOff}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
@@ -468,6 +486,19 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                 onChange={(e) => setVisibilityFilters(prev => ({
                   ...prev,
                   showClassNodes: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Class links"
+                description="Show extends relationship lines"
+                labelPosition="left"
+                checked={visibilityFilters.showClassLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showClassLinks: e.target.checked
                 }))}
               />
             </div>
@@ -507,6 +538,19 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
                 onChange={(e) => setVisibilityFilters(prev => ({
                   ...prev,
                   showYearPages: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="System pages"
+                description="Show Inbox, Home, Archive, etc."
+                labelPosition="left"
+                checked={visibilityFilters.showSystemPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showSystemPages: e.target.checked
                 }))}
               />
             </div>

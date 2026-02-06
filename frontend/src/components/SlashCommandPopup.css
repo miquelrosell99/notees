@@ -8,8 +8,8 @@
   max-height: 320px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border-radius: var(--shape-large);
+  box-shadow: var(--elevation-3);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -53,7 +53,7 @@
   background: none;
   text-align: left;
   cursor: pointer;
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -107,7 +107,7 @@
 .slash-command-popup__hint kbd {
   padding: 2px 6px;
   background: var(--color-surface-variant);
-  border-radius: var(--radius-xs);
+  border-radius: var(--shape-extra-small);
   font-family: inherit;
   font-size: 0.75rem;
 }

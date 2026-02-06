@@ -15,90 +15,20 @@ import * as nodesApi from '@/api/nodes';
 import type { NodeCreate, NodeUpdate, Node } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
+import {
+  updateNodeByIdImmutable,
+  updateNodeInTreeImmutable,
+  removeNodeFromTreeImmutable,
+  findNodeInRootTree,
+} from '@/utils/nodeTree';
 
 // ==================== Helper Functions ====================
 
-/**
- * Helper to recursively update a specific node within a tree by ID.
- * Returns a new tree with the target node updated.
- * IMPORTANT: Only returns a new object reference if the node was actually found and updated.
- * This is critical for React's reconciliation - if nothing changed, same reference must be returned.
- */
-// @ts-expect-error - Used recursively, TypeScript cannot detect it
-function updateNodeById(node: Node | undefined, targetId: number, updater: (n: Node) => Node): Node | undefined {
-  if (!node) return undefined;
-  if (node.id === targetId) {
-    return updater(node);
-  }
-  if (node.children && node.children.length > 0) {
-    const newChildren = node.children.map(child => updateNodeById(child, targetId, updater)).filter((n): n is Node => n !== undefined);
-    // Only create new object if children actually changed (reference comparison)
-    const childrenChanged = newChildren.some((child, i) => child !== node.children![i]);
-    if (childrenChanged) {
-      return { ...node, children: newChildren };
-    }
-  }
-  return node;
-}
-
-/**
- * Helper to recursively update a node in a tree structure.
- * IMPORTANT: Only returns new array/object references if the node was actually found and updated.
- */
-function updateNodeInTree(nodes: Node[], nodeId: number, updates: Partial<Node>): Node[] {
-  let changed = false;
-  const result = nodes.map(node => {
-    if (node.id === nodeId) {
-      changed = true;
-      return { ...node, ...updates };
-    }
-    if (node.children && node.children.length > 0) {
-      const newChildren = updateNodeInTree(node.children, nodeId, updates);
-      // Check if children array reference changed
-      if (newChildren !== node.children) {
-        changed = true;
-        return { ...node, children: newChildren };
-      }
-    }
-    return node;
-  });
-  // Return same array reference if nothing changed
-  return changed ? result : nodes;
-}
-
-/**
- * Helper to recursively remove a node from a tree structure.
- * IMPORTANT: Only returns new array/object references if the node was actually found and removed.
- * This is critical for optimistic updates at deep nesting levels.
- */
-function removeNodeFromTree(nodes: Node[], nodeId: number): Node[] {
-  // Check if the node to remove is directly in this array
-  const directRemoval = nodes.some(node => node.id === nodeId);
-  
-  let childrenChanged = false;
-  const mappedNodes = nodes.map(node => {
-    if (node.id === nodeId) {
-      return node; // Will be filtered out below
-    }
-    if (node.children && node.children.length > 0) {
-      const newChildren = removeNodeFromTree(node.children, nodeId);
-      // Check if children array reference changed (meaning something was removed deeper)
-      if (newChildren !== node.children) {
-        childrenChanged = true;
-        return { ...node, children: newChildren };
-      }
-    }
-    return node;
-  });
-  
-  if (directRemoval) {
-    // Filter out the removed node
-    return mappedNodes.filter(node => node.id !== nodeId);
-  }
-  
-  // Return same array reference if nothing changed
-  return childrenChanged ? mappedNodes : nodes;
-}
+// Tree traversal helpers are imported from @/utils/nodeTree:
+// - updateNodeByIdImmutable (single root, ref-equality optimized)
+// - updateNodeInTreeImmutable (array, ref-equality optimized)
+// - removeNodeFromTreeImmutable (array, ref-equality optimized)
+// - findNodeInRootTree (single root DFS)
 
 /**
  * Helper to invalidate common node-related caches after mutations.
@@ -510,7 +440,7 @@ export function useUpdateNode() {
           return { ...oldNode, ...buildUpdate() };
         }
         if (oldNode.children && oldNode.children.length > 0) {
-          const newChildren = updateNodeInTree(oldNode.children, id, data as Partial<Node>);
+          const newChildren = updateNodeInTreeImmutable(oldNode.children, id, data as Partial<Node>);
           // Only create new object if children actually changed
           if (newChildren !== oldNode.children) {
             return {
@@ -695,24 +625,12 @@ const TABLE_CLASS_UUID = '00000000-0000-0000-0001-000000000015';
 function findNodeInCache(queryClient: ReturnType<typeof useQueryClient>, nodeId: number): Node | null {
   const queryCache = queryClient.getQueryCache();
   
-  // Helper to recursively find node in tree
-  const findInTree = (node: Node): Node | null => {
-    if (node.id === nodeId) return node;
-    if (node.children) {
-      for (const child of node.children) {
-        const found = findInTree(child);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-  
   // Search all detail queries
   const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
   for (const query of detailQueries) {
     const data = query.state.data as Node | undefined;
     if (data) {
-      const found = findInTree(data);
+      const found = findNodeInRootTree(data, nodeId);
       if (found) return found;
     }
   }
@@ -722,7 +640,7 @@ function findNodeInCache(queryClient: ReturnType<typeof useQueryClient>, nodeId:
   for (const query of pageContentQueries) {
     const data = query.state.data as Node | undefined;
     if (data) {
-      const found = findInTree(data);
+      const found = findNodeInRootTree(data, nodeId);
       if (found) return found;
     }
   }
@@ -816,7 +734,7 @@ export function useDeleteNode() {
         if (oldNode.id === deletedId) return oldNode;
         // If this node has children, recursively remove the deleted node
         if (oldNode.children && oldNode.children.length > 0) {
-          const newChildren = removeNodeFromTree(oldNode.children, deletedId);
+          const newChildren = removeNodeFromTreeImmutable(oldNode.children, deletedId);
           // Only create new object if children actually changed
           if (newChildren !== oldNode.children) {
             return {
@@ -1214,7 +1132,7 @@ export function useAddClass() {
         { queryKey: nodeKeys.details(), exact: false },
         (old) => {
           if (!old?.children) return old;
-          const newChildren = updateNodeInTree(old.children, nodeId, { classes: newClasses });
+          const newChildren = updateNodeInTreeImmutable(old.children, nodeId, { classes: newClasses });
           return newChildren !== old.children ? { ...old, children: newChildren } : old;
         }
       );
@@ -1233,7 +1151,7 @@ export function useAddClass() {
           { queryKey: nodeKeys.details(), exact: false },
           (old) => {
             if (!old?.children) return old;
-            const newChildren = updateNodeInTree(old.children, nodeId, { classes: context.oldNode!.classes });
+            const newChildren = updateNodeInTreeImmutable(old.children, nodeId, { classes: context.oldNode!.classes });
             return newChildren !== old.children ? { ...old, children: newChildren } : old;
           }
         );
@@ -1263,7 +1181,7 @@ export function useAddClass() {
         { queryKey: nodeKeys.details(), exact: false },
         (old) => {
           if (!old?.children) return old;
-          const newChildren = updateNodeInTree(old.children, nodeId, classUpdates);
+          const newChildren = updateNodeInTreeImmutable(old.children, nodeId, classUpdates);
           return newChildren !== old.children ? { ...old, children: newChildren } : old;
         }
       );
@@ -1353,7 +1271,7 @@ export function useRemoveClass() {
         { queryKey: nodeKeys.details(), exact: false },
         (old) => {
           if (!old?.children) return old;
-          const newChildren = updateNodeInTree(old.children, nodeId, { classes: newClasses });
+          const newChildren = updateNodeInTreeImmutable(old.children, nodeId, { classes: newClasses });
           return newChildren !== old.children ? { ...old, children: newChildren } : old;
         }
       );
@@ -1372,7 +1290,7 @@ export function useRemoveClass() {
           { queryKey: nodeKeys.details(), exact: false },
           (old) => {
             if (!old?.children) return old;
-            const newChildren = updateNodeInTree(old.children, nodeId, { classes: context.oldNode!.classes });
+            const newChildren = updateNodeInTreeImmutable(old.children, nodeId, { classes: context.oldNode!.classes });
             return newChildren !== old.children ? { ...old, children: newChildren } : old;
           }
         );
@@ -1403,7 +1321,7 @@ export function useRemoveClass() {
         { queryKey: nodeKeys.details(), exact: false },
         (old) => {
           if (!old?.children) return old;
-          const newChildren = updateNodeInTree(old.children, nodeId, classUpdates);
+          const newChildren = updateNodeInTreeImmutable(old.children, nodeId, classUpdates);
           return newChildren !== old.children ? { ...old, children: newChildren } : old;
         }
       );

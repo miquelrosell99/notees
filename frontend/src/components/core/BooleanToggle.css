@@ -5,7 +5,7 @@
 .toggle-container {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .toggle-container--label-left {
@@ -52,8 +52,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  background: var(--color-surface-variant, var(--bg-tertiary));
-  border: 2px solid var(--color-outline, var(--border-color));
+  background: var(--color-surface-variant);
+  border: 2px solid var(--color-outline);
   border-radius: 999px;
   transition: 
     background-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -79,7 +79,7 @@
 /* Thumb */
 .toggle-thumb {
   position: absolute;
-  background: var(--color-outline, var(--text-tertiary));
+  background: var(--color-outline);
   border-radius: 50%;
   transition: 
     transform var(--motion-duration-short) var(--motion-easing-standard),
@@ -116,13 +116,13 @@
 
 .toggle-on-text {
   left: 6px;
-  color: var(--color-on-primary, white);
+  color: var(--color-on-primary);
   opacity: 0;
 }
 
 .toggle-off-text {
   right: 6px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   opacity: 1;
 }
 
@@ -147,7 +147,7 @@
 }
 
 .toggle-input:checked + .toggle-track .toggle-thumb {
-  background: var(--color-on-primary, white);
+  background: var(--color-on-primary);
 }
 
 .toggle-input:checked + .toggle-track--sm .toggle-thumb {
@@ -183,8 +183,8 @@
 }
 
 .toggle-label {
-  font-size: var(--text-sm, 14px);
-  color: var(--text-primary);
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
   user-select: none;
 }
 
@@ -193,15 +193,15 @@
 }
 
 .toggle-description {
-  font-size: var(--text-xs, 12px);
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  color: var(--color-on-surface-variant);
 }
 
 /* Size-specific label adjustments */
 .toggle-container--sm .toggle-label {
-  font-size: var(--text-xs, 12px);
+  font-size: 0.75rem;
 }
 
 .toggle-container--lg .toggle-label {
-  font-size: var(--text-base, 16px);
+  font-size: 1rem;
 }

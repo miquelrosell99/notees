@@ -7,7 +7,7 @@
 .toggle-switch {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   cursor: pointer;
   user-select: none;
 }
@@ -26,7 +26,7 @@
 
 /* Labels */
 .toggle-switch__label {
-  font-size: var(--font-size-sm, 13px);
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
   white-space: nowrap;
@@ -115,9 +115,9 @@
 
 /* Size variants for labels */
 .toggle-switch--sm .toggle-switch__label {
-  font-size: var(--font-size-xs, 12px);
+  font-size: var(--font-size-xs);
 }
 
 .toggle-switch--lg .toggle-switch__label {
-  font-size: var(--font-size-base, 14px);
+  font-size: var(--font-size-base);
 }

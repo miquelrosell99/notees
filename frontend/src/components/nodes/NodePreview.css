@@ -6,10 +6,10 @@
   z-index: 9998;
   width: 380px;
   max-height: 450px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--elevation-5);
   display: flex;
   flex-direction: column;
   animation: nodePreviewFadeIn 0.15s ease-out;
@@ -28,7 +28,7 @@
 }
 
 .node-preview.editing {
-  box-shadow: 0 8px 32px rgba(var(--color-accent-rgb), 0.25);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--color-accent) 25%, transparent);
   border-color: var(--color-accent);
 }
 
@@ -42,7 +42,7 @@
 .node-preview-error {
   padding: 20px;
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
 }
 
@@ -51,8 +51,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-variant);
 }
 
 .node-preview-title {
@@ -86,13 +86,13 @@
   background: none;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .node-preview-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
 }
 
 .node-preview-content {
@@ -130,7 +130,7 @@
 }
 
 .node-preview-empty {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 13px;
   font-style: italic;
   padding: 8px 0;
@@ -139,11 +139,11 @@
 .node-preview-add-block {
   margin-top: 8px;
   padding: 6px 12px;
-  border: 1px dashed var(--border-color);
+  border: 1px dashed var(--color-outline-variant);
   background: none;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
   width: 100%;
   transition: border-color 0.15s ease, color 0.15s ease;
@@ -156,11 +156,11 @@
 
 .node-preview-footer {
   padding: 6px 12px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border-top: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-variant);
 }
 
 .node-preview-hint {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
 }

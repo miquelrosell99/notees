@@ -6,7 +6,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-scrim);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -17,7 +17,7 @@
 .quick-add-dialog {
   background: var(--color-surface);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--elevation-5);
   padding: 1.5rem;
   width: 100%;
   max-width: 480px;
@@ -59,7 +59,7 @@
 
 .quick-add-type-btn.active {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-on-primary);
   border-color: var(--color-primary);
 }
 
@@ -81,7 +81,7 @@
 .quick-add-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+  box-shadow: 0 0 0 2px var(--color-focus-overlay);
 }
 
 .quick-add-actions {

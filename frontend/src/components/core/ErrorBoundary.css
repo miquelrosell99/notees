@@ -5,12 +5,12 @@
 .error-boundary-fallback {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg);
-  margin: var(--spacing-md);
-  background: var(--bg-secondary);
-  border: 1px solid var(--color-warning, #f59e0b);
-  border-radius: var(--radius-md);
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  margin: var(--spacing-3);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--shape-medium);
 }
 
 .error-boundary-fallback__icon {
@@ -24,34 +24,34 @@
 }
 
 .error-boundary-fallback__title {
-  margin: 0 0 var(--spacing-xs) 0;
-  font-size: var(--font-size-md);
+  margin: 0 0 var(--spacing-1) 0;
+  font-size: var(--font-size-base);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .error-boundary-fallback__message {
-  margin: 0 0 var(--spacing-sm) 0;
+  margin: 0 0 var(--spacing-2) 0;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-family-mono);
   word-break: break-word;
 }
 
 .error-boundary-fallback__retry {
-  margin-top: var(--spacing-sm);
+  margin-top: var(--spacing-2);
 }
 
 /* Inline block error fallback */
 .block-error-fallback {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--bg-tertiary);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border: 1px dashed var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
   font-size: var(--font-size-sm);
 }
 

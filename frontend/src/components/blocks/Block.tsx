@@ -32,7 +32,7 @@ import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
-import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty, useProperties } from '@/hooks';
+import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty, useProperties, useResolvedClassDetails } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
 import { useNodesStore } from '@/stores/nodesStore';
@@ -60,6 +60,7 @@ import { PropertiesSection } from '../PropertiesSection';
 import { ImageNode } from '../ImageNode';
 import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
+import { findNodeById } from '@/utils/nodeTree';
 import './Block.css';
 
 // ==================== Block Component ====================
@@ -304,14 +305,7 @@ function BlockInternal({
   const selectionMode = useSelectionMode();
   
   // Resolve class details from IDs (excluding the implicit "page" class)
-  const blockClassDetails = useMemo(() => {
-    const classIds = block.classes;
-    if (!classIds || classIds.length === 0 || !allClasses) return [];
-    const details = classIds
-      .map((classId: number) => allClasses.find((c: Node) => c.id === classId))
-      .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
-    return details;
-  }, [block.classes, allClasses]);
+  const blockClassDetails = useResolvedClassDetails(block.classes, { skipNodesFallback: true });
   
   // Determine the icon to show on the bullet
   // Priority: block's own icon > first class's icon
@@ -1316,23 +1310,11 @@ function BlockInternal({
       // Check children of siblings (for nested blocks)
       for (const sib of siblings) {
         if (sib.children) {
-          const found = findInTree(sib.children, id);
+          const found = findNodeById(id, sib.children);
           if (found) return found;
         }
       }
       
-      return null;
-    };
-    
-    // Helper to find node in tree
-    const findInTree = (nodes: Node[], id: number): Node | null => {
-      for (const node of nodes) {
-        if (node.id === id) return node;
-        if (node.children) {
-          const found = findInTree(node.children, id);
-          if (found) return found;
-        }
-      }
       return null;
     };
     
@@ -1454,7 +1436,7 @@ function BlockInternal({
         // Check nested children
         for (const c of children) {
           if (c.children) {
-            const found = findInTree(c.children, id);
+            const found = findNodeById(id, c.children);
             if (found) return found;
           }
         }
@@ -1464,17 +1446,6 @@ function BlockInternal({
       const sibling = siblings.find(s => s.id === id);
       if (sibling) return sibling;
       
-      return null;
-    };
-    
-    const findInTree = (nodes: Node[], id: number): Node | null => {
-      for (const node of nodes) {
-        if (node.id === id) return node;
-        if (node.children) {
-          const found = findInTree(node.children, id);
-          if (found) return found;
-        }
-      }
       return null;
     };
     
@@ -1724,18 +1695,7 @@ function BlockInternal({
       // Check nested within siblings
       for (const sib of siblings) {
         if (sib.children) {
-          const found = findInTree(sib.children, id);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    
-    const findInTree = (nodes: Node[], id: number): Node | null => {
-      for (const node of nodes) {
-        if (node.id === id) return node;
-        if (node.children) {
-          const found = findInTree(node.children, id);
+          const found = findNodeById(id, sib.children);
           if (found) return found;
         }
       }

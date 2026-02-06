@@ -149,6 +149,31 @@ async def get_graph_data_endpoint(
                         "type": "class",
                     })
         
+        # Get class extends relationships (inheritance between classes)
+        class_extends_rows = await conn.fetch(
+            """
+            SELECT ce.target_id as child_id, ce.source_id as parent_id
+            FROM class_extend ce
+            JOIN node child ON ce.target_id = child.id
+            JOIN node parent ON ce.source_id = parent.id
+            WHERE child.graph_id = $1 
+              AND parent.graph_id = $1
+              AND child.active = TRUE
+              AND parent.active = TRUE
+            """,
+            service._graph_id
+        )
+        
+        for row in class_extends_rows:
+            child_id = row['child_id']
+            parent_id = row['parent_id']
+            if child_id in page_id_set and parent_id in page_id_set:
+                links.append({
+                    "source": child_id,
+                    "target": parent_id,
+                    "type": "extends",  # New type specifically for class inheritance
+                })
+        
         # Get property-based links (node-type properties)
         property_link_rows = await conn.fetch(
             """

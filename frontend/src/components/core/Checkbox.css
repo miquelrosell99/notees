@@ -5,7 +5,7 @@
 .checkbox-container {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .checkbox-container--disabled {
@@ -38,8 +38,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--color-outline, var(--border-color));
-  border-radius: var(--shape-small, 4px);
+  border: 2px solid var(--color-outline);
+  border-radius: var(--shape-small);
   background: var(--color-surface);
   pointer-events: none;
   transition: 
@@ -67,7 +67,7 @@
 .checkbox-icon {
   width: 100%;
   height: 100%;
-  color: var(--color-on-primary, white);
+  color: var(--color-on-primary);
   opacity: 0;
   transform: scale(0.8);
   transition: 
@@ -99,12 +99,12 @@
 
 /* Error state */
 .checkbox-container--error .checkbox-checkmark {
-  border-color: var(--color-danger);
+  border-color: var(--color-error);
 }
 
 .checkbox-container--error .checkbox-input:checked + .checkbox-checkmark {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
+  background: var(--color-error);
+  border-color: var(--color-error);
 }
 
 /* Label */
@@ -115,8 +115,8 @@
 }
 
 .checkbox-label {
-  font-size: var(--text-sm, 14px);
-  color: var(--text-primary);
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
   cursor: pointer;
   user-select: none;
 }
@@ -126,15 +126,15 @@
 }
 
 .checkbox-description {
-  font-size: var(--text-xs, 12px);
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  color: var(--color-on-surface-variant);
 }
 
 /* Size-specific label adjustments */
 .checkbox-container--sm .checkbox-label {
-  font-size: var(--text-xs, 12px);
+  font-size: 0.75rem;
 }
 
 .checkbox-container--lg .checkbox-label {
-  font-size: var(--text-base, 16px);
+  font-size: 1rem;
 }

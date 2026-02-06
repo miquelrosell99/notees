@@ -33,3 +33,5 @@ export * from './useHierarchicalPath';
 export * from './useHierarchicalPathResolver';
 export * from './useClickOutside';
 export * from './useEscapeKey';
+export * from './useResolvedClassDetails';
+export * from './useNodeNavigation';

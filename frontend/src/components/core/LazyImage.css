@@ -10,15 +10,15 @@
   display: block;
   width: 100%;
   overflow: hidden;
-  background: var(--color-surface-secondary, #f5f5f5);
-  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-medium);
 }
 
 /* Skeleton placeholder */
 .lazy-image__skeleton {
   position: absolute;
   inset: 0;
-  background: var(--color-surface-secondary, #f5f5f5);
+  background: var(--color-surface-container-low);
   z-index: 1;
 }
 
@@ -89,12 +89,12 @@
   align-items: center;
   justify-content: center;
   min-height: 100px;
-  background: var(--color-surface-error, #fef2f2);
-  color: var(--color-text-error, #dc2626);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
 }
 
 .lazy-image__error-text {
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm);
   opacity: 0.7;
 }
 
