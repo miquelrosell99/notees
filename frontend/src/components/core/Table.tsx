@@ -406,7 +406,7 @@ export function Table<T>({
     `table--${size}`,
     `table--${variant}`,
     hoverable ? 'table--hoverable' : '',
-    selectable ? 'table--selectable' : '',
+    selectable && onRowClick ? 'table--selectable' : '',
   ]
     .filter(Boolean)
     .join(' ');
