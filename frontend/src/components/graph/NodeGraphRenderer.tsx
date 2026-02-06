@@ -35,7 +35,7 @@ const LINKED_ATTRACTION_DISTANCE = 120;
 const UNLINKED_REPULSION_DISTANCE = 200;
 const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
-const REFERENCE_LINK_FORCE_MULTIPLIER = 0.2;
+const REFERENCE_LINK_FORCE_MULTIPLIER = 0.8;
 const REPULSION_STRENGTH = 800;
 const VELOCITY_DAMPING = 0.85;
 const RETURN_FORCE = 0.08;
@@ -1042,9 +1042,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
                 attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
               }
               
-              // Reference links have reduced force
-              if (connectionType === 'reference') {
+              // Reference links have reduced force (property-reference = 80%, content reference = 64%)
+              if (connectionType === 'property-reference') {
                 attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
+              } else if (connectionType === 'reference') {
+                attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
               }
               
               const force = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength;
