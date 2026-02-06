@@ -971,8 +971,30 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.setLineDash([]);
       }
       
-      ctx.moveTo(source.x, source.y);
-      ctx.lineTo(target.x, target.y);
+      // Calculate glare radius to determine line endpoints
+      const getLineGlareRadius = (node: GraphNode) => {
+        switch (node.glare) {
+          case 'bright':
+            return GLARE_RADIUS_BRIGHT;
+          case 'current':
+            return GLARE_RADIUS_BRIGHT + 4;
+          default:
+            return GLARE_RADIUS_NORMAL;
+        }
+      };
+      
+      const sourceLineGlare = getLineGlareRadius(source);
+      const targetLineGlare = getLineGlareRadius(target);
+      
+      // Calculate line endpoints to stop at glare edge
+      const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
+      const lineStartX = source.x + sourceLineGlare * Math.cos(lineAngle);
+      const lineStartY = source.y + sourceLineGlare * Math.sin(lineAngle);
+      const lineEndX = target.x - targetLineGlare * Math.cos(lineAngle);
+      const lineEndY = target.y - targetLineGlare * Math.sin(lineAngle);
+      
+      ctx.moveTo(lineStartX, lineStartY);
+      ctx.lineTo(lineEndX, lineEndY);
       ctx.stroke();
       
       // Draw arrows
@@ -980,11 +1002,26 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
       const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
       
-      // Helper function to draw an arrow
-      const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, nodeRadius: number) => {
+      // Calculate glare radius for proper positioning
+      const getGlareRadius = (node: GraphNode) => {
+        switch (node.glare) {
+          case 'bright':
+            return GLARE_RADIUS_BRIGHT;
+          case 'current':
+            return GLARE_RADIUS_BRIGHT + 4;
+          default:
+            return GLARE_RADIUS_NORMAL;
+        }
+      };
+      
+      const sourceGlareRadius = getGlareRadius(source);
+      const targetGlareRadius = getGlareRadius(target);
+      
+      // Helper function to draw an arrow (positioned at glare edge + 2px gap)
+      const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
         const angle = Math.atan2(toY - fromY, toX - fromX);
-        const arrowX = toX - (nodeRadius + 5) * Math.cos(angle);
-        const arrowY = toY - (nodeRadius + 5) * Math.sin(angle);
+        const arrowX = toX - (glareRadius + 2) * Math.cos(angle);
+        const arrowY = toY - (glareRadius + 2) * Math.sin(angle);
         
         ctx.beginPath();
         ctx.setLineDash([]);
@@ -1003,17 +1040,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       if (isParentLink) {
         // Parent links always have arrow pointing to child (target)
-        drawArrow(source.x, source.y, target.x, target.y, targetRadius);
+        drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
       } else {
         // Reference links - draw directional arrows
         // Arrow pointing from source to target (at target end)
         if (link.source === source.id) {
-          drawArrow(source.x, source.y, target.x, target.y, targetRadius);
+          drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
         
         // If bidirectional, draw arrow pointing back (at source end)
         if (directions?.forward && directions?.reverse) {
-          drawArrow(target.x, target.y, source.x, source.y, sourceRadius);
+          drawArrow(target.x, target.y, source.x, source.y, sourceGlareRadius);
         }
       }
     }
