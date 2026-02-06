@@ -268,6 +268,7 @@ export interface NodeWithPropertyValue {
   create_date: string;
   write_date: string;
   property_value: unknown;
+  properties?: Record<string, unknown>;
 }
 
 /**
