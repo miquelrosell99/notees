@@ -198,7 +198,7 @@ async def get_graph_data_endpoint(
                 links.append({
                     "source": source_id,
                     "target": target_id,
-                    "type": "reference",
+                    "type": "property-reference",
                 })
         
         # Remove duplicate links (keeping first occurrence)

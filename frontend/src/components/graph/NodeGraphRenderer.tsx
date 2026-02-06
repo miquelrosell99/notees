@@ -35,7 +35,7 @@ const LINKED_ATTRACTION_DISTANCE = 120;
 const UNLINKED_REPULSION_DISTANCE = 200;
 const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
-const REFERENCE_LINK_FORCE_MULTIPLIER = 0.8;
+const REFERENCE_LINK_FORCE_MULTIPLIER = 0.2;
 const REPULSION_STRENGTH = 800;
 const VELOCITY_DAMPING = 0.85;
 const RETURN_FORCE = 0.08;
@@ -93,7 +93,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'class' | 'extends';
+  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends';
 }
 
 export interface ClassColor {
@@ -592,7 +592,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const shouldLinkBeActive = useCallback((link: GraphLink, filters: VisibilityFilters): boolean => {
     if (link.type === 'class' && !filters.showClassLinks) return false;
     if ((link.type === 'parent' || link.type === 'extends') && !filters.showParentLinks) return false;
-    if (link.type === 'reference' && !filters.showReferenceLinks) return false;
+    if ((link.type === 'reference' || link.type === 'property-reference') && !filters.showReferenceLinks) return false;
     return true;
   }, []);
   
@@ -994,7 +994,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const key1 = `${link.source}-${link.target}`;
           const key2 = `${link.target}-${link.source}`;
           // If already connected by a stronger link type, don't overwrite with reference
-          if (!connectedPairs.has(key1) || link.type !== 'reference') {
+          if (!connectedPairs.has(key1) || (link.type !== 'reference' && connectedPairs.get(key1) === 'reference')) {
             connectedPairs.set(key1, link.type);
             connectedPairs.set(key2, link.type);
           }
