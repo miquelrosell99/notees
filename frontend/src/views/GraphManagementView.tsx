@@ -30,45 +30,10 @@ import Icon from '@mdi/react';
 import { mdiExport } from '@mdi/js';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
+import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
 import './GraphManagementView.css';
 
 type ImportType = 'sqlite' | 'zip';
-
-/** Format a date string for display */
-function formatDate(dateStr: string | undefined): string {
-  if (!dateStr) return 'Unknown';
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  } catch {
-    return 'Unknown';
-  }
-}
-
-/** Format a relative time string */
-function formatRelativeTime(dateStr: string | undefined): string {
-  if (!dateStr) return 'Unknown';
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return formatDate(dateStr);
-  } catch {
-    return 'Unknown';
-  }
-}
 
 interface GraphManagementViewProps {
   /** Called when a graph is selected/activated */

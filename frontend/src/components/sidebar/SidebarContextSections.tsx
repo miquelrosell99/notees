@@ -21,6 +21,7 @@ import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
 import { Button } from '../core/Button';
 import { CommentIcon, ClockIcon, AddIcon } from '../icons';
+import { formatRelativeTime } from '@/utils/dateFormat';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
 
@@ -36,30 +37,6 @@ function countAllComments(comments: Comment[]): number {
     }
   }
   return count;
-}
-
-/**
- * Format relative timestamp for display
- */
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  
-  if (diff < 60 * 1000) return 'Just now';
-  if (diff < 60 * 60 * 1000) {
-    const mins = Math.floor(diff / (60 * 1000));
-    return `${mins}m ago`;
-  }
-  if (diff < 24 * 60 * 60 * 1000) {
-    const hours = Math.floor(diff / (60 * 60 * 1000));
-    return `${hours}h ago`;
-  }
-  if (diff < 7 * 24 * 60 * 60 * 1000) {
-    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
-    return `${days}d ago`;
-  }
-  return date.toLocaleDateString();
 }
 
 interface CommentRowProps {
