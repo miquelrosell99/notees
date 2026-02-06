@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from ..auth import get_current_user
-from ..nodes.helpers import _get_node_service, _node_to_response
+from ..nodes.helpers import _get_node_service, _node_to_response, extract_properties_dict
 from ...models import User
 from ...domain.entities import PropertyType, SCALAR_TYPES, RELATION_TYPES
 from ...logging_config import get_logger
@@ -94,36 +94,9 @@ async def set_property_value(
     
     # Build response with properties populated
     response = _node_to_response(node, classes=class_ids)
-    response.properties = {}
     all_prop_values = await repo.get_all_property_values(node_id)
     logger.info(f"[SET_PROPERTY] Node {node_id} has {len(all_prop_values)} property values")
-    for prop_id, prop_data in all_prop_values.items():
-        prop_entity = prop_data['property']
-        values = prop_data['values']
-        logger.info(f"[SET_PROPERTY] Property {prop_id} ({prop_entity.name}): {len(values)} values")
-        if values:
-            # Extract the actual value based on property type
-            val = values[0]  # Get first value
-            # Use property ID as key (not name!)
-            if hasattr(val, 'target_id'):
-                # Relation type
-                response.properties[str(prop_id)] = val.target_id
-            elif hasattr(val, 'value_integer'):
-                # Scalar type - check each field, not using `or` since empty string is falsy
-                if val.value_text is not None:
-                    response.properties[str(prop_id)] = val.value_text
-                elif val.value_integer is not None:
-                    response.properties[str(prop_id)] = val.value_integer
-                elif val.value_float is not None:
-                    response.properties[str(prop_id)] = val.value_float
-                elif val.value_boolean is not None:
-                    response.properties[str(prop_id)] = val.value_boolean
-            elif hasattr(val, 'selection_line_id'):
-                # Selection type
-                response.properties[str(prop_id)] = val.selection_line_id
-        else:
-            # Property assigned but no value yet - include with null
-            response.properties[str(prop_id)] = None
+    response.properties = extract_properties_dict(all_prop_values)
     
     return response
 

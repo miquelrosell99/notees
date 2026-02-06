@@ -81,7 +81,7 @@ function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps)
   };
 
   return (
-    <label
+    <div
       ref={setNodeRef}
       style={style}
       className="property-column-selector__item property-column-selector__item--draggable"
@@ -105,7 +105,7 @@ function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps)
           {property.type}
         </span>
       </span>
-    </label>
+    </div>
   );
 }
 
@@ -264,9 +264,10 @@ export function PropertyColumnSelector({
             {filteredProperties
               .filter(prop => !selectedPropertyUuids.includes(prop.uuid))
               .map(property => (
-                <label
+                <div
                   key={property.uuid}
                   className="property-column-selector__item"
+                  onClick={() => handleToggle(property.uuid)}
                 >
                   <Checkbox
                     checked={false}
@@ -285,7 +286,7 @@ export function PropertyColumnSelector({
                       {property.type}
                     </span>
                   </span>
-                </label>
+                </div>
               ))}
           </div>
         )}
