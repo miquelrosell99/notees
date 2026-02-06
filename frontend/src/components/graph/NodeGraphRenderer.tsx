@@ -107,6 +107,7 @@ export interface ClassColor {
 export interface GraphSettings {
   linkCountAttraction: boolean;
   nodeSizeMode: NodeSizeMode;
+  massAccumulation: boolean;
 }
 
 export interface VisibilityFilters {
@@ -312,7 +313,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   nodes: inputNodes,
   links: inputLinks,
   viewMode = 'normal',
-  settings = { linkCountAttraction: false, nodeSizeMode: 'uniform' },
+  settings = { linkCountAttraction: false, nodeSizeMode: 'uniform', massAccumulation: true },
   classColors = [],
   visibilityFilters = DEFAULT_VISIBILITY_FILTERS,
   currentNodeId = null,
@@ -1039,7 +1040,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         massCache.set(nodeId, mass);
         return mass;
       };
-      const getNodeMass = (nodeId: number): number => computeMass(nodeId);
+      const getNodeMass = (nodeId: number): number => 
+        currentSettings.massAccumulation ? computeMass(nodeId) : 1;
       
       // Constrained mode return force
       if (isConstrainedMode) {
