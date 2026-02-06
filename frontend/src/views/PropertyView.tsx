@@ -347,7 +347,6 @@ export function PropertyView({
             onViewModeChange={setViewMode}
             editable={false}
             showClasses={true}
-            onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}
