@@ -47,8 +47,9 @@ const NODE_RADIUS_BASE = 10;
 const NODE_RADIUS_MIN = 6;
 const NODE_RADIUS_MAX = 20;
 const NODE_HOVER_RADIUS_EXTRA = 4;
-const GLARE_RADIUS_NORMAL = 18;
-const GLARE_RADIUS_BRIGHT = 20;
+const GLARE_SCALE_NORMAL = 1.8;
+const GLARE_SCALE_BRIGHT = 2.0;
+const GLARE_SCALE_CURRENT = 2.4;
 const GLARE_OPACITY_NORMAL = 0.2;
 const GLARE_OPACITY_BRIGHT = 0.4;
 const GLARE_OPACITY_DIM = 0.05;
@@ -1312,13 +1313,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const arrowGap = 2;
       
       const getLineGlareRadius = (node: GraphNode) => {
+        const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
         switch (node.glare) {
           case 'bright':
-            return GLARE_RADIUS_BRIGHT;
+            return nodeRadius * GLARE_SCALE_BRIGHT;
           case 'current':
-            return GLARE_RADIUS_BRIGHT + 4;
+            return nodeRadius * GLARE_SCALE_CURRENT;
           default:
-            return GLARE_RADIUS_NORMAL;
+            return nodeRadius * GLARE_SCALE_NORMAL;
         }
       };
       
@@ -1379,13 +1381,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Calculate glare radius for proper positioning
       const getGlareRadius = (node: GraphNode) => {
+        const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
         switch (node.glare) {
           case 'bright':
-            return GLARE_RADIUS_BRIGHT;
+            return nodeRadius * GLARE_SCALE_BRIGHT;
           case 'current':
-            return GLARE_RADIUS_BRIGHT + 4;
+            return nodeRadius * GLARE_SCALE_CURRENT;
           default:
-            return GLARE_RADIUS_NORMAL;
+            return nodeRadius * GLARE_SCALE_NORMAL;
         }
       };
       
@@ -1517,13 +1520,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.restore();
       }
       
-      // Glare properties
-      let glareRadius = GLARE_RADIUS_NORMAL;
+      // Glare properties - scaled relative to node radius
+      let glareScale = GLARE_SCALE_NORMAL;
       let glareOpacity = GLARE_OPACITY_NORMAL;
       
       switch (node.glare) {
         case 'bright':
-          glareRadius = GLARE_RADIUS_BRIGHT;
+          glareScale = GLARE_SCALE_BRIGHT;
           glareOpacity = GLARE_OPACITY_BRIGHT;
           break;
         case 'dim':
@@ -1533,10 +1536,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           glareOpacity = GLARE_OPACITY_NORMAL;
           break;
         case 'current':
-          glareRadius = GLARE_RADIUS_BRIGHT + 4;
+          glareScale = GLARE_SCALE_CURRENT;
           glareOpacity = 0.5;
           break;
       }
+      
+      const glareRadius = baseRadius * glareScale;
       
       // Draw glare
       ctx.beginPath();
