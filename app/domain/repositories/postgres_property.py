@@ -309,6 +309,41 @@ class PostgresPropertyRepository(PropertyRepository):
                 return None
             return await self.get_by_id(row['id'])
     
+    async def _load_property_extras(self, conn, properties: List[Property]) -> None:
+        """Load class_filters and selection_lines for a list of properties in batch."""
+        if not properties:
+            return
+        
+        # Collect IDs by type
+        relation_ids = [p.id for p in properties if p.type in RELATION_TYPES]
+        selection_ids = [p.id for p in properties if p.type == PropertyType.SELECTION]
+        
+        # Batch load class filters
+        if relation_ids:
+            filter_rows = await conn.fetch(
+                "SELECT property_id, class_node_id FROM property_class_filter WHERE property_id = ANY($1)",
+                relation_ids
+            )
+            filters_by_prop: dict[int, list[int]] = {}
+            for fr in filter_rows:
+                filters_by_prop.setdefault(fr['property_id'], []).append(fr['class_node_id'])
+            for p in properties:
+                if p.id in filters_by_prop:
+                    p._class_filters = filters_by_prop[p.id]
+        
+        # Batch load selection lines
+        if selection_ids:
+            line_rows = await conn.fetch(
+                "SELECT * FROM property_selection_line WHERE property_id = ANY($1) ORDER BY name",
+                selection_ids
+            )
+            lines_by_prop: dict[int, list] = {}
+            for lr in line_rows:
+                lines_by_prop.setdefault(lr['property_id'], []).append(self._row_to_selection_line(lr))
+            for p in properties:
+                if p.id in lines_by_prop:
+                    p._selection_lines = lines_by_prop[p.id]
+
     async def get_all(self, include_local: bool = True) -> List[Property]:
         """Get all property definitions."""
         async with self._pool.acquire() as conn:
@@ -322,7 +357,9 @@ class PostgresPropertyRepository(PropertyRepository):
                     "SELECT * FROM property WHERE (graph_id = $1 OR graph_id IS NULL) AND is_local = FALSE AND active = TRUE ORDER BY name",
                     self._graph_id
                 )
-            return [self._row_to_property(row) for row in rows]
+            properties = [self._row_to_property(row) for row in rows]
+            await self._load_property_extras(conn, properties)
+            return properties
     
     async def get_local_properties(self, node_id: int) -> List[Property]:
         """Get all local properties for a specific page node."""
@@ -331,7 +368,9 @@ class PostgresPropertyRepository(PropertyRepository):
                 "SELECT * FROM property WHERE is_local = TRUE AND node_id = $1 AND active = TRUE ORDER BY name",
                 node_id
             )
-            return [self._row_to_property(row) for row in rows]
+            properties = [self._row_to_property(row) for row in rows]
+            await self._load_property_extras(conn, properties)
+            return properties
     
     async def update(self, property_id: int, name: Optional[str] = None,
                      icon: Optional[str] = None) -> Optional[Property]:

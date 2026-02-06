@@ -15,7 +15,9 @@
  * - "Create new" option detection
  */
 import { useMemo } from 'react';
-import { useSearch, usePages, useNodes, useClasses, useSearchClasses } from './useNodes';
+import { useQuery } from '@tanstack/react-query';
+import { useSearch, usePages, useNodes, useClasses, useSearchClasses, nodeKeys } from './useNodes';
+import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
 
@@ -83,9 +85,19 @@ export function useNodeSearch(
     maxResults = 10,
   } = filters;
 
-  // Core search queries
-  const { data: searchResults, isLoading: isSearchLoading } = useSearch(query);
+  // Convert classFilters array to comma-separated string for backend
+  const classFiltersParam = classFilters.length > 0 ? classFilters.join(',') : undefined;
+
+  // Core search queries - pass class_filters to backend for server-side filtering
+  const { data: searchResults, isLoading: isSearchLoading } = useSearch(query, classFiltersParam);
   const { data: allPages } = usePages();
+  // Filtered pages query for when class_filters are present (empty-query case)
+  const { data: filteredPages } = useQuery({
+    queryKey: ['nodes', 'filtered-pages', classFiltersParam],
+    queryFn: () => nodesApi.listNodes({ pages_only: true, class_filters: classFiltersParam }),
+    enabled: !!classFiltersParam,
+    placeholderData: [],
+  });
   const { data: allNodes } = useNodes(
     mode === 'all' || mode === 'blocks' ? {} : null
   );
@@ -163,23 +175,20 @@ export function useNodeSearch(
 
     // Pages-only mode
     if (mode === 'pages') {
-      let results = searchQuery.length > 0
-        ? (searchResults ?? []).filter(n => n.is_page || n.parent_id === null)
-        : (allPages ?? []).slice(0, maxResults * 3);
+      let results: Node[];
+      if (searchQuery.length > 0) {
+        // Search results are already filtered by class_filters on the backend
+        results = (searchResults ?? []).filter(n => n.is_page || n.parent_id === null);
+      } else if (classFilters.length > 0) {
+        // Use backend-filtered pages when class filters are active
+        results = (filteredPages ?? []).slice(0, maxResults * 3);
+      } else {
+        results = (allPages ?? []).slice(0, maxResults * 3);
+      }
       
       // Apply hierarchical filtering if needed
       if (parsed.isHierarchical && allPages) {
         results = filterNodesByHierarchy(query, results, allPages);
-      }
-
-      // Apply class filters if provided
-      if (classFilters.length > 0) {
-        results = results.filter(node => {
-          if (node.classes && node.classes.length > 0) {
-            return classFilters.some(filterId => node.classes!.includes(filterId));
-          }
-          return false;
-        });
       }
 
       return {
@@ -271,6 +280,7 @@ export function useNodeSearch(
     query,
     searchResults,
     allPages,
+    filteredPages,
     allNodes,
     allClassNodes,
     classSearchResults,
