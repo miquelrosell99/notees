@@ -975,8 +975,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Calculate glare radius to determine line endpoints
-      // Arrow is positioned at glareRadius + 2, so line should end at glareRadius + 2 + arrowSize to avoid overlap
-      const arrowSize = 8;
+      // Dot is positioned at glareRadius + 2, so line should end at glareRadius + 2 + dotSize to avoid overlap
       const arrowGap = 2;
       
       const getLineGlareRadius = (node: GraphNode) => {
@@ -993,16 +992,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceLineGlare = getLineGlareRadius(source);
       const targetLineGlare = getLineGlareRadius(target);
       
-      // Determine if there are arrows at each end
+      // Determine if there are dots at each end
       const dotSize = 4;
-      const hasTargetArrow = isParentLink || link.source === source.id;
-      const hasTargetDot = isClassLink;
-      const hasSourceArrow = !isParentLink && !isClassLink && directions?.forward && directions?.reverse;
+      const hasTargetDot = isParentLink || isClassLink || link.source === source.id;
+      const hasSourceDot = !isParentLink && !isClassLink && directions?.forward && directions?.reverse;
       
-      // Calculate line endpoints to stop where arrows/dots start (avoid transparency overlap)
+      // Calculate line endpoints to stop where dots start (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
-      const targetOffset = hasTargetArrow ? (arrowGap + arrowSize) : hasTargetDot ? (arrowGap + dotSize) : arrowGap;
-      const sourceOffset = hasSourceArrow ? (arrowGap + arrowSize) : arrowGap;
+      const targetOffset = hasTargetDot ? (arrowGap + dotSize) : arrowGap;
+      const sourceOffset = hasSourceDot ? (arrowGap + dotSize) : arrowGap;
       const lineStartX = source.x + (sourceLineGlare + sourceOffset) * Math.cos(lineAngle);
       const lineStartY = source.y + (sourceLineGlare + sourceOffset) * Math.sin(lineAngle);
       const lineEndX = target.x - (targetLineGlare + targetOffset) * Math.cos(lineAngle);
@@ -1029,27 +1027,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceGlareRadius = getGlareRadius(source);
       const targetGlareRadius = getGlareRadius(target);
       
-      // Helper function to draw an arrow (positioned at glare edge + 2px gap)
-      const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
-        const angle = Math.atan2(toY - fromY, toX - fromX);
-        const arrowX = toX - (glareRadius + 2) * Math.cos(angle);
-        const arrowY = toY - (glareRadius + 2) * Math.sin(angle);
-        
-        ctx.beginPath();
-        ctx.setLineDash([]);
-        ctx.moveTo(arrowX, arrowY);
-        ctx.lineTo(
-          arrowX - arrowSize * Math.cos(angle - Math.PI / 6),
-          arrowY - arrowSize * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.moveTo(arrowX, arrowY);
-        ctx.lineTo(
-          arrowX - arrowSize * Math.cos(angle + Math.PI / 6),
-          arrowY - arrowSize * Math.sin(angle + Math.PI / 6)
-        );
-        ctx.stroke();
-      };
-      
       // Helper function to draw a dot (positioned at glare edge + 2px gap)
       const drawDot = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
         const angle = Math.atan2(toY - fromY, toX - fromX);
@@ -1063,8 +1040,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       };
       
       if (isParentLink) {
-        // Parent links always have arrow pointing to child (target)
-        drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
+        // Parent links have a dot pointing to child (target)
+        drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
       } else if (isClassLink) {
         // Class links have a dot pointing to the type node (target)
         // Skip dots for system types: "page" and "class"
@@ -1073,15 +1050,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else {
-        // Reference links - draw directional arrows
-        // Arrow pointing from source to target (at target end)
+        // Reference links - draw dots
+        // Dot pointing from source to target (at target end)
         if (link.source === source.id) {
-          drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
+          drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
         
-        // If bidirectional, draw arrow pointing back (at source end)
+        // If bidirectional, draw dot pointing back (at source end)
         if (directions?.forward && directions?.reverse) {
-          drawArrow(target.x, target.y, source.x, source.y, sourceGlareRadius);
+          drawDot(target.x, target.y, source.x, source.y, sourceGlareRadius);
         }
       }
     }
