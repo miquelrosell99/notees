@@ -19,7 +19,7 @@ import * as nodesApi from '@/api/nodes';
 import { Block } from '../blocks/Block';
 import { ImageNode } from '../ImageNode';
 import { NodePill } from '../NodePill';
-import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
+import { NodeSelector } from '../NodeSelector';
 import { Pill } from '../core/Pill';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
