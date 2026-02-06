@@ -299,6 +299,7 @@ export function PropertyConfigSection({
         showTypeSelection={false}
         showIconSelection={false}
         showNameField={false}
+        showMultiValueSelection={false}
       />
       
       {error && (
