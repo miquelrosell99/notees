@@ -88,7 +88,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference';
+  type: 'parent' | 'reference' | 'class';
 }
 
 export interface ClassColor {
@@ -956,17 +956,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       drawnLinks.add(linkKey);
       
       const isParentLink = link.type === 'parent';
+      const isClassLink = link.type === 'class';
       const dirKey = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}`;
       const directions = linkDirections.get(dirKey);
       
       ctx.beginPath();
-      ctx.strokeStyle = isParentLink 
-        ? 'rgba(100, 100, 100, 0.4)' 
-        : 'rgba(99, 102, 241, 0.5)';
+      // Use gray color for all link types
+      ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
       ctx.lineWidth = isParentLink ? 1 : 1.5;
       
+      // Set line style: dashed for parent, dotted for class, solid for reference
       if (isParentLink) {
         ctx.setLineDash([4, 4]);
+      } else if (isClassLink) {
+        ctx.setLineDash([2, 3]);
       } else {
         ctx.setLineDash([]);
       }
@@ -991,8 +994,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const targetLineGlare = getLineGlareRadius(target);
       
       // Determine if there are arrows at each end
-      const hasTargetArrow = isParentLink || link.source === source.id;
-      const hasSourceArrow = !isParentLink && directions?.forward && directions?.reverse;
+      const hasTargetArrow = isParentLink || isClassLink || link.source === source.id;
+      const hasSourceArrow = !isParentLink && !isClassLink && directions?.forward && directions?.reverse;
       
       // Calculate line endpoints to stop where arrows start (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
@@ -1045,6 +1048,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       if (isParentLink) {
         // Parent links always have arrow pointing to child (target)
+        drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
+      } else if (isClassLink) {
+        // Class links always have arrow pointing to the type node (target)
         drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
       } else {
         // Reference links - draw directional arrows
