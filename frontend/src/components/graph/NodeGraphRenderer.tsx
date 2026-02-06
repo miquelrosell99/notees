@@ -349,6 +349,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const visibilityFiltersRef = useRef(visibilityFilters);
   const selectedNodeIdsRef = useRef(selectedNodeIds);
   const currentNodeIdRef = useRef(currentNodeId);
+  const viewModeRef = useRef(viewMode);
   
   // Pan and zoom state
   const isPanningRef = useRef(false);
@@ -391,6 +392,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         node.targetY = centerY + radius * Math.sin(angle);
         // Store radius for physics constraint mode
         (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+        // Seed unpositioned nodes at target; existing nodes keep position and animate
+        if (node.x === 0 && node.y === 0) {
+          node.x = node.targetX;
+          node.y = node.targetY;
+        }
       });
     } else if (mode === 'tree') {
       // Build children map
@@ -493,10 +499,22 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           
           node.targetX = centerX + radius * Math.cos(angle);
           node.targetY = centerY + radius * Math.sin(angle);
-          // Also set initial position near target to help convergence
+          // Seed unpositioned nodes near their parent for smooth entry, or at target
           if (node.x === 0 && node.y === 0) {
-            node.x = node.targetX;
-            node.y = node.targetY;
+            if (node.parentId !== null) {
+              const parent = nodes.find(n => n.id === node.parentId);
+              if (parent && (parent.x !== 0 || parent.y !== 0)) {
+                // Start near parent with slight random offset
+                node.x = parent.x + (Math.random() - 0.5) * 30;
+                node.y = parent.y + (Math.random() - 0.5) * 30;
+              } else {
+                node.x = node.targetX;
+                node.y = node.targetY;
+              }
+            } else {
+              node.x = node.targetX;
+              node.y = node.targetY;
+            }
           }
         } else {
           // Orphan
@@ -506,6 +524,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const angle = (2 * Math.PI * idx) / Math.max(orphans.length, 1) + Math.PI;
           node.targetX = centerX + maxRadius * Math.cos(angle);
           node.targetY = centerY + maxRadius * Math.sin(angle);
+          if (node.x === 0 && node.y === 0) {
+            node.x = node.targetX;
+            node.y = node.targetY;
+          }
         }
       }
     } else {
@@ -526,7 +548,21 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
+  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
   
+  // Handle view mode changes separately — only update targets, don't reset warmup
+  const prevViewModeRef = useRef(viewMode);
+  useEffect(() => {
+    if (prevViewModeRef.current === viewMode) return;
+    prevViewModeRef.current = viewMode;
+    
+    // Recalculate target positions and radii for the new mode
+    // Node positions are preserved — forces will animate them to new targets
+    if (nodesRef.current.length > 0) {
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    }
+  }, [viewMode, dimensions, calculatePositions]);
+
   // Store original input nodes for filter comparison
   const inputNodesMapRef = useRef<Map<number, GraphNode>>(new Map());
   const allLinksRef = useRef<GraphLink[]>([]);
@@ -591,13 +627,22 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, currentFilters)
     );
     
-    // Add nodes that should be visible
+    // Add nodes that should be visible — place near parent for smooth entry
     nodesToAdd.forEach(node => {
-      // Place near center with some randomness
+      // Try to find the parent node for initial positioning
+      let startX = dimensions.width / 2 + (Math.random() - 0.5) * 100;
+      let startY = dimensions.height / 2 + (Math.random() - 0.5) * 100;
+      if (node.parentId !== null) {
+        const parentNode = nodesRef.current.find(n => n.id === node.parentId);
+        if (parentNode) {
+          startX = parentNode.x + (Math.random() - 0.5) * 30;
+          startY = parentNode.y + (Math.random() - 0.5) * 30;
+        }
+      }
       const newNode: GraphNode = {
         ...node,
-        x: dimensions.width / 2 + (Math.random() - 0.5) * 100,
-        y: dimensions.height / 2 + (Math.random() - 0.5) * 100,
+        x: startX,
+        y: startY,
         vx: 0,
         vy: 0,
         visible: true,
@@ -612,10 +657,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     );
     
     // Recalculate positions if in constrained mode
-    if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewMode === 'circle' || viewMode === 'tree')) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree')) {
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
     }
-  }, [visibilityFilters, viewMode, dimensions, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
+  }, [visibilityFilters, dimensions, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
 
   // Recenter/fit graph
   const recenter = useCallback(() => {
@@ -684,10 +729,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     nodesRef.current.push(newNode);
     
     // Recalculate positions if in constrained mode
-    if (viewMode === 'circle' || viewMode === 'tree') {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
     }
-  }, [viewMode, dimensions, calculatePositions]);
+  }, [dimensions, calculatePositions]);
   
   const destroyNode = useCallback((nodeId: number) => {
     // Find and remove the node
@@ -702,10 +747,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     );
     
     // Recalculate positions if in constrained mode
-    if (viewMode === 'circle' || viewMode === 'tree') {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
     }
-  }, [viewMode, dimensions, calculatePositions]);
+  }, [dimensions, calculatePositions]);
   
   const updateLinks = useCallback((links: GraphLink[]) => {
     linksRef.current = [...links];
@@ -839,7 +884,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation intentionally excluded to prevent re-simulation on every render
-  }, [inputNodes, inputLinks, dimensions, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
+  }, [inputNodes, inputLinks, dimensions, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
 
   // Update glare states
   useEffect(() => {
@@ -937,7 +982,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodes = nodesRef.current;
       const links = linksRef.current;
       const currentSettings = settingsRef.current;
-      const isConstrainedMode = viewMode === 'circle' || viewMode === 'tree';
+      const currentViewMode = viewModeRef.current;
+      const isConstrainedMode = currentViewMode === 'circle' || currentViewMode === 'tree';
       
       // All nodes in nodesRef are visible (filtering handled by visibility effect)
       const visibleNodes = nodes.filter(n => n.visible);
@@ -1019,24 +1065,27 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Determine if physics forces should be applied
       const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
-      const useEquidistant = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
-      // Equidistant mode: spring return to pre-calculated target positions
-      if (useEquidistant) {
+      // Constrained modes: apply return-to-target force
+      // In equidistant mode this is the primary positioning force
+      // In physics mode only a very gentle hint — N-body forces handle clustering
+      if (isConstrainedMode) {
+        const returnStrength = currentSettings.constraintMode === 'equidistant' ? RETURN_FORCE : RETURN_FORCE * 0.05;
         for (const node of visibleNodes) {
           if (dragNodeRef.current?.id === node.id) continue;
           if (node.pinned) continue;
           
           const dx = node.targetX - node.x;
           const dy = node.targetY - node.y;
-          node.vx += dx * RETURN_FORCE;
-          node.vy += dy * RETURN_FORCE;
+          node.vx += dx * returnStrength;
+          node.vy += dy * returnStrength;
         }
       }
       
       // Centering gravity — gentle pull toward center to prevent drift
+      // Only applied during warmup phase in normal mode, not continuously
       // Not needed in constrained modes (radial constraint or return force handles it)
-      if (!isConstrainedMode) {
+      if (!isConstrainedMode && warmupT < 1) {
         const cx = dimensions.width / 2;
         const cy = dimensions.height / 2;
         for (const node of visibleNodes) {
@@ -1176,8 +1225,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           node.vx *= VELOCITY_DAMPING;
           node.vy *= VELOCITY_DAMPING;
           
-          // Constrained physics mode: project node back onto its assigned circle
-          if (isConstrainedMode && currentSettings.constraintMode === 'physics') {
+          // Constrained modes: keep nodes on their assigned circle
+          if (isConstrainedMode) {
             const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
             if (treeRadius !== undefined) {
               const cx = dimensions.width / 2;
@@ -1185,12 +1234,21 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               const dx = node.x - cx;
               const dy = node.y - cy;
               const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-              // Project onto circle: keep angle, enforce radius
-              node.x = cx + (dx / dist) * treeRadius;
-              node.y = cy + (dy / dist) * treeRadius;
-              // Remove radial component of velocity (keep tangential only)
               const radialX = dx / dist;
               const radialY = dy / dist;
+              const radiusError = Math.abs(dist - treeRadius);
+              
+              // Smoothly lerp radial distance toward target radius each frame
+              // Close enough (<1px): snap for precision
+              // Otherwise: move 12% closer per frame for smooth transition
+              const newDist = radiusError < 1
+                ? treeRadius
+                : dist + (treeRadius - dist) * 0.12;
+              
+              node.x = cx + radialX * newDist;
+              node.y = cy + radialY * newDist;
+              
+              // Strip radial velocity component (keep only tangential)
               const radialV = node.vx * radialX + node.vy * radialY;
               node.vx -= radialV * radialX;
               node.vy -= radialV * radialY;
@@ -1204,7 +1262,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     };
     
     simulate();
-  }, [viewMode, getConnectedNodes]);
+  }, [getConnectedNodes]);
 
   // Start simulation once on mount
   useEffect(() => {
@@ -1224,6 +1282,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     const currentClassColors = classColorsRef.current;
+    const currentViewMode = viewModeRef.current;
     const nodes = nodesRef.current;
     const links = linksRef.current;
     
@@ -1449,8 +1508,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     ctx.setLineDash([]);
     
-    // Draw level circle guides in constrained physics mode (tree and circle)
-    if ((viewMode === 'tree' || viewMode === 'circle') && settingsRef.current.constraintMode === 'physics') {
+    // Draw level circle guides in constrained modes (tree and circle)
+    if (currentViewMode === 'tree' || currentViewMode === 'circle') {
       const centerX = dimensions.width / 2;
       const centerY = dimensions.height / 2;
       
@@ -1593,7 +1652,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     ctx.restore();
-  }, [dimensions, hoveredNode, viewMode]);
+  }, [dimensions, hoveredNode]);
 
   // Keep renderRef in sync
   useEffect(() => {
@@ -1676,8 +1735,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       dragNodeRef.current.x = x;
       dragNodeRef.current.y = y;
-      // In physics constraint mode, constrain dragged node to its circle
-      if ((viewMode === 'tree' || viewMode === 'circle') && settingsRef.current.constraintMode === 'physics') {
+      // In constrained modes, constrain dragged node to its circle
+      if (viewModeRef.current === 'tree' || viewModeRef.current === 'circle') {
         const treeRadius = (dragNodeRef.current as GraphNode & { _treeRadius?: number })._treeRadius;
         if (treeRadius !== undefined) {
           const cx = dimensions.width / 2;
@@ -1696,7 +1755,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       setHoveredNode(node);
       onHoveredNodeChange?.(node);
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, viewMode, dimensions]);
+  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, dimensions]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
