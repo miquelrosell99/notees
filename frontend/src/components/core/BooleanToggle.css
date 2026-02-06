@@ -9,7 +9,12 @@
 }
 
 .toggle-container--label-left {
-  flex-direction: row-reverse;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.toggle-container--label-right {
+  flex-direction: row;
 }
 
 .toggle-container--disabled {
@@ -164,6 +169,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.toggle-container--label-left .toggle-label-wrapper {
+  flex: 1;
 }
 
 .toggle-label {
