@@ -27,6 +27,7 @@ import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
+import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { PageHeader } from '../components/PageHeader';
 import { NodePillRow } from '../components/NodePillRow';
 import { ImageNode } from '../components/ImageNode';
@@ -42,8 +43,10 @@ import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline } from '@mdi/js';
+import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiRestore } from '@mdi/js';
 import Icon from '@mdi/react';
+import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
+import { SelectionButton } from '../components/core/SelectionButton';
 
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import type { Asset } from '../api/assets';
@@ -236,7 +239,12 @@ interface NodeViewProps {
   linkedRefsCollapsed?: boolean;
 }
 
-export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps) {
+export interface NodeViewResult {
+  header: React.ReactNode;
+  content: React.ReactNode;
+}
+
+export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps): NodeViewResult {
   // Fetch the node
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true, 
@@ -746,23 +754,142 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
 
   // Loading state
   if (isLoading) {
-    return (
-      <article className={`node-view node-view--loading ${viewMode}`}>
-        <div className="loading-state">Loading...</div>
-      </article>
-    );
+    return {
+      header: <MainContentTopbar />,
+      content: (
+        <article className={`node-view node-view--loading ${viewMode}`}>
+          <div className="loading-state">Loading...</div>
+        </article>
+      )
+    };
   }
   
   // Error state
   if (error || !node) {
-    return (
-      <article className={`node-view node-view--error ${viewMode}`}>
-        <div className="error-state">Node not found</div>
-      </article>
-    );
+    return {
+      header: <MainContentTopbar />,
+      content: (
+        <article className={`node-view node-view--error ${viewMode}`}>
+          <div className="error-state">Node not found</div>
+        </article>
+      )
+    };
   }
 
-  return (
+  // Build header content
+  const headerContent = (
+    <MainContentTopbar
+      left={
+        <NodeBreadcrumbs
+          nodeId={nodeId}
+          nodeType={resolvedType}
+          onNavigate={(id, type) => openNode(id, type)}
+          propertyContext={undefined}
+          className="node-view-breadcrumbs"
+        />
+      }
+      right={
+        <div className="node-view-controls">
+          {/* Document/Bullet/Card mode selector - only for pages, not blocks */}
+          {resolvedType !== 'block' && (
+            <SelectionButton
+              options={[
+                { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
+                { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
+                { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+              ]}
+              value={contentDisplayMode}
+              onChange={(val) => useNodesStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
+              size="sm"
+            />
+          )}
+          
+          {/* Card layout selector - only visible in card mode for pages */}
+          {resolvedType !== 'block' && contentDisplayMode === 'card' && (
+            <div className="card-layout-selector">
+              <Button 
+                variant="ghost"
+                size="sm"
+                icon={mdiCardOutline}
+                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useNodesStore.getState().setCardLayout('no-cover')}
+                title="No cover"
+              />
+              <Button 
+                variant="ghost"
+                size="sm"
+                icon={mdiDockLeft}
+                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useNodesStore.getState().setCardLayout('cover-left')}
+                title="Cover left"
+              />
+              <Button 
+                variant="ghost"
+                size="sm"
+                icon={mdiDockRight}
+                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useNodesStore.getState().setCardLayout('cover-right')}
+                title="Cover right"
+              />
+              <Button 
+                variant="ghost"
+                size="sm"
+                icon={mdiDockTop}
+                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useNodesStore.getState().setCardLayout('cover-top')}
+                title="Cover top"
+              />
+            </div>
+          )}
+          
+          {/* Late night thoughts filter */}
+          <Button
+            icon={mdiWeatherNight}
+            variant="ghost"
+            size="sm"
+            onClick={useNodesStore.getState().toggleLateNightThoughts}
+            active={lateNightThoughtsFilter}
+            aria-label="Toggle late night thoughts"
+            title="Show only late night thoughts (created 10PM-4AM)"
+            className="toolbar-btn"
+          />
+          
+          {/* Local graph button */}
+          <Button
+            icon={mdiGraphOutline}
+            variant="ghost"
+            size="sm"
+            active={useNodesStore.getState().rightSidebarContent === 'localGraph'}
+            onClick={() => useNodesStore.getState().openLocalGraph(nodeId)}
+            aria-label="Local graph"
+            title="Show local graph for this node"
+            className="toolbar-btn"
+          />
+          
+          {/* Reset all views button */}
+          <Button
+            icon={mdiRestore}
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              try {
+                const { useResetNodeViews } = await import('@/hooks/useNodeViews');
+                await useResetNodeViews().mutateAsync(nodeId);
+              } catch (error) {
+                console.error('Failed to reset views:', error);
+              }
+            }}
+            aria-label="Reset all views"
+            title="Reset all views to defaults"
+            className="toolbar-btn"
+          />
+        </div>
+      }
+    />
+  );
+
+  // Build main content
+  const mainContent = (
     <article 
       className={`node-view node-view--${resolvedType} ${viewMode}`}
     >
@@ -1109,6 +1236,28 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       )}
     </article>
   );
+
+  return {
+    header: headerContent,
+    content: mainContent
+  };
+}
+
+/**
+ * NodeViewWrapper - React component wrapper for NodeView function
+ * Renders header as fixed bar and content in scrollable area
+ */
+export function NodeViewWrapper(props: NodeViewProps) {
+  const { header, content } = NodeView(props);
+  return header;
+}
+
+/**
+ * NodeViewContent - Renders just the content portion
+ */
+export function NodeViewContent(props: NodeViewProps) {
+  const { content } = NodeView(props);
+  return content;
 }
 
 export default NodeView;

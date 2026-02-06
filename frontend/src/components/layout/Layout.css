@@ -75,6 +75,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: var(--spacing-2);
   min-width: 0;
 }
 
@@ -88,7 +89,18 @@
 .main-content .node-view-header-right,
 .main-content-wrapper .node-view-header-right {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+/* Enable pointer events for interactive elements in header */
+.main-content-header .btn,
+.main-content-header .toggle-switch,
+.node-view-header-right .btn,
+.node-view-header-right .toggle-switch,
+.node-view-header-left .btn {
+  pointer-events: auto;
 }
 
 /* Breadcrumbs within header */

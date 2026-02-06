@@ -17,6 +17,7 @@ import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { useProperty, useNodesWithProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { NodeIcon } from '../components/icons';
@@ -49,11 +50,16 @@ interface PropertyViewProps {
   onOpenInSidebar?: (nodeId: number) => void;
 }
 
+export interface PropertyViewResult {
+  header: React.ReactNode;
+  content: React.ReactNode;
+}
+
 export function PropertyView({
   propertyId,
   onNavigateToNode,
   onOpenInSidebar,
-}: PropertyViewProps) {
+}: PropertyViewProps): PropertyViewResult {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
@@ -236,26 +242,36 @@ export function PropertyView({
   const nodes = nodesWithProperty ?? [];
   
   if (isLoading && !property) {
-    return (
-      <div className="property-view loading">
-        <div className="property-view-skeleton">Loading property...</div>
-      </div>
-    );
+    return {
+      header: <MainContentTopbar />,
+      content: (
+        <div className="property-view loading">
+          <div className="property-view-skeleton">Loading property...</div>
+        </div>
+      )
+    };
   }
   
   if (!property) {
-    return (
-      <div className="property-view error">
-        <p>Property not found</p>
-      </div>
-    );
+    return {
+      header: <MainContentTopbar />,
+      content: (
+        <div className="property-view error">
+          <p>Property not found</p>
+        </div>
+      )
+    };
   }
   
-  return (
-    <div className="property-view">
-      {/* Topbar with mode toggle, type indicator, and delete button */}
-      <div className="property-view__topbar">
-        <div className="property-view__topbar-left">
+  const headerContent = (
+    <MainContentTopbar
+      left={
+        <div className="property-view__type-badge">
+          {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
+        </div>
+      }
+      right={
+        <>
           {typeInfo?.supportsMulti && (
             <ToggleSwitch
               leftLabel="SINGLE"
@@ -265,11 +281,6 @@ export function PropertyView({
               size="sm"
             />
           )}
-        </div>
-        <div className="property-view__topbar-right">
-          <div className="property-view__type-badge">
-            {typeInfo?.label.toUpperCase() || property.type.toUpperCase()}
-          </div>
           <Button
             icon={mdiDelete}
             variant="ghost"
@@ -278,21 +289,25 @@ export function PropertyView({
             title="Delete property"
             aria-label="Delete property"
           />
-        </div>
-      </div>
-      
+        </>
+      }
+    />
+  );
+
+  const mainContent = (
+    <main className="main-content property-view">
       {/* Property Header - using PageHeader for consistency */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <PageHeader
-            page={property as unknown as Node}
-            compactMode={false}
-            onContextMenu={handleContextMenu}
-            onNameChange={handlePropertyNameChange}
-            onIconChange={handlePropertyIconChange}
-          />
+        <div className="page-header-section">
+          <div className="page-header-section__header">
+            <PageHeader
+              page={property as unknown as Node}
+              compactMode={false}
+              onContextMenu={handleContextMenu}
+              onNameChange={handlePropertyNameChange}
+              onIconChange={handlePropertyIconChange}
+            />
+          </div>
         </div>
-      </div>
       
       {/* Property Options (for selection type) */}
       {property.type === 'selection' && property.options.length > 0 && (
@@ -374,8 +389,13 @@ export function PropertyView({
           onCancel={handleCancelDelete}
         />
       )}
-    </div>
+      </main>
   );
+
+  return {
+    header: headerContent,
+    content: mainContent
+  };
 }
 
 /**
@@ -444,6 +464,23 @@ function PropertyValueDisplay({
         </span>
       );
   }
+}
+
+/**
+ * PropertyViewWrapper - React component wrapper for PropertyView function
+ * Renders header as fixed bar and content in scrollable area
+ */
+export function PropertyViewWrapper(props: PropertyViewProps) {
+  const { header, content } = PropertyView(props);
+  return header;
+}
+
+/**
+ * PropertyViewContent - Renders just the content portion
+ */
+export function PropertyViewContent(props: PropertyViewProps) {
+  const { content } = PropertyView(props);
+  return content;
 }
 
 export default PropertyView;

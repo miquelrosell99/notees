@@ -5,31 +5,23 @@
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
 import { useMemo, useEffect, useState } from 'react';
-import { useNodesStore, type CardLayoutMode } from '@/stores';
+import { useNodesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { useResetNodeViews } from '@/hooks/useNodeViews';
 import { getNodeColorStyles } from '@/utils/color';
-import { mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiRestore } from '@mdi/js';
-import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
-import { SelectionButton } from '../core/SelectionButton';
-import { Button } from '../core/Button';
-import { NodeView } from '../../views/NodeView';
+import { NodeViewWrapper, NodeViewContent } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
 import { TrashView } from '../../views/TrashView';
 import { JournalsView } from '../../views/JournalsView';
 import { GraphViewAll } from '../graph';
 import { TimelineViewAll } from '../timeline/TimelineViewAll';
-import { PropertyView } from '../../views/PropertyView';
+import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyView';
 
 export function MainContent() {
-  const { currentNodeId, currentNodeType, currentPropertyContext, viewMode, mainViewType, currentPropertyId, openNode, openPropertyView, addSidebarCard, contentDisplayMode, setContentDisplayMode, cardLayout, setCardLayout, lateNightThoughtsFilter, toggleLateNightThoughts, openLocalGraph, rightSidebarContent } = useNodesStore();
+  const { currentNodeId, currentNodeType, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNodesStore();
   
   // Fetch current node to get color (for pages and focused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);
-  
-  // Reset views mutation
-  const resetViewsMutation = useResetNodeViews();
   
   // Track dark mode for color styling
   const [isDarkMode, setIsDarkMode] = useState(() => 
@@ -106,13 +98,20 @@ export function MainContent() {
   
   if (mainViewType === 'property' && currentPropertyId) {
     return (
-      <main className="main-content">
-        <PropertyView 
+      <div className="main-content-wrapper">
+        <PropertyViewWrapper
           propertyId={currentPropertyId}
           onNavigateToNode={(nodeId) => openNode(nodeId, 'page')}
           onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
         />
-      </main>
+        <main className="main-content">
+          <PropertyViewContent
+            propertyId={currentPropertyId}
+            onNavigateToNode={(nodeId) => openNode(nodeId, 'page')}
+            onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
+          />
+        </main>
+      </div>
     );
   }
   
@@ -130,125 +129,12 @@ export function MainContent() {
 
   return (
     <div className="main-content-wrapper">
-      {/* Fixed header with breadcrumbs and controls */}
-      <div className="main-content-header">
-        <div className="node-view-header-content">
-          {/* Left section - breadcrumbs */}
-          <div className="node-view-header-left">
-            <NodeBreadcrumbs
-              nodeId={currentNodeId}
-              nodeType={currentNodeType}
-              onNavigate={(id, type) => openNode(id, type)}
-              onNavigateToProperty={(propertyId) => openPropertyView(propertyId)}
-              propertyContext={currentPropertyContext}
-              className="node-view-breadcrumbs"
-            />
-          </div>
-          
-          {/* Center section - empty for now */}
-          <div className="node-view-header-center"></div>
-          
-          {/* Right section - document mode selector and controls */}
-          <div className="node-view-header-right">
-            <div className="node-view-controls">
-              {/* Document/Bullet/Card mode selector - only for pages, not blocks */}
-              {currentNodeType !== 'block' && (
-                <SelectionButton
-                  options={[
-                    { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-                    { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
-                    { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
-                  ]}
-                  value={contentDisplayMode}
-                  onChange={(val) => setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
-                  size="sm"
-                />
-              )}
-              
-              {/* Card layout selector - only visible in card mode for pages */}
-              {currentNodeType !== 'block' && contentDisplayMode === 'card' && (
-                <div className="card-layout-selector">
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    icon={mdiCardOutline}
-                    className={`card-layout-option ${cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
-                    onClick={() => setCardLayout('no-cover' as CardLayoutMode)}
-                    title="No cover"
-                  />
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    icon={mdiDockLeft}
-                    className={`card-layout-option ${cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
-                    onClick={() => setCardLayout('cover-left' as CardLayoutMode)}
-                    title="Cover left"
-                  />
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    icon={mdiDockRight}
-                    className={`card-layout-option ${cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
-                    onClick={() => setCardLayout('cover-right' as CardLayoutMode)}
-                    title="Cover right"
-                  />
-                  <Button 
-                    variant="ghost"
-                    size="sm"
-                    icon={mdiDockTop}
-                    className={`card-layout-option ${cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
-                    onClick={() => setCardLayout('cover-top' as CardLayoutMode)}
-                    title="Cover top"
-                  />
-                </div>
-              )}
-              
-              {/* Late night thoughts filter */}
-              <Button
-                icon={mdiWeatherNight}
-                variant="ghost"
-                size="sm"
-                onClick={toggleLateNightThoughts}
-                active={lateNightThoughtsFilter}
-                aria-label="Toggle late night thoughts"
-                title="Show only late night thoughts (created 10PM-4AM)"
-                className="toolbar-btn"
-              />
-              
-              {/* Local graph button */}
-              <Button
-                icon={mdiGraphOutline}
-                variant="ghost"
-                size="sm"
-                active={rightSidebarContent === 'localGraph'}
-                onClick={() => openLocalGraph(currentNodeId!)}
-                aria-label="Local graph"
-                title="Show local graph for this node"
-                className="toolbar-btn"
-              />
-              
-              {/* Reset all views button */}
-              {mainViewType === 'node' && currentNodeId && (
-                <Button
-                  icon={mdiRestore}
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      await resetViewsMutation.mutateAsync(currentNodeId);
-                    } catch (error) {
-                      console.error('Failed to reset views:', error);
-                    }
-                  }}
-                  aria-label="Reset all views"
-                  title="Reset all views to defaults"
-                  className="toolbar-btn"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Fixed header */}
+      <NodeViewWrapper
+        nodeId={currentNodeId}
+        nodeType={currentNodeType}
+        viewMode={viewMode}
+      />
       
       {/* Scrollable content area */}
       <main 
@@ -256,7 +142,11 @@ export function MainContent() {
         className={`main-content${nodeColorStyle ? ' has-page-color' : ''}`}
         style={nodeColorStyle}
       >
-        <NodeView nodeId={currentNodeId} nodeType={currentNodeType} viewMode={viewMode} />
+        <NodeViewContent
+          nodeId={currentNodeId}
+          nodeType={currentNodeType}
+          viewMode={viewMode}
+        />
       </main>
     </div>
   );
