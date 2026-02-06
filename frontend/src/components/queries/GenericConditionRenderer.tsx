@@ -12,7 +12,7 @@ import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
-import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
+import { NodeSelector } from '../NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
 import { useCurrentNodeUuid } from '@/hooks/useRouter';
