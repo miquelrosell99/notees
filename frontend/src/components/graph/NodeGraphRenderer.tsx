@@ -972,7 +972,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Calculate glare radius to determine line endpoints
-      // Arrow is positioned at glareRadius + 2, so line should end at glareRadius + 2 + arrowSize
+      // Arrow is positioned at glareRadius + 2, so line should end at glareRadius + 2 + arrowSize to avoid overlap
       const arrowSize = 8;
       const arrowGap = 2;
       
@@ -990,12 +990,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceLineGlare = getLineGlareRadius(source);
       const targetLineGlare = getLineGlareRadius(target);
       
-      // Calculate line endpoints to stop where arrow starts (avoid transparency overlap)
+      // Determine if there are arrows at each end
+      const hasTargetArrow = isParentLink || link.source === source.id;
+      const hasSourceArrow = !isParentLink && directions?.forward && directions?.reverse;
+      
+      // Calculate line endpoints to stop where arrows start (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
-      const lineStartX = source.x + (sourceLineGlare + arrowGap) * Math.cos(lineAngle);
-      const lineStartY = source.y + (sourceLineGlare + arrowGap) * Math.sin(lineAngle);
-      const lineEndX = target.x - (targetLineGlare + arrowGap + arrowSize) * Math.cos(lineAngle);
-      const lineEndY = target.y - (targetLineGlare + arrowGap + arrowSize) * Math.sin(lineAngle);
+      const lineStartX = source.x + (sourceLineGlare + (hasSourceArrow ? arrowGap + arrowSize : arrowGap)) * Math.cos(lineAngle);
+      const lineStartY = source.y + (sourceLineGlare + (hasSourceArrow ? arrowGap + arrowSize : arrowGap)) * Math.sin(lineAngle);
+      const lineEndX = target.x - (targetLineGlare + (hasTargetArrow ? arrowGap + arrowSize : arrowGap)) * Math.cos(lineAngle);
+      const lineEndY = target.y - (targetLineGlare + (hasTargetArrow ? arrowGap + arrowSize : arrowGap)) * Math.sin(lineAngle);
       
       ctx.moveTo(lineStartX, lineStartY);
       ctx.lineTo(lineEndX, lineEndY);
