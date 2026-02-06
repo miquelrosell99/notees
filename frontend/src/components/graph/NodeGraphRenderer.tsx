@@ -342,6 +342,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const dragStartTimeRef = useRef<number | null>(null);
   const initialFitDoneRef = useRef(false); // Track if initial fit-to-view was done
   const warmupFrameRef = useRef(0); // Warm-up frame counter for gentle simulation start
+  const centerGravityActiveRef = useRef(true); // Only true on very first graph load
   
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
@@ -869,9 +870,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
     
-    // Reset warm-up so forces ramp up gradually with new data
-    warmupFrameRef.current = 0;
-    
     // Trigger initial fit-to-view after stabilization delay
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
       const stabilizationTimer = setTimeout(() => {
@@ -1082,10 +1080,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Centering gravity — gentle pull toward center to prevent drift
-      // Only applied during warmup phase in normal mode, not continuously
+      // Centering gravity — only on initial graph load, never again
       // Not needed in constrained modes (radial constraint or return force handles it)
-      if (!isConstrainedMode && warmupT < 1) {
+      if (!isConstrainedMode && centerGravityActiveRef.current) {
+        if (warmupT >= 1) {
+          // Warmup finished — disable center gravity permanently
+          centerGravityActiveRef.current = false;
+        }
         const cx = dimensions.width / 2;
         const cy = dimensions.height / 2;
         for (const node of visibleNodes) {
