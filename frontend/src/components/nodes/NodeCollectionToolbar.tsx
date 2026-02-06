@@ -195,6 +195,7 @@ export function NodeCollectionToolbar({
           panelPosition="bottom"
           panelAlignment="start"
           panelWidth={350}
+          usePortal={true}
           className="node-collection-toolbar__property-columns"
           tooltip="Select columns"
         >
