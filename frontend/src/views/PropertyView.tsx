@@ -11,7 +11,7 @@
  * - Navigation to nodes on click
  * - Delete property action in context menu
  */
-import { useState, useMemo, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { mdiDelete } from '@mdi/js';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -20,7 +20,6 @@ import { useNodesStore } from '@/stores';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
-import { NodeIcon } from '../components/icons';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
 import { PageHeader } from '../components/PageHeader';
 import { NodeViewSection } from '../components/nodes/NodeViewSection';
@@ -176,41 +175,28 @@ export function PropertyView({
     property ? propertyId : null
   );
   
-  // Generate columns for the table view
-  const columns = useMemo<{ key: string; label: string; width?: string; render?: (node: Node) => ReactNode }[]>(() => {
-    if (!property) return [];
-    
-    return [
-      {
-        key: 'name',
-        label: 'Name',
-        width: '40%',
-      },
-      {
-        key: property.name.toLowerCase().replace(/\s+/g, '_'),
-        label: property.name,
-        width: '40%',
-        render: (node: Node) => {
-          const propKey = property.name.toLowerCase().replace(/\s+/g, '_');
-          const value = (node.properties as Record<string, unknown>)?.[propKey];
-          return <PropertyValueDisplay property={property} value={value} />;
-        },
-      },
-      {
-        key: 'updated',
-        label: 'Updated',
-        width: '20%',
-        render: (node: Node) => {
-          const date = new Date(node.write_date);
-          return (
-            <span className="property-view-date">
-              {date.toLocaleDateString()}
-            </span>
-          );
-        },
-      },
-    ];
+  // Property column UUIDs for the table view
+  // Default: show the current property column + Modified date
+  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>(
+    property ? [property.uuid, '__modified__'] : ['__modified__']
+  );
+  
+  // Update property UUIDs when property changes
+  useMemo(() => {
+    if (property) {
+      setSelectedPropertyUuids(prev => {
+        // Ensure current property UUID is always included
+        if (!prev.includes(property.uuid)) {
+          return [property.uuid, ...prev];
+        }
+        return prev;
+      });
+    }
   }, [property]);
+  
+  const handlePropertyColumnsChange = useCallback((uuids: string[]) => {
+    setSelectedPropertyUuids(uuids);
+  }, []);
   
   // Handle node click
   const handleNodeClick = (node: Node) => {
@@ -341,6 +327,8 @@ export function PropertyView({
               viewMode={viewMode}
               availableViewModes={['table', 'list', 'card']}
               onViewModeChange={setViewMode}
+              selectedPropertyUuids={selectedPropertyUuids}
+              onPropertyColumnsChange={handlePropertyColumnsChange}
             />
           ) : undefined
         }
@@ -361,7 +349,8 @@ export function PropertyView({
             showClasses={true}
             onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}
-            tableColumns={columns}
+            selectedPropertyUuids={selectedPropertyUuids}
+            onPropertyColumnsChange={handlePropertyColumnsChange}
             hideToolbar={true}
           />
         )}
@@ -396,74 +385,6 @@ export function PropertyView({
     header: headerContent,
     content: mainContent
   };
-}
-
-/**
- * Display a property value based on its type
- */
-function PropertyValueDisplay({
-  property,
-  value,
-}: {
-  property: Property;
-  value: unknown;
-}) {
-  if (value === null || value === undefined || value === '') {
-    return <span className="property-view-value-empty">—</span>;
-  }
-  
-  switch (property.type) {
-    case 'boolean':
-      return (
-        <span className="property-view-value-boolean">
-          {value ? 'Yes' : 'No'}
-        </span>
-      );
-    
-    case 'integer':
-    case 'float':
-      return (
-        <span className="property-view-value-number">
-          {String(value)}
-        </span>
-      );
-    
-    case 'date': {
-      const date = new Date(String(value));
-      return (
-        <span className="property-view-value-date">
-          {date.toLocaleDateString()}
-        </span>
-      );
-    }
-    
-    case 'selection': {
-      const option = property.options.find(o => o.name === value);
-      return (
-        <span className="property-view-value-selection">
-          {option?.icon && <span className="property-view-value-icon">{option.icon}</span>}
-          {String(value)}
-        </span>
-      );
-    }
-    
-    case 'node':
-      // Node reference - would need to resolve the node name
-      return (
-        <span className="property-view-value-node">
-          <NodeIcon icon={null} isPage={true} size="xs" />
-          Node #{String(value)}
-        </span>
-      );
-    
-    case 'text':
-    default:
-      return (
-        <span className="property-view-value-text">
-          {String(value)}
-        </span>
-      );
-  }
 }
 
 /**
