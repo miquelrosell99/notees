@@ -33,7 +33,7 @@ import { BlockEditor } from '../blocks/BlockEditor';
 import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
-import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
+import { NodeSelector } from '../NodeSelector';
 import { QuerySection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
