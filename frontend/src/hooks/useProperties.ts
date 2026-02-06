@@ -267,6 +267,7 @@ export function useNodesWithProperty(propertyId: number | null) {
         create_date: item.create_date,
         write_date: item.write_date,
         properties: item.properties,
+        classes: item.class_ids,
       } as Node));
     },
     enabled: !!propertyId,

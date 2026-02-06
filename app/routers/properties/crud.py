@@ -351,6 +351,10 @@ async def get_nodes_with_property(
     # Get node IDs with this property
     node_ids = await repo.get_node_ids_with_property(property_id)
     
+    # Get class_ids for all nodes in one batch
+    from ..nodes.helpers import _get_class_ids_batch
+    node_class_map = await _get_class_ids_batch(pool, graph_id, node_ids)
+    
     # Build response with node details and property values
     result = []
     async with pool.acquire() as conn:
@@ -369,6 +373,9 @@ async def get_nodes_with_property(
             all_prop_values = await repo.get_all_property_values(node_id)
             properties_dict = extract_properties_dict(all_prop_values)
             
+            # Get class_ids for this node
+            class_ids = node_class_map.get(node_id, [])
+            
             result.append({
                 "node_id": node_row['id'],
                 "node_uuid": node_row['uuid'],
@@ -382,6 +389,7 @@ async def get_nodes_with_property(
                 "create_date": node_row['create_date'].isoformat() if node_row['create_date'] else None,
                 "write_date": node_row['write_date'].isoformat() if node_row['write_date'] else None,
                 "properties": properties_dict,
+                "class_ids": class_ids,
             })
     
     return {"nodes": result, "property": _property_to_response(prop)}
