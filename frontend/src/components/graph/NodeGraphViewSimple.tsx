@@ -55,6 +55,7 @@ export function NodeGraphViewSimple({
     
     const nodes: GraphNode[] = inputNodes.map((apiNode) => ({
       id: apiNode.id,
+      uuid: apiNode.uuid,
       x: 0,
       y: 0,
       vx: 0,
