@@ -1039,25 +1039,31 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.fill();
       };
       
+      // Helper function to check if we should skip dots for system types
+      const shouldSkipDot = (targetNode: GraphNode) => {
+        const targetName = targetNode.name.toLowerCase();
+        return targetName === 'page' || targetName === 'class';
+      };
+      
       if (isParentLink) {
         // Parent links have a dot pointing to child (target)
-        drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+        if (!shouldSkipDot(target)) {
+          drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+        }
       } else if (isClassLink) {
         // Class links have a dot pointing to the type node (target)
-        // Skip dots for system types: "page" and "class"
-        const targetName = target.name.toLowerCase();
-        if (targetName !== 'page' && targetName !== 'class') {
+        if (!shouldSkipDot(target)) {
           drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else {
         // Reference links - draw dots
         // Dot pointing from source to target (at target end)
-        if (link.source === source.id) {
+        if (link.source === source.id && !shouldSkipDot(target)) {
           drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
         
         // If bidirectional, draw dot pointing back (at source end)
-        if (directions?.forward && directions?.reverse) {
+        if (directions?.forward && directions?.reverse && !shouldSkipDot(source)) {
           drawDot(target.x, target.y, source.x, source.y, sourceGlareRadius);
         }
       }
