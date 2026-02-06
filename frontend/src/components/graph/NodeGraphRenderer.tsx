@@ -61,7 +61,7 @@ const LABEL_FADE_ZOOM_MAX = 0.7;
 
 export type GraphViewMode = 'normal' | 'circle' | 'tree';
 export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
-export type NodeSizeMode = 'uniform' | 'backlinks' | 'internal-links' | 'total-links';
+export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
 
 export interface GraphNode {
   id: number;
@@ -84,8 +84,7 @@ export interface GraphNode {
   glare: GlareState;
   pinned: boolean;
   color?: string;
-  backlinkCount: number;
-  internalLinkCount: number;
+  connectionCount: number;
   createdAt?: string;
   visible: boolean;
   isClassNode: boolean;
@@ -238,33 +237,29 @@ function hexToRgba(hex: string, opacity: number): string {
 function getNodeRadius(
   node: GraphNode, 
   nodeSizeMode: NodeSizeMode,
-  maxBacklinks: number,
-  maxInternalLinks: number,
-  maxTotalLinks: number
+  maxConnections: number,
+  maxMass: number,
 ): number {
   if (nodeSizeMode === 'uniform') {
     return NODE_RADIUS_BASE;
   }
   
-  let count = 0;
+  let value = 0;
   let max = 1;
   
   switch (nodeSizeMode) {
-    case 'backlinks':
-      count = node.backlinkCount;
-      max = maxBacklinks || 1;
+    case 'connections':
+      value = node.connectionCount;
+      max = maxConnections || 1;
       break;
-    case 'internal-links':
-      count = node.internalLinkCount;
-      max = maxInternalLinks || 1;
-      break;
-    case 'total-links':
-      count = node.backlinkCount + node.internalLinkCount;
-      max = maxTotalLinks || 1;
+    case 'mass':
+      // mass is stored on the node by the simulation
+      value = (node as GraphNode & { _mass?: number })._mass ?? 1;
+      max = maxMass || 1;
       break;
   }
   
-  const ratio = Math.sqrt(count / max);
+  const ratio = Math.sqrt(value / max);
   return NODE_RADIUS_MIN + ratio * (NODE_RADIUS_MAX - NODE_RADIUS_MIN);
 }
 
@@ -1043,6 +1038,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const getNodeMass = (nodeId: number): number => 
         currentSettings.massAccumulation ? computeMass(nodeId) : 1;
       
+      // Compute connection counts from visible links and store mass on nodes
+      const connectionCounts = new Map<number, number>();
+      for (const link of links) {
+        if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+          connectionCounts.set(link.source, (connectionCounts.get(link.source) || 0) + 1);
+          connectionCounts.set(link.target, (connectionCounts.get(link.target) || 0) + 1);
+        }
+      }
+      for (const node of visibleNodes) {
+        node.connectionCount = connectionCounts.get(node.id) || 0;
+        (node as GraphNode & { _mass?: number })._mass = getNodeMass(node.id);
+      }
+      
       // Constrained mode return force
       if (isConstrainedMode) {
         for (const node of visibleNodes) {
@@ -1075,9 +1083,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             if (connectionType) {
               let attractionStrength = ATTRACTION_STRENGTH;
               if (currentSettings.linkCountAttraction) {
-                const totalLinks = nodeA.backlinkCount + nodeA.internalLinkCount +
-                                   nodeB.backlinkCount + nodeB.internalLinkCount;
-                const linkFactor = Math.log2(2 + totalLinks);
+                const totalConnections = nodeA.connectionCount + nodeB.connectionCount;
+                const linkFactor = Math.log2(2 + totalConnections);
                 attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
               }
               
@@ -1230,12 +1237,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       return true;
     });
     
-    // Calculate max link counts
-    let maxBacklinks = 0, maxInternalLinks = 0, maxTotalLinks = 0;
+    // Calculate max connection counts and mass for node sizing
+    let maxConnections = 0, maxMass = 0;
     for (const node of visibleNodes) {
-      maxBacklinks = Math.max(maxBacklinks, node.backlinkCount);
-      maxInternalLinks = Math.max(maxInternalLinks, node.internalLinkCount);
-      maxTotalLinks = Math.max(maxTotalLinks, node.backlinkCount + node.internalLinkCount);
+      maxConnections = Math.max(maxConnections, node.connectionCount);
+      maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
     }
     
     // Build link direction map - check if reverse link exists for bidirectional arrows
@@ -1474,7 +1480,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       const isHovered = hoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
       const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       
@@ -1596,18 +1602,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     
-    let maxBacklinks = 0, maxInternalLinks = 0, maxTotalLinks = 0;
+    let maxConnections = 0, maxMass = 0;
     for (const node of nodesRef.current) {
-      maxBacklinks = Math.max(maxBacklinks, node.backlinkCount);
-      maxInternalLinks = Math.max(maxInternalLinks, node.internalLinkCount);
-      maxTotalLinks = Math.max(maxTotalLinks, node.backlinkCount + node.internalLinkCount);
+      maxConnections = Math.max(maxConnections, node.connectionCount);
+      maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
     }
     
     for (let i = nodesRef.current.length - 1; i >= 0; i--) {
       const node = nodesRef.current[i];
       if (!node.visible) continue;
       
-      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
+      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
       const hitRadius = (nodeRadius + NODE_HOVER_RADIUS_EXTRA + 4) / t.scale;
       const dx = x - node.x;
       const dy = y - node.y;

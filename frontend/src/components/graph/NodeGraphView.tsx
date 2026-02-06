@@ -260,8 +260,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
         glare: 'normal',
         pinned: pinnedNodes.has(apiNode.id),
         color: (apiNode.properties?.color as string) || undefined,
-        backlinkCount: apiNode.backlink_count ?? 0,
-        internalLinkCount: apiNode.internal_link_count ?? 0,
+        connectionCount: 0, // computed by renderer from visible links
         createdAt: apiNode.created_at,
         visible: true,
         isClassNode: apiNode.is_class || classIds.has(apiNode.id),
@@ -447,9 +446,8 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                 }))}
               >
                 <option value="uniform">Uniform size</option>
-                <option value="backlinks">Backlink count</option>
-                <option value="internal-links">Internal link count</option>
-                <option value="total-links">Total link count</option>
+                <option value="connections">Connection count</option>
+                <option value="mass">Hierarchy mass</option>
               </select>
               <p className="settings-hint">
                 Size nodes by how connected they are
