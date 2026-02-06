@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 
 from ..auth import get_current_user
 from ...models import User, PaginatedResponse
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from .helpers import (
     _get_node_service,
     _node_to_response,
@@ -28,15 +29,23 @@ async def get_graph_data_endpoint(
     service = await _get_node_service(user)
     
     async with service._pool.acquire() as conn:
-        # Get all active pages as nodes
+        # System type UUIDs to exclude from graph view
+        excluded_uuids = [
+            SYSTEM_CLASS_UUIDS["page"],
+            SYSTEM_CLASS_UUIDS["class"],
+        ]
+        
+        # Get all active pages as nodes (excluding system types)
         page_rows = await conn.fetch(
             """
             SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year
             FROM node 
             WHERE graph_id = $1 AND is_page = TRUE AND active = TRUE
+              AND uuid::text NOT IN (SELECT unnest($2::text[]))
             ORDER BY name
             """,
-            service._graph_id
+            service._graph_id,
+            excluded_uuids
         )
         
         # Get types for each page
