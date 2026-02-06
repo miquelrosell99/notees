@@ -90,6 +90,8 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const [visibilityFilters, setVisibilityFilters] = useState<VisibilityFilters>({
     showClassNodes: true,
     showClassLinks: true,
+    showParentLinks: true,
+    showReferenceLinks: true,
     showDayPages: true,
     showMonthPages: true,
     showYearPages: true,
@@ -261,7 +263,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
         internalLinkCount: apiNode.internal_link_count ?? 0,
         createdAt: apiNode.created_at,
         visible: true,
-        isTypeNode: apiNode.is_class || classIds.has(apiNode.id),
+        isClassNode: apiNode.is_class || classIds.has(apiNode.id),
       };
     });
     
@@ -465,7 +467,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={visibilityFilters.showClassNodes && visibilityFilters.showClassLinks && visibilityFilters.showDayPages && visibilityFilters.showMonthPages && visibilityFilters.showYearPages && visibilityFilters.showSystemPages ? mdiEye : mdiEyeOff}
+          icon={visibilityFilters.showClassNodes && visibilityFilters.showClassLinks && visibilityFilters.showParentLinks && visibilityFilters.showReferenceLinks && visibilityFilters.showDayPages && visibilityFilters.showMonthPages && visibilityFilters.showYearPages && visibilityFilters.showSystemPages ? mdiEye : mdiEyeOff}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
@@ -493,12 +495,38 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
               <BooleanToggle
                 size="sm"
                 label="Class links"
-                description="Show extends relationship lines"
+                description="Show class assignment lines"
                 labelPosition="left"
                 checked={visibilityFilters.showClassLinks}
                 onChange={(e) => setVisibilityFilters(prev => ({
                   ...prev,
                   showClassLinks: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Parent links"
+                description="Show parent and extends lines"
+                labelPosition="left"
+                checked={visibilityFilters.showParentLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showParentLinks: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Reference links"
+                description="Show backlink reference lines"
+                labelPosition="left"
+                checked={visibilityFilters.showReferenceLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showReferenceLinks: e.target.checked
                 }))}
               />
             </div>
