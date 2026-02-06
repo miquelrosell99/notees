@@ -25,7 +25,7 @@ export interface NodeGraphViewSimpleProps {
   /** Graph data - nodes from API */
   nodes: ApiGraphNode[];
   /** Graph links from API */
-  links: Array<{ source: number; target: number; type: 'parent' | 'reference' | 'class' }>;
+  links: Array<{ source: number; target: number; type: 'parent' | 'reference' | 'property-reference' | 'class' }>;
   /** Currently highlighted node ID (e.g., current page) */
   currentNodeId?: number | null;
   /** CSS class */
