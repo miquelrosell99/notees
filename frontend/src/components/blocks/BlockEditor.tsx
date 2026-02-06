@@ -435,7 +435,7 @@ function isPillElement(el: HTMLElement): boolean {
 /**
  * Get the raw content length of a pill element
  */
-function getPillRawLength(el: HTMLElelink') || el.classList?.contains('inline-ment): number {
+function getPillRawLength(el: HTMLElement): number {
   if (el.classList?.contains('inline-node-link') || el.classList?.contains('link-pill') || el.classList?.contains('tag-pill')) {
     return (el.dataset.linkRaw || '').length;
   } else if (el.classList?.contains('type-pill')) {
@@ -2016,7 +2016,7 @@ export function BlockEditor({
 
   // Handle save link name
   const handleSaveLinkName = useCallback(async (linkUuid: string, newName: string | null) => {
-    tr
+    try {
       await updateLinkName(linkUuid, newName);
       
       // Invalidate text links query to refresh
@@ -2027,10 +2027,7 @@ export function BlockEditor({
     } catch (error) {
       console.error('Failed to update link name:', error);
     }
-  }, [nodeId, queryClient(error) {
-      console.error('Failed to update link name:', error);
-    }
-  }, [nodeId]);
+  }, [nodeId, queryClient]);
 
   return (
     <div className="block-editor">
