@@ -379,35 +379,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const levelGap = 100; // Gap between concentric circles (tree) or base radius factor (circle)
     
     if (mode === 'circle') {
-      // Only position visible nodes in the circle
-      const visibleNodes = filterClassNodes ? nodes.filter(n => !n.isClassNode) : nodes;
+      // Position all nodes in a circle
       const radius = Math.min(centerX, centerY) * 0.8;
-      visibleNodes.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / visibleNodes.length - Math.PI / 2;
+      nodes.forEach((node, i) => {
+        const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
         node.targetX = centerX + radius * Math.cos(angle);
         node.targetY = centerY + radius * Math.sin(angle);
       });
-      // Hidden type nodes should stay at center
-      if (filterClassNodes) {
-        nodes.filter(n => n.isClassNode).forEach(node => {
-          node.targetX = centerX;
-          node.targetY = centerY;
-        });
-      }
     } else if (mode === 'tree') {
-      const baseNodes = filterClassNodes ? nodes.filter(n => !n.isClassNode) : nodes;
-      
-      // Hidden class nodes should stay at center
-      if (filterClassNodes) {
-        nodes.filter(n => n.isClassNode).forEach(node => {
-          node.targetX = centerX;
-          node.targetY = centerY;
-        });
-      }
-      
       // Build children map
       const childrenByParent = new Map<number, GraphNode[]>();
-      for (const node of baseNodes) {
+      for (const node of nodes) {
         if (node.parentId !== null) {
           const siblings = childrenByParent.get(node.parentId) || [];
           siblings.push(node);
@@ -1385,20 +1367,23 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const levelGap = 100;
       const maxRadius = Math.min(centerX, centerY) * 0.9;
       
-      // Find max depth from visible node positions (approximate from distance to center)
-      let maxDepth = 0;
+      // Find which levels have visible nodes (based on distance from center)
+      const levelsWithNodes = new Set<number>();
       for (const node of visibleNodes) {
         const dist = Math.sqrt((node.targetX - centerX) ** 2 + (node.targetY - centerY) ** 2);
         const depth = Math.round(dist / levelGap);
-        maxDepth = Math.max(maxDepth, depth);
+        if (depth > 0) { // Skip nodes at center (depth 0 means distance < levelGap/2)
+          levelsWithNodes.add(depth);
+        }
       }
       
       ctx.strokeStyle = 'rgba(100, 100, 100, 0.1)';
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       
-      for (let depth = 0; depth <= maxDepth; depth++) {
-        const radius = Math.min(levelGap * (depth + 1), maxRadius);
+      // Only draw circles for levels that actually have nodes
+      for (const depth of levelsWithNodes) {
+        const radius = Math.min(levelGap * depth, maxRadius);
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
         ctx.stroke();
