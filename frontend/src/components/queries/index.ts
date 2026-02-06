@@ -1,7 +1,6 @@
 /**
  * Query components module exports
  */
-export { NodeSelector, SingleNodeSelector } from './NodeSelectors';
 export { QuerySQLPreview } from './QuerySQLPreview';
 export { ProseRenderer } from './ProseRenderer';
 

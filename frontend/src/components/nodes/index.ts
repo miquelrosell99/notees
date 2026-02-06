@@ -14,10 +14,6 @@ export { NodeContent } from './NodeContent';
 
 export { NodeContextMenu, PageContextMenu, BlockContextMenu, ColorPickerRow } from './NodeContextMenu';
 
-
-
-export { NodePicker } from './NodePicker';
-
 export { NodePreview } from './NodePreview';
 
 export { NodeViewSection } from './NodeViewSection';

@@ -47,7 +47,7 @@ function getPropertyIcon(property: Property): string {
 }
 import { Button } from './core/Button';
 import { Dropdown } from './core/Dropdown';
-import { NodePicker } from './nodes/NodePicker';
+import { NodePillRow } from './NodePillRow';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './properties/PropertyList';
@@ -199,7 +199,7 @@ function PropertyValue({
       );
 
     case 'node':
-      // For node references - use NodePicker for both single and multi-value
+      // For node references - use NodePillRow with trigger='select'
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
         const newPage = await onCreatePage?.(name, property.class_filters);
@@ -207,33 +207,21 @@ function PropertyValue({
         return newPage;
       }, [onCreatePage, property.class_filters]);
       
-      if (property.multi) {
-        // Multi-value: use NodePicker with multi mode
-        return (
-          <NodePicker
-            property={property}
-            value={Array.isArray(value) ? value : value ? [value as number] : []}
-            multi={true}
-            readOnly={readOnly}
-            onChange={(newValue) => onChange(newValue)}
-            onNavigate={onNavigateToNode}
-            onCreate={readOnly ? undefined : handleCreateNodeForProperty}
-          />
-        );
-      } else {
-        // Single-value: use NodePicker for consistent UX with search and create
-        return (
-          <NodePicker
-            property={property}
-            value={typeof value === 'number' ? value : null}
-            multi={false}
-            readOnly={readOnly}
-            onChange={(newValue) => onChange(newValue)}
-            onNavigate={onNavigateToNode}
-            onCreate={readOnly ? undefined : handleCreateNodeForProperty}
-          />
-        );
-      }
+      return (
+        <NodePillRow
+          trigger="select"
+          value={value as number | number[] | null}
+          multi={property.multi}
+          searchMode="pages"
+          classFilters={property.class_filters}
+          placeholder="Select node..."
+          searchPlaceholder="Search pages..."
+          readOnly={readOnly}
+          onNodeClick={onNavigateToNode}
+          onChange={(newValue) => onChange(newValue)}
+          onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
+        />
+      );
 
     case 'selection':
       // Selection with options
