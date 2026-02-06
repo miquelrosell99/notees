@@ -13,7 +13,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '../core/Checkbox';
-import { SearchIcon } from '../icons';
+import { SearchIcon, NodeIcon } from '../icons';
 import type { Property } from '@/types';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyColumnSelector.css';
@@ -95,7 +95,7 @@ function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps)
       <span className="property-column-selector__item-content">
         {property.icon && (
           <span className="property-column-selector__item-icon">
-            {property.icon}
+            <NodeIcon icon={property.icon} isPage={true} size="sm" />
           </span>
         )}
         <span className="property-column-selector__item-name">
@@ -276,7 +276,7 @@ export function PropertyColumnSelector({
                   <span className="property-column-selector__item-content">
                     {property.icon && (
                       <span className="property-column-selector__item-icon">
-                        {property.icon}
+                        <NodeIcon icon={property.icon} isPage={true} size="sm" />
                       </span>
                     )}
                     <span className="property-column-selector__item-name">
