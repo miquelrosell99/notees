@@ -12,7 +12,7 @@ import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
 import { ListSortable } from '../core/ListSortable';
-import { NodePillRow } from '../NodePillRow';
+import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
 import './PropertyForm.css';
 
 export interface PropertyTypeOption {
@@ -291,7 +291,7 @@ export function PropertyForm({
       {showAllowedClasses && propertyType === 'node' && (
         <div className="property-form__field">
           <label className="property-form__label">Allowed Classes</label>
-          <NodePillRow
+          <NodeSelector
             nodes={allowedClasses}
             searchMode="classes"
             emptyText="Add class"
@@ -357,3 +357,4 @@ export function PropertyForm({
     </div>
   );
 }
+

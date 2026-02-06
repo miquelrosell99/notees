@@ -47,7 +47,7 @@ function getPropertyIcon(property: Property): string {
 }
 import { Button } from './core/Button';
 import { Dropdown } from './core/Dropdown';
-import { NodePillRow } from './NodePillRow';
+import { NodeSelector } from 'from 'from './NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './properties/PropertyList';
@@ -199,7 +199,7 @@ function PropertyValue({
       );
 
     case 'node':
-      // For node references - use NodePillRow with trigger='select'
+      // For node references - use NodeSelector with trigger='select'
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
         const newPage = await onCreatePage?.(name, property.class_filters);
@@ -208,7 +208,7 @@ function PropertyValue({
       }, [onCreatePage, property.class_filters]);
       
       return (
-        <NodePillRow
+        <NodeSelector
           trigger="select"
           value={value as number | number[] | null}
           multi={property.multi}
@@ -800,3 +800,4 @@ export function InlineProperties({
 }
 
 export default PropertiesSection;
+

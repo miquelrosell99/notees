@@ -7,7 +7,7 @@
  * When selecting an existing property, it's added to the node.
  * When creating a new property, opens PropertyCreateModal for configuration.
  * 
- * Uses the same dropdown pattern as NodePillRow for consistency.
+ * Uses the same dropdown pattern as NodeSelector for consistency.
  */
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';

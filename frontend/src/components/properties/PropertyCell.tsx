@@ -19,7 +19,7 @@ import * as nodesApi from '@/api/nodes';
 import { Block } from '../blocks/Block';
 import { ImageNode } from '../ImageNode';
 import { NodePill } from '../NodePill';
-import { NodePillRow } from '../NodePillRow';
+import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
 import { Pill } from '../core/Pill';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
@@ -296,7 +296,7 @@ function InlineBlock({ nodeId }: { nodeId: number }) {
 }
 
 /**
- * MultiNodePropertyCell - Renders multi-value node properties using NodePillRow
+ * MultiNodePropertyCell - Renders multi-value node properties using NodeSelector
  * Fetches all node data and provides add/remove functionality
  */
 function MultiNodePropertyCell({
@@ -344,7 +344,7 @@ function MultiNodePropertyCell({
 
   return (
     <div className="property-cell property-cell--node-multi">
-      <NodePillRow
+      <NodeSelector
         nodes={resolvedNodes}
         searchMode="pages"
         classFilters={property.class_filters}
@@ -377,7 +377,7 @@ function MultiNodePropertyCell({
 
 /**
  * NodePropertyCell - Handles all node-type properties (empty/single/multi, asset/regular)
- * Uses NodePillRow for regular nodes, ImageNode for assets
+ * Uses NodeSelector for regular nodes, ImageNode for assets
  */
 function NodePropertyCell({
   property,
@@ -446,7 +446,7 @@ function NodePropertyCell({
     );
   }
 
-  // Regular node properties: use NodePillRow
+  // Regular node properties: use NodeSelector
   if (isLoading && nodeIds.length > 0) {
     return (
       <div className="property-cell property-cell--loading">
@@ -457,7 +457,7 @@ function NodePropertyCell({
 
   return (
     <div className="property-cell property-cell--node-multi">
-      <NodePillRow
+      <NodeSelector
         nodes={resolvedNodes}
         searchMode="pages"
         classFilters={property.class_filters}
@@ -627,3 +627,4 @@ function SelectionPropertyCell({
     </div>
   );
 }
+

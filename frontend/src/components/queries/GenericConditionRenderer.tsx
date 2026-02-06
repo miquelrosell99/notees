@@ -12,7 +12,7 @@ import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@
 import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
-import { NodePillRow } from '../NodePillRow';
+import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
 import { useCurrentNodeUuid } from '@/hooks/useRouter';
@@ -320,7 +320,7 @@ export function GenericConditionRenderer({
       case 'node-selector': {
         const selectedId = (condition as any).target_id || (condition as any).parent_id || null;
         return (
-          <NodePillRow
+          <NodeSelector
             trigger="select"
             searchMode="pages"
             value={selectedId}
@@ -337,7 +337,7 @@ export function GenericConditionRenderer({
       case 'class-selector': {
         const classNodes = selectedClassNode ? [selectedClassNode] : [];
         return (
-          <NodePillRow
+          <NodeSelector
             nodes={classNodes}
             searchMode="classes"
             emptyText={config.staticMode.placeholder}
@@ -394,3 +394,4 @@ export function GenericConditionRenderer({
 }
 
 export default GenericConditionRenderer;
+

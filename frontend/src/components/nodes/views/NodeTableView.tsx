@@ -24,7 +24,7 @@ import type { TableColumn, ExpandableConfig, ReorderableConfig } from '../../cor
 import { Table } from '../../core/Table';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
-import { NodePillRow } from '../../NodePillRow';
+import { NodeSelector } from '../../NodeSelector';
 import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
@@ -217,7 +217,7 @@ export function NodeTableView({
                 .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
               
               return (
-                <NodePillRow
+                <NodeSelector
                   nodes={classNodes}
                   searchMode="classes"
                   emptyText="Add class"
@@ -379,3 +379,4 @@ export function NodeTableView({
     </>
   );
 }
+

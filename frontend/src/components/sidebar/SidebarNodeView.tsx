@@ -33,7 +33,7 @@ import { BlockEditor } from '../blocks/BlockEditor';
 import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
-import { NodePillRow } from '../NodePillRow';
+import { NodeSelector } from 'from 'from '../NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
 import { QuerySection } from '../nodes';
 import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
 import { Button } from '../core/Button';
@@ -382,7 +382,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
           <>
             {/* Classes Section */}
             <div className="sidebar-node-view__section sidebar-node-view__classes">
-              <NodePillRow
+              <NodeSelector
                 nodes={pageClassDetails}
                 searchMode="classes"
                 emptyText="Add class"
@@ -399,7 +399,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
             
             {/* Tags Section */}
             <div className="sidebar-node-view__section sidebar-node-view__tags">
-              <NodePillRow
+              <NodeSelector
                 nodes={pageTagDetails}
                 searchMode="tags"
                 emptyText="Add tag"
@@ -585,3 +585,4 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
 }
 
 export default SidebarNodeView;
+
