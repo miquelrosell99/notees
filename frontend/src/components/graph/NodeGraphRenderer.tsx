@@ -40,6 +40,7 @@ const REPULSION_STRENGTH = 800;
 const VELOCITY_DAMPING = 0.85;
 const RETURN_FORCE = 0.08;
 const DRAG_PULL_STRENGTH = 0.15;
+const PARENT_MASS_PER_CHILD = 2;
 
 // Visual constants
 const NODE_RADIUS_BASE = 10;
@@ -1004,6 +1005,24 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const getConnectionType = (a: number, b: number): GraphLink['type'] | null => 
         connectedPairs.get(`${a}-${b}`) ?? null;
       
+      // Compute node mass: parents with more children are heavier (harder to move)
+      const childCount = new Map<number, number>();
+      for (const link of links) {
+        if (link.type === 'parent') {
+          // parent links: source is parent, target is child
+          if (visibleNodeIds.has(link.source)) {
+            childCount.set(link.source, (childCount.get(link.source) || 0) + 1);
+          }
+        } else if (link.type === 'extends') {
+          // extends links: source is child, target is parent
+          if (visibleNodeIds.has(link.target)) {
+            childCount.set(link.target, (childCount.get(link.target) || 0) + 1);
+          }
+        }
+      }
+      const getNodeMass = (nodeId: number): number => 
+        1 + (childCount.get(nodeId) || 0) * PARENT_MASS_PER_CHILD;
+      
       // Constrained mode return force
       if (isConstrainedMode) {
         for (const node of visibleNodes) {
@@ -1053,13 +1072,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               const fx = (dx / dist) * force;
               const fy = (dy / dist) * force;
               
+              const massA = getNodeMass(nodeA.id);
+              const massB = getNodeMass(nodeB.id);
+              
               if (!nodeA.pinned) {
-                nodeA.vx += fx;
-                nodeA.vy += fy;
+                nodeA.vx += fx / massA;
+                nodeA.vy += fy / massA;
               }
               if (!nodeB.pinned) {
-                nodeB.vx -= fx;
-                nodeB.vy -= fy;
+                nodeB.vx -= fx / massB;
+                nodeB.vy -= fy / massB;
               }
             } else {
               if (dist < UNLINKED_REPULSION_DISTANCE) {
@@ -1067,13 +1089,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
                 const fx = (dx / dist) * force;
                 const fy = (dy / dist) * force;
                 
+                const massA = getNodeMass(nodeA.id);
+                const massB = getNodeMass(nodeB.id);
+                
                 if (!nodeA.pinned) {
-                  nodeA.vx -= fx;
-                  nodeA.vy -= fy;
+                  nodeA.vx -= fx / massA;
+                  nodeA.vy -= fy / massA;
                 }
                 if (!nodeB.pinned) {
-                  nodeB.vx += fx;
-                  nodeB.vy += fy;
+                  nodeB.vx += fx / massB;
+                  nodeB.vy += fy / massB;
                 }
               }
             }
@@ -1098,8 +1123,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
           
           if (dist > LINKED_ATTRACTION_DISTANCE) {
-            connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE);
-            connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE);
+            const mass = getNodeMass(connectedNode.id);
+            connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) / mass;
+            connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) / mass;
           }
         }
         
