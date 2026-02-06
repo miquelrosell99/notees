@@ -1124,8 +1124,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           
           if (dist > LINKED_ATTRACTION_DISTANCE) {
             const mass = getNodeMass(connectedNode.id);
-            connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) / mass;
-            connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) / mass;
+            // Scale drag pull by link type (reference links pull much less)
+            const linkType = getConnectionType(dragNode.id, connectedId);
+            let dragMultiplier = 1;
+            if (linkType === 'property-reference') {
+              dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
+            } else if (linkType === 'reference') {
+              dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
+            }
+            connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
+            connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
           }
         }
         
