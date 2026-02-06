@@ -27,6 +27,11 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-container--disabled .toggle-input-wrapper {
+  cursor: not-allowed;
 }
 
 .toggle-input {
@@ -179,7 +184,6 @@
 .toggle-label {
   font-size: var(--text-sm, 14px);
   color: var(--text-primary);
-  cursor: pointer;
   user-select: none;
 }
 
