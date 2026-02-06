@@ -24,10 +24,13 @@
  * indicator are rendered by the parent Block component.
  */
 import { useRef, useCallback, useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import './BlockEditor.css';
 import './InlineNodeLink.css';
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
+import { TextField } from '../core/TextField';
+import { Button } from '../core/Button';
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -280,11 +283,13 @@ function escapeAttr(text: string): string {
  * 
  * @param content - The raw content with [[linkId]] and {{typeId}} markers
  * @param linkNames - Map of linkId -> {name, isPage, isTag, clickCount, effectiveIcon} for display
+ * @param linkCustomNames - Map of linkUuid -> custom display name (overrides node name)
  * @param typeNames - Map of typeId -> {name, icon} for display
  */
 function contentToHtml(
   content: string, 
   linkNames: Map<string, { name: string; isPage: boolean; isTag?: boolean; clickCount?: number; effectiveIcon?: string | null }>,
+  linkCustomNames: Map<string, string | null>,
   typeNames?: Map<string, { name: string; icon?: string }>
 ): string {
   const pills = parseAllPills(content);
@@ -305,7 +310,9 @@ function contentToHtml(
     if (pill.type === 'link') {
       // Look up the link info
       const linkInfo = linkNames.get(pill.id);
-      const displayText = linkInfo?.name || pill.id;
+      // Use custom name if available, otherwise use node name
+      const customName = pill.linkUuid ? linkCustomNames.get(pill.linkUuid) : null;
+      const displayText = customName || linkInfo?.name || pill.id;
       const isTag = linkInfo?.isTag ?? false;
       // effectiveIcon is computed from getEffectiveIcon - includes node's icon or type-inherited icon
       
@@ -319,12 +326,11 @@ function contentToHtml(
         const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
         html += `<span class="tag-pill" contenteditable="false" data-link-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}" data-is-tag="true"${uuidAttr}>${icon}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
       } else {
-        // Render as inline node link - atomic [[content]] style
-        // Use InlineNodeLink component styles
+        // Render as HTML anchor-style link (atomic inline element)
         const uuidAttr = pill.linkUuid ? ` data-link-uuid="${escapeAttr(pill.linkUuid)}"` : '';
         const nodeUuidAttr = linkInfo ? ` data-node-uuid="${escapeAttr(linkInfo.name)}"` : '';
         
-        html += `<span class="inline-node-link" contenteditable="false" data-node-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}"${uuidAttr}${nodeUuidAttr}><span class="inline-node-link__bracket">[[</span><span class="inline-node-link__content">${escapeHtml(displayText)}</span><span class="inline-node-link__bracket">]]</span></span>`;
+        html += `<a class="inline-link" contenteditable="false" data-node-id="${escapeAttr(pill.id)}" data-link-raw="${escapeAttr(pill.raw)}"${uuidAttr}${nodeUuidAttr}>${escapeHtml(displayText)}</a>`;
       }
     } else {
       // Inline type pill
@@ -419,7 +425,8 @@ function getCaretCoordinates(element: HTMLDivElement): { top: number; left: numb
  * Check if an element is a pill (link, type, or tag)
  */
 function isPillElement(el: HTMLElement): boolean {
-  return el.classList?.contains('inline-node-link') || 
+  return el.classList?.contains('inline-link') || 
+         el.classList?.contains('inline-node-link') || 
          el.classList?.contains('link-pill') || 
          el.classList?.contains('type-pill') || 
          el.classList?.contains('tag-pill');
@@ -428,7 +435,7 @@ function isPillElement(el: HTMLElement): boolean {
 /**
  * Get the raw content length of a pill element
  */
-function getPillRawLength(el: HTMLElement): number {
+function getPillRawLength(el: HTMLElelink') || el.classList?.contains('inline-ment): number {
   if (el.classList?.contains('inline-node-link') || el.classList?.contains('link-pill') || el.classList?.contains('tag-pill')) {
     return (el.dataset.linkRaw || '').length;
   } else if (el.classList?.contains('type-pill')) {
@@ -803,8 +810,20 @@ export function BlockEditor({
   // Selected pill state
   const [selectedPill, setSelectedPill] = useState<HTMLElement | null>(null);
   
+  // Link name edit dialog state
+  const [linkNameDialog, setLinkNameDialog] = useState<{
+    isOpen: boolean;
+    linkUuid: string;
+    currentName: string | null;
+    nodeId: number;
+    position: { top: number; left: number };
+  } | null>(null);
+  
   // Composing state (for IME)
   const [isComposing, setIsComposing] = useState(false);
+  
+  // Query client for invalidating queries
+  const queryClient = useQueryClient();
   
   // === Model-First Selection Support ===
   // Get pending selection for this block from the store
@@ -898,6 +917,19 @@ export function BlockEditor({
     return set;
   }, [textLinks]);
   
+  // Build a map of link UUIDs to custom names
+  const linkCustomNames = useMemo(() => {
+    const map = new Map<string, string | null>();
+    if (textLinks) {
+      for (const link of textLinks) {
+        if (link.uuid && link.name) {
+          map.set(link.uuid, link.name);
+        }
+      }
+    }
+    return map;
+  }, [textLinks]);
+  
   // Build link names map from fetched nodes
   // Uses getEffectiveIcon to compute icon from node or its classes
   const linkNames = useMemo(() => {
@@ -971,7 +1003,7 @@ export function BlockEditor({
       return;
     }
     
-    const html = contentToHtml(content, linkNames, typeNames);
+    const html = contentToHtml(content, linkNames, linkCustomNames, typeNames);
     const currentHtml = editorRef.current.innerHTML;
     
     // Check if we need to update the HTML
@@ -1534,7 +1566,7 @@ export function BlockEditor({
     }
     
     // Update HTML with the updated maps
-    const html = contentToHtml(newContent, updatedLinkNames, updatedTypeNames);
+    const html = contentToHtml(newContent, updatedLinkNames, linkCustomNames, updatedTypeNames);
     editorRef.current.innerHTML = html || '<br>';
     
     setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -1610,7 +1642,7 @@ export function BlockEditor({
     }
     
     // Update HTML with the updated map
-    const html = contentToHtml(newContent, updatedLinkNames, typeNames);
+    const html = contentToHtml(newContent, updatedLinkNames, linkCustomNames, typeNames);
     editorRef.current.innerHTML = html || '<br>';
     
     setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -1646,7 +1678,7 @@ export function BlockEditor({
       onChange(newContent);
       
       // Update HTML
-      const html = contentToHtml(newContent, linkNames, typeNames);
+      const html = contentToHtml(newContent, linkNames, linkCustomNames, typeNames);
       editorRef.current.innerHTML = html || '<br>';
       
       setSlashCommand(prev => ({ ...prev, isOpen: false }));
@@ -1672,7 +1704,7 @@ export function BlockEditor({
       onChange(newContent);
       
       // Update HTML
-      const html = contentToHtml(newContent, linkNames, typeNames);
+      const html = contentToHtml(newContent, linkNames, linkCustomNames, typeNames);
       editorRef.current.innerHTML = html || '<br>';
       
       setSlashCommand(prev => ({ ...prev, isOpen: false }));
@@ -1698,7 +1730,7 @@ export function BlockEditor({
       onChange(newContent);
       
       // Update HTML
-      const html = contentToHtml(newContent, linkNames, typeNames);
+      const html = contentToHtml(newContent, linkNames, linkCustomNames, typeNames);
       editorRef.current.innerHTML = html || '<br>';
       
       setSlashCommand(prev => ({ ...prev, isOpen: false }));
@@ -1725,7 +1757,7 @@ export function BlockEditor({
         onChange(newContent);
         
         // Update HTML
-        const html = contentToHtml(newContent, linkNames, typeNames);
+        const html = contentToHtml(newContent, linkNames, linkCustomNames, typeNames);
         editorRef.current.innerHTML = html || '<br>';
         
         // Assign the query class
@@ -1747,7 +1779,7 @@ export function BlockEditor({
         onChange(newContent);
         
         // Update HTML
-        const html = contentToHtml(newContent, linkNames, typeNames);
+        const html = contentToHtml(newContent, linkNames, linkCustomNames, typeNames);
         editorRef.current.innerHTML = html || '<br>';
         
         // Assign the table class
@@ -1766,7 +1798,7 @@ export function BlockEditor({
     onChange(newContent);
     
     // Update HTML
-    const html = contentToHtml(newContent, linkNames, typeNames);
+    const html = contentToHtml(newContent, linkNames, linkCustomNames, typeNames);
     editorRef.current.innerHTML = html || '<br>';
     
     // Execute the command
@@ -1946,6 +1978,60 @@ export function BlockEditor({
     };
   }, [trigger.isOpen, slashCommand.isOpen]);
 
+  // Handle click on inline links for editing link name
+  const handleEditorClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+    
+    const target = e.target as HTMLElement;
+    const linkElement = target.closest('.inline-link') as HTMLElement;
+    
+    if (linkElement) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const linkUuid = linkElement.dataset.linkUuid;
+      const nodeId = parseInt(linkElement.dataset.nodeId || '0', 10);
+      
+      if (!linkUuid || !nodeId) return;
+      
+      // Get current custom name from linkCustomNames map
+      const currentName = linkCustomNames.get(linkUuid) || null;
+      
+      // Get link element position for popup
+      const rect = linkElement.getBoundingClientRect();
+      const position = {
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+      };
+      
+      setLinkNameDialog({
+        isOpen: true,
+        linkUuid,
+        currentName,
+        nodeId,
+        position,
+      });
+    }
+  }, [readOnly, linkCustomNames]);
+
+  // Handle save link name
+  const handleSaveLinkName = useCallback(async (linkUuid: string, newName: string | null) => {
+    tr
+      await updateLinkName(linkUuid, newName);
+      
+      // Invalidate text links query to refresh
+      queryClient.invalidateQueries({ queryKey: ['textLinks', nodeId] });
+      
+      // Close dialog
+      setLinkNameDialog(null);
+    } catch (error) {
+      console.error('Failed to update link name:', error);
+    }
+  }, [nodeId, queryClient(error) {
+      console.error('Failed to update link name:', error);
+    }
+  }, [nodeId]);
+
   return (
     <div className="block-editor">
       <div
@@ -1955,6 +2041,7 @@ export function BlockEditor({
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onClick={handleEditorClick}
         onCompositionStart={() => setIsComposing(true)}
         onCompositionEnd={() => {
           setIsComposing(false);
@@ -1985,6 +2072,57 @@ export function BlockEditor({
             onSelect={handleSlashCommandSelect}
             onClose={handleSlashCommandClose}
           />
+          
+          {linkNameDialog?.isOpen && (
+            <div
+              className="link-name-dialog"
+              style={{
+                position: 'absolute',
+                top: linkNameDialog.position.top,
+                left: linkNameDialog.position.left,
+                zIndex: 1000,
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-outline)',
+                borderRadius: '8px',
+                padding: '12px',
+                boxShadow: 'var(--elevation-2)',
+                minWidth: '250px',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                Edit Link Text
+              </div>
+              <TextField
+                value={linkNameDialog.currentName || ''}
+                onChange={(e) => setLinkNameDialog({...linkNameDialog, currentName: e.target.value})}
+                placeholder="Custom link text (leave empty for node name)"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveLinkName(linkNameDialog.linkUuid, linkNameDialog.currentName);
+                  } else if (e.key === 'Escape') {
+                    setLinkNameDialog(null);
+                  }
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
+                <Button
+                  variant="text"
+                  onClick={() => setLinkNameDialog(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="filled"
+                  onClick={() => handleSaveLinkName(linkNameDialog.linkUuid, linkNameDialog.currentName)}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
