@@ -29,7 +29,7 @@
   padding: 4px 8px;
 }
 
-.property-cell--node-loading {
+.property-cell--loading {
   padding: 8px 12px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -42,49 +42,10 @@
   padding: 4px 8px;
 }
 
-.property-cell--image {
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Block-style single node cell */
-.property-cell-node {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  min-height: 32px;
+/* Block component wrapper for text and single node properties */
+.property-cell-block {
   width: 100%;
-  position: relative;
-}
-
-.property-cell-node__bullet {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.property-cell-node__name {
-  flex: 1;
-  font-size: 13px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.property-cell-node__actions {
-  display: none;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.property-cell-node:hover .property-cell-node__actions {
-  display: flex;
+  padding: 0;
 }
 
 .property-cell__image {
