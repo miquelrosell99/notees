@@ -972,6 +972,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Calculate glare radius to determine line endpoints
+      // Arrow is positioned at glareRadius + 2, so line should end at glareRadius + 2 + arrowSize
+      const arrowSize = 8;
+      const arrowGap = 2;
+      
       const getLineGlareRadius = (node: GraphNode) => {
         switch (node.glare) {
           case 'bright':
@@ -986,19 +990,18 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceLineGlare = getLineGlareRadius(source);
       const targetLineGlare = getLineGlareRadius(target);
       
-      // Calculate line endpoints to stop at glare edge
+      // Calculate line endpoints to stop where arrow starts (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
-      const lineStartX = source.x + sourceLineGlare * Math.cos(lineAngle);
-      const lineStartY = source.y + sourceLineGlare * Math.sin(lineAngle);
-      const lineEndX = target.x - targetLineGlare * Math.cos(lineAngle);
-      const lineEndY = target.y - targetLineGlare * Math.sin(lineAngle);
+      const lineStartX = source.x + (sourceLineGlare + arrowGap) * Math.cos(lineAngle);
+      const lineStartY = source.y + (sourceLineGlare + arrowGap) * Math.sin(lineAngle);
+      const lineEndX = target.x - (targetLineGlare + arrowGap + arrowSize) * Math.cos(lineAngle);
+      const lineEndY = target.y - (targetLineGlare + arrowGap + arrowSize) * Math.sin(lineAngle);
       
       ctx.moveTo(lineStartX, lineStartY);
       ctx.lineTo(lineEndX, lineEndY);
       ctx.stroke();
       
       // Draw arrows
-      const arrowSize = 8;
       
       // Calculate glare radius for proper positioning
       const getGlareRadius = (node: GraphNode) => {
