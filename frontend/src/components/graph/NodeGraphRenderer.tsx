@@ -483,11 +483,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
       }
       
-      // ── Bottom-up subtree angular width calculation ──
-      // For each node, compute how much angular space its entire subtree
-      // needs at the deepest level, then propagate upward so parents
-      // reserve enough room for all descendants.
-      const subtreeAngularWidth = new Map<number, number>();
+      // ── Bottom-up subtree pixel width calculation ──
+      // Compute the physical (pixel) spacing each subtree needs at its
+      // deepest level, then propagate upward. Using pixel widths instead
+      // of angular widths avoids scale mismatch across radii.
+      const subtreePixelWidth = new Map<number, number>();
       
       // Process depths bottom-up
       for (let depth = maxDepth; depth >= 0; depth--) {
@@ -497,27 +497,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             .filter(c => nodeDepth.has(c.id)); // only children in the graph
           
           if (children.length === 0) {
-            // Leaf node: needs space for itself at its own depth
-            const radius = radiusByDepth.get(depth)!;
-            subtreeAngularWidth.set(node.id, nodeSpacing / radius);
+            // Leaf node: needs nodeSpacing pixels of arc length
+            subtreePixelWidth.set(node.id, nodeSpacing);
           } else {
-            // Sum of all children's subtree widths, but evaluated at
-            // each child's depth radius
-            const childDepth = depth + 1;
-            const childRadius = radiusByDepth.get(childDepth)!;
-            
+            // Sum of all children's subtree widths
             let totalChildrenWidth = 0;
             for (const child of children) {
-              const childWidth = subtreeAngularWidth.get(child.id) || (nodeSpacing / childRadius);
-              totalChildrenWidth += childWidth;
+              totalChildrenWidth += subtreePixelWidth.get(child.id) || nodeSpacing;
             }
             
-            // The node itself also needs minimum space at its own depth
-            const ownRadius = radiusByDepth.get(depth)!;
-            const ownMinWidth = nodeSpacing / ownRadius;
-            
-            // Take the max: either the node's own space or children's total
-            subtreeAngularWidth.set(node.id, Math.max(ownMinWidth, totalChildrenWidth));
+            // Take the max: either the node's own spacing or children's total
+            subtreePixelWidth.set(node.id, Math.max(nodeSpacing, totalChildrenWidth));
           }
         }
       }
@@ -525,24 +515,28 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // ── Top-down positioning using computed widths ──
       const nodeAngleRange = new Map<number, { start: number; end: number }>();
       
-      // Collect all level-0 nodes (class roots or regular roots if no classes)
+      // Helper: convert pixel width to angular width at a given radius
+      const pixelsToAngle = (pixels: number, radius: number) => pixels / radius;
+      
+      // Collect all level-0 nodes
       const level0Nodes = nodesByDepth.get(0) || [];
       const radius0 = radiusByDepth.get(0)!;
       
       // Total angular width needed for all level-0 subtrees
-      let totalLevel0Width = 0;
+      // Each subtree's pixel width is evaluated at level-0 radius
+      let totalLevel0Angle = 0;
       for (const node of level0Nodes) {
-        totalLevel0Width += subtreeAngularWidth.get(node.id) || (nodeSpacing / radius0);
+        const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
+        totalLevel0Angle += pixelsToAngle(pw, radius0);
       }
       // Ensure at least 2π, but allow expansion beyond if needed
-      const totalAngle0 = Math.max(2 * Math.PI, totalLevel0Width);
-      // Scale factor if subtrees fit within 2π
-      const scale0 = totalAngle0 / totalLevel0Width;
+      const totalAngle0 = Math.max(2 * Math.PI, totalLevel0Angle);
+      const scale0 = totalLevel0Angle > 0 ? totalAngle0 / totalLevel0Angle : 1;
       
       let currentAngle0 = -Math.PI / 2;
       for (const node of level0Nodes) {
-        const rawWidth = subtreeAngularWidth.get(node.id) || (nodeSpacing / radius0);
-        const allocatedWidth = rawWidth * scale0;
+        const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
+        const allocatedWidth = pixelsToAngle(pw, radius0) * scale0;
         const angle = currentAngle0 + allocatedWidth / 2;
         
         node.targetX = centerX + radius0 * Math.cos(angle);
@@ -567,17 +561,18 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         
         // Position root nodes at this level evenly
         if (rootNodesAtThisLevel.length > 0) {
-          let totalRootWidth = 0;
+          let totalRootAngle = 0;
           for (const node of rootNodesAtThisLevel) {
-            totalRootWidth += subtreeAngularWidth.get(node.id) || (nodeSpacing / radius);
+            const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
+            totalRootAngle += pixelsToAngle(pw, radius);
           }
-          const totalAngleRoot = Math.max(2 * Math.PI, totalRootWidth);
-          const scaleRoot = totalAngleRoot / totalRootWidth;
+          const totalAngleRoot = Math.max(2 * Math.PI, totalRootAngle);
+          const scaleRoot = totalRootAngle > 0 ? totalAngleRoot / totalRootAngle : 1;
           
           let currentAngleRoot = -Math.PI / 2;
           for (const node of rootNodesAtThisLevel) {
-            const rawWidth = subtreeAngularWidth.get(node.id) || (nodeSpacing / radius);
-            const allocatedWidth = rawWidth * scaleRoot;
+            const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
+            const allocatedWidth = pixelsToAngle(pw, radius) * scaleRoot;
             const angle = currentAngleRoot + allocatedWidth / 2;
             
             node.targetX = centerX + radius * Math.cos(angle);
@@ -607,23 +602,24 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const parentCenter = (parentRange.start + parentRange.end) / 2;
           const parentSpan = parentRange.end - parentRange.start;
           
-          // Total subtree width needed by all siblings
-          let totalSiblingWidth = 0;
+          // Total pixel width needed by all siblings
+          let totalSiblingPixels = 0;
           for (const sibling of siblings) {
-            totalSiblingWidth += subtreeAngularWidth.get(sibling.id) || (nodeSpacing / radius);
+            totalSiblingPixels += subtreePixelWidth.get(sibling.id) || nodeSpacing;
           }
           
-          // Use parent's span (already accounts for subtree), but ensure
-          // minimum spacing if parent arc is somehow larger
-          const actualSpan = Math.max(parentSpan, totalSiblingWidth);
+          // Convert sibling total to angular width at this radius
+          const totalSiblingAngle = pixelsToAngle(totalSiblingPixels, radius);
+          
+          // Use parent's span or sibling requirement, whichever is larger
+          const actualSpan = Math.max(parentSpan, totalSiblingAngle);
           const startAngle = parentCenter - actualSpan / 2;
           
-          // Distribute proportionally to each child's subtree width
+          // Distribute proportionally to each child's pixel width
           let currentAngle = startAngle;
           for (const sibling of siblings) {
-            const childWidth = subtreeAngularWidth.get(sibling.id) || (nodeSpacing / radius);
-            // Scale proportionally if we have more room than needed
-            const allocatedWidth = (childWidth / totalSiblingWidth) * actualSpan;
+            const childPixels = subtreePixelWidth.get(sibling.id) || nodeSpacing;
+            const allocatedWidth = (childPixels / totalSiblingPixels) * actualSpan;
             const angle = currentAngle + allocatedWidth / 2;
             
             sibling.targetX = centerX + radius * Math.cos(angle);
@@ -1710,7 +1706,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     ctx.restore();
-  }, [dimensions, hoveredNode]);
+  }, [dimensions, hoveredNode, viewMode]);
 
   // Keep renderRef in sync
   useEffect(() => {
