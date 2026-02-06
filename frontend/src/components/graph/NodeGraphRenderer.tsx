@@ -35,6 +35,7 @@ const LINKED_ATTRACTION_DISTANCE = 120;
 const UNLINKED_REPULSION_DISTANCE = 200;
 const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
+const REFERENCE_LINK_FORCE_MULTIPLIER = 0.8;
 const REPULSION_STRENGTH = 800;
 const VELOCITY_DAMPING = 0.85;
 const RETURN_FORCE = 0.08;
@@ -985,17 +986,23 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const visibleNodes = nodes.filter(n => n.visible);
       const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
       
-      const connectedPairs = new Set<string>();
+      // Map from "nodeA-nodeB" to link type (for force calculation)
+      const connectedPairs = new Map<string, GraphLink['type']>();
       for (const link of links) {
         // Only consider links between visible nodes
         if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-          connectedPairs.add(`${link.source}-${link.target}`);
-          connectedPairs.add(`${link.target}-${link.source}`);
+          const key1 = `${link.source}-${link.target}`;
+          const key2 = `${link.target}-${link.source}`;
+          // If already connected by a stronger link type, don't overwrite with reference
+          if (!connectedPairs.has(key1) || link.type !== 'reference') {
+            connectedPairs.set(key1, link.type);
+            connectedPairs.set(key2, link.type);
+          }
         }
       }
       
-      const areConnected = (a: number, b: number) => 
-        connectedPairs.has(`${a}-${b}`);
+      const getConnectionType = (a: number, b: number): GraphLink['type'] | null => 
+        connectedPairs.get(`${a}-${b}`) ?? null;
       
       // Constrained mode return force
       if (isConstrainedMode) {
@@ -1025,13 +1032,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             const dy = nodeB.y - nodeA.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             
-            if (areConnected(nodeA.id, nodeB.id)) {
+            const connectionType = getConnectionType(nodeA.id, nodeB.id);
+            if (connectionType) {
               let attractionStrength = ATTRACTION_STRENGTH;
               if (currentSettings.linkCountAttraction) {
                 const totalLinks = nodeA.backlinkCount + nodeA.internalLinkCount +
                                    nodeB.backlinkCount + nodeB.internalLinkCount;
                 const linkFactor = Math.log2(2 + totalLinks);
                 attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
+              }
+              
+              // Reference links have reduced force
+              if (connectionType === 'reference') {
+                attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
               }
               
               const force = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength;
