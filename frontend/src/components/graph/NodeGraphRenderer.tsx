@@ -999,8 +999,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Draw arrows
       const arrowSize = 8;
-      const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
-      const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
       
       // Calculate glare radius for proper positioning
       const getGlareRadius = (node: GraphNode) => {
