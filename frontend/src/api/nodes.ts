@@ -326,6 +326,7 @@ export async function listTasks(includeComplete = false): Promise<Node[]> {
  */
 export interface GraphNode {
   id: number;
+  uuid: string;
   name: string;
   type?: 'page' | 'block';
   tags?: string[];
@@ -347,7 +348,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference';
+  type: 'parent' | 'reference' | 'class';
 }
 
 /**
