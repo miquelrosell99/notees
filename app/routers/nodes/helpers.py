@@ -42,7 +42,7 @@ def _extract_property_value(val):
 def extract_properties_dict(all_prop_values: Dict[int, Dict[str, Any]]) -> Dict[str, Any]:
     """Convert raw property values from the repository into a JSON-serializable dict.
     
-    For multi-value properties, returns an array of values.
+    For multi-value properties, returns an array of values (even if empty or single value).
     For single-value properties, returns a single value.
     """
     props_dict: Dict[str, Any] = {}
@@ -51,8 +51,8 @@ def extract_properties_dict(all_prop_values: Dict[int, Dict[str, Any]]) -> Dict[
         prop = prop_data['property']
         values = prop_data['values']
         if values:
-            if prop.is_multi and len(values) > 1:
-                # Multi-value: return array
+            if prop.is_multi:
+                # Multi-value: always return array
                 props_dict[str(prop_id)] = [
                     _extract_property_value(v) for v in values
                     if _extract_property_value(v) is not None
@@ -65,7 +65,8 @@ def extract_properties_dict(all_prop_values: Dict[int, Dict[str, Any]]) -> Dict[
                 else:
                     props_dict[str(prop_id)] = None
         else:
-            props_dict[str(prop_id)] = None
+            # No values yet - for multi, return empty array; for single, return null
+            props_dict[str(prop_id)] = [] if prop.is_multi else None
     
     return props_dict
 

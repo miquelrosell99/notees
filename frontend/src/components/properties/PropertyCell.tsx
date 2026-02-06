@@ -5,22 +5,20 @@
  * Click to edit or create property value for a node.
  * 
  * Node-type properties:
- * - Single value: Render as block-style element with icon/bullet and navigation buttons on hover
+ * - Single value: Render as Block component (readonly)
  * - Multi value: Render as NodePill(s) showing the referenced node name/icon
  * 
+ * Text-type properties: Render as Block component (the value is a block node ID)
  * Selection-type properties render as pills with selection option labels.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
-import { useNodesStore } from '@/stores';
 import { useQuery } from '@tanstack/react-query';
 import { getNode } from '@/api/nodes';
+import { Block } from '../blocks/Block';
 import { NodePill } from '../NodePill';
 import { Pill } from '../core/Pill';
-import { Button } from '../core/Button';
-import { NodeIcon } from '../icons';
-import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -43,7 +41,6 @@ export function PropertyCell({
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
-  const { openNode, addSidebarCard } = useNodesStore();
 
   // Format value for display (used for non-node, non-selection types)
   const displayValue = useMemo(() => {
@@ -56,12 +53,13 @@ export function PropertyCell({
       case 'float':
         return String(value);
       case 'text':
-        return String(value);
+        // Text properties are block node IDs - handled separately with Block component
+        return '';
       case 'selection':
         // Handled separately with pills
         return '';
       case 'node':
-        // Handled separately with NodePill or block-style cell
+        // Handled separately with Block or pills
         return '';
       default:
         return String(value);
@@ -139,7 +137,20 @@ export function PropertyCell({
     }
   }, [isEditing]);
 
-  // Node-type property: single value = block-style, multi value = pills
+  // Text-type property: value is a block node ID, render as Block
+  if (property.type === 'text') {
+    if (value === null || value === undefined || typeof value !== 'number') {
+      return (
+        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+          {editable ? '—' : ''}
+        </div>
+      );
+    }
+    
+    return <BlockCell nodeId={value} />;
+  }
+
+  // Node-type property: single value = Block, multi value = pills
   if (property.type === 'node') {
     if (value === null || value === undefined) {
       return (
@@ -175,15 +186,14 @@ export function PropertyCell({
               nodeId={nodeId}
               variant="link"
               readOnly={true}
-              onClick={() => openNode(nodeId, 'page')}
             />
           ))}
         </div>
       );
     }
     
-    // Single value: use block-style with navigation buttons
-    return <SingleNodeCell nodeId={nodeIds[0]} openNode={openNode} addSidebarCard={addSidebarCard} />;
+    // Single value: use Block component
+    return <BlockCell nodeId={nodeIds[0]} />;
   }
 
   // Selection-type property: render pills with option labels
@@ -280,61 +290,35 @@ export function PropertyCell({
 }
 
 /**
- * SingleNodeCell - Block-style cell for single-value node properties
- * Shows bullet (only when node has icon), node name, and navigation buttons on hover
+ * BlockCell - Wrapper for rendering a node as a Block component in table cells
+ * Used for text-type and single-value node-type properties
  */
-function SingleNodeCell({
-  nodeId,
-  openNode,
-  addSidebarCard,
-}: {
-  nodeId: number;
-  openNode: (nodeId: number, nodeType: 'page' | 'block') => void;
-  addSidebarCard: (nodeId: number, nodeType: 'page' | 'block') => void;
-}) {
-  const { data: referencedNode } = useQuery({
+function BlockCell({ nodeId }: { nodeId: number }) {
+  const { data: blockNode } = useQuery({
     queryKey: ['node', nodeId],
     queryFn: () => getNode(nodeId),
   });
 
-  if (!referencedNode) {
+  if (!blockNode) {
     return (
-      <div className="property-cell property-cell--node-loading">
+      <div className="property-cell property-cell--loading">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="property-cell-node">
-      {referencedNode.icon && (
-        <span className="property-cell-node__bullet">
-          <NodeIcon icon={referencedNode.icon} size="sm" />
-        </span>
-      )}
-      <span className="property-cell-node__name">{referencedNode.name || 'Untitled'}</span>
-      <div className="property-cell-node__actions">
-        <Button
-          icon={mdiDockRight}
-          variant="ghost"
-          size="xs"
-          title="Open in sidebar"
-          onClick={(e) => {
-            e.stopPropagation();
-            addSidebarCard(nodeId, referencedNode.is_page ? 'page' : 'block');
-          }}
-        />
-        <Button
-          icon={mdiArrowRight}
-          variant="ghost"
-          size="xs"
-          title="Open node"
-          onClick={(e) => {
-            e.stopPropagation();
-            openNode(nodeId, referencedNode.is_page ? 'page' : 'block');
-          }}
-        />
-      </div>
+    <div className="property-cell-block">
+      <Block
+        block={blockNode}
+        parentId={blockNode.parent_id}
+        canMove={false}
+        canEdit={false}
+        canSelect={false}
+        showChildren={false}
+        showClasses={false}
+        showQueryResults={false}
+      />
     </div>
   );
 }
