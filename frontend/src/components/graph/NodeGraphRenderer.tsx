@@ -67,6 +67,7 @@ const LABEL_FADE_ZOOM_MAX = 0.7;
 export type GraphViewMode = 'normal' | 'circle' | 'tree';
 export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
 export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
+export type ConstraintMode = 'physics' | 'equidistant';
 
 export interface GraphNode {
   id: number;
@@ -112,6 +113,7 @@ export interface GraphSettings {
   linkCountAttraction: boolean;
   nodeSizeMode: NodeSizeMode;
   massAccumulation: boolean;
+  constraintMode: ConstraintMode;
 }
 
 export interface VisibilityFilters {
@@ -313,7 +315,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   nodes: inputNodes,
   links: inputLinks,
   viewMode = 'normal',
-  settings = { linkCountAttraction: false, nodeSizeMode: 'uniform', massAccumulation: true },
+  settings = { linkCountAttraction: false, nodeSizeMode: 'uniform', massAccumulation: true, constraintMode: 'physics' },
   classColors = [],
   visibilityFilters = DEFAULT_VISIBILITY_FILTERS,
   currentNodeId = null,
@@ -387,6 +389,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
         node.targetX = centerX + radius * Math.cos(angle);
         node.targetY = centerY + radius * Math.sin(angle);
+        // Store radius for physics constraint mode
+        (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
       });
     } else if (mode === 'tree') {
       // Build children map
@@ -1013,8 +1017,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         (node as GraphNode & { _mass?: number })._mass = getNodeMass(node.id);
       }
       
-      // Constrained mode: circle uses return-to-target, tree uses physics + radial constraint
-      if (viewMode === 'circle') {
+      // Determine if physics forces should be applied
+      const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
+      const useEquidistant = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
+      
+      // Equidistant mode: spring return to pre-calculated target positions
+      if (useEquidistant) {
         for (const node of visibleNodes) {
           if (dragNodeRef.current?.id === node.id) continue;
           if (node.pinned) continue;
@@ -1027,7 +1035,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Centering gravity — gentle pull toward center to prevent drift
-      // Applied in normal mode always; in tree mode not needed (radial constraint handles it)
+      // Not needed in constrained modes (radial constraint or return force handles it)
       if (!isConstrainedMode) {
         const cx = dimensions.width / 2;
         const cy = dimensions.height / 2;
@@ -1040,8 +1048,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Node-to-node forces: applied in normal mode AND tree mode (not circle mode)
-      if (viewMode !== 'circle') {
+      // Node-to-node forces: applied when physics is active (normal, or constrained with physics mode)
+      if (usePhysics) {
         for (let i = 0; i < visibleNodes.length; i++) {
           for (let j = i + 1; j < visibleNodes.length; j++) {
             const nodeA = visibleNodes[i];
@@ -1168,8 +1176,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           node.vx *= VELOCITY_DAMPING;
           node.vy *= VELOCITY_DAMPING;
           
-          // Tree mode: project node back onto its assigned circle
-          if (viewMode === 'tree') {
+          // Constrained physics mode: project node back onto its assigned circle
+          if (isConstrainedMode && currentSettings.constraintMode === 'physics') {
             const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
             if (treeRadius !== undefined) {
               const cx = dimensions.width / 2;
@@ -1441,8 +1449,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     ctx.setLineDash([]);
     
-    // Draw level circle guides in tree mode
-    if (viewMode === 'tree') {
+    // Draw level circle guides in constrained physics mode (tree and circle)
+    if ((viewMode === 'tree' || viewMode === 'circle') && settingsRef.current.constraintMode === 'physics') {
       const centerX = dimensions.width / 2;
       const centerY = dimensions.height / 2;
       
@@ -1668,8 +1676,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       dragNodeRef.current.x = x;
       dragNodeRef.current.y = y;
-      // In tree mode, constrain dragged node to its circle
-      if (viewMode === 'tree') {
+      // In physics constraint mode, constrain dragged node to its circle
+      if ((viewMode === 'tree' || viewMode === 'circle') && settingsRef.current.constraintMode === 'physics') {
         const treeRadius = (dragNodeRef.current as GraphNode & { _treeRadius?: number })._treeRadius;
         if (treeRadius !== undefined) {
           const cx = dimensions.width / 2;
