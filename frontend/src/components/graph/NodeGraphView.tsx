@@ -28,7 +28,7 @@ import {
   type GraphViewMode,
   type VisibilityFilters,
 } from './NodeGraphRenderer';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiResize, mdiConnection, mdiWeight } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -434,24 +434,22 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                 }))}
               />
             </div>
-            
-            <div className="settings-group">
-              <label className="settings-label-text">Node size based on:</label>
-              <select 
-                className="settings-select"
+
+            <div className="visibility-option">
+              <label className="visibility-label">Node sizing</label>
+              <SelectionButton
+                size="sm"
+                options={[
+                  { value: 'uniform', icon: mdiCircleOutline, label: 'Uniform size' },
+                  { value: 'connections', icon: mdiConnection, label: 'Connection count' },
+                  { value: 'mass', icon: mdiWeight, label: 'Hierarchy mass' }
+                ]}
                 value={graphSettings.nodeSizeMode}
-                onChange={(e) => setGraphSettings(prev => ({
+                onChange={(value) => setGraphSettings(prev => ({
                   ...prev,
-                  nodeSizeMode: e.target.value as GraphSettings['nodeSizeMode']
+                  nodeSizeMode: value as GraphSettings['nodeSizeMode']
                 }))}
-              >
-                <option value="uniform">Uniform size</option>
-                <option value="connections">Connection count</option>
-                <option value="mass">Hierarchy mass</option>
-              </select>
-              <p className="settings-hint">
-                Size nodes by how connected they are
-              </p>
+              />
             </div>
           </div>
         </ButtonWithPanel>
