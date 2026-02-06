@@ -14,6 +14,8 @@
  */
 import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
+import type { Node } from '@/types';
+import { Block } from '../blocks/Block';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import './Table.css';
@@ -48,6 +50,8 @@ export interface TableColumn<T> {
   key: string;
   /** Column header text */
   header: string | ReactNode;
+  /** Optional Node object for rendering header with Block component (for icons) */
+  headerNode?: { id: number; uuid: string; name: string; icon: string | null };
   /** Accessor function to get cell value */
   accessor: (row: T) => ReactNode;
   /** Column width (CSS value) */
@@ -580,7 +584,21 @@ export function Table<T>({
                     }
                   >
                     <div className="table-header-content">
-                      <span>{column.header}</span>
+                      {column.headerNode ? (
+                        <Block
+                          block={column.headerNode as Node}
+                          parentId={null}
+                          showBullet={false}
+                          showChildren={false}
+                          showClasses={false}
+                          canMove={false}
+                          canEdit={false}
+                          canSelect={false}
+                          isolatedState={true}
+                        />
+                      ) : (
+                        <span>{column.header}</span>
+                      )}
                       {column.sortable && sortEntry && (
                         <span className="table-sort-icon">
                           {sortEntry.direction === 'asc' ? '↑' : '↓'}

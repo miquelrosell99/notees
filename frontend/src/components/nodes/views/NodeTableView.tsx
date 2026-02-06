@@ -40,6 +40,7 @@ interface NodeTableColumn {
   key: string;
   label: string;
   width?: string;
+  headerNode?: { id: number; uuid: string; name: string; icon: string | null };
   render?: (node: Node) => ReactNode;
 }
 
@@ -65,6 +66,7 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
   return nodeColumns.map(col => ({
     key: col.key,
     header: col.label,
+    headerNode: col.headerNode,
     width: col.width,
     accessor: col.render 
       ? col.render 
@@ -265,6 +267,13 @@ export function NodeTableView({
           key: `property_${property.id}`,
           label: property.icon ? `${property.icon} ${property.name}` : property.name,
           width: '150px',
+          // Create headerNode for Block rendering with icon
+          headerNode: {
+            id: property.id,
+            uuid: property.uuid,
+            name: property.name,
+            icon: property.icon,
+          },
           render: (node: Node): ReactNode => {
             const value = node.properties?.[property.id];
             return (
