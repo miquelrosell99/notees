@@ -965,13 +965,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
       ctx.lineWidth = isParentLink ? 1 : 1.5;
       
-      // Set line style: dashed for parent, dotted for class, solid for reference
+      // Set line style: bold solid for parent, squiggly for class, dotted for reference
       if (isParentLink) {
-        ctx.setLineDash([4, 4]);
-      } else if (isClassLink) {
-        ctx.setLineDash([2, 3]);
-      } else {
         ctx.setLineDash([]);
+        ctx.lineWidth = 2.5; // Slightly bolder
+      } else if (isClassLink) {
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1.5;
+      } else {
+        ctx.setLineDash([3, 4]);
+        ctx.lineWidth = 1.5;
       }
       
       // Calculate glare radius to determine line endpoints
@@ -1006,9 +1009,38 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const lineEndX = target.x - (targetLineGlare + targetOffset) * Math.cos(lineAngle);
       const lineEndY = target.y - (targetLineGlare + targetOffset) * Math.sin(lineAngle);
       
-      ctx.moveTo(lineStartX, lineStartY);
-      ctx.lineTo(lineEndX, lineEndY);
-      ctx.stroke();
+      if (isClassLink) {
+        // Draw squiggly line for class links
+        const squiggleAmplitude = 3;
+        const squiggleFrequency = 0.03;
+        const distance = Math.sqrt((lineEndX - lineStartX) ** 2 + (lineEndY - lineStartY) ** 2);
+        const steps = Math.max(20, distance / 5);
+        
+        ctx.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const x = lineStartX + (lineEndX - lineStartX) * t;
+          const y = lineStartY + (lineEndY - lineStartY) * t;
+          
+          // Add perpendicular squiggle
+          const squiggleOffset = Math.sin(t * distance * squiggleFrequency) * squiggleAmplitude;
+          const perpAngle = lineAngle + Math.PI / 2;
+          const squiggleX = x + Math.cos(perpAngle) * squiggleOffset;
+          const squiggleY = y + Math.sin(perpAngle) * squiggleOffset;
+          
+          if (i === 0) {
+            ctx.moveTo(squiggleX, squiggleY);
+          } else {
+            ctx.lineTo(squiggleX, squiggleY);
+          }
+        }
+        ctx.stroke();
+      } else {
+        // Draw straight line for parent and reference links
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.lineTo(lineEndX, lineEndY);
+        ctx.stroke();
+      }
       
       // Draw arrows
       
@@ -1027,15 +1059,47 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceGlareRadius = getGlareRadius(source);
       const targetGlareRadius = getGlareRadius(target);
       
-      // Helper function to draw a dot (positioned at glare edge + 2px gap)
-      const drawDot = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
+      // Helper function to draw a solid circle (for reference links)
+      const drawSolidCircle = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
         const angle = Math.atan2(toY - fromY, toX - fromX);
-        const dotX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
-        const dotY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
+        const circleX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
+        const circleY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
         
         ctx.beginPath();
-        ctx.arc(dotX, dotY, dotSize / 2, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(100, 100, 100, 0.6)';
+        ctx.arc(circleX, circleY, dotSize / 2, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+        ctx.fill();
+      };
+      
+      // Helper function to draw a hollow circle (for parent links)
+      const drawHollowCircle = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
+        const angle = Math.atan2(toY - fromY, toX - fromX);
+        const circleX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
+        const circleY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
+        
+        ctx.beginPath();
+        ctx.arc(circleX, circleY, dotSize / 2, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fill();
+        ctx.stroke();
+      };
+      
+      // Helper function to draw a rounded diamond (for class links)
+      const drawDiamond = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
+        const angle = Math.atan2(toY - fromY, toX - fromX);
+        const diamondX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
+        const diamondY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
+        const size = dotSize / 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(diamondX, diamondY - size);
+        ctx.lineTo(diamondX + size * 0.8, diamondY);
+        ctx.lineTo(diamondX, diamondY + size);
+        ctx.lineTo(diamondX - size * 0.8, diamondY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
         ctx.fill();
       };
       
@@ -1046,25 +1110,25 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       };
       
       if (isParentLink) {
-        // Parent links have a dot pointing to child (target)
+        // Parent links have a hollow circle pointing to child (target)
         if (!shouldSkipDot(target)) {
-          drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+          drawHollowCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else if (isClassLink) {
-        // Class links have a dot pointing to the type node (target)
+        // Class links have a diamond pointing to the type node (target)
         if (!shouldSkipDot(target)) {
-          drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+          drawDiamond(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else {
-        // Reference links - draw dots
-        // Dot pointing from source to target (at target end)
+        // Reference links - draw solid circles
+        // Solid circle pointing from source to target (at target end)
         if (link.source === source.id && !shouldSkipDot(target)) {
-          drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+          drawSolidCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
         
-        // If bidirectional, draw dot pointing back (at source end)
+        // If bidirectional, draw solid circle pointing back (at source end)
         if (directions?.forward && directions?.reverse && !shouldSkipDot(source)) {
-          drawDot(target.x, target.y, source.x, source.y, sourceGlareRadius);
+          drawSolidCircle(target.x, target.y, source.x, source.y, sourceGlareRadius);
         }
       }
     }
