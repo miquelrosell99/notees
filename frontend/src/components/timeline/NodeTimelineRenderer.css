@@ -4,7 +4,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
+  background: var(--color-surface);
   overflow: hidden;
 }
 
@@ -82,7 +82,7 @@
 }
 
 .node-timeline-renderer__empty-message {
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-size: 14px;
 }
 
@@ -123,7 +123,7 @@
 }
 
 .node-timeline-renderer__empty-message {
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-size: 14px;
 }
 
@@ -144,24 +144,24 @@
 .settings-label-text {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .settings-hint {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   margin: 0;
   font-style: italic;
 }
 
 .timeline-zoom-display {
   padding: 8px 12px;
-  background: var(--bg-secondary);
+  background: var(--color-surface-variant);
   border-radius: 4px;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   text-align: center;
   font-family: monospace;
 }
@@ -178,10 +178,10 @@
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--elevation-3);
   min-width: 280px;
   max-width: 400px;
   overflow: hidden;
@@ -190,10 +190,10 @@
 .timeline-search-input {
   width: 100%;
   padding: 8px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px 6px 0 0;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   font-size: 13px;
   outline: none;
   transition: border-color 0.2s;
@@ -201,11 +201,11 @@
 
 .timeline-search-input:focus {
   border-color: var(--color-accent);
-  background: var(--bg-tertiary);
+  background: var(--color-surface-container-high);
 }
 
 .timeline-search-input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
 }
 
 .timeline-search-results {
@@ -225,7 +225,7 @@
 }
 
 .timeline-search-result:hover {
-  background: var(--bg-hover);
+  background: var(--color-hover-overlay);
 }
 
 .timeline-search-result .result-icon {

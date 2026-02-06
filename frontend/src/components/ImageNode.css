@@ -27,9 +27,9 @@
   min-height: 120px;
   background: linear-gradient(
     90deg,
-    var(--color-surface-2) 0%,
-    var(--color-surface-3) 50%,
-    var(--color-surface-2) 100%
+    var(--color-surface-variant) 0%,
+    var(--color-surface-dim) 50%,
+    var(--color-surface-variant) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;

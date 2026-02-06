@@ -26,7 +26,7 @@
 
 /* Content styling - make sure Block renders compactly */
 .block-drag .block {
-  font-size: var(--text-sm, 14px);
+  font-size: 0.875rem;
 }
 
 .block-drag .block-content-view {

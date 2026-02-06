@@ -11,17 +11,17 @@
 
 .validation-feedback__section {
   padding: var(--spacing-3);
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
   border-left: 3px solid;
 }
 
 .validation-feedback__section--error {
-  background: rgba(220, 38, 38, 0.08);
+  background: var(--color-error-container);
   border-left-color: var(--color-error);
 }
 
 .validation-feedback__section--warning {
-  background: rgba(251, 191, 36, 0.08);
+  background: var(--color-warning-container);
   border-left-color: var(--color-warning);
 }
 
@@ -42,7 +42,7 @@
   font-size: 0.8125rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .validation-feedback__list {
@@ -62,12 +62,12 @@
 }
 
 .validation-feedback__message {
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   display: block;
 }
 
 .validation-feedback__suggestion {
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   display: block;
   font-size: 0.8125rem;
   margin-top: var(--spacing-1);

@@ -6,12 +6,12 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: var(--color-scrim, rgba(0, 0, 0, 0.5));
+  background: var(--color-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-modal-backdrop, 1000);
-  animation: fadeIn var(--motion-duration-short, 0.15s) var(--motion-easing-standard, ease);
+  z-index: var(--z-modal-backdrop);
+  animation: fadeIn var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .modal {
@@ -19,12 +19,12 @@
   max-width: 500px;
   max-height: 80vh;
   background: var(--color-surface);
-  border-radius: var(--shape-extra-large, 16px);
-  box-shadow: var(--elevation-5, 0 8px 32px rgba(0,0,0,0.2));
+  border-radius: var(--shape-extra-large);
+  box-shadow: var(--elevation-5);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: slideUp var(--motion-duration-medium, 0.2s) var(--motion-easing-emphasized, ease);
+  animation: slideUp var(--motion-duration-medium) var(--motion-easing-emphasized);
   color: var(--color-on-surface);
 }
 
@@ -32,13 +32,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-4, 16px) var(--spacing-6, 24px);
+  padding: var(--spacing-4) var(--spacing-6);
   border-bottom: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
 }
 
 .modal__header h2 {
-  font: var(--font-headline-small, 600 1.25rem/1.4 system-ui);
+  font: var(--font-headline-small);
   color: var(--color-on-surface);
   margin: 0;
 }
@@ -57,11 +57,11 @@
 }
 
 .modal__close:hover {
-  background: var(--color-hover-overlay, rgba(0,0,0,0.05));
+  background: var(--color-hover-overlay);
 }
 
 .modal__content {
-  padding: var(--spacing-6, 24px);
+  padding: var(--spacing-6);
   flex: 1;
   overflow-y: auto;
 }
@@ -69,8 +69,8 @@
 .modal__footer {
   display: flex;
   justify-content: flex-end;
-  gap: var(--spacing-3, 12px);
-  padding: var(--spacing-4, 16px) var(--spacing-6, 24px);
+  gap: var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-6);
   border-top: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
 }

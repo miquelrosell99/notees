@@ -3,11 +3,11 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: var(--color-error-bg, #fee);
-  border: 1px solid var(--color-error, #f44);
+  background-color: var(--color-error-container);
+  border: 1px solid var(--color-error);
   border-radius: 4px;
   font-size: 13px;
-  color: var(--color-error-text, #c00);
+  color: var(--color-on-error-container);
 }
 
 .block-error-icon {
@@ -21,8 +21,8 @@
 .block-error-retry {
   padding: 4px 8px;
   font-size: 12px;
-  background: var(--color-error, #f44);
-  color: white;
+  background: var(--color-error);
+  color: var(--color-on-error);
   border: none;
   border-radius: 3px;
   cursor: pointer;

@@ -75,12 +75,12 @@
 .node-list-group__page-header {
   font-weight: 600;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   transition: background-color 0.15s ease;
 }
 
 .node-list-group__page-header:hover {
-  background-color: var(--bg-hover);
+  background-color: var(--color-hover-overlay);
 }
 
 /* Navigation actions - hidden by default, shown on hover */
@@ -111,22 +111,22 @@
   padding: 0;
   border: none;
   background: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
   transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .node-list-group__collapse-arrow:hover {
-  color: var(--text-primary);
-  background-color: var(--bg-hover);
+  color: var(--color-on-surface);
+  background-color: var(--color-hover-overlay);
 }
 
 /* No page fallback */
 .node-list-group__no-page-label {
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
   font-style: italic;
 }
 

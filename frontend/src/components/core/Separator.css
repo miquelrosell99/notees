@@ -4,7 +4,7 @@
 
 .separator {
   flex-shrink: 0;
-  background: var(--color-outline-variant, var(--border-color));
+  background: var(--color-outline-variant);
 }
 
 /* Orientation */
@@ -42,25 +42,25 @@
 
 /* Spacing (margin) */
 .separator--horizontal.separator--spacing-sm {
-  margin: var(--spacing-1, 4px) 0;
+  margin: var(--spacing-1) 0;
 }
 
 .separator--vertical.separator--spacing-sm {
-  margin: 0 var(--spacing-1, 4px);
+  margin: 0 var(--spacing-1);
 }
 
 .separator--horizontal.separator--spacing-md {
-  margin: var(--spacing-2, 8px) 0;
+  margin: var(--spacing-2) 0;
 }
 
 .separator--vertical.separator--spacing-md {
-  margin: 0 var(--spacing-2, 8px);
+  margin: 0 var(--spacing-2);
 }
 
 .separator--horizontal.separator--spacing-lg {
-  margin: var(--spacing-3, 12px) 0;
+  margin: var(--spacing-3) 0;
 }
 
 .separator--vertical.separator--spacing-lg {
-  margin: 0 var(--spacing-3, 12px);
+  margin: 0 var(--spacing-3);
 }

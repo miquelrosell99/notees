@@ -10,7 +10,7 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 0 0;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--color-outline-variant);
 }
 
 .property-create-modal__field {
@@ -22,7 +22,7 @@
 .property-create-modal__label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .property-create-modal__name-row {
@@ -39,16 +39,16 @@
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  background: var(--bg-secondary);
+  background: var(--color-surface-variant);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .property-create-modal__icon-picker:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent);
+  background: var(--color-hover-overlay);
+  border-color: var(--color-accent);
 }
 
 .property-create-modal__icon-picker:empty::after {
@@ -68,8 +68,8 @@
   align-items: flex-start;
   gap: 2px;
   padding: 10px 12px;
-  background: var(--bg-secondary);
-  border: 2px solid var(--border-color);
+  background: var(--color-surface-variant);
+  border: 2px solid var(--color-outline-variant);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -77,30 +77,30 @@
 }
 
 .property-create-modal__type-option:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent-light);
+  background: var(--color-hover-overlay);
+  border-color: var(--color-primary-container);
 }
 
 .property-create-modal__type-option--selected {
-  background: var(--accent-bg);
-  border-color: var(--accent);
+  background: var(--color-primary-container);
+  border-color: var(--color-accent);
 }
 
 .property-create-modal__type-label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .property-create-modal__type-description {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   line-height: 1.3;
 }
 
 .property-create-modal__help-text {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   line-height: 1.4;
   margin-top: -4px;
 }
@@ -114,7 +114,7 @@
   gap: 8px;
   align-items: flex-start;
   padding: 8px;
-  background: var(--bg-secondary);
+  background: var(--color-surface-variant);
   border-radius: 6px;
 }
 
@@ -126,16 +126,16 @@
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 4px;
-  background: var(--bg-primary);
+  background: var(--color-surface);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .property-create-modal__option-icon-picker:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent);
+  background: var(--color-hover-overlay);
+  border-color: var(--color-accent);
 }
 
 .property-create-modal__option-icon-picker:empty::after {
@@ -155,17 +155,17 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 12px;
   font-size: 12px;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .property-create-modal__class-remove {
   background: none;
   border: none;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
@@ -174,16 +174,16 @@
 }
 
 .property-create-modal__class-remove:hover {
-  color: var(--text-error);
+  color: var(--color-error);
 }
 
 .property-create-modal__select {
   width: 100%;
   padding: 8px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
@@ -191,11 +191,11 @@
 }
 
 .property-create-modal__select:hover {
-  border-color: var(--accent-light);
+  border-color: var(--color-primary-container);
 }
 
 .property-create-modal__select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-bg);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-primary-container);
 }

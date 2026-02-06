@@ -10,7 +10,7 @@
   display: flex;
   flex-direction: column;
   padding: var(--spacing-1) 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
               box-shadow var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -79,7 +79,7 @@
   
   /* Subtle background tint */
   background: var(--node-tint);
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   padding-left: var(--spacing-1);
 }
 
@@ -264,7 +264,7 @@
 .block.selected {
   background-color: var(--color-hover-overlay);
   box-shadow: inset 0 0 0 2px var(--color-primary);
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
 }
 
 .block.primary-selected {
@@ -293,7 +293,7 @@
   pointer-events: none;
   z-index: 10;
   border-radius: 2px;
-  box-shadow: 0 0 4px rgba(66, 133, 244, 0.5);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--color-primary) 50%, transparent);
   animation: pulse-drop 1s ease-in-out infinite;
 }
 
@@ -333,7 +333,7 @@
   background-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-left: 3px solid var(--color-primary);
   padding-left: 6px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   margin-left: 24px;
 }
 
@@ -379,8 +379,8 @@
 /* Drag preview (cloned element) */
 .dragging-preview {
   background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
-  border-radius: var(--radius-md);
+  box-shadow: var(--elevation-3);
+  border-radius: var(--shape-medium);
   opacity: 0.9;
   pointer-events: none;
 }
@@ -412,14 +412,14 @@
 /* When block has color, Card becomes visible with full styling */
 .block .block-content.block-content--colored {
   /* Background color is set via inline style */
-  color: var(--block-text-color, inherit);
+  color: var(--block-text-color);
   padding: 0 var(--spacing-2);
 }
 
 .block .block-content--colored .block-editor-input,
 .block .block-content--colored .block-content-view,
 .block .block-content--colored .block-content-pills {
-  color: var(--block-text-color, inherit);
+  color: var(--block-text-color);
 }
 
 /* Colored blocks also have no hover background */
@@ -453,7 +453,7 @@
   min-height: 24px;
   padding: 0;
   cursor: text;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
   /* Match editor structure */
   display: block;
@@ -476,7 +476,7 @@
   font-size: 0.75rem;
   background: var(--color-surface-variant);
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: var(--shape-full);
   cursor: pointer;
   opacity: 0.7;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
@@ -500,7 +500,7 @@
   background: var(--color-surface-container);
   color: var(--color-on-surface-variant);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--radius-full);
+  border-radius: var(--shape-full);
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),

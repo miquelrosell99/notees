@@ -138,7 +138,7 @@
 }
 
 .node-view__banner--dragging {
-  outline: 2px dashed var(--accent-color);
+  outline: 2px dashed var(--color-primary);
   outline-offset: -4px;
   opacity: 0.9;
 }
@@ -152,7 +152,7 @@
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   color: var(--color-on-surface-variant);
   cursor: pointer;
   opacity: 0.4;
@@ -196,7 +196,7 @@
   color: var(--color-on-surface-variant);
   font: var(--font-body-small);
   cursor: pointer;
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
   height: 60px;
   width: 100%;
   justify-content: center;
@@ -237,7 +237,7 @@
 }
 
 .node-view__cover--dragging {
-  outline: 2px dashed var(--accent-color);
+  outline: 2px dashed var(--color-primary);
   outline-offset: -4px;
   opacity: 0.9;
 }
@@ -252,7 +252,7 @@
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   color: var(--color-on-surface-variant);
   cursor: pointer;
   opacity: 0.4;
@@ -297,7 +297,7 @@
   border: 2px dashed var(--color-outline-variant);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
 }
 
 .node-view__cover-add-btn:hover {

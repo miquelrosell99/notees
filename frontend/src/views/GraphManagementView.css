@@ -229,16 +229,16 @@
 }
 
 .graph-management__card--delete-confirm {
-  border-color: var(--color-error, #ba1a1a);
+  border-color: var(--color-error);
   animation: delete-confirm-pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes delete-confirm-pulse {
   0%, 100% {
-    box-shadow: 0 0 4px 0 var(--color-error, #ba1a1a);
+    box-shadow: 0 0 4px 0 var(--color-error);
   }
   50% {
-    box-shadow: 0 0 12px 4px var(--color-error, #ba1a1a);
+    box-shadow: 0 0 12px 4px var(--color-error);
   }
 }
 

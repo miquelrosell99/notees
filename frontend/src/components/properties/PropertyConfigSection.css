@@ -28,7 +28,7 @@
 
 .property-config-section__error {
   padding: 12px 16px;
-  background-color: var(--color-error-bg);
+  background-color: var(--color-error-container);
   color: var(--color-error);
   border-radius: 8px;
   font-size: 14px;
@@ -39,7 +39,7 @@
   justify-content: flex-end;
   gap: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-outline-variant);
 }
 
 .property-config-section__delete {
@@ -47,5 +47,5 @@
   justify-content: center;
   padding-top: 16px;
   margin-top: 16px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-outline-variant);
 }

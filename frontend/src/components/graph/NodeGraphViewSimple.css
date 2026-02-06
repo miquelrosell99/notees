@@ -10,7 +10,7 @@
   height: 100%;
   overflow: hidden;
   background: var(--color-surface);
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
 }
 
 .node-graph-view-simple.empty {
@@ -20,7 +20,7 @@
 }
 
 .node-graph-view-simple__empty {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 13px;
 }
 

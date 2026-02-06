@@ -19,7 +19,7 @@
   padding: 0.375rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -44,11 +44,11 @@
 }
 
 .add-filter-menu__item:hover {
-  background-color: var(--bg-hover);
+  background-color: var(--color-hover-overlay);
 }
 
 .add-filter-menu__item:active {
-  background-color: var(--bg-active);
+  background-color: var(--color-pressed-overlay);
 }
 
 /* Keyboard selection highlight - same as hover */
@@ -64,11 +64,11 @@
 .btn-panel__content[data-selected-index="9"] .add-filter-menu__item[data-index="9"],
 .btn-panel__content[data-selected-index="10"] .add-filter-menu__item[data-index="10"],
 .btn-panel__content[data-selected-index="11"] .add-filter-menu__item[data-index="11"] {
-  background-color: var(--bg-hover);
+  background-color: var(--color-hover-overlay);
 }
 
 .add-filter-menu__divider {
   height: 1px;
-  background-color: var(--border-light);
+  background-color: var(--color-outline-variant);
   margin: 0.5rem 0;
 }

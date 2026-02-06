@@ -12,7 +12,7 @@
 .class-colors-description {
   margin: 0;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
   line-height: 1.4;
 }
 
@@ -33,8 +33,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
+  border-radius: var(--shape-small);
+  background: var(--color-surface-container);
   cursor: grab;
 }
 
@@ -55,5 +55,5 @@
   padding: 24px 12px;
   text-align: center;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
 }

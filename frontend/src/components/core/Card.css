@@ -42,15 +42,15 @@
 }
 
 .card--radius-sm {
-  border-radius: var(--shape-small, 4px);
+  border-radius: var(--shape-small);
 }
 
 .card--radius-md {
-  border-radius: var(--container-radius, var(--shape-large, 8px));
+  border-radius: var(--container-radius);
 }
 
 .card--radius-lg {
-  border-radius: var(--shape-extra-large, 12px);
+  border-radius: var(--shape-extra-large);
 }
 
 /* Elevation levels */
@@ -72,15 +72,15 @@
 
 /* Padding options */
 .card--padded.card--padding-sm {
-  padding: var(--spacing-1, 4px);
+  padding: var(--spacing-1);
 }
 
 .card--padded.card--padding-md {
-  padding: var(--spacing-2, 8px);
+  padding: var(--spacing-2);
 }
 
 .card--padded.card--padding-lg {
-  padding: var(--spacing-3, 12px);
+  padding: var(--spacing-3);
 }
 
 /* Interactive state */
@@ -93,18 +93,18 @@
 }
 
 .card--interactive:hover {
-  background: var(--color-surface-hover, var(--bg-hover));
+  background: var(--color-hover-overlay);
   border-color: var(--color-outline);
 }
 
 .card--interactive:active {
-  background: var(--color-surface-active, var(--bg-active));
+  background: var(--color-pressed-overlay);
 }
 
 /* Selected state */
 .card--selected {
   border-color: var(--color-primary);
-  background: var(--color-primary-container, rgba(var(--color-primary-rgb), 0.1));
+  background: var(--color-primary-container);
 }
 
 /* Close button support */

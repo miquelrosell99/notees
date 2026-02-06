@@ -11,26 +11,26 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: var(--accent-color);
+  color: var(--color-primary);
   margin-top: 2px;
 }
 
 .confirmation-modal__title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   margin: 0;
 }
 
 .confirmation-modal__message {
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   line-height: 1.5;
   margin-bottom: 24px;
   white-space: pre-line;
 }
 
 .confirmation-modal__secondary-message {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 14px;
   line-height: 1.5;
   margin-top: -16px;

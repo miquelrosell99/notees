@@ -15,20 +15,20 @@
   gap: 12px;
   align-items: flex-start;
   padding: 12px;
-  background: var(--color-surface-secondary);
-  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-medium);
   margin-bottom: 16px;
 }
 
 .import-data-modal__icon {
-  color: var(--color-text-muted);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
 .import-data-modal__instructions p {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-on-surface-variant);
   line-height: 1.5;
 }
 
@@ -42,21 +42,21 @@
   height: 200px;
   min-height: 150px;
   padding: 12px;
-  font-family: var(--font-mono);
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   line-height: 1.5;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
   resize: vertical;
-  color: var(--color-text);
+  color: var(--color-on-surface);
   transition: border-color 0.15s ease;
 }
 
 .import-data-modal__textarea:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-alpha);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .import-data-modal__textarea--error {
@@ -65,7 +65,7 @@
 
 .import-data-modal__textarea--error:focus {
   border-color: var(--color-error);
-  box-shadow: 0 0 0 2px var(--color-error-alpha);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 
 .import-data-modal__textarea--valid {
@@ -74,11 +74,11 @@
 
 .import-data-modal__textarea--valid:focus {
   border-color: var(--color-success);
-  box-shadow: 0 0 0 2px var(--color-success-alpha);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
 }
 
 .import-data-modal__textarea::placeholder {
-  color: var(--color-text-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .import-data-modal__error {
@@ -87,16 +87,16 @@
   gap: 8px;
   padding: 8px 12px;
   margin-top: 12px;
-  background: var(--color-error-bg);
-  border-radius: var(--radius-md);
+  background: var(--color-error-container);
+  border-radius: var(--shape-medium);
   color: var(--color-error);
   font-size: var(--font-size-sm);
 }
 
 .import-data-modal__preview {
   margin-top: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
@@ -105,19 +105,19 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: var(--color-surface-secondary);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-container-low);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .import-data-modal__preview-title {
   font-weight: 500;
   font-size: var(--font-size-sm);
-  color: var(--color-text);
+  color: var(--color-on-surface);
 }
 
 .import-data-modal__preview-count {
   font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .import-data-modal__preview-blocks {
@@ -135,7 +135,7 @@
 }
 
 .import-data-modal__preview-bullet {
-  color: var(--color-text-muted);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
@@ -144,18 +144,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-text);
+  color: var(--color-on-surface);
 }
 
 .import-data-modal__preview-children {
   font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
 .import-data-modal__preview-more {
   padding: 4px 0;
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  color: var(--color-on-surface-variant);
   font-style: italic;
 }

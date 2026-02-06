@@ -18,7 +18,7 @@
 }
 
 .node-table__date {
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
   flex: 1;
   min-width: 0;
 }
@@ -41,7 +41,7 @@
 
 /* Node-specific count cell */
 .node-table__count {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 0.75rem;
 }
 

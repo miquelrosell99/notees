@@ -199,3 +199,103 @@ export function getNodeDepth(
   }
   return -1;
 }
+
+// ==================== Reference-Equality Optimized Variants ====================
+// These variants return the same reference when nothing changed, which is critical
+// for optimistic cache updates to avoid unnecessary React re-renders.
+
+/**
+ * Update a node in a tree by ID using an updater function.
+ * Returns the same array reference if nothing changed.
+ * Operates on a single root node (for detail cache entries).
+ */
+export function updateNodeByIdImmutable(
+  node: Node | undefined,
+  targetId: number,
+  updater: (n: Node) => Node
+): Node | undefined {
+  if (!node) return undefined;
+  if (node.id === targetId) {
+    return updater(node);
+  }
+  if (node.children && node.children.length > 0) {
+    const newChildren = node.children
+      .map(child => updateNodeByIdImmutable(child, targetId, updater))
+      .filter((n): n is Node => n !== undefined);
+    const childrenChanged = newChildren.some((child, i) => child !== node.children![i]);
+    if (childrenChanged) {
+      return { ...node, children: newChildren };
+    }
+  }
+  return node;
+}
+
+/**
+ * Update a node in a tree with partial updates.
+ * Returns the same array reference if nothing changed.
+ */
+export function updateNodeInTreeImmutable(
+  nodes: Node[],
+  nodeId: number,
+  updates: Partial<Node>
+): Node[] {
+  let changed = false;
+  const result = nodes.map(node => {
+    if (node.id === nodeId) {
+      changed = true;
+      return { ...node, ...updates };
+    }
+    if (node.children && node.children.length > 0) {
+      const newChildren = updateNodeInTreeImmutable(node.children, nodeId, updates);
+      if (newChildren !== node.children) {
+        changed = true;
+        return { ...node, children: newChildren };
+      }
+    }
+    return node;
+  });
+  return changed ? result : nodes;
+}
+
+/**
+ * Remove a node from a tree structure.
+ * Returns the same array reference if nothing was removed.
+ */
+export function removeNodeFromTreeImmutable(nodes: Node[], nodeId: number): Node[] {
+  const directRemoval = nodes.some(node => node.id === nodeId);
+
+  let childrenChanged = false;
+  const mappedNodes = nodes.map(node => {
+    if (node.id === nodeId) {
+      return node; // Will be filtered out below
+    }
+    if (node.children && node.children.length > 0) {
+      const newChildren = removeNodeFromTreeImmutable(node.children, nodeId);
+      if (newChildren !== node.children) {
+        childrenChanged = true;
+        return { ...node, children: newChildren };
+      }
+    }
+    return node;
+  });
+
+  if (directRemoval) {
+    return mappedNodes.filter(node => node.id !== nodeId);
+  }
+  return childrenChanged ? mappedNodes : nodes;
+}
+
+/**
+ * Find a node by ID in a single root node's tree (DFS).
+ * Useful for searching within a detail cache entry.
+ */
+export function findNodeInRootTree(root: Node, nodeId: number): Node | null {
+  if (root.id === nodeId) return root;
+  if (root.children) {
+    for (const child of root.children) {
+      const found = findNodeInRootTree(child, nodeId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
