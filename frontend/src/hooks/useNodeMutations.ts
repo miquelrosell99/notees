@@ -100,6 +100,132 @@ function removeNodeFromTree(nodes: Node[], nodeId: number): Node[] {
   return childrenChanged ? mappedNodes : nodes;
 }
 
+/**
+ * Helper to invalidate common node-related caches after mutations.
+ * Centralizes the invalidation logic that's duplicated across multiple mutations.
+ * 
+ * @param queryClient - React Query client
+ * @param options - Flags to control which caches to invalidate
+ */
+function invalidateNodeCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  options: {
+    /** Invalidate list queries (sidebar) */
+    lists?: boolean;
+    /** Invalidate pages queries */
+    pages?: boolean;
+    /** Invalidate classes queries */
+    classes?: boolean;
+    /** Invalidate search queries */
+    search?: boolean;
+    /** Invalidate linked references queries */
+    linkedRefs?: boolean;
+    /** Invalidate backlinks queries */
+    backlinks?: boolean;
+    /** Invalidate property backlinks queries */
+    propertyBacklinks?: boolean;
+    /** Invalidate node view query results */
+    queryResults?: boolean;
+    /** Invalidate a specific node's detail cache */
+    nodeId?: number;
+    /** Whether to actively refetch (default: false for soft invalidation) */
+    refetch?: boolean;
+  } = {}
+) {
+  const {
+    lists = false,
+    pages = false,
+    classes = false,
+    search = false,
+    linkedRefs = false,
+    backlinks = false,
+    propertyBacklinks = false,
+    queryResults = false,
+    nodeId,
+    refetch = false,
+  } = options;
+
+  const refetchType = refetch ? 'active' : 'none';
+
+  if (lists) {
+    queryClient.invalidateQueries({ 
+      queryKey: nodeKeys.lists(),
+      refetchType,
+    });
+  }
+
+  if (pages) {
+    queryClient.invalidateQueries({ 
+      queryKey: nodeKeys.pages(),
+      refetchType,
+    });
+  }
+
+  if (classes) {
+    queryClient.invalidateQueries({ 
+      queryKey: nodeKeys.classes(),
+      refetchType,
+    });
+  }
+
+  if (search) {
+    queryClient.invalidateQueries({ 
+      queryKey: [...nodeKeys.all, 'search'],
+      refetchType,
+    });
+  }
+
+  if (linkedRefs) {
+    queryClient.invalidateQueries({ 
+      queryKey: ['nodes', 'linked-refs'],
+    });
+    if (refetch) {
+      queryClient.refetchQueries({ 
+        queryKey: ['nodes', 'linked-refs'],
+        type: 'active',
+      });
+    }
+  }
+
+  if (backlinks) {
+    queryClient.invalidateQueries({ 
+      queryKey: ['nodes', 'backlinks'],
+    });
+    if (refetch) {
+      queryClient.refetchQueries({ 
+        queryKey: ['nodes', 'backlinks'],
+        type: 'active',
+      });
+    }
+  }
+
+  if (propertyBacklinks) {
+    queryClient.invalidateQueries({ 
+      queryKey: ['nodes', 'property-backlinks'],
+    });
+    if (refetch) {
+      queryClient.refetchQueries({ 
+        queryKey: ['nodes', 'property-backlinks'],
+        type: 'active',
+      });
+    }
+  }
+
+  if (queryResults) {
+    queryClient.invalidateQueries({ 
+      queryKey: nodeViewKeys.queryResults(),
+      refetchType,
+    });
+  }
+
+  if (nodeId !== undefined) {
+    queryClient.invalidateQueries({ 
+      queryKey: nodeKeys.detailBase(nodeId),
+      refetchType,
+    });
+  }
+}
+
 // ==================== Node Mutations ====================
 
 // Counter for optimistic IDs - negative to avoid collision with real IDs
@@ -301,46 +427,21 @@ export function useCreateNode() {
         );
       }
       
-      // Invalidate list queries for sidebar updates (soft invalidate, no refetch)
-      queryClient.invalidateQueries({ 
-        queryKey: nodeKeys.lists(),
-        refetchType: 'none',
+      // Invalidate common caches
+      invalidateNodeCaches(queryClient, {
+        lists: true,
+        pages: newNode.is_page,
+        classes: newNode.is_class,
+        search: newNode.is_page,
       });
       
-      // GLOBAL: If the new node is a page, invalidate pages cache
-      if (newNode.is_page) {
-        // Update all pages queries (with and without includeChildren option)
-        // We need to invalidate ALL variations of pages queries since the cache key
-        // includes the options object ({ includeChildren: true } vs {})
-        queryClient.invalidateQueries({ 
-          queryKey: [...nodeKeys.all, 'pages'],
-          refetchType: 'active',
+      // GLOBAL: If the new node is a page with a parent, invalidate parent and query results
+      if (newNode.is_page && newNode.parent_id) {
+        invalidateNodeCaches(queryClient, {
+          nodeId: newNode.parent_id,
+          queryResults: true,
+          refetch: true,
         });
-        
-        // If the new node has a parent, invalidate parent's detail cache to show new child
-        if (newNode.parent_id) {
-          queryClient.invalidateQueries({
-            queryKey: nodeKeys.detailBase(newNode.parent_id),
-            refetchType: 'active',
-          });
-          
-          // Invalidate node view queries to update child pages sections
-          queryClient.invalidateQueries({
-            queryKey: nodeViewKeys.queryResults(),
-            refetchType: 'active',
-          });
-        }
-        
-        // Always invalidate search cache (soft invalidate)
-        queryClient.invalidateQueries({ 
-          queryKey: [...nodeKeys.all, 'search'],
-          refetchType: 'none',
-        });
-      }
-      
-      // GLOBAL: If the new node is a class, invalidate classes cache
-      if (newNode.is_class) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       }
     },
     onError: (_error, variables, context) => {
@@ -497,24 +598,12 @@ export function useUpdateNode() {
       
       // Force refetch the specific node detail query to ensure UI updates
       // This is needed for node color updates on inline link pills
-      queryClient.invalidateQueries({ 
-        queryKey: nodeKeys.detailBase(updatedNode.id),
-        refetchType: 'active',
-      });
-      // SOFT invalidate to prevent race conditions with concurrent mutations
-      queryClient.invalidateQueries({ 
-        queryKey: nodeKeys.lists(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: nodeKeys.pages(),
-        refetchType: 'none',
-      });
-      // Also invalidate classes since the updated node might be used as a class
-      // and its icon/name could have changed
-      queryClient.invalidateQueries({ 
-        queryKey: nodeKeys.classes(),
-        refetchType: 'none',
+      invalidateNodeCaches(queryClient, {
+        nodeId: updatedNode.id,
+        lists: true,
+        pages: true,
+        classes: true,
+        refetch: true,
       });
       
       // If parent_id was updated, invalidate and refetch parent's view queries
@@ -560,46 +649,23 @@ export function useUpdateNode() {
       // This ensures backlink badges and linked references update in real-time
       // when block references are added/removed (e.g., [[linkId]] or ((uuid)))
       if (variables.data.name !== undefined) {
-        // Invalidate linked references for all nodes - this marks them stale
-        // so they will refetch when next observed
-        queryClient.invalidateQueries({ 
-          queryKey: ['nodes', 'linked-refs'],
-        });
-        // Also immediately refetch any active queries
-        queryClient.refetchQueries({ 
-          queryKey: ['nodes', 'linked-refs'],
-          type: 'active',
-        });
-        // Invalidate and refetch backlinks queries
-        queryClient.invalidateQueries({ 
-          queryKey: ['nodes', 'backlinks'],
-        });
-        queryClient.refetchQueries({ 
-          queryKey: ['nodes', 'backlinks'],
-          type: 'active',
-        });
-        // Invalidate and refetch property backlinks (in case content had property-like references)
-        queryClient.invalidateQueries({ 
-          queryKey: ['nodes', 'property-backlinks'],
-        });
-        queryClient.refetchQueries({ 
-          queryKey: ['nodes', 'property-backlinks'],
-          type: 'active',
+        // Invalidate all link-related caches with active refetch
+        invalidateNodeCaches(queryClient, {
+          linkedRefs: true,
+          backlinks: true,
+          propertyBacklinks: true,
+          refetch: true,
         });
         
         // SOFT invalidate the parent page's detail query to refresh children's backlink_count
         // Use refetchType: 'none' to avoid race conditions with optimistic updates
-        // The query will be refetched on next access (e.g., navigation back to page)
-        // This prevents overwriting optimistic updates from concurrent mutations
         if (updatedNode.page_id) {
-          queryClient.invalidateQueries({ 
-            queryKey: nodeKeys.detailBase(updatedNode.page_id),
-            refetchType: 'none',
+          invalidateNodeCaches(queryClient, {
+            nodeId: updatedNode.page_id,
           });
         } else if (updatedNode.parent_id) {
-          queryClient.invalidateQueries({ 
-            queryKey: nodeKeys.detailBase(updatedNode.parent_id),
-            refetchType: 'none',
+          invalidateNodeCaches(queryClient, {
+            nodeId: updatedNode.parent_id,
           });
         }
       }

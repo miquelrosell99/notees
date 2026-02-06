@@ -5,7 +5,8 @@
  * and import it as blocks in the current context.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { mdiClose, mdiImport, mdiCodeJson, mdiAlertCircle } from '@mdi/js';
+import { mdiImport, mdiCodeJson, mdiAlertCircle } from '@mdi/js';
+import { Modal } from './core/Modal';
 import { Button } from './core/Button';
 import { isValidBlockCopyData, type BlockCopyData, type BlockData } from '@/utils/clipboardManager';
 import './ImportDataModal.css';
@@ -77,22 +78,13 @@ export function ImportDataModal({
   }, [parsedData, onImport, onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (parsedData) {
         handleImport();
       }
     }
-  }, [onClose, parsedData, handleImport]);
-
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }, [onClose]);
+  }, [parsedData, handleImport]);
 
   if (!isOpen) return null;
 
@@ -100,23 +92,30 @@ export function ImportDataModal({
   const totalBlocks = parsedData ? countAllBlocks(parsedData.blocks) : 0;
 
   return (
-    <div className="modal-overlay" onClick={handleBackdropClick}>
-      <div className="modal import-data-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal__header">
-          <h2>{title}</h2>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      size="md"
+      closeOnBackdrop={true}
+      closeOnEscape={true}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
-            icon={mdiClose}
-            iconOnly
-            className="modal__close"
-            onClick={onClose}
-            size="sm"
-            variant="ghost"
-            aria-label="Close"
-          />
-        </div>
-
-        <div className="modal__content">
-          <div className="import-data-modal__instructions">
+            variant="primary"
+            onClick={handleImport}
+            disabled={!parsedData}
+            icon={mdiImport}
+          >
+            Import {totalBlocks > 0 ? `${totalBlocks} block${totalBlocks !== 1 ? 's' : ''}` : ''}
+          </Button>
+        </>
+      }
+    >
+      <div className="import-data-modal__instructions">
             <div className="import-data-modal__icon">
               <svg viewBox="0 0 24 24" width={24} height={24}>
                 <path fill="currentColor" d={mdiCodeJson} />
@@ -180,23 +179,7 @@ export function ImportDataModal({
               </div>
             </div>
           )}
-        </div>
-
-        <div className="modal__footer">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleImport}
-            disabled={!parsedData}
-            icon={mdiImport}
-          >
-            Import {totalBlocks > 0 ? `${totalBlocks} block${totalBlocks !== 1 ? 's' : ''}` : ''}
-          </Button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

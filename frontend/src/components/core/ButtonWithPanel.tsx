@@ -13,6 +13,8 @@ import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 import { Card } from './Card';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import './ButtonWithPanel.css';
 
 export type PanelPosition = 'left' | 'right' | 'top' | 'bottom';
@@ -124,36 +126,22 @@ export function ButtonWithPanel({
     handleOpenChange(false);
   }, [handleOpenChange]);
   
-  // Click outside handler
-  useEffect(() => {
-    if (!isOpen || !closeOnClickOutside) return;
-    
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const clickedContainer = containerRef.current?.contains(target);
-      const clickedPanel = panelRef.current?.contains(target);
-      
-      if (!clickedContainer && !clickedPanel) {
-        closePanel();
-      }
-    };
-    
-    // Use mousedown to catch clicks before blur events
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, closeOnClickOutside, closePanel]);
+  // Close on escape key
+  useEscapeKey(() => {
+    if (closeOnEscape) {
+      closePanel();
+      buttonRef.current?.focus();
+    }
+  }, isOpen);
+
+  // Close on click outside
+  useClickOutside([containerRef, panelRef], closePanel, isOpen && closeOnClickOutside);
   
   // Keyboard navigation handler
   useEffect(() => {
     if (!isOpen) return;
     
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && closeOnEscape) {
-        closePanel();
-        buttonRef.current?.focus();
-        return;
-      }
-      
       // Arrow key navigation
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -181,7 +169,7 @@ export function ButtonWithPanel({
     
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, closeOnEscape, closePanel, selectedIndex]);
+  }, [isOpen, selectedIndex]);
 
   // Calculate portal position when panel opens with viewport-aware positioning
   useEffect(() => {

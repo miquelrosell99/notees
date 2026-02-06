@@ -18,6 +18,8 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import './SearchDropdown.css';
 
 export interface SearchDropdownItem<T = any> {
@@ -93,6 +95,13 @@ export function SearchDropdown<T = any>({
     setSelectedIndex(0);
   }, [items.length, createQuery]);
 
+  // Close on escape key
+  useEscapeKey(onClose, isOpen);
+
+  // Close on click outside
+  const refs = containerRef ? [dropdownRef, containerRef] : dropdownRef;
+  useClickOutside(refs, onClose, isOpen);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isOpen) return;
@@ -123,39 +132,13 @@ export function SearchDropdown<T = any>({
           onCreate(createQuery);
         }
         break;
-
-      case 'Escape':
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-        break;
     }
-  }, [isOpen, selectedIndex, totalItems, items, showCreateOption, onCreate, createQuery, onSelect, onClose]);
+  }, [isOpen, selectedIndex, totalItems, items, showCreateOption, onCreate, createQuery, onSelect]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
-
-  // Click outside to close
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Check if click is outside both the dropdown and the container (if provided)
-      const clickedOutsideDropdown = dropdownRef.current && !dropdownRef.current.contains(target);
-      const clickedOutsideContainer = !containerRef?.current || !containerRef.current.contains(target);
-      
-      if (clickedOutsideDropdown && clickedOutsideContainer) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onClose, containerRef]);
 
   // Scroll selected item into view
   useEffect(() => {

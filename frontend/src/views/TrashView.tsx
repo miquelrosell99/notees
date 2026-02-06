@@ -4,7 +4,8 @@
  * Fetches directly from the /trash endpoint instead of using query system.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
+import { NodeCollection } from '../components/nodes/NodeCollection';
+import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { TrashIcon } from '../components/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useNodesStore } from '@/stores';

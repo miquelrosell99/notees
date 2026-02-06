@@ -5,7 +5,8 @@
  * Fetches directly from the /archived endpoint instead of using query system.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { NodeCollection, NodeCollectionToolbar } from '../components/nodes/NodeCollection';
+import { NodeCollection } from '../components/nodes/NodeCollection';
+import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
 import { useNodesStore } from '@/stores';
 import api from '@/api/client';
