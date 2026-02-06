@@ -78,8 +78,12 @@ export interface NodeCollectionToolbarProps {
   onPropertyColumnsChange?: (propertyUuids: string[]) => void;
   /** Callback when reset views button is clicked */
   onResetViews?: () => void;
-  /** Custom content to render at the start of the toolbar */
+  /** Custom content to render at the start of the toolbar (after leftElement) */
   toolbarPrefix?: React.ReactNode;
+  /** Element to render at the very left of the toolbar (e.g., block element, collapsible header) */
+  leftElement?: React.ReactNode;
+  /** Hide toolbar controls while keeping leftElement visible */
+  hideToolbarControls?: boolean;
   /** Additional CSS class */
   className?: string;
 }
@@ -104,6 +108,8 @@ export function NodeCollectionToolbar({
   onPropertyColumnsChange,
   onResetViews,
   toolbarPrefix,
+  leftElement,
+  hideToolbarControls = false,
   className = '',
 }: NodeCollectionToolbarProps) {
   // Use store for card layout if not controlled
@@ -164,15 +170,28 @@ export function NodeCollectionToolbar({
     []
   );
 
+  // Check if we have any toolbar content (excluding leftElement)
+  const hasToolbarContent = !hideToolbarControls && (showViewSwitcher || showGroupByButton || showAdd || showPropertyColumnSelector || toolbarPrefix);
+
   // Don't render if nothing to show
-  if (!showViewSwitcher && !showGroupByButton && !showAdd && !showPropertyColumnSelector && !toolbarPrefix) {
+  if (!leftElement && !hasToolbarContent) {
     return null;
   }
 
   return (
     <div className={`node-collection-toolbar ${className}`}>
-      {/* Custom prefix content */}
-      {toolbarPrefix}
+      {/* Left section - always visible when leftElement exists */}
+      {leftElement && (
+        <div className="node-collection-toolbar__left">
+          {leftElement}
+        </div>
+      )}
+      
+      {/* Right section - toolbar controls */}
+      {hasToolbarContent && (
+        <div className="node-collection-toolbar__right">
+          {/* Custom prefix content */}
+          {toolbarPrefix}
       
       {/* Add Button */}
       {showAdd && (
@@ -287,6 +306,8 @@ export function NodeCollectionToolbar({
           className="node-collection-toolbar__reset-views"
         />
       )}
+    </div>
+        )}
     </div>
   );
 }
