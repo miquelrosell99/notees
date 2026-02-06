@@ -12,13 +12,17 @@
  * Selection-type properties render as pills with selection option labels.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import type { Property, Node } from '@/types/api';
-import { useSetNodeProperty, useClasses, useNode } from '@/hooks';
+import { useSetNodeProperty, useClasses, useNode, nodeKeys } from '@/hooks';
+import * as nodesApi from '@/api/nodes';
 import { Block } from '../blocks/Block';
 import { ImageNode } from '../ImageNode';
 import { NodePill } from '../NodePill';
+import { NodePillRow } from '../NodePillRow';
 import { Pill } from '../core/Pill';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { useNodesStore } from '@/stores';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -228,19 +232,16 @@ export function PropertyCell({
       );
     }
     
-    // Multi-value: use pills
+    // Multi-value: use NodePillRow
     if (isMultiValue && nodeIds.length > 0) {
       return (
-        <div className="property-cell property-cell--node-multi">
-          {nodeIds.map((nodeId) => (
-            <NodePill
-              key={nodeId}
-              nodeId={nodeId}
-              variant="link"
-              readOnly={true}
-            />
-          ))}
-        </div>
+        <MultiNodePropertyCell
+          nodeIds={nodeIds}
+          property={property}
+          parentNode={node}
+          value={value}
+          editable={editable}
+        />
       );
     }
     
@@ -367,5 +368,85 @@ function InlineBlock({ nodeId }: { nodeId: number }) {
       showClasses={false}
       showQueryResults={false}
     />
+  );
+}
+
+/**
+ * MultiNodePropertyCell - Renders multi-value node properties using NodePillRow
+ * Fetches all node data and provides add/remove functionality
+ */
+function MultiNodePropertyCell({
+  nodeIds,
+  property,
+  parentNode,
+  value,
+  editable,
+}: {
+  nodeIds: number[];
+  property: Property;
+  parentNode: Node;
+  value: unknown;
+  editable: boolean;
+}) {
+  const setPropertyMutation = useSetNodeProperty();
+  const { openNode } = useNodesStore();
+
+  // Fetch all nodes in parallel
+  const nodeQueries = useQueries({
+    queries: nodeIds.map((nodeId) => ({
+      queryKey: nodeKeys.detail(nodeId, { include_children: false }),
+      queryFn: () => nodesApi.getNode(nodeId, { include_children: false }),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  // Extract resolved nodes
+  const resolvedNodes = useMemo(() => {
+    return nodeQueries
+      .map(query => query.data)
+      .filter((n): n is Node => n !== undefined);
+  }, [nodeQueries]);
+
+  // Show loading state if any query is loading
+  const isLoading = nodeQueries.some(q => q.isLoading);
+
+  if (isLoading) {
+    return (
+      <div className="property-cell property-cell--loading">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="property-cell property-cell--node-multi">
+      <NodePillRow
+        nodes={resolvedNodes}
+        searchMode="pages"
+        classFilters={property.class_filters}
+        emptyText="Add"
+        searchPlaceholder="Search..."
+        onNodeClick={(selectedNode) => {
+          openNode(selectedNode.id, 'page');
+        }}
+        onAdd={editable ? (selectedNode) => {
+          const currentValue = Array.isArray(value) ? value : [];
+          setPropertyMutation.mutate({
+            nodeId: parentNode.id,
+            propertyId: property.id,
+            value: [...currentValue, selectedNode.id],
+          });
+        } : undefined}
+        onRemove={editable ? (selectedNode) => {
+          const currentValue = Array.isArray(value) ? value : [];
+          setPropertyMutation.mutate({
+            nodeId: parentNode.id,
+            propertyId: property.id,
+            value: currentValue.filter(id => id !== selectedNode.id),
+          });
+        } : undefined}
+        readOnly={!editable}
+      />
+    </div>
   );
 }
