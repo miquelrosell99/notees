@@ -37,7 +37,7 @@ const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
 const REFERENCE_LINK_FORCE_MULTIPLIER = 0.5;
 const REPULSION_STRENGTH = 500;
-const VELOCITY_DAMPING = 0.82;
+const VELOCITY_DAMPING = 0.92;
 const RETURN_FORCE = 0.08;
 const DRAG_PULL_STRENGTH = 0.15;
 const PARENT_MASS_PER_CHILD = 2;
@@ -1238,18 +1238,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               const radialY = dy / dist;
               const radiusError = Math.abs(dist - treeRadius);
               
-              // Blend rate depends on distance: hard snap when close, smooth lerp when far
-              // This gives firm circle adherence in steady state + smooth transitions
-              const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.4 : 1.0;
-              const newDist = dist + (treeRadius - dist) * blendRate;
-              
-              node.x = cx + radialX * newDist;
-              node.y = cy + radialY * newDist;
-              
-              // Strip radial velocity component (keep only tangential)
+              // Strip radial velocity first — prevents radial drift from physics forces
               const radialV = node.vx * radialX + node.vy * radialY;
               node.vx -= radialV * radialX;
               node.vy -= radialV * radialY;
+              
+              // Correct position: smooth lerp when far (transition), hard snap when close
+              const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
+              const newDist = dist + (treeRadius - dist) * blendRate;
+              node.x = cx + radialX * newDist;
+              node.y = cy + radialY * newDist;
             }
           }
         }
