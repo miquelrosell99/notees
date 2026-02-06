@@ -33,6 +33,12 @@ export interface SelectionButtonProps extends Omit<HTMLAttributes<HTMLDivElement
   size?: SelectionButtonSize;
   /** Disabled state */
   disabled?: boolean;
+  /** Label text */
+  label?: string;
+  /** Description text below label */
+  description?: string;
+  /** Label position */
+  labelPosition?: 'left' | 'right';
 }
 
 const ICON_SIZES: Record<SelectionButtonSize, number> = {
@@ -49,6 +55,9 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     orientation = 'horizontal',
     size = 'md',
     disabled = false,
+    label,
+    description,
+    labelPosition = 'right',
     className = '',
     ...props
   },
@@ -97,24 +106,25 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     `selection-button--${orientation}`,
     `selection-button--${size}`,
     disabled && 'selection-button--disabled',
-    className,
   ]
     .filter(Boolean)
     .join(' ');
 
   const iconSize = ICON_SIZES[size];
 
-  return (
+  const hasLabel = label || description;
+
+  const buttonElement = (
     <div
       ref={(node) => {
-        // Handle both refs
-        if (typeof ref === 'function') ref(node);
-        else if (ref) ref.current = node;
+        if (!hasLabel) {
+          if (typeof ref === 'function') ref(node);
+          else if (ref) ref.current = node;
+        }
         (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
       }}
       className={containerClasses}
       role="radiogroup"
-      {...props}
     >
       {/* Animated selection indicator */}
       <span 
@@ -142,6 +152,39 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
           </button>
         );
       })}
+    </div>
+  );
+
+  if (!hasLabel) {
+    return buttonElement;
+  }
+
+  const labelElement = (
+    <div className="selection-button__label-wrapper">
+      {label && <span className="selection-button__label">{label}</span>}
+      {description && <span className="selection-button__description">{description}</span>}
+    </div>
+  );
+
+  const wrapperClasses = [
+    'selection-button__wrapper',
+    `selection-button__wrapper--label-${labelPosition}`,
+    `selection-button__wrapper--${size}`,
+    disabled && 'selection-button__wrapper--disabled',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <div
+      ref={ref as React.Ref<HTMLDivElement>}
+      className={wrapperClasses}
+      {...props}
+    >
+      {labelPosition === 'left' && labelElement}
+      {buttonElement}
+      {labelPosition === 'right' && labelElement}
     </div>
   );
 });
