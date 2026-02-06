@@ -9,8 +9,9 @@
  * 
  * Uses the same dropdown pattern as NodeSelector for consistency.
  */
-import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useProperties } from '@/hooks';
+import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { AddIcon } from '../icons';
@@ -45,7 +46,6 @@ export function PropertySuggestionPopup({
   excludeIds = [],
 }: PropertySuggestionPopupProps) {
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [initialPropertyName, setInitialPropertyName] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,25 +85,6 @@ export function PropertySuggestionPopup({
   
   // Total items including create option
   const totalItems = filteredProperties.length + (showCreateOption ? 1 : 0);
-  
-  // Reset selection when list changes
-  // Using useLayoutEffect to sync before paint
-  useLayoutEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset selection index when list changes in useLayoutEffect
-    setSelectedIndex(0);
-  }, [filteredProperties.length, showCreateOption]);
-  
-  // Focus input and reset state when popup opens
-  useLayoutEffect(() => {
-    if (isOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset popup state when opened in useLayoutEffect
-      setQuery('');
-      setSelectedIndex(0);
-      setShowCreateModal(false);
-      setInitialPropertyName('');
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
 
   // Handle property selection
   const handleSelect = useCallback((property: Property) => {
@@ -116,6 +97,37 @@ export function PropertySuggestionPopup({
     setInitialPropertyName(query.trim());
     setShowCreateModal(true);
   }, [query]);
+
+  // Keyboard list navigation
+  const handleSelectByIndex = useCallback((index: number) => {
+    if (index < filteredProperties.length) {
+      handleSelect(filteredProperties[index]);
+    } else if (showCreateOption) {
+      handleCreate();
+    }
+  }, [filteredProperties, showCreateOption, handleSelect, handleCreate]);
+
+  const handleClose = useCallback(() => {
+    onClose();
+    setQuery('');
+  }, [onClose]);
+
+  const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
+    totalItems,
+    onSelect: handleSelectByIndex,
+    onClose: handleClose,
+    isOpen,
+  });
+
+  // Focus input when popup opens
+  useEffect(() => {
+    if (isOpen) {
+      setQuery('');
+      setShowCreateModal(false);
+      setInitialPropertyName('');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
   
   const handleCreateConfirm = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     onCreate(data);
@@ -128,33 +140,6 @@ export function PropertySuggestionPopup({
     setShowCreateModal(false);
     setInitialPropertyName('');
   }, []);
-  
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, totalItems - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (selectedIndex < filteredProperties.length) {
-          handleSelect(filteredProperties[selectedIndex]);
-        } else if (showCreateOption) {
-          handleCreate();
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        onClose();
-        setQuery('');
-        break;
-    }
-  }, [totalItems, showCreateOption, selectedIndex, filteredProperties, handleSelect, handleCreate, onClose]);
   
   // Close on click outside
   useEffect(() => {

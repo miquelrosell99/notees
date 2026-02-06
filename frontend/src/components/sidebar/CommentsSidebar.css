@@ -30,26 +30,6 @@
   color: var(--color-on-surface);
 }
 
-.comments-close-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--color-on-surface-variant);
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.comments-close-btn:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
 .comments-node-info {
   padding: var(--spacing-2) var(--spacing-4);
   background: var(--color-surface-variant);

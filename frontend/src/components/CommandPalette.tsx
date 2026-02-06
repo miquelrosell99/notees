@@ -13,6 +13,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties } from '@/hooks';
+import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes } from '@/api/nodes';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import type { Node, Property } from '@/types';
@@ -233,7 +234,6 @@ export function CommandPalette({
   onSelect,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedClasses, setSelectedClasses] = useState<Node[]>([]);
   const [classPopupPosition, setClassPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -309,16 +309,10 @@ export function CommandPalette({
     return items;
   }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses]);
   
-  // Reset selection when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [allItems.length]);
-  
   // Focus input when opened
   useEffect(() => {
     if (isOpen) {
       setQuery('');
-      setSelectedIndex(0);
       setSelectedClasses([]);
       setClassPopupPosition(null);
       setTimeout(() => inputRef.current?.focus(), 0);
@@ -467,37 +461,25 @@ export function CommandPalette({
     }
   }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose]);
   
-  // Handle keyboard navigation (only when class popup is not open)
+  // Keyboard list navigation
+  const { selectedIndex, handleKeyDown: listKeyDown } = useKeyboardListNav({
+    totalItems: allItems.length,
+    onSelect: handleSelect,
+    onClose,
+    isOpen,
+  });
+
+  // Wrap to let SuggestionPopup handle keyboard when class popup is open
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Let SuggestionPopup handle keyboard when it's open
     if (isTypingClass) {
-      // Only handle Escape to close command palette
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
       }
       return;
     }
-    
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(i => Math.min(i + 1, allItems.length - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(i => Math.max(i - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        handleSelect(selectedIndex);
-        break;
-      case 'Escape':
-        e.preventDefault();
-        onClose();
-        break;
-    }
-  }, [allItems.length, selectedIndex, onClose, handleSelect, isTypingClass]);
+    listKeyDown(e);
+  }, [isTypingClass, listKeyDown, onClose]);
   
   // Close on backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {

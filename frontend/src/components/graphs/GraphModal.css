@@ -46,39 +46,6 @@
   color: var(--color-error);
 }
 
-.graph-modal__tabs {
-  display: flex;
-  padding: var(--spacing-2) var(--spacing-4);
-  gap: var(--spacing-2);
-  border-bottom: 1px solid var(--color-outline-variant);
-}
-
-.graph-modal__tab {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
-  background: transparent;
-  border-radius: var(--shape-small);
-  font: var(--font-label-large);
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.graph-modal__tab:hover {
-  background: var(--color-hover-overlay);
-}
-
-.graph-modal__tab--active {
-  background: var(--color-primary-container);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary-container);
-}
-
 .graph-modal__form {
   padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
 }
@@ -154,43 +121,6 @@
   margin: var(--spacing-1) 0 0 0;
 }
 
-.graph-modal__dropzone {
-  border: 2px dashed var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  padding: var(--spacing-6);
-  text-align: center;
-  cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.graph-modal__dropzone:hover {
-  border-color: var(--color-primary);
-  background: var(--color-primary-container);
-}
-
-.graph-modal__dropzone--has-file {
-  border-style: solid;
-  border-color: var(--color-primary);
-  background: var(--color-primary-container);
-}
-
-.graph-modal__dropzone-icon {
-  font-size: 2rem;
-  margin-bottom: var(--spacing-2);
-}
-
-.graph-modal__dropzone-text {
-  font: var(--font-body-medium);
-  color: var(--color-on-surface);
-  margin: 0 0 var(--spacing-1) 0;
-}
-
-.graph-modal__dropzone-hint {
-  font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
-  margin: 0;
-}
-
 .graph-modal__file-info {
   display: flex;
   align-items: center;
@@ -229,41 +159,6 @@
   justify-content: flex-end;
   gap: var(--spacing-3);
   margin-top: var(--spacing-4);
-}
-
-.graph-modal__btn {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-5);
-  border: none;
-  border-radius: var(--shape-small);
-  font: var(--font-label-large);
-  cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.graph-modal__btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.graph-modal__btn--secondary {
-  background: var(--color-surface-container);
-  color: var(--color-on-surface);
-}
-
-.graph-modal__btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
-}
-
-.graph-modal__btn--primary {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.graph-modal__btn--primary:hover:not(:disabled) {
-  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .graph-modal__spinner {

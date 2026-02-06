@@ -7,6 +7,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@/hooks';
+import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, SearchIcon } from './icons';
@@ -68,7 +69,6 @@ export function SearchBox<T = Node>({
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -144,12 +144,7 @@ export function SearchBox<T = Node>({
   if (showCreateOption) {
     totalItems += 1;
   }
-  
-  // Reset selected index when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [totalItems]);
-  
+
   // Auto-focus if requested
   useEffect(() => {
     if (autoFocus && inputRef.current) {
@@ -268,34 +263,26 @@ export function SearchBox<T = Node>({
     return null;
   }, [showCreateOption, allSections]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!isOpen) return;
-    
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(i => Math.max(i - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (totalItems > 0) {
-          const item = getItemByIndex(selectedIndex);
-          if (item) {
-            handleSelect(item as T);
-          }
-        }
-        break;
-      case 'Escape':
-        setQuery('');
-        setIsOpen(false);
-        inputRef.current?.blur();
-        break;
+  // Keyboard list navigation (hook replaces manual ArrowUp/Down/Enter/Escape + index reset)
+  const handleSelectByIndex = useCallback((index: number) => {
+    if (totalItems > 0) {
+      const item = getItemByIndex(index);
+      if (item) handleSelect(item as T);
     }
-  }, [isOpen, totalItems, showCreateOption, selectedIndex, getItemByIndex, handleSelect]);
+  }, [totalItems, getItemByIndex, handleSelect]);
+
+  const handleCloseList = useCallback(() => {
+    setQuery('');
+    setIsOpen(false);
+    inputRef.current?.blur();
+  }, []);
+
+  const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
+    totalItems,
+    onSelect: handleSelectByIndex,
+    onClose: handleCloseList,
+    isOpen,
+  });
 
   const handleResultClick = useCallback((index: number) => {
     const item = getItemByIndex(index);

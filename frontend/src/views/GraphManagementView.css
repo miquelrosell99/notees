@@ -524,51 +524,6 @@
   margin-top: 0.5rem;
 }
 
-.graph-management__btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border: none;
-}
-
-.graph-management__btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.graph-management__btn--primary {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.graph-management__btn--primary:hover:not(:disabled) {
-  box-shadow: 0 0 0 3px var(--color-primary-container);
-}
-
-.graph-management__btn--secondary {
-  background: var(--color-surface-variant);
-  color: var(--color-on-surface);
-}
-
-.graph-management__btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
-}
-
-.graph-management__btn-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--color-on-primary);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
 /* Footer */
 .graph-management__footer {
   text-align: center;
