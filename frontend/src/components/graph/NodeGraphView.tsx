@@ -28,7 +28,7 @@ import {
   type GraphViewMode,
   type VisibilityFilters,
 } from './NodeGraphRenderer';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiResize, mdiConnection, mdiWeight } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -436,9 +436,11 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
             </div>
 
             <div className="visibility-option">
-              <label className="visibility-label">Node sizing</label>
               <SelectionButton
                 size="sm"
+                label="Node sizing"
+                description="Size nodes uniformly, by connections, or by mass"
+                labelPosition="left"
                 options={[
                   { value: 'uniform', icon: mdiCircleOutline, label: 'Uniform size' },
                   { value: 'connections', icon: mdiConnection, label: 'Connection count' },
