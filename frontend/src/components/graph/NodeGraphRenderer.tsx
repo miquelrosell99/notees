@@ -1975,15 +1975,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
       ctx.fill();
       
-      // Draw pin indicator
-      if (node.pinned) {
-        ctx.beginPath();
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2;
-        ctx.arc(node.x, node.y, circleRadius + 6, 0, 2 * Math.PI);
-        ctx.stroke();
-      }
-      
       // Draw node circle
       let displayColor = nodeColor;
       if (node.glare === 'dim') {
@@ -1994,6 +1985,26 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.fillStyle = displayColor;
       ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
       ctx.fill();
+      
+      // Draw pin indicator (inner circle with shadow)
+      if (node.pinned) {
+        const pinRadius = circleRadius * 0.3; // 30% of node radius
+        const pinColor = textColor; // Use theme text color (adapts to light/dark)
+        
+        // Draw shadow for the pin
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        ctx.beginPath();
+        ctx.fillStyle = pinColor;
+        ctx.arc(node.x, node.y, pinRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.restore();
+      }
       
       // Draw label
       const currentScale = transformRef.current.scale;
