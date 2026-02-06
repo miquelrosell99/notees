@@ -14,8 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '../core/Checkbox';
 import { SearchIcon } from '../icons';
-import { Block } from '../blocks/Block';
-import type { Property, Node } from '@/types';
+import type { Property } from '@/types';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyColumnSelector.css';
 
@@ -81,23 +80,6 @@ function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps)
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // Convert property to a minimal Node for Block rendering
-  const node: Node = {
-    id: property.id,
-    uuid: property.uuid,
-    name: property.name,
-    icon: property.icon || null,
-    color: null,
-    parent_id: null,
-    page_id: null,
-    sequence: 0,
-    collapsed: false,
-    active: true,
-    is_page: false,
-    create_date: property.create_date,
-    write_date: property.write_date,
-  };
-
   return (
     <div
       ref={setNodeRef}
@@ -111,19 +93,11 @@ function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps)
         onChange={() => onToggle(property.uuid)}
       />
       <span className="property-column-selector__item-content">
-        <Block
-          block={node}
-          parentId={null}
-          showBullet={!!property.icon}
-          showChildren={false}
-          showClasses={false}
-          canMove={false}
-          canEdit={false}
-          canSelect={false}
-          suppressColor={true}
-        />
+        <span className="property-column-selector__item-name">
+          {property.name}
+        </span>
         <span className="property-column-selector__item-type">
-          {property.type}
+          {property.type.toUpperCase()}
         </span>
       </span>
     </div>
@@ -284,53 +258,26 @@ export function PropertyColumnSelector({
             )}
             {filteredProperties
               .filter(prop => !selectedPropertyUuids.includes(prop.uuid))
-              .map(property => {
-                // Convert property to a minimal Node for Block rendering
-                const node: Node = {
-                  id: property.id,
-                  uuid: property.uuid,
-                  name: property.name,
-                  icon: property.icon || null,
-                  color: null,
-                  parent_id: null,
-                  page_id: null,
-                  sequence: 0,
-                  collapsed: false,
-                  active: true,
-                  is_page: false,
-                  create_date: property.create_date,
-                  write_date: property.write_date,
-                };
-
-                return (
-                  <div
-                    key={property.uuid}
-                    className="property-column-selector__item"
-                    onClick={() => handleToggle(property.uuid)}
-                  >
-                    <Checkbox
-                      checked={false}
-                      onChange={() => handleToggle(property.uuid)}
-                    />
-                    <span className="property-column-selector__item-content">
-                      <Block
-                        block={node}
-                        parentId={null}
-                        showBullet={!!property.icon}
-                        showChildren={false}
-                        showClasses={false}
-                        canMove={false}
-                        canEdit={false}
-                        canSelect={false}
-                        suppressColor={true}
-                      />
-                      <span className="property-column-selector__item-type">
-                        {property.type}
-                      </span>
+              .map(property => (
+                <div
+                  key={property.uuid}
+                  className="property-column-selector__item"
+                  onClick={() => handleToggle(property.uuid)}
+                >
+                  <Checkbox
+                    checked={false}
+                    onChange={() => handleToggle(property.uuid)}
+                  />
+                  <span className="property-column-selector__item-content">
+                    <span className="property-column-selector__item-name">
+                      {property.name}
                     </span>
-                  </div>
-                );
-              })}
+                    <span className="property-column-selector__item-type">
+                      {property.type.toUpperCase()}
+                    </span>
+                  </span>
+                </div>
+              ))}
           </div>
         )}
         
