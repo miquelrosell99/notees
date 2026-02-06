@@ -335,6 +335,7 @@ async def get_nodes_with_property(
     from ...db.connection import get_pool
     from ...db.schema import get_or_create_user_graph
     from ...domain.repositories import PostgresPropertyRepository
+    from ..nodes.helpers import extract_properties_dict
     
     pool = await get_pool()
     user_id = int(user.id)
@@ -350,7 +351,7 @@ async def get_nodes_with_property(
     # Get node IDs with this property
     node_ids = await repo.get_node_ids_with_property(property_id)
     
-    # Build response with node details
+    # Build response with node details and property values
     result = []
     async with pool.acquire() as conn:
         for node_id in node_ids:
@@ -364,6 +365,10 @@ async def get_nodes_with_property(
             if not node_row:
                 continue
             
+            # Get all property values for this node
+            all_prop_values = await repo.get_all_property_values(node_id)
+            properties_dict = extract_properties_dict(all_prop_values)
+            
             result.append({
                 "node_id": node_row['id'],
                 "node_uuid": node_row['uuid'],
@@ -376,6 +381,7 @@ async def get_nodes_with_property(
                 "is_class": bool(node_row['is_class']),
                 "create_date": node_row['create_date'].isoformat() if node_row['create_date'] else None,
                 "write_date": node_row['write_date'].isoformat() if node_row['write_date'] else None,
+                "properties": properties_dict,
             })
     
     return {"nodes": result, "property": _property_to_response(prop)}
