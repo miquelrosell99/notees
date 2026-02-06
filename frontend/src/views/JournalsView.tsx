@@ -8,7 +8,7 @@ import { useState, useMemo } from 'react';
 import { useExistingDailyPages, useNode } from '@/hooks';
 import './JournalsView.css';
 import { useNodesStore } from '@/stores';
-import { NodeView } from './NodeView';
+import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
 
 interface JournalEntryProps {
@@ -35,7 +35,7 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
   
   return (
     <article className="journal-entry">
-      <NodeView 
+      <NodeViewContent 
         nodeId={fullPage.id} 
         nodeType="page" 
         viewMode={viewMode} 
