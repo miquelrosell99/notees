@@ -1,5 +1,5 @@
 /**
- * NodePillRow - Universal node selection component
+ * NodeSelector - Universal node selection component
  * 
  * Supports two trigger modes:
  * - 'pill-row': Row of node pills with add button (default, for tags/types/classes)
@@ -26,11 +26,11 @@ import { mdiPlus } from '@mdi/js';
 import { useNodeSearch, type NodeSearchMode, usePages, useNodes } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
-import './NodePillRow.css';
+import './NodeSelector.css';
 
 type TriggerMode = 'pill-row' | 'select';
 
-interface NodePillRowProps {
+interface NodeSelectorProps {
   /** The nodes to display as pills (or selected values in 'select' mode) */
   nodes?: Node[];
   /** Alternative: provide node IDs instead of Node objects ('select' mode will fetch them) */
@@ -73,7 +73,7 @@ interface NodePillRowProps {
   className?: string;
 }
 
-export function NodePillRow({
+export function NodeSelector({
   nodes: nodesProp,
   value,
   searchMode = 'pages',
@@ -94,7 +94,7 @@ export function NodePillRow({
   canAdd,
   readOnly = false,
   className = '',
-}: NodePillRowProps) {
+}: NodeSelectorProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -330,13 +330,13 @@ export function NodePillRow({
     // Read-only view
     if (readOnly) {
       return (
-        <div className={`node-pill-row node-pill-row--select node-pill-row--readonly ${className}`}>
+        <div className={`node-selector node-selector--select node-selector--readonly ${className}`}>
           {hasValue ? (
-            <div className="node-pill-row__selected-list">
+            <div className="node-selector__selected-list">
               {nodes.map(node => (
                 <button
                   key={node.id}
-                  className="node-pill-row__chip node-pill-row__chip--readonly"
+                  className="node-selector__chip node-selector__chip--readonly"
                   onClick={() => onNodeClick?.(node)}
                 >
                   <NodeIcon icon={node.icon} isPage={node.is_page} size="xs" />
@@ -345,14 +345,14 @@ export function NodePillRow({
               ))}
             </div>
           ) : (
-            <span className="node-pill-row__placeholder">—</span>
+            <span className="node-selector__placeholder">—</span>
           )}
         </div>
       );
     }
     
     return (
-      <div className={`node-pill-row node-pill-row--select ${className}`} ref={containerRef}>
+      <div className={`node-selector node-selector--select ${className}`} ref={containerRef}>
         {/* SelectTrigger */}
         <SelectTrigger
           isOpen={isPickerOpen}
@@ -365,7 +365,7 @@ export function NodePillRow({
           {hasValue ? (
             multi ? (
               // Multi-select: Show NodePills with remove buttons
-              <div className="node-pill-row__selected-pills">
+              <div className="node-selector__selected-pills">
                 {nodes.map(node => (
                   <NodePill
                     key={node.id}
@@ -382,13 +382,13 @@ export function NodePillRow({
                 const node = nodes[0];
                 const effectiveIcon = node ? getEffectiveIcon(node, allPages) : null;
                 return (
-                  <span className="node-pill-row__single-value">
+                  <span className="node-selector__single-value">
                     {effectiveIcon ? (
                       <NodeIcon icon={effectiveIcon} isPage={node.is_page} size="sm" />
                     ) : (
                       <BulletIcon size="sm" />
                     )}
-                    <span className="node-pill-row__single-value-name">
+                    <span className="node-selector__single-value-name">
                       {node?.name || 'Untitled'}
                     </span>
                   </span>
@@ -396,7 +396,7 @@ export function NodePillRow({
               })()
             )
           ) : (
-            <span className="node-pill-row__placeholder">{placeholder}</span>
+            <span className="node-selector__placeholder">{placeholder}</span>
           )}
         </SelectTrigger>
         
@@ -404,7 +404,7 @@ export function NodePillRow({
         {isPickerOpen && menuPosition && createPortal(
           <Card
             ref={menuRef}
-            className="node-pill-row__dropdown node-pill-row__dropdown--portal"
+            className="node-selector__dropdown node-selector__dropdown--portal"
             elevation="high"
             padding={false}
             style={{
@@ -416,11 +416,11 @@ export function NodePillRow({
             }}
           >
             {/* Search Input */}
-            <div className="node-pill-row__search-wrapper">
+            <div className="node-selector__search-wrapper">
               <input
                 ref={searchInputRef}
                 type="text"
-                className="node-pill-row__search"
+                className="node-selector__search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -429,11 +429,11 @@ export function NodePillRow({
             </div>
             
             {/* Results List */}
-            <div className="node-pill-row__list">
+            <div className="node-selector__list">
               {isLoading && searchQuery.length > 0 ? (
-                <div className="node-pill-row__loading">Searching...</div>
+                <div className="node-selector__loading">Searching...</div>
               ) : filteredResults.length === 0 && !showCreateOption ? (
-                <div className="node-pill-row__empty">
+                <div className="node-selector__empty">
                   {searchQuery ? 'No matches found' : 'Start typing to search'}
                 </div>
               ) : (
@@ -443,22 +443,22 @@ export function NodePillRow({
                     return (
                       <button
                         key={node.id}
-                        className={`node-pill-row__item ${
-                          index === selectedIndex ? 'node-pill-row__item--highlighted' : ''
+                        className={`node-selector__item ${
+                          index === selectedIndex ? 'node-selector__item--highlighted' : ''
                         } ${
-                          isSelected ? 'node-pill-row__item--selected' : ''
+                          isSelected ? 'node-selector__item--selected' : ''
                         }`}
                         onClick={() => handleAdd(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
                       >
-                        <span className="node-pill-row__item-icon">
+                        <span className="node-selector__item-icon">
                           <NodeIcon icon={node.icon} isPage={node.is_page} size="sm" />
                         </span>
-                        <span className="node-pill-row__item-name">
+                        <span className="node-selector__item-name">
                           {node.name || 'Untitled'}
                         </span>
                         {isSelected && (
-                          <span className="node-pill-row__item-check"><CheckIcon size="xs" /></span>
+                          <span className="node-selector__item-check"><CheckIcon size="xs" /></span>
                         )}
                       </button>
                     );
@@ -466,16 +466,16 @@ export function NodePillRow({
                   
                   {showCreateOption && (
                     <button
-                      className={`node-pill-row__item node-pill-row__item--create ${
-                        selectedIndex === filteredResults.length ? 'node-pill-row__item--highlighted' : ''
+                      className={`node-selector__item node-selector__item--create ${
+                        selectedIndex === filteredResults.length ? 'node-selector__item--highlighted' : ''
                       }`}
                       onClick={handleCreateNew}
                       onMouseEnter={() => setSelectedIndex(filteredResults.length)}
                     >
-                      <span className="node-pill-row__item-icon">
+                      <span className="node-selector__item-icon">
                         <AddIcon size="sm" />
                       </span>
-                      <span className="node-pill-row__item-name">
+                      <span className="node-selector__item-name">
                         Create "{searchQuery.trim()}"
                       </span>
                     </button>
@@ -486,8 +486,8 @@ export function NodePillRow({
             
             {/* Footer with hint */}
             {classFilters && classFilters.length > 0 && (
-              <div className="node-pill-row__footer">
-                <span className="node-pill-row__hint">
+              <div className="node-selector__footer">
+                <span className="node-selector__hint">
                   Filtered by {classFilters.length} class{classFilters.length > 1 ? 'es' : ''}
                 </span>
               </div>
@@ -503,7 +503,7 @@ export function NodePillRow({
   const showAddButton = !!onAdd;
 
   return (
-    <div className={`node-pill-row ${className}`}>
+    <div className={`node-selector ${className}`}>
       {nodes.map((node) => {
         const isRemovable = onRemove && (!canRemove || canRemove(node));
         return (
@@ -519,12 +519,12 @@ export function NodePillRow({
       })}
       
       {showAddButton && (
-        <div className="node-pill-row__add-wrapper" ref={buttonRef}>
+        <div className="node-selector__add-wrapper" ref={buttonRef}>
           <Button
             variant="ghost"
             size="xs"
             icon={mdiPlus}
-            className="node-pill-row__add-btn"
+            className="node-selector__add-btn"
             onClick={() => setIsPickerOpen(!isPickerOpen)}
             title={emptyText}
           >
@@ -533,24 +533,24 @@ export function NodePillRow({
           
           {isPickerOpen && pickerPos && (
             <div
-              className="node-pill-row__picker"
+              className="node-selector__picker"
               ref={pickerRef}
               style={{ top: pickerPos.top, left: pickerPos.left }}
             >
               <input
                 ref={searchInputRef}
                 type="text"
-                className="node-pill-row__search"
+                className="node-selector__search"
                 placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
-              <div className="node-pill-row__options">
+              <div className="node-selector__options">
                 {isLoading && searchQuery.length > 0 ? (
-                  <div className="node-pill-row__loading">Searching...</div>
+                  <div className="node-selector__loading">Searching...</div>
                 ) : filteredResults.length === 0 && !showCreateOption ? (
-                  <div className="node-pill-row__no-results">
+                  <div className="node-selector__no-results">
                     {searchQuery ? 'No matches found' : 'Start typing to search'}
                   </div>
                 ) : (
@@ -558,7 +558,7 @@ export function NodePillRow({
                     {filteredResults.map((node, index) => (
                       <button
                         key={node.id}
-                        className={`node-pill-row__option ${index === selectedIndex ? 'node-pill-row__option--selected' : ''}`}
+                        className={`node-selector__option ${index === selectedIndex ? 'node-selector__option--selected' : ''}`}
                         onClick={() => handleAdd(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
                       >
@@ -568,8 +568,8 @@ export function NodePillRow({
                     ))}
                     {showCreateOption && (
                       <button
-                        className={`node-pill-row__option node-pill-row__option--create ${
-                          selectedIndex === filteredResults.length ? 'node-pill-row__option--selected' : ''
+                        className={`node-selector__option node-selector__option--create ${
+                          selectedIndex === filteredResults.length ? 'node-selector__option--selected' : ''
                         }`}
                         onClick={handleCreateNew}
                         onMouseEnter={() => setSelectedIndex(filteredResults.length)}
@@ -589,4 +589,5 @@ export function NodePillRow({
   );
 }
 
-export default NodePillRow;
+export default NodeSelector;
+
