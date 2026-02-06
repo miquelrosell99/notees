@@ -176,9 +176,9 @@ export function PropertyView({
   );
   
   // Property column UUIDs for the table view
-  // Default: show the current property column + Modified date
+  // Default: show only the current property column
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>(
-    property ? [property.uuid, '__modified__'] : ['__modified__']
+    property ? [property.uuid] : []
   );
   
   // Update property UUIDs when property changes
