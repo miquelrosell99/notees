@@ -135,49 +135,6 @@
   margin-left: var(--spacing-2);
 }
 
-/* ==================== Settings Toggle ==================== */
-.settings-toggle {
-  position: relative;
-  width: 48px;
-  height: 28px;
-  cursor: pointer;
-}
-
-.settings-toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.settings-toggle__slider {
-  position: absolute;
-  inset: 0;
-  background: var(--color-surface-container-highest);
-  border-radius: var(--shape-full);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.settings-toggle__slider::before {
-  content: '';
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 20px;
-  height: 20px;
-  background: var(--color-surface);
-  border-radius: var(--shape-full);
-  box-shadow: var(--elevation-1);
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.settings-toggle input:checked + .settings-toggle__slider {
-  background: var(--color-primary);
-}
-
-.settings-toggle input:checked + .settings-toggle__slider::before {
-  transform: translateX(20px);
-}
-
 /* ==================== Theme Buttons ==================== */
 .settings-theme-buttons {
   display: flex;
@@ -261,16 +218,6 @@
   font: var(--font-label-large);
   cursor: pointer;
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.settings-btn--danger {
-  background: var(--color-error-container);
-  color: var(--color-error);
-}
-
-.settings-btn--danger:hover {
-  background: var(--color-error);
-  color: var(--color-on-error);
 }
 
 /* ==================== About Section ==================== */

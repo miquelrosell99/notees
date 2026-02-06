@@ -17,6 +17,8 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
+import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodePill } from './NodePill';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from './icons';
 import { Button } from './core/Button';
@@ -97,9 +99,7 @@ export function NodeSelector({
 }: NodeSelectorProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -149,47 +149,19 @@ export function NodeSelector({
   // Total selectable items
   const totalItems = filteredResults.length + (showCreateOption ? 1 : 0);
 
-  // Reset selection when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filteredResults.length, searchQuery]);
+  // Position menu for 'select' mode with viewport flip
+  const menuPosition = useViewportFlip(
+    containerRef,
+    trigger === 'select' && isPickerOpen,
+    { maxHeight: 320, includeWidth: true, minWidth: 240 },
+  );
 
-  // Update menu position for 'select' mode (portal rendering)
+  // Position for 'pill-row' mode (simple fixed positioning)
   useEffect(() => {
-    if (trigger === 'select' && isPickerOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const maxDropdownHeight = 320;
-      const gap = 4;
-      
-      // Determine if dropdown should open above or below
-      let top: number;
-      let maxHeight: number;
-      
-      if (spaceBelow >= maxDropdownHeight || spaceBelow > spaceAbove) {
-        // Open below
-        top = rect.bottom + window.scrollY + gap;
-        maxHeight = Math.min(maxDropdownHeight, spaceBelow - gap * 2);
-      } else {
-        // Open above
-        maxHeight = Math.min(maxDropdownHeight, spaceAbove - gap * 2);
-        top = rect.top + window.scrollY - maxHeight - gap;
-      }
-      
-      setMenuPosition({
-        top,
-        left: rect.left + window.scrollX,
-        width: Math.max(rect.width, 240),
-        maxHeight,
-      });
-    } else if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
-      // Position for pill-row mode (fixed positioning)
+    if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setPickerPos({ top: rect.bottom + 4, left: rect.left });
-    } else {
-      setMenuPosition(null);
+    } else if (!isPickerOpen) {
       setPickerPos(null);
     }
   }, [isPickerOpen, trigger]);
@@ -296,32 +268,26 @@ export function NodeSelector({
     setIsPickerOpen(false);
   }, [onChange, onClearAll, multi]);
 
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(i => Math.max(i - 1, 0));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (selectedIndex < filteredResults.length) {
-          handleAdd(filteredResults[selectedIndex]);
-        } else if (showCreateOption) {
-          handleCreateNew();
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setIsPickerOpen(false);
-        setSearchQuery('');
-        break;
+  // Keyboard list navigation
+  const handleSelectByIndex = useCallback((index: number) => {
+    if (index < filteredResults.length) {
+      handleAdd(filteredResults[index]);
+    } else if (showCreateOption) {
+      handleCreateNew();
     }
-  }, [totalItems, selectedIndex, filteredResults, showCreateOption, handleAdd, handleCreateNew]);
+  }, [filteredResults, showCreateOption, handleAdd, handleCreateNew]);
+
+  const handleClosePicker = useCallback(() => {
+    setIsPickerOpen(false);
+    setSearchQuery('');
+  }, []);
+
+  const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
+    totalItems,
+    onSelect: handleSelectByIndex,
+    onClose: handleClosePicker,
+    isOpen: isPickerOpen,
+  });
 
   // 'select' mode: render SelectTrigger with portal dropdown
   if (trigger === 'select') {

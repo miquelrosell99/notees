@@ -15,6 +15,8 @@ export * from './useRouter';
 export { RouterSync } from './RouterSync';
 export * from './useBlockSelection';
 export * from './useSearchableList';
+export * from './useKeyboardListNav';
+export * from './useViewportFlip';
 export * from './useNodeIcon';
 export * from './useNodeSearch';
 export * from './useQuickAdd';

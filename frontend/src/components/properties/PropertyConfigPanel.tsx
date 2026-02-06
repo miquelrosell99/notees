@@ -13,6 +13,7 @@
  * - Actions (delete, go to property page)
  */
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { BooleanToggle } from '../core/BooleanToggle';
 import type { Property, PropertyType, SelectionOption } from '@/types/api';
 import { updateProperty, addSelectionOption, deleteSelectionOption, deleteProperty } from '@/api/properties';
 import { useSetNodeProperty } from '@/hooks';
@@ -603,21 +604,17 @@ export function PropertyConfigPanel({
           
           {panels.hideOptions && (
             <div className="config-section-content">
-              <div className="config-toggle-row">
-                <span className="config-toggle-label">Hide by default</span>
-                <label className="config-toggle">
-                  <input type="checkbox" />
-                  <span className="config-toggle-slider"></span>
-                </label>
-              </div>
+              <BooleanToggle
+                label="Hide by default"
+                labelPosition="left"
+                size="sm"
+              />
               
-              <div className="config-toggle-row">
-                <span className="config-toggle-label">Hide empty value</span>
-                <label className="config-toggle">
-                  <input type="checkbox" />
-                  <span className="config-toggle-slider"></span>
-                </label>
-              </div>
+              <BooleanToggle
+                label="Hide empty value"
+                labelPosition="left"
+                size="sm"
+              />
               
               <p className="config-hint">
                 These settings will be available in a future update.
