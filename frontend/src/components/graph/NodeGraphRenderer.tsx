@@ -63,6 +63,7 @@ export type NodeSizeMode = 'uniform' | 'backlinks' | 'internal-links' | 'total-l
 
 export interface GraphNode {
   id: number;
+  uuid: string;
   x: number;
   y: number;
   vx: number;
@@ -1105,8 +1106,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Helper function to check if we should skip dots for system types
       const shouldSkipDot = (targetNode: GraphNode) => {
-        const targetName = targetNode.name.toLowerCase();
-        return targetName === 'page' || targetName === 'class';
+        // Skip dots for "page" and "class" system types using their UUIDs
+        return targetNode.uuid === '00000000-0000-0000-0001-000000000001' || // class
+               targetNode.uuid === '00000000-0000-0000-0001-000000000002';   // page
       };
       
       if (isParentLink) {

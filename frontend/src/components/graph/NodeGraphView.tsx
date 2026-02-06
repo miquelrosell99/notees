@@ -178,6 +178,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     
     const nodes: GraphNode[] = graphData.nodes.map((apiNode: ApiGraphNode) => ({
       id: apiNode.id,
+      uuid: apiNode.uuid,
       x: 0,
       y: 0,
       vx: 0,
