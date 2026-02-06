@@ -29,7 +29,7 @@ import type { ViewMode, NodeViewType } from '@/stores';
 // Components
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { PageHeader } from '../components/PageHeader';
-import { NodePillRow } from '../components/NodePillRow';
+import { NodeSelector } from '../components/NodeSelector';
 import { ImageNode } from '../components/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
@@ -313,13 +313,13 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       });
   }, [node?.tags, allTags, allNodes]);
   
-  // Handle adding a class via NodePillRow
+  // Handle adding a class via NodeSelector
   const handleAddClass = useCallback((classNode: Node) => {
     if (!node) return;
     addClass.mutate({ nodeId: node.id, classId: classNode.id });
   }, [node, addClass]);
   
-  // Handle creating a new class via NodePillRow
+  // Handle creating a new class via NodeSelector
   const handleCreateClass = useCallback((name: string) => {
     if (!node) return;
     const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
@@ -338,19 +338,19 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     });
   }, [node, createNode, addClass, allClasses]);
   
-  // Handle removing a class via NodePillRow
+  // Handle removing a class via NodeSelector
   const handleRemoveClass = useCallback((classNode: Node) => {
     if (!node) return;
     removeClass.mutate({ nodeId: node.id, classId: classNode.id });
   }, [node, removeClass]);
   
-  // Handle adding a tag via NodePillRow
+  // Handle adding a tag via NodeSelector
   const handleAddTag = useCallback((tagNode: Node) => {
     if (!node) return;
     addTag.mutate({ nodeId: node.id, tagId: tagNode.id });
   }, [node, addTag]);
   
-  // Handle creating a new tag via NodePillRow
+  // Handle creating a new tag via NodeSelector
   const handleCreateTag = useCallback((name: string) => {
     if (!node || !pageClassId) return;
     // Create as a page (tags are just pages linked to nodes)
@@ -361,7 +361,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     });
   }, [node, createNode, addTag, pageClassId]);
   
-  // Handle removing a tag via NodePillRow
+  // Handle removing a tag via NodeSelector
   const handleRemoveTag = useCallback((tagNode: Node) => {
     if (!node) return;
     removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
@@ -420,7 +420,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     }
   });
   
-  // Handle color change for class/tag nodes via NodePillRow
+  // Handle color change for class/tag nodes via NodeSelector
   const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
     updateNode.mutate({ id: targetNode.id, data: { color } });
   }, [updateNode]);
@@ -963,7 +963,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             {/* Row 2: Classes and Tags stacked */}
             <div className="page-header-section__types-and-tags">
               <div className="page-header-section__types">
-                <NodePillRow
+                <NodeSelector
                   nodes={pageClassDetails}
                   searchMode="classes"
                   emptyText="Add class"
@@ -980,7 +980,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               
               <div className="page-header-section__tags">
                 <div className="section-label">Tags:</div>
-                <NodePillRow
+                <NodeSelector
                   nodes={pageTagDetails}
                   searchMode="tags"
                   emptyText="Add tag"
@@ -998,7 +998,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             {node.is_class && (
               <div className="page-header-section__extends">
                 <div className="section-label">Extends:</div>
-                <NodePillRow
+                <NodeSelector
                   nodes={extendsDetails}
                   searchMode="classes"
                   emptyText="Add extend"
@@ -1261,3 +1261,4 @@ export function NodeViewContent(props: NodeViewProps) {
 }
 
 export default NodeView;
+
