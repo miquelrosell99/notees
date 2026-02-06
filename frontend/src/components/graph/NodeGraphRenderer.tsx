@@ -1012,8 +1012,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       if (isClassLink) {
         // Draw squiggly line for class links
-        const squiggleAmplitude = 5; // Increased amplitude for more squiggly effect
-        const squigglesPerLine = 3; // Fixed number of squiggles per line regardless of length
+        const squiggleAmplitude = 2.5; // Reduced amplitude for subtler squiggles
+        const squigglesPerLine = 5; // Increased frequency - more squiggles per line
         const distance = Math.sqrt((lineEndX - lineStartX) ** 2 + (lineEndY - lineStartY) ** 2);
         const steps = Math.max(30, distance / 3); // More steps for smoother curves
         
