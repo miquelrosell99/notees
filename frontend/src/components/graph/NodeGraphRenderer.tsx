@@ -36,11 +36,15 @@ const UNLINKED_REPULSION_DISTANCE = 200;
 const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
 const REFERENCE_LINK_FORCE_MULTIPLIER = 0.5;
-const REPULSION_STRENGTH = 800;
-const VELOCITY_DAMPING = 0.85;
+const REPULSION_STRENGTH = 500;
+const VELOCITY_DAMPING = 0.82;
 const RETURN_FORCE = 0.08;
 const DRAG_PULL_STRENGTH = 0.15;
 const PARENT_MASS_PER_CHILD = 2;
+const MIN_REPULSION_DISTANCE = 20; // Prevent infinite force when nodes overlap
+const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
+const WARMUP_DURATION_FRAMES = 120; // Frames over which simulation ramps to full strength
+const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
 
 // Visual constants
 const NODE_RADIUS_BASE = 10;
@@ -335,6 +339,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const dragLiftProgressRef = useRef(0); // 0 to 1 for drag lift animation
   const dragStartTimeRef = useRef<number | null>(null);
   const initialFitDoneRef = useRef(false); // Track if initial fit-to-view was done
+  const warmupFrameRef = useRef(0); // Warm-up frame counter for gentle simulation start
   
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
@@ -397,7 +402,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Calculate depth for each node using BFS
       const nodeDepth = new Map<number, number>();
-      const nodeAngleRange = new Map<number, { start: number; end: number }>();
       
       // Find root nodes - special handling for classes
       const classRoots = nodes.filter(n => n.isClassNode && n.parentId === null);
@@ -472,7 +476,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Simple uniform radius calculation
-      // Every level is exactly levelGap apart from the previous
       const maxRadius = Math.min(centerX, centerY) * 0.9;
       
       const radiusByDepth = new Map<number, number>();
@@ -480,79 +483,158 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
       }
       
-      // Position level 0 nodes evenly around the circle
+      // ── Bottom-up subtree angular width calculation ──
+      // For each node, compute how much angular space its entire subtree
+      // needs at the deepest level, then propagate upward so parents
+      // reserve enough room for all descendants.
+      const subtreeAngularWidth = new Map<number, number>();
+      
+      // Process depths bottom-up
+      for (let depth = maxDepth; depth >= 0; depth--) {
+        const nodesAtDepth = nodesByDepth.get(depth) || [];
+        for (const node of nodesAtDepth) {
+          const children = (childrenByParent.get(node.id) || [])
+            .filter(c => nodeDepth.has(c.id)); // only children in the graph
+          
+          if (children.length === 0) {
+            // Leaf node: needs space for itself at its own depth
+            const radius = radiusByDepth.get(depth)!;
+            subtreeAngularWidth.set(node.id, nodeSpacing / radius);
+          } else {
+            // Sum of all children's subtree widths, but evaluated at
+            // each child's depth radius
+            const childDepth = depth + 1;
+            const childRadius = radiusByDepth.get(childDepth)!;
+            
+            let totalChildrenWidth = 0;
+            for (const child of children) {
+              const childWidth = subtreeAngularWidth.get(child.id) || (nodeSpacing / childRadius);
+              totalChildrenWidth += childWidth;
+            }
+            
+            // The node itself also needs minimum space at its own depth
+            const ownRadius = radiusByDepth.get(depth)!;
+            const ownMinWidth = nodeSpacing / ownRadius;
+            
+            // Take the max: either the node's own space or children's total
+            subtreeAngularWidth.set(node.id, Math.max(ownMinWidth, totalChildrenWidth));
+          }
+        }
+      }
+      
+      // ── Top-down positioning using computed widths ──
+      const nodeAngleRange = new Map<number, { start: number; end: number }>();
+      
+      // Collect all level-0 nodes (class roots or regular roots if no classes)
       const level0Nodes = nodesByDepth.get(0) || [];
       const radius0 = radiusByDepth.get(0)!;
-      // Enforce minimum angular spacing at level 0
-      const minAngle0 = level0Nodes.length > 0 ? nodeSpacing / radius0 : 0;
-      const totalAngle0 = Math.max(2 * Math.PI, minAngle0 * level0Nodes.length);
-      level0Nodes.forEach((node, i) => {
-        const angle = (totalAngle0 * i) / level0Nodes.length - Math.PI / 2;
+      
+      // Total angular width needed for all level-0 subtrees
+      let totalLevel0Width = 0;
+      for (const node of level0Nodes) {
+        totalLevel0Width += subtreeAngularWidth.get(node.id) || (nodeSpacing / radius0);
+      }
+      // Ensure at least 2π, but allow expansion beyond if needed
+      const totalAngle0 = Math.max(2 * Math.PI, totalLevel0Width);
+      // Scale factor if subtrees fit within 2π
+      const scale0 = totalAngle0 / totalLevel0Width;
+      
+      let currentAngle0 = -Math.PI / 2;
+      for (const node of level0Nodes) {
+        const rawWidth = subtreeAngularWidth.get(node.id) || (nodeSpacing / radius0);
+        const allocatedWidth = rawWidth * scale0;
+        const angle = currentAngle0 + allocatedWidth / 2;
+        
         node.targetX = centerX + radius0 * Math.cos(angle);
         node.targetY = centerY + radius0 * Math.sin(angle);
         
-        // Store angle range for this node (used for positioning children)
-        const angleSpan = level0Nodes.length > 1 ? totalAngle0 / level0Nodes.length : 2 * Math.PI;
         nodeAngleRange.set(node.id, {
-          start: angle - angleSpan / 2,
-          end: angle + angleSpan / 2
+          start: currentAngle0,
+          end: currentAngle0 + allocatedWidth
         });
-      });
+        
+        currentAngle0 += allocatedWidth;
+      }
       
       // Position nodes at each subsequent level
       for (let depth = 1; depth <= maxDepth; depth++) {
         const nodesAtDepth = nodesByDepth.get(depth) || [];
         const radius = radiusByDepth.get(depth)!;
         
-        // Separate into nodes with parents in the graph and root nodes (regular roots at level 1)
+        // Separate into nodes with parents in the graph and root nodes
         const nodesWithParent = nodesAtDepth.filter(n => n.parentId !== null && nodeAngleRange.has(n.parentId));
         const rootNodesAtThisLevel = nodesAtDepth.filter(n => n.parentId === null || !nodeAngleRange.has(n.parentId));
         
-        // Position root nodes at this level evenly around the circle
+        // Position root nodes at this level evenly
         if (rootNodesAtThisLevel.length > 0) {
-          const minAngleRoot = nodeSpacing / radius;
-          const totalAngleRoot = Math.max(2 * Math.PI, minAngleRoot * rootNodesAtThisLevel.length);
-          rootNodesAtThisLevel.forEach((node, i) => {
-            const angle = (totalAngleRoot * i) / rootNodesAtThisLevel.length - Math.PI / 2;
+          let totalRootWidth = 0;
+          for (const node of rootNodesAtThisLevel) {
+            totalRootWidth += subtreeAngularWidth.get(node.id) || (nodeSpacing / radius);
+          }
+          const totalAngleRoot = Math.max(2 * Math.PI, totalRootWidth);
+          const scaleRoot = totalAngleRoot / totalRootWidth;
+          
+          let currentAngleRoot = -Math.PI / 2;
+          for (const node of rootNodesAtThisLevel) {
+            const rawWidth = subtreeAngularWidth.get(node.id) || (nodeSpacing / radius);
+            const allocatedWidth = rawWidth * scaleRoot;
+            const angle = currentAngleRoot + allocatedWidth / 2;
+            
             node.targetX = centerX + radius * Math.cos(angle);
             node.targetY = centerY + radius * Math.sin(angle);
             
-            // Store angle range for this node
-            const angleSpan = rootNodesAtThisLevel.length > 1 ? totalAngleRoot / rootNodesAtThisLevel.length : 2 * Math.PI;
             nodeAngleRange.set(node.id, {
-              start: angle - angleSpan / 2,
-              end: angle + angleSpan / 2
+              start: currentAngleRoot,
+              end: currentAngleRoot + allocatedWidth
             });
-          });
+            
+            currentAngleRoot += allocatedWidth;
+          }
         }
         
-        // Position nodes with parents relative to their parent's angle
+        // Position nodes with parents: allocate within parent's arc
+        // Group by parent first to handle sibling sets together
+        const siblingGroups = new Map<number, GraphNode[]>();
         for (const node of nodesWithParent) {
-          const parentRange = nodeAngleRange.get(node.parentId!);
-          if (parentRange) {
-            const siblings = childrenByParent.get(node.parentId!) || [];
-            const nodeIndex = siblings.indexOf(node);
+          const parentId = node.parentId!;
+          const group = siblingGroups.get(parentId) || [];
+          group.push(node);
+          siblingGroups.set(parentId, group);
+        }
+        
+        for (const [parentId, siblings] of siblingGroups) {
+          const parentRange = nodeAngleRange.get(parentId)!;
+          const parentCenter = (parentRange.start + parentRange.end) / 2;
+          const parentSpan = parentRange.end - parentRange.start;
+          
+          // Total subtree width needed by all siblings
+          let totalSiblingWidth = 0;
+          for (const sibling of siblings) {
+            totalSiblingWidth += subtreeAngularWidth.get(sibling.id) || (nodeSpacing / radius);
+          }
+          
+          // Use parent's span (already accounts for subtree), but ensure
+          // minimum spacing if parent arc is somehow larger
+          const actualSpan = Math.max(parentSpan, totalSiblingWidth);
+          const startAngle = parentCenter - actualSpan / 2;
+          
+          // Distribute proportionally to each child's subtree width
+          let currentAngle = startAngle;
+          for (const sibling of siblings) {
+            const childWidth = subtreeAngularWidth.get(sibling.id) || (nodeSpacing / radius);
+            // Scale proportionally if we have more room than needed
+            const allocatedWidth = (childWidth / totalSiblingWidth) * actualSpan;
+            const angle = currentAngle + allocatedWidth / 2;
             
-            // Calculate minimum angle span needed for this group of siblings
-            const minAnglePerChild = nodeSpacing / radius;
-            const requiredSpan = minAnglePerChild * siblings.length;
-            const parentCenter = (parentRange.start + parentRange.end) / 2;
-            const parentSpan = parentRange.end - parentRange.start;
-            // Use the larger of parent's range or required spacing
-            const actualSpan = Math.max(parentSpan, requiredSpan);
-            const actualStart = parentCenter - actualSpan / 2;
+            sibling.targetX = centerX + radius * Math.cos(angle);
+            sibling.targetY = centerY + radius * Math.sin(angle);
             
-            const childAngleSpan = siblings.length > 1 ? actualSpan / siblings.length : actualSpan;
-            const angle = actualStart + (nodeIndex + 0.5) * childAngleSpan;
-            
-            node.targetX = centerX + radius * Math.cos(angle);
-            node.targetY = centerY + radius * Math.sin(angle);
-            
-            // Store angle range for this node
-            nodeAngleRange.set(node.id, {
-              start: angle - childAngleSpan / 2,
-              end: angle + childAngleSpan / 2
+            nodeAngleRange.set(sibling.id, {
+              start: currentAngle,
+              end: currentAngle + allocatedWidth
             });
+            
+            currentAngle += allocatedWidth;
           }
         }
       }
@@ -857,8 +939,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           targetY: existing.targetY,
         });
       } else {
-        // Create new node
-        const initialSpread = 30;
+        // Create new node — spread proportional to node count to avoid overlap explosion
+        const nodeCount = visibleInputNodes.length || 1;
+        const initialSpread = Math.max(200, Math.sqrt(nodeCount) * LINKED_ATTRACTION_DISTANCE * 1.2);
         const newNode: GraphNode = {
           ...inputNode,
           x: centerX + (Math.random() - 0.5) * initialSpread,
@@ -879,6 +962,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     );
     
     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    
+    // Reset warm-up so forces ramp up gradually with new data
+    warmupFrameRef.current = 0;
     
     // Trigger initial fit-to-view after stabilization delay
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
@@ -1014,6 +1100,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const getConnectionType = (a: number, b: number): GraphLink['type'] | null => 
         connectedPairs.get(`${a}-${b}`) ?? null;
       
+      // Warm-up: ramp force strength from 0 to 1 over WARMUP_DURATION_FRAMES
+      const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
+      // Ease-in curve for smoother start
+      const warmupMultiplier = warmupT * warmupT;
+      warmupFrameRef.current++;
+      
       // Compute node mass recursively: a parent inherits the mass of all its descendants
       // Includes parent→child, class→instance, and extends (inheritance) relationships
       const childrenOf = new Map<number, number[]>();
@@ -1077,6 +1169,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
+      // Centering gravity — gentle pull toward center to prevent drift and contain explosion
+      if (!isConstrainedMode) {
+        const cx = dimensions.width / 2;
+        const cy = dimensions.height / 2;
+        for (const node of visibleNodes) {
+          if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+          const dx = cx - node.x;
+          const dy = cy - node.y;
+          node.vx += dx * CENTER_GRAVITY * warmupMultiplier;
+          node.vy += dy * CENTER_GRAVITY * warmupMultiplier;
+        }
+      }
+      
       // Node-to-node forces (only between visible nodes)
       if (!isConstrainedMode) {
         for (let i = 0; i < visibleNodes.length; i++) {
@@ -1108,7 +1213,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
                 attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
               }
               
-              const force = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength;
+              const force = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
               const fx = (dx / dist) * force;
               const fy = (dy / dist) * force;
               
@@ -1125,7 +1230,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               }
             } else {
               if (dist < UNLINKED_REPULSION_DISTANCE) {
-                const force = REPULSION_STRENGTH / (dist * dist);
+                const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
+                const force = (REPULSION_STRENGTH / (clampedDist * clampedDist)) * warmupMultiplier;
                 const fx = (dx / dist) * force;
                 const fy = (dy / dist) * force;
                 
@@ -1192,6 +1298,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Update positions (for all nodes including hidden ones, but they won't be rendered)
       for (const node of visibleNodes) {
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
+          // Clamp velocity to prevent explosive movement
+          const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+          if (speed > MAX_VELOCITY) {
+            const scale = MAX_VELOCITY / speed;
+            node.vx *= scale;
+            node.vy *= scale;
+          }
           node.x += node.vx;
           node.y += node.vy;
           node.vx *= VELOCITY_DAMPING;
