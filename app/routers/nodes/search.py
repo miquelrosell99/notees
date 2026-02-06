@@ -126,6 +126,20 @@ async def get_graph_data_endpoint(
                     "type": "parent",
                 })
         
+        # Get class relationships from node.class_ids field
+        # Create links from node to its assigned classes (types)
+        for row in page_rows:
+            node_id = row['id']
+            node_class_ids = class_ids_map.get(node_id, [])
+            for class_id in node_class_ids:
+                # Only add link if the class is also a visible page node
+                if class_id in page_id_set:
+                    links.append({
+                        "source": node_id,
+                        "target": class_id,
+                        "type": "class",
+                    })
+        
         # Get property-based links (node-type properties)
         property_link_rows = await conn.fetch(
             """
