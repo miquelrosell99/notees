@@ -73,6 +73,8 @@ export interface GraphNode {
   name: string;
   type: 'page' | 'block';
   isDaily: boolean;
+  isMonthly: boolean;
+  isYearly: boolean;
   tags: string[];
   types: number[];
   parentId: number | null;
@@ -104,6 +106,13 @@ export interface GraphSettings {
   nodeSizeMode: NodeSizeMode;
 }
 
+export interface VisibilityFilters {
+  showClassNodes: boolean;
+  showDayPages: boolean;
+  showMonthPages: boolean;
+  showYearPages: boolean;
+}
+
 export interface NodeGraphRendererProps {
   /** Nodes to display */
   nodes: GraphNode[];
@@ -115,8 +124,8 @@ export interface NodeGraphRendererProps {
   settings?: GraphSettings;
   /** Class colors for node coloring */
   classColors?: ClassColor[];
-  /** Whether to show type nodes */
-  showClassNodes?: boolean;
+  /** Visibility filters for node types */
+  visibilityFilters?: VisibilityFilters;
   /** Currently highlighted node (for minimap mode) */
   currentNodeId?: number | null;
   /** Selected node IDs */
@@ -281,13 +290,20 @@ function getNodeRadius(
 
 // ==================== Component ====================
 
+const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
+  showClassNodes: true,
+  showDayPages: true,
+  showMonthPages: true,
+  showYearPages: true,
+};
+
 export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRendererProps>(function NodeGraphRenderer({
   nodes: inputNodes,
   links: inputLinks,
   viewMode = 'normal',
   settings = { linkCountAttraction: false, nodeSizeMode: 'uniform' },
   classColors = [],
-  showClassNodes = true,
+  visibilityFilters = DEFAULT_VISIBILITY_FILTERS,
   currentNodeId = null,
   selectedNodeIds = [],
   className = '',
@@ -314,7 +330,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
   const classColorsRef = useRef(classColors);
-  const showClassNodesRef = useRef(showClassNodes);
+  const visibilityFiltersRef = useRef(visibilityFilters);
   const selectedNodeIdsRef = useRef(selectedNodeIds);
   const currentNodeIdRef = useRef(currentNodeId);
   
@@ -427,26 +443,88 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
-  useEffect(() => { 
-    const previousValue = showClassNodesRef.current;
-    showClassNodesRef.current = showClassNodes;
-    
-    // Toggle visibility of type nodes dynamically
-    if (previousValue !== showClassNodes && nodesRef.current.length > 0) {
-      nodesRef.current.forEach(node => {
-        if (node.isTypeNode) {
-          node.visible = showClassNodes;
-        }
-      });
-      
-      // Recalculate positions when type node visibility changes (affects circle/tree layout)
-      if (viewMode === 'circle' || viewMode === 'tree') {
-        calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodes);
-      }
-    }
-  }, [showClassNodes, viewMode, dimensions, calculatePositions]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
+  
+  // Store original input nodes for filter comparison
+  const inputNodesMapRef = useRef<Map<number, GraphNode>>(new Map());
+  const allLinksRef = useRef<GraphLink[]>([]);
+  
+  // Helper to check if a node should be visible based on filters
+  const shouldNodeBeVisible = useCallback((node: GraphNode, filters: VisibilityFilters): boolean => {
+    if (node.isTypeNode && !filters.showClassNodes) return false;
+    if (node.isDaily && !filters.showDayPages) return false;
+    if (node.isMonthly && !filters.showMonthPages) return false;
+    if (node.isYearly && !filters.showYearPages) return false;
+    return true;
+  }, []);
+  
+  // Visibility filter changes - use destroyNode/createNode for proper physics updates
+  useEffect(() => {
+    const previousFilters = visibilityFiltersRef.current;
+    visibilityFiltersRef.current = visibilityFilters;
+    
+    // Skip if no nodes yet or filters haven't actually changed
+    if (nodesRef.current.length === 0 && inputNodesMapRef.current.size === 0) return;
+    if (JSON.stringify(previousFilters) === JSON.stringify(visibilityFilters)) return;
+    
+    const currentNodeIds = new Set(nodesRef.current.map(n => n.id));
+    const nodesToRemove: number[] = [];
+    const nodesToAdd: GraphNode[] = [];
+    
+    // Check all input nodes to see what should be visible
+    inputNodesMapRef.current.forEach((node, id) => {
+      const shouldShow = shouldNodeBeVisible(node, visibilityFilters);
+      const isCurrentlyShown = currentNodeIds.has(id);
+      
+      if (shouldShow && !isCurrentlyShown) {
+        // Node should be shown but isn't - add it
+        nodesToAdd.push({ ...node });
+      } else if (!shouldShow && isCurrentlyShown) {
+        // Node is shown but shouldn't be - remove it
+        nodesToRemove.push(id);
+      }
+    });
+    
+    // Remove nodes that should be hidden
+    nodesToRemove.forEach(nodeId => {
+      const index = nodesRef.current.findIndex(n => n.id === nodeId);
+      if (index !== -1) {
+        nodesRef.current.splice(index, 1);
+      }
+    });
+    
+    // Update links to only include those between visible nodes
+    const visibleNodeIds = new Set(nodesRef.current.map(n => n.id));
+    linksRef.current = allLinksRef.current.filter(
+      link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
+    );
+    
+    // Add nodes that should be visible
+    nodesToAdd.forEach(node => {
+      // Place near center with some randomness
+      const newNode: GraphNode = {
+        ...node,
+        x: dimensions.width / 2 + (Math.random() - 0.5) * 100,
+        y: dimensions.height / 2 + (Math.random() - 0.5) * 100,
+        vx: 0,
+        vy: 0,
+        visible: true,
+      };
+      nodesRef.current.push(newNode);
+    });
+    
+    // Update links again after adding nodes
+    const newVisibleNodeIds = new Set(nodesRef.current.map(n => n.id));
+    linksRef.current = allLinksRef.current.filter(
+      link => newVisibleNodeIds.has(link.source) && newVisibleNodeIds.has(link.target)
+    );
+    
+    // Recalculate positions if in constrained mode
+    if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewMode === 'circle' || viewMode === 'tree')) {
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
+    }
+  }, [visibilityFilters, viewMode, dimensions, calculatePositions, shouldNodeBeVisible]);
 
   // Recenter/fit graph
   const recenter = useCallback(() => {
@@ -516,7 +594,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewMode === 'circle' || viewMode === 'tree') {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
     }
   }, [viewMode, dimensions, calculatePositions]);
   
@@ -534,7 +612,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewMode === 'circle' || viewMode === 'tree') {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
     }
   }, [viewMode, dimensions, calculatePositions]);
   
@@ -599,17 +677,25 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     const centerX = dimensions.width / 2;
     const centerY = dimensions.height / 2;
+    const currentFilters = visibilityFiltersRef.current;
+    
+    // Store all input nodes for visibility filtering
+    inputNodesMapRef.current = new Map(inputNodes.map(n => [n.id, n]));
+    allLinksRef.current = [...inputLinks];
     
     // Build maps of existing and input nodes
     const existingMap = new Map(nodesRef.current.map(n => [n.id, n]));
-    const inputMap = new Map(inputNodes.map(n => [n.id, n]));
     
-    // Remove nodes that are no longer in input
+    // Filter input nodes based on visibility settings
+    const visibleInputNodes = inputNodes.filter(n => shouldNodeBeVisible(n, currentFilters));
+    const inputMap = new Map(visibleInputNodes.map(n => [n.id, n]));
+    
+    // Remove nodes that are no longer in visible input
     const nodesToRemove = nodesRef.current.filter(n => !inputMap.has(n.id));
     nodesToRemove.forEach(n => destroyNode(n.id));
     
     // Add or update nodes
-    inputNodes.forEach(inputNode => {
+    visibleInputNodes.forEach(inputNode => {
       const existing = existingMap.get(inputNode.id);
       if (existing) {
         // Update existing node properties but preserve position/velocity
@@ -638,12 +724,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
     });
     
-    linksRef.current = [...inputLinks];
+    // Update links to only include those between visible nodes
+    const visibleNodeIds = new Set(nodesRef.current.map(n => n.id));
+    linksRef.current = inputLinks.filter(
+      link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
+    );
     
-    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, !showClassNodesRef.current);
+    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
     
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation and showClassNodes intentionally excluded to prevent re-simulation on every render
-  }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions, createNode, destroyNode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation intentionally excluded to prevent re-simulation on every render
+  }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions, createNode, destroyNode, shouldNodeBeVisible]);
 
   // Update glare states
   useEffect(() => {
@@ -741,11 +831,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodes = nodesRef.current;
       const links = linksRef.current;
       const currentSettings = settingsRef.current;
-      const showClasses = showClassNodesRef.current;
       const isConstrainedMode = viewMode === 'circle' || viewMode === 'tree';
       
-      // Filter to only visible nodes for force calculations
-      const visibleNodes = nodes.filter(n => n.visible && (showClasses || !n.isTypeNode));
+      // All nodes in nodesRef are visible (filtering handled by visibility effect)
+      const visibleNodes = nodes.filter(n => n.visible);
       const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
       
       const connectedPairs = new Set<string>();
@@ -840,7 +929,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         for (const connectedId of connected) {
           const connectedNode = nodeMap.get(connectedId);
           if (!connectedNode || connectedNode.pinned || !connectedNode.visible) continue;
-          if (!showClasses && connectedNode.isTypeNode) continue;
           
           const dx = dragNode.x - connectedNode.x;
           const dy = dragNode.y - connectedNode.y;
@@ -899,7 +987,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     const currentClassColors = classColorsRef.current;
-    const showClasses = showClassNodesRef.current;
     const nodes = nodesRef.current;
     const links = linksRef.current;
     
@@ -914,8 +1001,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const accentColor = style.getPropertyValue('--color-secondary').trim() || '#6366f1';
     const dimColor = style.getPropertyValue('--color-surface-variant').trim() || '#404040';
     
-    // Filter visible nodes - must check both visible property and type visibility
-    const visibleNodes = nodes.filter(n => n.visible && (showClasses || !n.isTypeNode));
+    // All nodes in nodesRef are visible (filtering handled by visibility effect)
+    const visibleNodes = nodes.filter(n => n.visible);
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
     const visibleLinks = links.filter(l => visibleNodeIds.has(l.source) && visibleNodeIds.has(l.target));
     
@@ -1256,7 +1343,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const { x, y } = screenToWorld(screenX, screenY);
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
-    const showTypes = showClassNodesRef.current;
     
     let maxBacklinks = 0, maxInternalLinks = 0, maxTotalLinks = 0;
     for (const node of nodesRef.current) {
@@ -1268,7 +1354,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     for (let i = nodesRef.current.length - 1; i >= 0; i--) {
       const node = nodesRef.current[i];
       if (!node.visible) continue;
-      if (!showTypes && node.isTypeNode) continue;
       
       const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxBacklinks, maxInternalLinks, maxTotalLinks);
       const hitRadius = (nodeRadius + NODE_HOVER_RADIUS_EXTRA + 4) / t.scale;

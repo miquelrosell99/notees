@@ -26,12 +26,14 @@ import {
   type GraphLink,
   type GraphSettings,
   type GraphViewMode,
+  type VisibilityFilters,
 } from './NodeGraphRenderer';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
 import { ListSortable } from '../core/ListSortable';
+import { BooleanToggle } from '../core/BooleanToggle';
 import { ClassColorsPanel } from '../shared/ClassColorsPanel';
 import type { ClassColor } from '../shared/ClassColorsPanel';
 import './NodeGraphView.css';
@@ -77,7 +79,15 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
   // Class colors
   const [classColors, setClassColors] = useState<ClassColor[]>([]);
   const classColorsLoadedRef = useRef(false);
-  const [showTypeNodes, setShowTypeNodes] = useState(true);
+  
+  // Visibility filters
+  const [visibilityFilters, setVisibilityFilters] = useState<VisibilityFilters>({
+    showClassNodes: true,
+    showDayPages: true,
+    showMonthPages: true,
+    showYearPages: true,
+  });
+  const visibilityFiltersLoadedRef = useRef(false);
   
   // UI panel state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -154,6 +164,40 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
     return () => clearTimeout(timer);
   }, [graphSettings]);
   
+  // Load visibility filters from database
+  useEffect(() => {
+    if (visibilityFiltersLoadedRef.current) return;
+    
+    getSettings().then(settings => {
+      const saved = settings['graph_visibility_filters'];
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setVisibilityFilters(prev => ({ ...prev, ...parsed }));
+        } catch (e) {
+          console.error('Failed to parse graph_visibility_filters:', e);
+        }
+      }
+      visibilityFiltersLoadedRef.current = true;
+    }).catch(e => {
+      console.error('Failed to load visibility filters:', e);
+      visibilityFiltersLoadedRef.current = true;
+    });
+  }, []);
+  
+  // Save visibility filters (debounced)
+  useEffect(() => {
+    if (!visibilityFiltersLoadedRef.current) return;
+    
+    const timer = setTimeout(() => {
+      setSetting('graph_visibility_filters', JSON.stringify(visibilityFilters)).catch(e => {
+        console.error('Failed to save graph_visibility_filters:', e);
+      });
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [visibilityFilters]);
+  
   // Build class ID set
   const classIds = useMemo(() => {
     const set = new Set<number>();
@@ -188,6 +232,8 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
       name: apiNode.name || 'Untitled',
       type: apiNode.type || 'page',
       isDaily: apiNode.is_daily || false,
+      isMonthly: apiNode.is_monthly || false,
+      isYearly: apiNode.is_yearly || false,
       tags: apiNode.tags || [],
       types: apiNode.class_ids || [],
       parentId: parentMap.get(apiNode.id) ?? null,
@@ -401,28 +447,69 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={showTypeNodes ? mdiEye : mdiEyeOff}
+          icon={visibilityFilters.showClassNodes && visibilityFilters.showDayPages && visibilityFilters.showMonthPages && visibilityFilters.showYearPages ? mdiEye : mdiEyeOff}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
-          panelWidth={220}
+          panelWidth={280}
           title="Node Visibility"
           tooltip="Toggle node visibility"
           open={typeVisibilityOpen}
           onOpenChange={setTypeVisibilityOpen}
         >
           <div className="visibility-panel-content">
-            <label className="settings-label">
-              <input
-                type="checkbox"
-                checked={showTypeNodes}
-                onChange={(e) => setShowTypeNodes(e.target.checked)}
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Class nodes"
+                description="Show nodes used as classes/types"
+                labelPosition="left"
+                checked={visibilityFilters.showClassNodes}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showClassNodes: e.target.checked
+                }))}
               />
-              <span>Show class nodes</span>
-            </label>
-            <p className="settings-hint">
-              Toggle visibility of nodes that are used as classes
-            </p>
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Day pages"
+                description="Show daily journal pages"
+                labelPosition="left"
+                checked={visibilityFilters.showDayPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showDayPages: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Month pages"
+                description="Show monthly journal pages"
+                labelPosition="left"
+                checked={visibilityFilters.showMonthPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showMonthPages: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Year pages"
+                description="Show yearly journal pages"
+                labelPosition="left"
+                checked={visibilityFilters.showYearPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showYearPages: e.target.checked
+                }))}
+              />
+            </div>
           </div>
         </ButtonWithPanel>
         
@@ -507,7 +594,7 @@ export function NodeGraphView({ className = '' }: NodeGraphViewProps) {
         viewMode={viewMode}
         settings={graphSettings}
         classColors={classColors}
-        showTypeNodes={showTypeNodes}
+        visibilityFilters={visibilityFilters}
         selectedNodeIds={selectedNodeIds}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
