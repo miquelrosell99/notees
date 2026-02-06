@@ -368,8 +368,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     nodes: GraphNode[],
     mode: GraphViewMode,
     w: number,
-    h: number,
-    filterClassNodes: boolean = false
+    h: number
   ) => {
     const centerX = w / 2;
     const centerY = h / 2;
@@ -402,8 +401,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodeAngleRange = new Map<number, { start: number; end: number }>();
       
       // Find root nodes - special handling for classes
-      const classRoots = baseNodes.filter(n => n.isClassNode && n.parentId === null);
-      const regularRoots = baseNodes.filter(n => !n.isClassNode && n.parentId === null);
+      const classRoots = nodes.filter(n => n.isClassNode && n.parentId === null);
+      const regularRoots = nodes.filter(n => !n.isClassNode && n.parentId === null);
       const hasVisibleClasses = classRoots.length > 0;
       
       // BFS: assign depths to class hierarchy first
@@ -438,7 +437,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Also add class roots to process their non-class children
       for (const node of classRoots) queue.push(node);
       // And class children that were already depth-assigned
-      for (const node of baseNodes) {
+      for (const node of nodes) {
         if (node.isClassNode && nodeDepth.has(node.id) && !classRoots.includes(node)) {
           queue.push(node);
         }
@@ -464,7 +463,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Group nodes by depth
       const nodesByDepth = new Map<number, GraphNode[]>();
-      for (const node of baseNodes) {
+      for (const node of nodes) {
         const depth = nodeDepth.get(node.id);
         if (depth !== undefined) {
           const nodesAtDepth = nodesByDepth.get(depth) || [];
@@ -548,7 +547,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Handle orphans (nodes without valid parent)
-      const orphans = baseNodes.filter(n => !nodeDepth.has(n.id));
+      const orphans = nodes.filter(n => !nodeDepth.has(n.id));
       orphans.forEach((node, i) => {
         const angle = (2 * Math.PI * i) / Math.max(orphans.length, 1) + Math.PI;
         const radius = maxRadius;
