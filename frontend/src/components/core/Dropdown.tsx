@@ -11,6 +11,7 @@ import { Card } from './Card';
 import { SelectTrigger } from './SelectTrigger';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useViewportFlip } from '@/hooks/useViewportFlip';
 import './Dropdown.css';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
@@ -91,45 +92,15 @@ export function Dropdown<T = string>({
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Update menu position when opened
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const maxDropdownHeight = 300; // Match CSS default
-      const gap = 4;
-      
-      // Determine if dropdown should open above or below
-      let top: number;
-      let maxHeight: number;
-      
-      if (spaceBelow >= maxDropdownHeight || spaceBelow > spaceAbove) {
-        // Open below
-        top = rect.bottom + window.scrollY + gap;
-        maxHeight = Math.min(maxDropdownHeight, spaceBelow - gap * 2);
-      } else {
-        // Open above
-        maxHeight = Math.min(maxDropdownHeight, spaceAbove - gap * 2);
-        top = rect.top + window.scrollY - maxHeight - gap;
-      }
-      
-      setMenuPosition({
-        top,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-        maxHeight,
-      });
-    } else {
-      setMenuPosition(null);
-    }
-  }, [isOpen]);
+  // Position menu with viewport flip
+  const menuPosition = useViewportFlip(containerRef, isOpen, {
+    maxHeight: 300,
+    includeWidth: true,
+  });
 
   // Close dropdown handler
   const handleClose = useCallback(() => {

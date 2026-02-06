@@ -3,6 +3,7 @@
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useDailyPages } from '@/hooks';
+import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useNodesStore } from '@/stores';
 import { Button } from './Button';
 import './CalendarPopup.css';
@@ -34,8 +35,14 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [navigateToMonth, setNavigateToMonth] = useState<{ year: number; month: number } | null>(null);
   const [navigateToYear, setNavigateToYear] = useState<number | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  
+  // Position popup with viewport flip
+  const position = useViewportFlip(
+    anchorRef as React.RefObject<HTMLElement>,
+    isOpen,
+    { popupWidth: 280, popupHeight: 350, fixed: true },
+  );
   
   const { openNode } = useNodesStore();
   
@@ -66,31 +73,6 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     }
     return dates;
   }, [dailyPages, currentYear, currentMonth]);
-  
-  // Calculate popup position based on anchor
-  useEffect(() => {
-    if (!isOpen || !anchorRef?.current) return;
-    
-    const anchorRect = anchorRef.current.getBoundingClientRect();
-    const popupWidth = 280; // min-width from CSS
-    const popupHeight = 350; // approximate height
-    
-    let top = anchorRect.bottom + 4;
-    let left = anchorRect.left;
-    
-    // Ensure popup doesn't go off-screen to the right
-    if (left + popupWidth > window.innerWidth - 16) {
-      left = window.innerWidth - popupWidth - 16;
-    }
-    
-    // Ensure popup doesn't go off-screen to the bottom
-    if (top + popupHeight > window.innerHeight - 16) {
-      top = anchorRect.top - popupHeight - 4;
-    }
-    
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Positioning based on DOM rect measurements
-    setPosition({ top, left });
-  }, [isOpen]);
   
   // Fetch daily note when a date is selected
   const { data: dailyNote } = useDailyNote(selectedDate ?? undefined);
