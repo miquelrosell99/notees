@@ -659,7 +659,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewMode === 'circle' || viewMode === 'tree')) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
     }
   }, [visibilityFilters, viewMode, dimensions, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
 
@@ -731,7 +731,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewMode === 'circle' || viewMode === 'tree') {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
     }
   }, [viewMode, dimensions, calculatePositions]);
   
@@ -749,7 +749,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewMode === 'circle' || viewMode === 'tree') {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
+      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
     }
   }, [viewMode, dimensions, calculatePositions]);
   
@@ -867,7 +867,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, visibilityFilters)
     );
     
-    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
+    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
     
     // Trigger initial fit-to-view after stabilization delay
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
