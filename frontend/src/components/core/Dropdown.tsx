@@ -9,6 +9,8 @@ import Icon from '@mdi/react';
 import { mdiCheck } from '@mdi/js';
 import { Card } from './Card';
 import { SelectTrigger } from './SelectTrigger';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import './Dropdown.css';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
@@ -129,38 +131,17 @@ export function Dropdown<T = string>({
     }
   }, [isOpen]);
 
+  // Close dropdown handler
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    setSearchQuery('');
+  }, []);
+
+  // Close on escape key
+  useEscapeKey(handleClose, isOpen);
+
   // Close on click outside
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      // Check if click is outside both the container AND the portaled menu
-      if (
-        containerRef.current && 
-        !containerRef.current.contains(target) &&
-        menuRef.current &&
-        !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-        setSearchQuery('');
-      }
-    };
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false);
-        setSearchQuery('');
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen]);
+  useClickOutside([containerRef, menuRef], handleClose, isOpen);
 
   // Focus search input when opened
   useEffect(() => {

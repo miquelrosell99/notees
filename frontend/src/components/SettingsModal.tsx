@@ -8,8 +8,8 @@ import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from 
 import type { ThemePreference, DateFormat, QuickAddDestination } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
-import { mdiClose } from '@mdi/js';
 import { ConfirmationModal } from './core/ConfirmationModal';
+import { Modal } from './core/Modal';
 import { Button } from './core/Button';
 import { Separator } from './core/Separator';
 import { BooleanToggle } from './core/BooleanToggle';
@@ -82,12 +82,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setPendingDateFormat(null);
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   const tabs: { id: SettingsTab; label: string; }[] = [
     { id: 'general', label: 'General'},
     { id: 'appearance', label: 'Appearance'},
@@ -96,14 +90,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   ];
 
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className="settings-modal">
-        <div className="settings-modal__header">
-          <h2 className="settings-modal__title">Settings</h2>
-          <Button icon={mdiClose} iconOnly className="settings-modal__close" onClick={onClose} size="sm" variant="ghost" aria-label="Close settings" />
-        </div>
-
-        <div className="settings-modal__body">
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Settings"
+        size="lg"
+        closeOnBackdrop={true}
+        closeOnEscape={true}
+        contentClassName="settings-modal__body"
+      >
+        <div className="settings-modal__container">
           <nav className="settings-modal__nav">
             {tabs.map((tab) => (
               <Button
@@ -331,7 +328,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             )}
           </div>
         </div>
-      </div>
+      </Modal>
       <ConfirmationModal
         isOpen={showDateFormatConfirm}
         title="Change Date Format"
@@ -341,7 +338,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         variant="primary"
         onConfirm={handleDateFormatConfirm}
         onCancel={handleDateFormatCancel}
-      />    </div>
+      />
+    </>
   );
 }
 
