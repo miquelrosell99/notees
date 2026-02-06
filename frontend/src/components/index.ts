@@ -50,7 +50,6 @@ export type { NodeViewSectionProps } from './nodes/NodeViewSection';
 
 // Properties (from properties/ folder)
 export { PropertiesSection, InlineProperties } from './PropertiesSection';
-export { NodePicker } from './nodes/NodePicker';
 export { ClassExtendsEditor } from './ClassExtendsEditor';
 export { ClassPropertiesEditor } from './ClassPropertiesEditor';
 export { PropertyConfigPanel } from './properties/PropertyConfigPanel';
