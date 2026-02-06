@@ -48,6 +48,26 @@
   padding: 0;
 }
 
+/* Image/asset property cell */
+.property-cell--image {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+}
+
+.property-cell--image .image-node {
+  height: 48px;
+  max-width: 160px;
+}
+
+.property-cell--image .image-node img {
+  height: 48px;
+  max-width: 160px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
 .property-cell__image {
   max-width: 120px;
   max-height: 80px;

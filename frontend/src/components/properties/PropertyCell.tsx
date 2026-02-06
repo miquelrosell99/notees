@@ -13,12 +13,12 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
-import { useSetNodeProperty } from '@/hooks';
-import { useQuery } from '@tanstack/react-query';
-import { getNode } from '@/api/nodes';
+import { useSetNodeProperty, useClasses, useNode } from '@/hooks';
 import { Block } from '../blocks/Block';
+import { ImageNode } from '../ImageNode';
 import { NodePill } from '../NodePill';
 import { Pill } from '../core/Pill';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -42,6 +42,16 @@ export function PropertyCell({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
 
+  // Detect asset-type node properties by checking if class_filters includes the asset class
+  const { data: allClasses } = useClasses();
+  const isAssetProperty = useMemo(() => {
+    if (property.type !== 'node' || !property.class_filters?.length || !allClasses) return false;
+    return property.class_filters.some(classId => {
+      const classNode = allClasses.find(c => c.id === classId);
+      return classNode?.uuid === SYSTEM_CLASS_UUIDS.asset;
+    });
+  }, [property.type, property.class_filters, allClasses]);
+
   // Format value for display (used for non-node, non-selection types)
   const displayValue = useMemo(() => {
     if (value === null || value === undefined) return '';
@@ -60,6 +70,9 @@ export function PropertyCell({
         return '';
       case 'node':
         // Handled separately with Block or pills
+        return '';
+      case 'image':
+        // Handled separately with ImageNode
         return '';
       default:
         return String(value);
@@ -147,10 +160,32 @@ export function PropertyCell({
       );
     }
     
-    return <BlockCell nodeId={value} />;
+    return <InlineBlock nodeId={value} />;
   }
 
-  // Node-type property: single value = Block, multi value = pills
+  // Image-type property: always render with ImageNode
+  if (property.type === 'image') {
+    const imageId = typeof value === 'number' ? value : null;
+    if (!imageId) {
+      return (
+        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+          {editable ? '—' : ''}
+        </div>
+      );
+    }
+    return (
+      <div className="property-cell property-cell--image">
+        <ImageNode
+          assetNodeId={imageId}
+          showCard={false}
+          clickable={true}
+          showActions={false}
+        />
+      </div>
+    );
+  }
+
+  // Node-type property: check if it targets assets (images)
   if (property.type === 'node') {
     if (value === null || value === undefined) {
       return (
@@ -176,6 +211,23 @@ export function PropertyCell({
       );
     }
     
+    // Asset/image property: render with ImageNode
+    if (isAssetProperty) {
+      return (
+        <div className="property-cell property-cell--image">
+          {nodeIds.map((nodeId) => (
+            <ImageNode
+              key={nodeId}
+              assetNodeId={nodeId}
+              showCard={false}
+              clickable={true}
+              showActions={false}
+            />
+          ))}
+        </div>
+      );
+    }
+    
     // Multi-value: use pills
     if (isMultiValue && nodeIds.length > 0) {
       return (
@@ -193,7 +245,7 @@ export function PropertyCell({
     }
     
     // Single value: use Block component
-    return <BlockCell nodeId={nodeIds[0]} />;
+    return <InlineBlock nodeId={nodeIds[0]} />;
   }
 
   // Selection-type property: render pills with option labels
@@ -290,14 +342,11 @@ export function PropertyCell({
 }
 
 /**
- * BlockCell - Wrapper for rendering a node as a Block component in table cells
- * Used for text-type and single-value node-type properties
+ * InlineBlock - Fetches a node by ID and renders it as a read-only Block.
+ * Used for text properties (value is a block node ID) and single-value node properties.
  */
-function BlockCell({ nodeId }: { nodeId: number }) {
-  const { data: blockNode } = useQuery({
-    queryKey: ['node', nodeId],
-    queryFn: () => getNode(nodeId),
-  });
+function InlineBlock({ nodeId }: { nodeId: number }) {
+  const { data: blockNode } = useNode(nodeId);
 
   if (!blockNode) {
     return (
@@ -308,17 +357,15 @@ function BlockCell({ nodeId }: { nodeId: number }) {
   }
 
   return (
-    <div className="property-cell-block">
-      <Block
-        block={blockNode}
-        parentId={blockNode.parent_id}
-        canMove={false}
-        canEdit={false}
-        canSelect={false}
-        showChildren={false}
-        showClasses={false}
-        showQueryResults={false}
-      />
-    </div>
+    <Block
+      block={blockNode}
+      parentId={blockNode.parent_id}
+      canMove={false}
+      canEdit={false}
+      canSelect={false}
+      showChildren={false}
+      showClasses={false}
+      showQueryResults={false}
+    />
   );
 }
