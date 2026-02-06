@@ -22,6 +22,20 @@
   flex: 1;
 }
 
+.node-table__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.node-table__date-cell:hover .node-table__actions,
+.node-table__actions:focus-within {
+  opacity: 1;
+}
+
 /* Node-specific count cell */
 .node-table__count {
   color: var(--text-tertiary);
