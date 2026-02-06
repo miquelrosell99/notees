@@ -86,7 +86,7 @@ export interface GraphNode {
   internalLinkCount: number;
   createdAt?: string;
   visible: boolean;
-  isTypeNode: boolean;
+  isClassNode: boolean;
 }
 
 export interface GraphLink {
@@ -110,6 +110,8 @@ export interface GraphSettings {
 export interface VisibilityFilters {
   showClassNodes: boolean;
   showClassLinks: boolean;
+  showParentLinks: boolean;
+  showReferenceLinks: boolean;
   showDayPages: boolean;
   showMonthPages: boolean;
   showYearPages: boolean;
@@ -296,6 +298,8 @@ function getNodeRadius(
 const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showClassNodes: true,
   showClassLinks: true,
+  showParentLinks: true,
+  showReferenceLinks: true,
   showDayPages: true,
   showMonthPages: true,
   showYearPages: true,
@@ -376,7 +380,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     if (mode === 'circle') {
       // Only position visible nodes in the circle
-      const visibleNodes = filterClassNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
+      const visibleNodes = filterClassNodes ? nodes.filter(n => !n.isClassNode) : nodes;
       const radius = Math.min(centerX, centerY) * 0.8;
       visibleNodes.forEach((node, i) => {
         const angle = (2 * Math.PI * i) / visibleNodes.length - Math.PI / 2;
@@ -385,17 +389,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       });
       // Hidden type nodes should stay at center
       if (filterClassNodes) {
-        nodes.filter(n => n.isTypeNode).forEach(node => {
+        nodes.filter(n => n.isClassNode).forEach(node => {
           node.targetX = centerX;
           node.targetY = centerY;
         });
       }
     } else if (mode === 'tree') {
-      const baseNodes = filterClassNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
+      const baseNodes = filterClassNodes ? nodes.filter(n => !n.isClassNode) : nodes;
       
-      // Hidden type nodes should stay at center
+      // Hidden class nodes should stay at center
       if (filterClassNodes) {
-        nodes.filter(n => n.isTypeNode).forEach(node => {
+        nodes.filter(n => n.isClassNode).forEach(node => {
           node.targetX = centerX;
           node.targetY = centerY;
         });
@@ -416,8 +420,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const nodeAngleRange = new Map<number, { start: number; end: number }>();
       
       // Find root nodes - special handling for classes
-      const classRoots = baseNodes.filter(n => n.isTypeNode && n.parentId === null);
-      const regularRoots = baseNodes.filter(n => !n.isTypeNode && n.parentId === null);
+      const classRoots = baseNodes.filter(n => n.isClassNode && n.parentId === null);
+      const regularRoots = baseNodes.filter(n => !n.isClassNode && n.parentId === null);
       const hasVisibleClasses = classRoots.length > 0;
       
       // BFS: assign depths to class hierarchy first
@@ -432,7 +436,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         const parentDepth = nodeDepth.get(parent.id)!;
         const children = childrenByParent.get(parent.id) || [];
         for (const child of children) {
-          if (child.isTypeNode) {
+          if (child.isClassNode) {
             const childDepth = parentDepth + 1;
             nodeDepth.set(child.id, childDepth);
             maxClassDepth = Math.max(maxClassDepth, childDepth);
@@ -453,7 +457,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       for (const node of classRoots) queue.push(node);
       // And class children that were already depth-assigned
       for (const node of baseNodes) {
-        if (node.isTypeNode && nodeDepth.has(node.id) && !classRoots.includes(node)) {
+        if (node.isClassNode && nodeDepth.has(node.id) && !classRoots.includes(node)) {
           queue.push(node);
         }
       }
@@ -594,7 +598,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   
   // Helper to check if a node should be visible based on filters
   const shouldNodeBeVisible = useCallback((node: GraphNode, filters: VisibilityFilters): boolean => {
-    if (node.isTypeNode && !filters.showClassNodes) return false;
+    if (node.isClassNode && !filters.showClassNodes) return false;
     if (node.isDaily && !filters.showDayPages) return false;
     if (node.isMonthly && !filters.showMonthPages) return false;
     if (node.isYearly && !filters.showYearPages) return false;
@@ -603,11 +607,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   }, []);
   
   // Helper to check if a link should be active based on filters
-  // When class links are hidden, they shouldn't affect physics or selection
-  // Note: Only 'class' type links (inline class assignments) are filtered
-  // 'extends' links (inheritance) and regular 'reference' links remain active
   const shouldLinkBeActive = useCallback((link: GraphLink, filters: VisibilityFilters): boolean => {
     if (link.type === 'class' && !filters.showClassLinks) return false;
+    if ((link.type === 'parent' || link.type === 'extends') && !filters.showParentLinks) return false;
+    if (link.type === 'reference' && !filters.showReferenceLinks) return false;
     return true;
   }, []);
   
@@ -1172,9 +1175,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const visibleLinks = links.filter(l => {
       // Link must connect two visible nodes
       if (!visibleNodeIds.has(l.source) || !visibleNodeIds.has(l.target)) return false;
-      // Hide class links (inline class assignments) if showClassLinks is false
-      // Note: 'extends' links (inheritance) are always shown
-      if (l.type === 'class' && !currentFilters.showClassLinks) return false;
+      // Apply link visibility filters
+      if (!shouldLinkBeActive(l, currentFilters)) return false;
       return true;
     });
     

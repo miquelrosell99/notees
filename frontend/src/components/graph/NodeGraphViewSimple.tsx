@@ -75,7 +75,7 @@ export function NodeGraphViewSimple({
       internalLinkCount: apiNode.internal_link_count ?? 0,
       createdAt: apiNode.created_at,
       visible: true,
-      isTypeNode: apiNode.is_class || false,
+      isClassNode: apiNode.is_class || false,
     }));
     
     const links: GraphLink[] = inputLinks.map(link => ({
