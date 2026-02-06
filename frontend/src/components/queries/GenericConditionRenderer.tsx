@@ -13,7 +13,7 @@ import { Dropdown } from '../core/Dropdown';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { NodePillRow } from '../NodePillRow';
-import { SingleNodeSelector } from './NodeSelectors';
+
 import { useNode, useProperties } from '@/hooks';
 import { useCurrentNodeUuid } from '@/hooks/useRouter';
 import type { ConditionNode } from '@/types/queryAST';
@@ -320,10 +320,14 @@ export function GenericConditionRenderer({
       case 'node-selector': {
         const selectedId = (condition as any).target_id || (condition as any).parent_id || null;
         return (
-          <SingleNodeSelector
-            mode="pages"
-            selectedId={selectedId}
-            onChange={handleNodeSelect}
+          <NodePillRow
+            trigger="select"
+            searchMode="pages"
+            value={selectedId}
+            onChange={(newValue) => {
+              const nodeId = Array.isArray(newValue) ? newValue[0] : newValue;
+              handleNodeSelect(nodeId);
+            }}
             placeholder={config.staticMode.placeholder}
             readOnly={readOnly}
           />
