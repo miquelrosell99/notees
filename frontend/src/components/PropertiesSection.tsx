@@ -47,7 +47,7 @@ function getPropertyIcon(property: Property): string {
 }
 import { Button } from './core/Button';
 import { Dropdown } from './core/Dropdown';
-import { NodeSelector } from 'from 'from './NodeSelector'' -replace 'NodeSelector','NodeSelector'' -replace 'NodeSelector','NodeSelector';
+import { NodeSelector } from './NodeSelector';
 import { TextPropertyBlock } from './blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './properties/PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './properties/PropertyList';
