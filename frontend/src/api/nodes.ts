@@ -30,6 +30,7 @@ export async function listNodes(params?: {
   parent_id?: number;
   tag_id?: number;
   type_filters?: string;
+  class_filters?: string;
   include_children?: boolean;
   root_only?: boolean;
 }): Promise<Node[]> {
