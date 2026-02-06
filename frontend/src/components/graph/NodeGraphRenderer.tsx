@@ -969,7 +969,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Set line style: bold solid for parent, squiggly for class, dotted for reference
       if (isParentLink) {
         ctx.setLineDash([]);
-        ctx.lineWidth = 2.5; // Slightly bolder
+        ctx.lineWidth = 1.5;
       } else if (isClassLink) {
         ctx.setLineDash([]);
         ctx.lineWidth = 1.5;
@@ -1060,7 +1060,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sourceGlareRadius = getGlareRadius(source);
       const targetGlareRadius = getGlareRadius(target);
       
-      // Helper function to draw a solid circle (for reference links)
+      // Helper function to draw a solid circle (for reference and class links)
       const drawSolidCircle = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
         const angle = Math.atan2(toY - fromY, toX - fromX);
         const circleX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
@@ -1082,26 +1082,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.arc(circleX, circleY, dotSize / 2, 0, 2 * Math.PI);
         ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
         ctx.lineWidth = 1.5;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.fill();
+        ctx.setLineDash([]);
         ctx.stroke();
-      };
-      
-      // Helper function to draw a rounded diamond (for class links)
-      const drawDiamond = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
-        const angle = Math.atan2(toY - fromY, toX - fromX);
-        const diamondX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
-        const diamondY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
-        const size = dotSize / 2;
-        
-        ctx.beginPath();
-        ctx.moveTo(diamondX, diamondY - size);
-        ctx.lineTo(diamondX + size * 0.8, diamondY);
-        ctx.lineTo(diamondX, diamondY + size);
-        ctx.lineTo(diamondX - size * 0.8, diamondY);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
-        ctx.fill();
       };
       
       // Helper function to check if we should skip dots for system types
@@ -1117,9 +1099,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           drawHollowCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else if (isClassLink) {
-        // Class links have a diamond pointing to the type node (target)
+        // Class links have a solid circle pointing to the type node (target)
         if (!shouldSkipDot(target)) {
-          drawDiamond(source.x, source.y, target.x, target.y, targetGlareRadius);
+          drawSolidCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else {
         // Reference links - draw solid circles
