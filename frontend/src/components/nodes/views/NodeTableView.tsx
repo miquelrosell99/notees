@@ -26,7 +26,7 @@ import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
 import { NodePillRow } from '../../NodePillRow';
 import { Button } from '../../core/Button';
-import { isNonRemovableClass } from '@/constants';
+import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import './NodeTableView.css';
 
@@ -211,10 +211,10 @@ export function NodeTableView({
             label: 'Classes',
             width: '200px',
             render: (node: Node): ReactNode => {
-              // Resolve class nodes
+              // Resolve class nodes, excluding the Page class
               const classNodes = (node.classes || [])
                 .map(classId => allClasses.find(c => c.id === classId))
-                .filter((c): c is Node => c !== undefined);
+                .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
               
               return (
                 <NodePillRow
