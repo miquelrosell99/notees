@@ -4,15 +4,23 @@
  * Editable property cell for table view.
  * Click to edit or create property value for a node.
  * 
- * Node-type properties render as NodePill(s) showing the referenced node name/icon.
+ * Node-type properties:
+ * - Single value: Render as block-style element with icon/bullet and navigation buttons on hover
+ * - Multi value: Render as NodePill(s) showing the referenced node name/icon
+ * 
  * Selection-type properties render as pills with selection option labels.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { useQuery } from '@tanstack/react-query';
+import { getNode } from '@/api/nodes';
 import { NodePill } from '../NodePill';
 import { Pill } from '../core/Pill';
+import { Button } from '../core/Button';
+import { NodeIcon } from '../icons';
+import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -35,7 +43,7 @@ export function PropertyCell({
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
-  const { openNode } = useNodesStore();
+  const { openNode, addSidebarCard } = useNodesStore();
 
   // Format value for display (used for non-node, non-selection types)
   const displayValue = useMemo(() => {
@@ -53,7 +61,7 @@ export function PropertyCell({
         // Handled separately with pills
         return '';
       case 'node':
-        // Handled separately with NodePill
+        // Handled separately with NodePill or block-style cell
         return '';
       default:
         return String(value);
@@ -131,7 +139,7 @@ export function PropertyCell({
     }
   }, [isEditing]);
 
-  // Node-type property: render NodePill(s) for referenced nodes
+  // Node-type property: single value = block-style, multi value = pills
   if (property.type === 'node') {
     if (value === null || value === undefined) {
       return (
@@ -141,8 +149,9 @@ export function PropertyCell({
       );
     }
     
-    // Support both single value (number) and multi-value (array of numbers)
-    const nodeIds: number[] = Array.isArray(value)
+    // Check if multi-value (array)
+    const isMultiValue = Array.isArray(value);
+    const nodeIds: number[] = isMultiValue
       ? value.filter((v): v is number => typeof v === 'number')
       : typeof value === 'number'
         ? [value]
@@ -156,19 +165,25 @@ export function PropertyCell({
       );
     }
     
-    return (
-      <div className="property-cell property-cell--node">
-        {nodeIds.map((nodeId) => (
-          <NodePill
-            key={nodeId}
-            nodeId={nodeId}
-            variant="link"
-            readOnly={true}
-            onClick={() => openNode(nodeId, 'page')}
-          />
-        ))}
-      </div>
-    );
+    // Multi-value: use pills
+    if (isMultiValue && nodeIds.length > 0) {
+      return (
+        <div className="property-cell property-cell--node-multi">
+          {nodeIds.map((nodeId) => (
+            <NodePill
+              key={nodeId}
+              nodeId={nodeId}
+              variant="link"
+              readOnly={true}
+              onClick={() => openNode(nodeId, 'page')}
+            />
+          ))}
+        </div>
+      );
+    }
+    
+    // Single value: use block-style with navigation buttons
+    return <SingleNodeCell nodeId={nodeIds[0]} openNode={openNode} addSidebarCard={addSidebarCard} />;
   }
 
   // Selection-type property: render pills with option labels
@@ -260,6 +275,66 @@ export function PropertyCell({
       title={editable ? 'Click to edit' : undefined}
     >
       {displayValue || (editable ? '—' : '')}
+    </div>
+  );
+}
+
+/**
+ * SingleNodeCell - Block-style cell for single-value node properties
+ * Shows bullet (only when node has icon), node name, and navigation buttons on hover
+ */
+function SingleNodeCell({
+  nodeId,
+  openNode,
+  addSidebarCard,
+}: {
+  nodeId: number;
+  openNode: (nodeId: number, nodeType: 'page' | 'block') => void;
+  addSidebarCard: (nodeId: number, nodeType: 'page' | 'block') => void;
+}) {
+  const { data: referencedNode } = useQuery({
+    queryKey: ['node', nodeId],
+    queryFn: () => getNode(nodeId),
+  });
+
+  if (!referencedNode) {
+    return (
+      <div className="property-cell property-cell--node-loading">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="property-cell-node">
+      {referencedNode.icon && (
+        <span className="property-cell-node__bullet">
+          <NodeIcon icon={referencedNode.icon} size="sm" />
+        </span>
+      )}
+      <span className="property-cell-node__name">{referencedNode.name || 'Untitled'}</span>
+      <div className="property-cell-node__actions">
+        <Button
+          icon={mdiDockRight}
+          variant="ghost"
+          size="xs"
+          title="Open in sidebar"
+          onClick={(e) => {
+            e.stopPropagation();
+            addSidebarCard(nodeId, referencedNode.is_page ? 'page' : 'block');
+          }}
+        />
+        <Button
+          icon={mdiArrowRight}
+          variant="ghost"
+          size="xs"
+          title="Open node"
+          onClick={(e) => {
+            e.stopPropagation();
+            openNode(nodeId, referencedNode.is_page ? 'page' : 'block');
+          }}
+        />
+      </div>
     </div>
   );
 }
