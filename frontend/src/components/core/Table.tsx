@@ -588,7 +588,7 @@ export function Table<T>({
                         <Block
                           block={column.headerNode as Node}
                           parentId={null}
-                          showBullet={true}
+                          showBullet={!!column.headerNode.icon}
                           showChildren={false}
                           showClasses={false}
                           canMove={false}
