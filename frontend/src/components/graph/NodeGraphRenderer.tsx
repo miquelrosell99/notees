@@ -377,8 +377,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const centerX = w / 2;
     const centerY = h / 2;
     
-    // Common spacing parameters for both circle and tree modes
-    const nodeSpacing = 80; // Minimum spacing between node centers
+    // Common spacing parameters
     const levelGap = 100; // Gap between concentric circles (tree) or base radius factor (circle)
     
     if (mode === 'circle') {
@@ -437,9 +436,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // BFS to assign depths to all remaining nodes (regular hierarchy)
       const queue = [...regularRoots];
-      // Also add class roots to process their non-class children
       for (const node of classRoots) queue.push(node);
-      // And class children that were already depth-assigned
       for (const node of nodes) {
         if (node.isClassNode && nodeDepth.has(node.id) && !classRoots.includes(node)) {
           queue.push(node);
@@ -464,185 +461,49 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         maxDepth = Math.max(maxDepth, depth);
       }
       
-      // Group nodes by depth
+      // Assign each node its constrained radius and an initial angular position
+      const maxRadius = Math.min(centerX, centerY) * 0.9;
+      
+      // Group by depth for initial angular spread
       const nodesByDepth = new Map<number, GraphNode[]>();
       for (const node of nodes) {
         const depth = nodeDepth.get(node.id);
         if (depth !== undefined) {
-          const nodesAtDepth = nodesByDepth.get(depth) || [];
-          nodesAtDepth.push(node);
-          nodesByDepth.set(depth, nodesAtDepth);
+          const arr = nodesByDepth.get(depth) || [];
+          arr.push(node);
+          nodesByDepth.set(depth, arr);
         }
       }
       
-      // Simple uniform radius calculation
-      const maxRadius = Math.min(centerX, centerY) * 0.9;
-      
-      const radiusByDepth = new Map<number, number>();
-      for (let depth = 0; depth <= maxDepth; depth++) {
-        radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
-      }
-      
-      // ── Bottom-up subtree pixel width calculation ──
-      // Compute the physical (pixel) spacing each subtree needs at its
-      // deepest level, then propagate upward. Using pixel widths instead
-      // of angular widths avoids scale mismatch across radii.
-      const subtreePixelWidth = new Map<number, number>();
-      
-      // Process depths bottom-up
-      for (let depth = maxDepth; depth >= 0; depth--) {
-        const nodesAtDepth = nodesByDepth.get(depth) || [];
-        for (const node of nodesAtDepth) {
-          const children = (childrenByParent.get(node.id) || [])
-            .filter(c => nodeDepth.has(c.id)); // only children in the graph
+      for (const node of nodes) {
+        const depth = nodeDepth.get(node.id);
+        if (depth !== undefined) {
+          const radius = Math.min(levelGap * (depth + 1), maxRadius);
+          // Store radius on node for simulation constraint
+          (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
           
-          if (children.length === 0) {
-            // Leaf node: needs nodeSpacing pixels of arc length
-            subtreePixelWidth.set(node.id, nodeSpacing);
-          } else {
-            // Sum of all children's subtree widths
-            let totalChildrenWidth = 0;
-            for (const child of children) {
-              totalChildrenWidth += subtreePixelWidth.get(child.id) || nodeSpacing;
-            }
-            
-            // Take the max: either the node's own spacing or children's total
-            subtreePixelWidth.set(node.id, Math.max(nodeSpacing, totalChildrenWidth));
+          // Initial angular spread: evenly distribute nodes at each depth
+          const nodesAtDepth = nodesByDepth.get(depth)!;
+          const idx = nodesAtDepth.indexOf(node);
+          const angle = (2 * Math.PI * idx) / nodesAtDepth.length - Math.PI / 2;
+          
+          node.targetX = centerX + radius * Math.cos(angle);
+          node.targetY = centerY + radius * Math.sin(angle);
+          // Also set initial position near target to help convergence
+          if (node.x === 0 && node.y === 0) {
+            node.x = node.targetX;
+            node.y = node.targetY;
           }
+        } else {
+          // Orphan
+          (node as GraphNode & { _treeRadius?: number })._treeRadius = maxRadius;
+          const orphans = nodes.filter(n => !nodeDepth.has(n.id));
+          const idx = orphans.indexOf(node);
+          const angle = (2 * Math.PI * idx) / Math.max(orphans.length, 1) + Math.PI;
+          node.targetX = centerX + maxRadius * Math.cos(angle);
+          node.targetY = centerY + maxRadius * Math.sin(angle);
         }
       }
-      
-      // ── Top-down positioning using computed widths ──
-      const nodeAngleRange = new Map<number, { start: number; end: number }>();
-      
-      // Helper: convert pixel width to angular width at a given radius
-      const pixelsToAngle = (pixels: number, radius: number) => pixels / radius;
-      
-      // Collect all level-0 nodes
-      const level0Nodes = nodesByDepth.get(0) || [];
-      const radius0 = radiusByDepth.get(0)!;
-      
-      // Total angular width needed for all level-0 subtrees
-      // Each subtree's pixel width is evaluated at level-0 radius
-      let totalLevel0Angle = 0;
-      for (const node of level0Nodes) {
-        const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
-        totalLevel0Angle += pixelsToAngle(pw, radius0);
-      }
-      // Ensure at least 2π, but allow expansion beyond if needed
-      const totalAngle0 = Math.max(2 * Math.PI, totalLevel0Angle);
-      const scale0 = totalLevel0Angle > 0 ? totalAngle0 / totalLevel0Angle : 1;
-      
-      let currentAngle0 = -Math.PI / 2;
-      for (const node of level0Nodes) {
-        const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
-        const allocatedWidth = pixelsToAngle(pw, radius0) * scale0;
-        const angle = currentAngle0 + allocatedWidth / 2;
-        
-        node.targetX = centerX + radius0 * Math.cos(angle);
-        node.targetY = centerY + radius0 * Math.sin(angle);
-        
-        nodeAngleRange.set(node.id, {
-          start: currentAngle0,
-          end: currentAngle0 + allocatedWidth
-        });
-        
-        currentAngle0 += allocatedWidth;
-      }
-      
-      // Position nodes at each subsequent level
-      for (let depth = 1; depth <= maxDepth; depth++) {
-        const nodesAtDepth = nodesByDepth.get(depth) || [];
-        const radius = radiusByDepth.get(depth)!;
-        
-        // Separate into nodes with parents in the graph and root nodes
-        const nodesWithParent = nodesAtDepth.filter(n => n.parentId !== null && nodeAngleRange.has(n.parentId));
-        const rootNodesAtThisLevel = nodesAtDepth.filter(n => n.parentId === null || !nodeAngleRange.has(n.parentId));
-        
-        // Position root nodes at this level evenly
-        if (rootNodesAtThisLevel.length > 0) {
-          let totalRootAngle = 0;
-          for (const node of rootNodesAtThisLevel) {
-            const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
-            totalRootAngle += pixelsToAngle(pw, radius);
-          }
-          const totalAngleRoot = Math.max(2 * Math.PI, totalRootAngle);
-          const scaleRoot = totalRootAngle > 0 ? totalAngleRoot / totalRootAngle : 1;
-          
-          let currentAngleRoot = -Math.PI / 2;
-          for (const node of rootNodesAtThisLevel) {
-            const pw = subtreePixelWidth.get(node.id) || nodeSpacing;
-            const allocatedWidth = pixelsToAngle(pw, radius) * scaleRoot;
-            const angle = currentAngleRoot + allocatedWidth / 2;
-            
-            node.targetX = centerX + radius * Math.cos(angle);
-            node.targetY = centerY + radius * Math.sin(angle);
-            
-            nodeAngleRange.set(node.id, {
-              start: currentAngleRoot,
-              end: currentAngleRoot + allocatedWidth
-            });
-            
-            currentAngleRoot += allocatedWidth;
-          }
-        }
-        
-        // Position nodes with parents: allocate within parent's arc
-        // Group by parent first to handle sibling sets together
-        const siblingGroups = new Map<number, GraphNode[]>();
-        for (const node of nodesWithParent) {
-          const parentId = node.parentId!;
-          const group = siblingGroups.get(parentId) || [];
-          group.push(node);
-          siblingGroups.set(parentId, group);
-        }
-        
-        for (const [parentId, siblings] of siblingGroups) {
-          const parentRange = nodeAngleRange.get(parentId)!;
-          const parentCenter = (parentRange.start + parentRange.end) / 2;
-          const parentSpan = parentRange.end - parentRange.start;
-          
-          // Total pixel width needed by all siblings
-          let totalSiblingPixels = 0;
-          for (const sibling of siblings) {
-            totalSiblingPixels += subtreePixelWidth.get(sibling.id) || nodeSpacing;
-          }
-          
-          // Convert sibling total to angular width at this radius
-          const totalSiblingAngle = pixelsToAngle(totalSiblingPixels, radius);
-          
-          // Use parent's span or sibling requirement, whichever is larger
-          const actualSpan = Math.max(parentSpan, totalSiblingAngle);
-          const startAngle = parentCenter - actualSpan / 2;
-          
-          // Distribute proportionally to each child's pixel width
-          let currentAngle = startAngle;
-          for (const sibling of siblings) {
-            const childPixels = subtreePixelWidth.get(sibling.id) || nodeSpacing;
-            const allocatedWidth = (childPixels / totalSiblingPixels) * actualSpan;
-            const angle = currentAngle + allocatedWidth / 2;
-            
-            sibling.targetX = centerX + radius * Math.cos(angle);
-            sibling.targetY = centerY + radius * Math.sin(angle);
-            
-            nodeAngleRange.set(sibling.id, {
-              start: currentAngle,
-              end: currentAngle + allocatedWidth
-            });
-            
-            currentAngle += allocatedWidth;
-          }
-        }
-      }
-      
-      // Handle orphans (nodes without valid parent)
-      const orphans = nodes.filter(n => !nodeDepth.has(n.id));
-      orphans.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / Math.max(orphans.length, 1) + Math.PI;
-        const radius = maxRadius;
-        node.targetX = centerX + radius * Math.cos(angle);
-        node.targetY = centerY + radius * Math.sin(angle);
-      });
     } else {
       nodes.forEach(node => {
         if (node.x === 0 && node.y === 0) {
@@ -1152,8 +1013,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         (node as GraphNode & { _mass?: number })._mass = getNodeMass(node.id);
       }
       
-      // Constrained mode return force
-      if (isConstrainedMode) {
+      // Constrained mode: circle uses return-to-target, tree uses physics + radial constraint
+      if (viewMode === 'circle') {
         for (const node of visibleNodes) {
           if (dragNodeRef.current?.id === node.id) continue;
           if (node.pinned) continue;
@@ -1165,7 +1026,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Centering gravity — gentle pull toward center to prevent drift and contain explosion
+      // Centering gravity — gentle pull toward center to prevent drift
+      // Applied in normal mode always; in tree mode not needed (radial constraint handles it)
       if (!isConstrainedMode) {
         const cx = dimensions.width / 2;
         const cy = dimensions.height / 2;
@@ -1178,8 +1040,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Node-to-node forces (only between visible nodes)
-      if (!isConstrainedMode) {
+      // Node-to-node forces: applied in normal mode AND tree mode (not circle mode)
+      if (viewMode !== 'circle') {
         for (let i = 0; i < visibleNodes.length; i++) {
           for (let j = i + 1; j < visibleNodes.length; j++) {
             const nodeA = visibleNodes[i];
@@ -1305,6 +1167,27 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           node.y += node.vy;
           node.vx *= VELOCITY_DAMPING;
           node.vy *= VELOCITY_DAMPING;
+          
+          // Tree mode: project node back onto its assigned circle
+          if (viewMode === 'tree') {
+            const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
+            if (treeRadius !== undefined) {
+              const cx = dimensions.width / 2;
+              const cy = dimensions.height / 2;
+              const dx = node.x - cx;
+              const dy = node.y - cy;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              // Project onto circle: keep angle, enforce radius
+              node.x = cx + (dx / dist) * treeRadius;
+              node.y = cy + (dy / dist) * treeRadius;
+              // Remove radial component of velocity (keep tangential only)
+              const radialX = dx / dist;
+              const radialY = dy / dist;
+              const radialV = node.vx * radialX + node.vy * radialY;
+              node.vx -= radialV * radialX;
+              node.vy -= radialV * radialY;
+            }
+          }
         }
       }
       
@@ -1562,16 +1445,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     if (viewMode === 'tree') {
       const centerX = dimensions.width / 2;
       const centerY = dimensions.height / 2;
-      const levelGap = 100;
-      const maxRadius = Math.min(centerX, centerY) * 0.9;
       
-      // Find which levels have visible nodes (based on distance from center)
-      const levelsWithNodes = new Set<number>();
+      // Collect unique radii from nodes' assigned tree radii
+      const radiiWithNodes = new Set<number>();
       for (const node of visibleNodes) {
-        const dist = Math.sqrt((node.targetX - centerX) ** 2 + (node.targetY - centerY) ** 2);
-        const depth = Math.round(dist / levelGap);
-        if (depth > 0) { // Skip nodes at center (depth 0 means distance < levelGap/2)
-          levelsWithNodes.add(depth);
+        const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
+        if (treeRadius !== undefined && treeRadius > 0) {
+          radiiWithNodes.add(treeRadius);
         }
       }
       
@@ -1579,9 +1459,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       
-      // Only draw circles for levels that actually have nodes
-      for (const depth of levelsWithNodes) {
-        const radius = Math.min(levelGap * depth, maxRadius);
+      // Draw circle for each radius level that has nodes
+      for (const radius of radiiWithNodes) {
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
         ctx.stroke();
@@ -1789,6 +1668,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       dragNodeRef.current.x = x;
       dragNodeRef.current.y = y;
+      // In tree mode, constrain dragged node to its circle
+      if (viewMode === 'tree') {
+        const treeRadius = (dragNodeRef.current as GraphNode & { _treeRadius?: number })._treeRadius;
+        if (treeRadius !== undefined) {
+          const cx = dimensions.width / 2;
+          const cy = dimensions.height / 2;
+          const ddx = dragNodeRef.current.x - cx;
+          const ddy = dragNodeRef.current.y - cy;
+          const dist = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+          dragNodeRef.current.x = cx + (ddx / dist) * treeRadius;
+          dragNodeRef.current.y = cy + (ddy / dist) * treeRadius;
+        }
+      }
       dragNodeRef.current.vx = 0;
       dragNodeRef.current.vy = 0;
     } else {
@@ -1796,7 +1688,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       setHoveredNode(node);
       onHoveredNodeChange?.(node);
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange]);
+  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, viewMode, dimensions]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
