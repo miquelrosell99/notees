@@ -131,12 +131,22 @@ export function useNodeSearch(
     if (mode === 'tags') {
       let results = (searchQuery.length > 0
         ? (searchResults ?? []).filter(n => n.is_page)
-        : (allPages ?? []).slice(0, maxResults * 2)  // Get extra to account for filtering
+        : (allPages ?? []).slice(0, maxResults * 3)
       ).filter(n => !isClassDef(n));
       
       // Apply hierarchical filtering if needed
       if (parsed.isHierarchical && allPages) {
         results = filterNodesByHierarchy(query, results, allPages);
+      }
+
+      // Apply class filters if provided
+      if (classFilters.length > 0) {
+        results = results.filter(node => {
+          if (node.classes && node.classes.length > 0) {
+            return classFilters.some(filterId => node.classes!.includes(filterId));
+          }
+          return false;
+        });
       }
       
       results = results.slice(0, maxResults);
@@ -155,11 +165,21 @@ export function useNodeSearch(
     if (mode === 'pages') {
       let results = searchQuery.length > 0
         ? (searchResults ?? []).filter(n => n.is_page || n.parent_id === null)
-        : (allPages ?? []).slice(0, maxResults);
+        : (allPages ?? []).slice(0, maxResults * 3);
       
       // Apply hierarchical filtering if needed
       if (parsed.isHierarchical && allPages) {
         results = filterNodesByHierarchy(query, results, allPages);
+      }
+
+      // Apply class filters if provided
+      if (classFilters.length > 0) {
+        results = results.filter(node => {
+          if (node.classes && node.classes.length > 0) {
+            return classFilters.some(filterId => node.classes!.includes(filterId));
+          }
+          return false;
+        });
       }
 
       return {

@@ -345,7 +345,7 @@ export function PropertyView({
             viewMode={viewMode}
             availableViewModes={['table', 'list', 'card']}
             onViewModeChange={setViewMode}
-            editable={false}
+            editable={true}
             showClasses={true}
             onNodeShiftClick={handleNodeShiftClick}
             selectedPropertyUuids={selectedPropertyUuids}

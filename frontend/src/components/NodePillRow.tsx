@@ -67,7 +67,9 @@ export function NodePillRow({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Use shared search hook (same as SuggestionPopup)
@@ -103,7 +105,11 @@ export function NodePillRow({
     if (!isPickerOpen) return;
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as HTMLElement)) {
+      const target = e.target as HTMLElement;
+      if (
+        pickerRef.current && !pickerRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
         setIsPickerOpen(false);
         setSearchQuery('');
       }
@@ -113,10 +119,18 @@ export function NodePillRow({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isPickerOpen]);
 
-  // Focus search input when picker opens
+  // Compute picker position and focus search input when picker opens
   useEffect(() => {
-    if (isPickerOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (isPickerOpen) {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setPickerPos({ top: rect.bottom + 4, left: rect.left });
+      }
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    } else {
+      setPickerPos(null);
     }
   }, [isPickerOpen]);
 
@@ -179,7 +193,7 @@ export function NodePillRow({
       })}
       
       {showAddButton && (
-        <div className="node-pill-row__add-wrapper" ref={pickerRef}>
+        <div className="node-pill-row__add-wrapper" ref={buttonRef}>
           <Button
             variant="ghost"
             size="xs"
@@ -191,8 +205,12 @@ export function NodePillRow({
             {nodes.length === 0 ? emptyText : ''}
           </Button>
           
-          {isPickerOpen && (
-            <div className="node-pill-row__picker">
+          {isPickerOpen && pickerPos && (
+            <div
+              className="node-pill-row__picker"
+              ref={pickerRef}
+              style={{ top: pickerPos.top, left: pickerPos.left }}
+            >
               <input
                 ref={searchInputRef}
                 type="text"
