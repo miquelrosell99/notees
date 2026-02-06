@@ -1067,7 +1067,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         drawArrow(source.x, source.y, target.x, target.y, targetGlareRadius);
       } else if (isClassLink) {
         // Class links have a dot pointing to the type node (target)
-        drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+        // Skip dots for system types: "page" and "class"
+        const targetName = target.name.toLowerCase();
+        if (targetName !== 'page' && targetName !== 'class') {
+          drawDot(source.x, source.y, target.x, target.y, targetGlareRadius);
+        }
       } else {
         // Reference links - draw directional arrows
         // Arrow pointing from source to target (at target end)
