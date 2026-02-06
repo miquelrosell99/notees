@@ -40,7 +40,7 @@
   border: none;
   background: none;
   color: var(--color-on-surface-variant);
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   cursor: pointer;
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -128,7 +128,7 @@
   border: none;
   background: none;
   color: var(--color-on-surface-variant);
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   cursor: pointer;
   opacity: 0;
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
@@ -164,7 +164,7 @@
   width: 100%;
   padding: var(--spacing-2);
   border: 1px solid var(--color-outline);
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   background: var(--color-surface);
   font: var(--font-body-medium);
   color: var(--color-on-surface);
@@ -194,7 +194,7 @@
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--color-outline);
-  border-radius: var(--radius-md);
+  border-radius: var(--shape-medium);
   background: var(--color-surface-container);
   font: var(--font-body-medium);
   color: var(--color-on-surface);
@@ -234,7 +234,7 @@
   background: var(--color-surface-variant);
   color: var(--color-on-surface-variant);
   font: var(--font-label-small);
-  border-radius: var(--radius-full);
+  border-radius: var(--shape-full);
   cursor: pointer;
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }

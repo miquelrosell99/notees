@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   cursor: grab;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
   opacity: 0;
   transition: opacity 0.2s, color 0.2s, background-color 0.2s;
   user-select: none;
@@ -19,18 +19,18 @@
 }
 
 .drag-handle:hover {
-  color: var(--text);
-  background-color: var(--background-hover);
+  color: var(--color-on-surface);
+  background-color: var(--color-hover-overlay);
 }
 
 .drag-handle:active {
   cursor: grabbing;
-  background-color: var(--background-active);
+  background-color: var(--color-pressed-overlay);
 }
 
 /* Focus styles for accessibility */
 .drag-handle:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 

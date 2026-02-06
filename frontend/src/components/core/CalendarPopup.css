@@ -136,7 +136,7 @@
 }
 
 .calendar-day.btn.has-note:hover {
-  background: var(--color-primary-container-hover, var(--color-primary-container));
+  background: var(--color-primary-container);
   color: var(--color-on-primary-container);
 }
 

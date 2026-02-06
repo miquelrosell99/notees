@@ -31,19 +31,19 @@
   display: flex;
   justify-content: flex-end;
   padding-bottom: var(--spacing-2);
-  border-bottom: 1px solid var(--border-primary);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .trash-view__loading {
   text-align: center;
   padding: 3rem;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .trash-view__empty {
   text-align: center;
   padding: 4rem 2rem;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .trash-view__empty svg {
@@ -60,8 +60,8 @@
   gap: 0.75rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
+  background: var(--color-surface-variant);
+  border-radius: var(--shape-medium);
 }
 
 .trash-view__list {
@@ -75,20 +75,20 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
   transition: all 0.2s;
 }
 
 .trash-item:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-hover);
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline);
 }
 
 .trash-item--selected {
-  background: var(--bg-selected);
-  border-color: var(--accent-primary);
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
 }
 
 .trash-item__checkbox {
@@ -113,7 +113,7 @@
 
 .trash-item__meta {
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .trash-item__deleted-date {
@@ -132,5 +132,5 @@
 }
 
 .trash-item__actions button:hover {
-  background: var(--bg-hover);
+  background: var(--color-hover-overlay);
 }

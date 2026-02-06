@@ -5,37 +5,37 @@
 .all-pages-view {
   max-width: 800px;
   margin: 0 auto;
-  padding: var(--spacing-md);
+  padding: var(--spacing-3);
 }
 
 .all-pages-view.loading,
 .all-pages-view.error {
   text-align: center;
-  padding: var(--spacing-xl);
-  color: var(--text-secondary);
+  padding: var(--spacing-6);
+  color: var(--color-on-surface-variant);
 }
 
 .all-pages-view__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-3);
 }
 
 .all-pages-view__title {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .all-pages-view__count {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
 }
 
 .all-pages-view__search {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-3);
 }
   padding: 2rem;
   color: var(--color-on-surface-variant);

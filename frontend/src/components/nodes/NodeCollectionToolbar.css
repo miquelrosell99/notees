@@ -93,21 +93,21 @@
   padding: var(--spacing-2) var(--spacing-3);
   border: none;
   background: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   cursor: pointer;
   font-size: var(--font-size-sm);
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   text-align: left;
   width: 100%;
   transition: background-color 0.15s ease;
 }
 
 .node-collection-toolbar__group-by-option:hover {
-  background-color: var(--bg-hover);
+  background-color: var(--color-hover-overlay);
 }
 
 .node-collection-toolbar__group-by-option--active {
-  background-color: var(--bg-active);
+  background-color: var(--color-pressed-overlay);
   font-weight: 500;
 }
 
@@ -157,6 +157,6 @@
 
 .node-collection-toolbar .node-view-section__count {
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-size: var(--font-size-sm);
 }

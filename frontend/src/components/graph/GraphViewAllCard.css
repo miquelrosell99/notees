@@ -12,19 +12,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .graph-view-all-card__header h4 {
   margin: 0;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
 }
 
 .graph-view-all-card__hint {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
 }
 
 .graph-view-all-card__content {
@@ -43,6 +43,6 @@
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 13px;
 }

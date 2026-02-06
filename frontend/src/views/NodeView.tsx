@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useAddTagLink, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useSystemClasses, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import type { Node, Property, PropertyCreate } from '@/types';
@@ -34,7 +34,7 @@ import { ImageNode } from '../components/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
-import type { BlockCallbacks } from '../components/blocks/BlockCallbacksContext';
+import { useBlockCallbacksFactory } from '../components/blocks/useBlockCallbacksFactory';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
@@ -118,18 +118,11 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const createNode = useCreateNode();
   const addTag = useAddTag();
   const addClass = useAddClass();
-  const addTagLink = useAddTagLink();
-  const { systemClassIds } = useSystemClasses();
-  const { openCommentsForNode, openNode } = useNodesStore();
   const { enterEditMode } = useBlockSelectionStore();
+  const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
   const { handleContentChange } = useContentSave();
-
-  // Handle node click (navigate)
-  const handleNodeClick = useCallback((clickedNode: Node) => {
-    openNode(clickedNode.id, clickedNode.is_page ? 'page' : 'block');
-  }, [openNode]);
 
   // Handle shift+click (open in sidebar)
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
@@ -152,52 +145,9 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   }, [createNode, node.id, node.children, enterEditMode]);
 
   // Block callbacks for context provider
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for BlockCallbacks interface
-  const blockCallbacks = useMemo<BlockCallbacks>(() => ({
-    onAddClass: (blockId: number, classNodeId: number, _keepInline: boolean, _className: string) => {
-      addClass.mutate({ nodeId: blockId, classId: classNodeId });
-    },
-    onAddTag: (blockId: number, tagNodeId: number, keepInline: boolean, _tagName: string) => {
-      addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
-      if (keepInline) {
-        addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
-      }
-    },
-    onCreateClass: (blockId: number, name: string, _keepInline: boolean) => {
-      if (!systemClassIds?.page || !systemClassIds?.class) return;
-      createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
-        onSuccess: (newPage) => {
-          addClass.mutate({ nodeId: blockId, classId: newPage.id });
-        }
-      });
-    },
-    onCreateTag: (blockId: number, name: string, _keepInline: boolean) => {
-      if (!systemClassIds?.page) return;
-      createNode.mutate({ name, classes: [systemClassIds.page] }, {
-        onSuccess: (newPage) => {
-          addTag.mutate({ nodeId: blockId, tagId: newPage.id });
-        }
-      });
-    },
-    onCreatePageLink: async (name) => {
-      try {
-        if (!systemClassIds?.page) return undefined;
-        const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
-        return String(newPage.id);
-      } catch (error) {
-        console.error('Failed to create page for link:', error);
-        return undefined;
-      }
-    },
-    onOpenComments: (blockId) => {
-      openCommentsForNode(blockId);
-    },
-    onOpenBacklinks: (blockId) => {
-      onAddSidebarCard(blockId);
-    },
-    getCommentCount: (block) => block.comment_count ?? 0,
-    getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, systemClassIds, openCommentsForNode, onAddSidebarCard]);
+  const blockCallbacks = useBlockCallbacksFactory({
+    onOpenBacklinks: (blockId) => onAddSidebarCard(blockId),
+  });
 
   return (
     <div className="focused-block-content">
@@ -280,20 +230,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
-  // Use allNodes as fallback for system classes that might not be in allClasses
-  const pageClassDetails = useMemo(() => {
-    if (!node?.classes) return [];
-    const classIds = node.classes;
-    return classIds
-      .map((classId: number) => {
-        // First try allClasses, then fallback to allNodes
-        const fromClasses = allClasses?.find(t => t.id === classId);
-        if (fromClasses) return fromClasses;
-        return allNodes?.find(n => n.id === classId);
-      })
-      // Exclude the implicit "page" class (all pages have it)
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
-  }, [node?.classes, allClasses, allNodes]);
+  const pageClassDetails = useResolvedClassDetails(node?.classes);
   
   // Resolve page tag details from IDs (excluding class definitions)
   const pageTagDetails = useMemo(() => {

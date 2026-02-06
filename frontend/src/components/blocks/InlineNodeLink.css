@@ -10,8 +10,8 @@
   position: relative;
   padding: 2px 4px;
   margin: 0 2px;
-  background: var(--color-surface-variant, #f0f0f0);
-  border: 1px solid var(--color-outline-variant, #e0e0e0);
+  background: var(--color-surface-variant);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 4px;
   font: inherit;
   font-size: inherit;
@@ -28,45 +28,45 @@
 }
 
 .inline-node-link:hover {
-  background: var(--color-surface-container, #e8e8e8);
-  border-color: var(--color-outline, #c0c0c0);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--color-surface-container);
+  border-color: var(--color-outline);
+  box-shadow: var(--elevation-1);
 }
 
 /* Selected state - accent border */
 .inline-node-link--selected {
-  border: 2px solid var(--color-primary, #6750a4);
-  background: var(--color-primary-container, #eaddff);
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary-container);
   padding: 1px 3px; /* Adjust for thicker border */
-  box-shadow: 0 0 0 2px var(--color-primary-container, #eaddff);
+  box-shadow: 0 0 0 2px var(--color-primary-container);
 }
 
 /* Brackets styling */
 .inline-node-link__bracket {
-  color: var(--color-outline, #79747e);
+  color: var(--color-outline);
   font-weight: 600;
   opacity: 0.6;
 }
 
 .inline-node-link--selected .inline-node-link__bracket {
-  color: var(--color-primary, #6750a4);
+  color: var(--color-primary);
   opacity: 1;
 }
 
 /* Content styling */
 .inline-node-link__content {
-  color: var(--color-on-surface, #1c1b1f);
+  color: var(--color-on-surface);
   padding: 0 2px;
 }
 
 .inline-node-link--selected .inline-node-link__content {
-  color: var(--color-on-primary-container, #21005e);
+  color: var(--color-on-primary-container);
   font-weight: 500;
 }
 
 /* Missing node state */
 .inline-node-link__content:has(~ [data-node-id=""]),
 .inline-node-link__content:contains("[Missing") {
-  color: var(--color-error, #ba1a1a);
+  color: var(--color-error);
   font-style: italic;
 }

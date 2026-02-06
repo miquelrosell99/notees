@@ -348,7 +348,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'class';
+  type: 'parent' | 'reference' | 'class' | 'extends';
 }
 
 /**

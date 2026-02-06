@@ -65,7 +65,7 @@
 }
 
 .external-link:hover {
-  color: var(--color-primary-variant, var(--color-primary));
+  color: var(--color-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
@@ -73,8 +73,8 @@
 }
 
 .external-link:visited {
-  color: var(--color-secondary, var(--color-primary));
-  border-bottom-color: var(--color-secondary-container, var(--color-primary-container));
+  color: var(--color-secondary);
+  border-bottom-color: var(--color-secondary-container);
 }
 
 .link-pill--readonly {
@@ -103,7 +103,7 @@
   margin: 0 2px;
   background: var(--color-tertiary-container);
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   font: inherit;
   font-size: 0.95em;
   line-height: inherit;

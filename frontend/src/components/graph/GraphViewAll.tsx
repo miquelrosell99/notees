@@ -16,7 +16,7 @@ export interface GraphViewAllProps {
 export function GraphViewAll({ className = '' }: GraphViewAllProps) {
   return (
     <div className={`graph-view-all ${className}`}>
-      <NodeGraphView className="graph-view-all__graph" />
+      <NodeGraphView viewId="global" className="graph-view-all__graph" />
     </div>
   );
 }

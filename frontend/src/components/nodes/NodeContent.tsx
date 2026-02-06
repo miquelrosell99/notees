@@ -12,8 +12,8 @@
  * 
  * Used by both page view and block view.
  */
-import { useRef, useCallback, useState, useMemo } from 'react';
-import { useCreateNode, useAddTag, useAddClass, useBlockSelection, useAddTagLink, useContentSave, useSystemClasses } from '@/hooks';
+import { useRef, useCallback, useState } from 'react';
+import { useCreateNode, useBlockSelection, useContentSave, useNodeNavigation } from '@/hooks';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -23,7 +23,7 @@ import { BoxSelect } from '../core/BoxSelect';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
 import { type Asset, type AssetCategory } from '@/api/assets';
-import type { BlockCallbacks } from '../blocks/BlockCallbacksContext';
+import { useBlockCallbacksFactory } from '../blocks/useBlockCallbacksFactory';
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -57,11 +57,8 @@ export function NodeContent({
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const createNode = useCreateNode();
-  const addTag = useAddTag();
-  const addClass = useAddClass();
-  const addTagLink = useAddTagLink();
-  const { systemClassIds } = useSystemClasses();
-  const { addSidebarCard, openNode, openCommentsForNode } = useNodesStore();
+  const { addSidebarCard } = useNodesStore();
+  const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
   
   // Block selection
   const { enterEditMode } = useBlockSelectionStore();
@@ -93,14 +90,6 @@ export function NodeContent({
     enterEditMode(newNode.id);
   }, [createNode, node.id, node.children, enterEditMode]);
 
-  const handleNodeClick = useCallback((clickedNode: Node) => {
-    openNode(clickedNode.id, clickedNode.is_page ? 'page' : 'block');
-  }, [openNode]);
-
-  const handleNodeShiftClick = useCallback((clickedNode: Node) => {
-    addSidebarCard(clickedNode.id, clickedNode.is_page ? 'page' : 'block');
-  }, [addSidebarCard]);
-
   // Handle successful asset upload
   // Strategy:
   // - If block was converted to asset: do nothing (block is now the asset)
@@ -123,46 +112,8 @@ export function NodeContent({
   }, [targetBlockId, convertToAsset, children, saveImmediate]);
 
   // Build block callbacks for context provider
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Callbacks match BlockCallbacks interface signature
-  const blockCallbacks = useMemo<BlockCallbacks>(() => ({
-    onAddClass: (blockId, classNodeId, _keepInline, _className) => {
-      addClass.mutate({ nodeId: blockId, classId: classNodeId });
-    },
-    onAddTag: (blockId, tagNodeId, keepInline, _tagName) => {
-      addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
-      if (keepInline) {
-        addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
-      }
-    },
-    onCreateClass: (blockId, name, _keepInline) => {
-      if (!systemClassIds?.page || !systemClassIds?.class) return;
-      createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
-        onSuccess: (newPage) => {
-          addClass.mutate({ nodeId: blockId, classId: newPage.id });
-        }
-      });
-    },
-    onCreateTag: (blockId, name, _keepInline) => {
-      if (!systemClassIds?.page) return;
-      createNode.mutate({ name, classes: [systemClassIds.page] }, {
-        onSuccess: (newPage) => {
-          addTag.mutate({ nodeId: blockId, tagId: newPage.id });
-        }
-      });
-    },
-    onCreatePageLink: async (name) => {
-      try {
-        if (!systemClassIds?.page) return undefined;
-        const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
-        return String(newPage.id);
-      } catch (error) {
-        console.error('Failed to create page for link:', error);
-        return undefined;
-      }
-    },
-    onOpenComments: (blockId) => {
-      openCommentsForNode(blockId);
-    },
+  const blockCallbacks = useBlockCallbacksFactory({
+    onOpenBacklinks: (blockId) => addSidebarCard(blockId, 'block'),
     onAssetUpload: (blockId, typesOrFile) => {
       setTargetBlockId(blockId);
       // Check if block is empty - if so, convert it to an asset
@@ -179,12 +130,7 @@ export function NodeContent({
       }
       setIsAssetUploadOpen(true);
     },
-    onOpenBacklinks: (blockId) => {
-      addSidebarCard(blockId, 'block');
-    },
-    getCommentCount: (block) => block.comment_count ?? 0,
-    getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, openCommentsForNode, addSidebarCard, systemClassIds, children]);
+  });
 
   const viewMode = toViewMode(displayMode);
 

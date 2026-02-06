@@ -27,7 +27,7 @@
   transition: opacity 0.1s ease, background-color 0.1s ease;
   
   /* Icon color */
-  color: var(--color-text-secondary);
+  color: var(--color-on-surface-variant);
 }
 
 /* Sizes */
@@ -51,7 +51,7 @@
 
 /* Hover background */
 .collapse-arrow:hover {
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--color-surface-container);
 }
 
 /* Visible states */

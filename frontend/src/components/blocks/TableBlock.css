@@ -161,7 +161,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline);
   border-radius: var(--shape-medium);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--elevation-1);
 }
 
 .table-rename-input {

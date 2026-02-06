@@ -234,7 +234,7 @@
 }
 
 .config-btn.primary:hover {
-  background: var(--color-primary-hover, var(--color-primary));
+  background: var(--color-primary-hover);
   opacity: 0.9;
 }
 

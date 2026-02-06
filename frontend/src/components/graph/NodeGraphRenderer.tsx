@@ -75,6 +75,7 @@ export interface GraphNode {
   isDaily: boolean;
   isMonthly: boolean;
   isYearly: boolean;
+  isSystemPage: boolean;
   tags: string[];
   types: number[];
   parentId: number | null;
@@ -91,7 +92,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'class';
+  type: 'parent' | 'reference' | 'class' | 'extends';
 }
 
 export interface ClassColor {
@@ -108,9 +109,11 @@ export interface GraphSettings {
 
 export interface VisibilityFilters {
   showClassNodes: boolean;
+  showClassLinks: boolean;
   showDayPages: boolean;
   showMonthPages: boolean;
   showYearPages: boolean;
+  showSystemPages: boolean;
 }
 
 export interface NodeGraphRendererProps {
@@ -292,9 +295,11 @@ function getNodeRadius(
 
 const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showClassNodes: true,
+  showClassLinks: true,
   showDayPages: true,
   showMonthPages: true,
   showYearPages: true,
+  showSystemPages: true,
 };
 
 export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRendererProps>(function NodeGraphRenderer({
@@ -326,6 +331,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const wasJustDraggingRef = useRef(false);
   const dragLiftProgressRef = useRef(0); // 0 to 1 for drag lift animation
   const dragStartTimeRef = useRef<number | null>(null);
+  const initialFitDoneRef = useRef(false); // Track if initial fit-to-view was done
   
   // Refs for current values (to avoid stale closures)
   const settingsRef = useRef(settings);
@@ -359,73 +365,198 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     mode: GraphViewMode,
     w: number,
     h: number,
-    filterTypeNodes: boolean = false
+    filterClassNodes: boolean = false
   ) => {
     const centerX = w / 2;
     const centerY = h / 2;
     
+    // Common spacing parameters for both circle and tree modes
+    const nodeSpacing = 80; // Minimum spacing between node centers
+    const levelGap = 100; // Gap between concentric circles (tree) or base radius factor (circle)
+    
     if (mode === 'circle') {
       // Only position visible nodes in the circle
-      const visibleNodes = filterTypeNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
-      const radius = Math.min(centerX, centerY) * 0.7;
+      const visibleNodes = filterClassNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
+      const radius = Math.min(centerX, centerY) * 0.8;
       visibleNodes.forEach((node, i) => {
         const angle = (2 * Math.PI * i) / visibleNodes.length - Math.PI / 2;
         node.targetX = centerX + radius * Math.cos(angle);
         node.targetY = centerY + radius * Math.sin(angle);
       });
       // Hidden type nodes should stay at center
-      if (filterTypeNodes) {
+      if (filterClassNodes) {
         nodes.filter(n => n.isTypeNode).forEach(node => {
           node.targetX = centerX;
           node.targetY = centerY;
         });
       }
     } else if (mode === 'tree') {
-      const baseNodes = filterTypeNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
-      const parentNodes = baseNodes.filter(n => n.parentId === null);
-      const childNodes = baseNodes.filter(n => n.parentId !== null);
+      const baseNodes = filterClassNodes ? nodes.filter(n => !n.isTypeNode) : nodes;
+      
       // Hidden type nodes should stay at center
-      if (filterTypeNodes) {
+      if (filterClassNodes) {
         nodes.filter(n => n.isTypeNode).forEach(node => {
           node.targetX = centerX;
           node.targetY = centerY;
         });
       }
       
+      // Build children map
       const childrenByParent = new Map<number, GraphNode[]>();
-      for (const child of childNodes) {
-        const siblings = childrenByParent.get(child.parentId!) || [];
-        siblings.push(child);
-        childrenByParent.set(child.parentId!, siblings);
+      for (const node of baseNodes) {
+        if (node.parentId !== null) {
+          const siblings = childrenByParent.get(node.parentId) || [];
+          siblings.push(node);
+          childrenByParent.set(node.parentId, siblings);
+        }
       }
       
-      const innerRadius = Math.min(centerX, centerY) * 0.25;
-      parentNodes.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / parentNodes.length - Math.PI / 2;
-        node.targetX = centerX + innerRadius * Math.cos(angle);
-        node.targetY = centerY + innerRadius * Math.sin(angle);
+      // Find root nodes - special handling for classes
+      const classRoots = baseNodes.filter(n => n.isTypeNode && n.parentId === null);
+      const regularRoots = baseNodes.filter(n => !n.isTypeNode && n.parentId === null);
+      
+      // If there are class nodes visible, regular pages start one level down
+      const hasVisibleClasses = classRoots.length > 0;
+      
+      // Calculate depth for each node using BFS
+      const nodeDepth = new Map<number, number>();
+      const nodeAngleRange = new Map<number, { start: number; end: number }>();
+      
+      // Start with class roots at level 0
+      for (const node of classRoots) {
+        nodeDepth.set(node.id, 0);
+      }
+      
+      // Regular roots are at level 0 if no visible classes, level 1 if visible classes exist
+      const regularRootLevel = hasVisibleClasses ? 1 : 0;
+      for (const node of regularRoots) {
+        nodeDepth.set(node.id, regularRootLevel);
+      }
+      
+      // BFS to assign depths - process class roots first, then regular roots
+      const queue = [...classRoots, ...regularRoots];
+      while (queue.length > 0) {
+        const parent = queue.shift()!;
+        const parentDepth = nodeDepth.get(parent.id)!;
+        const children = childrenByParent.get(parent.id) || [];
+        
+        for (const child of children) {
+          nodeDepth.set(child.id, parentDepth + 1);
+          queue.push(child);
+        }
+      }
+      
+      // Find max depth
+      let maxDepth = 0;
+      for (const depth of nodeDepth.values()) {
+        maxDepth = Math.max(maxDepth, depth);
+      }
+      
+      // Group nodes by depth
+      const nodesByDepth = new Map<number, GraphNode[]>();
+      for (const node of baseNodes) {
+        const depth = nodeDepth.get(node.id);
+        if (depth !== undefined) {
+          const nodesAtDepth = nodesByDepth.get(depth) || [];
+          nodesAtDepth.push(node);
+          nodesByDepth.set(depth, nodesAtDepth);
+        }
+      }
+      
+      // Calculate radii for each level adaptively based on node count
+      // Each level needs enough circumference to fit all nodes comfortably
+      const maxRadius = Math.min(centerX, centerY) * 0.85;
+      const minRadius = Math.min(centerX, centerY) * 0.15;
+      
+      const radiusByDepth = new Map<number, number>();
+      let currentRadius = minRadius;
+      
+      for (let depth = 0; depth <= maxDepth; depth++) {
+        const nodesAtLevel = nodesByDepth.get(depth)?.length || 1;
+        // Calculate minimum radius needed to fit all nodes with proper spacing
+        // Circumference = 2 * PI * radius, so radius = (nodes * spacing) / (2 * PI)
+        const minRadiusForNodes = (nodesAtLevel * nodeSpacing) / (2 * Math.PI);
+        
+        // Radius must be at least: previous level + gap, or minimum for node count
+        const requiredRadius = Math.max(currentRadius, minRadiusForNodes);
+        const clampedRadius = Math.min(requiredRadius, maxRadius);
+        
+        radiusByDepth.set(depth, clampedRadius);
+        currentRadius = clampedRadius + levelGap;
+      }
+      
+      // Position level 0 nodes evenly around the circle
+      const level0Nodes = nodesByDepth.get(0) || [];
+      level0Nodes.forEach((node, i) => {
+        const angle = (2 * Math.PI * i) / level0Nodes.length - Math.PI / 2;
+        const radius = radiusByDepth.get(0)!;
+        node.targetX = centerX + radius * Math.cos(angle);
+        node.targetY = centerY + radius * Math.sin(angle);
+        
+        // Store angle range for this node (used for positioning children)
+        const angleSpan = level0Nodes.length > 1 ? (2 * Math.PI) / level0Nodes.length : 2 * Math.PI;
+        nodeAngleRange.set(node.id, {
+          start: angle - angleSpan / 2,
+          end: angle + angleSpan / 2
+        });
       });
       
-      const outerRadius = Math.min(centerX, centerY) * 0.6;
-      for (const parent of parentNodes) {
-        const children = childrenByParent.get(parent.id) || [];
-        const parentAngle = Math.atan2(parent.targetY - centerY, parent.targetX - centerX);
+      // Position nodes at each subsequent level
+      for (let depth = 1; depth <= maxDepth; depth++) {
+        const nodesAtDepth = nodesByDepth.get(depth) || [];
+        const radius = radiusByDepth.get(depth)!;
         
-        children.forEach((child, i) => {
-          const spread = Math.PI * 0.4;
-          const childAngle = parentAngle + (i - (children.length - 1) / 2) * (spread / Math.max(children.length - 1, 1));
-          child.targetX = centerX + outerRadius * Math.cos(childAngle);
-          child.targetY = centerY + outerRadius * Math.sin(childAngle);
-        });
+        // Separate into nodes with parents in the graph and root nodes (regular roots at level 1)
+        const nodesWithParent = nodesAtDepth.filter(n => n.parentId !== null && nodeAngleRange.has(n.parentId));
+        const rootNodesAtThisLevel = nodesAtDepth.filter(n => n.parentId === null || !nodeAngleRange.has(n.parentId));
+        
+        // Position root nodes at this level evenly around the circle
+        if (rootNodesAtThisLevel.length > 0) {
+          rootNodesAtThisLevel.forEach((node, i) => {
+            const angle = (2 * Math.PI * i) / rootNodesAtThisLevel.length - Math.PI / 2;
+            node.targetX = centerX + radius * Math.cos(angle);
+            node.targetY = centerY + radius * Math.sin(angle);
+            
+            // Store angle range for this node
+            const angleSpan = rootNodesAtThisLevel.length > 1 ? (2 * Math.PI) / rootNodesAtThisLevel.length : 2 * Math.PI;
+            nodeAngleRange.set(node.id, {
+              start: angle - angleSpan / 2,
+              end: angle + angleSpan / 2
+            });
+          });
+        }
+        
+        // Position nodes with parents relative to their parent's angle
+        for (const node of nodesWithParent) {
+          const parentRange = nodeAngleRange.get(node.parentId!);
+          if (parentRange) {
+            const siblings = childrenByParent.get(node.parentId!) || [];
+            const nodeIndex = siblings.indexOf(node);
+            
+            // Distribute children within parent's angle range
+            const rangeSpan = parentRange.end - parentRange.start;
+            const childAngleSpan = siblings.length > 1 ? rangeSpan / siblings.length : rangeSpan;
+            const angle = parentRange.start + (nodeIndex + 0.5) * childAngleSpan;
+            
+            node.targetX = centerX + radius * Math.cos(angle);
+            node.targetY = centerY + radius * Math.sin(angle);
+            
+            // Store angle range for this node
+            nodeAngleRange.set(node.id, {
+              start: angle - childAngleSpan / 2,
+              end: angle + childAngleSpan / 2
+            });
+          }
+        }
       }
       
-      const parentNodeIds = new Set(parentNodes.map(p => p.id));
-      
-      const orphans = childNodes.filter(n => n.parentId !== null && !parentNodeIds.has(n.parentId));
+      // Handle orphans (nodes without valid parent)
+      const orphans = baseNodes.filter(n => !nodeDepth.has(n.id));
       orphans.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / orphans.length + Math.PI;
-        node.targetX = centerX + outerRadius * Math.cos(angle);
-        node.targetY = centerY + outerRadius * Math.sin(angle);
+        const angle = (2 * Math.PI * i) / Math.max(orphans.length, 1) + Math.PI;
+        const radius = maxRadius;
+        node.targetX = centerX + radius * Math.cos(angle);
+        node.targetY = centerY + radius * Math.sin(angle);
       });
     } else {
       nodes.forEach(node => {
@@ -456,6 +587,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     if (node.isDaily && !filters.showDayPages) return false;
     if (node.isMonthly && !filters.showMonthPages) return false;
     if (node.isYearly && !filters.showYearPages) return false;
+    if (node.isSystemPage && !filters.showSystemPages) return false;
+    return true;
+  }, []);
+  
+  // Helper to check if a link should be active based on filters
+  // When class links are hidden, they shouldn't affect physics or selection
+  // Note: Only 'class' type links (inline class assignments) are filtered
+  // 'extends' links (inheritance) and regular 'reference' links remain active
+  const shouldLinkBeActive = useCallback((link: GraphLink, filters: VisibilityFilters): boolean => {
+    if (link.type === 'class' && !filters.showClassLinks) return false;
     return true;
   }, []);
   
@@ -494,10 +635,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
     });
     
-    // Update links to only include those between visible nodes
+    // Update links to only include those between visible nodes and active links
     const visibleNodeIds = new Set(nodesRef.current.map(n => n.id));
+    const currentFilters = visibilityFiltersRef.current;
     linksRef.current = allLinksRef.current.filter(
-      link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
+      link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, currentFilters)
     );
     
     // Add nodes that should be visible
@@ -517,14 +659,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Update links again after adding nodes
     const newVisibleNodeIds = new Set(nodesRef.current.map(n => n.id));
     linksRef.current = allLinksRef.current.filter(
-      link => newVisibleNodeIds.has(link.source) && newVisibleNodeIds.has(link.target)
+      link => newVisibleNodeIds.has(link.source) && newVisibleNodeIds.has(link.target) && shouldLinkBeActive(link, currentFilters)
     );
     
     // Recalculate positions if in constrained mode
     if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewMode === 'circle' || viewMode === 'tree')) {
       calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
     }
-  }, [visibilityFilters, viewMode, dimensions, calculatePositions, shouldNodeBeVisible]);
+  }, [visibilityFilters, viewMode, dimensions, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
 
   // Recenter/fit graph
   const recenter = useCallback(() => {
@@ -724,16 +866,27 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
     });
     
-    // Update links to only include those between visible nodes
+    // Update links to only include those between visible nodes and active links
     const visibleNodeIds = new Set(nodesRef.current.map(n => n.id));
     linksRef.current = inputLinks.filter(
-      link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
+      link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, visibilityFilters)
     );
     
     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height, false);
     
+    // Trigger initial fit-to-view after stabilization delay
+    if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
+      const stabilizationTimer = setTimeout(() => {
+        if (!initialFitDoneRef.current) {
+          initialFitDoneRef.current = true;
+          recenter();
+        }
+      }, 500); // Wait 500ms for physics to stabilize
+      return () => clearTimeout(stabilizationTimer);
+    }
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation intentionally excluded to prevent re-simulation on every render
-  }, [inputNodes, inputLinks, dimensions, viewMode, calculatePositions, createNode, destroyNode, shouldNodeBeVisible]);
+  }, [inputNodes, inputLinks, dimensions, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
 
   // Update glare states
   useEffect(() => {
@@ -1004,7 +1157,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // All nodes in nodesRef are visible (filtering handled by visibility effect)
     const visibleNodes = nodes.filter(n => n.visible);
     const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-    const visibleLinks = links.filter(l => visibleNodeIds.has(l.source) && visibleNodeIds.has(l.target));
+    const currentFilters = visibilityFiltersRef.current;
+    const visibleLinks = links.filter(l => {
+      // Link must connect two visible nodes
+      if (!visibleNodeIds.has(l.source) || !visibleNodeIds.has(l.target)) return false;
+      // Hide class links (inline class assignments) if showClassLinks is false
+      // Note: 'extends' links (inheritance) are always shown
+      if (l.type === 'class' && !currentFilters.showClassLinks) return false;
+      return true;
+    });
     
     // Calculate max link counts
     let maxBacklinks = 0, maxInternalLinks = 0, maxTotalLinks = 0;
@@ -1045,24 +1206,24 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       const isParentLink = link.type === 'parent';
       const isClassLink = link.type === 'class';
+      const isExtendsLink = link.type === 'extends';
       const dirKey = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}`;
       const directions = linkDirections.get(dirKey);
+      
+      // Treat parent and extends links the same for rendering (solid line, hollow dot)
+      const renderAsParent = isParentLink || isExtendsLink;
       
       ctx.beginPath();
       // Use gray color for all link types
       ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
-      ctx.lineWidth = isParentLink ? 1 : 1.5;
+      ctx.lineWidth = 1.5;
       
-      // Set line style: bold solid for parent, squiggly for class, dotted for reference
-      if (isParentLink) {
+      // Set line style: solid for parent/extends, dotted for reference
+      // Class links will be drawn as wavy lines manually
+      if (renderAsParent || isClassLink) {
         ctx.setLineDash([]);
-        ctx.lineWidth = 1.5;
-      } else if (isClassLink) {
-        ctx.setLineDash([]);
-        ctx.lineWidth = 1.5;
       } else {
-        ctx.setLineDash([3, 4]);
-        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 3]); // Dotted for reference links
       }
       
       // Calculate glare radius to determine line endpoints
@@ -1085,8 +1246,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Determine if there are dots at each end
       const dotSize = 4;
-      const hasTargetDot = isParentLink || isClassLink || link.source === source.id;
-      const hasSourceDot = !isParentLink && !isClassLink && directions?.forward && directions?.reverse;
+      const hasTargetDot = renderAsParent || link.source === source.id;
+      const hasSourceDot = !renderAsParent && directions?.forward && directions?.reverse;
       
       // Calculate line endpoints to stop where dots start (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
@@ -1097,34 +1258,37 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const lineEndX = target.x - (targetLineGlare + targetOffset) * Math.cos(lineAngle);
       const lineEndY = target.y - (targetLineGlare + targetOffset) * Math.sin(lineAngle);
       
+      // Draw line - wavy for class links, straight for others
       if (isClassLink) {
-        // Draw squiggly line for class links
-        const squiggleAmplitude = 2.5; // Reduced amplitude for subtler squiggles
-        const squigglesPerLine = 5; // Increased frequency - more squiggles per line
-        const distance = Math.sqrt((lineEndX - lineStartX) ** 2 + (lineEndY - lineStartY) ** 2);
-        const steps = Math.max(30, distance / 3); // More steps for smoother curves
+        // Draw wavy line for class links
+        const dx = lineEndX - lineStartX;
+        const dy = lineEndY - lineStartY;
+        const lineLength = Math.sqrt(dx * dx + dy * dy);
+        const waveFrequency = 0.3; // Waves per pixel
+        const waveAmplitude = 3; // Height of wave
+        const segments = Math.max(Math.floor(lineLength / 2), 10);
         
         ctx.beginPath();
-        for (let i = 0; i <= steps; i++) {
-          const t = i / steps;
-          const x = lineStartX + (lineEndX - lineStartX) * t;
-          const y = lineStartY + (lineEndY - lineStartY) * t;
+        ctx.moveTo(lineStartX, lineStartY);
+        
+        for (let i = 1; i < segments; i++) {
+          const t = i / segments;
+          const baseX = lineStartX + dx * t;
+          const baseY = lineStartY + dy * t;
           
-          // Add perpendicular squiggle with fixed frequency
-          const squiggleOffset = Math.sin(t * squigglesPerLine * 2 * Math.PI) * squiggleAmplitude;
+          // Calculate perpendicular offset for wave
+          const waveOffset = Math.sin(t * lineLength * waveFrequency) * waveAmplitude;
           const perpAngle = lineAngle + Math.PI / 2;
-          const squiggleX = x + Math.cos(perpAngle) * squiggleOffset;
-          const squiggleY = y + Math.sin(perpAngle) * squiggleOffset;
+          const x = baseX + waveOffset * Math.cos(perpAngle);
+          const y = baseY + waveOffset * Math.sin(perpAngle);
           
-          if (i === 0) {
-            ctx.moveTo(squiggleX, squiggleY);
-          } else {
-            ctx.lineTo(squiggleX, squiggleY);
-          }
+          ctx.lineTo(x, y);
         }
+        // End exactly at the calculated endpoint (where the dot will be)
+        ctx.lineTo(lineEndX, lineEndY);
         ctx.stroke();
       } else {
-        // Draw straight line for parent and reference links
+        // Draw straight line for parent, extends, and reference links
         ctx.moveTo(lineStartX, lineStartY);
         ctx.lineTo(lineEndX, lineEndY);
         ctx.stroke();
@@ -1180,15 +1344,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
                targetNode.uuid === '00000000-0000-0000-0001-000000000002';   // page
       };
       
-      if (isParentLink) {
-        // Parent links have a hollow circle pointing to child (target)
+      if (renderAsParent) {
+        // Parent and extends links have a hollow circle pointing to child/derived (target)
         if (!shouldSkipDot(target)) {
           drawHollowCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
-        }
-      } else if (isClassLink) {
-        // Class links have a solid circle pointing to the type node (target)
-        if (!shouldSkipDot(target)) {
-          drawSolidCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
         }
       } else {
         // Reference links - draw solid circles

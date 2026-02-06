@@ -23,12 +23,12 @@
 }
 
 .parent-selector-label {
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   font-weight: 500;
 }
 
 .parent-selector-name {
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   font-weight: 600;
   flex: 1;
   overflow: hidden;
@@ -43,11 +43,11 @@
 .parent-selector-remove {
   width: 100%;
   justify-content: center;
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 .parent-selector-remove:hover {
-  background: var(--color-danger-container);
+  background: var(--color-error-container);
 }
 
 

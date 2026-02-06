@@ -14,7 +14,7 @@
 .asset-preview-image.selected,
 .asset-preview-audio.selected,
 .asset-preview-file.selected {
-  box-shadow: 0 0 0 2px var(--color-primary, #3b82f6);
+  box-shadow: 0 0 0 2px var(--color-primary);
 }
 
 /* Image Preview */
@@ -42,7 +42,7 @@
   bottom: 4px;
   width: 20px;
   height: 20px;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-scrim);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -50,7 +50,7 @@
   cursor: se-resize;
   opacity: 0;
   transition: opacity 0.2s ease;
-  color: white;
+  color: var(--color-on-primary);
 }
 
 .asset-preview-image:hover .resize-handle,
@@ -60,8 +60,8 @@
 
 /* Audio Preview */
 .asset-preview-audio {
-  background: var(--color-surface, #f5f5f5);
-  border: 1px solid var(--color-border, #e0e0e0);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   padding: 12px 16px;
   max-width: 400px;
@@ -78,8 +78,8 @@
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--color-primary, #3b82f6);
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +89,7 @@
 }
 
 .audio-play-btn:hover {
-  background: var(--color-primary-hover, #2563eb);
+  background: var(--color-primary-hover);
 }
 
 .audio-play-btn:active {
@@ -98,7 +98,7 @@
 
 .audio-time {
   font-size: 12px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-on-surface-variant);
   min-width: 36px;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -109,7 +109,7 @@
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
-  background: var(--color-border, #e0e0e0);
+  background: var(--color-outline-variant);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -119,7 +119,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--color-primary, #3b82f6);
+  background: var(--color-primary);
   cursor: pointer;
   border: none;
   transition: transform 0.1s ease;
@@ -133,7 +133,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--color-primary, #3b82f6);
+  background: var(--color-primary);
   cursor: pointer;
   border: none;
 }
@@ -146,7 +146,7 @@
 .audio-progress::-moz-range-track {
   height: 4px;
   border-radius: 2px;
-  background: var(--color-border, #e0e0e0);
+  background: var(--color-outline-variant);
 }
 
 /* File Preview */
@@ -154,8 +154,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--color-surface, #f5f5f5);
-  border: 1px solid var(--color-border, #e0e0e0);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   padding: 12px 16px;
   max-width: 300px;
@@ -163,18 +163,18 @@
 }
 
 .asset-preview-file:hover {
-  background: var(--color-surface-hover, #ebebeb);
+  background: var(--color-surface-container-low);
 }
 
 .file-icon {
-  color: var(--color-text-secondary, #666);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
 .file-name {
   flex: 1;
   font-size: 14px;
-  color: var(--color-text, #333);
+  color: var(--color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -182,7 +182,7 @@
 
 .file-download {
   font-size: 12px;
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
   text-decoration: none;
   flex-shrink: 0;
 }
@@ -191,27 +191,4 @@
   text-decoration: underline;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .asset-preview-audio,
-  .asset-preview-file {
-    background: var(--color-surface-dark, #2a2a2a);
-    border-color: var(--color-border-dark, #3a3a3a);
-  }
 
-  .audio-time {
-    color: var(--color-text-secondary-dark, #999);
-  }
-
-  .audio-progress {
-    background: var(--color-border-dark, #3a3a3a);
-  }
-
-  .file-name {
-    color: var(--color-text-dark, #eee);
-  }
-
-  .file-icon {
-    color: var(--color-text-secondary-dark, #999);
-  }
-}

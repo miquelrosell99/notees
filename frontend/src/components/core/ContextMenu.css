@@ -9,7 +9,7 @@
   z-index: 10001;
   min-width: 180px;
   max-width: 280px;
-  padding: var(--spacing-1, 4px);
+  padding: var(--spacing-1);
   animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -17,7 +17,7 @@
   padding: 8px 12px 4px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -29,11 +29,11 @@
   width: 100%;
   padding: 8px 12px;
   border: none;
-  border-bottom: 1px solid var(--color-outline-variant, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--color-outline-variant);
   background-color: transparent;
   cursor: pointer;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--color-on-surface);
   text-align: left;
   transition: background-color 0.15s ease;
   outline: none;
@@ -53,25 +53,25 @@
 .context-menu .context-menu-item:hover:not(.disabled),
 .context-menu .context-menu-item:focus:not(.disabled),
 button.context-menu-item:hover:not(.disabled) {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--color-hover-overlay);
 }
 
 .context-menu-item.focused {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--color-hover-overlay);
 }
 
 .context-menu-item.active {
-  background: var(--color-primary-container, rgba(var(--color-primary-rgb), 0.1));
+  background: var(--color-primary-container);
 }
 
 .context-menu-item.danger {
-  color: var(--color-danger);
+  color: var(--color-error);
 }
 
 .context-menu-item.danger:hover:not(.disabled),
 .context-menu-item.danger:focus:not(.disabled),
 .context-menu .context-menu-item.danger:hover:not(.disabled) {
-  background-color: rgba(220, 38, 38, 0.15);
+  background-color: var(--color-error-container);
 }
 
 .context-menu-item.disabled {
@@ -98,13 +98,13 @@ button.context-menu-item:hover:not(.disabled) {
 
 .context-menu-shortcut {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   margin-left: auto;
 }
 
 .context-menu-arrow {
   font-size: 16px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   margin-left: auto;
 }
 

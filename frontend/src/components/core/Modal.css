@@ -8,8 +8,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: var(--z-modal-backdrop, 10000);
+  background: var(--color-scrim);
+  z-index: var(--z-modal-backdrop);
   animation: backdropFadeIn var(--motion-duration-short) var(--motion-easing-standard);
 }
 

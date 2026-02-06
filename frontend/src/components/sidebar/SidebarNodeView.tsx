@@ -23,12 +23,13 @@ import {
   useNodesWithClass,
   useLinkedReferencesCount,
   useSystemClasses,
+  useResolvedClassDetails,
 } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
 import type { NodeUpdate, Node } from '@/types';
 import type { SidebarNodeType } from '@/stores';
-import type { BlockCallbacks } from '../blocks/BlockCallbacksContext';
+import { useBlockCallbacksFactory } from '../blocks/useBlockCallbacksFactory';
 import { BlockEditor } from '../blocks/BlockEditor';
 import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
@@ -223,16 +224,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   }, [node]);
   
   // Resolve page class details from IDs
-  const pageClassDetails = useMemo(() => {
-    if (!node?.classes || node.classes.length === 0) return [];
-    return node.classes
-      .map(classId => {
-        const fromClasses = allClasses?.find(t => t.id === classId);
-        if (fromClasses) return fromClasses;
-        return allNodes?.find(n => n.id === classId);
-      })
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
-  }, [node, allClasses, allNodes]);
+  const pageClassDetails = useResolvedClassDetails(node?.classes);
   
   // Resolve page tag details from IDs
   const pageTagDetails = useMemo(() => {
@@ -257,52 +249,9 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
   }, [node, allClasses, classedNodes]);
   
   // Block callbacks for NodeCollection context
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for BlockCallbacks interface
-  const blockCallbacks = useMemo<BlockCallbacks>(() => ({
-    onAddClass: (blockId, classNodeId, _keepInline, _className) => {
-      addClass.mutate({ nodeId: blockId, classId: classNodeId });
-    },
-    onAddTag: (blockId, tagNodeId, keepInline, _tagName) => {
-      addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
-      if (keepInline) {
-        addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
-      }
-    },
-    onCreateClass: (blockId, name, _keepInline) => {
-      if (!systemClassIds?.page || !systemClassIds?.class) return;
-      createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
-        onSuccess: (newPage) => {
-          addClass.mutate({ nodeId: blockId, classId: newPage.id });
-        }
-      });
-    },
-    onCreateTag: (blockId, name, _keepInline) => {
-      if (!systemClassIds?.page) return;
-      createNode.mutate({ name, classes: [systemClassIds.page] }, {
-        onSuccess: (newPage) => {
-          addTag.mutate({ nodeId: blockId, tagId: newPage.id });
-        }
-      });
-    },
-    onCreatePageLink: async (name) => {
-      try {
-        if (!systemClassIds?.page) return undefined;
-        const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
-        return String(newPage.id);
-      } catch (error) {
-        console.error('Failed to create page for link:', error);
-        return undefined;
-      }
-    },
-    onOpenComments: (blockId) => {
-      openCommentsForNode(blockId);
-    },
-    onOpenBacklinks: (blockId) => {
-      addSidebarCard(blockId, 'block');
-    },
-    getCommentCount: (block) => block.comment_count ?? 0,
-    getBacklinkCount: (block) => block.backlink_count ?? 0,
-  }), [addClass, addTag, addTagLink, createNode, openCommentsForNode, addSidebarCard, systemClassIds]);
+  const blockCallbacks = useBlockCallbacksFactory({
+    onOpenBacklinks: (blockId) => addSidebarCard(blockId, 'block'),
+  });
 
   // Get effective icon (node's icon or first class's icon)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);

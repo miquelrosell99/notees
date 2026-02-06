@@ -5,36 +5,36 @@
 .text-field-wrapper {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .text-field__label {
-  font-size: var(--text-sm, 14px);
+  font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
 }
 
 .text-field {
   width: 100%;
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  font-size: var(--text-sm, 14px);
-  color: var(--text-primary);
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-outline-variant, var(--border-color));
-  border-radius: var(--radius-sm, 6px);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
   transition: 
-    border-color var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease),
-    box-shadow var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .text-field:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 17, 17, 17), 0.1);
+  box-shadow: 0 0 0 2px var(--color-focus-overlay);
 }
 
 .text-field::placeholder {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
 }
 
 .text-field--error {
@@ -43,28 +43,28 @@
 
 .text-field--error:focus {
   border-color: var(--color-error);
-  box-shadow: 0 0 0 2px rgba(var(--color-error-rgb, 192, 57, 43), 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 
 .text-field--disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: var(--color-surface-variant, var(--bg-secondary));
+  background: var(--color-surface-variant);
 }
 
 /* Size variants */
 .text-field--sm {
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
-  font-size: var(--text-xs, 12px);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: 0.75rem;
 }
 
 .text-field--lg {
-  padding: var(--spacing-3, 12px) var(--spacing-4, 16px);
-  font-size: var(--text-base, 16px);
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: 1rem;
 }
 
 .text-field__error {
-  font-size: var(--text-xs, 12px);
+  font-size: 0.75rem;
   color: var(--color-error);
 }
 
@@ -73,18 +73,18 @@
   display: flex;
   align-items: center;
   width: 100%;
-  border: 1px solid var(--color-outline-variant, var(--border-color));
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
   transition: 
-    border-color var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease),
-    box-shadow var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .text-field__container:focus-within {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 17, 17, 17), 0.1);
+  box-shadow: 0 0 0 2px var(--color-focus-overlay);
 }
 
 .text-field__container--error {
@@ -93,7 +93,7 @@
 
 .text-field__container--error:focus-within {
   border-color: var(--color-error);
-  box-shadow: 0 0 0 2px rgba(var(--color-error-rgb, 192, 57, 43), 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 
 .text-field__container--valid {
@@ -103,7 +103,7 @@
 .text-field__container--disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: var(--color-surface-variant, var(--bg-secondary));
+  background: var(--color-surface-variant);
 }
 
 .text-field--with-icon {
@@ -119,14 +119,14 @@
 .text-field__divider {
   width: 1px;
   height: 24px;
-  background: var(--color-outline-variant, var(--border-color));
-  margin: 0 var(--spacing-2, 8px);
+  background: var(--color-outline-variant);
+  margin: 0 var(--spacing-2);
 }
 
 .text-field__icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-right: var(--spacing-3, 12px);
-  color: var(--text-tertiary);
+  padding-right: var(--spacing-3);
+  color: var(--color-outline);
 }

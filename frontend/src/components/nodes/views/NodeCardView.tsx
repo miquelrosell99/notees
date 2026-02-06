@@ -21,7 +21,7 @@ import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
-import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode } from '@/hooks';
+import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode, useResolvedClassDetails } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useNodesStore } from '@/stores';
 import { Button } from '../../core/Button';
@@ -319,17 +319,7 @@ function NodeCard({
   const [isCoverHovered, setIsCoverHovered] = useState(false);
   
   // Resolve class details (excluding the implicit "page" class)
-  const classDetails = useMemo(() => {
-    if (!node?.classes) return [];
-    const classIds = node.classes;
-    return classIds
-      .map((classId: number) => {
-        const fromClasses = allClasses?.find(t => t.id === classId);
-        if (fromClasses) return fromClasses;
-        return allNodes?.find((n: Node) => n.id === classId);
-      })
-      .filter((t): t is Node => t !== undefined && t.uuid !== SYSTEM_CLASS_UUIDS.page);
-  }, [node.classes, allClasses, allNodes]);
+  const classDetails = useResolvedClassDetails(node?.classes);
   
   // Resolve tag details
   const tagDetails = useMemo(() => {

@@ -116,7 +116,7 @@
   grid-row: 1 / 4;
   height: auto;
   min-height: 200px;
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .node-card--cover-right .node-card__cover {
@@ -124,7 +124,7 @@
   grid-row: 1 / 4;
   height: auto;
   min-height: 200px;
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 /* Header positioning for grid layouts */
@@ -211,15 +211,15 @@
 /* Cover image */
 .node-card__cover {
   position: relative;
-  background: var(--bg-tertiary);
+  background: var(--color-surface-container-high);
   width: 100%;
 }
 
 /* Cover action buttons - positioned at bottom right */
 .node-card__cover-actions {
   position: absolute;
-  bottom: var(--spacing-2, 8px);
-  right: var(--spacing-2, 8px);
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
   z-index: 10;
 }
 
@@ -278,7 +278,7 @@
 .node-card__collapsed-indicator {
   text-align: center;
   font-size: 0.875rem;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   opacity: 0.5;
   padding: 0.125rem;
   transition: opacity 0.2s ease, max-height 0.2s ease, padding 0.2s ease;
@@ -323,7 +323,7 @@
 
 /* Show bottom border on tags when hover-reveal body is hovered */
 .node-card:has(.node-card__body--hover-reveal:hover) .node-card__tags-row {
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 /* Content section header - collapsible */
@@ -348,26 +348,26 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: var(--color-surface-container, var(--bg-secondary));
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .node-card__header:first-child {
-  border-radius: var(--shape-medium, 0.5rem) var(--shape-medium, 0.5rem) 0 0;
+  border-radius: var(--shape-medium) var(--shape-medium) 0 0;
 }
 
 /* Separator between header and cover in vertical layouts */
 .node-card--cover-top .node-card__header {
-  border-top: 1px solid var(--color-outline-variant, var(--border-color));
+  border-top: 1px solid var(--color-outline-variant);
 }
 
 /* Separator between header and cover in horizontal layouts */
 .node-card--cover-left .node-card__header {
-  border-left: 1px solid var(--color-outline-variant, var(--border-color));
+  border-left: 1px solid var(--color-outline-variant);
 }
 
 .node-card--cover-right .node-card__header {
-  border-right: 1px solid var(--color-outline-variant, var(--border-color));
+  border-right: 1px solid var(--color-outline-variant);
 }
 
 /* Metadata rows (classes and tags) */
@@ -376,17 +376,17 @@
   flex-wrap: wrap;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-outline-variant, var(--border-color));
+  border-bottom: 1px solid var(--color-outline-variant);
   min-height: 2rem;
   align-items: center;
 }
 
 .node-card--cover-left .node-card__metadata-row {
-  border-left: 1px solid var(--color-outline-variant, var(--border-color));
+  border-left: 1px solid var(--color-outline-variant);
 }
 
 .node-card--cover-right .node-card__metadata-row {
-  border-right: 1px solid var(--color-outline-variant, var(--border-color));
+  border-right: 1px solid var(--color-outline-variant);
 }
 
 .node-card__metadata-row {
@@ -459,7 +459,7 @@
 
 .node-card__more {
   font-size: 0.75rem;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   padding-top: 0.25rem;
 }
 
@@ -501,7 +501,7 @@
 }
 
 .node-card--drop-target {
-  box-shadow: 0 0 0 2px var(--accent-color);
+  box-shadow: 0 0 0 2px var(--color-primary);
   transform: scale(1.02);
 }
 
@@ -518,8 +518,8 @@
   opacity: 0;
   transition: opacity 0.15s ease;
   pointer-events: none;
-  background: var(--color-surface, white);
-  border-radius: var(--shape-small, 4px);
+  background: var(--color-surface);
+  border-radius: var(--shape-small);
   padding: 2px;
 }
 
@@ -543,8 +543,8 @@
 
 /* Selected card state */
 .node-card--selected {
-  box-shadow: 0 0 0 2px var(--accent-color);
-  background: var(--color-surface-container-high, var(--bg-tertiary));
+  box-shadow: 0 0 0 2px var(--color-primary);
+  background: var(--color-surface-container-high);
 }
 
 /* Add card pseudo-card */
@@ -557,14 +557,14 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  border: 2px dashed var(--color-outline-variant, var(--border-color));
-  background: var(--color-surface-container, var(--bg-secondary));
+  border: 2px dashed var(--color-outline-variant);
+  background: var(--color-surface-container);
   transition: all 0.2s ease;
 }
 
 .node-card-add:hover {
-  border-color: var(--accent-color);
-  background: var(--color-surface-container-high, var(--bg-tertiary));
+  border-color: var(--color-primary);
+  background: var(--color-surface-container-high);
 }
 
 .node-card-add__content {

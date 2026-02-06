@@ -26,5 +26,5 @@
 }
 
 .prose-renderer__link:active {
-  color: var(--color-accent-dark);
+  color: var(--color-accent);
 }

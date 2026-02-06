@@ -6,10 +6,10 @@
   z-index: 1000;
   width: 320px;
   max-height: 400px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--elevation-4);
   display: flex;
   flex-direction: column;
   animation: scratchpadFadeIn 0.2s ease-out;
@@ -33,7 +33,7 @@
 
 .scratchpad.pinned {
   border-color: var(--color-accent);
-  box-shadow: 0 8px 32px rgba(var(--color-accent-rgb), 0.2);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 .scratchpad-header {
@@ -41,7 +41,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-outline-variant);
   cursor: grab;
   user-select: none;
 }
@@ -57,7 +57,7 @@
 
 .scratchpad-date {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   margin-left: auto;
 }
 
@@ -76,13 +76,13 @@
   background: none;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .scratchpad-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
 }
 
 .scratchpad-btn:disabled {
@@ -107,7 +107,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   font-size: 13px;
   text-align: center;
   padding: 20px;
@@ -119,17 +119,17 @@
   gap: 8px;
   padding: 8px;
   border-radius: 6px;
-  background: var(--bg-secondary);
+  background: var(--color-surface-variant);
   margin-bottom: 6px;
 }
 
 .scratchpad-entry:hover {
-  background: var(--bg-hover);
+  background: var(--color-hover-overlay);
 }
 
 .scratchpad-entry-time {
   font-size: 10px;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   white-space: nowrap;
   padding-top: 2px;
 }
@@ -151,7 +151,7 @@
   background: none;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--text-tertiary);
+  color: var(--color-outline);
   opacity: 0;
   transition: opacity 0.15s ease, color 0.15s ease;
 }
@@ -161,22 +161,22 @@
 }
 
 .scratchpad-entry-delete:hover {
-  color: var(--color-danger);
-  background: var(--color-danger-bg);
+  color: var(--color-error);
+  background: var(--color-error-container);
 }
 
 .scratchpad-input-area {
   padding: 8px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--color-outline-variant);
 }
 
 .scratchpad-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
   font-size: 13px;
   font-family: inherit;
   resize: none;
@@ -189,5 +189,5 @@
 }
 
 .scratchpad-input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--color-outline);
 }
