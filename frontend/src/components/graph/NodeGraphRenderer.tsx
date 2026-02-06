@@ -1012,10 +1012,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       if (isClassLink) {
         // Draw squiggly line for class links
-        const squiggleAmplitude = 3;
-        const squiggleFrequency = 0.03;
+        const squiggleAmplitude = 5; // Increased amplitude for more squiggly effect
+        const squigglesPerLine = 3; // Fixed number of squiggles per line regardless of length
         const distance = Math.sqrt((lineEndX - lineStartX) ** 2 + (lineEndY - lineStartY) ** 2);
-        const steps = Math.max(20, distance / 5);
+        const steps = Math.max(30, distance / 3); // More steps for smoother curves
         
         ctx.beginPath();
         for (let i = 0; i <= steps; i++) {
@@ -1023,8 +1023,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const x = lineStartX + (lineEndX - lineStartX) * t;
           const y = lineStartY + (lineEndY - lineStartY) * t;
           
-          // Add perpendicular squiggle
-          const squiggleOffset = Math.sin(t * distance * squiggleFrequency) * squiggleAmplitude;
+          // Add perpendicular squiggle with fixed frequency
+          const squiggleOffset = Math.sin(t * squigglesPerLine * 2 * Math.PI) * squiggleAmplitude;
           const perpAngle = lineAngle + Math.PI / 2;
           const squiggleX = x + Math.cos(perpAngle) * squiggleOffset;
           const squiggleY = y + Math.sin(perpAngle) * squiggleOffset;
