@@ -33,17 +33,14 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
     return null;
   }
   
-  // Get header and content from NodeView
-  const { content } = NodeView({ 
-    nodeId: fullPage.id, 
-    nodeType: "page", 
-    viewMode, 
-    compactMode: true 
-  });
-  
   return (
     <article className="journal-entry">
-      {content}
+      <NodeView 
+        nodeId={fullPage.id} 
+        nodeType="page" 
+        viewMode={viewMode} 
+        compactMode={true} 
+      />
     </article>
   );
 }
