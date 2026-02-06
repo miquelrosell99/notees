@@ -79,6 +79,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
     nodeSizeMode: 'uniform',
+    massAccumulation: true,
   });
   const settingsLoadedRef = useRef(false);
   
@@ -421,6 +422,23 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
               </label>
               <p className="settings-hint">
                 More connected nodes attract more strongly
+              </p>
+            </div>
+            
+            <div className="settings-group">
+              <label className="settings-label">
+                <input
+                  type="checkbox"
+                  checked={graphSettings.massAccumulation}
+                  onChange={(e) => setGraphSettings(prev => ({
+                    ...prev,
+                    massAccumulation: e.target.checked
+                  }))}
+                />
+                <span>Mass accumulation</span>
+              </label>
+              <p className="settings-hint">
+                Parent nodes resist movement based on how many descendants they have
               </p>
             </div>
             
