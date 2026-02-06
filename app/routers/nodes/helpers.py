@@ -21,6 +21,55 @@ from .models import NodeResponse, CommentResponse
 logger = get_logger(__name__)
 
 
+def _extract_property_value(val):
+    """Extract a single typed value from a property value row."""
+    if hasattr(val, 'target_id'):
+        return val.target_id
+    elif hasattr(val, 'value_integer'):
+        if val.value_text is not None:
+            return val.value_text
+        elif val.value_integer is not None:
+            return val.value_integer
+        elif val.value_float is not None:
+            return val.value_float
+        elif val.value_boolean is not None:
+            return val.value_boolean
+    elif hasattr(val, 'selection_line_id'):
+        return val.selection_line_id
+    return None
+
+
+def extract_properties_dict(all_prop_values: Dict[int, Dict[str, Any]]) -> Dict[str, Any]:
+    """Convert raw property values from the repository into a JSON-serializable dict.
+    
+    For multi-value properties, returns an array of values.
+    For single-value properties, returns a single value.
+    """
+    props_dict: Dict[str, Any] = {}
+    
+    for prop_id, prop_data in all_prop_values.items():
+        prop = prop_data['property']
+        values = prop_data['values']
+        if values:
+            if prop.is_multi and len(values) > 1:
+                # Multi-value: return array
+                props_dict[str(prop_id)] = [
+                    _extract_property_value(v) for v in values
+                    if _extract_property_value(v) is not None
+                ]
+            else:
+                # Single-value: return scalar
+                extracted = _extract_property_value(values[0])
+                if extracted is not None:
+                    props_dict[str(prop_id)] = extracted
+                else:
+                    props_dict[str(prop_id)] = None
+        else:
+            props_dict[str(prop_id)] = None
+    
+    return props_dict
+
+
 def _node_to_response(
     node: Node, 
     tags: Optional[List[int]] = None,
