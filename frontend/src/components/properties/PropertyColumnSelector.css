@@ -155,18 +155,16 @@
   min-width: 0;
 }
 
-.property-column-selector__item-icon {
-  font-size: 14px;
-  flex-shrink: 0;
+/* Block component inside item content */
+.property-column-selector__item-content .block-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
-.property-column-selector__item-name {
-  font-size: 13px;
-  color: var(--text-primary);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Hide the block's internal padding/margins to fit in the selector item */
+.property-column-selector__item-content .block-container {
+  padding: 0;
+  margin: 0;
 }
 
 .property-column-selector__item-type {
@@ -174,6 +172,7 @@
   color: var(--text-secondary);
   text-transform: capitalize;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .property-column-selector__footer {
