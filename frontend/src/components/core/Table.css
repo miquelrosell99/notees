@@ -9,7 +9,8 @@
 
 .table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--text-sm, 14px);
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
@@ -49,6 +50,9 @@
 /* Header */
 .table-header {
   background: var(--color-surface-variant, var(--bg-secondary));
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .table-cell--header {
@@ -121,22 +125,27 @@
 
 .table-body .table-cell {
   border-right: 1px solid var(--color-outline-variant, var(--border-color));
+  background: var(--color-surface, var(--bg-primary));
+}
+
+.table-body .table-cell:not(.table-cell--checkbox) {
+  overflow: hidden;
 }
 
 .table-body .table-cell:last-child {
   border-right: none;
 }
 
-.table--hoverable .table-body .table-row:hover {
-  background: var(--color-surface-hover, var(--bg-hover));
+.table--hoverable .table-body .table-row:hover > .table-cell {
+  background: var(--color-surface-container-low, var(--color-surface-variant));
 }
 
 .table--selectable .table-body .table-row {
   cursor: pointer;
 }
 
-.table-row--selected {
-  background: var(--color-primary-container, rgba(var(--color-primary-rgb), 0.1)) !important;
+.table-row--selected > .table-cell {
+  background: var(--color-primary-container) !important;
 }
 
 /* Alignment */
@@ -156,6 +165,16 @@
 .table-cell--checkbox {
   width: 40px;
   text-align: center;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: var(--color-surface, var(--bg-primary));
+  box-shadow: 1px 0 0 0 var(--color-outline-variant, var(--border-color));
+}
+
+.table-header .table-cell--checkbox {
+  z-index: 15;
+  background: var(--color-surface-variant, var(--bg-secondary));
 }
 
 .table-cell--checkbox .checkbox-container {
