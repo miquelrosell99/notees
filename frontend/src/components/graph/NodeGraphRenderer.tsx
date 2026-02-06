@@ -481,14 +481,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Position level 0 nodes evenly around the circle
       const level0Nodes = nodesByDepth.get(0) || [];
+      const radius0 = radiusByDepth.get(0)!;
+      // Enforce minimum angular spacing at level 0
+      const minAngle0 = level0Nodes.length > 0 ? nodeSpacing / radius0 : 0;
+      const totalAngle0 = Math.max(2 * Math.PI, minAngle0 * level0Nodes.length);
       level0Nodes.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / level0Nodes.length - Math.PI / 2;
-        const radius = radiusByDepth.get(0)!;
-        node.targetX = centerX + radius * Math.cos(angle);
-        node.targetY = centerY + radius * Math.sin(angle);
+        const angle = (totalAngle0 * i) / level0Nodes.length - Math.PI / 2;
+        node.targetX = centerX + radius0 * Math.cos(angle);
+        node.targetY = centerY + radius0 * Math.sin(angle);
         
         // Store angle range for this node (used for positioning children)
-        const angleSpan = level0Nodes.length > 1 ? (2 * Math.PI) / level0Nodes.length : 2 * Math.PI;
+        const angleSpan = level0Nodes.length > 1 ? totalAngle0 / level0Nodes.length : 2 * Math.PI;
         nodeAngleRange.set(node.id, {
           start: angle - angleSpan / 2,
           end: angle + angleSpan / 2
@@ -506,13 +509,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         
         // Position root nodes at this level evenly around the circle
         if (rootNodesAtThisLevel.length > 0) {
+          const minAngleRoot = nodeSpacing / radius;
+          const totalAngleRoot = Math.max(2 * Math.PI, minAngleRoot * rootNodesAtThisLevel.length);
           rootNodesAtThisLevel.forEach((node, i) => {
-            const angle = (2 * Math.PI * i) / rootNodesAtThisLevel.length - Math.PI / 2;
+            const angle = (totalAngleRoot * i) / rootNodesAtThisLevel.length - Math.PI / 2;
             node.targetX = centerX + radius * Math.cos(angle);
             node.targetY = centerY + radius * Math.sin(angle);
             
             // Store angle range for this node
-            const angleSpan = rootNodesAtThisLevel.length > 1 ? (2 * Math.PI) / rootNodesAtThisLevel.length : 2 * Math.PI;
+            const angleSpan = rootNodesAtThisLevel.length > 1 ? totalAngleRoot / rootNodesAtThisLevel.length : 2 * Math.PI;
             nodeAngleRange.set(node.id, {
               start: angle - angleSpan / 2,
               end: angle + angleSpan / 2
@@ -527,10 +532,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             const siblings = childrenByParent.get(node.parentId!) || [];
             const nodeIndex = siblings.indexOf(node);
             
-            // Distribute children within parent's angle range
-            const rangeSpan = parentRange.end - parentRange.start;
-            const childAngleSpan = siblings.length > 1 ? rangeSpan / siblings.length : rangeSpan;
-            const angle = parentRange.start + (nodeIndex + 0.5) * childAngleSpan;
+            // Calculate minimum angle span needed for this group of siblings
+            const minAnglePerChild = nodeSpacing / radius;
+            const requiredSpan = minAnglePerChild * siblings.length;
+            const parentCenter = (parentRange.start + parentRange.end) / 2;
+            const parentSpan = parentRange.end - parentRange.start;
+            // Use the larger of parent's range or required spacing
+            const actualSpan = Math.max(parentSpan, requiredSpan);
+            const actualStart = parentCenter - actualSpan / 2;
+            
+            const childAngleSpan = siblings.length > 1 ? actualSpan / siblings.length : actualSpan;
+            const angle = actualStart + (nodeIndex + 0.5) * childAngleSpan;
             
             node.targetX = centerX + radius * Math.cos(angle);
             node.targetY = centerY + radius * Math.sin(angle);
