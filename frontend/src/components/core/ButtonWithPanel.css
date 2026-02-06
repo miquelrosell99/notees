@@ -137,6 +137,7 @@
 .btn-panel__content {
   flex: 1;
   overflow-y: auto;
+  padding: var(--spacing-3);
 }
 
 /* Scrollbar styling */
