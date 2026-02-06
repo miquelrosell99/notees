@@ -5,7 +5,7 @@
  * Provides a consistent interface for editing property settings.
  */
 import { useCallback } from 'react';
-import { mdiEarth, mdiLock, mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
+import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
 import { TextField } from '../core/TextField';
@@ -91,7 +91,6 @@ export function PropertyForm({
   icon,
   name,
   propertyType,
-  isLocal,
   isMultiValue,
   defaultValue,
   nameError,
@@ -106,7 +105,6 @@ export function PropertyForm({
   onIconChange,
   onNameChange,
   onTypeChange,
-  onIsLocalChange,
   onIsMultiValueChange,
   onDefaultValueChange,
   
