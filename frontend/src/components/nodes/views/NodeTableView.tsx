@@ -69,7 +69,7 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
     accessor: col.render 
       ? col.render 
       : col.key === 'name'
-        ? (node: Node) => node.name
+        ? (node: Node) => node as unknown as ReactNode  // Return full Node so core Table's isNode() detects it for nav buttons
         : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
     // Enable automatic node cell rendering for name column
     renderNodeCell: col.key === 'name',
