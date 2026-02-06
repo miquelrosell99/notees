@@ -27,8 +27,9 @@ import {
   type GraphSettings,
   type GraphViewMode,
   type VisibilityFilters,
+  type ConstraintMode,
 } from './NodeGraphRenderer';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { SelectionButton } from '../core/SelectionButton';
@@ -80,6 +81,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     linkCountAttraction: false,
     nodeSizeMode: 'uniform',
     massAccumulation: true,
+    constraintMode: 'physics',
   });
   const settingsLoadedRef = useRef(false);
   
@@ -453,6 +455,26 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                 }))}
               />
             </div>
+
+            {(viewMode === 'circle' || viewMode === 'tree') && (
+              <div className="visibility-option">
+                <SelectionButton
+                  size="sm"
+                  label="Layout mode"
+                  description="Physics simulation or fixed equidistant positions"
+                  labelPosition="left"
+                  options={[
+                    { value: 'physics', icon: mdiAtom, label: 'Physics simulation' },
+                    { value: 'equidistant', icon: mdiDistributeHorizontalCenter, label: 'Equidistant' }
+                  ]}
+                  value={graphSettings.constraintMode}
+                  onChange={(value) => setGraphSettings(prev => ({
+                    ...prev,
+                    constraintMode: value as ConstraintMode
+                  }))}
+                />
+              </div>
+            )}
           </div>
         </ButtonWithPanel>
         
@@ -690,7 +712,16 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
         <SelectionButton
           options={modeOptions}
           value={viewMode}
-          onChange={(val) => setViewMode(val as GraphViewMode)}
+          onChange={(val) => {
+            const newMode = val as GraphViewMode;
+            setViewMode(newMode);
+            // Auto-switch constraint mode default: tree→physics, circle→equidistant
+            if (newMode === 'tree') {
+              setGraphSettings(prev => ({ ...prev, constraintMode: 'physics' }));
+            } else if (newMode === 'circle') {
+              setGraphSettings(prev => ({ ...prev, constraintMode: 'equidistant' }));
+            }
+          }}
           size="sm"
         />
       </div>
