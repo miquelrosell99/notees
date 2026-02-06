@@ -112,7 +112,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
     await conn.execute("""
         INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'show_hierarchy', 'boolean', FALSE, TRUE, $3, $3, $4, $4)
+        VALUES ($1, $2, 'Show hierarchy', 'boolean', FALSE, TRUE, $3, $3, $4, $4)
         ON CONFLICT (graph_id, uuid) DO NOTHING
     """, show_hier_uuid, graph_id, now, user_id)
     

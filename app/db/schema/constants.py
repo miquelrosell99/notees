@@ -158,10 +158,10 @@ SYSTEM_PROPERTY_UUIDS = {
 }
 
 SYSTEM_PROPERTIES = [
-    {"name": "tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
+    {"name": "Tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
     # "classes" removed - now stored directly in node.class_ids column
-    {"name": "show_hierarchy", "type": "boolean", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"]},
-    {"name": "used_in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
+    {"name": "Show hierarchy", "type": "boolean", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"]},
+    {"name": "Used in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
     {"name": "Cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
     {"name": "Banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
     {"name": "_query_ast", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_ast"]},
