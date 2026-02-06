@@ -1006,22 +1006,24 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         connectedPairs.get(`${a}-${b}`) ?? null;
       
       // Compute node mass recursively: a parent inherits the mass of all its descendants
+      // Includes parent→child, class→instance, and extends (inheritance) relationships
       const childrenOf = new Map<number, number[]>();
       for (const link of links) {
-        if (link.type === 'parent') {
-          // parent links: source is parent, target is child
-          if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-            const children = childrenOf.get(link.source) || [];
-            children.push(link.target);
-            childrenOf.set(link.source, children);
-          }
-        } else if (link.type === 'extends') {
-          // extends links: source is child, target is parent
-          if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-            const children = childrenOf.get(link.target) || [];
-            children.push(link.source);
-            childrenOf.set(link.target, children);
-          }
+        if (link.type === 'parent' && visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+          // parent links: source=parent, target=child
+          const children = childrenOf.get(link.source) || [];
+          children.push(link.target);
+          childrenOf.set(link.source, children);
+        } else if (link.type === 'class' && visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+          // class links: source=instance, target=class
+          const children = childrenOf.get(link.target) || [];
+          children.push(link.source);
+          childrenOf.set(link.target, children);
+        } else if (link.type === 'extends' && visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+          // extends links: source=child class, target=parent class
+          const children = childrenOf.get(link.target) || [];
+          children.push(link.source);
+          childrenOf.set(link.target, children);
         }
       }
       const massCache = new Map<number, number>();
