@@ -37,7 +37,7 @@ const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
 const REFERENCE_LINK_FORCE_MULTIPLIER = 0.5;
 const REPULSION_STRENGTH = 500;
-const VELOCITY_DAMPING = 0.92;
+const VELOCITY_DAMPING = 0.82;
 const RETURN_FORCE = 0.08;
 const DRAG_PULL_STRENGTH = 0.15;
 const PARENT_MASS_PER_CHILD = 2;
@@ -352,6 +352,31 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const currentNodeIdRef = useRef(currentNodeId);
   const viewModeRef = useRef(viewMode);
   
+  // Cached CSS variables (avoid per-frame getComputedStyle)
+  const cssVarsRef = useRef({ textColor: '#333', accentColor: '#6366f1', dimColor: '#404040' });
+  
+  // Topology cache — rebuilt only when nodes/links change, not every frame
+  const topologyDirtyRef = useRef(true);
+  // connectedPairs: numeric key = min*100000+max → link type (with priority)
+  const connectedPairsRef = useRef(new Map<number, GraphLink['type']>());
+  const adjacencyRef = useRef(new Map<number, Set<number>>());
+  const childrenOfRef = useRef(new Map<number, number[]>());
+  const massCacheRef = useRef(new Map<number, number>());
+  const connectionCountsRef = useRef(new Map<number, number>());
+  
+  // Shared data between simulate and render (written by simulate, read by render)
+  const frameDataRef = useRef<{
+    visibleNodes: GraphNode[];
+    visibleLinks: GraphLink[];
+    nodeMap: Map<number, GraphNode>;
+    maxConnections: number;
+    maxMass: number;
+  }>({ visibleNodes: [], visibleLinks: [], nodeMap: new Map(), maxConnections: 0, maxMass: 0 });
+  
+  // Convergence-based simulation sleep
+  const simulationSleepingRef = useRef(false);
+  const wakeSimulationRef = useRef<() => void>(() => {});
+  
   // Pan and zoom state
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
@@ -360,16 +385,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  
-  // Build adjacency for connected nodes
-  const getConnectedNodes = useCallback((nodeId: number): Set<number> => {
-    const connected = new Set<number>();
-    for (const link of linksRef.current) {
-      if (link.source === nodeId) connected.add(link.target);
-      if (link.target === nodeId) connected.add(link.source);
-    }
-    return connected;
-  }, []);
 
   // Calculate positions for view modes
   const calculatePositions = useCallback((
@@ -381,7 +396,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const centerX = w / 2;
     const centerY = h / 2;
     
-    // Common spacing parameters
+    // Common spacing parameters for both circle and tree modes
+    const nodeSpacing = 80; // Minimum spacing between node centers
     const levelGap = 100; // Gap between concentric circles (tree) or base radius factor (circle)
     
     if (mode === 'circle') {
@@ -391,9 +407,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
         node.targetX = centerX + radius * Math.cos(angle);
         node.targetY = centerY + radius * Math.sin(angle);
-        // Store radius for physics constraint mode
+        // Store radius for physics constraint
         (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
-        // Seed unpositioned nodes at target; existing nodes keep position and animate
+        // Seed unpositioned nodes at target
         if (node.x === 0 && node.y === 0) {
           node.x = node.targetX;
           node.y = node.targetY;
@@ -447,7 +463,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // BFS to assign depths to all remaining nodes (regular hierarchy)
       const queue = [...regularRoots];
+      // Also add class roots to process their non-class children
       for (const node of classRoots) queue.push(node);
+      // And class children that were already depth-assigned
       for (const node of nodes) {
         if (node.isClassNode && nodeDepth.has(node.id) && !classRoots.includes(node)) {
           queue.push(node);
@@ -472,65 +490,193 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         maxDepth = Math.max(maxDepth, depth);
       }
       
-      // Assign each node its constrained radius and an initial angular position
-      const maxRadius = Math.min(centerX, centerY) * 0.9;
-      
-      // Group by depth for initial angular spread
+      // Group nodes by depth
       const nodesByDepth = new Map<number, GraphNode[]>();
       for (const node of nodes) {
         const depth = nodeDepth.get(node.id);
         if (depth !== undefined) {
-          const arr = nodesByDepth.get(depth) || [];
-          arr.push(node);
-          nodesByDepth.set(depth, arr);
+          const nodesAtDepth = nodesByDepth.get(depth) || [];
+          nodesAtDepth.push(node);
+          nodesByDepth.set(depth, nodesAtDepth);
         }
       }
       
-      for (const node of nodes) {
-        const depth = nodeDepth.get(node.id);
-        if (depth !== undefined) {
-          const radius = Math.min(levelGap * (depth + 1), maxRadius);
-          // Store radius on node for simulation constraint
-          (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+      // Simple uniform radius calculation
+      const maxRadius = Math.min(centerX, centerY) * 0.9;
+      
+      const radiusByDepth = new Map<number, number>();
+      for (let depth = 0; depth <= maxDepth; depth++) {
+        radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
+      }
+      
+      // ── Bottom-up subtree angular width calculation ──
+      // For each node, compute how much angular space its entire subtree
+      // needs at the deepest level, then propagate upward so parents
+      // reserve enough room for all descendants.
+      const subtreeAngularWidth = new Map<number, number>();
+      
+      // Process depths bottom-up
+      for (let depth = maxDepth; depth >= 0; depth--) {
+        const nodesAtDepth = nodesByDepth.get(depth) || [];
+        for (const node of nodesAtDepth) {
+          const children = (childrenByParent.get(node.id) || [])
+            .filter(c => nodeDepth.has(c.id)); // only children in the graph
           
-          // Initial angular spread: evenly distribute nodes at each depth
-          const nodesAtDepth = nodesByDepth.get(depth)!;
-          const idx = nodesAtDepth.indexOf(node);
-          const angle = (2 * Math.PI * idx) / nodesAtDepth.length - Math.PI / 2;
-          
-          node.targetX = centerX + radius * Math.cos(angle);
-          node.targetY = centerY + radius * Math.sin(angle);
-          // Seed unpositioned nodes near their parent for smooth entry, or at target
-          if (node.x === 0 && node.y === 0) {
-            if (node.parentId !== null) {
-              const parent = nodes.find(n => n.id === node.parentId);
-              if (parent && (parent.x !== 0 || parent.y !== 0)) {
-                // Start near parent with slight random offset
-                node.x = parent.x + (Math.random() - 0.5) * 30;
-                node.y = parent.y + (Math.random() - 0.5) * 30;
-              } else {
-                node.x = node.targetX;
-                node.y = node.targetY;
-              }
-            } else {
-              node.x = node.targetX;
-              node.y = node.targetY;
+          if (children.length === 0) {
+            // Leaf node: needs space for itself at its own depth
+            const radius = radiusByDepth.get(depth)!;
+            subtreeAngularWidth.set(node.id, nodeSpacing / radius);
+          } else {
+            // Sum of all children's subtree widths, but evaluated at
+            // each child's depth radius
+            const childDepth = depth + 1;
+            const childRadius = radiusByDepth.get(childDepth)!;
+            
+            let totalChildrenWidth = 0;
+            for (const child of children) {
+              const childWidth = subtreeAngularWidth.get(child.id) || (nodeSpacing / childRadius);
+              totalChildrenWidth += childWidth;
             }
-          }
-        } else {
-          // Orphan
-          (node as GraphNode & { _treeRadius?: number })._treeRadius = maxRadius;
-          const orphans = nodes.filter(n => !nodeDepth.has(n.id));
-          const idx = orphans.indexOf(node);
-          const angle = (2 * Math.PI * idx) / Math.max(orphans.length, 1) + Math.PI;
-          node.targetX = centerX + maxRadius * Math.cos(angle);
-          node.targetY = centerY + maxRadius * Math.sin(angle);
-          if (node.x === 0 && node.y === 0) {
-            node.x = node.targetX;
-            node.y = node.targetY;
+            
+            // The node itself also needs minimum space at its own depth
+            const ownRadius = radiusByDepth.get(depth)!;
+            const ownMinWidth = nodeSpacing / ownRadius;
+            
+            // Take the max: either the node's own space or children's total
+            subtreeAngularWidth.set(node.id, Math.max(ownMinWidth, totalChildrenWidth));
           }
         }
       }
+      
+      // ── Top-down positioning using computed widths ──
+      const nodeAngleRange = new Map<number, { start: number; end: number }>();
+      
+      // Collect all level-0 nodes (class roots or regular roots if no classes)
+      const level0Nodes = nodesByDepth.get(0) || [];
+      const radius0 = radiusByDepth.get(0)!;
+      
+      // Total angular width needed for all level-0 subtrees
+      let totalLevel0Width = 0;
+      for (const node of level0Nodes) {
+        totalLevel0Width += subtreeAngularWidth.get(node.id) || (nodeSpacing / radius0);
+      }
+      // Ensure at least 2π, but allow expansion beyond if needed
+      const totalAngle0 = Math.max(2 * Math.PI, totalLevel0Width);
+      // Scale factor if subtrees fit within 2π
+      const scale0 = totalAngle0 / totalLevel0Width;
+      
+      let currentAngle0 = -Math.PI / 2;
+      for (const node of level0Nodes) {
+        const rawWidth = subtreeAngularWidth.get(node.id) || (nodeSpacing / radius0);
+        const allocatedWidth = rawWidth * scale0;
+        const angle = currentAngle0 + allocatedWidth / 2;
+        
+        node.targetX = centerX + radius0 * Math.cos(angle);
+        node.targetY = centerY + radius0 * Math.sin(angle);
+        (node as GraphNode & { _treeRadius?: number })._treeRadius = radius0;
+        
+        nodeAngleRange.set(node.id, {
+          start: currentAngle0,
+          end: currentAngle0 + allocatedWidth
+        });
+        
+        currentAngle0 += allocatedWidth;
+      }
+      
+      // Position nodes at each subsequent level
+      for (let depth = 1; depth <= maxDepth; depth++) {
+        const nodesAtDepth = nodesByDepth.get(depth) || [];
+        const radius = radiusByDepth.get(depth)!;
+        
+        // Separate into nodes with parents in the graph and root nodes
+        const nodesWithParent = nodesAtDepth.filter(n => n.parentId !== null && nodeAngleRange.has(n.parentId));
+        const rootNodesAtThisLevel = nodesAtDepth.filter(n => n.parentId === null || !nodeAngleRange.has(n.parentId));
+        
+        // Position root nodes at this level evenly
+        if (rootNodesAtThisLevel.length > 0) {
+          let totalRootWidth = 0;
+          for (const node of rootNodesAtThisLevel) {
+            totalRootWidth += subtreeAngularWidth.get(node.id) || (nodeSpacing / radius);
+          }
+          const totalAngleRoot = Math.max(2 * Math.PI, totalRootWidth);
+          const scaleRoot = totalAngleRoot / totalRootWidth;
+          
+          let currentAngleRoot = -Math.PI / 2;
+          for (const node of rootNodesAtThisLevel) {
+            const rawWidth = subtreeAngularWidth.get(node.id) || (nodeSpacing / radius);
+            const allocatedWidth = rawWidth * scaleRoot;
+            const angle = currentAngleRoot + allocatedWidth / 2;
+            
+            node.targetX = centerX + radius * Math.cos(angle);
+            node.targetY = centerY + radius * Math.sin(angle);
+            (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+            
+            nodeAngleRange.set(node.id, {
+              start: currentAngleRoot,
+              end: currentAngleRoot + allocatedWidth
+            });
+            
+            currentAngleRoot += allocatedWidth;
+          }
+        }
+        
+        // Position nodes with parents: allocate within parent's arc
+        // Group by parent first to handle sibling sets together
+        const siblingGroups = new Map<number, GraphNode[]>();
+        for (const node of nodesWithParent) {
+          const parentId = node.parentId!;
+          const group = siblingGroups.get(parentId) || [];
+          group.push(node);
+          siblingGroups.set(parentId, group);
+        }
+        
+        for (const [parentId, siblings] of siblingGroups) {
+          const parentRange = nodeAngleRange.get(parentId)!;
+          const parentCenter = (parentRange.start + parentRange.end) / 2;
+          const parentSpan = parentRange.end - parentRange.start;
+          
+          // Total subtree width needed by all siblings
+          let totalSiblingWidth = 0;
+          for (const sibling of siblings) {
+            totalSiblingWidth += subtreeAngularWidth.get(sibling.id) || (nodeSpacing / radius);
+          }
+          
+          // Use parent's span (already accounts for subtree), but ensure
+          // minimum spacing if parent arc is somehow larger
+          const actualSpan = Math.max(parentSpan, totalSiblingWidth);
+          const startAngle = parentCenter - actualSpan / 2;
+          
+          // Distribute proportionally to each child's subtree width
+          let currentAngle = startAngle;
+          for (const sibling of siblings) {
+            const childWidth = subtreeAngularWidth.get(sibling.id) || (nodeSpacing / radius);
+            // Scale proportionally if we have more room than needed
+            const allocatedWidth = (childWidth / totalSiblingWidth) * actualSpan;
+            const angle = currentAngle + allocatedWidth / 2;
+            
+            sibling.targetX = centerX + radius * Math.cos(angle);
+            sibling.targetY = centerY + radius * Math.sin(angle);
+            (sibling as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+            
+            nodeAngleRange.set(sibling.id, {
+              start: currentAngle,
+              end: currentAngle + allocatedWidth
+            });
+            
+            currentAngle += allocatedWidth;
+          }
+        }
+      }
+      
+      // Handle orphans (nodes without valid parent)
+      const orphans = nodes.filter(n => !nodeDepth.has(n.id));
+      orphans.forEach((node, i) => {
+        const angle = (2 * Math.PI * i) / Math.max(orphans.length, 1) + Math.PI;
+        const radius = maxRadius;
+        node.targetX = centerX + radius * Math.cos(angle);
+        node.targetY = centerY + radius * Math.sin(angle);
+        (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+      });
     } else {
       nodes.forEach(node => {
         if (node.x === 0 && node.y === 0) {
@@ -545,7 +691,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
 
   // Keep refs in sync
   useEffect(() => { transformRef.current = transform; }, [transform]);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { settingsRef.current = settings; topologyDirtyRef.current = true; }, [settings]);
   useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
@@ -556,14 +702,31 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => {
     if (prevViewModeRef.current === viewMode) return;
     prevViewModeRef.current = viewMode;
-    
     // Recalculate target positions and radii for the new mode
-    // Node positions are preserved — forces will animate them to new targets
     if (nodesRef.current.length > 0) {
       calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+      topologyDirtyRef.current = true;
+      wakeSimulationRef.current();
     }
   }, [viewMode, dimensions, calculatePositions]);
-
+  
+  // Cache CSS variables on mount and observe theme changes
+  useEffect(() => {
+    const updateCssVars = () => {
+      const style = getComputedStyle(document.documentElement);
+      cssVarsRef.current = {
+        textColor: style.getPropertyValue('--text-primary').trim() || '#333',
+        accentColor: style.getPropertyValue('--color-secondary').trim() || '#6366f1',
+        dimColor: style.getPropertyValue('--color-surface-variant').trim() || '#404040',
+      };
+    };
+    updateCssVars();
+    // Observe class/style changes on <html> for theme switches
+    const observer = new MutationObserver(updateCssVars);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  
   // Store original input nodes for filter comparison
   const inputNodesMapRef = useRef<Map<number, GraphNode>>(new Map());
   const allLinksRef = useRef<GraphLink[]>([]);
@@ -628,22 +791,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, currentFilters)
     );
     
-    // Add nodes that should be visible — place near parent for smooth entry
+    // Add nodes that should be visible
     nodesToAdd.forEach(node => {
-      // Try to find the parent node for initial positioning
-      let startX = dimensions.width / 2 + (Math.random() - 0.5) * 100;
-      let startY = dimensions.height / 2 + (Math.random() - 0.5) * 100;
-      if (node.parentId !== null) {
-        const parentNode = nodesRef.current.find(n => n.id === node.parentId);
-        if (parentNode) {
-          startX = parentNode.x + (Math.random() - 0.5) * 30;
-          startY = parentNode.y + (Math.random() - 0.5) * 30;
-        }
-      }
+      // Place near center with some randomness
       const newNode: GraphNode = {
         ...node,
-        x: startX,
-        y: startY,
+        x: dimensions.width / 2 + (Math.random() - 0.5) * 100,
+        y: dimensions.height / 2 + (Math.random() - 0.5) * 100,
         vx: 0,
         vy: 0,
         visible: true,
@@ -660,6 +814,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Recalculate positions if in constrained mode
     if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree')) {
       calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
+    }
+    
+    if (nodesToRemove.length > 0 || nodesToAdd.length > 0) {
+      topologyDirtyRef.current = true;
+      wakeSimulationRef.current();
     }
   }, [visibilityFilters, dimensions, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
 
@@ -733,6 +892,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
       calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
     }
+    topologyDirtyRef.current = true;
+    wakeSimulationRef.current();
   }, [dimensions, calculatePositions]);
   
   const destroyNode = useCallback((nodeId: number) => {
@@ -751,10 +912,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
       calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
     }
+    topologyDirtyRef.current = true;
+    wakeSimulationRef.current();
   }, [dimensions, calculatePositions]);
   
   const updateLinks = useCallback((links: GraphLink[]) => {
     linksRef.current = [...links];
+    topologyDirtyRef.current = true;
+    wakeSimulationRef.current();
   }, []);
 
   // Creation time animation
@@ -780,6 +945,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Remove all nodes from simulation
     nodesRef.current = [];
+    topologyDirtyRef.current = true;
+    wakeSimulationRef.current();
     
     const revealDelay = 80;
     sortedNodes.forEach((sortedNode, index) => {
@@ -870,6 +1037,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
     
+    // Mark topology dirty and wake simulation
+    topologyDirtyRef.current = true;
+    wakeSimulationRef.current();
+    
+    // Reset warm-up so forces ramp up gradually with new data
+    warmupFrameRef.current = 0;
+    
     // Trigger initial fit-to-view after stabilization delay
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
       const stabilizationTimer = setTimeout(() => {
@@ -882,7 +1056,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation intentionally excluded to prevent re-simulation on every render
-  }, [inputNodes, inputLinks, dimensions, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
+  }, [inputNodes, inputLinks, dimensions, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
 
   // Update glare states
   useEffect(() => {
@@ -968,13 +1142,204 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Start physics simulation
+  // ==================== Topology Cache ====================
+  // Link type priority: higher number wins when multiple links connect same pair
+  const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
+    'reference': 0,
+    'property-reference': 1,
+    'extends': 2,
+    'class': 3,
+    'parent': 4,
+  };
+  
+  // Numeric pair key — avoids string interpolation in hot loop
+  const pairKey = (a: number, b: number): number => {
+    const lo = a < b ? a : b;
+    const hi = a < b ? b : a;
+    return lo * 100000 + hi;
+  };
+  
+  const rebuildTopologyCache = useCallback(() => {
+    const nodes = nodesRef.current;
+    const links = linksRef.current;
+    
+    // Connected pairs with priority-based link type
+    const connectedPairs = new Map<number, GraphLink['type']>();
+    const adjacency = new Map<number, Set<number>>();
+    const childrenOf = new Map<number, number[]>();
+    const connectionCounts = new Map<number, number>();
+    
+    // Initialize adjacency for all nodes
+    for (const node of nodes) {
+      adjacency.set(node.id, new Set());
+    }
+    
+    for (const link of links) {
+      // Adjacency
+      adjacency.get(link.source)?.add(link.target);
+      adjacency.get(link.target)?.add(link.source);
+      
+      // Connected pairs with priority
+      const key = pairKey(link.source, link.target);
+      const existing = connectedPairs.get(key);
+      if (!existing || LINK_TYPE_PRIORITY[link.type] > LINK_TYPE_PRIORITY[existing]) {
+        connectedPairs.set(key, link.type);
+      }
+      
+      // Connection counts
+      connectionCounts.set(link.source, (connectionCounts.get(link.source) || 0) + 1);
+      connectionCounts.set(link.target, (connectionCounts.get(link.target) || 0) + 1);
+      
+      // Children map for mass computation
+      if (link.type === 'parent') {
+        const children = childrenOf.get(link.source) || [];
+        children.push(link.target);
+        childrenOf.set(link.source, children);
+      } else if (link.type === 'class') {
+        const children = childrenOf.get(link.target) || [];
+        children.push(link.source);
+        childrenOf.set(link.target, children);
+      } else if (link.type === 'extends') {
+        const children = childrenOf.get(link.target) || [];
+        children.push(link.source);
+        childrenOf.set(link.target, children);
+      }
+    }
+    
+    // Compute mass cache
+    const massCache = new Map<number, number>();
+    const computeMass = (nodeId: number): number => {
+      if (massCache.has(nodeId)) return massCache.get(nodeId)!;
+      let mass = 1;
+      const children = childrenOf.get(nodeId);
+      if (children) {
+        for (const childId of children) {
+          mass += computeMass(childId) * PARENT_MASS_PER_CHILD;
+        }
+      }
+      massCache.set(nodeId, mass);
+      return mass;
+    };
+    for (const node of nodes) {
+      computeMass(node.id);
+    }
+    
+    // Update node properties from cache
+    for (const node of nodes) {
+      node.connectionCount = connectionCounts.get(node.id) || 0;
+    }
+    
+    connectedPairsRef.current = connectedPairs;
+    adjacencyRef.current = adjacency;
+    childrenOfRef.current = childrenOf;
+    massCacheRef.current = massCache;
+    connectionCountsRef.current = connectionCounts;
+    topologyDirtyRef.current = false;
+  }, []);
+
+  // ==================== Barnes-Hut Quadtree ====================
+  interface QuadNode {
+    cx: number; cy: number; // center of mass
+    mass: number;           // total mass in this cell
+    x0: number; y0: number; // bounds
+    x1: number; y1: number;
+    children: (QuadNode | null)[]; // NW, NE, SW, SE
+    nodeIdx: number;        // -1 if internal, otherwise index into visibleNodes
+  }
+  
+  const buildQuadtree = (nodes: GraphNode[], masses: Map<number, number>): QuadNode | null => {
+    if (nodes.length === 0) return null;
+    
+    // Find bounds
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of nodes) {
+      if (n.x < x0) x0 = n.x;
+      if (n.y < y0) y0 = n.y;
+      if (n.x > x1) x1 = n.x;
+      if (n.y > y1) y1 = n.y;
+    }
+    // Add padding to avoid degenerate quads
+    const pad = Math.max(x1 - x0, y1 - y0, 100) * 0.01;
+    x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+    
+    const root: QuadNode = { cx: 0, cy: 0, mass: 0, x0, y0, x1, y1, children: [null, null, null, null], nodeIdx: -1 };
+    
+    const insert = (tree: QuadNode, idx: number, nx: number, ny: number, nm: number) => {
+      const size = tree.x1 - tree.x0;
+      if (size < 0.01) return; // Prevent infinite recursion on coincident nodes
+      
+      if (tree.mass === 0) {
+        // Empty cell — place node here
+        tree.cx = nx; tree.cy = ny; tree.mass = nm; tree.nodeIdx = idx;
+        return;
+      }
+      
+      if (tree.nodeIdx >= 0) {
+        // Leaf with existing node — subdivide
+        const existIdx = tree.nodeIdx;
+        const ecx = tree.cx, ecy = tree.cy, em = tree.mass;
+        tree.nodeIdx = -1;
+        // Re-insert existing node
+        insertIntoQuadrant(tree, existIdx, ecx, ecy, em);
+      }
+      
+      // Insert new node
+      insertIntoQuadrant(tree, idx, nx, ny, nm);
+      
+      // Update center of mass
+      const totalMass = tree.mass + nm;
+      tree.cx = (tree.cx * tree.mass + nx * nm) / totalMass;
+      tree.cy = (tree.cy * tree.mass + ny * nm) / totalMass;
+      tree.mass = totalMass;
+    };
+    
+    const insertIntoQuadrant = (tree: QuadNode, idx: number, nx: number, ny: number, nm: number) => {
+      const mx = (tree.x0 + tree.x1) / 2;
+      const my = (tree.y0 + tree.y1) / 2;
+      const q = (nx < mx ? 0 : 1) + (ny < my ? 0 : 2);
+      
+      if (!tree.children[q]) {
+        const qx0 = q & 1 ? mx : tree.x0;
+        const qy0 = q & 2 ? my : tree.y0;
+        const qx1 = q & 1 ? tree.x1 : mx;
+        const qy1 = q & 2 ? tree.y1 : my;
+        tree.children[q] = { cx: 0, cy: 0, mass: 0, x0: qx0, y0: qy0, x1: qx1, y1: qy1, children: [null, null, null, null], nodeIdx: -1 };
+      }
+      
+      insert(tree.children[q]!, idx, nx, ny, nm);
+    };
+    
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      insert(root, i, n.x, n.y, masses.get(n.id) || 1);
+    }
+    
+    return root;
+  };
+
+  // ==================== Simulation ====================
   const startSimulation = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
+    // Convergence tracking
+    let sleepFrames = 0;
+    const SLEEP_THRESHOLD = 0.1;  // Total kinetic energy below which sim sleeps
+    const SLEEP_DELAY_FRAMES = 30; // Frames below threshold before sleeping
+    
+    const wake = () => {
+      if (simulationSleepingRef.current) {
+        simulationSleepingRef.current = false;
+        sleepFrames = 0;
+        animationRef.current = requestAnimationFrame(simulate);
+      } else {
+        sleepFrames = 0;
+      }
+    };
+    wakeSimulationRef.current = wake;
     
     const simulate = () => {
       const nodes = nodesRef.current;
@@ -983,113 +1348,73 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const currentViewMode = viewModeRef.current;
       const isConstrainedMode = currentViewMode === 'circle' || currentViewMode === 'tree';
       
-      // All nodes in nodesRef are visible (filtering handled by visibility effect)
-      const visibleNodes = nodes.filter(n => n.visible);
-      const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-      
-      // Map from "nodeA-nodeB" to link type (for force calculation)
-      const connectedPairs = new Map<string, GraphLink['type']>();
-      for (const link of links) {
-        // Only consider links between visible nodes
-        if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-          const key1 = `${link.source}-${link.target}`;
-          const key2 = `${link.target}-${link.source}`;
-          // If already connected by a stronger link type, don't overwrite with reference
-          if (!connectedPairs.has(key1) || (link.type !== 'reference' && connectedPairs.get(key1) === 'reference')) {
-            connectedPairs.set(key1, link.type);
-            connectedPairs.set(key2, link.type);
-          }
-        }
+      // Rebuild topology cache if dirty
+      if (topologyDirtyRef.current) {
+        rebuildTopologyCache();
       }
       
-      const getConnectionType = (a: number, b: number): GraphLink['type'] | null => 
-        connectedPairs.get(`${a}-${b}`) ?? null;
+      const connectedPairs = connectedPairsRef.current;
+      const adjacency = adjacencyRef.current;
+      const massCache = massCacheRef.current;
       
-      // Warm-up: ramp force strength from 0 to 1 over WARMUP_DURATION_FRAMES
-      const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
-      // Ease-in curve for smoother start
-      const warmupMultiplier = warmupT * warmupT;
-      warmupFrameRef.current++;
+      const getConnectionType = (a: number, b: number): GraphLink['type'] | null =>
+        connectedPairs.get(pairKey(a, b)) ?? null;
       
-      // Compute node mass recursively: a parent inherits the mass of all its descendants
-      // Includes parent→child, class→instance, and extends (inheritance) relationships
-      const childrenOf = new Map<number, number[]>();
-      for (const link of links) {
-        if (link.type === 'parent' && visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-          // parent links: source=parent, target=child
-          const children = childrenOf.get(link.source) || [];
-          children.push(link.target);
-          childrenOf.set(link.source, children);
-        } else if (link.type === 'class' && visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-          // class links: source=instance, target=class
-          const children = childrenOf.get(link.target) || [];
-          children.push(link.source);
-          childrenOf.set(link.target, children);
-        } else if (link.type === 'extends' && visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-          // extends links: source=child class, target=parent class
-          const children = childrenOf.get(link.target) || [];
-          children.push(link.source);
-          childrenOf.set(link.target, children);
-        }
+      const getNodeMass = (nodeId: number): number =>
+        currentSettings.massAccumulation ? (massCache.get(nodeId) ?? 1) : 1;
+      
+      // Update mass on nodes for rendering
+      let maxConnections = 0, maxMass = 0;
+      for (const node of nodes) {
+        const mass = getNodeMass(node.id);
+        (node as GraphNode & { _mass?: number })._mass = mass;
+        if (node.connectionCount > maxConnections) maxConnections = node.connectionCount;
+        if (mass > maxMass) maxMass = mass;
       }
-      const massCache = new Map<number, number>();
-      const computeMass = (nodeId: number): number => {
-        if (massCache.has(nodeId)) return massCache.get(nodeId)!;
-        let mass = 1;
-        const children = childrenOf.get(nodeId);
-        if (children) {
-          for (const childId of children) {
-            mass += computeMass(childId) * PARENT_MASS_PER_CHILD;
-          }
-        }
-        massCache.set(nodeId, mass);
-        return mass;
-      };
-      const getNodeMass = (nodeId: number): number => 
-        currentSettings.massAccumulation ? computeMass(nodeId) : 1;
       
-      // Compute connection counts from visible links and store mass on nodes
-      const connectionCounts = new Map<number, number>();
-      for (const link of links) {
-        if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
-          connectionCounts.set(link.source, (connectionCounts.get(link.source) || 0) + 1);
-          connectionCounts.set(link.target, (connectionCounts.get(link.target) || 0) + 1);
-        }
-      }
-      for (const node of visibleNodes) {
-        node.connectionCount = connectionCounts.get(node.id) || 0;
-        (node as GraphNode & { _mass?: number })._mass = getNodeMass(node.id);
+      // Build nodeMap for drag pull and shared frame data
+      const nodeMap = new Map<number, GraphNode>();
+      for (const node of nodes) {
+        nodeMap.set(node.id, node);
       }
       
       // Determine if physics forces should be applied
       const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
+      
+      // Warm-up: ramp force strength from 0 to 1 over WARMUP_DURATION_FRAMES
+      const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
+      const warmupMultiplier = warmupT * warmupT; // ease-in curve
+      warmupFrameRef.current++;
       
       // Constrained modes: apply return-to-target force
       // In equidistant mode this is the primary positioning force
       // In physics mode only a very gentle hint — N-body forces handle clustering
       if (isConstrainedMode) {
         const returnStrength = currentSettings.constraintMode === 'equidistant' ? RETURN_FORCE : RETURN_FORCE * 0.05;
-        for (const node of visibleNodes) {
-          if (dragNodeRef.current?.id === node.id) continue;
-          if (node.pinned) continue;
+        for (const node of nodes) {
+          if (dragNodeRef.current?.id === node.id || node.pinned) continue;
           
           const dx = node.targetX - node.x;
           const dy = node.targetY - node.y;
-          node.vx += dx * returnStrength;
-          node.vy += dy * returnStrength;
+          
+          // Unconnected nodes get stronger return force in physics mode
+          // (they have no attraction links to pull them into place)
+          const connCount = node.connectionCount;
+          const multiplier = (currentSettings.constraintMode === 'physics' && connCount === 0) ? 10 : 1;
+          
+          node.vx += dx * returnStrength * multiplier;
+          node.vy += dy * returnStrength * multiplier;
         }
       }
       
       // Centering gravity — only on initial graph load, never again
-      // Not needed in constrained modes (radial constraint or return force handles it)
       if (!isConstrainedMode && centerGravityActiveRef.current) {
         if (warmupT >= 1) {
-          // Warmup finished — disable center gravity permanently
           centerGravityActiveRef.current = false;
         }
         const cx = dimensions.width / 2;
         const cy = dimensions.height / 2;
-        for (const node of visibleNodes) {
+        for (const node of nodes) {
           if (dragNodeRef.current?.id === node.id || node.pinned) continue;
           const dx = cx - node.x;
           const dy = cy - node.y;
@@ -1098,72 +1423,114 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Node-to-node forces: applied when physics is active (normal, or constrained with physics mode)
+      // Node-to-node forces: attraction (linked) and repulsion (unlinked)
       if (usePhysics) {
-        for (let i = 0; i < visibleNodes.length; i++) {
-          for (let j = i + 1; j < visibleNodes.length; j++) {
-            const nodeA = visibleNodes[i];
-            const nodeB = visibleNodes[j];
+        // === Barnes-Hut repulsion (O(n log n)) ===
+        const THETA = 0.7; // Barnes-Hut opening angle threshold
+        const tree = buildQuadtree(nodes, massCacheRef.current);
+        
+        if (tree) {
+          for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            if (dragNodeRef.current?.id === node.id) continue;
+            if (node.pinned) continue;
             
-            if (dragNodeRef.current?.id === nodeA.id || 
-                dragNodeRef.current?.id === nodeB.id) continue;
-            if (nodeA.pinned && nodeB.pinned) continue;
+            const nodeMass = getNodeMass(node.id);
             
-            const dx = nodeB.x - nodeA.x;
-            const dy = nodeB.y - nodeA.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            
-            const connectionType = getConnectionType(nodeA.id, nodeB.id);
-            if (connectionType) {
-              let attractionStrength = ATTRACTION_STRENGTH;
-              if (currentSettings.linkCountAttraction) {
-                const totalConnections = nodeA.connectionCount + nodeB.connectionCount;
-                const linkFactor = Math.log2(2 + totalConnections);
-                attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
-              }
+            // Walk quadtree for repulsion
+            const stack: QuadNode[] = [tree];
+            while (stack.length > 0) {
+              const cell = stack.pop()!;
+              if (cell.mass === 0) continue;
               
-              // Reference links have reduced force (property-reference = 80%, content reference = 64%)
-              if (connectionType === 'property-reference') {
-                attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
-              } else if (connectionType === 'reference') {
-                attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
-              }
+              const dx = cell.cx - node.x;
+              const dy = cell.cy - node.y;
+              const distSq = dx * dx + dy * dy;
+              const dist = Math.sqrt(distSq) || 1;
               
-              const force = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
-              const fx = (dx / dist) * force;
-              const fy = (dy / dist) * force;
+              // Skip self
+              if (cell.nodeIdx === i) continue;
               
-              const massA = getNodeMass(nodeA.id);
-              const massB = getNodeMass(nodeB.id);
+              const cellSize = cell.x1 - cell.x0;
               
-              if (!nodeA.pinned) {
-                nodeA.vx += fx / massA;
-                nodeA.vy += fy / massA;
-              }
-              if (!nodeB.pinned) {
-                nodeB.vx -= fx / massB;
-                nodeB.vy -= fy / massB;
-              }
-            } else {
-              if (dist < UNLINKED_REPULSION_DISTANCE) {
-                const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
-                const force = (REPULSION_STRENGTH / (clampedDist * clampedDist)) * warmupMultiplier;
-                const fx = (dx / dist) * force;
-                const fy = (dy / dist) * force;
-                
-                const massA = getNodeMass(nodeA.id);
-                const massB = getNodeMass(nodeB.id);
-                
-                if (!nodeA.pinned) {
-                  nodeA.vx -= fx / massA;
-                  nodeA.vy -= fy / massA;
+              // If leaf or cell is far enough away, treat as single body
+              if (cell.nodeIdx >= 0 || (cellSize / dist) < THETA) {
+                if (dist < UNLINKED_REPULSION_DISTANCE) {
+                  // Only repel nodes that are NOT connected
+                  // For leaf nodes, check connection; for clusters, apply repulsion
+                  // (this is an approximation — connected pairs get attraction below)
+                  const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
+                  const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * warmupMultiplier;
+                  const fx = (dx / dist) * force;
+                  const fy = (dy / dist) * force;
+                  
+                  node.vx -= fx / nodeMass;
+                  node.vy -= fy / nodeMass;
                 }
-                if (!nodeB.pinned) {
-                  nodeB.vx += fx / massB;
-                  nodeB.vy += fy / massB;
+              } else {
+                // Open the cell — push children
+                for (let c = 0; c < 4; c++) {
+                  if (cell.children[c]) stack.push(cell.children[c]!);
                 }
               }
             }
+          }
+        }
+        
+        // === Link attraction (iterate links directly, not O(n²)) ===
+        // Also counteract the quadtree repulsion between linked pairs
+        for (const link of links) {
+          const nodeA = nodeMap.get(link.source);
+          const nodeB = nodeMap.get(link.target);
+          if (!nodeA || !nodeB) continue;
+          if (dragNodeRef.current?.id === nodeA.id || dragNodeRef.current?.id === nodeB.id) continue;
+          if (nodeA.pinned && nodeB.pinned) continue;
+          
+          // Only process highest-priority link for each pair
+          const key = pairKey(nodeA.id, nodeB.id);
+          if (connectedPairs.get(key) !== link.type) continue;
+          
+          const dx = nodeB.x - nodeA.x;
+          const dy = nodeB.y - nodeA.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          let attractionStrength = ATTRACTION_STRENGTH;
+          if (currentSettings.linkCountAttraction) {
+            const totalConnections = nodeA.connectionCount + nodeB.connectionCount;
+            const linkFactor = Math.log2(2 + totalConnections);
+            attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
+          }
+          
+          // Reference links have reduced force
+          if (link.type === 'property-reference') {
+            attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
+          } else if (link.type === 'reference') {
+            attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
+          }
+          
+          // Counteract quadtree repulsion for linked pairs (it shouldn't have pushed them apart)
+          // Add back the repulsion that was applied, then apply attraction
+          let netForce = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
+          if (dist < UNLINKED_REPULSION_DISTANCE) {
+            const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
+            const repulsionCompensation = (REPULSION_STRENGTH / (clampedDist * clampedDist)) * warmupMultiplier;
+            // The quadtree applied this as repulsion; counteract it by adding attraction
+            netForce += repulsionCompensation;
+          }
+          
+          const fx = (dx / dist) * netForce;
+          const fy = (dy / dist) * netForce;
+          
+          const massA = getNodeMass(nodeA.id);
+          const massB = getNodeMass(nodeB.id);
+          
+          if (!nodeA.pinned) {
+            nodeA.vx += fx / massA;
+            nodeA.vy += fy / massA;
+          }
+          if (!nodeB.pinned) {
+            nodeB.vx -= fx / massB;
+            nodeB.vy -= fy / massB;
           }
         }
       }
@@ -1171,50 +1538,47 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Dragged node pulls connected visible nodes
       if (dragNodeRef.current && dragNodeRef.current.visible) {
         const dragNode = dragNodeRef.current;
-        const connected = getConnectedNodes(dragNode.id);
+        const connected = adjacency.get(dragNode.id);
         
-        // Build lookup map for O(1) access
-        const nodeMap = new Map(nodes.map(n => [n.id, n]));
-        
-        for (const connectedId of connected) {
-          const connectedNode = nodeMap.get(connectedId);
-          if (!connectedNode || connectedNode.pinned || !connectedNode.visible) continue;
-          
-          const dx = dragNode.x - connectedNode.x;
-          const dy = dragNode.y - connectedNode.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          
-          if (dist > LINKED_ATTRACTION_DISTANCE) {
-            const mass = getNodeMass(connectedNode.id);
-            // Scale drag pull by link type (reference links pull much less)
-            const linkType = getConnectionType(dragNode.id, connectedId);
-            let dragMultiplier = 1;
-            if (linkType === 'property-reference') {
-              dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
-            } else if (linkType === 'reference') {
-              dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
+        if (connected) {
+          for (const connectedId of connected) {
+            const connectedNode = nodeMap.get(connectedId);
+            if (!connectedNode || connectedNode.pinned) continue;
+            
+            const dx = dragNode.x - connectedNode.x;
+            const dy = dragNode.y - connectedNode.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            
+            if (dist > LINKED_ATTRACTION_DISTANCE) {
+              const mass = getNodeMass(connectedNode.id);
+              const linkType = getConnectionType(dragNode.id, connectedId);
+              let dragMultiplier = 1;
+              if (linkType === 'property-reference') {
+                dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
+              } else if (linkType === 'reference') {
+                dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
+              }
+              connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
+              connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
             }
-            connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
-            connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
           }
         }
         
         // Update drag lift animation progress
         if (dragStartTimeRef.current !== null) {
           const elapsed = Date.now() - dragStartTimeRef.current;
-          dragLiftProgressRef.current = Math.min(1, elapsed / 150); // 150ms to fully lift
+          dragLiftProgressRef.current = Math.min(1, elapsed / 150);
         }
       } else {
-        // Animate lift down when not dragging
         if (dragLiftProgressRef.current > 0) {
           dragLiftProgressRef.current = Math.max(0, dragLiftProgressRef.current - 0.1);
         }
       }
       
-      // Update positions (for all nodes including hidden ones, but they won't be rendered)
-      for (const node of visibleNodes) {
+      // Update positions and track kinetic energy for convergence sleep
+      let kineticEnergy = 0;
+      for (const node of nodes) {
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
-          // Clamp velocity to prevent explosive movement
           const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
           if (speed > MAX_VELOCITY) {
             const scale = MAX_VELOCITY / speed;
@@ -1226,7 +1590,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           node.vx *= VELOCITY_DAMPING;
           node.vy *= VELOCITY_DAMPING;
           
-          // Constrained modes: keep nodes on their assigned circle
+          kineticEnergy += node.vx * node.vx + node.vy * node.vy;
+          
+          // Radial constraint: keep nodes on their assigned circle in constrained modes
           if (isConstrainedMode) {
             const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
             if (treeRadius !== undefined) {
@@ -1239,12 +1605,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               const radialY = dy / dist;
               const radiusError = Math.abs(dist - treeRadius);
               
-              // Strip radial velocity first — prevents radial drift from physics forces
+              // Strip radial velocity first — prevents radial drift
               const radialV = node.vx * radialX + node.vy * radialY;
               node.vx -= radialV * radialX;
               node.vy -= radialV * radialY;
               
-              // Correct position: smooth lerp when far (transition), hard snap when close
+              // Correct position: smooth lerp when far, hard snap when close
               const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
               const newDist = dist + (treeRadius - dist) * blendRate;
               node.x = cx + radialX * newDist;
@@ -1254,12 +1620,41 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
+      // Share computed data with render via ref (avoids re-filtering in render)
+      const currentFilters = visibilityFiltersRef.current;
+      const visibleLinks: GraphLink[] = [];
+      for (const l of links) {
+        if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
+          visibleLinks.push(l);
+        }
+      }
+      frameDataRef.current = {
+        visibleNodes: nodes,
+        visibleLinks,
+        nodeMap,
+        maxConnections,
+        maxMass,
+      };
+      
       renderRef.current?.(ctx);
+      
+      // Convergence-based sleep
+      if (kineticEnergy < SLEEP_THRESHOLD && warmupT >= 1 && !dragNodeRef.current) {
+        sleepFrames++;
+        if (sleepFrames >= SLEEP_DELAY_FRAMES) {
+          simulationSleepingRef.current = true;
+          return; // Don't schedule next frame
+        }
+      } else {
+        sleepFrames = 0;
+      }
+      
       animationRef.current = requestAnimationFrame(simulate);
     };
     
     simulate();
-  }, [getConnectedNodes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dimensions, rebuildTopologyCache, shouldLinkBeActive]);
 
   // Start simulation once on mount
   useEffect(() => {
@@ -1280,8 +1675,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const currentSettings = settingsRef.current;
     const currentClassColors = classColorsRef.current;
     const currentViewMode = viewModeRef.current;
-    const nodes = nodesRef.current;
-    const links = linksRef.current;
     
     ctx.clearRect(0, 0, w, h);
     
@@ -1289,29 +1682,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     ctx.translate(t.x, t.y);
     ctx.scale(t.scale, t.scale);
     
-    const style = getComputedStyle(document.documentElement);
-    const textColor = style.getPropertyValue('--text-primary').trim() || '#333';
-    const accentColor = style.getPropertyValue('--color-secondary').trim() || '#6366f1';
-    const dimColor = style.getPropertyValue('--color-surface-variant').trim() || '#404040';
+    // Use cached CSS variables (updated on mount and theme change)
+    const { textColor, accentColor, dimColor } = cssVarsRef.current;
     
-    // All nodes in nodesRef are visible (filtering handled by visibility effect)
-    const visibleNodes = nodes.filter(n => n.visible);
-    const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-    const currentFilters = visibilityFiltersRef.current;
-    const visibleLinks = links.filter(l => {
-      // Link must connect two visible nodes
-      if (!visibleNodeIds.has(l.source) || !visibleNodeIds.has(l.target)) return false;
-      // Apply link visibility filters
-      if (!shouldLinkBeActive(l, currentFilters)) return false;
-      return true;
-    });
-    
-    // Calculate max connection counts and mass for node sizing
-    let maxConnections = 0, maxMass = 0;
-    for (const node of visibleNodes) {
-      maxConnections = Math.max(maxConnections, node.connectionCount);
-      maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
-    }
+    // Use shared frame data from simulate (avoids re-filtering)
+    const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass } = frameDataRef.current;
     
     // Build link direction map - check if reverse link exists for bidirectional arrows
     const linkDirections = new Map<string, { forward: boolean; reverse: boolean }>();
@@ -1330,7 +1705,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Draw links (deduped - draw each pair only once)
     const drawnLinks = new Set<string>();
-    const nodeMap = new Map(visibleNodes.map(n => [n.id, n]));
     
     for (const link of visibleLinks) {
       const source = nodeMap.get(link.source);
@@ -1523,7 +1897,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       
-      // Draw circle for each radius level that has nodes
       for (const radius of radiiWithNodes) {
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
@@ -1543,8 +1916,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     });
     
     for (const node of sortedNodes) {
-      if (!node.visible) continue;
-      
       const isHovered = hoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
       const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
@@ -1747,12 +2118,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       dragNodeRef.current.vx = 0;
       dragNodeRef.current.vy = 0;
+      wakeSimulationRef.current();
     } else {
       const node = getNodeAtPosition(screenX, screenY);
       setHoveredNode(node);
       onHoveredNodeChange?.(node);
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, dimensions]);
+  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);

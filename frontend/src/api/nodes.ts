@@ -467,10 +467,12 @@ export async function getCommentCount(nodeId: number): Promise<number> {
  */
 export interface TextLink {
   id: number;
+  uuid: string;
   source_node_id: number;
   target_node_id: number;
   is_tag: boolean;
   position: number;
+  name?: string | null;
 }
 
 /**
@@ -496,6 +498,17 @@ export async function addTagLink(nodeId: number, targetNodeId: number): Promise<
  */
 export async function removeTagLink(nodeId: number, targetId: number): Promise<void> {
   await api.delete(`${BASE}/${nodeId}/tag-links/${targetId}`);
+}
+
+/**
+ * Update the custom display name for a link
+ */
+export async function updateLinkName(linkUuid: string, name: string | null): Promise<TextLink> {
+  const response = await api.patch<TextLink>(`${BASE}/link/name`, {
+    link_uuid: linkUuid,
+    name: name,
+  });
+  return response.data;
 }
 
 // ============== Page View Tracking & Recents ==============
