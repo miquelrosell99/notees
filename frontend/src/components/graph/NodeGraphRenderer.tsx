@@ -1005,23 +1005,39 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const getConnectionType = (a: number, b: number): GraphLink['type'] | null => 
         connectedPairs.get(`${a}-${b}`) ?? null;
       
-      // Compute node mass: parents with more children are heavier (harder to move)
-      const childCount = new Map<number, number>();
+      // Compute node mass recursively: a parent inherits the mass of all its descendants
+      const childrenOf = new Map<number, number[]>();
       for (const link of links) {
         if (link.type === 'parent') {
           // parent links: source is parent, target is child
-          if (visibleNodeIds.has(link.source)) {
-            childCount.set(link.source, (childCount.get(link.source) || 0) + 1);
+          if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+            const children = childrenOf.get(link.source) || [];
+            children.push(link.target);
+            childrenOf.set(link.source, children);
           }
         } else if (link.type === 'extends') {
           // extends links: source is child, target is parent
-          if (visibleNodeIds.has(link.target)) {
-            childCount.set(link.target, (childCount.get(link.target) || 0) + 1);
+          if (visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)) {
+            const children = childrenOf.get(link.target) || [];
+            children.push(link.source);
+            childrenOf.set(link.target, children);
           }
         }
       }
-      const getNodeMass = (nodeId: number): number => 
-        1 + (childCount.get(nodeId) || 0) * PARENT_MASS_PER_CHILD;
+      const massCache = new Map<number, number>();
+      const computeMass = (nodeId: number): number => {
+        if (massCache.has(nodeId)) return massCache.get(nodeId)!;
+        let mass = 1;
+        const children = childrenOf.get(nodeId);
+        if (children) {
+          for (const childId of children) {
+            mass += computeMass(childId) * PARENT_MASS_PER_CHILD;
+          }
+        }
+        massCache.set(nodeId, mass);
+        return mass;
+      };
+      const getNodeMass = (nodeId: number): number => computeMass(nodeId);
       
       // Constrained mode return force
       if (isConstrainedMode) {
