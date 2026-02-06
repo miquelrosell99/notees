@@ -1238,12 +1238,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               const radialY = dy / dist;
               const radiusError = Math.abs(dist - treeRadius);
               
-              // Smoothly lerp radial distance toward target radius each frame
-              // Close enough (<1px): snap for precision
-              // Otherwise: move 12% closer per frame for smooth transition
-              const newDist = radiusError < 1
-                ? treeRadius
-                : dist + (treeRadius - dist) * 0.12;
+              // Blend rate depends on distance: hard snap when close, smooth lerp when far
+              // This gives firm circle adherence in steady state + smooth transitions
+              const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.4 : 1.0;
+              const newDist = dist + (treeRadius - dist) * blendRate;
               
               node.x = cx + radialX * newDist;
               node.y = cy + radialY * newDist;
