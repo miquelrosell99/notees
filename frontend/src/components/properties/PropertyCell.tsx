@@ -21,6 +21,7 @@ import { ImageNode } from '../ImageNode';
 import { NodePill } from '../NodePill';
 import { NodePillRow } from '../NodePillRow';
 import { Pill } from '../core/Pill';
+import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useNodesStore } from '@/stores';
 import './PropertyCell.css';
@@ -189,105 +190,28 @@ export function PropertyCell({
     );
   }
 
-  // Node-type property: check if it targets assets (images)
+  // Node-type property: use NodePropertyCell for all cases (empty/single/multi, asset/regular)
   if (property.type === 'node') {
-    if (value === null || value === undefined) {
-      return (
-        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-          {editable ? '—' : ''}
-        </div>
-      );
-    }
-    
-    // Check if multi-value (array)
-    const isMultiValue = Array.isArray(value);
-    const nodeIds: number[] = isMultiValue
-      ? value.filter((v): v is number => typeof v === 'number')
-      : typeof value === 'number'
-        ? [value]
-        : [];
-    
-    if (nodeIds.length === 0) {
-      return (
-        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-          {editable ? '—' : ''}
-        </div>
-      );
-    }
-    
-    // Asset/image property: render with ImageNode
-    if (isAssetProperty) {
-      return (
-        <div className="property-cell property-cell--image">
-          {nodeIds.map((nodeId) => (
-            <ImageNode
-              key={nodeId}
-              assetNodeId={nodeId}
-              showCard={false}
-              clickable={true}
-              showActions={false}
-            />
-          ))}
-        </div>
-      );
-    }
-    
-    // Multi-value: use NodePillRow
-    if (isMultiValue && nodeIds.length > 0) {
-      return (
-        <MultiNodePropertyCell
-          nodeIds={nodeIds}
-          property={property}
-          parentNode={node}
-          value={value}
-          editable={editable}
-        />
-      );
-    }
-    
-    // Single value: use Block component
-    return <InlineBlock nodeId={nodeIds[0]} />;
+    return (
+      <NodePropertyCell
+        property={property}
+        parentNode={node}
+        value={value}
+        editable={editable}
+        isAssetProperty={isAssetProperty}
+      />
+    );
   }
 
-  // Selection-type property: render pills with option labels
+  // Selection-type property: use SelectionPropertyCell
   if (property.type === 'selection') {
-    if (value === null || value === undefined) {
-      return (
-        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-          {editable ? '—' : ''}
-        </div>
-      );
-    }
-    
-    const options = property.options ?? [];
-    // Support both single value and multi-value (array)
-    const selectedValues = Array.isArray(value) ? value : [value];
-    const resolvedOptions = selectedValues
-      .map(v => {
-        // Value might be option id or an object with id
-        const optionId = typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v;
-        return options.find(opt => opt.id === optionId);
-      })
-      .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined);
-    
-    if (resolvedOptions.length === 0) {
-      return (
-        <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-          {String(value)}
-        </div>
-      );
-    }
-    
     return (
-      <div className="property-cell property-cell--selection">
-        {resolvedOptions.map((option) => (
-          <Pill
-            key={option.id}
-            label={option.icon ? `${option.icon} ${option.name}` : option.name}
-            size="sm"
-          />
-        ))}
-      </div>
+      <SelectionPropertyCell
+        property={property}
+        parentNode={node}
+        value={value}
+        editable={editable}
+      />
     );
   }
 
@@ -447,6 +371,259 @@ function MultiNodePropertyCell({
         } : undefined}
         readOnly={!editable}
       />
+    </div>
+  );
+}
+
+/**
+ * NodePropertyCell - Handles all node-type properties (empty/single/multi, asset/regular)
+ * Uses NodePillRow for regular nodes, ImageNode for assets
+ */
+function NodePropertyCell({
+  property,
+  parentNode,
+  value,
+  editable,
+  isAssetProperty,
+}: {
+  property: Property;
+  parentNode: Node;
+  value: unknown;
+  editable: boolean;
+  isAssetProperty: boolean;
+}) {
+  const setPropertyMutation = useSetNodeProperty();
+  const { openNode } = useNodesStore();
+
+  // Parse node IDs from value
+  const isMultiValue = property.is_multi || Array.isArray(value);
+  const nodeIds: number[] = isMultiValue && Array.isArray(value)
+    ? value.filter((v): v is number => typeof v === 'number')
+    : typeof value === 'number'
+      ? [value]
+      : [];
+
+  // Fetch all nodes in parallel
+  const nodeQueries = useQueries({
+    queries: nodeIds.map((nodeId) => ({
+      queryKey: nodeKeys.detail(nodeId, { include_children: false }),
+      queryFn: () => nodesApi.getNode(nodeId, { include_children: false }),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  // Extract resolved nodes
+  const resolvedNodes = useMemo(() => {
+    return nodeQueries
+      .map(query => query.data)
+      .filter((n): n is Node => n !== undefined);
+  }, [nodeQueries]);
+
+  const isLoading = nodeQueries.some(q => q.isLoading);
+
+  // Asset properties: render as images
+  if (isAssetProperty && nodeIds.length > 0) {
+    if (isLoading) {
+      return (
+        <div className="property-cell property-cell--loading">
+          Loading...
+        </div>
+      );
+    }
+
+    return (
+      <div className="property-cell property-cell--image">
+        {nodeIds.map((nodeId) => (
+          <ImageNode
+            key={nodeId}
+            assetNodeId={nodeId}
+            showCard={false}
+            clickable={true}
+            showActions={false}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Regular node properties: use NodePillRow
+  if (isLoading && nodeIds.length > 0) {
+    return (
+      <div className="property-cell property-cell--loading">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="property-cell property-cell--node-multi">
+      <NodePillRow
+        nodes={resolvedNodes}
+        searchMode="pages"
+        classFilters={property.class_filters}
+        emptyText="Add"
+        searchPlaceholder="Search..."
+        onNodeClick={(selectedNode) => {
+          openNode(selectedNode.id, 'page');
+        }}
+        onAdd={editable ? (selectedNode) => {
+          const currentValue = isMultiValue && Array.isArray(value) ? value : (value ? [value] : []);
+          const newValue = property.is_multi 
+            ? [...currentValue, selectedNode.id]
+            : selectedNode.id;
+          setPropertyMutation.mutate({
+            nodeId: parentNode.id,
+            propertyId: property.id,
+            value: newValue,
+          });
+        } : undefined}
+        onRemove={editable ? (selectedNode) => {
+          if (property.is_multi && Array.isArray(value)) {
+            setPropertyMutation.mutate({
+              nodeId: parentNode.id,
+              propertyId: property.id,
+              value: value.filter(id => id !== selectedNode.id),
+            });
+          } else {
+            // Single value: remove means set to null
+            setPropertyMutation.mutate({
+              nodeId: parentNode.id,
+              propertyId: property.id,
+              value: null,
+            });
+          }
+        } : undefined}
+        readOnly={!editable}
+      />
+    </div>
+  );
+}
+
+/**
+ * SelectionPropertyCell - Handles selection-type properties with picker
+ */
+function SelectionPropertyCell({
+  property,
+  parentNode,
+  value,
+  editable,
+}: {
+  property: Property;
+  parentNode: Node;
+  value: unknown;
+  editable: boolean;
+}) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const setPropertyMutation = useSetNodeProperty();
+  const options = property.options ?? [];
+
+  // Parse selected values
+  const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
+  const resolvedOptions = selectedValues
+    .map(v => {
+      const optionId = typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v;
+      return options.find(opt => opt.id === optionId);
+    })
+    .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined);
+
+  const handleAddOption = (option: typeof options[0]) => {
+    if (property.is_multi) {
+      const currentValue = Array.isArray(value) ? value : [];
+      setPropertyMutation.mutate({
+        nodeId: parentNode.id,
+        propertyId: property.id,
+        value: [...currentValue, option.id],
+      });
+    } else {
+      setPropertyMutation.mutate({
+        nodeId: parentNode.id,
+        propertyId: property.id,
+        value: option.id,
+      });
+    }
+    setIsPickerOpen(false);
+  };
+
+  const handleRemoveOption = (option: typeof options[0]) => {
+    if (property.is_multi && Array.isArray(value)) {
+      setPropertyMutation.mutate({
+        nodeId: parentNode.id,
+        propertyId: property.id,
+        value: value.filter(id => id !== option.id),
+      });
+    } else {
+      setPropertyMutation.mutate({
+        nodeId: parentNode.id,
+        propertyId: property.id,
+        value: null,
+      });
+    }
+  };
+
+  // Empty state
+  if (resolvedOptions.length === 0) {
+    return (
+      <div 
+        className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
+        onClick={() => editable && setIsPickerOpen(true)}
+        title={editable ? 'Click to select' : undefined}
+      >
+        {editable ? '—' : ''}
+        {isPickerOpen && (
+          <div className="property-cell__picker">
+            {options.map(option => (
+              <div
+                key={option.id}
+                className="property-cell__picker-option"
+                onClick={() => handleAddOption(option)}
+              >
+                {option.icon && <span>{option.icon}</span>}
+                <span>{option.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Has values
+  return (
+    <div className="property-cell property-cell--selection">
+      {resolvedOptions.map((option) => (
+        <Pill
+          key={option.id}
+          label={option.icon ? `${option.icon} ${option.name}` : option.name}
+          size="sm"
+          onRemove={editable ? () => handleRemoveOption(option) : undefined}
+        />
+      ))}
+      {editable && property.is_multi && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsPickerOpen(true)}
+          className="property-cell__add-button"
+        >
+          +
+        </Button>
+      )}
+      {isPickerOpen && (
+        <div className="property-cell__picker">
+          {options
+            .filter(opt => !resolvedOptions.some(r => r.id === opt.id))
+            .map(option => (
+              <div
+                key={option.id}
+                className="property-cell__picker-option"
+                onClick={() => handleAddOption(option)}
+              >
+                {option.icon && <span>{option.icon}</span>}
+                <span>{option.name}</span>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
