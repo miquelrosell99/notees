@@ -83,3 +83,56 @@
   width: 42px;
   height: 42px;
 }
+
+/* Wrapper with label layout */
+.selection-button__wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.selection-button__wrapper--label-left {
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.selection-button__wrapper--label-right {
+  flex-direction: row;
+}
+
+.selection-button__wrapper--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Label */
+.selection-button__label-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.selection-button__wrapper--label-left .selection-button__label-wrapper {
+  flex: 1;
+}
+
+.selection-button__label {
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
+  user-select: none;
+}
+
+.selection-button__description {
+  font-size: 0.75rem;
+  color: var(--color-on-surface-variant);
+}
+
+/* Size-specific label adjustments */
+.selection-button__wrapper--sm .selection-button__label {
+  font-size: 0.75rem;
+}
+
+.selection-button__wrapper--lg .selection-button__label {
+  font-size: 1rem;
+}
