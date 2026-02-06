@@ -22,11 +22,17 @@
   font-style: italic;
 }
 
-.property-cell--node {
+.property-cell--node-multi {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px 8px;
+}
+
+.property-cell--node-loading {
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .property-cell--selection {
@@ -41,6 +47,44 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Block-style single node cell */
+.property-cell-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  min-height: 32px;
+  width: 100%;
+  position: relative;
+}
+
+.property-cell-node__bullet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.property-cell-node__name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.property-cell-node__actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.property-cell-node:hover .property-cell-node__actions {
+  display: flex;
 }
 
 .property-cell__image {
