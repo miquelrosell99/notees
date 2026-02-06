@@ -152,6 +152,13 @@ class NodeLinkResponse(BaseModel):
     target_node_id: int
     is_tag: bool
     position: int
+    name: Optional[str] = None  # Custom display text for the link
+
+
+class UpdateLinkNameRequest(BaseModel):
+    """Request to update a link's custom display name."""
+    link_uuid: str
+    name: Optional[str] = None  # None or empty string to clear custom name
 
 
 class InlineClassResponse(BaseModel):

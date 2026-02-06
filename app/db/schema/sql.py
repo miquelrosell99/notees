@@ -353,6 +353,7 @@ CREATE TABLE IF NOT EXISTS node_link (
     property_id INTEGER REFERENCES property(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
     is_tag BOOLEAN DEFAULT FALSE,
+    name TEXT,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
 );
