@@ -411,38 +411,62 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Find root nodes - special handling for classes
-      const classRoots = baseNodes.filter(n => n.isTypeNode && n.parentId === null);
-      const regularRoots = baseNodes.filter(n => !n.isTypeNode && n.parentId === null);
-      
-      // If there are class nodes visible, regular pages start one level down
-      const hasVisibleClasses = classRoots.length > 0;
-      
       // Calculate depth for each node using BFS
       const nodeDepth = new Map<number, number>();
       const nodeAngleRange = new Map<number, { start: number; end: number }>();
       
-      // Start with class roots at level 0
+      // Find root nodes - special handling for classes
+      const classRoots = baseNodes.filter(n => n.isTypeNode && n.parentId === null);
+      const regularRoots = baseNodes.filter(n => !n.isTypeNode && n.parentId === null);
+      const hasVisibleClasses = classRoots.length > 0;
+      
+      // BFS: assign depths to class hierarchy first
       for (const node of classRoots) {
         nodeDepth.set(node.id, 0);
       }
       
-      // Regular roots are at level 0 if no visible classes, level 1 if visible classes exist
-      const regularRootLevel = hasVisibleClasses ? 1 : 0;
+      const classQueue = [...classRoots];
+      let maxClassDepth = 0;
+      while (classQueue.length > 0) {
+        const parent = classQueue.shift()!;
+        const parentDepth = nodeDepth.get(parent.id)!;
+        const children = childrenByParent.get(parent.id) || [];
+        for (const child of children) {
+          if (child.isTypeNode) {
+            const childDepth = parentDepth + 1;
+            nodeDepth.set(child.id, childDepth);
+            maxClassDepth = Math.max(maxClassDepth, childDepth);
+            classQueue.push(child);
+          }
+        }
+      }
+      
+      // Regular roots go one level below the deepest class node
+      const regularRootLevel = hasVisibleClasses ? maxClassDepth + 1 : 0;
       for (const node of regularRoots) {
         nodeDepth.set(node.id, regularRootLevel);
       }
       
-      // BFS to assign depths - process class roots first, then regular roots
-      const queue = [...classRoots, ...regularRoots];
+      // BFS to assign depths to all remaining nodes (regular hierarchy)
+      const queue = [...regularRoots];
+      // Also add class roots to process their non-class children
+      for (const node of classRoots) queue.push(node);
+      // And class children that were already depth-assigned
+      for (const node of baseNodes) {
+        if (node.isTypeNode && nodeDepth.has(node.id) && !classRoots.includes(node)) {
+          queue.push(node);
+        }
+      }
+      
       while (queue.length > 0) {
         const parent = queue.shift()!;
         const parentDepth = nodeDepth.get(parent.id)!;
         const children = childrenByParent.get(parent.id) || [];
-        
         for (const child of children) {
-          nodeDepth.set(child.id, parentDepth + 1);
-          queue.push(child);
+          if (!nodeDepth.has(child.id)) {
+            nodeDepth.set(child.id, parentDepth + 1);
+            queue.push(child);
+          }
         }
       }
       
@@ -463,16 +487,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Calculate radii for each level with uniform spacing
-      const maxRadius = Math.min(centerX, centerY) * 0.85;
-      const minRadius = Math.min(centerX, centerY) * 0.15;
+      // Simple uniform radius calculation
+      // Every level is exactly levelGap apart from the previous
+      const maxRadius = Math.min(centerX, centerY) * 0.9;
       
       const radiusByDepth = new Map<number, number>();
-      
-      // Use uniform level gaps instead of adaptive spacing
       for (let depth = 0; depth <= maxDepth; depth++) {
-        const radius = Math.min(minRadius + (depth * levelGap), maxRadius);
-        radiusByDepth.set(depth, radius);
+        radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
       }
       
       // Position level 0 nodes evenly around the circle
@@ -1354,6 +1375,33 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     ctx.setLineDash([]);
+    
+    // Draw level circle guides in tree mode
+    if (viewMode === 'tree') {
+      const centerX = dimensions.width / 2;
+      const centerY = dimensions.height / 2;
+      const levelGap = 100;
+      const maxRadius = Math.min(centerX, centerY) * 0.9;
+      
+      // Find max depth from visible node positions (approximate from distance to center)
+      let maxDepth = 0;
+      for (const node of visibleNodes) {
+        const dist = Math.sqrt((node.targetX - centerX) ** 2 + (node.targetY - centerY) ** 2);
+        const depth = Math.round(dist / levelGap);
+        maxDepth = Math.max(maxDepth, depth);
+      }
+      
+      ctx.strokeStyle = 'rgba(100, 100, 100, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      
+      for (let depth = 0; depth <= maxDepth; depth++) {
+        const radius = Math.min(levelGap * (depth + 1), maxRadius);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+    }
     
     // Get dragged node info for shadow rendering
     const draggedNodeId = dragNodeRef.current?.id ?? null;
