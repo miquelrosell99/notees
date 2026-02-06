@@ -77,9 +77,9 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
   const labelElement = (label || description) && (
     <div className="toggle-label-wrapper">
       {label && (
-        <label htmlFor={toggleId} className="toggle-label">
+        <span className="toggle-label">
           {label}
-        </label>
+        </span>
       )}
       {description && (
         <span className="toggle-description">{description}</span>
