@@ -1,4 +1,47 @@
 /**
+ * InlineLink Component Styles
+ * 
+ * HTML anchor-style link for inline node references in contenteditable.
+ * Atomic inline element that looks like a standard hyperlink.
+ */
+
+.inline-link {
+  display: inline;
+  color: var(--color-primary);
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s, color 0.15s;
+  
+  /* Atomic inline behavior */
+  -webkit-user-modify: read-only;
+  -moz-user-modify: read-only;
+}
+
+.inline-link:hover {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.inline-link--selected {
+  color: var(--color-primary);
+  border-bottom: 2px solid var(--color-primary);
+  font-weight: 500;
+}
+
+/* When used inside contenteditable, prevent editing */
+.inline-link[contenteditable="false"] {
+  outline: none;
+}
+
+/* Selection styles for contenteditable parent */
+[contenteditable] .inline-link::selection,
+[contenteditable] .inline-link *::selection {
+  background: transparent;
+}
+
+/**
  * LinkPill Component Styles
  * 
  * Wrapper styles for inline links in BlockContent.
