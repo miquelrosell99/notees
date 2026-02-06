@@ -20,6 +20,7 @@
 .node-table__date {
   color: var(--text-muted);
   flex: 1;
+  min-width: 0;
 }
 
 .node-table__actions {
@@ -27,6 +28,8 @@
   align-items: center;
   gap: var(--spacing-1);
   margin-left: auto;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
