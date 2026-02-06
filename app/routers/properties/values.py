@@ -61,25 +61,43 @@ async def set_property_value(
             result = await repo.set_scalar_value(node_id, request.property_id, request.value)
             logger.info(f"[SET_PROPERTY] Scalar value set result: {result}")
         elif prop.type in RELATION_TYPES:
-            # Relation value (expects node_id as value)
+            # Relation value (expects node_id or array of node_ids for multi-value)
             # Skip if empty string (placeholder value from frontend)
             if request.value == '' or request.value is None:
                 # Just assign the property without setting a value
                 await repo.assign_property_to_node(node_id, request.property_id)
-            elif not isinstance(request.value, int):
-                raise ValueError(f"Relation property expects node ID as value, got {type(request.value)}")
-            else:
+            elif isinstance(request.value, list):
+                # Multi-value property: clear existing and set all values
+                # First clear existing values
+                await repo.clear_relation_values(node_id, request.property_id)
+                # Then add each value
+                for target_id in request.value:
+                    if not isinstance(target_id, int):
+                        raise ValueError(f"Relation property expects node ID, got {type(target_id)} in array")
+                    await repo.set_relation_value(node_id, request.property_id, target_id)
+            elif isinstance(request.value, int):
                 await repo.set_relation_value(node_id, request.property_id, request.value)
+            else:
+                raise ValueError(f"Relation property expects node ID or array of node IDs, got {type(request.value)}")
         else:
-            # Selection value (expects selection_line_id as value)
+            # Selection value (expects selection_line_id or array for multi-value)
             # Skip if empty string (placeholder value from frontend)
             if request.value == '' or request.value is None:
                 # Just assign the property without setting a value
                 await repo.assign_property_to_node(node_id, request.property_id)
-            elif not isinstance(request.value, int):
-                raise ValueError(f"Selection property expects selection_line_id as value, got {type(request.value)}")
-            else:
+            elif isinstance(request.value, list):
+                # Multi-value property: clear existing and set all values
+                # First clear existing values
+                await repo.clear_selection_values(node_id, request.property_id)
+                # Then add each value
+                for selection_id in request.value:
+                    if not isinstance(selection_id, int):
+                        raise ValueError(f"Selection property expects selection_line_id, got {type(selection_id)} in array")
+                    await repo.set_selection_value(node_id, request.property_id, selection_id)
+            elif isinstance(request.value, int):
                 await repo.set_selection_value(node_id, request.property_id, request.value)
+            else:
+                raise ValueError(f"Selection property expects selection_line_id or array of IDs, got {type(request.value)}")
     except ValueError as e:
         raise HTTPException(400, str(e))
     
