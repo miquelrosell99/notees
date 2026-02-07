@@ -37,7 +37,7 @@ const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
 const REFERENCE_LINK_FORCE_MULTIPLIER = 0.5;
 const REPULSION_STRENGTH = 500;
-const VELOCITY_DAMPING = 0.82;
+const VELOCITY_DAMPING = 0.75;
 const RETURN_FORCE = 0.08;
 const DRAG_PULL_STRENGTH = 0.15;
 const PARENT_MASS_PER_CHILD = 2;
@@ -45,8 +45,8 @@ const MIN_REPULSION_DISTANCE = 20; // Prevent infinite force when nodes overlap
 const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
 const WARMUP_DURATION_FRAMES = 120; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
-const MAX_SIMULATION_FRAMES = 3000; // Hard cap: stop physics after ~50s at 60fps
-const SLEEP_KE_PER_NODE = 0.0005; // Per-node contribution to sleep threshold (scales with graph size)
+const MAX_SIMULATION_FRAMES = 600; // Hard cap: stop physics after ~10s at 60fps
+const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
 
 // Pre-allocated arrays for setLineDash (avoids per-frame array creation)
 const LINE_DASH_NONE: number[] = [];
@@ -235,6 +235,21 @@ function getNodeColor(node: GraphNode, classColors: ClassColor[], accentColor: s
   }
   
   return accentColor;
+}
+
+// Link type to numeric id for dedup key (moved out of render to avoid per-frame closure)
+function linkTypeId(t: string): number {
+  switch (t) { case 'parent': return 0; case 'class': return 1; case 'extends': return 2; case 'reference': return 3; default: return 4; }
+}
+
+// Glare radius helper — moved out of render loop to avoid per-frame closure creation
+function getGlareRadius(node: GraphNode, nodeSizeMode: NodeSizeMode, maxConnections: number, maxMass: number): number {
+  const nodeRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass);
+  switch (node.glare) {
+    case 'bright': return nodeRadius * GLARE_SCALE_BRIGHT;
+    case 'current': return nodeRadius * GLARE_SCALE_CURRENT;
+    default: return nodeRadius * GLARE_SCALE_NORMAL;
+  }
 }
 
 // Cache for hexToRgba results — avoids repeated string creation in hot render loop
@@ -1450,17 +1465,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const connectedPairs = connectedPairsRef.current;
       const adjacency = adjacencyRef.current;
       const massCache = massCacheRef.current;
-      
-      const getConnectionType = (a: number, b: number): GraphLink['type'] | null =>
-        connectedPairs.get(pairKey(a, b)) ?? null;
-      
-      const getNodeMass = (nodeId: number): number =>
-        currentSettings.massAccumulation ? (massCache.get(nodeId) ?? 1) : 1;
+      const useMass = currentSettings.massAccumulation;
       
       // Update mass on nodes for rendering
       let maxConnections = 0, maxMass = 0;
       for (const node of nodes) {
-        const mass = getNodeMass(node.id);
+        const mass = useMass ? (massCache.get(node.id) ?? 1) : 1;
         (node as GraphNode & { _mass?: number })._mass = mass;
         if (node.connectionCount > maxConnections) maxConnections = node.connectionCount;
         if (mass > maxMass) maxMass = mass;
@@ -1530,7 +1540,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             if (dragNodeRef.current?.id === node.id) continue;
             if (node.pinned) continue;
             
-            const nodeMass = getNodeMass(node.id);
+            const nodeMass = useMass ? (massCache.get(node.id) ?? 1) : 1;
             
             // Walk quadtree for repulsion (reuse pre-allocated stack)
             const stack = bhStackRef.current;
@@ -1617,8 +1627,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const fx = (dx / dist) * netForce;
           const fy = (dy / dist) * netForce;
           
-          const massA = getNodeMass(nodeA.id);
-          const massB = getNodeMass(nodeB.id);
+          const massA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
+          const massB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
           
           if (!nodeA.pinned) {
             nodeA.vx += fx / massA;
@@ -1646,8 +1656,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             
             if (dist > LINKED_ATTRACTION_DISTANCE) {
-              const mass = getNodeMass(connectedNode.id);
-              const linkType = getConnectionType(dragNode.id, connectedId);
+              const mass = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
+              const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
               let dragMultiplier = 1;
               if (linkType === 'property-reference') {
                 dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
@@ -1824,11 +1834,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const drawnLinks = drawnLinksCacheRef.current;
     drawnLinks.clear();
     
-    // Link type to numeric id for dedup key
-    const linkTypeId = (t: string): number => {
-      switch (t) { case 'parent': return 0; case 'class': return 1; case 'extends': return 2; case 'reference': return 3; default: return 4; }
-    };
-    
     for (const link of visibleLinks) {
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
@@ -1843,7 +1848,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const isClassLink = link.type === 'class';
       const isExtendsLink = link.type === 'extends';
       const dirBits = linkDirections.get(pairKey(link.source, link.target)) || 0;
-      const directions = { forward: !!(dirBits & 1), reverse: !!(dirBits & 2) };
+      const hasFwd = !!(dirBits & 1);
+      const hasRev = !!(dirBits & 2);
       
       // Treat parent and extends links the same for rendering (solid line, hollow dot)
       const renderAsParent = isParentLink || isExtendsLink;
@@ -1865,25 +1871,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Dot is positioned at glareRadius + 2, so line should end at glareRadius + 2 + dotSize to avoid overlap
       const arrowGap = 2;
       
-      const getLineGlareRadius = (node: GraphNode) => {
-        const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
-        switch (node.glare) {
-          case 'bright':
-            return nodeRadius * GLARE_SCALE_BRIGHT;
-          case 'current':
-            return nodeRadius * GLARE_SCALE_CURRENT;
-          default:
-            return nodeRadius * GLARE_SCALE_NORMAL;
-        }
-      };
-      
-      const sourceLineGlare = getLineGlareRadius(source);
-      const targetLineGlare = getLineGlareRadius(target);
+      const sourceLineGlare = getGlareRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass);
+      const targetLineGlare = getGlareRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass);
       
       // Determine if there are dots at each end
       const dotSize = 4;
       const hasTargetDot = renderAsParent || link.source === source.id;
-      const hasSourceDot = !renderAsParent && directions?.forward && directions?.reverse;
+      const hasSourceDot = !renderAsParent && hasFwd && hasRev;
       
       // Calculate line endpoints to stop where dots start (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
@@ -1930,72 +1924,45 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.stroke();
       }
       
-      // Draw arrows
+      // Draw arrows — reuse glare radii computed above (sourceLineGlare / targetLineGlare)
       
-      // Calculate glare radius for proper positioning
-      const getGlareRadius = (node: GraphNode) => {
-        const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
-        switch (node.glare) {
-          case 'bright':
-            return nodeRadius * GLARE_SCALE_BRIGHT;
-          case 'current':
-            return nodeRadius * GLARE_SCALE_CURRENT;
-          default:
-            return nodeRadius * GLARE_SCALE_NORMAL;
-        }
-      };
-      
-      const sourceGlareRadius = getGlareRadius(source);
-      const targetGlareRadius = getGlareRadius(target);
-      
-      // Helper function to draw a solid circle (for reference and class links)
-      const drawSolidCircle = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
-        const angle = Math.atan2(toY - fromY, toX - fromX);
-        const circleX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
-        const circleY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
-        
-        ctx.beginPath();
-        ctx.arc(circleX, circleY, dotSize / 2, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
-        ctx.fill();
-      };
-      
-      // Helper function to draw a hollow circle (for parent links)
-      const drawHollowCircle = (fromX: number, fromY: number, toX: number, toY: number, glareRadius: number) => {
-        const angle = Math.atan2(toY - fromY, toX - fromX);
-        const circleX = toX - (glareRadius + 2 + dotSize / 2) * Math.cos(angle);
-        const circleY = toY - (glareRadius + 2 + dotSize / 2) * Math.sin(angle);
-        
-        ctx.beginPath();
-        ctx.arc(circleX, circleY, dotSize / 2, 0, 2 * Math.PI);
-        ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash(LINE_DASH_NONE);
-        ctx.stroke();
-      };
-      
-      // Helper function to check if we should skip dots for system types
-      const shouldSkipDot = (targetNode: GraphNode) => {
-        // Skip dots for "page" and "class" system types using their UUIDs
-        return targetNode.uuid === '00000000-0000-0000-0001-000000000001' || // class
-               targetNode.uuid === '00000000-0000-0000-0001-000000000002';   // page
-      };
+      // Draw arrow dots inline (avoid per-link closure allocations)
+      // System type UUIDs that should skip dots
+      const skipTargetDot = target.uuid === '00000000-0000-0000-0001-000000000001' || target.uuid === '00000000-0000-0000-0001-000000000002';
+      const skipSourceDot = source.uuid === '00000000-0000-0000-0001-000000000001' || source.uuid === '00000000-0000-0000-0001-000000000002';
       
       if (renderAsParent) {
-        // Parent and extends links have a hollow circle pointing to child/derived (target)
-        if (!shouldSkipDot(target)) {
-          drawHollowCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
+        // Parent/extends links: hollow circle at target
+        if (!skipTargetDot) {
+          const cx = target.x - (targetLineGlare + 2 + dotSize / 2) * Math.cos(lineAngle);
+          const cy = target.y - (targetLineGlare + 2 + dotSize / 2) * Math.sin(lineAngle);
+          ctx.beginPath();
+          ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
+          ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash(LINE_DASH_NONE);
+          ctx.stroke();
         }
       } else {
-        // Reference links - draw solid circles
-        // Solid circle pointing from source to target (at target end)
-        if (link.source === source.id && !shouldSkipDot(target)) {
-          drawSolidCircle(source.x, source.y, target.x, target.y, targetGlareRadius);
+        // Reference links: solid circle at target
+        if (link.source === source.id && !skipTargetDot) {
+          const cx = target.x - (targetLineGlare + 2 + dotSize / 2) * Math.cos(lineAngle);
+          const cy = target.y - (targetLineGlare + 2 + dotSize / 2) * Math.sin(lineAngle);
+          ctx.beginPath();
+          ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
+          ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+          ctx.fill();
         }
         
-        // If bidirectional, draw solid circle pointing back (at source end)
-        if (directions?.forward && directions?.reverse && !shouldSkipDot(source)) {
-          drawSolidCircle(target.x, target.y, source.x, source.y, sourceGlareRadius);
+        // Bidirectional: solid circle at source (angle is reversed: target→source)
+        if (hasFwd && hasRev && !skipSourceDot) {
+          const revAngle = lineAngle + Math.PI;
+          const cx = source.x - (sourceLineGlare + 2 + dotSize / 2) * Math.cos(revAngle);
+          const cy = source.y - (sourceLineGlare + 2 + dotSize / 2) * Math.sin(revAngle);
+          ctx.beginPath();
+          ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
+          ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+          ctx.fill();
         }
       }
     }
