@@ -14,10 +14,9 @@
  * Uses NodeGraphRenderer for the actual visualization.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useGraphData, useClasses, usePages } from '@/hooks';
+import { useGraphData, useClasses } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { getSettings, setSetting } from '@/api/databases';
-import type { Node } from '@/types';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { 
   NodeGraphRenderer, 
@@ -68,7 +67,6 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   // Data hooks
   const { data: graphData, isLoading } = useGraphData();
   const { data: classes } = useClasses();
-  const { data: pages } = usePages();
   const { openNode, addSidebarCard } = useNodesStore();
   
   // View state
@@ -349,16 +347,17 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     });
   }, []);
   
-  // Search
+  // Search — use graphData.nodes instead of usePages() to avoid loading full Node objects twice
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim() || !pages) return [];
+    if (!searchQuery.trim() || !graphData?.nodes) return [];
     const query = searchQuery.toLowerCase();
-    return pages
-      .filter((p: Node) => p.name?.toLowerCase().includes(query))
-      .slice(0, 10);
-  }, [searchQuery, pages]);
+    return graphData.nodes
+      .filter(p => p.name?.toLowerCase().includes(query))
+      .slice(0, 10)
+      .map(p => ({ id: p.id, uuid: p.uuid, name: p.name || 'Untitled', icon: p.icon }));
+  }, [searchQuery, graphData]);
   
-  const addToSelection = useCallback((node: Node) => {
+  const addToSelection = useCallback((node: { id: number; name?: string }) => {
     setSelectedNodes(prev => {
       if (prev.find(s => s.id === node.id)) return prev;
       return [...prev, { id: node.id, name: node.name || 'Untitled', order: prev.length }];
@@ -640,7 +639,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
             />
             {searchOpen && searchResults.length > 0 && (
               <div className="graph-search-results">
-                {searchResults.map((page: Node) => (
+                {searchResults.map((page) => (
                   <Button
                     key={page.id}
                     variant="ghost"
