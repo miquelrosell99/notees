@@ -45,6 +45,12 @@ const MIN_REPULSION_DISTANCE = 20; // Prevent infinite force when nodes overlap
 const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
 const WARMUP_DURATION_FRAMES = 120; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
+const MAX_SIMULATION_FRAMES = 3000; // Hard cap: stop physics after ~50s at 60fps
+const SLEEP_KE_PER_NODE = 0.0005; // Per-node contribution to sleep threshold (scales with graph size)
+
+// Pre-allocated arrays for setLineDash (avoids per-frame array creation)
+const LINE_DASH_NONE: number[] = [];
+const LINE_DASH_DOTTED: number[] = [2, 3];
 
 // Visual constants
 const NODE_RADIUS_BASE = 10;
@@ -231,7 +237,15 @@ function getNodeColor(node: GraphNode, classColors: ClassColor[], accentColor: s
   return accentColor;
 }
 
+// Cache for hexToRgba results — avoids repeated string creation in hot render loop
+const hexToRgbaCache = new Map<string, string>();
+
 function hexToRgba(hex: string, opacity: number): string {
+  // Key: combine hex and opacity (opacity is typically a small set of fixed values)
+  const key = hex + opacity;
+  const cached = hexToRgbaCache.get(key);
+  if (cached) return cached;
+  
   let cleanHex = hex.replace('#', '');
   if (cleanHex.length === 3) {
     cleanHex = cleanHex.split('').map(c => c + c).join('');
@@ -239,7 +253,9 @@ function hexToRgba(hex: string, opacity: number): string {
   const r = parseInt(cleanHex.substring(0, 2), 16);
   const g = parseInt(cleanHex.substring(2, 4), 16);
   const b = parseInt(cleanHex.substring(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  const result = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  hexToRgbaCache.set(key, result);
+  return result;
 }
 
 function getNodeRadius(
@@ -390,6 +406,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Convergence-based simulation sleep
   const simulationSleepingRef = useRef(false);
   const wakeSimulationRef = useRef<() => void>(() => {});
+  const simulationGenerationRef = useRef(0); // Guard against ghost simulation loops
   
   // Pan and zoom state
   const isPanningRef = useRef(false);
@@ -1310,6 +1327,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Reset pool index (reuse objects from previous frame)
     quadPoolIdxRef.current = 0;
     
+    // Trim pool if it grew too large (e.g., from pathological overlapping nodes)
+    // A balanced quadtree for N nodes needs at most ~4N internal nodes
+    const maxPoolSize = Math.max(nodes.length * 8, 1000);
+    const pool = quadPoolRef.current;
+    if (pool.length > maxPoolSize) {
+      pool.length = maxPoolSize;
+    }
+    
     // Find bounds
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const n of nodes) {
@@ -1382,15 +1407,23 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    // Generation guard: each startSimulation increments a counter.
+    // Old simulate closures detect they're stale and stop immediately.
+    const thisGeneration = ++simulationGenerationRef.current;
+    
     // Convergence tracking
     let sleepFrames = 0;
-    const SLEEP_THRESHOLD = 0.1;  // Total kinetic energy below which sim sleeps
+    let totalFrames = 0;
     const SLEEP_DELAY_FRAMES = 30; // Frames below threshold before sleeping
     
     const wake = () => {
+      if (simulationGenerationRef.current !== thisGeneration) return; // stale generation
       if (simulationSleepingRef.current) {
         simulationSleepingRef.current = false;
         sleepFrames = 0;
+        // Allow a burst of physics frames on wake (e.g., after drag/node change)
+        // but don't fully reset — cap prevents unbounded growth
+        totalFrames = Math.min(totalFrames, MAX_SIMULATION_FRAMES - 300);
         animationRef.current = requestAnimationFrame(simulate);
       } else {
         sleepFrames = 0;
@@ -1399,6 +1432,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     wakeSimulationRef.current = wake;
     
     const simulate = () => {
+      // Generation guard: if a newer simulation was started, this one dies
+      if (simulationGenerationRef.current !== thisGeneration) return;
+      
+      totalFrames++;
       const nodes = nodesRef.current;
       const links = linksRef.current;
       const currentSettings = settingsRef.current;
@@ -1696,10 +1733,29 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       renderRef.current?.(ctx);
       
-      // Convergence-based sleep
-      if (kineticEnergy < SLEEP_THRESHOLD && warmupT >= 1 && !dragNodeRef.current) {
+      // Release stale quadtree references from bhStack to reduce GC pressure
+      const bhStack = bhStackRef.current;
+      for (let i = 0, len = bhStack.length; i < len; i++) {
+        bhStack[i] = null;
+      }
+      
+      // Null out unused quadtree pool child pointers (prevent stale cross-references)
+      const pool = quadPoolRef.current;
+      const usedPoolSize = quadPoolIdxRef.current;
+      for (let i = usedPoolSize, len = pool.length; i < len; i++) {
+        pool[i].c0 = pool[i].c1 = pool[i].c2 = pool[i].c3 = null;
+      }
+      
+      // Convergence-based sleep: threshold scales with node count so large graphs can converge
+      const sleepThreshold = Math.max(0.1, nodes.length * SLEEP_KE_PER_NODE);
+      const shouldSleep = kineticEnergy < sleepThreshold && warmupT >= 1 && !dragNodeRef.current;
+      
+      // Hard cap: force sleep after MAX_SIMULATION_FRAMES to prevent runaway memory growth
+      const forceStop = totalFrames >= MAX_SIMULATION_FRAMES;
+      
+      if (shouldSleep || forceStop) {
         sleepFrames++;
-        if (sleepFrames >= SLEEP_DELAY_FRAMES) {
+        if (sleepFrames >= SLEEP_DELAY_FRAMES || forceStop) {
           simulationSleepingRef.current = true;
           return; // Don't schedule next frame
         }
@@ -1800,9 +1856,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Set line style: solid for parent/extends, dotted for reference
       // Class links will be drawn as wavy lines manually
       if (renderAsParent || isClassLink) {
-        ctx.setLineDash([]);
+        ctx.setLineDash(LINE_DASH_NONE);
       } else {
-        ctx.setLineDash([2, 3]); // Dotted for reference links
+        ctx.setLineDash(LINE_DASH_DOTTED); // Dotted for reference links
       }
       
       // Calculate glare radius to determine line endpoints
@@ -1914,7 +1970,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.arc(circleX, circleY, dotSize / 2, 0, 2 * Math.PI);
         ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
         ctx.lineWidth = 1.5;
-        ctx.setLineDash([]);
+        ctx.setLineDash(LINE_DASH_NONE);
         ctx.stroke();
       };
       
@@ -1944,7 +2000,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
     }
     
-    ctx.setLineDash([]);
+    ctx.setLineDash(LINE_DASH_NONE);
     
     // Draw level circle guides in constrained modes (tree and circle)
     if (currentViewMode === 'tree' || currentViewMode === 'circle') {
@@ -1962,7 +2018,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       ctx.strokeStyle = 'rgba(100, 100, 100, 0.1)';
       ctx.lineWidth = 1;
-      ctx.setLineDash([]);
+      ctx.setLineDash(LINE_DASH_NONE);
       
       for (const radius of radiiWithNodes) {
         ctx.beginPath();
@@ -2257,8 +2313,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       wakeSimulationRef.current();
     } else {
       const node = getNodeAtPosition(screenX, screenY);
-      setHoveredNode(node);
-      onHoveredNodeChange?.(node);
+      // Only update state if hovered node actually changed (avoid unnecessary re-renders)
+      if (node !== hoveredNodeRef.current) {
+        hoveredNodeRef.current = node;
+        setHoveredNode(node);
+        onHoveredNodeChange?.(node);
+      }
     }
   }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect]);
 
