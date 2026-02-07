@@ -6,6 +6,7 @@ Key semantics:
 3. System property `types` is EXCLUDED from backlinks entirely
 4. Types Path: separate mechanism for inherited types (for queries, not backlinks)
 5. Breadcrumbs include property provenance: T → property_name → B → … → page
+6. Recursive child references: Links to children show on parent's linked references
 """
 import pytest
 from datetime import datetime, timezone
@@ -248,4 +249,87 @@ async def test_no_links_results_in_empty(link_service_fixtures):
     # No backlinks to the page
     backlinks = await link_service.get_backlinks(page.id)
     assert len(backlinks) == 0
+
+
+@pytest.mark.asyncio
+async def test_recursive_child_references(link_service_fixtures):
+    """Test that references to child pages appear in parent's linked references recursively.
+    
+    Scenario:
+    - Parent Page
+      - Child Page
+        - Grandchild Page
+    - Another Page links to Grandchild Page
+    
+    Expected: Link to Grandchild should appear in Parent's linked references.
+    """
+    from app.domain.entities import NodeCreateData
+    
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
+    
+    # Create parent page
+    parent = await node_repo.create(NodeCreateData(name='Parent Page', is_page=True))
+    assert parent.id is not None
+    
+    # Create child page (child of parent)
+    child = await node_repo.create(NodeCreateData(name='Child Page', is_page=True, parent_id=parent.id))
+    assert child.id is not None
+    
+    # Create grandchild page (child of child)
+    grandchild = await node_repo.create(NodeCreateData(name='Grandchild Page', is_page=True, parent_id=child.id))
+    assert grandchild.id is not None
+    
+    # Create another page that links to the grandchild
+    linking_page = await node_repo.create(NodeCreateData(name='Another Page', is_page=True))
+    assert linking_page.id is not None
+    
+    # Create a block in the linking page that references the grandchild
+    linking_block = await node_repo.create(NodeCreateData(
+        name=f'This links to [[{grandchild.uuid}]]',
+        parent_id=linking_page.id
+    ))
+    assert linking_block.id is not None
+    
+    # Update links
+    await link_service.update_node_links(linking_block.id, linking_block.name)
+    
+    # Test 1: Grandchild should have 1 backlink
+    grandchild_backlinks = await link_service.get_backlinks(grandchild.id)
+    assert len(grandchild_backlinks) == 1, f'Expected 1 backlink to grandchild, got {len(grandchild_backlinks)}'
+    assert grandchild_backlinks[0].source_node_id == linking_block.id
+    
+    # Test 2: Child should also see the link to its descendant (grandchild)
+    child_backlinks = await link_service.get_backlinks(child.id)
+    assert len(child_backlinks) == 1, f'Expected 1 backlink to child (via grandchild), got {len(child_backlinks)}'
+    assert child_backlinks[0].source_node_id == linking_block.id
+    
+    # Test 3: Parent should also see the link to its descendant (grandchild)
+    parent_backlinks = await link_service.get_backlinks(parent.id)
+    assert len(parent_backlinks) == 1, f'Expected 1 backlink to parent (via grandchild), got {len(parent_backlinks)}'
+    assert parent_backlinks[0].source_node_id == linking_block.id
+    
+    # Test 4: Create another link to the child (not grandchild)
+    another_linking_page = await node_repo.create(NodeCreateData(name='Yet Another Page', is_page=True))
+    assert another_linking_page.id is not None
+    
+    another_linking_block = await node_repo.create(NodeCreateData(
+        name=f'This links to [[{child.uuid}]]',
+        parent_id=another_linking_page.id
+    ))
+    assert another_linking_block.id is not None
+    
+    await link_service.update_node_links(another_linking_block.id, another_linking_block.name)
+    
+    # Parent should now have 2 backlinks: one to grandchild, one to child
+    parent_backlinks_updated = await link_service.get_backlinks(parent.id)
+    assert len(parent_backlinks_updated) == 2, f'Expected 2 backlinks to parent, got {len(parent_backlinks_updated)}'
+    
+    # Child should have 2 backlinks: one to itself, one to grandchild
+    child_backlinks_updated = await link_service.get_backlinks(child.id)
+    assert len(child_backlinks_updated) == 2, f'Expected 2 backlinks to child, got {len(child_backlinks_updated)}'
+    
+    # Grandchild should still have 1 backlink (only the direct link)
+    grandchild_backlinks_updated = await link_service.get_backlinks(grandchild.id)
+    assert len(grandchild_backlinks_updated) == 1, f'Expected 1 backlink to grandchild, got {len(grandchild_backlinks_updated)}'
 
