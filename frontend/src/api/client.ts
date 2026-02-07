@@ -36,9 +36,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 // Response interceptor for error handling and logging
 api.interceptors.response.use(
   (response) => {
-    log.debug(`← ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`, {
-      dataSize: JSON.stringify(response.data).length,
-    });
+    log.debug(`← ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`);
     return response;
   },
   (error: AxiosError) => {
