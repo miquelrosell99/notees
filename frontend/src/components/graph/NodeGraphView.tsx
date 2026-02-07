@@ -499,7 +499,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={visibilityFilters.showClassNodes && visibilityFilters.showClassLinks && visibilityFilters.showParentLinks && visibilityFilters.showReferenceLinks && visibilityFilters.showDayPages && visibilityFilters.showMonthPages && visibilityFilters.showYearPages && visibilityFilters.showSystemPages ? mdiEye : mdiEyeOff}
+          icon={mdiEye}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
