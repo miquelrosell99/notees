@@ -43,10 +43,27 @@ const DRAG_PULL_STRENGTH = 0.15;
 const PARENT_MASS_PER_CHILD = 2;
 const MIN_REPULSION_DISTANCE = 20; // Prevent infinite force when nodes overlap
 const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
-const WARMUP_DURATION_FRAMES = 120; // Frames over which simulation ramps to full strength
+const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
-const MAX_SIMULATION_FRAMES = 600; // Hard cap: stop physics after ~10s at 60fps
 const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
+
+// Adaptive frame cap: large graphs get fewer frames to prevent OOM
+// Base cap for small graphs, inversely scaled for large ones
+function getMaxSimulationFrames(nodeCount: number): number {
+  if (nodeCount <= 200) return 600;   // Small graph: 10s
+  if (nodeCount <= 500) return 400;   // Medium graph: ~7s
+  if (nodeCount <= 1000) return 250;  // Large graph: ~4s
+  return 150;                          // Very large graph: ~2.5s
+}
+
+// Render skip interval: large graphs only render every Nth frame during physics
+// Physics runs every frame but canvas drawing is skipped to reduce memory/GPU pressure
+function getRenderSkip(nodeCount: number): number {
+  if (nodeCount <= 200) return 1;    // Every frame
+  if (nodeCount <= 500) return 2;    // Every other frame
+  if (nodeCount <= 1000) return 3;   // Every 3rd frame
+  return 4;                           // Every 4th frame
+}
 
 // Pre-allocated arrays for setLineDash (avoids per-frame array creation)
 const LINE_DASH_NONE: number[] = [];
@@ -433,12 +450,21 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Write transform directly to ref (immediate) and schedule React state update (throttled).
   // The canvas reads from transformRef so it stays perfectly smooth;
   // React state is only needed for cursor style and handleWheel closure.
+  // When simulation is sleeping, also trigger a canvas render for pan/zoom.
   const setTransformDirect = useCallback((t: { x: number; y: number; scale: number }) => {
     transformRef.current = t;
     if (!transformRafRef.current) {
       transformRafRef.current = requestAnimationFrame(() => {
         transformRafRef.current = 0;
         setTransform(transformRef.current);
+        // If simulation is sleeping, re-render canvas so pan/zoom is visible
+        if (simulationSleepingRef.current) {
+          const canvas = canvasRef.current;
+          const ctx = canvas?.getContext('2d');
+          if (ctx && renderRef.current) {
+            renderRef.current(ctx);
+          }
+        }
       });
     }
   }, []);
@@ -1438,7 +1464,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         sleepFrames = 0;
         // Allow a burst of physics frames on wake (e.g., after drag/node change)
         // but don't fully reset — cap prevents unbounded growth
-        totalFrames = Math.min(totalFrames, MAX_SIMULATION_FRAMES - 300);
+        const maxFrames = getMaxSimulationFrames(nodesRef.current.length);
+        const burst = Math.min(300, Math.floor(maxFrames * 0.5));
+        totalFrames = Math.min(totalFrames, maxFrames - burst);
         animationRef.current = requestAnimationFrame(simulate);
       } else {
         sleepFrames = 0;
@@ -1741,7 +1769,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       frameDataRef.current.maxConnections = maxConnections;
       frameDataRef.current.maxMass = maxMass;
       
-      renderRef.current?.(ctx);
+      // Render skip: for large graphs, only draw every Nth frame to reduce GPU/memory pressure
+      // Physics still runs every frame but canvas drawing is the expensive part
+      const renderSkip = getRenderSkip(nodes.length);
+      const isDragging = !!dragNodeRef.current;
+      // Always render when dragging, on the last frame, or on the render-skip interval
+      if (isDragging || totalFrames % renderSkip === 0) {
+        renderRef.current?.(ctx);
+      }
       
       // Release stale quadtree references from bhStack to reduce GC pressure
       const bhStack = bhStackRef.current;
@@ -1760,13 +1795,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sleepThreshold = Math.max(0.1, nodes.length * SLEEP_KE_PER_NODE);
       const shouldSleep = kineticEnergy < sleepThreshold && warmupT >= 1 && !dragNodeRef.current;
       
-      // Hard cap: force sleep after MAX_SIMULATION_FRAMES to prevent runaway memory growth
-      const forceStop = totalFrames >= MAX_SIMULATION_FRAMES;
+      // Hard cap: force sleep after adaptive frame limit to prevent runaway memory growth
+      const maxFrames = getMaxSimulationFrames(nodes.length);
+      const forceStop = totalFrames >= maxFrames;
       
       if (shouldSleep || forceStop) {
         sleepFrames++;
         if (sleepFrames >= SLEEP_DELAY_FRAMES || forceStop) {
           simulationSleepingRef.current = true;
+          // Final render to show converged state
+          renderRef.current?.(ctx);
           return; // Don't schedule next frame
         }
       } else {
