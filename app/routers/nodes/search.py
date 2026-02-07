@@ -88,6 +88,19 @@ async def get_graph_data_endpoint(
         links = []
         page_id_set = {row['id'] for row in page_rows}
         
+        # Batch-resolve block sources to their page_id (avoid N+1 queries)
+        block_source_ids = [row['source_id'] for row in link_rows if row['source_id'] not in page_id_set]
+        block_to_page = {}
+        if block_source_ids:
+            # Fetch all block→page mappings in one query
+            block_rows = await conn.fetch(
+                "SELECT id, page_id FROM node WHERE id = ANY($1::int[])",
+                block_source_ids
+            )
+            for br in block_rows:
+                if br['page_id']:
+                    block_to_page[br['id']] = br['page_id']
+        
         for row in link_rows:
             source_id = row['source_id']
             target_id = row['target_id']
@@ -95,13 +108,7 @@ async def get_graph_data_endpoint(
             # Get the source page (may be the block's page_id)
             source_page_id = source_id
             if source_id not in page_id_set:
-                # Source is a block, get its page
-                source_node_row = await conn.fetchrow(
-                    "SELECT page_id FROM node WHERE id = $1",
-                    source_id
-                )
-                if source_node_row and source_node_row['page_id']:
-                    source_page_id = source_node_row['page_id']
+                source_page_id = block_to_page.get(source_id, source_id)
             
             if source_page_id in page_id_set and target_id in page_id_set:
                 links.append({
