@@ -447,6 +447,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
   const transformRafRef = useRef<number>(0); // throttle React state updates
   
+  // Canvas 2D context ref — stored once by startSimulation, reused for sleeping renders
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  
   // Write transform directly to ref (immediate) and schedule React state update (throttled).
   // The canvas reads from transformRef so it stays perfectly smooth;
   // React state is only needed for cursor style and handleWheel closure.
@@ -458,12 +461,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         transformRafRef.current = 0;
         setTransform(transformRef.current);
         // If simulation is sleeping, re-render canvas so pan/zoom is visible
-        if (simulationSleepingRef.current) {
-          const canvas = canvasRef.current;
-          const ctx = canvas?.getContext('2d');
-          if (ctx && renderRef.current) {
-            renderRef.current(ctx);
-          }
+        if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
+          renderRef.current(ctxRef.current);
         }
       });
     }
@@ -1447,6 +1446,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    ctxRef.current = ctx;
     
     // Generation guard: each startSimulation increments a counter.
     // Old simulate closures detect they're stale and stop immediately.
@@ -1754,27 +1754,27 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Share computed data with render via ref (reuse array to avoid GC)
-      const currentFilters = visibilityFiltersRef.current;
-      const visibleLinks = frameVisibleLinksRef.current;
-      visibleLinks.length = 0;
-      for (const l of links) {
-        if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
-          visibleLinks.push(l);
-        }
-      }
-      frameDataRef.current.visibleNodes = nodes;
-      frameDataRef.current.visibleLinks = visibleLinks;
-      frameDataRef.current.nodeMap = nodeMap;
-      frameDataRef.current.maxConnections = maxConnections;
-      frameDataRef.current.maxMass = maxMass;
-      
       // Render skip: for large graphs, only draw every Nth frame to reduce GPU/memory pressure
-      // Physics still runs every frame but canvas drawing is the expensive part
+      // Physics still runs every frame but canvas drawing AND its data prep are the expensive parts
       const renderSkip = getRenderSkip(nodes.length);
       const isDragging = !!dragNodeRef.current;
-      // Always render when dragging, on the last frame, or on the render-skip interval
+      // Always render when dragging or on the render-skip interval
       if (isDragging || totalFrames % renderSkip === 0) {
+        // Share computed data with render via ref (reuse array to avoid GC)
+        const currentFilters = visibilityFiltersRef.current;
+        const visibleLinks = frameVisibleLinksRef.current;
+        visibleLinks.length = 0;
+        for (const l of links) {
+          if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
+            visibleLinks.push(l);
+          }
+        }
+        frameDataRef.current.visibleNodes = nodes;
+        frameDataRef.current.visibleLinks = visibleLinks;
+        frameDataRef.current.nodeMap = nodeMap;
+        frameDataRef.current.maxConnections = maxConnections;
+        frameDataRef.current.maxMass = maxMass;
+        
         renderRef.current?.(ctx);
       }
       
@@ -1803,6 +1803,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         sleepFrames++;
         if (sleepFrames >= SLEEP_DELAY_FRAMES || forceStop) {
           simulationSleepingRef.current = true;
+          // Prep frame data for final render (may have been skipped by renderSkip)
+          const currentFilters = visibilityFiltersRef.current;
+          const visibleLinks = frameVisibleLinksRef.current;
+          visibleLinks.length = 0;
+          for (const l of links) {
+            if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
+              visibleLinks.push(l);
+            }
+          }
+          frameDataRef.current.visibleNodes = nodes;
+          frameDataRef.current.visibleLinks = visibleLinks;
+          frameDataRef.current.nodeMap = nodeMap;
+          frameDataRef.current.maxConnections = maxConnections;
+          frameDataRef.current.maxMass = maxMass;
           // Final render to show converged state
           renderRef.current?.(ctx);
           return; // Don't schedule next frame
