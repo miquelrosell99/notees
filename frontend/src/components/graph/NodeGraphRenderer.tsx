@@ -215,12 +215,13 @@ function findPathBetweenNodes(
   return [];
 }
 
+// NOTE: classColors must be pre-sorted by order before passing in.
+// Do NOT sort inside this hot-path function — it runs per-node per-frame.
 function getNodeColor(node: GraphNode, classColors: ClassColor[], accentColor: string): string {
   if (node.color) return node.color;
   
   if (node.types && node.types.length > 0 && classColors.length > 0) {
-    const sortedClassColors = [...classColors].sort((a, b) => a.order - b.order);
-    for (const classColor of sortedClassColors) {
+    for (const classColor of classColors) {
       if (node.types.includes(classColor.typeId)) {
         return classColor.color;
       }
@@ -372,6 +373,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     maxConnections: number;
     maxMass: number;
   }>({ visibleNodes: [], visibleLinks: [], nodeMap: new Map(), maxConnections: 0, maxMass: 0 });
+  
+  // Reusable per-frame collections (avoid GC pressure)
+  const frameNodeMapRef = useRef(new Map<number, GraphNode>());
+  const frameVisibleLinksRef = useRef<GraphLink[]>([]);
+  const bhStackRef = useRef<(QuadNode | null)[]>(new Array(256).fill(null)); // Barnes-Hut traversal stack
+  
+  // Quadtree object pool — reuse across frames to avoid GC
+  const quadPoolRef = useRef<QuadNode[]>([]);
+  const quadPoolIdxRef = useRef(0);
+  
+  // Render-phase reusable collections
+  const linkDirCacheRef = useRef(new Map<number, number>()); // pairKey → bitfield (1=fwd, 2=rev)
+  const drawnLinksCacheRef = useRef(new Set<number>());
   
   // Convergence-based simulation sleep
   const simulationSleepingRef = useRef(false);
@@ -707,7 +721,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Keep refs in sync (fallback for setTransform calls not through setTransformDirect)
   useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => { settingsRef.current = settings; topologyDirtyRef.current = true; }, [settings]);
-  useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
+  useEffect(() => { classColorsRef.current = [...classColors].sort((a, b) => a.order - b.order); }, [classColors]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
   useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
@@ -1253,18 +1267,48 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     topologyDirtyRef.current = false;
   }, []);
 
-  // ==================== Barnes-Hut Quadtree ====================
+  // ==================== Barnes-Hut Quadtree (pooled) ====================
   interface QuadNode {
     cx: number; cy: number; // center of mass
     mass: number;           // total mass in this cell
     x0: number; y0: number; // bounds
     x1: number; y1: number;
-    children: (QuadNode | null)[]; // NW, NE, SW, SE
+    c0: QuadNode | null; c1: QuadNode | null; // NW, NE (flat fields instead of array)
+    c2: QuadNode | null; c3: QuadNode | null; // SW, SE
     nodeIdx: number;        // -1 if internal, otherwise index into visibleNodes
   }
   
+  const allocQuadNode = (x0: number, y0: number, x1: number, y1: number): QuadNode => {
+    const pool = quadPoolRef.current;
+    const idx = quadPoolIdxRef.current;
+    if (idx < pool.length) {
+      const n = pool[idx];
+      quadPoolIdxRef.current = idx + 1;
+      n.cx = 0; n.cy = 0; n.mass = 0;
+      n.x0 = x0; n.y0 = y0; n.x1 = x1; n.y1 = y1;
+      n.c0 = null; n.c1 = null; n.c2 = null; n.c3 = null;
+      n.nodeIdx = -1;
+      return n;
+    }
+    const n: QuadNode = { cx: 0, cy: 0, mass: 0, x0, y0, x1, y1, c0: null, c1: null, c2: null, c3: null, nodeIdx: -1 };
+    pool.push(n);
+    quadPoolIdxRef.current = idx + 1;
+    return n;
+  };
+  
+  const getChild = (node: QuadNode, q: number): QuadNode | null => {
+    switch (q) { case 0: return node.c0; case 1: return node.c1; case 2: return node.c2; default: return node.c3; }
+  };
+  
+  const setChild = (node: QuadNode, q: number, child: QuadNode): void => {
+    switch (q) { case 0: node.c0 = child; break; case 1: node.c1 = child; break; case 2: node.c2 = child; break; default: node.c3 = child; break; }
+  };
+  
   const buildQuadtree = (nodes: GraphNode[], masses: Map<number, number>): QuadNode | null => {
     if (nodes.length === 0) return null;
+    
+    // Reset pool index (reuse objects from previous frame)
+    quadPoolIdxRef.current = 0;
     
     // Find bounds
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -1278,31 +1322,26 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const pad = Math.max(x1 - x0, y1 - y0, 100) * 0.01;
     x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
     
-    const root: QuadNode = { cx: 0, cy: 0, mass: 0, x0, y0, x1, y1, children: [null, null, null, null], nodeIdx: -1 };
+    const root = allocQuadNode(x0, y0, x1, y1);
     
     const insert = (tree: QuadNode, idx: number, nx: number, ny: number, nm: number) => {
       const size = tree.x1 - tree.x0;
       if (size < 0.01) return; // Prevent infinite recursion on coincident nodes
       
       if (tree.mass === 0) {
-        // Empty cell — place node here
         tree.cx = nx; tree.cy = ny; tree.mass = nm; tree.nodeIdx = idx;
         return;
       }
       
       if (tree.nodeIdx >= 0) {
-        // Leaf with existing node — subdivide
         const existIdx = tree.nodeIdx;
         const ecx = tree.cx, ecy = tree.cy, em = tree.mass;
         tree.nodeIdx = -1;
-        // Re-insert existing node
         insertIntoQuadrant(tree, existIdx, ecx, ecy, em);
       }
       
-      // Insert new node
       insertIntoQuadrant(tree, idx, nx, ny, nm);
       
-      // Update center of mass
       const totalMass = tree.mass + nm;
       tree.cx = (tree.cx * tree.mass + nx * nm) / totalMass;
       tree.cy = (tree.cy * tree.mass + ny * nm) / totalMass;
@@ -1314,15 +1353,17 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const my = (tree.y0 + tree.y1) / 2;
       const q = (nx < mx ? 0 : 1) + (ny < my ? 0 : 2);
       
-      if (!tree.children[q]) {
+      let child = getChild(tree, q);
+      if (!child) {
         const qx0 = q & 1 ? mx : tree.x0;
         const qy0 = q & 2 ? my : tree.y0;
         const qx1 = q & 1 ? tree.x1 : mx;
         const qy1 = q & 2 ? tree.y1 : my;
-        tree.children[q] = { cx: 0, cy: 0, mass: 0, x0: qx0, y0: qy0, x1: qx1, y1: qy1, children: [null, null, null, null], nodeIdx: -1 };
+        child = allocQuadNode(qx0, qy0, qx1, qy1);
+        setChild(tree, q, child);
       }
       
-      insert(tree.children[q]!, idx, nx, ny, nm);
+      insert(child, idx, nx, ny, nm);
     };
     
     for (let i = 0; i < nodes.length; i++) {
@@ -1388,8 +1429,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         if (mass > maxMass) maxMass = mass;
       }
       
-      // Build nodeMap for drag pull and shared frame data
-      const nodeMap = new Map<number, GraphNode>();
+      // Build nodeMap for drag pull and shared frame data (reuse map to avoid GC)
+      const nodeMap = frameNodeMapRef.current;
+      nodeMap.clear();
       for (const node of nodes) {
         nodeMap.set(node.id, node);
       }
@@ -1453,10 +1495,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             
             const nodeMass = getNodeMass(node.id);
             
-            // Walk quadtree for repulsion
-            const stack: QuadNode[] = [tree];
-            while (stack.length > 0) {
-              const cell = stack.pop()!;
+            // Walk quadtree for repulsion (reuse pre-allocated stack)
+            const stack = bhStackRef.current;
+            let stackTop = 0;
+            stack[stackTop++] = tree;
+            while (stackTop > 0) {
+              const cell = stack[--stackTop]!;
               if (cell.mass === 0) continue;
               
               const dx = cell.cx - node.x;
@@ -1472,9 +1516,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               // If leaf or cell is far enough away, treat as single body
               if (cell.nodeIdx >= 0 || (cellSize / dist) < THETA) {
                 if (dist < UNLINKED_REPULSION_DISTANCE) {
-                  // Only repel nodes that are NOT connected
-                  // For leaf nodes, check connection; for clusters, apply repulsion
-                  // (this is an approximation — connected pairs get attraction below)
                   const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
                   const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * warmupMultiplier;
                   const fx = (dx / dist) * force;
@@ -1484,10 +1525,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
                   node.vy -= fy / nodeMass;
                 }
               } else {
-                // Open the cell — push children
-                for (let c = 0; c < 4; c++) {
-                  if (cell.children[c]) stack.push(cell.children[c]!);
-                }
+                // Open the cell — push children (grow stack if needed)
+                if (stackTop + 4 > stack.length) stack.length = stack.length * 2;
+                if (cell.c0) stack[stackTop++] = cell.c0;
+                if (cell.c1) stack[stackTop++] = cell.c1;
+                if (cell.c2) stack[stackTop++] = cell.c2;
+                if (cell.c3) stack[stackTop++] = cell.c3;
               }
             }
           }
@@ -1636,21 +1679,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Share computed data with render via ref (avoids re-filtering in render)
+      // Share computed data with render via ref (reuse array to avoid GC)
       const currentFilters = visibilityFiltersRef.current;
-      const visibleLinks: GraphLink[] = [];
+      const visibleLinks = frameVisibleLinksRef.current;
+      visibleLinks.length = 0;
       for (const l of links) {
         if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
           visibleLinks.push(l);
         }
       }
-      frameDataRef.current = {
-        visibleNodes: nodes,
-        visibleLinks,
-        nodeMap,
-        maxConnections,
-        maxMass,
-      };
+      frameDataRef.current.visibleNodes = nodes;
+      frameDataRef.current.visibleLinks = visibleLinks;
+      frameDataRef.current.nodeMap = nodeMap;
+      frameDataRef.current.maxConnections = maxConnections;
+      frameDataRef.current.maxMass = maxMass;
       
       renderRef.current?.(ctx);
       
@@ -1708,39 +1750,44 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Use shared frame data from simulate (avoids re-filtering)
     const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass } = frameDataRef.current;
     
-    // Build link direction map - check if reverse link exists for bidirectional arrows
-    const linkDirections = new Map<string, { forward: boolean; reverse: boolean }>();
+    // Build link direction map using numeric keys (reuse map to avoid GC)
+    // Bitfield: 1 = forward (source < target), 2 = reverse (source > target)
+    const linkDirections = linkDirCacheRef.current;
+    linkDirections.clear();
     for (const link of visibleLinks) {
-      const key = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}`;
-      if (!linkDirections.has(key)) {
-        linkDirections.set(key, { forward: false, reverse: false });
-      }
-      const dir = linkDirections.get(key)!;
+      const key = pairKey(link.source, link.target);
+      const prev = linkDirections.get(key) || 0;
       if (link.source < link.target) {
-        dir.forward = true;
+        linkDirections.set(key, prev | 1);
       } else {
-        dir.reverse = true;
+        linkDirections.set(key, prev | 2);
       }
     }
     
-    // Draw links (deduped - draw each pair only once)
-    const drawnLinks = new Set<string>();
+    // Draw links (deduped - draw each pair only once, using numeric Set)
+    const drawnLinks = drawnLinksCacheRef.current;
+    drawnLinks.clear();
+    
+    // Link type to numeric id for dedup key
+    const linkTypeId = (t: string): number => {
+      switch (t) { case 'parent': return 0; case 'class': return 1; case 'extends': return 2; case 'reference': return 3; default: return 4; }
+    };
     
     for (const link of visibleLinks) {
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
       if (!source || !target) continue;
       
-      // Skip if we've already drawn this link pair
-      const linkKey = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}-${link.type}`;
+      // Skip if we've already drawn this link pair (numeric key avoids string alloc)
+      const linkKey = pairKey(link.source, link.target) * 10 + linkTypeId(link.type);
       if (drawnLinks.has(linkKey)) continue;
       drawnLinks.add(linkKey);
       
       const isParentLink = link.type === 'parent';
       const isClassLink = link.type === 'class';
       const isExtendsLink = link.type === 'extends';
-      const dirKey = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}`;
-      const directions = linkDirections.get(dirKey);
+      const dirBits = linkDirections.get(pairKey(link.source, link.target)) || 0;
+      const directions = { forward: !!(dirBits & 1), reverse: !!(dirBits & 2) };
       
       // Treat parent and extends links the same for rendering (solid line, hollow dot)
       const renderAsParent = isParentLink || isExtendsLink;
@@ -1929,14 +1976,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const liftProgress = dragLiftProgressRef.current;
     const currentHoveredNode = hoveredNodeRef.current;
     
-    // Draw nodes (dragged node last to be on top)
-    const sortedNodes = [...visibleNodes].sort((a, b) => {
-      if (a.id === draggedNodeId) return 1;
-      if (b.id === draggedNodeId) return -1;
-      return 0;
-    });
-    
-    for (const node of sortedNodes) {
+    // Draw nodes — two passes: non-dragged first, then dragged node on top (avoids array copy+sort)
+    let draggedNode: GraphNode | null = null;
+    for (const node of visibleNodes) {
+      if (node.id === draggedNodeId) { draggedNode = node; continue; }
       const isHovered = currentHoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
       const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
@@ -2047,6 +2090,66 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const displayName = node.name.length > 35 
         ? node.name.slice(0, 35) + '...' 
         : node.name;
+      ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
+      ctx.globalAlpha = 1;
+    }
+    
+    // Second pass: draw dragged node on top
+    if (draggedNode) {
+      const node = draggedNode;
+      const isHovered = currentHoveredNode?.id === node.id;
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
+      const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
+      const nodeColor = getNodeColor(node, currentClassColors, accentColor);
+      
+      if (liftProgress > 0) {
+        const shadowOffset = 4 * liftProgress;
+        const shadowBlur = 12 * liftProgress;
+        const shadowOpacity = 0.3 * liftProgress;
+        ctx.save();
+        ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`;
+        ctx.shadowBlur = shadowBlur;
+        ctx.shadowOffsetX = shadowOffset;
+        ctx.shadowOffsetY = shadowOffset;
+        ctx.beginPath();
+        ctx.fillStyle = nodeColor;
+        ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+      }
+      
+      let glareScale = GLARE_SCALE_NORMAL;
+      let glareOpacity = GLARE_OPACITY_NORMAL;
+      switch (node.glare) {
+        case 'bright': glareScale = GLARE_SCALE_BRIGHT; glareOpacity = GLARE_OPACITY_BRIGHT; break;
+        case 'dim': glareOpacity = GLARE_OPACITY_DIM; break;
+        case 'path': break;
+        case 'current': glareScale = GLARE_SCALE_CURRENT; glareOpacity = 0.5; break;
+      }
+      const glareRadius = baseRadius * glareScale;
+      ctx.beginPath();
+      ctx.fillStyle = node.glare === 'current'
+        ? `rgba(255, 215, 0, ${glareOpacity})`
+        : hexToRgba(nodeColor, glareOpacity);
+      ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.fillStyle = node.glare === 'dim' ? dimColor : nodeColor;
+      ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      if (node.pinned) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; ctx.shadowBlur = 3; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+        ctx.beginPath(); ctx.fillStyle = textColor;
+        ctx.arc(node.x, node.y, circleRadius * 0.3, 0, 2 * Math.PI); ctx.fill();
+        ctx.restore();
+      }
+      const currentScale = transformRef.current.scale;
+      const zoomOpacity = currentScale <= LABEL_FADE_ZOOM_MIN ? 0 : currentScale >= LABEL_FADE_ZOOM_MAX ? 1 : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
+      const dimOp = node.glare === 'dim' ? 0.4 : 1;
+      ctx.fillStyle = textColor; ctx.globalAlpha = zoomOpacity * dimOp;
+      ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const displayName = node.name.length > 35 ? node.name.slice(0, 35) + '...' : node.name;
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
@@ -2231,10 +2334,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
   }, [getCanvasCoordinates, getNodeAtPosition, onNodeRightClick]);
 
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+  // Wheel handler — must use native listener with {passive:false} to allow preventDefault.
+  // React registers wheel as passive by default, which blocks preventDefault.
+  const handleWheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  handleWheelRef.current = (e: WheelEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const { x: screenX, y: screenY } = getCanvasCoordinates(e);
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
     
     const cur = transformRef.current;
     const delta = e.ctrlKey ? -e.deltaY * 0.01 : -e.deltaY * 0.001;
@@ -2250,7 +2363,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       y: newY,
       scale: newScale
     });
-  }, [getCanvasCoordinates, setTransformDirect]);
+  };
+  
+  // Attach native wheel listener with {passive: false}
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handler = (e: WheelEvent) => handleWheelRef.current(e);
+    canvas.addEventListener('wheel', handler, { passive: false });
+    return () => canvas.removeEventListener('wheel', handler);
+  }, []);
 
   return (
     <div className={`node-graph-renderer ${className}`} ref={containerRef}>
@@ -2265,7 +2387,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        onWheel={handleWheel}
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
       />
     </div>
