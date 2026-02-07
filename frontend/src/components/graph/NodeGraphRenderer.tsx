@@ -382,9 +382,24 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const panStartRef = useRef({ x: 0, y: 0 });
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const transformRef = useRef({ x: 0, y: 0, scale: 1 });
+  const transformRafRef = useRef<number>(0); // throttle React state updates
+  
+  // Write transform directly to ref (immediate) and schedule React state update (throttled).
+  // The canvas reads from transformRef so it stays perfectly smooth;
+  // React state is only needed for cursor style and handleWheel closure.
+  const setTransformDirect = useCallback((t: { x: number; y: number; scale: number }) => {
+    transformRef.current = t;
+    if (!transformRafRef.current) {
+      transformRafRef.current = requestAnimationFrame(() => {
+        transformRafRef.current = 0;
+        setTransform(transformRef.current);
+      });
+    }
+  }, []);
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const hoveredNodeRef = useRef<GraphNode | null>(null);
 
   // Calculate positions for view modes
   const calculatePositions = useCallback((
@@ -689,13 +704,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
   }, []);
 
-  // Keep refs in sync
+  // Keep refs in sync (fallback for setTransform calls not through setTransformDirect)
   useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => { settingsRef.current = settings; topologyDirtyRef.current = true; }, [settings]);
   useEffect(() => { classColorsRef.current = classColors; }, [classColors]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
   useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
+  useEffect(() => { hoveredNodeRef.current = hoveredNode; }, [hoveredNode]);
   
   // Handle view mode changes separately — only update targets, don't reset warmup
   const prevViewModeRef = useRef(viewMode);
@@ -1665,6 +1681,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         cancelAnimationFrame(animationRef.current);
         animationRef.current = 0;
       }
+      if (transformRafRef.current) {
+        cancelAnimationFrame(transformRafRef.current);
+        transformRafRef.current = 0;
+      }
     };
   }, [startSimulation]);
 
@@ -1907,6 +1927,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Get dragged node info for shadow rendering
     const draggedNodeId = dragNodeRef.current?.id ?? null;
     const liftProgress = dragLiftProgressRef.current;
+    const currentHoveredNode = hoveredNodeRef.current;
     
     // Draw nodes (dragged node last to be on top)
     const sortedNodes = [...visibleNodes].sort((a, b) => {
@@ -1916,7 +1937,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     });
     
     for (const node of sortedNodes) {
-      const isHovered = hoveredNode?.id === node.id;
+      const isHovered = currentHoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
       const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
@@ -2031,7 +2052,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     ctx.restore();
-  }, [dimensions, hoveredNode]);
+  }, [dimensions]);
 
   // Keep renderRef in sync
   useEffect(() => {
@@ -2099,11 +2120,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
         didDragMoveRef.current = true;
       }
-      setTransform(prev => ({
-        ...prev,
+      const prev = transformRef.current;
+      setTransformDirect({
         x: prev.x + dx,
-        y: prev.y + dy
-      }));
+        y: prev.y + dy,
+        scale: prev.scale
+      });
       panStartRef.current = { x: screenX, y: screenY };
     } else if (dragNodeRef.current) {
       const { x, y } = screenToWorld(screenX, screenY);
@@ -2135,7 +2157,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       setHoveredNode(node);
       onHoveredNodeChange?.(node);
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange]);
+  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
@@ -2214,20 +2236,21 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     e.stopPropagation();
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
     
+    const cur = transformRef.current;
     const delta = e.ctrlKey ? -e.deltaY * 0.01 : -e.deltaY * 0.001;
     const zoomFactor = Math.exp(delta);
-    const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.1), 5);
+    const newScale = Math.min(Math.max(cur.scale * zoomFactor, 0.1), 5);
     
-    const scaleChange = newScale / transform.scale;
-    const newX = screenX - (screenX - transform.x) * scaleChange;
-    const newY = screenY - (screenY - transform.y) * scaleChange;
+    const scaleChange = newScale / cur.scale;
+    const newX = screenX - (screenX - cur.x) * scaleChange;
+    const newY = screenY - (screenY - cur.y) * scaleChange;
     
-    setTransform({
+    setTransformDirect({
       x: newX,
       y: newY,
       scale: newScale
     });
-  }, [getCanvasCoordinates, transform]);
+  }, [getCanvasCoordinates, setTransformDirect]);
 
   return (
     <div className={`node-graph-renderer ${className}`} ref={containerRef}>
