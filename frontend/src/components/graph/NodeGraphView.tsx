@@ -107,45 +107,41 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   
-  // Load settings from database
+  // Load all graph settings from database in a single call
   useEffect(() => {
-    if (classColorsLoadedRef.current) return;
+    if (classColorsLoadedRef.current && settingsLoadedRef.current) return;
     
     getSettings().then(settings => {
-      const saved = settings['graph_class_colors'];
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            setClassColors(parsed);
+      if (!classColorsLoadedRef.current) {
+        const saved = settings['graph_class_colors'];
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              setClassColors(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to parse graph_class_colors:', e);
           }
-        } catch (e) {
-          console.error('Failed to parse graph_class_colors:', e);
         }
+        classColorsLoadedRef.current = true;
       }
-      classColorsLoadedRef.current = true;
+      
+      if (!settingsLoadedRef.current) {
+        const savedSettings = settings['graph_settings'];
+        if (savedSettings) {
+          try {
+            const parsed = JSON.parse(savedSettings);
+            setGraphSettings(prev => ({ ...prev, ...parsed }));
+          } catch (e) {
+            console.error('Failed to parse graph_settings:', e);
+          }
+        }
+        settingsLoadedRef.current = true;
+      }
     }).catch(e => {
       console.error('Failed to load settings:', e);
       classColorsLoadedRef.current = true;
-    });
-  }, []);
-  
-  useEffect(() => {
-    if (settingsLoadedRef.current) return;
-    
-    getSettings().then(settings => {
-      const saved = settings['graph_settings'];
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setGraphSettings(prev => ({ ...prev, ...parsed }));
-        } catch (e) {
-          console.error('Failed to parse graph_settings:', e);
-        }
-      }
-      settingsLoadedRef.current = true;
-    }).catch(e => {
-      console.error('Failed to load graph settings:', e);
       settingsLoadedRef.current = true;
     });
   }, []);
