@@ -483,6 +483,8 @@ class LinkParsingService:
         - Property provenance if applicable
         - Breadcrumb path to page ancestor
         
+        Includes backlinks to all descendants (children, grandchildren, etc.) recursively.
+        
         Classes are stored in class_ids column, not as property links.
         """
         if not hasattr(self._link_repo, 'get_connection'):
@@ -490,7 +492,14 @@ class LinkParsingService:
         
         pool = self._link_repo.get_connection()
         
-        # Get all links pointing to this node, with property info
+        # Get all descendants of the target node (includes children, grandchildren, etc.)
+        descendant_ids = await self._node_repo.get_descendants(target_node_id, include_self=True)
+        
+        if not descendant_ids:
+            # If no descendants found, just use the target node itself
+            descendant_ids = [target_node_id]
+        
+        # Get all links pointing to this node OR any of its descendants, with property info
         rows = await pool.fetch("""
             SELECT 
                 nl.id, nl.source_id, nl.target_id, nl.position, nl.property_id,
@@ -503,9 +512,9 @@ class LinkParsingService:
             JOIN node n ON nl.source_id = n.id
             LEFT JOIN property p ON nl.property_id = p.id
             LEFT JOIN node page ON n.page_id = page.id
-            WHERE nl.target_id = $1
+            WHERE nl.target_id = ANY($1)
               AND (p.name IS NULL OR p.name NOT IN ('classes', 'extends'))
-        """, target_node_id)
+        """, descendant_ids)
         
         backlinks = []
         
@@ -539,7 +548,7 @@ class LinkParsingService:
             backlinks.append(backlink_info)
         
         # Also get references from node-type properties (property_value_relation)
-        # These are nodes that have a property value pointing to this target node
+        # These are nodes that have a property value pointing to this target node or its descendants
         property_rows = await pool.fetch("""
             SELECT DISTINCT
                 pvr.node_id as source_id,
@@ -555,10 +564,10 @@ class LinkParsingService:
             JOIN property p ON pvr.property_id = p.id
             JOIN node n ON pvr.node_id = n.id
             LEFT JOIN node page ON n.page_id = page.id
-            WHERE pvr.target_id = $1 
+            WHERE pvr.target_id = ANY($1)
               AND p.type = 'node'
               AND p.name NOT IN ('classes', 'extends')
-        """, target_node_id)
+        """, descendant_ids)
         
         for row in property_rows:
             # Create a pseudo NodeLink for property references
