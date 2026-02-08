@@ -26,6 +26,7 @@ from .helpers import (
     _get_class_ids_batch,
     extract_properties_dict,
 )
+from ...db.connection import acquire_connection
 
 
 router = APIRouter()
@@ -42,7 +43,7 @@ async def get_text_links(
     including whether each link is a tag (displayed with #) or a regular link.
     """
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, source_id, target_id, is_tag, position, name
             FROM node_link
@@ -78,7 +79,7 @@ async def add_tag_link(
     displayed with a # instead of a page/block icon.
     """
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Verify source node exists
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE id = $1 AND graph_id = $2",
@@ -144,7 +145,7 @@ async def remove_tag_link(
 ):
     """Remove a tag from a link (converts back to regular link)."""
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         result = await conn.execute("""
             UPDATE node_link SET is_tag = FALSE 
             WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND graph_id = $3
@@ -489,7 +490,7 @@ async def update_link_name(
         Updated link response
     """
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Normalize empty string to None
         name_value = request.name if request.name and request.name.strip() else None
         

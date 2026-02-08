@@ -17,6 +17,7 @@ from ..entities import NodeLink, InlineClass
 from .interfaces import LinkRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
+from ...db.connection import acquire_connection
 
 
 class PostgresLinkRepository(LinkRepository):
@@ -60,7 +61,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def create(self, link: NodeLink) -> NodeLink:
         """Create a new link."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO node_link (source_id, target_id, is_tag, name, create_date, create_uid, graph_id)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -76,7 +77,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def delete_source_links(self, source_node_id: int) -> int:
         """Delete all links from a source node (for re-parsing)."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM node_link WHERE source_id = $1",
                 source_node_id
@@ -86,7 +87,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def get_source_links(self, source_node_id: int) -> List[NodeLink]:
         """Get all links from a source node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM node_link WHERE source_id = $1",
                 source_node_id
@@ -95,7 +96,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def get_backlinks(self, target_node_id: int) -> List[NodeLink]:
         """Get all links pointing to a target node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM node_link WHERE target_id = $1",
                 target_node_id
@@ -104,7 +105,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def get_page_backlinks(self, page_id: int) -> List[NodeLink]:
         """Get backlinks with inheritance (links from nodes in this graph)."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT nl.*, n.page_id as source_page_id
                 FROM node_link nl
@@ -115,7 +116,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def get_outgoing_links(self, source_node_id: int) -> List[NodeLink]:
         """Get all links from a source node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM node_link WHERE source_id = $1",
                 source_node_id
@@ -131,7 +132,7 @@ class PostgresLinkRepository(LinkRepository):
         if not links:
             return []
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use copy_records_to_table for best performance
             records = [
                 (link.source_id, link.target_id, link.is_tag, 
@@ -153,7 +154,7 @@ class PostgresLinkRepository(LinkRepository):
         Note: In the new schema, there's no property_id distinction.
         This method now deletes all non-tag links from the source.
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM node_link WHERE source_id = $1 AND is_tag = FALSE",
                 source_node_id
@@ -162,7 +163,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def delete_tag_links(self, source_node_id: int) -> int:
         """Delete all tag links from a source node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM node_link WHERE source_id = $1 AND is_tag = TRUE",
                 source_node_id
@@ -171,7 +172,7 @@ class PostgresLinkRepository(LinkRepository):
     
     async def get_backlinks_for_graph(self, target_node_id: int) -> List[NodeLink]:
         """Get backlinks from nodes within the current graph only."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT nl.*
                 FROM node_link nl
@@ -220,7 +221,7 @@ class PostgresInlineClassRepository:
     
     async def create(self, inline_class: InlineClass) -> InlineClass:
         """Create a new inline class reference."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO class_inline (node_id, class_id, position, create_date, create_uid, graph_id)
                 VALUES ($1, $2, $3, $4, $5, $6)
@@ -236,7 +237,7 @@ class PostgresInlineClassRepository:
     
     async def delete_source_inline_classes(self, source_node_id: int) -> int:
         """Delete all inline classes from a source node (for re-parsing)."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM class_inline WHERE node_id = $1",
                 source_node_id
@@ -245,7 +246,7 @@ class PostgresInlineClassRepository:
     
     async def get_source_inline_classes(self, source_node_id: int) -> List[InlineClass]:
         """Get all inline classes from a source node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM class_inline WHERE node_id = $1 ORDER BY position",
                 source_node_id
@@ -254,7 +255,7 @@ class PostgresInlineClassRepository:
     
     async def get_class_references(self, class_node_id: int) -> List[InlineClass]:
         """Get all inline references to a class node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM class_inline WHERE class_id = $1",
                 class_node_id
@@ -266,7 +267,7 @@ class PostgresInlineClassRepository:
         if not inline_classes:
             return []
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             records = [
                 (ic.node_id, ic.class_id, ic.position, ic.create_date,
                  ic.create_uid or self._user_id, self._graph_id)
@@ -282,7 +283,7 @@ class PostgresInlineClassRepository:
     
     async def get_inline_classes_for_graph(self, class_node_id: int) -> List[InlineClass]:
         """Get inline class references from nodes within the current graph only."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT ci.*
                 FROM class_inline ci

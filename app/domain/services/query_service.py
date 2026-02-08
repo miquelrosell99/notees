@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any, Union
 
 from ..entities.query_ast import QueryAST
 from .query_ast_sql import QueryASTToSQL
+from ...db.connection import acquire_connection
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -184,7 +185,7 @@ class QueryExecutor:
         logger.info(f"[QUERY DEBUG] SQL: {sql}")
         logger.info(f"[QUERY DEBUG] Params: {params}")
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(sql, *params)
         
         # Convert rows to dictionaries
@@ -241,7 +242,7 @@ class QueryExecutor:
         # Wrap in COUNT query
         count_sql = f"SELECT COUNT(*) as count FROM ({sql}) subq"
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(count_sql, *params)
         
         return row['count'] if row else 0

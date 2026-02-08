@@ -20,6 +20,7 @@ from ...logging_config import get_logger
 if TYPE_CHECKING:
     from ..repositories import PropertyRepository
     import asyncpg
+from ...db.connection import acquire_connection
 
 logger = get_logger(__name__)
 
@@ -74,7 +75,7 @@ class ClassExtensionService:
         
         Returns class IDs in the order they are defined (by sequence).
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT ce.source_id
                 FROM class_extend ce
@@ -92,7 +93,7 @@ class ClassExtensionService:
         
         Returns ClassExtend objects with source class name and icon.
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT ce.id, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
                 FROM class_extend ce
@@ -133,7 +134,7 @@ class ClassExtensionService:
         # First validate this won't create a cycle
         await self.validate_extends_acyclic(class_node_id, [extends_class_id])
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Check if already exists
             existing = await conn.fetchrow("""
                 SELECT id FROM class_extend 
@@ -172,7 +173,7 @@ class ClassExtensionService:
         
         Returns True if deleted, False if not found.
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute("""
                 DELETE FROM class_extend
                 WHERE target_id = $1 AND source_id = $2
@@ -256,7 +257,7 @@ class ClassExtensionService:
             class_props = await self._property_repo.get_class_properties(extended_class_id)
             
             # Get class name
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 class_row = await conn.fetchrow(
                     "SELECT name FROM node WHERE id = $1 AND graph_id = $2",
                     extended_class_id, self._graph_id
@@ -331,7 +332,7 @@ class ClassExtensionService:
         
         Returns a flat list of classes (not hierarchical).
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT DISTINCT n.id, n.uuid, n.name, n.icon
                 FROM node n
@@ -361,7 +362,7 @@ class ClassExtensionService:
         """
         result = []
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Get direct subclasses using class_extend table
             rows = await conn.fetch("""
                 SELECT DISTINCT n.id

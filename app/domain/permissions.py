@@ -18,6 +18,8 @@ from typing import Optional, List, TYPE_CHECKING
 
 import asyncpg
 
+from ..db.connection import acquire_connection
+
 if TYPE_CHECKING:
     pass
 
@@ -97,7 +99,7 @@ class PermissionChecker:
         if graph_id in self._graph_cache:
             return self._graph_cache[graph_id]
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Check if user is owner
             row = await conn.fetchrow("""
                 SELECT create_uid FROM graph 
@@ -156,7 +158,7 @@ class PermissionChecker:
         if active_only and node_id in self._node_cache:
             return self._node_cache[node_id]
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Get node info including graph_id and create_uid
             if active_only:
                 row = await conn.fetchrow("""
@@ -259,7 +261,7 @@ class PermissionChecker:
         
         Returns graphs owned by the user plus graphs shared with them.
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT DISTINCT id FROM (
                     -- Graphs owned by user

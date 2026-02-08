@@ -88,9 +88,9 @@ async def create_property(
         class_filters = request.class_filters
         if prop_type == PropertyType.NODE and not class_filters:
             # Get the 'page' class ID
-            from ...db.connection import get_pool
+            from ...db.connection import acquire_connection, get_pool
             pool = await get_pool()
-            async with pool.acquire() as conn:
+            async with acquire_connection(pool) as conn:
                 page_class_row = await conn.fetchrow(
                     "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
                     SYSTEM_CLASS_UUIDS["page"], user.graph_id
@@ -160,7 +160,7 @@ async def update_property(
         
         from ...db.connection import get_pool
         pool = await get_pool()
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             # If changing from multi to single, delete extra values
             if prop.is_multi and not request.multi:
                 # Delete all values except the first one for each node
@@ -339,7 +339,7 @@ async def get_nodes_with_property(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = PostgresPropertyRepository(pool, graph_id, user_id)
     
@@ -357,7 +357,7 @@ async def get_nodes_with_property(
     
     # Build response with node details and property values
     result = []
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         for node_id in node_ids:
             # Get node details
             node_row = await conn.fetchrow(

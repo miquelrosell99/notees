@@ -12,7 +12,7 @@ from ...domain.entities import (
     Property, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
 )
 from ...domain.repositories import PostgresPropertyRepository
-from ...db.connection import get_pool
+from ...db.connection import acquire_connection, get_pool
 from ...db.schema import get_or_create_user_graph
 from ...models import User
 from .models import (
@@ -28,7 +28,7 @@ async def _get_property_repo(user: User) -> PostgresPropertyRepository:
     """Get PropertyRepository for user's graph."""
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     return PostgresPropertyRepository(pool, graph_id, user_id)
 

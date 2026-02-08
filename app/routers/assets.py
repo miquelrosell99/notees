@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from jose import jwt
 
-from ..db.connection import get_pool, get_graph_assets_dir, get_graph_uuid
+from ..db.connection import acquire_connection, get_pool, get_graph_assets_dir, get_graph_uuid
 from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
@@ -165,7 +165,7 @@ def get_extension_from_content_type(content_type: str) -> str:
 
 async def _get_system_ids(pool, graph_id: int, user_id: int):
     """Get system type IDs from the database."""
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         # Get page type ID
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
@@ -246,7 +246,7 @@ async def upload_asset(
     user_id = int(current_user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     # Get graph UUID for asset storage
@@ -281,7 +281,7 @@ async def upload_asset(
                 raise HTTPException(status_code=404, detail=f"Node {existing_node_id} not found")
             
             # Update the node to be an asset
-            async with pool.acquire() as conn:
+            async with acquire_connection(pool) as conn:
                 now = datetime.now(timezone.utc)
                 await conn.execute("""
                     UPDATE node 
@@ -370,11 +370,11 @@ async def generate_asset_token(
     user_id = str(current_user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user_id))
     
     # Verify the asset exists and belongs to this user's graph
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2 AND is_asset = TRUE",
             asset_uuid, graph_id
@@ -433,7 +433,7 @@ async def get_asset(
     user_id = int(user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     # Get graph UUID for asset storage
@@ -506,7 +506,7 @@ async def get_asset_thumbnail(
     user_id = int(user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     # Get graph UUID for asset storage
@@ -536,7 +536,7 @@ async def get_asset_info(
     user_id = int(current_user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     page_type_id, _ = await _get_system_ids(pool, graph_id, user_id)
@@ -588,7 +588,7 @@ async def delete_asset(
     user_id = int(current_user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     page_type_id, _ = await _get_system_ids(pool, graph_id, user_id)
@@ -627,7 +627,7 @@ async def list_assets(
     user_id = int(current_user.id)
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     
     page_type_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)

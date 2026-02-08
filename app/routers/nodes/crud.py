@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, OptimisticLockError
 from ...db.schema import SYSTEM_CLASS_UUIDS
-from ...db.connection import get_graph_assets_dir, get_graph_uuid
+from ...db.connection import acquire_connection, get_graph_assets_dir, get_graph_uuid
 from ..auth import get_current_user
 from ...models import User
 from .models import (
@@ -81,7 +81,7 @@ async def get_recent_pages(
     """
     service = await _get_node_service(user)
     
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
@@ -706,7 +706,7 @@ async def mark_page_opened(
     from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Verify it's a page and exists
         row = await conn.fetchrow(
             "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND graph_id = $2",

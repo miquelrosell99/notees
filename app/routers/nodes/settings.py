@@ -10,6 +10,7 @@ from .helpers import (
     _format_date_with_pattern,
     _format_month_with_pattern,
 )
+from ...db.connection import acquire_connection
 
 
 router = APIRouter()
@@ -32,7 +33,7 @@ async def update_date_format(
     pattern = request.new_format
     
     # Also save the user's date format preference
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         await conn.execute("""
             INSERT INTO setting_user (user_id, key, value) 
             VALUES ($1, 'date_format', $2)

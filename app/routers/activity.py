@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from .auth import get_current_user
 from ..models import User
-from ..db.connection import get_pool
+from ..db.connection import acquire_connection, get_pool
 from ..db.schema import get_or_create_user_graph
 from ..logging_config import get_logger
 from ..utils import utc_now
@@ -77,7 +77,7 @@ async def get_node_activity(
     """Get activity log for a node."""
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user.id))
         # First verify the node belongs to this graph
         node_check = await conn.fetchrow(
@@ -132,7 +132,7 @@ async def create_node_activity(
     """
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user.id))
         # Check if the node is a page
         row = await conn.fetchrow(
@@ -185,7 +185,7 @@ async def delete_node_activity(
     """Delete a node activity entry."""
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user.id))
         # Verify node belongs to graph before deleting activity
         node_check = await conn.fetchrow(
@@ -217,7 +217,7 @@ async def track_link_click(
     pool = await get_pool()
     now = utc_now()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         # Insert new click record with optional node_link_uuid
         await conn.execute(
             """
@@ -263,7 +263,7 @@ async def get_link_clicks(
     """Get all link click counts from a source node (aggregated)."""
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         rows = await conn.fetch(
             """
             SELECT 
@@ -298,7 +298,7 @@ async def get_link_click(
     """Get click count for a specific link."""
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         row = await conn.fetchrow(
             """
             SELECT 
@@ -328,7 +328,7 @@ async def get_link_click_history(
     """Get click history for a specific link."""
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         rows = await conn.fetch(
             """
             SELECT id, source_node_id, target_node_id, click_date
@@ -360,7 +360,7 @@ async def reset_link_click(
     """Reset click counter for a specific link (deletes all click records)."""
     pool = await get_pool()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         await conn.execute(
             "DELETE FROM link_click WHERE source_node_id = $1 AND target_node_id = $2",
             source_node_id, target_node_id

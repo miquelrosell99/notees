@@ -15,6 +15,7 @@ from ..permissions import PermissionChecker
 from .interfaces import NodeRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
+from ...db.connection import acquire_connection
 
 if TYPE_CHECKING:
     pass
@@ -142,7 +143,7 @@ class PostgresNodeRepository(NodeRepository):
         
         Uses node_path for O(1) ancestor lookup instead of recursive CTE.
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use node_path to find nearest page ancestor
             row = await conn.fetchrow("""
                 SELECT n.id
@@ -159,7 +160,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def _is_page(self, node_id: int) -> bool:
         """Check if a node is a page."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
                 node_id, self._graph_id
@@ -192,7 +193,7 @@ class PostgresNodeRepository(NodeRepository):
         if self._user_id:
             await self.permissions.require_node_write(node_id)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             async with conn.transaction():
                 node = await self.get_by_id(node_id)
                 if not node:
@@ -323,7 +324,7 @@ class PostgresNodeRepository(NodeRepository):
                     elif flag_name == "is_comment":
                         is_comment = True
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             async with conn.transaction():
                 # Shift siblings if inserting at specific position
                 if data.parent_id is not None and data.sequence is not None:
@@ -383,7 +384,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def get_by_id(self, node_id: int) -> Optional[Node]:
         """Get node by internal ID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT * FROM node WHERE id = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 node_id, self._graph_id
@@ -400,7 +401,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def get_by_uuid(self, uuid: str) -> Optional[Node]:
         """Get node by UUID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT * FROM node WHERE uuid = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 uuid, self._graph_id
@@ -545,7 +546,7 @@ class PostgresNodeRepository(NodeRepository):
             RETURNING *
         """
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(query, *params)
             
             if row is None and expected_version is not None:
@@ -569,7 +570,7 @@ class PostgresNodeRepository(NodeRepository):
         if self._user_id:
             await self.permissions.require_node_delete(node_id)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use closure table (node_path) to get all descendants
             rows = await conn.fetch("""
                 SELECT np.descendant_id as id
@@ -601,7 +602,7 @@ class PostgresNodeRepository(NodeRepository):
         if self._user_id:
             await self.permissions.require_node_delete(node_id)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use closure table (node_path) to get all descendants
             rows = await conn.fetch("""
                 SELECT np.descendant_id as id
@@ -636,7 +637,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def get_children(self, parent_id: int) -> List[Node]:
         """Get direct children of a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM node WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
                 parent_id, self._graph_id
@@ -650,7 +651,7 @@ class PostgresNodeRepository(NodeRepository):
             limit: Maximum number of pages to return (default: no limit for backward compatibility)
             offset: Number of pages to skip (for pagination)
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             query = """
                 SELECT * FROM node
                 WHERE is_page = true AND active = true AND is_deleted = false AND graph_id = $1
@@ -667,7 +668,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def get_page_content(self, page_id: int) -> List[Node]:
         """Get all nodes belonging to a page (recursive children)."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
                 WHERE (page_id = $1 OR id = $1) AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE
@@ -677,7 +678,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def search(self, query: str, limit: int = 50) -> List[Node]:
         """Search nodes by name using full-text search."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use FTS if query is substantial, fall back to ILIKE for short queries
             if len(query) >= 3:
                 rows = await conn.fetch("""
@@ -697,7 +698,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def get_typed_with(self, type_node_id: int) -> List[Node]:
         """Get all nodes with a specific type."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT n.* FROM node n
                 WHERE $1 = ANY(n.class_ids) AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
@@ -712,7 +713,7 @@ class PostgresNodeRepository(NodeRepository):
         
         now = utc_now()
         uid = user_id or self._user_id
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 UPDATE node 
                 SET active = $1, write_date = $2, write_uid = $3, version = version + 1
@@ -723,7 +724,7 @@ class PostgresNodeRepository(NodeRepository):
     
     async def get_archived_pages(self) -> List[Node]:
         """Get all archived nodes tagged as 'page'."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
                 WHERE is_page = true AND active = false 
@@ -736,7 +737,7 @@ class PostgresNodeRepository(NodeRepository):
     async def update_open_date(self, node_id: int) -> Optional[Node]:
         """Update the open_date timestamp for a node."""
         now = utc_now()
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 UPDATE node 
                 SET open_date = $1
@@ -768,7 +769,7 @@ class PostgresNodeRepository(NodeRepository):
         Returns:
             List of Node entities ordered from root/enter_node to exit_node
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Call the Postgres get_breadcrumbs function and join with full node data
             # to avoid N+1 queries
             if enter_node_id is not None:
@@ -813,7 +814,7 @@ class PostgresNodeRepository(NodeRepository):
         Returns:
             List of ancestor node IDs (ordered from root to immediate parent)
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if include_self:
                 rows = await conn.fetch("""
                     SELECT np.ancestor_id
@@ -849,7 +850,7 @@ class PostgresNodeRepository(NodeRepository):
         Returns:
             List of descendant node IDs (no specific order)
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if include_self:
                 rows = await conn.fetch("""
                     SELECT np.descendant_id

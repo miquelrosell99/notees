@@ -11,7 +11,7 @@ from ...domain.repositories import (
     PostgresLinkRepository,
     PostgresInlineClassRepository,
 )
-from ...db.connection import get_pool
+from ...db.connection import acquire_connection, get_pool
 from ...models import User
 from ...logging_config import get_logger
 from .models import NodeResponse, CommentResponse
@@ -192,7 +192,7 @@ async def _get_class_ids(service: NodeService, node_id: int) -> List[int]:
 
 async def _get_tag_ids(pool, graph_id: int, node_id: int) -> List[int]:
     """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         rows = await conn.fetch("""
             SELECT target_id FROM node_link 
             WHERE source_id = $1 AND is_tag = TRUE AND property_id IS NULL
@@ -212,7 +212,7 @@ async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[i
     # Initialize result with empty lists for all requested nodes
     result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         rows = await conn.fetch("""
             SELECT source_id, target_id
             FROM node_link 
@@ -249,7 +249,7 @@ async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int], *, conn
     if conn is not None:
         return await _fetch(conn)
     
-    async with pool.acquire() as c:
+    async with acquire_connection(pool) as c:
         return await _fetch(c)
 
 

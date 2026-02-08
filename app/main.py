@@ -128,12 +128,18 @@ async def validation_exception_handler(request, exc):
     )
 
 
-# Request logging middleware
+# Request logging middleware with per-request connection
 import time
+from .db.connection import request_connection
 
 @app.middleware("http")
 async def log_requests(request, call_next):
-    """Log all incoming requests with timing."""
+    """Log all incoming requests with timing and per-request DB connection.
+    
+    Wraps each API request in a request-scoped connection so all repository
+    calls within the request share one pooled connection instead of each
+    method call independently acquiring/releasing from the pool.
+    """
     import traceback
     start_time = time.perf_counter()
     
@@ -145,7 +151,12 @@ async def log_requests(request, call_next):
         logger.debug(f"→ {request.method} {path}")
     
     try:
-        response = await call_next(request)
+        # Wrap API requests in a per-request connection to avoid pool contention
+        if path.startswith('/api/'):
+            async with request_connection():
+                response = await call_next(request)
+        else:
+            response = await call_next(request)
     except Exception as e:
         logger.error(f"Exception in {request.method} {path}: {e}")
         logger.error(traceback.format_exc())

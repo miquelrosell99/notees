@@ -14,6 +14,7 @@ from ..entities import User, UserCreateData, generate_uuid
 from .interfaces import UserRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
+from ...db.connection import acquire_connection
 
 
 class PostgresUserRepository(UserRepository):
@@ -52,7 +53,7 @@ class PostgresUserRepository(UserRepository):
         now = utc_now()
         uuid = generate_uuid()
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO "user" (uuid, username, password_hash, active, create_date, write_date)
                 VALUES ($1, $2, $3, TRUE, $4, $4)
@@ -65,7 +66,7 @@ class PostgresUserRepository(UserRepository):
     
     async def get_by_id(self, user_id: int) -> Optional[User]:
         """Get user by ID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 'SELECT * FROM "user" WHERE id = $1',
                 user_id
@@ -74,7 +75,7 @@ class PostgresUserRepository(UserRepository):
     
     async def get_by_uuid(self, uuid: str) -> Optional[User]:
         """Get user by UUID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 'SELECT * FROM "user" WHERE uuid = $1',
                 uuid
@@ -83,7 +84,7 @@ class PostgresUserRepository(UserRepository):
     
     async def get_by_username(self, username: str) -> Optional[User]:
         """Get user by username."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 'SELECT * FROM "user" WHERE username = $1',
                 username
@@ -93,7 +94,7 @@ class PostgresUserRepository(UserRepository):
     async def update_password(self, user_id: int, password_hash: str) -> bool:
         """Update user password."""
         now = utc_now()
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute("""
                 UPDATE "user" 
                 SET password_hash = $1, write_date = $2
@@ -104,7 +105,7 @@ class PostgresUserRepository(UserRepository):
     async def deactivate(self, user_id: int) -> bool:
         """Deactivate a user (soft delete)."""
         now = utc_now()
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute("""
                 UPDATE "user" 
                 SET active = FALSE, write_date = $1
@@ -114,7 +115,7 @@ class PostgresUserRepository(UserRepository):
     
     async def get_password_hash(self, user_id: int) -> Optional[str]:
         """Get the password hash for a user."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 'SELECT password_hash FROM "user" WHERE id = $1',
                 user_id
