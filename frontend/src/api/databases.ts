@@ -111,6 +111,6 @@ export async function getSetting(key: string): Promise<string | null> {
 /**
  * Set a setting value
  */
-export async function setSetting(key: string, value: string): Promise<void> {
+export async function setSetting(key: string, value: unknown): Promise<void> {
   await api.put(`/settings/${encodeURIComponent(key)}`, { value });
 }
