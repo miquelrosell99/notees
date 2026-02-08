@@ -110,12 +110,9 @@ export async function listDailyPages(): Promise<Node[]> {
 }
 
 /**
- * Get list of all existing daily pages
+ * @deprecated Use listDailyPages instead. Kept as alias for backward compatibility.
  */
-export async function getDailyPages(): Promise<Node[]> {
-  const response = await api.get<{ nodes: Node[] }>(`${BASE}/daily/list`);
-  return response.data.nodes;
-}
+export const getDailyPages = listDailyPages;
 
 /**
  * Get or create a daily note
