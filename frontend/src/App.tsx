@@ -10,6 +10,8 @@
 import { useEffect, useRef } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
+import { settingsKeys } from './hooks/queryKeys';
+import { getSettings } from './api/databases';
 import { Layout } from './components/layout/Layout';
 import { LoginPage } from './views/LoginPage';
 import { GraphManagementView } from './views/GraphManagementView';
@@ -107,6 +109,19 @@ function AppContent() {
     };
   }, [isAuthenticated]);
   
+  // Prefetch settings as soon as we have an active database.
+  // This fires GET /settings before Layout mounts, so it's cached
+  // before journal/graph views start their own request floods.
+  useEffect(() => {
+    if (dbData?.active) {
+      queryClient.prefetchQuery({
+        queryKey: settingsKeys.all,
+        queryFn: getSettings,
+        staleTime: 1000 * 60 * 5,
+      });
+    }
+  }, [dbData?.active]);
+
   // Refresh favorites and recents when database changes
   useEffect(() => {
     if (dbData?.active) {
