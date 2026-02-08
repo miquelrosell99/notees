@@ -5,7 +5,7 @@
  * Uses NodeView component for each daily page for consistent editing experience.
  */
 import { useState, useMemo } from 'react';
-import { useExistingDailyPages, useNode } from '@/hooks';
+import { useExistingDailyPages } from '@/hooks';
 import './JournalsView.css';
 import { useNodesStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
@@ -18,25 +18,13 @@ interface JournalEntryProps {
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
   const { viewMode } = useNodesStore();
   
-  // Fetch full node with children for this daily page
-  const { data: fullPage, isLoading, error } = useNode(dailyPageId, { include_children: true });
-  
-  if (isLoading || !fullPage) {
-    return (
-      <article className="journal-entry loading">
-        <div className="journal-date">{dailyPageId}</div>
-      </article>
-    );
-  }
-  
-  if (error) {
-    return null;
-  }
-  
+  // NodeViewContent handles its own data fetching — no need to pre-fetch here.
+  // Previously this called useNode(dailyPageId, { include_children: true }) which
+  // created a duplicate request (different query key than what NodeView uses).
   return (
     <article className="journal-entry">
       <NodeViewContent 
-        nodeId={fullPage.id} 
+        nodeId={dailyPageId} 
         nodeType="page" 
         viewMode={viewMode} 
         compactMode={true} 
