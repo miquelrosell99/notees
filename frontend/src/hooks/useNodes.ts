@@ -18,7 +18,8 @@ export {
   nodeKeys, 
   propertyKeys, 
   commentKeys, 
-  activityKeys 
+  activityKeys,
+  settingsKeys,
 } from './queryKeys';
 
 // ==================== Node Queries ====================

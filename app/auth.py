@@ -7,6 +7,7 @@ Default admin credentials: admin/admin
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from pathlib import Path
+import time
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -16,6 +17,11 @@ from .logging_config import get_logger
 from .db.connection import get_connection
 
 logger = get_logger(__name__)
+
+# In-memory user cache to avoid DB pool acquisition on every request
+# Maps user_id (str) -> (user_dict, cached_at_timestamp)
+_user_cache: dict[str, tuple[dict, float]] = {}
+_USER_CACHE_TTL = 300  # 5 minutes
 
 # Password hashing context
 # Use pbkdf2_sha256 to avoid any bcrypt backend interaction and length limits
@@ -62,7 +68,18 @@ def decode_token(token: str) -> Optional[dict]:
 
 
 async def get_user_by_id(user_id: str) -> Optional[dict]:
-    """Get a user by ID (numeric or UUID string)."""
+    """Get a user by ID (numeric or UUID string).
+    
+    Uses an in-memory cache to avoid hitting the DB connection pool
+    on every authenticated request.
+    """
+    now = time.monotonic()
+    cached = _user_cache.get(user_id)
+    if cached is not None:
+        user_dict, cached_at = cached
+        if now - cached_at < _USER_CACHE_TTL:
+            return user_dict
+    
     async with get_connection() as conn:
         row = await conn.fetchrow(
             '''
@@ -74,7 +91,7 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
             user_id
         )
         if row:
-            return {
+            result = {
                 "id": str(row['id']),
                 "uuid": str(row['uuid']),
                 "username": row['username'],
@@ -82,6 +99,8 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
                 "is_active": row['active'],
                 "created_at": row['created_at'].isoformat() if row['created_at'] else None,
             }
+            _user_cache[user_id] = (result, now)
+            return result
     return None
 
 

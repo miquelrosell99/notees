@@ -12,7 +12,6 @@ from ...domain.repositories import (
     PostgresInlineClassRepository,
 )
 from ...db.connection import get_pool
-from ...db.schema import get_or_create_user_graph
 from ...models import User
 from ...logging_config import get_logger
 from .models import NodeResponse, CommentResponse
@@ -230,23 +229,28 @@ async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[i
     return result
 
 
-async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int], *, conn=None) -> Dict[int, List[int]]:
     """Efficiently fetch class_ids directly from node table.
     
     Returns a dict mapping node_id -> list of class_ids.
+    If conn is provided, uses that connection instead of acquiring from pool.
     """
     if not node_ids:
         return {}
     
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
+    async def _fetch(c):
+        rows = await c.fetch("""
             SELECT id, class_ids
             FROM node
             WHERE id = ANY($1) AND graph_id = $2
         """, node_ids, graph_id)
+        return {row['id']: list(row['class_ids'] or []) for row in rows}
     
-    # Return class_ids for each node
-    return {row['id']: list(row['class_ids'] or []) for row in rows}
+    if conn is not None:
+        return await _fetch(conn)
+    
+    async with pool.acquire() as c:
+        return await _fetch(c)
 
 
 async def _get_effective_class_ids_batch(pool, graph_id: int, node_ids: List[int], user_id: int) -> Dict[int, List[int]]:
@@ -364,25 +368,12 @@ async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[in
 
 
 async def _get_node_service(user: User) -> NodeService:
-    import logging
-    logger = logging.getLogger(__name__)
+    from ...dependencies import _get_graph_context_cached
     
     pool = await get_pool()
     user_id = int(user.id)
     
-    async with pool.acquire() as conn:
-        # Get user's graph
-        logger.info(f"Getting or creating graph for user {user_id}")
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
-        logger.info(f"Got graph_id: {graph_id}")
-        
-        # Get system IDs (cached in real implementation)
-        row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
-            graph_id
-        )
-        page_class_id = row['id'] if row else 1
-        logger.info(f"page_class_id: {page_class_id}, row: {row}")
+    graph_id, page_class_id = await _get_graph_context_cached(pool, user_id)
     
     # Create repositories with graph context
     node_repo = PostgresNodeRepository(pool, graph_id, page_class_id, user_id)

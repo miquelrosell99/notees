@@ -7,9 +7,13 @@ Updated for graph-based schema:
 - workspace_id -> graph_id
 - Repositories now take user_id for audit trails and permission checks
 - Uses get_or_create_user_graph instead of get_or_create_user_workspace
+
+Performance: Graph context (graph_id, page_class_id) is cached in-memory
+per user to avoid acquiring a DB connection on every request.
 """
 from __future__ import annotations
 
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional, cast
 from fastapi import Depends
@@ -31,17 +35,36 @@ from .domain.repositories import (
     LinkRepository,
 )
 
+# In-memory cache for graph context to avoid per-request pool acquisition
+# Maps user_id (int) -> (graph_id, page_class_id, cached_at)
+_graph_context_cache: dict[int, tuple[int, int, float]] = {}
+_GRAPH_CONTEXT_TTL = 300  # 5 minutes
 
-async def _get_system_ids(conn: asyncpg.Connection, graph_id: int) -> int:
-    """Get system ID for page class.
+
+async def _get_graph_context_cached(pool: asyncpg.Pool, user_id: int) -> tuple[int, int]:
+    """Get graph_id and page_class_id for a user, with in-memory caching.
     
-    Returns page_class_id.
+    This avoids acquiring a pool connection on every request just to
+    resolve the user's graph context.
     """
-    row = await conn.fetchrow(
-        "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
-        graph_id
-    )
-    return row['id'] if row else 1
+    now = time.monotonic()
+    cached = _graph_context_cache.get(user_id)
+    if cached is not None:
+        graph_id, page_class_id, cached_at = cached
+        if now - cached_at < _GRAPH_CONTEXT_TTL:
+            return graph_id, page_class_id
+    
+    async with pool.acquire() as conn:
+        conn = cast(asyncpg.Connection, conn)
+        graph_id = await get_or_create_user_graph(conn, user_id)
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
+            graph_id
+        )
+        page_class_id = row['id'] if row else 1
+    
+    _graph_context_cache[user_id] = (graph_id, page_class_id, now)
+    return graph_id, page_class_id
 
 
 @asynccontextmanager
@@ -49,11 +72,12 @@ async def get_graph_context(user_id: int):
     """Context manager for database operations with graph context.
     
     Acquires a connection from the pool and resolves the user's graph.
+    Uses cached graph_id to avoid an extra connection for lookup.
     """
     pool = await get_pool()
+    graph_id, _ = await _get_graph_context_cached(pool, user_id)
     async with pool.acquire() as conn:
         conn = cast(asyncpg.Connection, conn)
-        graph_id = await get_or_create_user_graph(conn, user_id)
         yield conn, graph_id
 
 
@@ -62,19 +86,12 @@ async def get_node_repository(
 ) -> AsyncGenerator[PostgresNodeRepository, None]:
     """Get a NodeRepository for the current user's graph.
     
-    This dependency:
-    1. Gets the current user from auth
-    2. Gets/creates their graph
-    3. Creates a PostgresNodeRepository with graph context and user_id
-    4. Yields it for use in the route
+    Uses cached graph context to avoid holding a pool connection.
     """
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
-        conn = cast(asyncpg.Connection, conn)
-        graph_id = await get_or_create_user_graph(conn, user_id)
-        page_class_id = await _get_system_ids(conn, graph_id)
-        yield PostgresNodeRepository(pool, graph_id, page_class_id, user_id)
+    graph_id, page_class_id = await _get_graph_context_cached(pool, user_id)
+    yield PostgresNodeRepository(pool, graph_id, page_class_id, user_id)
 
 
 async def get_property_repository(
@@ -83,10 +100,8 @@ async def get_property_repository(
     """Get a PropertyRepository for the current user's graph."""
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
-        conn = cast(asyncpg.Connection, conn)
-        graph_id = await get_or_create_user_graph(conn, user_id)
-        yield PostgresPropertyRepository(pool, graph_id, user_id)
+    graph_id, _ = await _get_graph_context_cached(pool, user_id)
+    yield PostgresPropertyRepository(pool, graph_id, user_id)
 
 
 async def get_link_repository(
@@ -95,10 +110,8 @@ async def get_link_repository(
     """Get a LinkRepository for the current user's graph."""
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
-        conn = cast(asyncpg.Connection, conn)
-        graph_id = await get_or_create_user_graph(conn, user_id)
-        yield PostgresLinkRepository(pool, graph_id, user_id)
+    graph_id, _ = await _get_graph_context_cached(pool, user_id)
+    yield PostgresLinkRepository(pool, graph_id, user_id)
 
 
 async def get_inline_class_repository(
@@ -107,10 +120,8 @@ async def get_inline_class_repository(
     """Get an InlineClassRepository for the current user's graph."""
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
-        conn = cast(asyncpg.Connection, conn)
-        graph_id = await get_or_create_user_graph(conn, user_id)
-        yield PostgresInlineClassRepository(pool, graph_id, user_id)
+    graph_id, _ = await _get_graph_context_cached(pool, user_id)
+    yield PostgresInlineClassRepository(pool, graph_id, user_id)
 
 
 # Backwards compatibility alias
@@ -184,8 +195,5 @@ async def get_repositories(
     """
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
-        conn = cast(asyncpg.Connection, conn)
-        graph_id = await get_or_create_user_graph(conn, user_id)
-        page_class_id = await _get_system_ids(conn, graph_id)
-        yield RepositoryBundle(pool, graph_id, page_class_id, user_id)
+    graph_id, page_class_id = await _get_graph_context_cached(pool, user_id)
+    yield RepositoryBundle(pool, graph_id, page_class_id, user_id)
