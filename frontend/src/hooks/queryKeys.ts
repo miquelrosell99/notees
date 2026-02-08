@@ -72,3 +72,9 @@ export const activityKeys = {
   linkClicks: (sourceNodeId: number) => [...activityKeys.all, 'link-clicks', sourceNodeId] as const,
   linkClick: (sourceNodeId: number, targetNodeId: number) => [...activityKeys.all, 'link-click', sourceNodeId, targetNodeId] as const,
 };
+
+// ==================== Settings Query Keys ====================
+
+export const settingsKeys = {
+  all: ['settings'] as const,
+};

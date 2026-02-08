@@ -8,7 +8,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { getSettings, setSetting } from '@/api/databases';
+import { setSetting } from '@/api/databases';
+import { useSettingsQuery } from '@/hooks/useSettings';
 import * as nodesApi from '@/api/nodes';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
@@ -68,24 +69,25 @@ export function NodeTimelineRenderer({
   
   const { openNode, addSidebarCard } = useNodesStore();
   
+  const { data: serverSettings } = useSettingsQuery();
+  
   const currentZoomLevel = useMemo(() => getZoomLevelFromScale(transform.scale), [transform.scale]);
   
-  // Load settings
+  // Load settings from cached TanStack Query data
   useEffect(() => {
-    getSettings().then(settings => {
-      const saved = settings['timeline_date_properties'];
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            setDateProperties(parsed);
-          }
-        } catch (e) {
-          console.error('Failed to parse timeline_date_properties:', e);
+    if (!serverSettings) return;
+    const saved = serverSettings['timeline_date_properties'];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setDateProperties(parsed);
         }
+      } catch (e) {
+        console.error('Failed to parse timeline_date_properties:', e);
       }
-    });
-  }, []);
+    }
+  }, [serverSettings]);
   
   // Save settings
   useEffect(() => {

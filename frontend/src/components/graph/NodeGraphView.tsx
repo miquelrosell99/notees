@@ -15,8 +15,9 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useGraphData, useClasses } from '@/hooks';
+import { useSettingsQuery } from '@/hooks/useSettings';
 import { useNodesStore } from '@/stores';
-import { getSettings, setSetting } from '@/api/databases';
+import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { 
   NodeGraphRenderer, 
@@ -67,6 +68,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   // Data hooks
   const { data: graphData, isLoading } = useGraphData();
   const { data: classes } = useClasses();
+  const { data: serverSettings } = useSettingsQuery();
   const { openNode, addSidebarCard } = useNodesStore();
   
   // View state
@@ -107,44 +109,38 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   
-  // Load all graph settings from database in a single call
+  // Load graph settings from cached TanStack Query data
   useEffect(() => {
-    if (classColorsLoadedRef.current && settingsLoadedRef.current) return;
+    if (!serverSettings) return;
     
-    getSettings().then(settings => {
-      if (!classColorsLoadedRef.current) {
-        const saved = settings['graph_class_colors'];
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) {
-              setClassColors(parsed);
-            }
-          } catch (e) {
-            console.error('Failed to parse graph_class_colors:', e);
+    if (!classColorsLoadedRef.current) {
+      const saved = serverSettings['graph_class_colors'];
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setClassColors(parsed);
           }
+        } catch (e) {
+          console.error('Failed to parse graph_class_colors:', e);
         }
-        classColorsLoadedRef.current = true;
       }
-      
-      if (!settingsLoadedRef.current) {
-        const savedSettings = settings['graph_settings'];
-        if (savedSettings) {
-          try {
-            const parsed = JSON.parse(savedSettings);
-            setGraphSettings(prev => ({ ...prev, ...parsed }));
-          } catch (e) {
-            console.error('Failed to parse graph_settings:', e);
-          }
-        }
-        settingsLoadedRef.current = true;
-      }
-    }).catch(e => {
-      console.error('Failed to load settings:', e);
       classColorsLoadedRef.current = true;
+    }
+    
+    if (!settingsLoadedRef.current) {
+      const savedSettings = serverSettings['graph_settings'];
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings);
+          setGraphSettings(prev => ({ ...prev, ...parsed }));
+        } catch (e) {
+          console.error('Failed to parse graph_settings:', e);
+        }
+      }
       settingsLoadedRef.current = true;
-    });
-  }, []);
+    }
+  }, [serverSettings]);
   
   // Save settings (debounced)
   useEffect(() => {
