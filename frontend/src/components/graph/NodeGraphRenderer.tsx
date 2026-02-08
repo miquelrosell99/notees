@@ -351,6 +351,24 @@ function getNodeRadius(
 //   return path.join(' / ');
 // }
 
+// ==================== Topology Helpers (module-level, not re-created per render) ====================
+
+// Link type priority: higher number wins when multiple links connect same pair
+const LINK_TYPE_PRIORITY: Record<string, number> = {
+  'reference': 0,
+  'property-reference': 1,
+  'extends': 2,
+  'class': 3,
+  'parent': 4,
+};
+
+// Numeric pair key — avoids string interpolation in hot loop
+function pairKey(a: number, b: number): number {
+  const lo = a < b ? a : b;
+  const hi = a < b ? b : a;
+  return lo * 100000 + hi;
+}
+
 // ==================== Component ====================
 
 const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
@@ -1243,21 +1261,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   }, []);
 
   // ==================== Topology Cache ====================
-  // Link type priority: higher number wins when multiple links connect same pair
-  const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
-    'reference': 0,
-    'property-reference': 1,
-    'extends': 2,
-    'class': 3,
-    'parent': 4,
-  };
-  
-  // Numeric pair key — avoids string interpolation in hot loop
-  const pairKey = (a: number, b: number): number => {
-    const lo = a < b ? a : b;
-    const hi = a < b ? b : a;
-    return lo * 100000 + hi;
-  };
   
   const rebuildTopologyCache = useCallback(() => {
     const nodes = nodesRef.current;
@@ -1306,10 +1309,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
     }
     
-    // Compute mass cache
+    // Compute mass cache (with cycle protection to prevent stack overflow)
     const massCache = new Map<number, number>();
+    const computing = new Set<number>(); // cycle guard
     const computeMass = (nodeId: number): number => {
       if (massCache.has(nodeId)) return massCache.get(nodeId)!;
+      if (computing.has(nodeId)) return 1; // cycle detected, break recursion
+      computing.add(nodeId);
       let mass = 1;
       const children = childrenOf.get(nodeId);
       if (children) {
@@ -1317,6 +1323,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           mass += computeMass(childId) * PARENT_MASS_PER_CHILD;
         }
       }
+      computing.delete(nodeId);
       massCache.set(nodeId, mass);
       return mass;
     };
