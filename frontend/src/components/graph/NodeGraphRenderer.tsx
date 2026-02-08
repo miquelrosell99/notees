@@ -469,6 +469,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   }, []);
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const dimensionsRef = useRef(dimensions);
+  useEffect(() => {
+    dimensionsRef.current = dimensions;
+    // Re-render canvas when dimensions change (simulation may be sleeping)
+    if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
+      renderRef.current(ctxRef.current);
+    }
+  }, [dimensions]);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
 
@@ -791,11 +799,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     prevViewModeRef.current = viewMode;
     // Recalculate target positions and radii for the new mode
     if (nodesRef.current.length > 0) {
-      calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+      calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height);
       topologyDirtyRef.current = true;
       wakeSimulationRef.current();
     }
-  }, [viewMode, dimensions, calculatePositions]);
+  }, [viewMode, calculatePositions]);
   
   // Cache CSS variables on mount and observe theme changes
   useEffect(() => {
@@ -883,8 +891,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Place near center with some randomness
       const newNode: GraphNode = {
         ...node,
-        x: dimensions.width / 2 + (Math.random() - 0.5) * 100,
-        y: dimensions.height / 2 + (Math.random() - 0.5) * 100,
+        x: dimensionsRef.current.width / 2 + (Math.random() - 0.5) * 100,
+        y: dimensionsRef.current.height / 2 + (Math.random() - 0.5) * 100,
         vx: 0,
         vy: 0,
         visible: true,
@@ -900,14 +908,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree')) {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height);
     }
     
     if (nodesToRemove.length > 0 || nodesToAdd.length > 0) {
       topologyDirtyRef.current = true;
       wakeSimulationRef.current();
     }
-  }, [visibilityFilters, dimensions, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
+  }, [visibilityFilters, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
 
   // Recenter/fit graph
   const recenter = useCallback(() => {
@@ -933,19 +941,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const graphCenterX = (minX + maxX) / 2;
     const graphCenterY = (minY + maxY) / 2;
     
-    const scaleX = dimensions.width / graphWidth;
-    const scaleY = dimensions.height / graphHeight;
+    const scaleX = dimensionsRef.current.width / graphWidth;
+    const scaleY = dimensionsRef.current.height / graphHeight;
     const newScale = Math.min(scaleX, scaleY, 1.5);
     
-    const newX = dimensions.width / 2 - graphCenterX * newScale;
-    const newY = dimensions.height / 2 - graphCenterY * newScale;
+    const newX = dimensionsRef.current.width / 2 - graphCenterX * newScale;
+    const newY = dimensionsRef.current.height / 2 - graphCenterY * newScale;
     
     setTransform({
       x: newX,
       y: newY,
       scale: Math.max(0.2, newScale),
     });
-  }, [dimensions]);
+  }, []);
 
   // Dynamic node management
   const createNode = useCallback((node: GraphNode) => {
@@ -964,12 +972,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Add new node to the simulation
     const newNode: GraphNode = {
       ...node,
-      x: node.x || dimensions.width / 2,
-      y: node.y || dimensions.height / 2,
+      x: node.x || dimensionsRef.current.width / 2,
+      y: node.y || dimensionsRef.current.height / 2,
       vx: node.vx || 0,
       vy: node.vy || 0,
-      targetX: node.targetX || node.x || dimensions.width / 2,
-      targetY: node.targetY || node.y || dimensions.height / 2,
+      targetX: node.targetX || node.x || dimensionsRef.current.width / 2,
+      targetY: node.targetY || node.y || dimensionsRef.current.height / 2,
       visible: node.visible !== undefined ? node.visible : true,
     };
     
@@ -977,11 +985,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height);
     }
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
-  }, [dimensions, calculatePositions]);
+  }, [calculatePositions]);
   
   const destroyNode = useCallback((nodeId: number) => {
     // Find and remove the node
@@ -997,11 +1005,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensions.width, dimensions.height);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height);
     }
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
-  }, [dimensions, calculatePositions]);
+  }, [calculatePositions]);
   
   const updateLinks = useCallback((links: GraphLink[]) => {
     linksRef.current = [...links];
@@ -1026,8 +1034,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       return dateA - dateB;
     });
     
-    const centerX = dimensions.width / 2;
-    const centerY = dimensions.height / 2;
+    const centerX = dimensionsRef.current.width / 2;
+    const centerY = dimensionsRef.current.height / 2;
     const spawnRadius = 50; // Nodes spawn within this radius of center
     
     // Remove all nodes from simulation
@@ -1051,7 +1059,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }, index * revealDelay);
       creationAnimationRef.current.push(timer);
     });
-  }, [dimensions.width, dimensions.height, createNode]);
+  }, [createNode]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -1066,8 +1074,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => {
     if (inputNodes.length === 0) return;
     
-    const centerX = dimensions.width / 2;
-    const centerY = dimensions.height / 2;
+    const { width: dimW, height: dimH } = dimensionsRef.current;
+    const centerX = dimW / 2;
+    const centerY = dimH / 2;
     const currentFilters = visibilityFiltersRef.current;
     
     // Store all input nodes for visibility filtering
@@ -1122,7 +1131,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, visibilityFilters)
     );
     
-    calculatePositions(nodesRef.current, viewMode, dimensions.width, dimensions.height);
+    calculatePositions(nodesRef.current, viewMode, dimW, dimH);
     
     // Mark topology dirty and wake simulation
     topologyDirtyRef.current = true;
@@ -1142,8 +1151,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       return () => clearTimeout(stabilizationTimer);
     }
     
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- startSimulation intentionally excluded to prevent re-simulation on every render
-  }, [inputNodes, inputLinks, dimensions, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dimensions accessed via dimensionsRef
+  }, [inputNodes, inputLinks, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter]);
 
   // Update glare states
   useEffect(() => {
@@ -1545,8 +1554,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         if (warmupT >= 1) {
           centerGravityActiveRef.current = false;
         }
-        const cx = dimensions.width / 2;
-        const cy = dimensions.height / 2;
+        const cx = dimensionsRef.current.width / 2;
+        const cy = dimensionsRef.current.height / 2;
         for (const node of nodes) {
           if (dragNodeRef.current?.id === node.id || node.pinned) continue;
           const dx = cx - node.x;
@@ -1730,8 +1739,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           if (isConstrainedMode) {
             const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
             if (treeRadius !== undefined) {
-              const cx = dimensions.width / 2;
-              const cy = dimensions.height / 2;
+              const cx = dimensionsRef.current.width / 2;
+              const cy = dimensionsRef.current.height / 2;
               const dx = node.x - cx;
               const dy = node.y - cy;
               const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -1830,7 +1839,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     simulate();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dimensions, rebuildTopologyCache, shouldLinkBeActive]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- dimensions accessed via dimensionsRef
+  }, [rebuildTopologyCache, shouldLinkBeActive]);
 
   // Start simulation once on mount
   useEffect(() => {
@@ -1850,7 +1860,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
 
   // Render function
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
-    const { width: w, height: h } = dimensions;
+    const { width: w, height: h } = dimensionsRef.current;
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     const currentClassColors = classColorsRef.current;
@@ -2023,8 +2033,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Draw level circle guides in constrained modes (tree and circle)
     if (currentViewMode === 'tree' || currentViewMode === 'circle') {
-      const centerX = dimensions.width / 2;
-      const centerY = dimensions.height / 2;
+      const centerX = dimensionsRef.current.width / 2;
+      const centerY = dimensionsRef.current.height / 2;
       
       // Collect unique radii from nodes' assigned tree radii
       const radiiWithNodes = new Set<number>();
@@ -2230,7 +2240,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
     
     ctx.restore();
-  }, [dimensions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- dimensions accessed via dimensionsRef
+  }, []);
 
   // Keep renderRef in sync
   useEffect(() => {
@@ -2318,8 +2329,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (viewModeRef.current === 'tree' || viewModeRef.current === 'circle') {
         const treeRadius = (dragNodeRef.current as GraphNode & { _treeRadius?: number })._treeRadius;
         if (treeRadius !== undefined) {
-          const cx = dimensions.width / 2;
-          const cy = dimensions.height / 2;
+          const cx = dimensionsRef.current.width / 2;
+          const cy = dimensionsRef.current.height / 2;
           const ddx = dragNodeRef.current.x - cx;
           const ddy = dragNodeRef.current.y - cy;
           const dist = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
