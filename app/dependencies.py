@@ -22,7 +22,7 @@ import asyncpg
 
 from .routers.auth import get_current_user
 from .models import User
-from .db.connection import get_pool
+from .db.connection import get_pool, acquire_connection
 from .db.schema import get_or_create_user_graph
 from .domain.repositories import (
     PostgresNodeRepository,
@@ -54,7 +54,7 @@ async def _get_graph_context_cached(pool: asyncpg.Pool, user_id: int) -> tuple[i
         if now - cached_at < _GRAPH_CONTEXT_TTL:
             return graph_id, page_class_id
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
         row = await conn.fetchrow(
@@ -76,7 +76,7 @@ async def get_graph_context(user_id: int):
     """
     pool = await get_pool()
     graph_id, _ = await _get_graph_context_cached(pool, user_id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         conn = cast(asyncpg.Connection, conn)
         yield conn, graph_id
 

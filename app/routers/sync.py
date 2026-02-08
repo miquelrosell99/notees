@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from ..models import SyncRequest, SyncResponse, Node as NodeModel, User
 from ..domain import Node
 from .auth import get_current_user
-from ..db.connection import get_pool
+from ..db.connection import acquire_connection, get_pool
 from ..logging_config import logger
 from ..utils import utc_now
 
@@ -44,7 +44,7 @@ async def get_settings(user: User = Depends(get_current_user)):
     pool = await get_pool()
     user_id = int(user.id)
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         rows = await conn.fetch(
             "SELECT key, value FROM setting_user WHERE user_id = $1",
             user_id
@@ -68,7 +68,7 @@ async def set_setting(key: str, request: Request, user: User = Depends(get_curre
     json_value = json.dumps(value) if value is not None else 'null'
     now = utc_now()
     
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         # Upsert the setting - the ::jsonb cast will parse the JSON string
         await conn.execute("""
             INSERT INTO setting_user (user_id, key, value, create_date, write_date, create_uid, write_uid)

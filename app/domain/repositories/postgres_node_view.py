@@ -14,6 +14,7 @@ from ...logging_config import get_logger
 from ...db.schema.constants import DEFAULT_QUERY_AST
 from .base import normalize_timestamp
 from ...utils import utc_now
+from ...db.connection import acquire_connection
 
 if TYPE_CHECKING:
     pass
@@ -121,7 +122,7 @@ class PostgresNodeViewRepository:
         if query_json is None:
             query_json = DEFAULT_QUERY_AST.copy()
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use ON CONFLICT to handle the unique constraint on default views
             # If a default view already exists for this node+view_type, update it fully
             # (including reactivating it if it was soft-deleted)
@@ -168,7 +169,7 @@ class PostgresNodeViewRepository:
     
     async def get_by_id(self, view_id: int) -> Optional[NodeView]:
         """Get a NodeView by ID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 SELECT nv.* FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
@@ -182,7 +183,7 @@ class PostgresNodeViewRepository:
     
     async def get_by_uuid(self, uuid: str) -> Optional[NodeView]:
         """Get a NodeView by UUID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 SELECT nv.* FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
@@ -210,7 +211,7 @@ class PostgresNodeViewRepository:
         Returns:
             List of NodeViews sorted by order_index
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             params: list[Any] = [node_id, self._graph_id]
             where_clauses = ["nv.node_id = $1", "n.graph_id = $2"]
             
@@ -269,7 +270,7 @@ class PostgresNodeViewRepository:
         Returns:
             Number of active views of this type
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             count = await conn.fetchval("""
                 SELECT COUNT(*) FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
@@ -294,7 +295,7 @@ class PostgresNodeViewRepository:
         Returns:
             Default NodeView or None
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # First try to get explicitly marked default
             row = await conn.fetchrow("""
                 SELECT nv.* FROM node_view nv
@@ -387,7 +388,7 @@ class PostgresNodeViewRepository:
         
         updates_sql = ", ".join(updates)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # If setting as default, unset other defaults for same view_type
             if is_default:
                 await conn.execute("""
@@ -428,7 +429,7 @@ class PostgresNodeViewRepository:
         Returns:
             Updated NodeView or None if not found
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 UPDATE node_view nv
                 SET query_json = $3::jsonb, write_date = NOW(), write_uid = $4
@@ -450,7 +451,7 @@ class PostgresNodeViewRepository:
         Returns:
             True if deleted, False if not found
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute("""
                 UPDATE node_view nv
                 SET active = FALSE, write_date = NOW(), write_uid = $3
@@ -469,7 +470,7 @@ class PostgresNodeViewRepository:
         Returns:
             True if deleted, False if not found
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             logger.info(f"[hard_delete] Deleting view id={view_id}, graph_id={self._graph_id}")
             
             result = await conn.execute("""
@@ -499,7 +500,7 @@ class PostgresNodeViewRepository:
         Returns:
             Updated list of NodeViews
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             for idx, view_id in enumerate(view_ids):
                 await conn.execute("""
                     UPDATE node_view nv
@@ -520,7 +521,7 @@ class PostgresNodeViewRepository:
         Returns:
             Count of active views
         """
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 SELECT COUNT(*) as count FROM node_view nv
                 JOIN node n ON n.id = nv.node_id

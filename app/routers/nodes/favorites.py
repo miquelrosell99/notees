@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from ..auth import get_current_user
 from ...models import User
 from .helpers import _get_node_service
+from ...db.connection import acquire_connection
 
 
 router = APIRouter()
@@ -21,7 +22,7 @@ async def get_favorites(
     Only returns IDs for nodes that are active (not deleted, not archived).
     """
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         row = await conn.fetchrow(
             "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
             int(user.id)
@@ -36,7 +37,7 @@ async def get_favorites(
             return {"favorites": []}
         
         # Filter out deleted or archived nodes
-        async with service._pool.acquire() as conn:
+        async with acquire_connection(service._pool) as conn:
             valid_favorites = []
             for node_id in favorites:
                 exists = await conn.fetchval("""
@@ -73,7 +74,7 @@ async def set_favorites(
         raise HTTPException(status_code=400, detail="favorites must be a list of integers")
     
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         favorites_json = json.dumps(favorites)
         await conn.execute("""
             INSERT INTO setting_user (user_id, key, value) 
@@ -101,7 +102,7 @@ async def reorder_favorites(
         raise HTTPException(status_code=400, detail="from_index and to_index are required")
     
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Get current favorites
         row = await conn.fetchrow(
             "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
@@ -143,7 +144,7 @@ async def add_favorite(
 ):
     """Add a page to favorites."""
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Verify the node exists and is a page
         row = await conn.fetchrow(
             "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND graph_id = $2",
@@ -189,7 +190,7 @@ async def remove_favorite(
 ):
     """Remove a page from favorites."""
     service = await _get_node_service(user)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Get current favorites
         row = await conn.fetchrow(
             "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",

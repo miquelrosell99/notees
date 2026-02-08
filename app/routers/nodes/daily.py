@@ -20,6 +20,7 @@ from .helpers import (
     _format_date_with_pattern,
     _format_month_with_pattern,
 )
+from ...db.connection import acquire_connection
 
 
 router = APIRouter()
@@ -35,7 +36,7 @@ async def list_daily_pages(
     # Query nodes with is_day=1, ordered by uuid (which is YYYYMMDD format)
     # Exclude class pages (is_class=1) to filter out the "day" class page itself
     # Also exclude soft-deleted nodes (is_deleted=true)
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch("""
             SELECT * FROM node 
             WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND graph_id = $1
@@ -119,7 +120,7 @@ async def get_or_create_daily(
             raise HTTPException(500, "Year type has no ID")
         
         # Get user's date format preference
-        async with service._pool.acquire() as conn:
+        async with acquire_connection(service._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
                 "date_format", int(user.id)
@@ -264,7 +265,7 @@ async def get_or_create_monthly(
         return _node_to_response(existing, classes=class_ids)
     
     # 2. Create month page with year as parent
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         row = await conn.fetchrow(
             "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
             "date_format", int(user.id)

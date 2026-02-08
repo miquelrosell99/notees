@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from ..auth import get_current_user
 from ...models import User
+from ...db.connection import acquire_connection
 from .models import ClassRequest
 from .helpers import (
     _get_node_service,
@@ -29,7 +30,7 @@ async def list_classes(
     service = await _get_node_service(user)
     
     # Get all nodes where is_class=1 using PostgreSQL
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch(
             """SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND graph_id = $1 ORDER BY name""",
             service._graph_id
@@ -109,7 +110,7 @@ async def get_nodes_with_class(
     
     service = await _get_node_service(user)
     
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # Get all subclasses (classes that extend this class)
         property_repo = PostgresPropertyRepository(service._pool, service._graph_id or 0, int(user.id))
         extension_service = ClassExtensionService(service._pool, service._graph_id or 0, property_repo)

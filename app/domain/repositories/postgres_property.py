@@ -32,6 +32,7 @@ from ..entities import (
 from .interfaces import PropertyRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
+from ...db.connection import acquire_connection
 
 
 class PostgresPropertyRepository(PropertyRepository):
@@ -218,7 +219,7 @@ class PostgresPropertyRepository(PropertyRepository):
         if property.is_local:
             if not property.node_id:
                 raise ValueError("Local properties must have a node_id")
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 row = await conn.fetchrow(
                     "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
                     property.node_id, self._graph_id
@@ -226,7 +227,7 @@ class PostgresPropertyRepository(PropertyRepository):
                 if not row or not row['is_page']:
                     raise ValueError("Local property node_id must reference a page node")
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO property (uuid, graph_id, name, icon, type, is_multi, is_system, is_local, node_id, create_date, write_date, create_uid, write_uid)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $11)
@@ -249,7 +250,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_by_id(self, property_id: int) -> Optional[Property]:
         """Get property by ID with type filters and selection lines."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT * FROM property WHERE id = $1 AND active = TRUE",
                 property_id
@@ -279,7 +280,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_by_uuid(self, uuid: str) -> Optional[Property]:
         """Get property by UUID."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT id FROM property WHERE uuid = $1 AND active = TRUE",
                 uuid
@@ -290,7 +291,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_by_name(self, name: str, node_id: Optional[int] = None) -> Optional[Property]:
         """Get property by name."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if node_id is not None:
                 # Look for local property first
                 row = await conn.fetchrow(
@@ -346,7 +347,7 @@ class PostgresPropertyRepository(PropertyRepository):
 
     async def get_all(self, include_local: bool = True) -> List[Property]:
         """Get all property definitions."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if include_local:
                 rows = await conn.fetch(
                     "SELECT * FROM property WHERE (graph_id = $1 OR graph_id IS NULL) AND active = TRUE ORDER BY name",
@@ -363,7 +364,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_local_properties(self, node_id: int) -> List[Property]:
         """Get all local properties for a specific page node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM property WHERE is_local = TRUE AND node_id = $1 AND active = TRUE ORDER BY name",
                 node_id
@@ -409,7 +410,7 @@ class PostgresPropertyRepository(PropertyRepository):
             
             params.append(property_id)
             
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 await conn.execute(
                     f"UPDATE property SET {', '.join(updates)} WHERE id = ${param_idx}",
                     *params
@@ -419,7 +420,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def can_delete_property(self, property_id: int) -> tuple[bool, str]:
         """Check if a property can be deleted."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Check for scalar values
             row = await conn.fetchrow(
                 "SELECT COUNT(*) as cnt FROM property_value_scalar WHERE property_id = $1",
@@ -473,7 +474,7 @@ class PostgresPropertyRepository(PropertyRepository):
         if new_type in ALWAYS_SINGLE_TYPES:
             is_multi = False
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 "UPDATE property SET type = $1, is_multi = $2, write_date = $3, write_uid = $4 WHERE id = $5",
                 new_type.value, is_multi, now, self._user_id, property_id
@@ -506,7 +507,7 @@ class PostgresPropertyRepository(PropertyRepository):
         if not can_delete:
             raise ValueError(reason)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Soft delete by setting active = FALSE
             await conn.execute(
                 "UPDATE property SET active = FALSE, write_date = $1, write_uid = $2 WHERE id = $3",
@@ -520,7 +521,7 @@ class PostgresPropertyRepository(PropertyRepository):
         """Assign a property to a node (without setting a value)."""
         now = utc_now()
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Check if already assigned
             row = await conn.fetchrow(
                 "SELECT * FROM node_property WHERE node_id = $1 AND property_id = $2",
@@ -541,7 +542,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_node_property(self, node_id: int, property_id: int) -> Optional[NodeProperty]:
         """Get a node_property assignment."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT * FROM node_property WHERE node_id = $1 AND property_id = $2",
                 node_id, property_id
@@ -550,7 +551,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_node_properties(self, node_id: int) -> List[NodeProperty]:
         """Get all property assignments for a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM node_property WHERE node_id = $1 ORDER BY property_id",
                 node_id
@@ -561,7 +562,7 @@ class PostgresPropertyRepository(PropertyRepository):
         """Remove a property assignment from a node."""
         prop = await self.get_by_id(property_id)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if prop and prop.type in (PropertyType.TEXT, PropertyType.IMAGE):
                 # Delete target nodes for text/image types
                 rows = await conn.fetch(
@@ -579,7 +580,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_node_ids_with_property(self, property_id: int) -> List[int]:
         """Get all node IDs that have a specific property assigned."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT DISTINCT node_id FROM node_property WHERE property_id = $1",
                 property_id
@@ -600,7 +601,7 @@ class PostgresPropertyRepository(PropertyRepository):
         np = await self.assign_property_to_node(node_id, property_id)
         now = utc_now()
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if not prop.is_multi:
                 await conn.execute(
                     "DELETE FROM property_value_scalar WHERE node_property_id = $1",
@@ -634,7 +635,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_scalar_values(self, node_id: int, property_id: int) -> List[PropertyValueScalar]:
         """Get all scalar values for a property on a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 'SELECT * FROM property_value_scalar WHERE node_id = $1 AND property_id = $2',
                 node_id, property_id
@@ -643,7 +644,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def remove_scalar_value(self, value_id: int) -> bool:
         """Remove a specific scalar value."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM property_value_scalar WHERE id = $1",
                 value_id
@@ -652,7 +653,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def clear_scalar_values(self, node_id: int, property_id: int) -> int:
         """Remove all scalar values for a property on a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM property_value_scalar WHERE node_id = $1 AND property_id = $2",
                 node_id, property_id
@@ -673,7 +674,7 @@ class PostgresPropertyRepository(PropertyRepository):
         np = await self.assign_property_to_node(node_id, property_id)
         now = utc_now()
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if not prop.is_multi:
                 await conn.execute(
                     "DELETE FROM property_value_relation WHERE node_property_id = $1",
@@ -693,7 +694,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_relation_values(self, node_id: int, property_id: int) -> List[PropertyValueRelation]:
         """Get all relation values for a property on a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 'SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = $2',
                 node_id, property_id
@@ -702,7 +703,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def remove_relation_value(self, value_id: int, delete_target_node: bool = False) -> bool:
         """Remove a specific relation value."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if delete_target_node:
                 row = await conn.fetchrow(
                     "SELECT target_id FROM property_value_relation WHERE id = $1",
@@ -719,7 +720,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def clear_relation_values(self, node_id: int, property_id: int, delete_target_nodes: bool = False) -> int:
         """Remove all relation values for a property on a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if delete_target_nodes:
                 rows = await conn.fetch(
                     "SELECT target_id FROM property_value_relation WHERE node_id = $1 AND property_id = $2",
@@ -739,7 +740,7 @@ class PostgresPropertyRepository(PropertyRepository):
     async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None) -> PropertySelectionLine:
         """Add an option to a selection-type property."""
         now = utc_now()
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO property_selection_line (property_id, name, icon, create_date, write_date, create_uid, write_uid)
                 VALUES ($1, $2, $3, $4, $4, $5, $5)
@@ -752,7 +753,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_selection_lines(self, property_id: int) -> List[PropertySelectionLine]:
         """Get all selection options for a property."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY name',
                 property_id
@@ -778,7 +779,7 @@ class PostgresPropertyRepository(PropertyRepository):
             param_idx += 1
         
         if not updates:
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 row = await conn.fetchrow(
                     "SELECT * FROM property_selection_line WHERE id = $1",
                     line_id
@@ -796,7 +797,7 @@ class PostgresPropertyRepository(PropertyRepository):
         
         params.append(line_id)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 f"UPDATE property_selection_line SET {', '.join(updates)} WHERE id = ${param_idx} RETURNING *",
                 *params
@@ -805,7 +806,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def can_delete_selection_line(self, line_id: int) -> tuple[bool, str]:
         """Check if a selection line can be deleted."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT COUNT(*) as cnt FROM property_value_selection WHERE selection_line_id = $1",
                 line_id
@@ -820,7 +821,7 @@ class PostgresPropertyRepository(PropertyRepository):
         if not can_delete:
             raise ValueError(reason)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM property_selection_line WHERE id = $1",
                 line_id
@@ -836,7 +837,7 @@ class PostgresPropertyRepository(PropertyRepository):
         
         prop = await self.get_by_id(property_id)
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             if prop and not prop.is_multi:
                 await conn.execute(
                     "DELETE FROM property_value_selection WHERE node_property_id = $1",
@@ -856,7 +857,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_selection_values(self, node_id: int, property_id: int) -> List[PropertyValueSelection]:
         """Get all selection values for a property on a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 'SELECT * FROM property_value_selection WHERE node_id = $1 AND property_id = $2',
                 node_id, property_id
@@ -865,7 +866,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def remove_selection_value(self, value_id: int) -> bool:
         """Remove a specific selection value."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM property_value_selection WHERE id = $1",
                 value_id
@@ -874,7 +875,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def clear_selection_values(self, node_id: int, property_id: int) -> int:
         """Remove all selection values for a property on a node."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM property_value_selection WHERE node_id = $1 AND property_id = $2",
                 node_id, property_id
@@ -885,7 +886,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def add_class_filter(self, property_id: int, class_node_id: int) -> PropertyClassFilter:
         """Add a class filter to a relation-type property."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO property_class_filter (property_id, class_node_id)
                 VALUES ($1, $2)
@@ -901,7 +902,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_class_filters(self, property_id: int) -> List[int]:
         """Get all class filter node IDs for a property."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT class_node_id FROM property_class_filter WHERE property_id = $1",
                 property_id
@@ -910,7 +911,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def remove_class_filter(self, property_id: int, class_node_id: int) -> bool:
         """Remove a class filter from a property."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM property_class_filter WHERE property_id = $1 AND class_node_id = $2",
                 property_id, class_node_id
@@ -931,7 +932,7 @@ class PostgresPropertyRepository(PropertyRepository):
         """
         result: dict[int, dict[str, Any]] = {}
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Get all node_property assignments for this node with property data
             np_rows = await conn.fetch("""
                 SELECT np.*, p.uuid as p_uuid, p.name as p_name, p.icon as p_icon,
@@ -1017,7 +1018,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 "DELETE FROM property_value_scalar WHERE node_id = $1 AND property_id = $2",
                 node_id, property_id
@@ -1035,7 +1036,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_class_properties(self, class_node_id: int) -> List[ClassProperty]:
         """Get properties that a class applies to classed nodes."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM class_property WHERE class_node_id = $1 ORDER BY sequence",
                 class_node_id
@@ -1045,7 +1046,7 @@ class PostgresPropertyRepository(PropertyRepository):
     async def add_class_property(self, class_node_id: int, property_id: int,
                                  sequence: int = 0, default_value: Any = None) -> ClassProperty:
         """Link a property to a class."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
                 INSERT INTO class_property (class_node_id, property_id, sequence)
                 VALUES ($1, $2, $3)
@@ -1059,7 +1060,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def remove_class_property(self, class_node_id: int, property_id: int) -> bool:
         """Remove a property from a class."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 "DELETE FROM class_property WHERE class_node_id = $1 AND property_id = $2",
                 class_node_id, property_id
@@ -1068,7 +1069,7 @@ class PostgresPropertyRepository(PropertyRepository):
     
     async def get_all_inherited_properties(self, class_node_id: int) -> List[ClassProperty]:
         """Get all properties for a class including inherited ones."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use recursive CTE to get inherited properties
             # Note: class_extend uses target_id (child) and source_id (parent)
             rows = await conn.fetch("""

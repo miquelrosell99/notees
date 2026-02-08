@@ -13,6 +13,7 @@ from .helpers import (
     _build_children_tree,
 )
 from .models import NodeResponse
+from ...db.connection import acquire_connection
 
 
 router = APIRouter()
@@ -28,7 +29,7 @@ async def get_graph_data_endpoint(
     """
     service = await _get_node_service(user)
     
-    async with service._pool.acquire() as conn:
+    async with acquire_connection(service._pool) as conn:
         # System type UUIDs to exclude from graph view
         excluded_uuids = [
             SYSTEM_CLASS_UUIDS["page"],
