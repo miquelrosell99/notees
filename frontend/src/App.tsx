@@ -7,7 +7,7 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
@@ -109,16 +109,24 @@ function AppContent() {
     };
   }, [isAuthenticated]);
   
-  // Prefetch settings as soon as we have an active database.
-  // This fires GET /settings before Layout mounts, so it's cached
-  // before journal/graph views start their own request floods.
+  // Gate Layout behind settings: fetch settings BEFORE Layout mounts.
+  // This ensures GET /settings completes before journal/graph views
+  // start their request flood, so settings doesn't compete for browser connections.
+  const [settingsReady, setSettingsReady] = useState(false);
   useEffect(() => {
     if (dbData?.active) {
-      queryClient.prefetchQuery({
+      queryClient.fetchQuery({
         queryKey: settingsKeys.all,
         queryFn: getSettings,
         staleTime: 1000 * 60 * 5,
+      }).then(() => {
+        setSettingsReady(true);
+      }).catch(() => {
+        // Still render Layout even if settings fail — degrade gracefully
+        setSettingsReady(true);
       });
+    } else {
+      setSettingsReady(false);
     }
   }, [dbData?.active]);
 
@@ -191,6 +199,15 @@ function AppContent() {
         showClose={!hasNoGraphs && !hasNoActiveGraph}
         onClose={() => setShowDbManagement(false)}
       />
+    );
+  }
+  
+  // Show loading while settings are loading (prevents request flood)
+  if (!settingsReady) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner">Loading...</div>
+      </div>
     );
   }
   

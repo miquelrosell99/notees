@@ -207,26 +207,22 @@ export function usePropertyBacklinks(nodeId: number | null) {
 }
 
 /**
- * Hook to fetch all existing daily pages (without creating new ones)
+ * Hook to fetch all existing daily pages (without creating new ones).
+ * Both useExistingDailyPages and useDailyPages share the same query key
+ * to avoid duplicate requests to GET /nodes/daily/list.
  */
 export function useExistingDailyPages() {
   return useQuery({
-    queryKey: [...nodeKeys.all, 'daily-pages'],
+    queryKey: nodeKeys.dailyList(),
     queryFn: () => nodesApi.listDailyPages(),
     placeholderData: [], // Use placeholderData instead of initialData to allow fetching
   });
 }
 
 /**
- * Hook to fetch all existing daily pages (without creating them)
+ * @deprecated Use useExistingDailyPages instead. Kept as alias for backward compatibility.
  */
-export function useDailyPages() {
-  return useQuery({
-    queryKey: nodeKeys.dailyList(),
-    queryFn: () => nodesApi.getDailyPages(),
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-  });
-}
+export const useDailyPages = useExistingDailyPages;
 
 /**
  * Hook to fetch/create daily note

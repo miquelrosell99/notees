@@ -53,9 +53,9 @@ export function Layout() {
   const createNodeMutation = useCreateNode();
   const hasAppliedDefaultView = useRef(false);
   
-  // Prefetch settings early so they're cached before graph/timeline views mount.
-  // Without this, GET /settings fires alongside the request flood from journal
-  // ensure-defaults and gets delayed 20+ seconds.
+  // Settings are guaranteed to be in TanStack Query cache before Layout mounts
+  // (App.tsx gates rendering behind fetchQuery completion).
+  // useSettingsQuery() is used here only so components downstream can read cached data.
   useSettingsQuery();
   
   // Sidebar resize state
@@ -67,11 +67,8 @@ export function Layout() {
   // Fetch today's note for default view
   const { data: todayNote } = useTodayNote();
   
-  // Load favorites and recents when component mounts
-  useEffect(() => {
-    useFavoritesStore.getState().loadFavorites();
-    useFavoritesStore.getState().loadRecents();
-  }, []);
+  // NOTE: loadFavorites() and loadRecents() are called in App.tsx when dbData?.active changes.
+  // Do NOT duplicate them here — it causes 3x duplicate requests competing for browser connections.
   
   // Track page opens by calling the API and refreshing recents
   useEffect(() => {
