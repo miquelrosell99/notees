@@ -4,9 +4,12 @@
  * Centralized view routing - determines which view to show based on mainViewType.
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { useNodesStore } from '@/stores';
 import { useNode } from '@/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { getNodeColorStyles } from '@/utils/color';
 import { NodeViewWrapper, NodeViewContent } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
@@ -19,6 +22,23 @@ import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyVi
 
 export function MainContent() {
   const { currentNodeId, currentNodeType, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNodesStore();
+  const queryClient = useQueryClient();
+  const prevViewRef = useRef(mainViewType);
+
+  // Cancel in-flight per-node queries when navigating away from a view.
+  // This prevents journal's ~50+ requests from blocking graph/settings responses.
+  useEffect(() => {
+    const prevView = prevViewRef.current;
+    prevViewRef.current = mainViewType;
+    if (prevView !== mainViewType && prevView === 'journals') {
+      // Cancel all per-node detail, linked-ref, property-backlink, and view queries
+      queryClient.cancelQueries({ queryKey: nodeKeys.details() });
+      queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'linked-refs'] });
+      queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'property-backlinks'] });
+      queryClient.cancelQueries({ queryKey: nodeViewKeys.lists() });
+      queryClient.cancelQueries({ queryKey: nodeViewKeys.queryResults() });
+    }
+  }, [mainViewType, queryClient]);
   
   // Fetch current node to get color (for pages and focused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);

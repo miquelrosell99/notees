@@ -195,11 +195,11 @@ export interface NodeViewResult {
 }
 
 export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps): NodeViewResult {
-  // Fetch the node
+  // Fetch the node — compact mode (journal entries) skips properties & backlinks to reduce requests
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true, 
-    include_properties: true,
-    include_backlinks: true
+    include_properties: !compactMode,
+    include_backlinks: !compactMode
   });
   
   // Hooks (needed for page header sections)
@@ -407,11 +407,11 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
       .filter((n): n is Node => n !== undefined);
   }, [extendsData, allNodes]);
   
-  // Check if node is used as a class
-  const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
+  // Check if node is used as a class — skip in compact mode (journal) to avoid per-node API call
+  const { data: classedNodes } = useNodesWithClass(compactMode ? null : (node?.id ?? 0));
   
-  // Section metadata hooks
-  useLinkedReferencesCount(nodeId);
+  // Section metadata hooks — skip in compact mode to avoid linked-refs + property-backlinks requests
+  useLinkedReferencesCount(compactMode ? 0 : nodeId);
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -1000,18 +1000,20 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             </div>
           </div>
           
-          {/* Properties Section - full width row below header section */}
-          <div className="page-properties-section">
-            <PropertiesSection 
-              nodeId={node.id}
-              variant={resolvedType}
-              showHiddenSection={true}
-              showAddProperty={true}
-              onNavigateToNode={handleNavigateToNode}
-              onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
-              defaultCollapsed={propertiesCollapsed}
-            />
-          </div>
+          {/* Properties Section - full width row below header section (skip in compact mode) */}
+          {!compactMode && (
+            <div className="page-properties-section">
+              <PropertiesSection 
+                nodeId={node.id}
+                variant={resolvedType}
+                showHiddenSection={true}
+                showAddProperty={true}
+                onNavigateToNode={handleNavigateToNode}
+                onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+                defaultCollapsed={propertiesCollapsed}
+              />
+            </div>
+          )}
           
           {/* Banner Image Picker Modal */}
           <AssetUploadModal
@@ -1067,75 +1069,82 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         </>
       )}
       
-      {/* Extended By section - shows classes that extend this class (class nodes only) */}
-      {isClassNode && (
-        <QuerySection
-          nodeId={node.id}
-          nodeUuid={node.uuid}
-          viewType="extended_by"
-          title="Extended By"
-          icon={<TableIcon size="sm" />}
-          hideWhenEmpty={true}
-          defaultExpanded={true}
-          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-          hideViewManagement={true}
-          can_create={false}
-          showClasses={false}
-        />
-      )}
+      {/* Query sections — skipped in compact mode (journal entries) to avoid request flood */}
+      {!compactMode && (
+        <>
+          {/* Extended By section - shows classes that extend this class (class nodes only) */}
+          {isClassNode && (
+            <QuerySection
+              nodeId={node.id}
+              nodeUuid={node.uuid}
+              viewType="extended_by"
+              title="Extended By"
+              icon={<TableIcon size="sm" />}
+              hideWhenEmpty={true}
+              defaultExpanded={true}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+              hideViewManagement={true}
+              can_create={false}
+              showClasses={false}
+            />
+          )}
 
-      {/* Show nodes that have this node as their class - only for class nodes */}
-      {isClassNode && (
-        <QuerySection
-          nodeId={node.id}
-          nodeUuid={node.uuid}
-          viewType="classed_nodes"
-          title="Nodes"
-          icon={<TableIcon size="sm" />}
-          hideWhenEmpty={false}
-          defaultExpanded={true}
-          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-        />
+          {/* Show nodes that have this node as their class - only for class nodes */}
+          {isClassNode && (
+            <QuerySection
+              nodeId={node.id}
+              nodeUuid={node.uuid}
+              viewType="classed_nodes"
+              title="Nodes"
+              icon={<TableIcon size="sm" />}
+              hideWhenEmpty={false}
+              defaultExpanded={true}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+            />
+          )}
+          
+          {/* Child pages section - shows pages that have this node as parent (pages only) */}
+          {resolvedType === 'page' && (
+            <QuerySection
+              nodeId={node.id}
+              nodeUuid={node.uuid}
+              viewType="child_pages"
+              title="Children"
+              icon={<PageIcon size="sm" />}
+              hideWhenEmpty={true}
+              defaultExpanded={true}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+              hideViewManagement={true}
+            />
+          )}
+          
+          {/* Linked References - shows all references to this node (universal for all nodes) */}
+          <QuerySection
+            nodeId={node.id}
+            nodeUuid={node.uuid}
+            viewType="linked_references"
+            title="Linked References"
+            icon={<LinkIcon size="sm" />}
+            defaultExpanded={!linkedRefsCollapsed}
+            hideWhenEmpty={true}
+            onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
+            onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+          />
+        </>
       )}
-      
-      {/* Child pages section - shows pages that have this node as parent (pages only) */}
-      {resolvedType === 'page' && (
-        <QuerySection
-          nodeId={node.id}
-          nodeUuid={node.uuid}
-          viewType="child_pages"
-          title="Children"
-          icon={<PageIcon size="sm" />}
-          hideWhenEmpty={true}
-          defaultExpanded={true}
-          onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-          onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-          hideViewManagement={true}
-        />
-      )}
-      
-      {/* Linked References - shows all references to this node (universal for all nodes) */}
-      <QuerySection
-        nodeId={node.id}
-        nodeUuid={node.uuid}
-        viewType="linked_references"
-        title="Linked References"
-        icon={<LinkIcon size="sm" />}
-        defaultExpanded={!linkedRefsCollapsed}
-        hideWhenEmpty={true}
-        onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
-        onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-      />
       
       {/* Footer */}
-      <footer className="node-view-footer">
-        <div className="node-view-metadata">
-          <span>Created: {formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</span>
-          <span>Updated: {formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</span>
-        </div>
-      </footer>
+      {!compactMode && (
+        <footer className="node-view-footer">
+          <div className="node-view-metadata">
+            <span>Created: {formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</span>
+            <span>Updated: {formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</span>
+          </div>
+        </footer>
+      )}
       
       {/* Context Menu */}
       {showContextMenu && (
