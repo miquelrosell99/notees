@@ -50,23 +50,26 @@ const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (sc
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
 function getMaxSimulationFrames(nodeCount: number): number {
-  if (nodeCount <= 200) return 300;   // Small graph: ~5s
-  if (nodeCount <= 500) return 250;   // Medium graph: ~4s
-  if (nodeCount <= 1000) return 180;  // Large graph: ~3s
-  return 120;                          // Very large graph: ~2s
+  // Return 0 to allow unlimited simulation (converges via sleep threshold).
+  // Set non-zero values to hard-cap frames if needed.
+  if (nodeCount <= 200) return 0;
+  if (nodeCount <= 500) return 0;
+  if (nodeCount <= 1000) return 0;
+  return 0;
 }
 
 // Absolute wall-clock time cap (ms) — safety net so simulation never causes OOM
 // regardless of frame count or convergence.  Fires before frame cap as a hard limit.
-const MAX_SIMULATION_TIME_MS = 5_000; // 5 seconds
+const MAX_SIMULATION_TIME_MS = 0; // 0 = unlimited; set positive value (ms) to hard-cap wall-clock time
 
 // Render skip interval: large graphs only render every Nth frame during physics
 // Physics runs every frame but canvas drawing is skipped to reduce memory/GPU pressure
 function getRenderSkip(nodeCount: number): number {
-  if (nodeCount <= 200) return 1;    // Every frame
-  if (nodeCount <= 500) return 2;    // Every other frame
-  if (nodeCount <= 1000) return 3;   // Every 3rd frame
-  return 4;                           // Every 4th frame
+  // Return 1 to render every frame. Increase to skip frames for large graphs if needed.
+  if (nodeCount <= 200) return 1;
+  if (nodeCount <= 500) return 1;
+  if (nodeCount <= 1000) return 1;
+  return 1;
 }
 
 // Pre-allocated arrays for setLineDash (avoids per-frame array creation)
@@ -1484,10 +1487,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         simulationSleepingRef.current = false;
         sleepFrames = 0;
         // Allow a burst of physics frames on wake (e.g., after drag/node change)
-        // but don't fully reset — cap prevents unbounded growth
         const maxFrames = getMaxSimulationFrames(nodesRef.current.length);
-        const burst = Math.min(300, Math.floor(maxFrames * 0.5));
-        totalFrames = Math.min(totalFrames, maxFrames - burst);
+        if (maxFrames > 0) {
+          const burst = Math.min(300, Math.floor(maxFrames * 0.5));
+          totalFrames = Math.min(totalFrames, maxFrames - burst);
+        }
         animationRef.current = requestAnimationFrame(simulate);
       } else {
         sleepFrames = 0;
@@ -1816,11 +1820,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const sleepThreshold = Math.max(0.1, nodes.length * SLEEP_KE_PER_NODE);
       const shouldSleep = kineticEnergy < sleepThreshold && warmupT >= 1 && !dragNodeRef.current;
       
-      // Hard cap: force sleep after adaptive frame limit OR wall-clock time limit
-      // to prevent runaway memory growth
+      // Hard cap: force sleep after adaptive frame limit OR wall-clock time limit.
+      // A value of 0 means unlimited (rely on convergence-based sleep instead).
       const maxFrames = getMaxSimulationFrames(nodes.length);
-      const forceStop = totalFrames >= maxFrames ||
-        (performance.now() - simulationStartTime) > MAX_SIMULATION_TIME_MS;
+      const forceStop = (maxFrames > 0 && totalFrames >= maxFrames) ||
+        (MAX_SIMULATION_TIME_MS > 0 && (performance.now() - simulationStartTime) > MAX_SIMULATION_TIME_MS);
       
       if (shouldSleep || forceStop) {
         sleepFrames++;
