@@ -79,7 +79,8 @@ export function NodeTimelineRenderer({
     const saved = serverSettings['timeline_date_properties'];
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
+        // Handle both formats: raw object (new) or JSON string (legacy)
+        const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
         if (Array.isArray(parsed)) {
           setDateProperties(parsed);
         }
@@ -92,7 +93,7 @@ export function NodeTimelineRenderer({
   // Save settings
   useEffect(() => {
     const timer = setTimeout(() => {
-      setSetting('timeline_date_properties', JSON.stringify(dateProperties)).catch(e => {
+      setSetting('timeline_date_properties', dateProperties).catch(e => {
         console.error('Failed to save timeline_date_properties:', e);
       });
     }, 500);

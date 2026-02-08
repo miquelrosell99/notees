@@ -123,7 +123,9 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
       const saved = serverSettings['graph_class_colors'];
       if (saved) {
         try {
-          const parsed = JSON.parse(saved);
+          // Value is stored as JSONB — it arrives as the parsed object already.
+          // Handle both formats: raw object (new) or JSON string (legacy).
+          const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
             skipClassColorsSaveRef.current++;  // skip the save-back on next render
             setClassColors(parsed);
@@ -139,9 +141,13 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
       const savedSettings = serverSettings['graph_settings'];
       if (savedSettings) {
         try {
-          const parsed = JSON.parse(savedSettings);
-          skipGraphSettingsSaveRef.current++;  // skip the save-back on next render
-          setGraphSettings(prev => ({ ...prev, ...parsed }));
+          // Value is stored as JSONB — it arrives as the parsed object already.
+          // Handle both formats: raw object (new) or JSON string (legacy).
+          const parsed = typeof savedSettings === 'string' ? JSON.parse(savedSettings) : savedSettings;
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            skipGraphSettingsSaveRef.current++;  // skip the save-back on next render
+            setGraphSettings(prev => ({ ...prev, ...parsed }));
+          }
         } catch (e) {
           console.error('Failed to parse graph_settings:', e);
         }
@@ -159,7 +165,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     }
     
     const timer = setTimeout(() => {
-      setSetting('graph_class_colors', JSON.stringify(classColors)).catch(e => {
+      setSetting('graph_class_colors', classColors).catch(e => {
         console.error('Failed to save graph_class_colors:', e);
       });
     }, 500);
@@ -175,7 +181,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     }
     
     const timer = setTimeout(() => {
-      setSetting('graph_settings', JSON.stringify(graphSettings)).catch(e => {
+      setSetting('graph_settings', graphSettings).catch(e => {
         console.error('Failed to save graph_settings:', e);
       });
     }, 500);
