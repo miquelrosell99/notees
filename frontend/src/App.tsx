@@ -112,6 +112,7 @@ function AppContent() {
   // Gate Layout behind settings: fetch settings BEFORE Layout mounts.
   // This ensures GET /settings completes before journal/graph views
   // start their request flood, so settings doesn't compete for browser connections.
+  // Also loads favorites and recents after settings to avoid connection contention.
   const [settingsReady, setSettingsReady] = useState(false);
   useEffect(() => {
     if (dbData?.active) {
@@ -121,22 +122,19 @@ function AppContent() {
         staleTime: 1000 * 60 * 5,
       }).then(() => {
         setSettingsReady(true);
+        // Load favorites and recents AFTER settings — prevents connection contention
+        const store = useFavoritesStore.getState();
+        store.loadFavorites();
+        store.loadRecents();
       }).catch(() => {
         // Still render Layout even if settings fail — degrade gracefully
         setSettingsReady(true);
+        const store = useFavoritesStore.getState();
+        store.loadFavorites();
+        store.loadRecents();
       });
     } else {
       setSettingsReady(false);
-    }
-  }, [dbData?.active]);
-
-  // Refresh favorites and recents when database changes
-  useEffect(() => {
-    if (dbData?.active) {
-      // Use getState() to call actions directly without needing them in deps
-      const store = useFavoritesStore.getState();
-      store.loadFavorites();
-      store.loadRecents();
     }
   }, [dbData?.active]);
   
