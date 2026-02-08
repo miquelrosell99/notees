@@ -381,15 +381,31 @@ export function useReorderNodeViews() {
   });
 }
 
+// Client-side dedup: tracks which node+viewType combos have already been
+// ensured this session.  Prevents the ~40 redundant POST requests that fire
+// every time the journal view loads (4 view types × 10 day-nodes).
+const _ensuredSet = new Set<string>();
+
 /**
- * Ensure default views exist for a node (lazy initialization)
+ * Ensure default views exist for a node (lazy initialization).
+ * 
+ * Skips the POST if this node+viewType was already ensured in the current
+ * browser session (the set is cleared on full page reload).
  */
 export function useEnsureDefaultViews() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, viewTypes }: { nodeId: number; viewTypes?: string[] }) =>
-      ensureDefaultViews(nodeId, viewTypes),
+    mutationFn: async ({ nodeId, viewTypes }: { nodeId: number; viewTypes?: string[] }) => {
+      // Build a dedup key from nodeId + sorted view types
+      const key = `${nodeId}:${(viewTypes ?? []).sort().join(',')}`;
+      if (_ensuredSet.has(key)) {
+        return [];  // Already ensured — skip the network call
+      }
+      const views = await ensureDefaultViews(nodeId, viewTypes);
+      _ensuredSet.add(key);
+      return views;
+    },
     onSuccess: (views) => {
       if (views.length > 0) {
         const nodeId = views[0].node_id;

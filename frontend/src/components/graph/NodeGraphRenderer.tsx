@@ -50,16 +50,15 @@ const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (sc
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
 function getMaxSimulationFrames(nodeCount: number): number {
-  if (nodeCount <= 200) return 600;   // Small graph: 10s
-  if (nodeCount <= 500) return 400;   // Medium graph: ~7s
-  if (nodeCount <= 1000) return 250;  // Large graph: ~4s
-  return 150;                          // Very large graph: ~2.5s
+  if (nodeCount <= 200) return 300;   // Small graph: ~5s
+  if (nodeCount <= 500) return 250;   // Medium graph: ~4s
+  if (nodeCount <= 1000) return 180;  // Large graph: ~3s
+  return 120;                          // Very large graph: ~2s
 }
 
 // Absolute wall-clock time cap (ms) — safety net so simulation never causes OOM
-// regardless of frame count or convergence.  Set lower than the frame-based cap
-// so it only triggers if something unexpected keeps the loop alive.
-const MAX_SIMULATION_TIME_MS = 8_000; // 8 seconds
+// regardless of frame count or convergence.  Fires before frame cap as a hard limit.
+const MAX_SIMULATION_TIME_MS = 5_000; // 5 seconds
 
 // Render skip interval: large graphs only render every Nth frame during physics
 // Physics runs every frame but canvas drawing is skipped to reduce memory/GPU pressure
@@ -1819,6 +1818,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (shouldSleep || forceStop) {
         sleepFrames++;
         if (sleepFrames >= SLEEP_DELAY_FRAMES || forceStop) {
+          if (forceStop) {
+            const elapsed = (performance.now() - simulationStartTime).toFixed(0);
+            console.log(`[Graph] Simulation force-stopped: ${totalFrames} frames, ${elapsed}ms, ${nodes.length} nodes`);
+          }
           simulationSleepingRef.current = true;
           // Prep frame data for final render (may have been skipped by renderSkip)
           const currentFilters = visibilityFiltersRef.current;
