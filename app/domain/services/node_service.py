@@ -10,7 +10,7 @@ from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
 from ..validation import validate_node_create, validate_node_update
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from ...db.connection import get_graph_uuid
+from ...db.connection import acquire_connection, get_graph_uuid
 from ...logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -664,7 +664,7 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             async with conn.transaction():
                 # Get all descendants using closure table
                 descendant_rows = await conn.fetch("""
@@ -717,7 +717,7 @@ class NodeService:
         uid = user_id or self._user_id
         
         pool = self._node_repo.get_connection()
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             async with conn.transaction():
                 # Check if node exists and is deleted
                 row = await conn.fetchrow("""
@@ -889,7 +889,7 @@ class NodeService:
         if self._pool is None:
             return
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Remove from property_value_relation where this node is the target
             # This handles NODE-type properties that reference this node
             result = await conn.execute("""
@@ -921,7 +921,7 @@ class NodeService:
         if self._pool is None or self._graph_id is None:
             return 0
         
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             # Use closure table (node_path) to find all descendants, then count day pages
             row = await conn.fetchrow("""
                 SELECT COUNT(*) as day_count 
@@ -1009,7 +1009,7 @@ class NodeService:
             )
         
         # Get current node and class_ids
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT id, name, is_page, parent_id, class_ids FROM node WHERE id = $1 AND graph_id = $2",
                 node_id, self._graph_id
@@ -1140,7 +1140,7 @@ class NodeService:
                 )
         
         # Remove class from class_ids array
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT class_ids FROM node WHERE id = $1 AND graph_id = $2",
                 node_id, self._graph_id
@@ -1171,7 +1171,7 @@ class NodeService:
     
     async def get_node_classes(self, node_id: int) -> List[Node]:
         """Get all classes applied to a node from class_ids array."""
-        async with self._pool.acquire() as conn:
+        async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT class_ids FROM node WHERE id = $1 AND graph_id = $2",
                 node_id, self._graph_id
@@ -1198,7 +1198,7 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             async with conn.transaction():
                 # Get all descendants using closure table
                 descendant_rows = await conn.fetch("""
@@ -1232,7 +1232,7 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             async with conn.transaction():
                 # Get all descendants using closure table
                 descendant_rows = await conn.fetch("""

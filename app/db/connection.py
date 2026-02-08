@@ -1,10 +1,15 @@
 """PostgreSQL connection pool manager.
 
 Provides async connection pooling for PostgreSQL using asyncpg.
+
+Uses a contextvars-based request-scoped connection so that all repository
+calls within the same HTTP request share a single pooled connection instead
+of each method independently acquiring and releasing from the pool.
 """
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncIterator, cast
 from pathlib import Path
@@ -18,8 +23,52 @@ logger = get_logger(__name__)
 # Global connection pool
 _pool: Optional[asyncpg.Pool] = None
 
+# Per-request connection (set by middleware, read by repos)
+_request_conn: ContextVar[Optional[asyncpg.Connection]] = ContextVar(
+    '_request_conn', default=None
+)
+
 # Base data directory for assets (still file-based)
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
+
+
+def get_request_conn() -> Optional[asyncpg.Connection]:
+    """Get the current request-scoped connection, if any."""
+    return _request_conn.get()
+
+
+@asynccontextmanager
+async def request_connection() -> AsyncIterator[asyncpg.Connection]:
+    """Acquire a connection for the lifetime of an HTTP request.
+    
+    Used by middleware to set up a per-request connection that repos
+    can reuse via get_request_conn(), avoiding repeated pool.acquire()
+    calls within a single request.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        token = _request_conn.set(cast(asyncpg.Connection, conn))
+        try:
+            yield cast(asyncpg.Connection, conn)
+        finally:
+            _request_conn.reset(token)
+
+
+@asynccontextmanager
+async def acquire_connection(pool: asyncpg.Pool) -> AsyncIterator[asyncpg.Connection]:
+    """Acquire a connection, reusing the request-scoped one if available.
+    
+    Repos should use this instead of pool.acquire() directly.
+    If a request-scoped connection exists (set by middleware), it is
+    reused without any pool.acquire() overhead. Otherwise, falls back
+    to acquiring from the pool.
+    """
+    req_conn = _request_conn.get()
+    if req_conn is not None:
+        yield req_conn
+    else:
+        async with pool.acquire() as conn:
+            yield cast(asyncpg.Connection, conn)
 
 
 def get_database_url() -> str:
@@ -50,7 +99,7 @@ async def init_pool() -> asyncpg.Pool:
     _pool = await asyncpg.create_pool(
         dsn=database_url,
         min_size=int(os.getenv('POSTGRES_POOL_MIN', 5)),
-        max_size=int(os.getenv('POSTGRES_POOL_MAX', 20)),
+        max_size=int(os.getenv('POSTGRES_POOL_MAX', 50)),
         max_inactive_connection_lifetime=float(
             os.getenv('POSTGRES_POOL_MAX_INACTIVE_TIME', 300)
         ),
@@ -89,19 +138,26 @@ async def get_pool() -> asyncpg.Pool:
 async def get_connection() -> AsyncIterator[asyncpg.Connection]:
     """Get a connection from the pool with automatic release.
     
+    Reuses the request-scoped connection if available.
+    
     Usage:
         async with get_connection() as conn:
             result = await conn.fetch("SELECT * FROM node")
     """
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        yield cast(asyncpg.Connection, conn)
+    req_conn = _request_conn.get()
+    if req_conn is not None:
+        yield req_conn
+    else:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            yield cast(asyncpg.Connection, conn)
 
 
 @asynccontextmanager
 async def get_transaction() -> AsyncIterator[asyncpg.Connection]:
     """Get a connection with an active transaction.
     
+    Reuses the request-scoped connection if available.
     The transaction is committed on successful exit, rolled back on exception.
     
     Usage:
@@ -109,10 +165,15 @@ async def get_transaction() -> AsyncIterator[asyncpg.Connection]:
             await conn.execute("INSERT INTO node ...")
             await conn.execute("INSERT INTO node_link ...")
     """
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            yield cast(asyncpg.Connection, conn)
+    req_conn = _request_conn.get()
+    if req_conn is not None:
+        async with req_conn.transaction():
+            yield req_conn
+    else:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                yield cast(asyncpg.Connection, conn)
 
 
 def get_pool_stats() -> dict:
@@ -141,8 +202,7 @@ async def get_graph_uuid(graph_id: int) -> Optional[str]:
     Returns:
         The graph UUID as a string, or None if graph not found
     """
-    pool = await get_pool()
-    async with pool.acquire() as conn:
+    async with get_connection() as conn:
         row = await conn.fetchrow(
             "SELECT uuid FROM graph WHERE id = $1",
             graph_id

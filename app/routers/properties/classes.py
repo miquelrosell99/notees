@@ -7,6 +7,7 @@ from ..auth import get_current_user
 from ...models import User
 from .models import ClassPropertyRequest, ClassPropertyResponse
 from .helpers import _get_property_repo
+from ...db.connection import acquire_connection
 
 
 router = APIRouter()
@@ -123,7 +124,7 @@ async def get_class_extends(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
@@ -174,7 +175,7 @@ async def add_class_extends(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
@@ -213,7 +214,7 @@ async def remove_class_extends(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
@@ -247,7 +248,7 @@ async def get_inherited_properties_endpoint(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
@@ -290,7 +291,7 @@ async def get_extended_by_classes_endpoint(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
@@ -320,7 +321,7 @@ async def validate_class_extends_endpoint(
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
