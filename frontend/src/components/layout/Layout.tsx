@@ -15,6 +15,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useNodesStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync, useCreateNode } from '@/hooks';
+import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './NavigationSidebar';
@@ -51,6 +52,11 @@ export function Layout() {
   const { defaultView } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const hasAppliedDefaultView = useRef(false);
+  
+  // Prefetch settings early so they're cached before graph/timeline views mount.
+  // Without this, GET /settings fires alongside the request flood from journal
+  // ensure-defaults and gets delayed 20+ seconds.
+  useSettingsQuery();
   
   // Sidebar resize state
   const [leftSidebarWidth, setLeftSidebarWidth] = useState<number | null>(null); // null = use CSS default

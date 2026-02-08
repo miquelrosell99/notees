@@ -11,13 +11,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   useNodeViews, 
-  useEnsureDefaultViews,
   useNodeViewQuery,
   useQuery_,
   useCreateNodeView,
   useUpdateQueryAST,
   useUpdateNodeView,
   useDeleteNodeView,
+  batchEnsureDefaults,
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
@@ -229,14 +229,13 @@ export function QueryNodeCollection({
   // Check if this is a pseudo-node (nodeId <= 0, used for all_pages view)
   const isPseudoNode = nodeId <= 0;
 
-  // Ensure default views exist
-  const ensureDefaultViews = useEnsureDefaultViews();
-  
+  // Ensure default views exist — uses microtask batching so all QuerySections
+  // that mount in the same render tick are merged into ONE API call per nodeId.
   useEffect(() => {
     if (nodeId > 0) {
-      ensureDefaultViews.mutate(
-        { nodeId, viewTypes: [viewType] },
-        { onSettled: () => setHasInitialized(true) }
+      batchEnsureDefaults(nodeId, viewType as string).then(
+        () => setHasInitialized(true),
+        () => setHasInitialized(true)
       );
     } else {
       setHasInitialized(true);

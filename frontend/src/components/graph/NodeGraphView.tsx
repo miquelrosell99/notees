@@ -89,6 +89,12 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const [classColors, setClassColors] = useState<ClassColor[]>([]);
   const classColorsLoadedRef = useRef(false);
   
+  // Tracks how many state changes should be skipped by the save effects.
+  // Incremented when loading from server, so the subsequent render doesn't
+  // fire a no-op PUT back.
+  const skipClassColorsSaveRef = useRef(0);
+  const skipGraphSettingsSaveRef = useRef(0);
+  
   // Visibility filters
   const [visibilityFilters, setVisibilityFilters] = useState<VisibilityFilters>({
     showClassNodes: true,
@@ -119,6 +125,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
+            skipClassColorsSaveRef.current++;  // skip the save-back on next render
             setClassColors(parsed);
           }
         } catch (e) {
@@ -133,6 +140,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
       if (savedSettings) {
         try {
           const parsed = JSON.parse(savedSettings);
+          skipGraphSettingsSaveRef.current++;  // skip the save-back on next render
           setGraphSettings(prev => ({ ...prev, ...parsed }));
         } catch (e) {
           console.error('Failed to parse graph_settings:', e);
@@ -142,9 +150,13 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     }
   }, [serverSettings]);
   
-  // Save settings (debounced)
+  // Save settings (debounced) — skip save-backs triggered by initial load
   useEffect(() => {
     if (!classColorsLoadedRef.current) return;
+    if (skipClassColorsSaveRef.current > 0) {
+      skipClassColorsSaveRef.current--;
+      return;
+    }
     
     const timer = setTimeout(() => {
       setSetting('graph_class_colors', JSON.stringify(classColors)).catch(e => {
@@ -157,6 +169,10 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
+    if (skipGraphSettingsSaveRef.current > 0) {
+      skipGraphSettingsSaveRef.current--;
+      return;
+    }
     
     const timer = setTimeout(() => {
       setSetting('graph_settings', JSON.stringify(graphSettings)).catch(e => {
