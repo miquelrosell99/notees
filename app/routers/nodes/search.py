@@ -50,7 +50,7 @@ async def get_graph_data_endpoint(
         
         # Get types for each page
         page_ids = [row['id'] for row in page_rows]
-        class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, page_ids) if page_ids else {}
+        class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, page_ids, conn=conn) if page_ids else {}
         
         # Build nodes
         nodes = []

@@ -37,3 +37,4 @@ export * from './useClickOutside';
 export * from './useEscapeKey';
 export * from './useResolvedClassDetails';
 export * from './useNodeNavigation';
+export * from './useSettings';
