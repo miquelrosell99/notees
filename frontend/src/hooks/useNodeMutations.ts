@@ -56,6 +56,8 @@ function invalidateNodeCaches(
     propertyBacklinks?: boolean;
     /** Invalidate node view query results */
     queryResults?: boolean;
+    /** Invalidate graph data query */
+    graph?: boolean;
     /** Invalidate a specific node's detail cache */
     nodeId?: number;
     /** Whether to actively refetch (default: false for soft invalidation) */
@@ -71,6 +73,7 @@ function invalidateNodeCaches(
     backlinks = false,
     propertyBacklinks = false,
     queryResults = false,
+    graph = false,
     nodeId,
     refetch = false,
   } = options;
@@ -144,6 +147,13 @@ function invalidateNodeCaches(
   if (queryResults) {
     queryClient.invalidateQueries({ 
       queryKey: nodeViewKeys.queryResults(),
+      refetchType,
+    });
+  }
+
+  if (graph) {
+    queryClient.invalidateQueries({ 
+      queryKey: nodeKeys.graph(),
       refetchType,
     });
   }
@@ -363,6 +373,7 @@ export function useCreateNode() {
         pages: newNode.is_page,
         classes: newNode.is_class,
         search: newNode.is_page,
+        graph: newNode.is_page,
       });
       
       // GLOBAL: If the new node is a page with a parent, invalidate parent and query results
@@ -584,6 +595,7 @@ export function useUpdateNode() {
           linkedRefs: true,
           backlinks: true,
           propertyBacklinks: true,
+          graph: true,
           refetch: true,
         });
         
@@ -839,6 +851,11 @@ export function useDeleteNode() {
         queryKey: ['nodeViews', 'queryResults'],
         refetchType: 'none',
       });
+      // Invalidate graph data since nodes/links changed
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.graph(),
+        refetchType: 'none',
+      });
     },
   });
 }
@@ -846,6 +863,7 @@ export function useDeleteNode() {
 /**
  * Hook to archive a node
  */
+
 export function useArchiveNode() {
   const queryClient = useQueryClient();
   
@@ -866,6 +884,10 @@ export function useArchiveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'archived'],
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.graph(),
         refetchType: 'none',
       });
     },
@@ -895,6 +917,10 @@ export function useUnarchiveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'archived'],
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.graph(),
         refetchType: 'none',
       });
     },
@@ -1227,6 +1253,9 @@ export function useAddClass() {
       // (e.g., query class creates a main_content view)
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
+      
+      // Invalidate graph data since class links changed
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
     },
   });
 }
@@ -1355,6 +1384,9 @@ export function useRemoveClass() {
       // (e.g., query class removal deletes the main_content view)
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
+      
+      // Invalidate graph data since class links changed
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
     },
   });
 }
