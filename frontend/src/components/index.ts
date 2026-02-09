@@ -23,9 +23,9 @@ export { NodeContextMenu, PageContextMenu, BlockContextMenu } from './nodes/Node
 
 // Block components (from blocks/ folder)
 export { Block } from './blocks/Block';
-export { BlockEditor, TASK_STATES } from './blocks/BlockEditor';
-export type { TaskState } from './blocks/BlockEditor';
-export { BlockContent } from './blocks/BlockContent';
+export { ASTBlockEditor as BlockEditor, TASK_STATES } from './blocks/ASTBlockEditor';
+export type { TaskState } from './blocks/ASTBlockEditor';
+export { ASTBlockContent as BlockContent } from './blocks/ASTBlockContent';
 export { BlockPreview } from './blocks/BlockPreview';
 export type { BlockPreviewProps } from './blocks/BlockPreview';
 export { BlockDrag } from './blocks/BlockDrag';
