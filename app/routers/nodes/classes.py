@@ -66,12 +66,13 @@ async def search_classes(
     """Search for classes by name.
     
     Returns nodes with class_ids populated.
+    Only returns nodes where is_class=TRUE.
     """
     service = await _get_node_service(user)
     # Search pages only (classes are pages)
     nodes = await service.search(q, limit)
-    # Filter to pages only (no parent_id)
-    pages = [n for n in nodes if n.parent_id is None]
+    # Filter to classes only (is_class=True and no parent_id)
+    pages = [n for n in nodes if n.parent_id is None and n.is_class]
     
     # Batch fetch class_ids
     node_ids = [n.id for n in pages if n.id is not None]
