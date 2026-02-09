@@ -45,8 +45,7 @@ const MIN_REPULSION_DISTANCE = 20; // Prevent infinite force when nodes overlap
 const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
 const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
-const SLEEP_KE_PER_NODE = 0.001; // Per-node contribution to sleep threshold (scales with graph size)
-const VELOCITY_DEADZONE = 0.1; // Zero out velocity below this to prevent jitter near equilibrium
+const VELOCITY_DEADZONE = 0.01; // Zero out velocity below this to prevent jitter near equilibrium
 const LINK_DAMPING = 0.4; // Dashpot: damp relative velocity along spring axis to prevent oscillation
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
@@ -1538,17 +1537,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Old simulate closures detect they're stale and stop immediately.
     const thisGeneration = ++simulationGenerationRef.current;
     
-    // Convergence tracking
-    let sleepFrames = 0;
+    // Frame tracking
     let totalFrames = 0;
     const simulationStartTime = performance.now();
-    const SLEEP_DELAY_FRAMES = 90; // Frames below threshold before sleeping
     
     const wake = () => {
       if (simulationGenerationRef.current !== thisGeneration) return; // stale generation
       if (simulationSleepingRef.current) {
         simulationSleepingRef.current = false;
-        sleepFrames = 0;
         // Allow a burst of physics frames on wake (e.g., after drag/node change)
         const maxFrames = getMaxSimulationFrames(nodesRef.current.length);
         if (maxFrames > 0) {
@@ -1556,8 +1552,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           totalFrames = Math.min(totalFrames, maxFrames - burst);
         }
         animationRef.current = requestAnimationFrame(simulate);
-      } else {
-        sleepFrames = 0;
       }
     };
     wakeSimulationRef.current = wake;
@@ -1790,6 +1784,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
+      // Shared across tangential and collision phases
+      const currentNodeSizeMode = currentSettings.nodeSizeMode;
+      
       // Tangential overlap prevention for constrained modes (tree/circle).
       // In these modes, radial velocity is stripped so only tangential forces
       // can separate overlapping nodes on the same ring.
@@ -1798,8 +1795,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (isConstrainedMode && currentSettings.constraintMode !== 'equidistant') {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
-        const TANGENTIAL_REPULSION = 300; // Strength of tangential push
-        const TANGENTIAL_RANGE = 60; // Distance within which nodes repel tangentially
         const TANGENTIAL_MIN_DIST = 5; // Floor to prevent singularity
         
         for (let i = 0; i < nodes.length; i++) {
@@ -1807,29 +1802,30 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           if (dragNodeRef.current?.id === a.id || a.pinned) continue;
           const aRadius = (a as GraphNode & { _treeRadius?: number })._treeRadius;
           if (aRadius === undefined) continue;
+          const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass);
           
           for (let j = i + 1; j < nodes.length; j++) {
             const b = nodes[j];
             if (dragNodeRef.current?.id === b.id || b.pinned) continue;
             const bRadius = (b as GraphNode & { _treeRadius?: number })._treeRadius;
             if (bRadius === undefined) continue;
+            const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass);
             
             // Only repel nodes on the same or nearby rings
-            if (Math.abs(aRadius - bRadius) > TANGENTIAL_RANGE) continue;
+            const minGlareDist = aGlare + bGlare;
+            if (Math.abs(aRadius - bRadius) > minGlareDist) continue;
             
             const dx = b.x - a.x;
             const dy = b.y - a.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             
-            if (dist >= TANGENTIAL_RANGE) continue;
+            if (dist >= minGlareDist) continue;
             
             // Compute tangential direction (perpendicular to radial from center)
-            // For each node, the tangential direction relative to center
             const dax = a.x - cx;
             const day = a.y - cy;
             const daDist = Math.sqrt(dax * dax + day * day) || 1;
             
-            // Use the displacement direction projected onto tangent
             const radialX = dax / daDist;
             const radialY = day / daDist;
             
@@ -1848,8 +1844,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               tangY /= tangDist;
             }
             
+            // Linear impulse based on overlap (like collision force, but tangential only)
             const clampedDist = Math.max(dist, TANGENTIAL_MIN_DIST);
-            const force = (TANGENTIAL_REPULSION / (clampedDist * clampedDist)) * warmupMultiplier;
+            const overlap = minGlareDist - clampedDist;
+            const force = overlap * 0.5 * warmupMultiplier;
             
             if (!a.pinned) {
               a.vx -= tangX * force;
@@ -1912,8 +1910,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // and the collision force fights the return force causing node pairing.
       const COLLISION_PADDING = 1.8; // Multiplier on visual radius for collision zone
       const COLLISION_STRENGTH = 0.8; // Velocity impulse per pixel of overlap per frame
-      const currentNodeSizeMode = currentSettings.nodeSizeMode;
-      let hasCollisions = false; // Track if any overlaps exist — prevents premature sleep
       const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
       if (!skipCollisions) {
@@ -1937,8 +1933,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             
             // Quick squared-distance check to skip most pairs
             if (distSq >= minDist * minDist) continue;
-            
-            hasCollisions = true;
             
             const dist = Math.sqrt(distSq) || 0.1;
             const overlap = minDist - dist;
@@ -1982,11 +1976,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           node.vx *= VELOCITY_DAMPING;
           node.vy *= VELOCITY_DAMPING;
           
+          // Measure KE before deadzone so active forces aren't masked
+          kineticEnergy += node.vx * node.vx + node.vy * node.vy;
+          
           // Kill tiny velocities to prevent jitter near equilibrium
           if (Math.abs(node.vx) < VELOCITY_DEADZONE) node.vx = 0;
           if (Math.abs(node.vy) < VELOCITY_DEADZONE) node.vy = 0;
-          
-          kineticEnergy += node.vx * node.vx + node.vy * node.vy;
           
           // Radial constraint: keep nodes on their assigned circle in constrained modes
           if (isConstrainedMode) {
@@ -2053,44 +2048,33 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         pool[i].c0 = pool[i].c1 = pool[i].c2 = pool[i].c3 = null;
       }
       
-      // Convergence-based sleep: threshold scales with node count so large graphs can converge
-      const sleepThreshold = Math.max(0.1, nodes.length * SLEEP_KE_PER_NODE);
-      const shouldSleep = kineticEnergy < sleepThreshold && warmupT >= 1 && !dragNodeRef.current && !hasCollisions;
-      
-      // Hard cap: force sleep after adaptive frame limit OR wall-clock time limit.
-      // A value of 0 means unlimited (rely on convergence-based sleep instead).
+      // Simulation runs continuously via requestAnimationFrame.
+      // rAF automatically pauses when the tab is hidden, so no sleep logic needed.
+      // Force-stop is kept only as a safety net for truly massive graphs.
       const maxFrames = getMaxSimulationFrames(nodes.length);
       const forceStop = (maxFrames > 0 && totalFrames >= maxFrames) ||
         (MAX_SIMULATION_TIME_MS > 0 && (performance.now() - simulationStartTime) > MAX_SIMULATION_TIME_MS);
       
-      if (shouldSleep || forceStop) {
-        sleepFrames++;
-        if (sleepFrames >= SLEEP_DELAY_FRAMES || forceStop) {
-          if (forceStop) {
-            const elapsed = (performance.now() - simulationStartTime).toFixed(0);
-            console.log(`[Graph] Simulation force-stopped: ${totalFrames} frames, ${elapsed}ms, ${nodes.length} nodes`);
+      if (forceStop) {
+        const elapsed = (performance.now() - simulationStartTime).toFixed(0);
+        console.log(`[Graph] Simulation force-stopped: frames=${totalFrames}, ${elapsed}ms, ${nodes.length} nodes`);
+        simulationSleepingRef.current = true;
+        // Prep frame data for final render
+        const currentFilters = visibilityFiltersRef.current;
+        const visibleLinks = frameVisibleLinksRef.current;
+        visibleLinks.length = 0;
+        for (const l of links) {
+          if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
+            visibleLinks.push(l);
           }
-          simulationSleepingRef.current = true;
-          // Prep frame data for final render (may have been skipped by renderSkip)
-          const currentFilters = visibilityFiltersRef.current;
-          const visibleLinks = frameVisibleLinksRef.current;
-          visibleLinks.length = 0;
-          for (const l of links) {
-            if (nodeMap.has(l.source) && nodeMap.has(l.target) && shouldLinkBeActive(l, currentFilters)) {
-              visibleLinks.push(l);
-            }
-          }
-          frameDataRef.current.visibleNodes = nodes;
-          frameDataRef.current.visibleLinks = visibleLinks;
-          frameDataRef.current.nodeMap = nodeMap;
-          frameDataRef.current.maxConnections = maxConnections;
-          frameDataRef.current.maxMass = maxMass;
-          // Final render to show converged state
-          renderRef.current?.(ctx);
-          return; // Don't schedule next frame
         }
-      } else {
-        sleepFrames = 0;
+        frameDataRef.current.visibleNodes = nodes;
+        frameDataRef.current.visibleLinks = visibleLinks;
+        frameDataRef.current.nodeMap = nodeMap;
+        frameDataRef.current.maxConnections = maxConnections;
+        frameDataRef.current.maxMass = maxMass;
+        renderRef.current?.(ctx);
+        return; // Don't schedule next frame
       }
       
       animationRef.current = requestAnimationFrame(simulate);
