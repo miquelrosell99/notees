@@ -47,6 +47,7 @@ const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
 const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
 const VELOCITY_DEADZONE = 0.05; // Zero out velocity below this to prevent jitter near equilibrium
+const LINK_DAMPING = 0.3; // Dashpot: damp relative velocity along spring axis to prevent oscillation
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
@@ -1670,19 +1671,29 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           
           // Counteract quadtree repulsion for linked pairs (it shouldn't have pushed them apart)
           // Add back the repulsion that was applied, then apply attraction
+          // The quadtree applied repulsion scaled by peer mass, so compensation must match
           let netForce = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
+          
+          const massA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
+          const massB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
+          
           if (dist < UNLINKED_REPULSION_DISTANCE) {
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
-            const repulsionCompensation = (REPULSION_STRENGTH / (clampedDist * clampedDist)) * warmupMultiplier;
+            // Compensate using average of both peer masses (quadtree pushed A by massB and B by massA)
+            const avgMass = (massA + massB) / 2;
+            const repulsionCompensation = (REPULSION_STRENGTH * avgMass / (clampedDist * clampedDist)) * warmupMultiplier;
             // The quadtree applied this as repulsion; counteract it by adding attraction
             netForce += repulsionCompensation;
           }
           
+          // Dashpot: damp relative velocity along spring axis to prevent oscillation
+          const rvx = nodeB.vx - nodeA.vx;
+          const rvy = nodeB.vy - nodeA.vy;
+          const relVel = (rvx * dx + rvy * dy) / dist;
+          netForce += relVel * LINK_DAMPING;
+          
           const fx = (dx / dist) * netForce;
           const fy = (dy / dist) * netForce;
-          
-          const massA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
-          const massB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
           
           if (!nodeA.pinned) {
             nodeA.vx += fx / massA;
