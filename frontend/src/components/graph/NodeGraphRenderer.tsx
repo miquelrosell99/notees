@@ -1874,6 +1874,62 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
+      // === Collision force ===
+      // Strong short-range repulsion when nodes overlap within their visual radii.
+      // Applied as a velocity impulse (force) so it integrates naturally with
+      // the existing damping/deadzone system and reaches smooth equilibrium.
+      // Linear in overlap so force is zero at the collision boundary (no discontinuity).
+      const COLLISION_PADDING = 1.8; // Multiplier on visual radius for collision zone
+      const COLLISION_STRENGTH = 0.8; // Velocity impulse per pixel of overlap per frame
+      const currentNodeSizeMode = currentSettings.nodeSizeMode;
+      
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        if (!a.visible) continue;
+        const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
+        const radiusA = getNodeRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+        
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          if (!b.visible) continue;
+          const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
+          if (aImmovable && bImmovable) continue;
+          
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const distSq = dx * dx + dy * dy;
+          const radiusB = getNodeRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+          const minDist = radiusA + radiusB;
+          
+          // Quick squared-distance check to skip most pairs
+          if (distSq >= minDist * minDist) continue;
+          
+          const dist = Math.sqrt(distSq) || 0.1;
+          const overlap = minDist - dist;
+          
+          // Direction from a to b
+          const nx = dx / dist;
+          const ny = dy / dist;
+          
+          // Linear impulse proportional to overlap (zero at boundary, max at center)
+          const impulse = overlap * COLLISION_STRENGTH;
+          
+          if (aImmovable) {
+            b.vx += nx * impulse;
+            b.vy += ny * impulse;
+          } else if (bImmovable) {
+            a.vx -= nx * impulse;
+            a.vy -= ny * impulse;
+          } else {
+            const halfImpulse = impulse * 0.5;
+            a.vx -= nx * halfImpulse;
+            a.vy -= ny * halfImpulse;
+            b.vx += nx * halfImpulse;
+            b.vy += ny * halfImpulse;
+          }
+        }
+      }
+      
       // Update positions and track kinetic energy for convergence sleep
       let kineticEnergy = 0;
       for (const node of nodes) {
@@ -1918,73 +1974,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
               const newDist = dist + (treeRadius - dist) * blendRate;
               node.x = cx + radialX * newDist;
               node.y = cy + radialY * newDist;
-            }
-          }
-        }
-      }
-      
-      // === Hard collision resolution ===
-      // After all forces and position updates, directly separate overlapping nodes.
-      // This is a position correction, not a force — guarantees no visual overlap.
-      // Collision radius = visual node radius × 2 (gives comfortable spacing).
-      // Multiple iterations to resolve chain overlaps (A pushes B into C).
-      const COLLISION_PADDING = 1.8; // Multiplier on visual radius for collision zone
-      const COLLISION_ITERATIONS = 3;
-      const currentNodeSizeMode = currentSettings.nodeSizeMode;
-      
-      for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
-        for (let i = 0; i < nodes.length; i++) {
-          const a = nodes[i];
-          if (!a.visible) continue;
-          const radiusA = getNodeRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
-          
-          for (let j = i + 1; j < nodes.length; j++) {
-            const b = nodes[j];
-            if (!b.visible) continue;
-            
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const distSq = dx * dx + dy * dy;
-            const radiusB = getNodeRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
-            const minDist = radiusA + radiusB;
-            
-            // Quick squared-distance check to skip most pairs
-            if (distSq >= minDist * minDist) continue;
-            
-            const dist = Math.sqrt(distSq) || 0.1;
-            const overlap = minDist - dist;
-            
-            // Direction from a to b (or random if coincident)
-            let nx = dx / dist;
-            let ny = dy / dist;
-            if (dist < 0.1) {
-              const angle = Math.random() * 2 * Math.PI;
-              nx = Math.cos(angle);
-              ny = Math.sin(angle);
-            }
-            
-            // Push each node half the overlap distance apart
-            const halfOverlap = overlap * 0.5;
-            
-            const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
-            const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
-            
-            if (aImmovable && bImmovable) continue;
-            
-            if (aImmovable) {
-              // Only move b
-              b.x += nx * overlap;
-              b.y += ny * overlap;
-            } else if (bImmovable) {
-              // Only move a
-              a.x -= nx * overlap;
-              a.y -= ny * overlap;
-            } else {
-              // Move both equally
-              a.x -= nx * halfOverlap;
-              a.y -= ny * halfOverlap;
-              b.x += nx * halfOverlap;
-              b.y += ny * halfOverlap;
             }
           }
         }
