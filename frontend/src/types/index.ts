@@ -3,6 +3,7 @@
  * Note: PropertyType is exported from both api.ts and queryAST.ts
  */
 export * from './api';
+export * from './ast';
 export * from './views';
 export * from './nodeCollection';
 export * from './viewModes';
