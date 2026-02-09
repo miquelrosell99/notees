@@ -6,6 +6,7 @@
  */
 import { useState, useCallback } from 'react';
 import type { Node } from '@/types';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { Modal } from './core/Modal';
 import { Button } from './core/Button';
 import { NodeIcon } from './icons';
@@ -79,7 +80,7 @@ export function HierarchicalPathConflictModal({
                 </div>
                 <div className="hierarchical-conflict-modal__option-content">
                   <div className="hierarchical-conflict-modal__option-name">
-                    {node.name || 'Untitled'}
+                    {nodeNameToText(node.name) || 'Untitled'}
                   </div>
                   {classNames.length > 0 && (
                     <div className="hierarchical-conflict-modal__option-classes">

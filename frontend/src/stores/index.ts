@@ -25,6 +25,7 @@ export {
   applyTheme,
   formatDate,
   formatMonth,
+  formatYear,
   DATE_FORMAT_OPTIONS,
   type ThemePreference, 
   type DateFormat,

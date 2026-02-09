@@ -31,8 +31,8 @@ export interface ASTHardBreak {
  * optional custom label (`name` column on node_link).
  *
  * `ref_type` distinguishes rendering:
- *   - 'node' — regular page/block reference rendered as [[…]]
- *   - 'class' — class reference that keeps text inline ({{…}})
+ *   - 'node' — regular page/block reference
+ *   - 'class' — class reference that keeps text inline
  */
 export interface ASTNodeLink {
   readonly type: 'node_link';

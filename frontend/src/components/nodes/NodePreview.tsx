@@ -6,6 +6,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNode, useUpdateNode, useCreateNode, useClasses } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import { mdiPlus, mdiOpenInNew, mdiArrowExpand, mdiClose } from '@mdi/js';
@@ -163,7 +164,7 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
       <div className="node-preview-header">
         <div className="node-preview-title">
           <NodeIcon icon={effectiveIcon} isPage={node.is_page} size="sm" />
-          <span className="node-preview-name">{node.name || 'Untitled'}</span>
+          <span className="node-preview-name">{nodeNameToText(node.name) || 'Untitled'}</span>
         </div>
         <div className="node-preview-actions">
           <button

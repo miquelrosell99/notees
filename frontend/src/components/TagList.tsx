@@ -2,6 +2,7 @@
  * Tag list component for displaying and navigating tags
  */
 import { useTags, useNodesByTag } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import './TagList.css';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
@@ -99,7 +100,7 @@ export function TaggedNodes({ tagId, className = '', onNodeClick }: TaggedNodesP
               <NodeIcon icon={node.icon} isPage={true} />
             </span>
             <span className="node-title">
-              {node.name || 'Untitled'}
+              {nodeNameToText(node.name) || 'Untitled'}
             </span>
           </Button>
         </li>

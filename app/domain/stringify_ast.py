@@ -37,7 +37,21 @@ __all__ = [
     "StringifyOptions",
     "stringify_ast",
     "parse_ast",
+    "build_text_ast",
 ]
+
+
+# ── AST Builders ────────────────────────────────────────────────────
+
+
+def build_text_ast(text: str) -> str:
+    """Build a simple AST document containing just a text node.
+    
+    Returns a JSON string suitable for storing in the name column.
+    This is the ONLY way to create AST content in Python code.
+    """
+    ast = [{"type": "paragraph", "children": [{"type": "text", "text": text}]}]
+    return json.dumps(ast)
 
 
 # ── Public types ────────────────────────────────────────────────────
@@ -109,14 +123,21 @@ def parse_ast(value: Any) -> List[dict]:
     - JSON string → parse → validate
     - list        → validate
     - anything else → empty document
+    
+    Note: The name field must ALWAYS contain valid AST JSON.
+    Use build_text_ast() to create AST content.
     """
     if isinstance(value, str):
         if not value:
             return []
         try:
             parsed = json.loads(value)
+            if not isinstance(parsed, list):
+                # Invalid: not an AST array
+                return []
             return _validate_document(parsed)
         except (json.JSONDecodeError, TypeError):
+            # Invalid JSON - should never happen with properly created AST
             return []
     if isinstance(value, list):
         return _validate_document(value)

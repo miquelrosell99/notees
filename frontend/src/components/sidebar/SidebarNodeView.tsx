@@ -1,45 +1,19 @@
 /**
  * SidebarNodeView Component
  * 
- * A minified version of NodeView for displaying nodes in the sidebar.
- * - Pages: Shows classes, tags, properties (collapsed), children blocks (list view),
- *   and additional sections (classed nodes, children pages, linked refs) collapsed
- * - Blocks: Shows the block itself as an editable block (like focused block mode),
- *   followed by its children and linked references
+ * Wraps NodeViewContent to display nodes in the sidebar.
+ * Uses the same NodeView component as the main view, just in a compact container.
+ * - Pages: Uses NodeViewContent with compactMode for a condensed page view
+ * - Blocks: Uses NodeViewContent for focused block view
  */
-import { useMemo, useCallback } from 'react';
-import { 
-  useNode, 
-  useUpdateNode, 
-  useAddTag, 
-  useAddClass, 
-  useAddTagLink, 
-  useCreateNode, 
-  useClasses,
-  useTags,
-  useNodes,
-  useRemoveClass,
-  useRemoveTag,
-  useNodesWithClass,
-  useLinkedReferencesCount,
-  useSystemClasses,
-  useResolvedClassDetails,
-} from '@/hooks';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { useCallback } from 'react';
+import { useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
-import type { NodeUpdate, Node } from '@/types';
 import type { SidebarNodeType } from '@/stores';
-import { useBlockCallbacksFactory } from '../blocks/useBlockCallbacksFactory';
-import { ASTBlockEditor as BlockEditor } from '../blocks/ASTBlockEditor';
-import { Block } from '../blocks/Block';
-import { NodeCollection } from '../nodes/NodeCollection';
-import { PropertiesSection } from '../PropertiesSection';
-import { NodeSelector } from '../NodeSelector';
-import { QuerySection } from '../nodes';
-import { NodeIcon, TableIcon, PageIcon, LinkIcon } from '../icons';
+import { NodeViewContent } from '@/views/NodeView';
+import { NodeIcon } from '../icons';
 import { Button } from '../core/Button';
-import { TextField } from '../core/TextField';
-import { SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import './SidebarNodeView.css';
 
 interface SidebarNodeViewProps {
@@ -50,211 +24,14 @@ interface SidebarNodeViewProps {
 }
 
 export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: SidebarNodeViewProps) {
-  const { data: node, isLoading, error } = useNode(nodeId, { 
-    include_children: true,
-    include_backlinks: true,
-    include_properties: true,
-  });
-  
-  const updateNode = useUpdateNode();
-  const createNode = useCreateNode();
-  const addTag = useAddTag();
-  const addClass = useAddClass();
-  const addTagLink = useAddTagLink();
-  const removeClass = useRemoveClass();
-  const removeTag = useRemoveTag();
-  const { data: allClasses } = useClasses();
-  const { data: allTags } = useTags();
-  const { data: allNodes } = useNodes({ pages_only: true });  const { systemClassIds } = useSystemClasses();  const { openNode, closeSidebarNode, addSidebarCard, openCommentsForNode } = useNodesStore();
-  
-  // Check if node is used as a class
-  const { data: classedNodes } = useNodesWithClass(node?.id ?? 0);
-  
-  // Linked references count (triggers data fetch)
-  useLinkedReferencesCount(nodeId);
-
-  // Handlers
-  const handleNameChange = useCallback((newName: string) => {
-    if (!node) return;
-    const data: NodeUpdate = { name: newName };
-    updateNode.mutate({ id: node.id, data });
-  }, [node, updateNode]);
-
-  const handleBlockChange = useCallback((blockId: number, name: string) => {
-    const data: NodeUpdate = { name };
-    updateNode.mutate({ id: blockId, data });
-  }, [updateNode]);
+  const { data: node, isLoading, error } = useNode(nodeId);
+  const { openNode, closeSidebarNode, viewMode } = useNodesStore();
 
   const handleOpenFull = useCallback(() => {
     if (!node) return;
     openNode(node.id, nodeType);
     closeSidebarNode();
   }, [node, nodeType, openNode, closeSidebarNode]);
-
-  const handleBlockBulletClick = useCallback((blockId: number) => {
-    openNode(blockId, 'block');
-    closeSidebarNode();
-  }, [openNode, closeSidebarNode]);
-
-  const handleBlockShiftClick = useCallback((blockId: number) => {
-    addSidebarCard(blockId, 'block');
-  }, [addSidebarCard]);
-  
-  // Navigate to class/tag
-  const handleNavigateToNode = useCallback((targetId: number) => {
-    openNode(targetId, 'page');
-  }, [openNode]);
-
-  // Handle adding a class to a block
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for callback signature
-  const handleAddClassToBlock = useCallback((blockId: number) => (classNodeId: number, _keepInline: boolean, _className: string) => {
-    addClass.mutate({ nodeId: blockId, classId: classNodeId });
-  }, [addClass]);
-
-  // Handle adding a tag to a block
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Unused params required for callback signature
-  const handleAddTagToBlock = useCallback((blockId: number) => (tagNodeId: number, keepInline: boolean, _tagName: string) => {
-    addTag.mutate({ nodeId: blockId, tagId: tagNodeId });
-    if (keepInline) {
-      addTagLink.mutate({ nodeId: blockId, targetNodeId: tagNodeId });
-    }
-  }, [addTag, addTagLink]);
-
-  // Handle creating a new class
-  const handleCreateClassForBlock = useCallback((blockId: number) => (name: string) => {
-    if (!systemClassIds?.page || !systemClassIds?.class) return;
-    // Create as both Page and Class so it shows up in @ menu
-    createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
-      onSuccess: (newPage) => {
-        addClass.mutate({ nodeId: blockId, classId: newPage.id });
-      }
-    });
-  }, [createNode, addClass, systemClassIds]);
-
-  // Handle creating a new tag
-  const handleCreateTagForBlock = useCallback((blockId: number) => (name: string) => {
-    if (!systemClassIds?.page) return;
-    createNode.mutate({ name, classes: [systemClassIds.page] }, {
-      onSuccess: (newPage) => {
-        addTag.mutate({ nodeId: blockId, tagId: newPage.id });
-      }
-    });
-  }, [createNode, addTag, systemClassIds]);
-
-  // Handle creating a new page link (from [[ menu)
-  const handleCreatePageLink = useCallback(async (name: string): Promise<string | undefined> => {
-    try {
-      if (!systemClassIds?.page) return undefined;
-      const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
-      return String(newPage.id);
-    } catch (error) {
-      console.error('Failed to create page for link:', error);
-      return undefined;
-    }
-  }, [createNode, systemClassIds]);
-
-  // Handle opening comments
-  const handleOpenComments = useCallback((blockId: number) => () => {
-    openCommentsForNode(blockId);
-  }, [openCommentsForNode]);
-  
-  // Page-level class/tag handlers
-  const handleAddPageClass = useCallback((classNode: Node) => {
-    if (!node) return;
-    addClass.mutate({ nodeId: node.id, classId: classNode.id });
-  }, [node, addClass]);
-  
-  const handleCreatePageClass = useCallback((name: string) => {
-    if (!node || !systemClassIds?.page || !systemClassIds?.class) return;
-    createNode.mutate({ name, classes: [systemClassIds.page, systemClassIds.class] }, {
-      onSuccess: (newPage) => {
-        addClass.mutate({ nodeId: node.id, classId: newPage.id });
-      }
-    });
-  }, [node, createNode, addClass, systemClassIds]);
-  
-  const handleRemovePageClass = useCallback((classNode: Node) => {
-    if (!node) return;
-    removeClass.mutate({ nodeId: node.id, classId: classNode.id });
-  }, [node, removeClass]);
-  
-  // Handle color change for class/tag nodes
-  const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
-    updateNode.mutate({ id: targetNode.id, data: { color } });
-  }, [updateNode]);
-  
-  const handleAddPageTag = useCallback((tagNode: Node) => {
-    if (!node) return;
-    addTag.mutate({ nodeId: node.id, tagId: tagNode.id });
-  }, [node, addTag]);
-  
-  const handleCreatePageTag = useCallback((name: string) => {
-    if (!node || !systemClassIds?.page) return;
-    createNode.mutate({ name, classes: [systemClassIds.page] }, {
-      onSuccess: (newPage) => {
-        addTag.mutate({ nodeId: node.id, tagId: newPage.id });
-      }
-    });
-  }, [node, createNode, addTag, systemClassIds]);
-  
-  const handleRemovePageTag = useCallback((tagNode: Node) => {
-    if (!node) return;
-    removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
-  }, [node, removeTag]);
-
-  // Filter children - separate blocks from pages
-  const { blockChildren, pageChildren } = useMemo(() => {
-    if (!node?.children) return { blockChildren: [], pageChildren: [] };
-    
-    const blocks: Node[] = [];
-    const pages: Node[] = [];
-    
-    for (const child of node.children) {
-      // Skip children with this node as their class (they appear in classed_nodes view)
-      if (child.classes?.includes(node.id)) continue;
-      
-      if (child.is_page) {
-        pages.push(child);
-      } else {
-        blocks.push(child);
-      }
-    }
-    
-    return { blockChildren: blocks, pageChildren: pages };
-  }, [node]);
-  
-  // Resolve page class details from IDs
-  const pageClassDetails = useResolvedClassDetails(node?.classes);
-  
-  // Resolve page tag details from IDs
-  const pageTagDetails = useMemo(() => {
-    if (!node?.tags || node.tags.length === 0) return [];
-    return node.tags
-      .map(tagId => {
-        const fromTags = allTags?.find(t => t.id === tagId);
-        if (fromTags) return fromTags;
-        return allNodes?.find(n => n.id === tagId);
-      })
-      .filter((t): t is Node => {
-        if (t === undefined) return false;
-        if (t.is_class) return false;
-        return true;
-      });
-  }, [node, allTags, allNodes]);
-  
-  // A node is a "class node" if it's in the classes list OR has nodes using it as their class
-  const isClassNode = useMemo(() => {
-    if (!node) return false;
-    return (allClasses?.some(t => t.id === node.id) || (classedNodes && classedNodes.length > 0)) ?? false;
-  }, [node, allClasses, classedNodes]);
-  
-  // Block callbacks for NodeCollection context
-  const blockCallbacks = useBlockCallbacksFactory({
-    onOpenBacklinks: (blockId) => addSidebarCard(blockId, 'block'),
-  });
-
-  // Get effective icon (node's icon or first class's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
 
   // Loading state
   if (isLoading) {
@@ -276,259 +53,43 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
 
   return (
     <div className={`sidebar-node-view sidebar-node-view--${nodeType}`}>
-      {/* Header - different for pages vs blocks, hidden when using SidebarCard wrapper */}
-      {!hideHeader && nodeType === 'page' && (
-        /* Page Header - card style with name and expand */
-        <header className="sidebar-node-view__header sidebar-node-view__header--page">
+      {/* Header with expand button */}
+      {!hideHeader && (
+        <header className="sidebar-node-view__header">
           <div className="sidebar-node-view__title">
-            {effectiveIcon || node.is_daily || node.is_monthly || node.is_yearly ? (
-              <NodeIcon icon={effectiveIcon} isPage={true} size="sm" className="sidebar-node-view__icon" />
+            {nodeType === 'page' ? (
+              <>
+                <NodeIcon icon={node.icon} isPage={true} size="sm" className="sidebar-node-view__icon" />
+                <span className="sidebar-node-view__name">{nodeNameToText(node.name) || 'Untitled'}</span>
+              </>
             ) : (
-              <NodeIcon isPage={true} size="sm" className="sidebar-node-view__icon" />
+              <>
+                <span className="sidebar-node-view__bullet">•</span>
+                <span className="sidebar-node-view__label">Block</span>
+              </>
             )}
-            <TextField
-              type="text"
-              className="sidebar-node-view__title-input"
-              value={node.name || ''}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="Untitled"
-            />
           </div>
           <Button 
             className="sidebar-node-view__expand-btn"
             variant="ghost"
             size="sm"
             onClick={handleOpenFull}
-            title="Open in main view"
-          >
-            ↗
-          </Button>
-        </header>
-      )}
-      {!hideHeader && nodeType === 'block' && (
-        /* Block Header - editable block style */
-        <header className="sidebar-node-view__header sidebar-node-view__header--block">
-          <div className="sidebar-node-view__block-header-content">
-            <span className="sidebar-node-view__bullet">•</span>
-            <span className="sidebar-node-view__label">Block</span>
-          </div>
-          <Button 
-            className="sidebar-node-view__expand-btn"
-            variant="ghost"
-            size="sm"
-            onClick={handleOpenFull}
-            title="Open in focused view"
+            title={nodeType === 'page' ? 'Open in main view' : 'Open in focused view'}
           >
             ↗
           </Button>
         </header>
       )}
 
-      {/* Content */}
+      {/* Content - just NodeViewContent */}
       <div className="sidebar-node-view__content">
-        {nodeType === 'page' && (
-          /* Page content: Classes, Tags, Properties, Children via NodeCollection, and sections */
-          <>
-            {/* Classes Section */}
-            <div className="sidebar-node-view__section sidebar-node-view__classes">
-              <NodeSelector
-                nodes={pageClassDetails}
-                searchMode="classes"
-                emptyText="Add class"
-                searchPlaceholder="Search classes..."
-                onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemovePageClass}
-                onColorChange={handleNodeColorChange}
-                onAdd={handleAddPageClass}
-                onCreateNew={handleCreatePageClass}
-                canRemove={(n) => !isNonRemovableClass(n.uuid)}
-                canAdd={(n) => !isBlockOnlyClass(n.uuid)}
-              />
-            </div>
-            
-            {/* Tags Section */}
-            <div className="sidebar-node-view__section sidebar-node-view__tags">
-              <NodeSelector
-                nodes={pageTagDetails}
-                searchMode="tags"
-                emptyText="Add tag"
-                searchPlaceholder="Search tags..."
-                onNodeClick={(n) => handleNavigateToNode(n.id)}
-                onRemove={handleRemovePageTag}
-                onColorChange={handleNodeColorChange}
-                onAdd={handleAddPageTag}
-                onCreateNew={handleCreatePageTag}
-              />
-            </div>
-            
-            {/* Properties Section - collapsed by default */}
-            <div className="sidebar-node-view__section sidebar-node-view__properties">
-              <PropertiesSection
-                nodeId={node.id}
-                variant="page"
-                showHiddenSection={false}
-                showAddProperty={true}
-                onNavigateToNode={handleNavigateToNode}
-                onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
-                defaultCollapsed={true}
-              />
-            </div>
-            
-            {/* Children blocks via NodeCollection - list view only */}
-            {blockChildren.length > 0 && (
-              <div className="sidebar-node-view__children">
-                <NodeCollection
-                  nodes={blockChildren}
-                  viewMode="list"
-                  availableViewModes={['list']}
-                  editable={true}
-                  onNodeClick={(clickedNode) => openNode(clickedNode.id, clickedNode.is_page ? 'page' : 'block')}
-                  onNodeShiftClick={(clickedNode) => addSidebarCard(clickedNode.id, 'block')}
-                  onContentChange={handleBlockChange}
-                  showEmpty={false}
-                  showClasses={true}
-                  provideBlockCallbacks={true}
-                  blockCallbacks={blockCallbacks}
-                />
-              </div>
-            )}
-            
-            {/* Classed nodes section - collapsed by default */}
-            {isClassNode && (
-              <QuerySection
-                nodeId={node.id}
-                nodeUuid={node.uuid}
-                viewType="classed_nodes"
-                title="Nodes"
-                icon={<TableIcon size="sm" />}
-                hideWhenEmpty={true}
-                defaultExpanded={false}
-                onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-                onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-              />
-            )}
-            
-            {/* Child pages section - collapsed by default */}
-            {pageChildren.length > 0 && (
-              <QuerySection
-                nodeId={node.id}
-                nodeUuid={node.uuid}
-                viewType="child_pages"
-                title="Children"
-                icon={<PageIcon size="sm" />}
-                hideWhenEmpty={true}
-                defaultExpanded={false}
-                onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
-                onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
-              />
-            )}
-            
-            {/* Linked References - collapsed by default */}
-            <QuerySection
-              nodeId={node.id}
-              nodeUuid={node.uuid}
-              viewType="linked_references"
-              title="Linked References"
-              icon={<LinkIcon size="sm" />}
-              defaultExpanded={false}
-              hideWhenEmpty={true}
-              onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
-              onBlockCreated={(targetId) => addSidebarCard(targetId, 'block')}
-            />
-          </>
-        )}
-        
-        {nodeType === 'block' && (
-          /* For blocks, show the block itself as editable */
-          <div className="sidebar-node-view__block-editor">
-            <BlockEditor
-              nodeId={node.id}
-              content={node.name || ''}
-              onChange={handleNameChange}
-              onAddClass={handleAddClassToBlock(node.id)}
-              onAddTag={handleAddTagToBlock(node.id)}
-              onCreateClass={handleCreateClassForBlock(node.id)}
-              onCreateTag={handleCreateTagForBlock(node.id)}
-              onCreatePageLink={handleCreatePageLink}
-              onOpenComments={handleOpenComments(node.id)}
-              readOnly={false}
-            />
-          </div>
-        )}
-
-        {/* Block children (for block type only) */}
-        {nodeType === 'block' && blockChildren.length > 0 && (
-          <div className="sidebar-node-view__children">
-            <div className="sidebar-node-view__children-label">Children</div>
-            {blockChildren.slice(0, 5).map((child) => (
-              <div key={child.id} className="sidebar-node-view__child">
-                <Block
-                  block={child}
-                  children={child.children}
-                  parentId={node.id}
-                  onContentChange={handleBlockChange}
-                  onBulletClick={handleBlockBulletClick}
-                  onShiftClick={handleBlockShiftClick} 
-                  onAddClass={handleAddClassToBlock(child.id)}
-                  onAddTag={handleAddTagToBlock(child.id)}
-                  onCreateClass={handleCreateClassForBlock(child.id)}
-                  onCreateTag={handleCreateTagForBlock(child.id)}
-                  onCreatePageLink={handleCreatePageLink}
-                  onOpenComments={handleOpenComments(child.id)}
-                  commentCount={child.comment_count}
-                  backlinkCount={child.backlink_count}
-                  onOpenBacklinks={() => handleBlockShiftClick(child.id)}
-                />
-              </div>
-            ))}
-            {blockChildren.length > 5 && (
-              <div className="sidebar-node-view__more">
-                +{blockChildren.length - 5} more blocks
-              </div>
-            )}
-          </div>
-        )}
-
-        {blockChildren.length === 0 && nodeType === 'page' && (
-          <div className="sidebar-node-view__empty">
-            No content
-          </div>
-        )}
+        <NodeViewContent
+          nodeId={nodeId}
+          nodeType={nodeType}
+          viewMode={viewMode}
+          compactMode={true}
+        />
       </div>
-
-      {/* Linked References for blocks only - already shown in page section via NodeViewSection */}
-      {nodeType === 'block' && (
-        <div className="sidebar-node-view__references">
-          <QuerySection
-            nodeId={node.id}
-            nodeUuid={node.uuid}
-            viewType="linked_references"
-            title="Linked References"
-            icon={<LinkIcon size="sm" />}
-            hideWhenEmpty={true}
-            defaultExpanded={false}
-            onBlockCreated={(targetId) => addSidebarCard(targetId, 'block')}
-            onNodeClick={(targetId, isPage) => openNode(targetId, isPage ? 'page' : 'block')}
-          />
-        </div>
-      )}
-
-      {/* Footer */}
-      <footer className="sidebar-node-view__footer">
-        <span className="sidebar-node-view__meta">
-          {new Date(node.write_date).toLocaleDateString()}
-        </span>
-        {nodeType === 'block' && node.page_id && (
-          <Button 
-            className="sidebar-node-view__page-link"
-            variant="ghost"
-            size="sm"
-            onClick={() => { openNode(node.page_id!, 'page'); closeSidebarNode(); }}
-          >
-            View page
-          </Button>
-        )}
-      </footer>
     </div>
   );
 }

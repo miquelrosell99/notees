@@ -47,9 +47,9 @@ export function InlineNodeLink({
       return `[Missing: ${uuid.substring(0, 8)}...]`;
     }
     
-    const name = nodeNameToText(linkedNode.name);
+    const name = nodeNameToText(linkedNode?.name) || 'Untitled';
     
-    if (!name) {
+    if (!name || name === 'Untitled') {
       if (linkedNode.is_page) {
         return '[Untitled Page]';
       } else {

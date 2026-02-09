@@ -10,6 +10,7 @@ from .helpers import (
     _format_date_with_pattern,
     _format_month_with_pattern,
 )
+from ...db.schema import parse_date_uuid
 from ...db.connection import acquire_connection
 
 
@@ -53,32 +54,29 @@ async def update_date_format(
         uuid = node.uuid
         
         try:
-            # Check if it's a day node (YYYYMMDD format, day != 0)
-            if len(uuid) == 8 and uuid.isdigit():
-                year = int(uuid[:4])
-                month = int(uuid[4:6])
-                day = int(uuid[6:8])
-                
-                # Skip year nodes (month and day are 0)
-                if month == 0:
-                    continue
-                
-                # Month node (day is 0)
-                if day == 0:
-                    if 1 <= month <= 12:
-                        new_name = _format_month_with_pattern(year, month, pattern)
-                        if new_name != node.name:
-                            update_data = NodeUpdateData(name=new_name)
-                            await service.update_node(node.id, update_data)
-                            updated_count += 1
-                else:
-                    # Day node
-                    if 1 <= month <= 12 and 1 <= day <= 31:
-                        new_name = _format_date_with_pattern(year, month, day, pattern)
-                        if new_name != node.name:
-                            update_data = NodeUpdateData(name=new_name)
-                            await service.update_node(node.id, update_data)
-                            updated_count += 1
+            # Parse the date UUID using the proper parser
+            date_info = parse_date_uuid(uuid)
+            if not date_info:
+                continue
+            
+            date_type = date_info.get("type")
+            year = date_info.get("year")
+            month = date_info.get("month")
+            day = date_info.get("day")
+            
+            if date_type == "month" and year and month:
+                new_name = _format_month_with_pattern(year, month, pattern)
+                if new_name != node.name:
+                    update_data = NodeUpdateData(name=new_name)
+                    await service.update_node(node.id, update_data)
+                    updated_count += 1
+            elif date_type == "day" and year and month and day:
+                new_name = _format_date_with_pattern(year, month, day, pattern)
+                if new_name != node.name:
+                    update_data = NodeUpdateData(name=new_name)
+                    await service.update_node(node.id, update_data)
+                    updated_count += 1
+            # Year nodes don't change with date format
                         
         except Exception as e:
             errors.append(f"Error updating node {uuid}: {str(e)}")

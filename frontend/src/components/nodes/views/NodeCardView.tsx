@@ -23,6 +23,7 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { Block } from '../../blocks/Block';
 import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode, useResolvedClassDetails } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import { Button } from '../../core/Button';
 import { Card } from '../../core/Card';
@@ -643,7 +644,7 @@ function NodeCard({
               size="sm"
               checked={isSelected}
               onChange={handleCheckboxChange}
-              aria-label={`Select ${node.name || 'Untitled'}`}
+              aria-label={`Select ${nodeNameToText(node.name) || 'Untitled'}`}
             />
           </div>
         )}

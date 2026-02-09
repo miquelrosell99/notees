@@ -19,6 +19,7 @@ from .helpers import (
     _get_class_ids_batch,
     _format_date_with_pattern,
     _format_month_with_pattern,
+    _format_year,
 )
 from ...db.connection import acquire_connection
 
@@ -132,7 +133,7 @@ async def get_or_create_daily(
         year_node = await service._node_repo.get_by_uuid(year_uuid)
         if not year_node:
             year_data = NodeCreateData(
-                name=str(d.year),
+                name=_format_year(d.year),
                 classes=[page_type_id, year_type_id],
             )
             try:
@@ -150,9 +151,8 @@ async def get_or_create_daily(
         month_uuid = generate_month_uuid(d.year, d.month)
         month_node = await service._node_repo.get_by_uuid(month_uuid)
         if not month_node:
-            month_name_str = _format_month_with_pattern(d.year, d.month, date_format)
             month_data = NodeCreateData(
-                name=month_name_str,
+                name=_format_month_with_pattern(d.year, d.month, date_format),
                 classes=[page_type_id, month_type_id],
                 parent_id=year_node.id,
             )
@@ -186,9 +186,8 @@ async def get_or_create_daily(
             return _node_to_response(existing, classes=class_ids)
         
         # 3. Create day page with month as parent
-        name = _format_date_with_pattern(d.year, d.month, d.day, date_format)
         day_data = NodeCreateData(
-            name=name,
+            name=_format_date_with_pattern(d.year, d.month, d.day, date_format),
             classes=[page_type_id, day_type_id],
             parent_id=month_node.id if month_node else None,
         )
@@ -245,7 +244,7 @@ async def get_or_create_monthly(
     year_node = await service._node_repo.get_by_uuid(year_uuid)
     if not year_node:
         year_data = NodeCreateData(
-            name=str(year),
+            name=_format_year(year),
             classes=[page_type_id, year_type_id],
         )
         year_node = await service._node_repo.create(year_data, uuid=year_uuid)
@@ -265,16 +264,16 @@ async def get_or_create_monthly(
         return _node_to_response(existing, classes=class_ids)
     
     # 2. Create month page with year as parent
+    # Get user's date format preference
     async with acquire_connection(service._pool) as conn:
         row = await conn.fetchrow(
             "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
             "date_format", int(user.id)
         )
     date_format = row["value"] if row else "YYYY/MM/DD"
-    name = _format_month_with_pattern(year, month, date_format)
     
     data = NodeCreateData(
-        name=name,
+        name=_format_month_with_pattern(year, month, date_format),
         classes=[page_type_id, month_type_id],
         parent_id=year_node.id if year_node else None,
     )
@@ -317,10 +316,8 @@ async def get_or_create_yearly(
             class_ids.append(year_type_id)
         return _node_to_response(existing, classes=class_ids)
     
-    name = str(year)
-    
     data = NodeCreateData(
-        name=name,
+        name=_format_year(year),
         classes=[page_type_id, year_type_id],
     )
     node = await service._node_repo.create(data, uuid=uuid)

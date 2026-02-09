@@ -17,7 +17,6 @@
 
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useTrackLinkClick, useUpdateNode } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
 import { ContextMenu } from '../core/ContextMenu';
@@ -25,6 +24,7 @@ import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { TagIcon } from '../icons';
 import { parseAST } from '@/lib/astBuilder';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type {
   ASTInlineNode,
   ASTParagraph,
@@ -33,7 +33,7 @@ import type {
 // ─── Props ────────────────────────────────────────────────────────
 
 export interface ASTBlockContentProps {
-  /** The raw content string (JSON-serialized AST or legacy plain text). */
+  /** The raw content string (JSON-serialized AST). */
   content: string;
   /** Block node ID for link tracking. */
   blockId?: number;

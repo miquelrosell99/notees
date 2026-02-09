@@ -17,6 +17,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useGraphData, useClasses } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useNodesStore } from '@/stores';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { 
@@ -249,7 +250,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     }
     
     const nodes: GraphNode[] = graphData.nodes.map((apiNode: ApiGraphNode) => {
-      const nodeName = apiNode.name || 'Untitled';
+      const nodeName = nodeNameToText(apiNode.name) || 'Untitled';
       const isSystemPage = DEFAULT_SYSTEM_PAGES.some(
         sysName => sysName.toLowerCase() === nodeName.toLowerCase()
       );
@@ -661,7 +662,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                     onClick={() => addToSelection(page)}
                   >
                     {page.icon && <span className="result-icon">{page.icon}</span>}
-                    <span className="result-name">{page.name || 'Untitled'}</span>
+                    <span className="result-name">{nodeNameToText(page.name) || 'Untitled'}</span>
                   </Button>
                 ))}
               </div>

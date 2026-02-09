@@ -6,13 +6,11 @@
  * database access of its own.
  */
 import { useCallback, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
-import type { StringifyOptions, NodeLinkResolver, NodeLinkResolution } from '@/lib/stringifyAST';
+import type { NodeLinkResolver, NodeLinkResolution } from '@/lib/stringifyAST';
 import { parseAST } from '@/lib/astBuilder';
 import type { ASTDocument } from '@/types/ast';
 import type { Node } from '@/types';
-import { nodeKeys } from './queryKeys';
 
 /**
  * Data required to build a resolver from pre-fetched data.
