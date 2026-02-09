@@ -49,6 +49,95 @@ def generate_link_uuid() -> str:
     return str(uuid_module.uuid4())
 
 
+def _parse_links_from_ast(content: str) -> Optional[List[Tuple[int, int, Optional[str]]]]:
+    """Try to parse content as AST JSON and extract node links (ref_type='node').
+    
+    Returns None if content is not valid AST JSON, otherwise returns
+    list of (target_node_id, position, link_uuid) tuples.
+    """
+    try:
+        ast = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    
+    if not isinstance(ast, list):
+        return None
+    
+    # Validate it looks like an AST document (array of objects with 'type')
+    if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
+        return None
+    
+    links: List[Tuple[int, int, Optional[str]]] = []
+    position = 0
+    
+    def walk(nodes: Any) -> None:
+        nonlocal position
+        if not isinstance(nodes, list):
+            return
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if node.get('type') == 'node_link' and node.get('ref_type', 'node') == 'node':
+                link_id = str(node.get('link_id', ''))
+                # link_id format: "nodeId" or "nodeId:linkUuid"
+                parts = link_id.split(':', 1)
+                try:
+                    target_id = int(parts[0])
+                except (ValueError, IndexError):
+                    continue
+                link_uuid = parts[1] if len(parts) > 1 else None
+                links.append((target_id, position, link_uuid))
+                position += 1
+            # Recurse into children
+            if 'children' in node:
+                walk(node['children'])
+    
+    walk(ast)
+    return links
+
+
+def _parse_inline_classes_from_ast(content: str) -> Optional[List[Tuple[int, int]]]:
+    """Try to parse content as AST JSON and extract inline class refs (ref_type='class').
+    
+    Returns None if content is not valid AST JSON, otherwise returns
+    list of (class_node_id, position) tuples.
+    """
+    try:
+        ast = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    
+    if not isinstance(ast, list):
+        return None
+    
+    if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
+        return None
+    
+    classes: List[Tuple[int, int]] = []
+    position = 0
+    
+    def walk(nodes: Any) -> None:
+        nonlocal position
+        if not isinstance(nodes, list):
+            return
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if node.get('type') == 'node_link' and node.get('ref_type') == 'class':
+                link_id = str(node.get('link_id', ''))
+                try:
+                    class_id = int(link_id.split(':', 1)[0])
+                except (ValueError, IndexError):
+                    continue
+                classes.append((class_id, position))
+                position += 1
+            if 'children' in node:
+                walk(node['children'])
+    
+    walk(ast)
+    return classes
+
+
 def sanitize_content(raw_content: str) -> str:
     """Strip editor artifacts and normalize to canonical format.
     
@@ -121,12 +210,19 @@ class LinkParsingService:
         """Parse content and extract all links.
         
         Returns list of tuples: (target_node_id, position, link_uuid)
-        Links can be [[nodeId]] or [[nodeId:linkUuid]] format.
-        link_uuid is None if not present in the link syntax.
+        
+        Handles both formats:
+        - AST JSON: extracts node_link entries with ref_type='node'
+        - Legacy text: [[nodeId]] or [[nodeId:linkUuid]] regex patterns
         
         Content is automatically sanitized to remove editor artifacts.
         """
-        # Sanitize content first to remove editor artifacts
+        # Try AST JSON first
+        ast_links = _parse_links_from_ast(content)
+        if ast_links is not None:
+            return ast_links
+        
+        # Fallback: legacy [[id]] regex parsing
         sanitized_content = sanitize_content(content)
         
         links = []
@@ -146,11 +242,19 @@ class LinkParsingService:
         """Parse content and extract all inline class references.
         
         Returns list of tuples: (class_node_id, position)
-        Inline classes use {{classId}} format.
+        
+        Handles both formats:
+        - AST JSON: extracts node_link entries with ref_type='class'
+        - Legacy text: {{classId}} regex patterns
         
         Content is automatically sanitized to remove editor artifacts.
         """
-        # Sanitize content first to remove editor artifacts
+        # Try AST JSON first
+        ast_classes = _parse_inline_classes_from_ast(content)
+        if ast_classes is not None:
+            return ast_classes
+        
+        # Fallback: legacy {{id}} regex parsing
         sanitized_content = sanitize_content(content)
         
         inline_classes = []
