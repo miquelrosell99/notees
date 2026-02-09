@@ -18,10 +18,14 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SuggestionPopup.css';
-import { useNodeSearch, type NodeSearchMode } from '@/hooks';
+import { useNodeSearch, usePages, type NodeSearchMode } from '@/hooks';
 import type { Node } from '@/types';
-import { NodeIcon, TagIcon, AddIcon, BulletIcon } from './icons';
+import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from './icons';
 import { Checkbox } from './core/Checkbox';
+import { parseDate, generateDateUuid } from '@/utils/dateParser';
+import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
+import { useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
 
 export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
 
@@ -56,6 +60,8 @@ export interface SuggestionPopupProps {
   allNodes?: Node[];
   /** Show the "add inline too" option in footer (default: false) */
   showInlineOption?: boolean;
+  /** Callback when a date page is selected in link mode — returns the page ID */
+  onSelectDatePage?: (pageId: string, pageName: string) => void;
 }
 
 /**
@@ -77,6 +83,7 @@ export function SuggestionPopup({
   headerIcon,
   allNodes = [],
   showInlineOption = false,
+  onSelectDatePage,
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +97,20 @@ export function SuggestionPopup({
     excludeNodeId,
     maxResults: 10,
   });
+  
+  // Date parsing for link mode
+  const parsedDate = useMemo(() => type === 'link' ? parseDate(query) : null, [query, type]);
+  const { data: allPagesForDate } = usePages({ includeChildren: true });
+  
+  // Check if the date page already exists by looking up its deterministic UUID
+  const existingDateNode = useMemo(() => {
+    if (!parsedDate || !allPagesForDate) return null;
+    const uuid = generateDateUuid(parsedDate);
+    return allPagesForDate.find(p => p.uuid === uuid) ?? null;
+  }, [parsedDate, allPagesForDate]);
+  
+  const queryClient = useQueryClient();
+  const hasDateSuggestion = parsedDate !== null && !multiSelect && !!onSelectDatePage;
   
   // Get selected nodes from allNodes for multi-select mode
   const selectedNodes = useMemo(() => {
@@ -106,9 +127,10 @@ export function SuggestionPopup({
     return items;
   }, [pageResults, blockResults, multiSelect, selectedIds]);
   
-  // Total selectable items (selected at top + results + possibly create option)
+  // Total selectable items (date suggestion + selected at top + results + possibly create option)
   const selectedCount = multiSelect ? selectedNodes.length : 0;
-  const totalItems = selectedCount + allItems.length + (showCreateOption ? 1 : 0);
+  const dateSuggestionCount = hasDateSuggestion ? 1 : 0;
+  const totalItems = dateSuggestionCount + selectedCount + allItems.length + (showCreateOption ? 1 : 0);
   
   // Reset selection when results change
   useEffect(() => {
@@ -137,16 +159,23 @@ export function SuggestionPopup({
         e.stopPropagation();
         const keepInline = e.ctrlKey;
         
-        // In multi-select mode, handle selected items at top
-        if (multiSelect && selectedIndex < selectedCount) {
-          // Toggle off a selected item
-          onToggleSelect?.(selectedNodes[selectedIndex]);
+        // Date suggestion at the very top
+        if (hasDateSuggestion && selectedIndex === 0) {
+          handleDateSelect();
           return;
         }
         
-        const adjustedIndex = multiSelect ? selectedIndex - selectedCount : selectedIndex;
+        // In multi-select mode, handle selected items at top
+        const adjustedForDate = selectedIndex - dateSuggestionCount;
+        if (multiSelect && adjustedForDate < selectedCount) {
+          // Toggle off a selected item
+          onToggleSelect?.(selectedNodes[adjustedForDate]);
+          return;
+        }
         
-        if (adjustedIndex < allItems.length) {
+        const adjustedIndex = adjustedForDate - (multiSelect ? selectedCount : 0);
+        
+        if (adjustedIndex >= 0 && adjustedIndex < allItems.length) {
           // Select existing item
           if (multiSelect && onToggleSelect) {
             onToggleSelect(allItems[adjustedIndex].node);
@@ -171,7 +200,36 @@ export function SuggestionPopup({
         onClose();
         break;
     }
-  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect]);
+  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount]);
+  
+  // Handle date suggestion selection
+  const handleDateSelect = useCallback(async () => {
+    if (!parsedDate || !onSelectDatePage) return;
+    try {
+      let dateNode: Node;
+      if (existingDateNode) {
+        // Page already exists, use it directly
+        dateNode = existingDateNode;
+      } else {
+        // Create the date page via API
+        if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
+          const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
+          dateNode = await getOrCreateDaily(dateStr);
+        } else if (parsedDate.type === 'month' && parsedDate.month) {
+          dateNode = await getOrCreateMonthly(parsedDate.year, parsedDate.month);
+        } else {
+          dateNode = await getOrCreateYearly(parsedDate.year);
+        }
+        // Invalidate caches
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
+      }
+      onSelectDatePage(String(dateNode.id), dateNode.name || parsedDate.label);
+    } catch (error) {
+      console.error('Failed to create date page from suggestion:', error);
+    }
+  }, [parsedDate, onSelectDatePage, queryClient, existingDateNode]);
   
   // Attach keyboard listener
   useEffect(() => {
@@ -223,12 +281,13 @@ export function SuggestionPopup({
   
   if (!isOpen) return null;
   
-  // Calculate indices for each section (accounting for selected items at top in multi-select)
-  const selectedStartIndex = 0;
-  const pageStartIndex = selectedCount;
+  // Calculate indices for each section (accounting for date suggestion + selected items at top in multi-select)
+  const dateIndex = 0;
+  const selectedStartIndex = dateSuggestionCount;
+  const pageStartIndex = dateSuggestionCount + selectedCount;
   const pageResultIds = new Set(pageResults.map(p => p.node.id));
-  const blockStartIndex = selectedCount + (multiSelect ? allItems.filter(i => pageResultIds.has(i.node.id)).length : pageResults.length);
-  const createIndex = selectedCount + allItems.length;
+  const blockStartIndex = dateSuggestionCount + selectedCount + (multiSelect ? allItems.filter(i => pageResultIds.has(i.node.id)).length : pageResults.length);
+  const createIndex = dateSuggestionCount + selectedCount + allItems.length;
   
   // Helper to get icon for item
   const renderItemIcon = (node: Node, isPage: boolean) => {
@@ -295,12 +354,34 @@ export function SuggestionPopup({
       <div className="suggestion-popup__list">
         {isLoading && query.length > 0 ? (
           <div className="suggestion-popup__loading">Searching...</div>
-        ) : allItems.length === 0 && !showCreateOption && selectedNodes.length === 0 ? (
+        ) : allItems.length === 0 && !showCreateOption && selectedNodes.length === 0 && !hasDateSuggestion ? (
           <div className="suggestion-popup__empty">
             {query ? 'No matches found' : 'Start typing to search'}
           </div>
         ) : (
           <>
+            {/* Date suggestion (link mode only, when query matches a date) */}
+            {hasDateSuggestion && parsedDate && (
+              <div className="suggestion-popup__section">
+                <div className="suggestion-popup__section-header">Date Pages</div>
+                <button
+                  className={`suggestion-popup__item ${dateIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                  onClick={handleDateSelect}
+                  onMouseEnter={() => setSelectedIndex(dateIndex)}
+                >
+                  <span className="suggestion-popup__item-icon">
+                    <CalendarIcon size="sm" />
+                  </span>
+                  <span className="suggestion-popup__item-name">
+                    {existingDateNode
+                      ? `${existingDateNode.name || parsedDate.label}`
+                      : `Create ${parsedDate.type === 'day' ? 'daily' : parsedDate.type === 'month' ? 'monthly' : 'yearly'}: ${parsedDate.label}`
+                    }
+                  </span>
+                </button>
+              </div>
+            )}
+            
             {/* Selected items section (multi-select mode only) */}
             {multiSelect && selectedNodes.length > 0 && (
               <div className="suggestion-popup__section suggestion-popup__section--selected">
