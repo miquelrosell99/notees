@@ -43,6 +43,7 @@ import {
 } from '@/utils/clipboardManager';
 import { mdiTag } from '@mdi/js';
 import type { Node } from '@/types';
+import { getNodeByUuid } from '@/api/nodes';
 
 // Task states for cycling with Shift+Enter
 export const TASK_STATES = ['todo', 'doing', 'done', 'cancelled'] as const;
@@ -149,7 +150,7 @@ interface LinkInfo {
   raw: string;
 }
 
-import { sanitizeContent } from '@/utils/linkSanitization';
+import { sanitizeContent, findBareNodeUuids } from '@/utils/linkSanitization';
 
 /**
  * Parse content to find all links - [[targetId]] or [[targetId:linkUuid]] format
@@ -1070,6 +1071,77 @@ export function BlockEditor({
   
 
 
+  // Track in-flight UUID resolutions to avoid duplicate requests
+  const pendingUuidResolutions = useRef(new Set<string>());
+
+  // Resolve bare UUIDs in content: detect pasted/typed node UUIDs and convert to [[nodeId:linkUuid]] links
+  const resolveBareUuids = useCallback(async (contentToResolve: string) => {
+    const bareUuids = findBareNodeUuids(contentToResolve);
+    if (bareUuids.length === 0) return;
+
+    // Filter out UUIDs already being resolved
+    const newUuids = bareUuids.filter(u => !pendingUuidResolutions.current.has(u.uuid));
+    if (newUuids.length === 0) return;
+
+    // Mark as pending
+    for (const u of newUuids) {
+      pendingUuidResolutions.current.add(u.uuid);
+    }
+
+    // Resolve all UUIDs in parallel
+    const resolved = await Promise.allSettled(
+      newUuids.map(async (u) => {
+        try {
+          const node = await getNodeByUuid(u.uuid);
+          return { uuid: u.uuid, nodeId: node.id, node };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    // Build replacement map: uuid string -> [[nodeId:linkUuid]]
+    const replacements = new Map<string, { replacement: string; node: Node }>();
+    for (const result of resolved) {
+      if (result.status === 'fulfilled' && result.value) {
+        const { uuid, nodeId, node } = result.value;
+        const linkUuid = generateLinkUuid();
+        replacements.set(uuid, {
+          replacement: `[[${nodeId}:${linkUuid}]]`,
+          node,
+        });
+      }
+    }
+
+    // Clean up pending set
+    for (const u of newUuids) {
+      pendingUuidResolutions.current.delete(u.uuid);
+    }
+
+    if (replacements.size === 0) return;
+
+    // Apply replacements to the current content (re-read to get latest)
+    let currentContent = lastContentRef.current;
+    // Re-find UUIDs in the current content (positions may have shifted)
+    const currentBareUuids = findBareNodeUuids(currentContent);
+    
+    // Replace from end to start to preserve positions
+    const toReplace = currentBareUuids
+      .filter(u => replacements.has(u.uuid))
+      .sort((a, b) => b.start - a.start);
+
+    for (const u of toReplace) {
+      const { replacement, node } = replacements.get(u.uuid)!;
+      currentContent = currentContent.substring(0, u.start) + replacement + currentContent.substring(u.end);
+      onLinkPage?.(node);
+    }
+
+    // Update content through onChange (triggers re-render with pill rendering)
+    isInternalChange.current = false; // Allow the effect to re-render the HTML
+    lastContentRef.current = currentContent;
+    onChange(currentContent);
+  }, [onChange, onLinkPage]);
+
   // Handle input changes
   const handleInput = useCallback(() => {
     if (!editorRef.current || isComposing) return;
@@ -1084,8 +1156,11 @@ export function BlockEditor({
       
       // Check for triggers
       checkTriggers(newContent);
+
+      // Check for bare node UUIDs and convert to links
+      resolveBareUuids(newContent);
     }
-  }, [isComposing, onChange]);
+  }, [isComposing, onChange, resolveBareUuids]);
   
   // Check for trigger characters
   const checkTriggers = useCallback((text: string) => {
