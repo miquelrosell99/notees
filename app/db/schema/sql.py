@@ -484,6 +484,17 @@ BEGIN
     END IF;
 END $$;
 
+-- Migration: Add name column to node_link if table exists without it
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'node_link' AND column_name = 'name'
+    ) THEN
+        ALTER TABLE node_link ADD COLUMN name TEXT;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_link_click_source_node_id ON link_click(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_target_node_id ON link_click(target_node_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_user_id ON link_click(user_id);
