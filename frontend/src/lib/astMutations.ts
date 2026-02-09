@@ -263,6 +263,47 @@ export function insertText(
   };
 }
 
+/**
+ * Wrap a range of content in an external link.
+ * If the selection is already an external_link, updates the URL or unwraps if url is empty.
+ */
+export function wrapInExternalLink(
+  ast: ASTDocument,
+  start: number,
+  end: number,
+  url: string,
+): { ast: ASTDocument; start: number; end: number } {
+  if (start >= end) return { ast, start, end };
+
+  const inlines = flattenToInlines(ast);
+  const [before, rest] = splitInlines(inlines, start);
+  const [selected, after] = splitInlines(rest, end - start);
+
+  if (selected.length === 0) return { ast, start, end };
+
+  // Check if selection is already an external_link
+  const isLink = selected.length === 1 && selected[0].type === 'external_link';
+
+  let newSelected: ASTInlineNode[];
+  if (isLink && !url) {
+    // Unwrap: lift children out
+    newSelected = (selected[0] as { children: ASTInlineNode[] }).children;
+  } else if (isLink) {
+    // Update URL
+    newSelected = [{ ...selected[0], url } as ASTInlineNode];
+  } else {
+    // Wrap in external_link
+    newSelected = [{ type: 'external_link', url, children: selected } as ASTInlineNode];
+  }
+
+  const merged = [...before, ...newSelected, ...after];
+  return {
+    ast: merged.length > 0 ? [{ type: 'paragraph', children: merged }] : [],
+    start,
+    end,
+  };
+}
+
 // ─── Formatting (wrap/unwrap marks) ────────────────────────────────
 
 export type MarkType = 'strong' | 'em' | 'strikethrough' | 'highlight';
