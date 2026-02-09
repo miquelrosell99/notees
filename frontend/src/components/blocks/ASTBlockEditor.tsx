@@ -38,6 +38,7 @@ import { Button } from '../core/Button';
 
 // Hooks
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 
 // Utils
@@ -360,7 +361,7 @@ export function ASTBlockEditor({
         }
 
         const customLabel = tl.name || null;
-        const displayText = customLabel || target.name || target.display_name || 'Untitled';
+        const displayText = customLabel || nodeNameToText(target.name) || 'Untitled';
         const effectiveIcon = getEffectiveIcon(target, allClasses ?? []);
         const isTag = tagTargetIds.has(target.id);
 

@@ -23,7 +23,6 @@ from .property import (
 )
 from .link import (
     NodeLink,
-    InlineClass,
     BacklinkInfo,
 )
 from .user import (
@@ -77,7 +76,6 @@ __all__ = [
     "ALWAYS_SINGLE_TYPES",
     # Link
     "NodeLink",
-    "InlineClass",
     # User
     "User",
     "UserCreateData",

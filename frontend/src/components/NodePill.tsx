@@ -368,8 +368,6 @@ export function NodePill({
   );
 }
 
-// Keep backward compatibility
-
 
 /**
  * Floating color picker popup for pills

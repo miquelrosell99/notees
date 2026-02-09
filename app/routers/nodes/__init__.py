@@ -26,7 +26,7 @@ from .settings import router as settings_router
 from .views import router as views_router
 from ..properties.values import router as property_values_router
 
-# Re-export models for backwards compatibility
+# Re-export models for external use
 from .models import (
     NodeResponse,
     NodeCreateRequest,

@@ -108,7 +108,6 @@ def parse_ast(value: Any) -> List[dict]:
 
     - JSON string → parse → validate
     - list        → validate
-    - plain string (legacy) → wrap in paragraph
     - anything else → empty document
     """
     if isinstance(value, str):
@@ -118,8 +117,7 @@ def parse_ast(value: Any) -> List[dict]:
             parsed = json.loads(value)
             return _validate_document(parsed)
         except (json.JSONDecodeError, TypeError):
-            # Legacy plain-text name — wrap for backward compat.
-            return [{"type": "paragraph", "children": [{"type": "text", "text": value}]}]
+            return []
     if isinstance(value, list):
         return _validate_document(value)
     return []

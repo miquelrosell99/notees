@@ -58,13 +58,6 @@
   cursor: default;
 }
 
-.property-label-clickable {
-  /* Deprecated - kept for backward compatibility */
-}
-
-.property-label-clickable:hover {
-  /* Deprecated - kept for backward compatibility */
-}
 
 .property-label .property-icon {
   font-size: 0.875rem;

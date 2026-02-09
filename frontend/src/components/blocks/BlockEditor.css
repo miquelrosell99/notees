@@ -112,7 +112,7 @@
   color: var(--color-on-secondary);
 }
 
-/* Type pill styles for inline types */
+/* Type pill styles for inline classes */
 .type-pill {
   display: inline;
   align-items: center;

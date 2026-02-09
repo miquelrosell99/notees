@@ -9,7 +9,6 @@ from ...domain.repositories import (
     PostgresNodeRepository, 
     PostgresPropertyRepository, 
     PostgresLinkRepository,
-    PostgresInlineClassRepository,
 )
 from ...db.connection import acquire_connection, get_pool
 from ...models import User
@@ -379,10 +378,9 @@ async def _get_node_service(user: User) -> NodeService:
     node_repo = PostgresNodeRepository(pool, graph_id, page_class_id, user_id)
     property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
     link_repo = PostgresLinkRepository(pool, graph_id, user_id)
-    inline_class_repo = PostgresInlineClassRepository(pool, graph_id, user_id)
     
     # Create services
-    link_service = LinkParsingService(node_repo, link_repo, inline_class_repository=inline_class_repo)
+    link_service = LinkParsingService(node_repo, link_repo)
     node_service = NodeService(
         node_repo, property_repo, link_service,
         page_class_id,

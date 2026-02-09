@@ -836,7 +836,7 @@ export function useDeleteNode() {
         queryKey: ['nodes', 'backlinks'],
         refetchType: 'none',
       });
-      // Invalidate linked references (legacy)
+      // Invalidate linked references
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'linked-refs'],
         refetchType: 'none',

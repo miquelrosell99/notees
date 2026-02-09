@@ -167,20 +167,6 @@ class InlineClassResponse(BaseModel):
     class_node_name: str
     class_node_icon: Optional[str] = None
     position: int
-    # Backwards compatibility fields
-    type_node_id: Optional[int] = None
-    type_node_name: Optional[str] = None
-    type_node_icon: Optional[str] = None
-    
-    def __init__(self, **data):
-        # Ensure backwards compat fields are set
-        if 'type_node_id' not in data or data['type_node_id'] is None:
-            data['type_node_id'] = data.get('class_node_id')
-        if 'type_node_name' not in data or data['type_node_name'] is None:
-            data['type_node_name'] = data.get('class_node_name')
-        if 'type_node_icon' not in data or data['type_node_icon'] is None:
-            data['type_node_icon'] = data.get('class_node_icon')
-        super().__init__(**data)
 
 
 class PropertyBacklinkResponse(BaseModel):

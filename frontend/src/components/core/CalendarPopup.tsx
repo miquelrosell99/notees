@@ -2,7 +2,7 @@
  * Calendar popup component for navigating to daily pages
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useDailyNote, useMonthlyNote, useYearlyNote, useDailyPages } from '@/hooks';
+import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useNodesStore } from '@/stores';
 import { Button } from './Button';
@@ -47,7 +47,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   const { openNode } = useNodesStore();
   
   // Fetch list of existing daily pages
-  const { data: dailyPages } = useDailyPages();
+  const { data: dailyPages } = useExistingDailyPages();
   
   // Create a set of dates that have daily pages for the current month
   const existingDates = useMemo(() => {

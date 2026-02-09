@@ -48,15 +48,6 @@ async def list_classes(
     ]}
 
 
-# Keep backwards compatible endpoints
-@router.get("/types")
-async def list_types(
-    user: User = Depends(get_current_user),
-):
-    """List all classes (alias for /classes for backwards compatibility)."""
-    return await list_classes(user)
-
-
 @router.get("/classes/search")
 async def search_classes(
     q: str,
@@ -82,17 +73,6 @@ async def search_classes(
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
         for n in pages
     ]}
-
-
-# Backwards compatible alias
-@router.get("/types/search")
-async def search_types(
-    q: str,
-    limit: int = 20,
-    user: User = Depends(get_current_user),
-):
-    """Search for classes (alias for /classes/search for backwards compatibility)."""
-    return await search_classes(q, limit, user)
 
 
 @router.get("/classes/{class_id}/nodes")
@@ -138,16 +118,6 @@ async def get_nodes_with_class(
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
         for n in nodes
     ]}
-
-
-# Backwards compatible alias
-@router.get("/types/{type_id}/nodes")
-async def get_nodes_with_type(
-    type_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Get all nodes with class (alias for /classes/{class_id}/nodes)."""
-    return await get_nodes_with_class(type_id, user)
 
 
 @router.post("/{node_id}/classes")
@@ -198,17 +168,6 @@ async def add_node_class(
     return _node_to_response(node, classes=[c.id for c in classes if c.id])
 
 
-# Backwards compatible alias
-@router.post("/{node_id}/types")
-async def add_node_type(
-    node_id: int,
-    request: ClassRequest,
-    user: User = Depends(get_current_user),
-):
-    """Add a class to a node (alias for /{node_id}/classes)."""
-    return await add_node_class(node_id, request, user)
-
-
 @router.delete("/{node_id}/classes/{class_id}")
 async def remove_node_class_endpoint(
     node_id: int,
@@ -245,13 +204,3 @@ async def remove_node_class_endpoint(
     classes = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[c.id for c in classes if c.id])
 
-
-# Backwards compatible alias
-@router.delete("/{node_id}/types/{type_id}")
-async def remove_node_type_endpoint(
-    node_id: int,
-    type_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Remove a class from a node (alias for /{node_id}/classes/{class_id})."""
-    return await remove_node_class_endpoint(node_id, type_id, user)

@@ -357,7 +357,7 @@ async def create_node_view(
 ) -> NodeViewResponse:
     """Create a new NodeView.
     
-    Accepts either query_ast (preferred) or query_ast (legacy).
+    Accepts query_ast in QueryAST format.
     Stores as QueryAST format internally.
     """
     repo = await _get_node_view_repo(user)
@@ -387,9 +387,6 @@ async def create_node_view(
             raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid query AST: {str(e)}")
-    elif request.query_ast:
-        # Legacy format - store as-is for now (could convert to AST)
-        query_json = request.query_ast
     else:
         # Default empty query
         query_json = create_default_query_ast().to_dict()
@@ -429,28 +426,6 @@ async def update_node_view(
         raise HTTPException(status_code=404, detail="NodeView not found")
     
     return await _node_view_to_response(view, include_query_ast=True, user=user)
-
-
-@router.put("/{view_id}/query")
-async def update_query_legacy(
-    view_id: int,
-    query_data: Dict[str, Any],
-    user: User = Depends(get_current_user),
-) -> NodeViewResponse:
-    """Update the query for a NodeView (legacy endpoint)."""
-    repo = await _get_node_view_repo(user)
-    
-    view = await repo.get_by_id(view_id)
-    if not view:
-        raise HTTPException(status_code=404, detail="NodeView not found")
-    
-    # Update query_json directly on the view
-    updated_view = await repo.update_query_json(view_id, query_data)
-    
-    if not updated_view:
-        raise HTTPException(status_code=500, detail="Failed to update query")
-    
-    return await _node_view_to_response(updated_view, include_query_ast=True, user=user)
 
 
 @router.put("/{view_id}/query-ast")

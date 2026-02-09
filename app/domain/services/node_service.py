@@ -143,10 +143,10 @@ class NodeService:
         # Query all pages with same name and parent in this graph
         pool = self._node_repo.get_connection()
         query = """
-            SELECT n.id, n.name, ci.class_id, class_node.name as class_name
+            SELECT n.id, n.name, nl.target_id as class_id, class_node.name as class_name
             FROM node n
-            LEFT JOIN class_inline ci ON ci.node_id = n.id
-            LEFT JOIN node class_node ON class_node.id = ci.class_id
+            LEFT JOIN node_link nl ON nl.source_id = n.id AND nl.is_inline_class = TRUE
+            LEFT JOIN node class_node ON class_node.id = nl.target_id
             WHERE n.graph_id = $1 
                 AND n.name = $2 
                 AND n.is_page = TRUE 
@@ -556,7 +556,7 @@ class NodeService:
                 # Get current classes for this node
                 pool = self._node_repo.get_connection()
                 class_rows = await pool.fetch(
-                    "SELECT class_id FROM class_inline WHERE node_id = $1 ORDER BY position",
+                    "SELECT target_id as class_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE ORDER BY position",
                     node_id
                 )
                 check_classes = [row['class_id'] for row in class_rows]
@@ -826,18 +826,15 @@ class NodeService:
             node: The node being deleted
             already_updated: Set of node IDs already processed (to avoid double updates)
         """
-        if not self._link_service._inline_class_repo:
-            return
-        
         # Get all nodes that reference this node as an inline class
-        inline_refs = await self._link_service._inline_class_repo.get_class_references(node.id)
+        inline_refs = await self._link_service._link_repo.get_inline_class_references(node.id)
         
         for ref in inline_refs:
-            if ref.node_id in already_updated:
+            if ref.source_id in already_updated:
                 # Already updated from backlinks processing
                 continue
             
-            source_node = await self._node_repo.get_by_id(ref.node_id)
+            source_node = await self._node_repo.get_by_id(ref.source_id)
             if not source_node or not source_node.name:
                 continue
             
@@ -850,7 +847,7 @@ class NodeService:
             
             if updated_content != source_node.name:
                 await self._node_repo.update(
-                    ref.node_id,
+                    ref.source_id,
                     NodeUpdateData(name=updated_content)
                 )
     
@@ -1111,11 +1108,6 @@ class NodeService:
         
         return True
     
-    # Alias for backwards compatibility
-    async def add_type(self, node_id: int, type_node_id: int, *, _system_call: bool = False) -> bool:
-        """Alias for add_class for backwards compatibility."""
-        return await self.add_class(node_id, type_node_id, _system_call=_system_call)
-    
     async def remove_class(self, node_id: int, class_node_id: int) -> bool:
         """Remove a class from a node using direct class_ids array.
         
@@ -1164,11 +1156,6 @@ class NodeService:
         
         return True
     
-    # Alias for backwards compatibility
-    async def remove_type(self, node_id: int, type_node_id: int) -> bool:
-        """Alias for remove_class for backwards compatibility."""
-        return await self.remove_class(node_id, type_node_id)
-    
     async def get_node_classes(self, node_id: int) -> List[Node]:
         """Get all classes applied to a node from class_ids array."""
         async with acquire_connection(self._pool) as conn:
@@ -1186,11 +1173,6 @@ class NodeService:
             )
             return [self._node_repo.row_to_node(r) for r in rows]
     
-    # Alias for backwards compatibility
-    async def get_node_types(self, node_id: int) -> List[Node]:
-        """Alias for get_node_classes for backwards compatibility."""
-        return await self.get_node_classes(node_id)
-
     async def archive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
         """Archive a node and all its descendants (set active to false)."""
         from ...utils import utc_now

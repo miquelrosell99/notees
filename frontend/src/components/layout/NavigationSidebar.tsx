@@ -10,6 +10,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { GraphSwitcher } from '../graphs/GraphSwitcher';
 import { GraphModal } from '../graphs/GraphModal';
@@ -33,7 +34,7 @@ interface SidebarProps {
 
 // Helper to get node name for display
 function getNodeDisplayName(node: { name?: string | null } | undefined): string {
-  return node?.name || 'Untitled';
+  return nodeNameToText(node?.name) || 'Untitled';
 }
 
 interface RecentItemProps {

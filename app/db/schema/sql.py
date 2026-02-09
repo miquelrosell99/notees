@@ -343,7 +343,7 @@ CREATE INDEX IF NOT EXISTS idx_class_extend_source_id ON class_extend(source_id)
 -- LINKS & INLINE CLASSES
 -- ============================================================
 
--- Node links (backlinks between nodes)
+-- Node links (backlinks between nodes, including inline class references)
 CREATE TABLE IF NOT EXISTS node_link (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
@@ -353,6 +353,7 @@ CREATE TABLE IF NOT EXISTS node_link (
     property_id INTEGER REFERENCES property(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
     is_tag BOOLEAN DEFAULT FALSE,
+    is_inline_class BOOLEAN DEFAULT FALSE,
     name TEXT,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
@@ -363,22 +364,10 @@ CREATE INDEX IF NOT EXISTS idx_node_link_target_id ON node_link(target_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_graph_id ON node_link(graph_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_property_id ON node_link(property_id) WHERE property_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link(source_id, target_id);
+-- idx_node_link_inline_class is created in the migration block below (safe for existing DBs)
 
--- Inline class references ({{classId}} in content)
-CREATE TABLE IF NOT EXISTS class_inline (
-    id SERIAL PRIMARY KEY,
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    class_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
-    position INTEGER DEFAULT 0,
-    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_class_inline_node_id ON class_inline(node_id);
-CREATE INDEX IF NOT EXISTS idx_class_inline_class_id ON class_inline(class_id);
-CREATE INDEX IF NOT EXISTS idx_class_inline_graph_id ON class_inline(graph_id);
+-- Inline class references are now stored in node_link with is_inline_class = TRUE
+-- (class_inline table has been merged into node_link)
 
 -- ============================================================
 -- NODE VIEWS (DYNAMIC QUERY TABS)
@@ -539,6 +528,35 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_inline') THEN
         ALTER TABLE type_inline RENAME TO class_inline;
         ALTER TABLE class_inline RENAME COLUMN type_id TO class_id;
+    END IF;
+END $$;
+
+-- Migration: Add is_inline_class column to node_link and merge class_inline data
+DO $$
+BEGIN
+    -- Add the is_inline_class column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_link' AND column_name = 'is_inline_class'
+    ) THEN
+        ALTER TABLE node_link ADD COLUMN is_inline_class BOOLEAN DEFAULT FALSE;
+    END IF;
+    
+    -- Migrate data from class_inline into node_link (if class_inline still exists)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_inline') THEN
+        INSERT INTO node_link (source_id, target_id, graph_id, position, is_inline_class, create_date, create_uid)
+        SELECT node_id, class_id, graph_id, position, TRUE, create_date, create_uid
+        FROM class_inline;
+        
+        -- Drop the old table
+        DROP TABLE class_inline;
+    END IF;
+    
+    -- Create partial index for inline class lookups
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE indexname = 'idx_node_link_inline_class'
+    ) THEN
+        CREATE INDEX idx_node_link_inline_class ON node_link(target_id) WHERE is_inline_class = TRUE;
     END IF;
 END $$;
 

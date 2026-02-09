@@ -25,7 +25,7 @@ import uuid as uuid_module
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any, TYPE_CHECKING
 
-from ..entities import NodeLink, InlineClass, BacklinkInfo
+from ..entities import NodeLink, BacklinkInfo
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, LinkRepository, PropertyRepository
@@ -36,9 +36,6 @@ if TYPE_CHECKING:
 # Group 1: target node ID (required)
 # Group 2: link UUID (optional, preceded by :)
 LINK_PATTERN = re.compile(r'\[\[(\d+)(?::([a-f0-9-]+))?\]\]')
-
-# Regex pattern for parsing inline classes - {{classId}} format
-INLINE_CLASS_PATTERN = re.compile(r'\{\{(\d+)\}\}')
 
 # Properties excluded from backlinks (extends excluded for inheritance)
 EXCLUDED_PROPERTY_NAMES = ["extends"]
@@ -189,7 +186,7 @@ class LinkParsingService:
     
     Handles:
     - Text links: [[id]] syntax in node name field
-    - Inline classes: {{id}} syntax in node name field
+    - Inline classes: ref_type='class' in AST content (stored with is_inline_class=True)
     - Property links: Node-class property values
     - Classes Path: Inherited classes from ancestors for queries (classes stored in class_ids column)
     """
@@ -199,12 +196,10 @@ class LinkParsingService:
         node_repository: NodeRepository,
         link_repository: LinkRepository,
         property_repository: Optional[PropertyRepository] = None,
-        inline_class_repository: Optional[Any] = None,
     ):
         self._node_repo = node_repository
         self._link_repo = link_repository
         self._property_repo = property_repository
-        self._inline_class_repo = inline_class_repository
     
     def parse_links(self, content: str) -> List[Tuple[int, int, Optional[str]]]:
         """Parse content and extract all links.
@@ -358,11 +353,11 @@ class LinkParsingService:
         return existing
     
     async def _delete_non_tag_text_links(self, source_node_id: int) -> None:
-        """Delete all non-tag text links (property_id IS NULL, is_tag=0) from a source node."""
+        """Delete all non-tag, non-inline-class text links from a source node."""
         if hasattr(self._link_repo, 'get_connection'):
             pool = self._link_repo.get_connection()
             await pool.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE",
+                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE AND is_inline_class = FALSE",
                 source_node_id
             )
     
@@ -432,28 +427,26 @@ class LinkParsingService:
         # asyncpg execute returns a status string like 'UPDATE 1'
         return result and 'UPDATE 0' not in result
     
-    async def update_inline_classes(self, node_id: int, content: str) -> List[InlineClass]:
-        """Parse content and update inline_class table for a node.
+    async def update_inline_classes(self, node_id: int, content: str) -> List[NodeLink]:
+        """Parse content and update inline class links for a node.
         
-        This handles inline class references ({{classId}} in content).
+        Inline class references (ref_type='class' in AST) are stored as
+        NodeLink entries with is_inline_class=True.
         
         Args:
             node_id: The block containing the inline class references
             content: The text content to parse
             
         Returns:
-            List of created InlineClass objects
+            List of created NodeLink objects (with is_inline_class=True)
         """
-        if not self._inline_class_repo:
-            return []
+        # Remove existing inline class links from this source
+        await self._link_repo.delete_source_inline_classes(node_id)
         
-        # Remove existing inline classes from this source
-        await self._inline_class_repo.delete_source_inline_classes(node_id)
-        
-        # Parse new inline classes
+        # Parse new inline classes from AST
         parsed = self.parse_inline_classes(content)
         
-        created_inline_classes = []
+        created_links = []
         
         for class_id, position in parsed:
             # Verify the class node exists
@@ -461,28 +454,27 @@ class LinkParsingService:
             if not class_node:
                 continue
             
-            inline_class = InlineClass(
-                node_id=node_id,
-                class_id=class_id,
+            link = NodeLink(
+                source_id=node_id,
+                target_id=class_id,
                 position=position,
+                is_inline_class=True,
             )
-            created_class = await self._inline_class_repo.create(inline_class)
-            created_inline_classes.append(created_class)
+            created_link = await self._link_repo.create(link)
+            created_links.append(created_link)
         
-        return created_inline_classes
+        return created_links
     
-    async def get_inline_classes_for_node(self, node_id: int) -> List[InlineClass]:
-        """Get all inline class references for a node.
+    async def get_inline_classes_for_node(self, node_id: int) -> List[NodeLink]:
+        """Get all inline class links for a node.
         
         Args:
             node_id: The source node ID
             
         Returns:
-            List of InlineClass objects for this node
+            List of NodeLink objects with is_inline_class=True
         """
-        if not self._inline_class_repo:
-            return []
-        return await self._inline_class_repo.get_source_inline_classes(node_id)
+        return await self._link_repo.get_source_inline_classes(node_id)
     
     async def update_property_links(
         self, 

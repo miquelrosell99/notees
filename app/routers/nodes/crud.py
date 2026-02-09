@@ -129,7 +129,7 @@ async def get_archived_pages(
     for page in pages:
         if page.id is None:
             continue
-        types = await service.get_node_types(page.id)
+        types = await service.get_node_classes(page.id)
         result.append(_node_to_response(page, classes=[t.id for t in types if t.id]))
     
     return {"pages": result}
@@ -150,7 +150,7 @@ async def get_trash(
     # Convert to response format
     responses = []
     for node in deleted_nodes:
-        types = await service.get_node_types(node.id) if node.id else []
+        types = await service.get_node_classes(node.id) if node.id else []
         responses.append(_node_to_response(node, classes=[t.id for t in types if t.id]))
     
     return {
@@ -192,7 +192,7 @@ async def restore_node(
     if not node:
         raise HTTPException(404, "Node not found in trash")
     
-    types = await service.get_node_types(node_id)
+    types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
@@ -223,24 +223,24 @@ async def get_node(
         
         # Ensure page type is assigned
         if page_type_id and page_type_id not in class_ids:
-            await service.add_type(node_id, page_type_id, _system_call=True)
+            await service.add_class(node_id, page_type_id, _system_call=True)
             class_ids.append(page_type_id)
         
         # Ensure date-specific type is assigned
         if node.is_day:
             day_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
             if day_type and day_type.id and day_type.id not in class_ids:
-                await service.add_type(node_id, day_type.id, _system_call=True)
+                await service.add_class(node_id, day_type.id, _system_call=True)
                 class_ids.append(day_type.id)
         elif node.is_month:
             month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
             if month_type and month_type.id and month_type.id not in class_ids:
-                await service.add_type(node_id, month_type.id, _system_call=True)
+                await service.add_class(node_id, month_type.id, _system_call=True)
                 class_ids.append(month_type.id)
         elif node.is_year:
             year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
             if year_type and year_type.id and year_type.id not in class_ids:
-                await service.add_type(node_id, year_type.id, _system_call=True)
+                await service.add_class(node_id, year_type.id, _system_call=True)
                 class_ids.append(year_type.id)
     
     response = _node_to_response(node, tags=tag_ids, classes=class_ids)
@@ -670,7 +670,7 @@ async def archive_node(
     if not node:
         raise HTTPException(404, "Node not found")
     
-    types = await service.get_node_types(node_id)
+    types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
@@ -686,7 +686,7 @@ async def unarchive_node(
     if not node:
         raise HTTPException(404, "Node not found")
     
-    types = await service.get_node_types(node_id)
+    types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 

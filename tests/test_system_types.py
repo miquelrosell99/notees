@@ -58,9 +58,6 @@ async def system_type_ids(db_pool, test_user):
                 SYSTEM_CLASS_UUIDS[name], graph_id
             )
             ids[name] = row['id'] if row else None
-        
-        # For backward compatibility, also store class as 'type'
-        ids['type'] = ids['class']
     
     return ids
 
@@ -78,7 +75,7 @@ async def test_cannot_add_day_type(node_service, system_type_ids):
     
     # Try to add day type manually - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
-        await service.add_type(page.id, day_type_id)
+        await service.add_class(page.id, day_type_id)
     
     assert "day" in exc_info.value.message.lower()
     assert "managed by the system" in exc_info.value.message.lower()
@@ -97,7 +94,7 @@ async def test_cannot_add_month_type(node_service, system_type_ids):
     
     # Try to add month type manually - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
-        await service.add_type(page.id, month_type_id)
+        await service.add_class(page.id, month_type_id)
     
     assert "month" in exc_info.value.message.lower()
 
@@ -115,7 +112,7 @@ async def test_cannot_add_year_type(node_service, system_type_ids):
     
     # Try to add year type manually - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
-        await service.add_type(page.id, year_type_id)
+        await service.add_class(page.id, year_type_id)
     
     assert "year" in exc_info.value.message.lower()
 
@@ -133,7 +130,7 @@ async def test_cannot_remove_day_type(node_service, system_type_ids):
     
     # Try to remove day type - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
-        await service.remove_type(page.id, day_type_id)
+        await service.remove_class(page.id, day_type_id)
     
     assert "day" in exc_info.value.message.lower()
     assert "managed by the system" in exc_info.value.message.lower()
@@ -145,12 +142,12 @@ async def test_cannot_remove_type_from_system_type(node_service, system_type_ids
     from app.domain.errors import SystemClassConstraintError
     
     service = node_service
-    type_type_id = system_type_ids['type']
+    class_type_id = system_type_ids['class']
     task_type_id = system_type_ids['task']
     
     # Try to remove 'class' from task type - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
-        await service.remove_type(task_type_id, type_type_id)
+        await service.remove_class(task_type_id, class_type_id)
     
     # Message should mention 'class' (or 'type' for backward compatibility)
     message = exc_info.value.message.lower()
@@ -168,7 +165,7 @@ async def test_can_add_regular_type(node_service, system_type_ids):
     page = await service.create_page("Test Page")
     
     # Add task type - should succeed (no exception)
-    success = await service.add_type(page.id, task_type_id)
+    success = await service.add_class(page.id, task_type_id)
     assert success is True
 
 
@@ -180,14 +177,14 @@ async def test_can_remove_regular_type(node_service, system_type_ids):
     
     # Create a test page and add task type
     page = await service.create_page("Test Page")
-    await service.add_type(page.id, task_type_id)
+    await service.add_class(page.id, task_type_id)
     
     # Remove task type - should succeed
-    success = await service.remove_type(page.id, task_type_id)
+    success = await service.remove_class(page.id, task_type_id)
     assert success is True
     
     # Verify type was removed
-    types = await service.get_node_types(page.id)
+    types = await service.get_node_classes(page.id)
     type_names = [t.name for t in types]
     assert "task" not in type_names
 
@@ -196,13 +193,13 @@ async def test_can_remove_regular_type(node_service, system_type_ids):
 async def test_can_remove_type_from_user_type(node_service, system_type_ids):
     """Test that removing 'type' from a user-created type node works."""
     service = node_service
-    type_type_id = system_type_ids['type']
+    class_type_id = system_type_ids['class']
     
     # Create a user-defined type (page with 'type' type)
-    user_type = await service.create_page("MyCustomType", additional_types=[type_type_id])
+    user_type = await service.create_page("MyCustomType", additional_classes=[class_type_id])
     
     # Remove 'type' from user type - should succeed (no exception, user types are not protected)
-    success = await service.remove_type(user_type.id, type_type_id)
+    success = await service.remove_class(user_type.id, class_type_id)
     # May return True or False depending on whether the type was actually set,
     # but importantly it should NOT raise SystemClassConstraintError
     assert isinstance(success, bool)
@@ -212,7 +209,7 @@ async def test_can_remove_type_from_user_type(node_service, system_type_ids):
 async def test_adding_type_type_sets_is_class_flag(node_service, system_type_ids):
     """Test that adding 'class' type to a page sets is_class=True on the node."""
     service = node_service
-    type_type_id = system_type_ids['type']
+    class_type_id = system_type_ids['class']
     
     # Create a page (not a class initially)
     page = await service.create_page("Test Page For Type")
@@ -223,7 +220,7 @@ async def test_adding_type_type_sets_is_class_flag(node_service, system_type_ids
     assert node.is_class is False
     
     # Add 'class' type to the page
-    success = await service.add_type(page.id, type_type_id)
+    success = await service.add_class(page.id, type_type_id)
     assert success is True
     
     # Verify is_class is now True
@@ -236,11 +233,11 @@ async def test_adding_type_type_sets_is_class_flag(node_service, system_type_ids
 async def test_removing_type_type_clears_is_class_flag(node_service, system_type_ids):
     """Test that removing 'class' type from a user-created type sets is_class=False."""
     service = node_service
-    type_type_id = system_type_ids['type']
+    class_type_id = system_type_ids['class']
     
     # Create a page and add 'class' type to make it a class
     page = await service.create_page("User Created Type")
-    await service.add_type(page.id, type_type_id)
+    await service.add_class(page.id, class_type_id)
     
     # Verify is_class is True
     node = await service.get_node(page.id)
@@ -248,7 +245,7 @@ async def test_removing_type_type_clears_is_class_flag(node_service, system_type
     assert node.is_class is True
     
     # Remove 'class' type
-    success = await service.remove_type(page.id, type_type_id)
+    success = await service.remove_class(page.id, class_type_id)
     assert success is True
     
     # Verify is_class is now False
@@ -273,7 +270,7 @@ async def test_page_type_sets_is_page_flag(node_service, system_type_ids):
     assert node.is_page is False
     
     # Add 'page' type to the block
-    success = await service.add_type(block.id, page_type_id)
+    success = await service.add_class(block.id, page_type_id)
     assert success is True
     
     # Verify is_page is now True
@@ -282,7 +279,7 @@ async def test_page_type_sets_is_page_flag(node_service, system_type_ids):
     assert node.is_page is True
     
     # Remove 'page' type
-    success = await service.remove_type(block.id, page_type_id)
+    success = await service.remove_class(block.id, page_type_id)
     assert success is True
     
     # Verify is_page is now False

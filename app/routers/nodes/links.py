@@ -330,45 +330,26 @@ async def get_inline_classes(
 ):
     """Get inline class references for a node.
     
-    Returns all {{classId}} references in the node's content.
+    Returns all inline class links (is_inline_class=True) from the node's content.
     """
     service = await _get_node_service(user)
     
     inline_classes = await service._link_service.get_inline_classes_for_node(node_id)
     
     result = []
-    for inline_class in inline_classes:
-        class_node = await service._node_repo.get_by_id(inline_class.class_node_id)
+    for inline_link in inline_classes:
+        class_node = await service._node_repo.get_by_id(inline_link.target_id)
         if not class_node:
             continue
         
         result.append(InlineClassResponse(
-            class_node_id=inline_class.class_node_id,
+            class_node_id=inline_link.target_id,
             class_node_name=class_node.name or "",
             class_node_icon=class_node.icon,
-            position=inline_class.position,
-            # Backwards compatibility fields
-            type_node_id=inline_class.class_node_id,
-            type_node_name=class_node.name or "",
-            type_node_icon=class_node.icon,
+            position=inline_link.position,
         ))
     
     return {"inline_classes": result}
-
-
-# Backwards compatibility alias
-@router.get("/{node_id}/inline-types")
-async def get_inline_types(
-    node_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Get inline type references for a node (backwards compatibility).
-    
-    Returns all {{classId}} references in the node's content.
-    """
-    response = await get_inline_classes(node_id, user)
-    # Return in old format
-    return {"inline_types": response["inline_classes"]}
 
 
 @router.get("/{node_id}/property-backlinks")

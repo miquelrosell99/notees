@@ -17,6 +17,7 @@
 
 import { useMemo, useCallback, useState } from 'react';
 import { useLinkClicks, useNode, useTrackLinkClick, useUpdateNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
 import { ContextMenu } from '../core/ContextMenu';
@@ -56,7 +57,7 @@ function TypePillDisplay({ typeId, linkId, onNavigate }: TypePillDisplayProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const parsedId = parseInt(typeId, 10);
   const { data: node } = useNode(isNaN(parsedId) ? null : parsedId);
-  const displayText = node?.name || typeId;
+  const displayText = nodeNameToText(node?.name) || typeId;
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

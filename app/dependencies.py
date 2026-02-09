@@ -28,7 +28,6 @@ from .domain.repositories import (
     PostgresNodeRepository,
     PostgresPropertyRepository,
     PostgresLinkRepository,
-    PostgresInlineClassRepository,
     PostgresUserRepository,
     NodeRepository,
     PropertyRepository,
@@ -114,20 +113,6 @@ async def get_link_repository(
     yield PostgresLinkRepository(pool, graph_id, user_id)
 
 
-async def get_inline_class_repository(
-    user: User = Depends(get_current_user)
-) -> AsyncGenerator[PostgresInlineClassRepository, None]:
-    """Get an InlineClassRepository for the current user's graph."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    graph_id, _ = await _get_graph_context_cached(pool, user_id)
-    yield PostgresInlineClassRepository(pool, graph_id, user_id)
-
-
-# Backwards compatibility alias
-get_inline_type_repository = get_inline_class_repository
-
-
 async def get_user_repository() -> AsyncGenerator[PostgresUserRepository, None]:
     """Get a UserRepository (not graph-scoped)."""
     pool = await get_pool()
@@ -156,7 +141,6 @@ class RepositoryBundle:
         self._node_repo: Optional[PostgresNodeRepository] = None
         self._property_repo: Optional[PostgresPropertyRepository] = None
         self._link_repo: Optional[PostgresLinkRepository] = None
-        self._inline_class_repo: Optional[PostgresInlineClassRepository] = None
     
     @property
     def node(self) -> PostgresNodeRepository:
@@ -177,12 +161,6 @@ class RepositoryBundle:
         if self._link_repo is None:
             self._link_repo = PostgresLinkRepository(self.pool, self.graph_id, self.user_id)
         return self._link_repo
-    
-    @property
-    def inline_class(self) -> PostgresInlineClassRepository:
-        if self._inline_class_repo is None:
-            self._inline_class_repo = PostgresInlineClassRepository(self.pool, self.graph_id, self.user_id)
-        return self._inline_class_repo
 
 
 async def get_repositories(

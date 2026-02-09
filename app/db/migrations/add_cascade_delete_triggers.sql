@@ -17,17 +17,8 @@ ALTER TABLE node_link
 ADD CONSTRAINT node_link_target_id_fkey
 FOREIGN KEY (target_id) REFERENCES node(id) ON DELETE CASCADE;
 
--- Ensure class_inline has proper cascade behavior
-ALTER TABLE class_inline DROP CONSTRAINT IF EXISTS class_inline_node_id_fkey;
-ALTER TABLE class_inline DROP CONSTRAINT IF EXISTS class_inline_class_id_fkey;
-
-ALTER TABLE class_inline
-ADD CONSTRAINT class_inline_node_id_fkey
-FOREIGN KEY (node_id) REFERENCES node(id) ON DELETE CASCADE;
-
-ALTER TABLE class_inline
-ADD CONSTRAINT class_inline_class_id_fkey
-FOREIGN KEY (class_id) REFERENCES node(id) ON DELETE CASCADE;
+-- class_inline table has been merged into node_link (is_inline_class column)
+-- No separate cascade constraints needed
 
 -- Ensure node_property has proper cascade behavior
 ALTER TABLE node_property DROP CONSTRAINT IF EXISTS node_property_node_id_fkey;

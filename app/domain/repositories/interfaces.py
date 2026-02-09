@@ -425,7 +425,11 @@ class PropertyRepository(ABC):
 
 
 class LinkRepository(ABC):
-    """Repository interface for NodeLink operations."""
+    """Repository interface for NodeLink operations.
+    
+    Handles both regular node links and inline class references
+    (distinguished by is_inline_class flag).
+    """
     
     @abstractmethod
     async def create(self, link: NodeLink) -> NodeLink:
@@ -450,6 +454,16 @@ class LinkRepository(ABC):
     @abstractmethod
     async def get_outgoing_links(self, source_node_id: int) -> List[NodeLink]:
         """Get all links from a source node."""
+        pass
+    
+    @abstractmethod
+    async def delete_source_inline_classes(self, source_node_id: int) -> int:
+        """Delete all inline class links from a source node (for re-parsing)."""
+        pass
+    
+    @abstractmethod
+    async def get_inline_class_references(self, target_node_id: int) -> List[NodeLink]:
+        """Get all inline class links pointing to a target node."""
         pass
     
     @abstractmethod

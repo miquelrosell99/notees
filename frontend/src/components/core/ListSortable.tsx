@@ -27,7 +27,7 @@ export interface ListSortableProps<T extends ListSortableItem> {
   renderIcon?: (item: T, index: number) => ReactNode;
   /** Render the text content (center) */
   renderText: (item: T, index: number) => ReactNode;
-  /** Render a single action button (right side, optional) - deprecated, use renderActions */
+  /** Render a single action button (right side, optional) */
   renderAction?: (item: T, index: number) => ReactNode;
   /** Render multiple action buttons (right side, optional) */
   renderActions?: (item: T, index: number) => ReactNode[];
