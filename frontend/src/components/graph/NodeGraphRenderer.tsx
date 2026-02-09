@@ -495,6 +495,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     }
   }, []);
   
+  // Trigger a single canvas re-render when simulation is sleeping (no-op if awake)
+  const requestRender = useCallback(() => {
+    if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
+      renderRef.current(ctxRef.current);
+    }
+  }, []);
+
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const dimensionsRef = useRef(dimensions);
   useEffect(() => {
@@ -812,10 +819,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
 
   // Keep refs in sync (fallback for setTransform calls not through setTransformDirect)
   useEffect(() => { transformRef.current = transform; }, [transform]);
-  useEffect(() => { settingsRef.current = settings; topologyDirtyRef.current = true; }, [settings]);
-  useEffect(() => { classColorsRef.current = [...classColors].sort((a, b) => a.order - b.order); }, [classColors]);
-  useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; }, [selectedNodeIds]);
-  useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
+  useEffect(() => { settingsRef.current = settings; topologyDirtyRef.current = true; wakeSimulationRef.current(); }, [settings]);
+  useEffect(() => { classColorsRef.current = [...classColors].sort((a, b) => a.order - b.order); requestRender(); }, [classColors, requestRender]);
+  useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; requestRender(); }, [selectedNodeIds, requestRender]);
+  useEffect(() => { currentNodeIdRef.current = currentNodeId; requestRender(); }, [currentNodeId, requestRender]);
   useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
   useEffect(() => { hoveredNodeRef.current = hoveredNode; }, [hoveredNode]);
   
@@ -975,12 +982,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const newX = dimensionsRef.current.width / 2 - graphCenterX * newScale;
     const newY = dimensionsRef.current.height / 2 - graphCenterY * newScale;
     
-    setTransform({
+    setTransformDirect({
       x: newX,
       y: newY,
       scale: Math.max(0.2, newScale),
     });
-  }, []);
+  }, [setTransformDirect]);
 
   // Dynamic node management
   const createNode = useCallback((node: GraphNode) => {
