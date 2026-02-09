@@ -64,7 +64,7 @@ svg.mdi-icon,
 .main-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-6);
+  /* padding: var(--spacing-6); */
   background: var(--color-surface);
 }
 
