@@ -46,6 +46,7 @@ const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
 const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
 const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
+const VELOCITY_DEADZONE = 0.05; // Zero out velocity below this to prevent jitter near equilibrium
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
@@ -1748,6 +1749,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           node.y += node.vy;
           node.vx *= VELOCITY_DAMPING;
           node.vy *= VELOCITY_DAMPING;
+          
+          // Kill tiny velocities to prevent jitter near equilibrium
+          if (Math.abs(node.vx) < VELOCITY_DEADZONE) node.vx = 0;
+          if (Math.abs(node.vy) < VELOCITY_DEADZONE) node.vy = 0;
           
           kineticEnergy += node.vx * node.vx + node.vy * node.vy;
           
