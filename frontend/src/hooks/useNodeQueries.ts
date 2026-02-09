@@ -156,11 +156,6 @@ export function usePageContent(pageId: number | null) {
 }
 
 /**
- * Alias for usePageContent (backward compatibility)
- */
-export const usePage = usePageContent;
-
-/**
  * Hook to fetch graph data for visualization
  */
 export function useGraphData() {
@@ -218,11 +213,6 @@ export function useExistingDailyPages() {
     placeholderData: [], // Use placeholderData instead of initialData to allow fetching
   });
 }
-
-/**
- * @deprecated Use useExistingDailyPages instead. Kept as alias for backward compatibility.
- */
-export const useDailyPages = useExistingDailyPages;
 
 /**
  * Hook to fetch/create daily note
@@ -305,11 +295,6 @@ export function useYearlyNote(year: number) {
     structuralSharing: false,
   });
 }
-
-/**
- * Alias for useTodayNote (backward compatibility)
- */
-export const useTodayPage = useTodayNote;
 
 /**
  * Hook to fetch all pages

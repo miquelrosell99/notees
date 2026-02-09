@@ -1,8 +1,8 @@
 """PostgreSQL implementation of Link repository.
 
 Updated for graph-based schema:
-- node_link table: source_id, target_id (no position, property_id)
-- class_inline table: node_id, class_id, position
+- node_link table: source_id, target_id, is_tag, is_inline_class
+- Inline class references are now stored in node_link with is_inline_class=TRUE
 - All timestamps use create_date
 - User tracking via create_uid
 """
@@ -13,7 +13,7 @@ from typing import List, Optional
 
 import asyncpg
 
-from ..entities import NodeLink, InlineClass
+from ..entities import NodeLink
 from .interfaces import LinkRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
@@ -23,12 +23,8 @@ from ...db.connection import acquire_connection
 class PostgresLinkRepository(LinkRepository):
     """PostgreSQL implementation of the LinkRepository.
     
-    Updated for new schema:
-    - source_node_id -> source_id
-    - target_node_id -> target_id  
-    - Removed: position, property_id fields
-    - workspace_id -> graph_id
-    - created_at -> create_date
+    Handles both regular node links and inline class references
+    (distinguished by is_inline_class flag on node_link table).
     """
     
     def __init__(self, pool: asyncpg.Pool, graph_id: int, user_id: Optional[int] = None):
@@ -54,6 +50,7 @@ class PostgresLinkRepository(LinkRepository):
             target_id=row['target_id'],
             uuid=str(row['uuid']) if row.get('uuid') else None,
             is_tag=row.get('is_tag', False),
+            is_inline_class=row.get('is_inline_class', False),
             name=row.get('name'),
             create_date=create_date,
             create_uid=row.get('create_uid'),
@@ -63,11 +60,11 @@ class PostgresLinkRepository(LinkRepository):
         """Create a new link."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
-                INSERT INTO node_link (source_id, target_id, is_tag, name, create_date, create_uid, graph_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO node_link (source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, graph_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id, uuid
-            """, link.source_id, link.target_id, link.is_tag, link.name,
-                link.create_date, link.create_uid or self._user_id, self._graph_id)
+            """, link.source_id, link.target_id, link.is_tag, link.is_inline_class,
+                link.name, link.create_date, link.create_uid or self._user_id, self._graph_id)
             
             if row is None:
                 raise RuntimeError("Failed to create link - no row returned")
@@ -135,14 +132,14 @@ class PostgresLinkRepository(LinkRepository):
         async with acquire_connection(self._pool) as conn:
             # Use copy_records_to_table for best performance
             records = [
-                (link.source_id, link.target_id, link.is_tag, 
+                (link.source_id, link.target_id, link.is_tag, link.is_inline_class,
                  link.create_date, link.create_uid or self._user_id)
                 for link in links
             ]
             await conn.copy_records_to_table(
                 'node_link',
                 records=records,
-                columns=['source_id', 'target_id', 'is_tag', 
+                columns=['source_id', 'target_id', 'is_tag', 'is_inline_class',
                         'create_date', 'create_uid']
             )
         
@@ -151,12 +148,11 @@ class PostgresLinkRepository(LinkRepository):
     async def delete_text_links(self, source_node_id: int) -> int:
         """Delete all text links from a source node.
         
-        Note: In the new schema, there's no property_id distinction.
-        This method now deletes all non-tag links from the source.
+        Deletes non-tag, non-inline-class links from the source.
         """
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND is_tag = FALSE",
+                "DELETE FROM node_link WHERE source_id = $1 AND is_tag = FALSE AND is_inline_class = FALSE",
                 source_node_id
             )
             return int(result.split()[-1]) if result else 0
@@ -180,114 +176,43 @@ class PostgresLinkRepository(LinkRepository):
                 WHERE nl.target_id = $1 AND n.graph_id = $2
             """, target_node_id, self._graph_id)
             return [self._row_to_link(row) for row in rows]
-
-
-class PostgresInlineClassRepository:
-    """PostgreSQL repository for inline class references.
     
-    Updated for new schema:
-    - Table renamed from type_inline to class_inline
-    - source_node_id -> node_id
-    - type_id -> class_id
-    - workspace_id -> graph_id
-    - created_at -> create_date
-    """
-    
-    def __init__(self, pool: asyncpg.Pool, graph_id: int, user_id: Optional[int] = None):
-        """Initialize with connection pool and graph context.
-        
-        Args:
-            pool: asyncpg connection pool
-            graph_id: The graph this repository operates on
-            user_id: Optional current user ID for audit trails
-        """
-        self._pool = pool
-        self._graph_id = graph_id
-        self._user_id = user_id
-    
-    def _row_to_inline_class(self, row: asyncpg.Record) -> InlineClass:
-        """Convert database row to InlineClass entity."""
-        create_date = row['create_date']
-        if isinstance(create_date, str):
-            create_date = datetime.fromisoformat(create_date)
-        return InlineClass(
-            id=row['id'],
-            node_id=row['node_id'],
-            class_id=row['class_id'],
-            position=row.get('position', 0),
-            create_date=create_date,
-            create_uid=row.get('create_uid'),
-        )
-    
-    async def create(self, inline_class: InlineClass) -> InlineClass:
-        """Create a new inline class reference."""
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow("""
-                INSERT INTO class_inline (node_id, class_id, position, create_date, create_uid, graph_id)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id
-            """, inline_class.node_id, inline_class.class_id,
-                inline_class.position, inline_class.create_date,
-                inline_class.create_uid or self._user_id, self._graph_id)
-            
-            if row is None:
-                raise RuntimeError("Failed to create inline class - no row returned")
-            inline_class.id = row['id']
-            return inline_class
+    # ============== Inline Class Methods ==============
     
     async def delete_source_inline_classes(self, source_node_id: int) -> int:
-        """Delete all inline classes from a source node (for re-parsing)."""
+        """Delete all inline class links from a source node (for re-parsing)."""
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "DELETE FROM class_inline WHERE node_id = $1",
+                "DELETE FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE",
                 source_node_id
             )
             return int(result.split()[-1]) if result else 0
     
-    async def get_source_inline_classes(self, source_node_id: int) -> List[InlineClass]:
-        """Get all inline classes from a source node."""
+    async def get_source_inline_classes(self, source_node_id: int) -> List[NodeLink]:
+        """Get all inline class links from a source node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM class_inline WHERE node_id = $1 ORDER BY position",
+                "SELECT * FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE ORDER BY position",
                 source_node_id
             )
-            return [self._row_to_inline_class(row) for row in rows]
+            return [self._row_to_link(row) for row in rows]
     
-    async def get_class_references(self, class_node_id: int) -> List[InlineClass]:
-        """Get all inline references to a class node."""
+    async def get_inline_class_references(self, target_node_id: int) -> List[NodeLink]:
+        """Get all inline class links pointing to a target node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM class_inline WHERE class_id = $1",
-                class_node_id
+                "SELECT * FROM node_link WHERE target_id = $1 AND is_inline_class = TRUE",
+                target_node_id
             )
-            return [self._row_to_inline_class(row) for row in rows]
+            return [self._row_to_link(row) for row in rows]
     
-    async def bulk_create(self, inline_classes: List[InlineClass]) -> List[InlineClass]:
-        """Create multiple inline classes at once using COPY."""
-        if not inline_classes:
-            return []
-        
-        async with acquire_connection(self._pool) as conn:
-            records = [
-                (ic.node_id, ic.class_id, ic.position, ic.create_date,
-                 ic.create_uid or self._user_id, self._graph_id)
-                for ic in inline_classes
-            ]
-            await conn.copy_records_to_table(
-                'class_inline',
-                records=records,
-                columns=['node_id', 'class_id', 'position', 'create_date', 'create_uid', 'graph_id']
-            )
-        
-        return inline_classes
-    
-    async def get_inline_classes_for_graph(self, class_node_id: int) -> List[InlineClass]:
+    async def get_inline_classes_for_graph(self, target_node_id: int) -> List[NodeLink]:
         """Get inline class references from nodes within the current graph only."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
-                SELECT ci.*
-                FROM class_inline ci
-                JOIN node n ON ci.node_id = n.id
-                WHERE ci.class_id = $1 AND n.graph_id = $2
-            """, class_node_id, self._graph_id)
-            return [self._row_to_inline_class(row) for row in rows]
+                SELECT nl.*
+                FROM node_link nl
+                JOIN node n ON nl.source_id = n.id
+                WHERE nl.target_id = $1 AND nl.is_inline_class = TRUE AND n.graph_id = $2
+            """, target_node_id, self._graph_id)
+            return [self._row_to_link(row) for row in rows]

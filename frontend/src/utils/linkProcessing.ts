@@ -9,7 +9,6 @@ import { sanitizeContent, hasEditorArtifacts } from './linkSanitization';
 
 // Link pattern constants
 export const LINK_PATTERN = /\[\[([^\]:\s]+)(?::([a-f0-9-]+))?\]\]/g;
-export const TYPE_PATTERN = /\{\{([^}]+)\}\}/g;
 
 /**
  * Validate that a string contains a valid node ID.
@@ -93,13 +92,6 @@ export function extractRawLinks(content: string): Array<{
  */
 export function hasLinks(content: string): boolean {
   return LINK_PATTERN.test(content) || hasEditorArtifacts(content);
-}
-
-/**
- * Check if content has any inline type references.
- */
-export function hasInlineTypes(content: string): boolean {
-  return TYPE_PATTERN.test(content);
 }
 
 /**
