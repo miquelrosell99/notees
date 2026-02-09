@@ -1882,6 +1882,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const COLLISION_PADDING = 1.8; // Multiplier on visual radius for collision zone
       const COLLISION_STRENGTH = 0.8; // Velocity impulse per pixel of overlap per frame
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
+      let hasCollisions = false; // Track if any overlaps exist — prevents premature sleep
       
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
@@ -1903,6 +1904,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           
           // Quick squared-distance check to skip most pairs
           if (distSq >= minDist * minDist) continue;
+          
+          hasCollisions = true;
           
           const dist = Math.sqrt(distSq) || 0.1;
           const overlap = minDist - dist;
@@ -2018,7 +2021,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Convergence-based sleep: threshold scales with node count so large graphs can converge
       const sleepThreshold = Math.max(0.1, nodes.length * SLEEP_KE_PER_NODE);
-      const shouldSleep = kineticEnergy < sleepThreshold && warmupT >= 1 && !dragNodeRef.current;
+      const shouldSleep = kineticEnergy < sleepThreshold && warmupT >= 1 && !dragNodeRef.current && !hasCollisions;
       
       // Hard cap: force sleep after adaptive frame limit OR wall-clock time limit.
       // A value of 0 means unlimited (rely on convergence-based sleep instead).
