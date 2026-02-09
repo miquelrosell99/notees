@@ -519,20 +519,38 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     mode: GraphViewMode,
     w: number,
     h: number,
-    constraintMode: ConstraintMode = 'physics'
+    constraintMode: ConstraintMode = 'physics',
+    nodeSizeMode: NodeSizeMode = 'uniform'
   ) => {
     const centerX = w / 2;
     const centerY = h / 2;
     
-    // Common spacing parameters for both circle and tree modes
-    const nodeSpacing = 80; // Minimum spacing between node centers
-    const levelGap = 100; // Gap between concentric circles (tree) or base radius factor (circle)
+    // Compute max connections and max mass for radius calculations
+    let maxConn = 0, maxMass = 0;
+    for (const n of nodes) {
+      if (n.connectionCount > maxConn) maxConn = n.connectionCount;
+      const m = (n as GraphNode & { _mass?: number })._mass ?? 1;
+      if (m > maxMass) maxMass = m;
+    }
+    
+    // Find the largest glare radius among all nodes to set spacing
+    let maxGlareRadius = 0;
+    for (const n of nodes) {
+      const gr = getGlareRadius(n, nodeSizeMode, maxConn, maxMass);
+      if (gr > maxGlareRadius) maxGlareRadius = gr;
+    }
+    // Fallback to base glare if no nodes
+    if (maxGlareRadius === 0) maxGlareRadius = NODE_RADIUS_BASE * GLARE_SCALE_NORMAL;
+    
+    // Dynamic spacing based on actual node sizes
+    const nodeSpacing = maxGlareRadius * 2 + 8; // Diameter of largest glare + padding
+    const levelGap = maxGlareRadius * 2 + 40; // Ring gap: largest glare diameter + comfortable gap
     
     if (mode === 'circle') {
       // Position all nodes in a circle
       // Scale radius up if needed to prevent node overlap
       const preferredRadius = Math.min(centerX, centerY) * 0.8;
-      const minNodeSpacing = NODE_RADIUS_BASE * 2 * 1.8 + 4; // collision zone diameter + padding
+      const minNodeSpacing = nodeSpacing; // Uses glare-aware spacing computed above
       const minRadiusForCount = (nodes.length * minNodeSpacing) / (2 * Math.PI);
       const radius = Math.max(preferredRadius, minRadiusForCount);
       nodes.forEach((node, i) => {
@@ -659,7 +677,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
         
         // Scale up ring radius if too many nodes would overlap at that ring
-        const minNodeSpacing = NODE_RADIUS_BASE * 2 * 1.8 + 4; // collision zone diameter + padding
+        const minNodeSpacing = nodeSpacing; // Uses glare-aware spacing computed above
         for (const [baseRadius, nodesOnRing] of ringNodes) {
           const count = nodesOnRing.length;
           const minRadiusForCount = (count * minNodeSpacing) / (2 * Math.PI);
@@ -865,11 +883,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { transformRef.current = transform; }, [transform]);
   useEffect(() => {
     const prevConstraintMode = settingsRef.current.constraintMode;
+    const prevNodeSizeMode = settingsRef.current.nodeSizeMode;
     settingsRef.current = settings;
     topologyDirtyRef.current = true;
-    // Recalculate positions when constraint mode changes in tree/circle mode
-    if (settings.constraintMode !== prevConstraintMode && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') && nodesRef.current.length > 0) {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settings.constraintMode);
+    // Recalculate positions when constraint mode or node size mode changes in tree/circle mode
+    const modeChanged = settings.constraintMode !== prevConstraintMode || settings.nodeSizeMode !== prevNodeSizeMode;
+    if (modeChanged && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') && nodesRef.current.length > 0) {
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settings.constraintMode, settings.nodeSizeMode);
     }
     wakeSimulationRef.current();
   }, [settings, calculatePositions]);
@@ -886,7 +906,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     prevViewModeRef.current = viewMode;
     // Recalculate target positions and radii for the new mode
     if (nodesRef.current.length > 0) {
-      calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
+      calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode, settingsRef.current.nodeSizeMode);
       topologyDirtyRef.current = true;
       wakeSimulationRef.current();
     }
@@ -995,7 +1015,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree')) {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode, settingsRef.current.nodeSizeMode);
     }
     
     if (nodesToRemove.length > 0 || nodesToAdd.length > 0) {
@@ -1072,7 +1092,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode, settingsRef.current.nodeSizeMode);
     }
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
@@ -1092,7 +1112,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode, settingsRef.current.nodeSizeMode);
     }
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
@@ -1218,7 +1238,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, visibilityFilters)
     );
     
-    calculatePositions(nodesRef.current, viewMode, dimW, dimH, settings.constraintMode);
+    calculatePositions(nodesRef.current, viewMode, dimW, dimH, settings.constraintMode, settings.nodeSizeMode);
     
     // Mark topology dirty and wake simulation
     topologyDirtyRef.current = true;
@@ -1788,14 +1808,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
       
       // Tangential overlap prevention for constrained modes (tree/circle).
-      // In these modes, radial velocity is stripped so only tangential forces
-      // can separate overlapping nodes on the same ring.
-      // In equidistant mode, skip entirely — the return force handles spacing
-      // and tangential repulsion would fight it, causing pairing artifacts.
+      // Uses direct position correction (not velocity) for stability.
+      // In equidistant mode, skip entirely — the return force handles spacing.
       if (isConstrainedMode && currentSettings.constraintMode !== 'equidistant') {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
-        const TANGENTIAL_MIN_DIST = 5; // Floor to prevent singularity
         
         for (let i = 0; i < nodes.length; i++) {
           const a = nodes[i];
@@ -1811,8 +1828,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             if (bRadius === undefined) continue;
             const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass);
             
-            // Only repel nodes on the same or nearby rings
-            const minGlareDist = aGlare + bGlare;
+            // Only check nodes on the same or nearby rings
+            const minGlareDist = (aGlare + bGlare) * 1.05;
             if (Math.abs(aRadius - bRadius) > minGlareDist) continue;
             
             const dx = b.x - a.x;
@@ -1824,38 +1841,36 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             // Compute tangential direction (perpendicular to radial from center)
             const dax = a.x - cx;
             const day = a.y - cy;
-            const daDist = Math.sqrt(dax * dax + day * day) || 1;
+            const daDist = Math.sqrt(dax * dax + day * dy) || 1;
             
             const radialX = dax / daDist;
             const radialY = day / daDist;
             
-            // Project the displacement onto tangential plane
-            const radialComponent = dx * radialX + dy * radialY;
-            let tangX = dx - radialComponent * radialX;
-            let tangY = dy - radialComponent * radialY;
-            const tangDist = Math.sqrt(tangX * tangX + tangY * tangY);
+            // Get the tangential direction (perpendicular to radial)
+            // Use sign of cross product to determine which way to push
+            const cross = dx * radialY - dy * radialX;
+            const sign = cross >= 0 ? 1 : -1;
+            const tangX = -radialY * sign;
+            const tangY = radialX * sign;
             
-            if (tangDist < 0.01) {
-              // Nodes are radially aligned — pick arbitrary tangential direction
-              tangX = -radialY;
-              tangY = radialX;
-            } else {
-              tangX /= tangDist;
-              tangY /= tangDist;
-            }
+            // Direct position correction — move nodes apart along tangent
+            const overlap = minGlareDist - dist;
+            const correction = overlap * 0.1; // Gentle correction per frame
             
-            // Linear impulse based on overlap (like collision force, but tangential only)
-            const clampedDist = Math.max(dist, TANGENTIAL_MIN_DIST);
-            const overlap = minGlareDist - clampedDist;
-            const force = overlap * 0.5 * warmupMultiplier;
+            const aMovable = !a.pinned && dragNodeRef.current?.id !== a.id;
+            const bMovable = !b.pinned && dragNodeRef.current?.id !== b.id;
             
-            if (!a.pinned) {
-              a.vx -= tangX * force;
-              a.vy -= tangY * force;
-            }
-            if (!b.pinned) {
-              b.vx += tangX * force;
-              b.vy += tangY * force;
+            if (aMovable && bMovable) {
+              a.x -= tangX * correction * 0.5;
+              a.y -= tangY * correction * 0.5;
+              b.x += tangX * correction * 0.5;
+              b.y += tangY * correction * 0.5;
+            } else if (aMovable) {
+              a.x -= tangX * correction;
+              a.y -= tangY * correction;
+            } else if (bMovable) {
+              b.x += tangX * correction;
+              b.y += tangY * correction;
             }
           }
         }
@@ -1908,8 +1923,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Linear in overlap so force is zero at the collision boundary (no discontinuity).
       // Skipped in equidistant mode: spacing is pre-computed to prevent overlap,
       // and the collision force fights the return force causing node pairing.
-      const COLLISION_PADDING = 1.8; // Multiplier on visual radius for collision zone
-      const COLLISION_STRENGTH = 0.8; // Velocity impulse per pixel of overlap per frame
+      const COLLISION_PADDING = 1.05; // Multiplier on glare radius for collision zone (small gap)
+      const COLLISION_STRENGTH = 1.0; // Velocity impulse per pixel of overlap per frame
       const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
       if (!skipCollisions) {
