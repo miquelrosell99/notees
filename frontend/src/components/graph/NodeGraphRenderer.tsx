@@ -45,7 +45,7 @@ const MIN_REPULSION_DISTANCE = 20; // Prevent infinite force when nodes overlap
 const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
 const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
-const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
+const SLEEP_KE_PER_NODE = 0.001; // Per-node contribution to sleep threshold (scales with graph size)
 const VELOCITY_DEADZONE = 0.1; // Zero out velocity below this to prevent jitter near equilibrium
 const LINK_DAMPING = 0.4; // Dashpot: damp relative velocity along spring axis to prevent oscillation
 
@@ -531,7 +531,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     if (mode === 'circle') {
       // Position all nodes in a circle
-      const radius = Math.min(centerX, centerY) * 0.8;
+      // Scale radius up if needed to prevent node overlap
+      const preferredRadius = Math.min(centerX, centerY) * 0.8;
+      const minNodeSpacing = NODE_RADIUS_BASE * 2 * 1.8 + 4; // collision zone diameter + padding
+      const minRadiusForCount = (nodes.length * minNodeSpacing) / (2 * Math.PI);
+      const radius = Math.max(preferredRadius, minRadiusForCount);
       nodes.forEach((node, i) => {
         const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
         node.targetX = centerX + radius * Math.cos(angle);
@@ -640,17 +644,27 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       if (constraintMode === 'equidistant') {
         // ── Equidistant mode: evenly space nodes at each depth ring ──
+        // Scale up ring radius if too many nodes would overlap at that depth
+        const minNodeSpacing = NODE_RADIUS_BASE * 2 * 1.8 + 4; // collision zone diameter + padding
         for (let depth = 0; depth <= maxDepth; depth++) {
           const nodesAtDepth = nodesByDepth.get(depth) || [];
-          const radius = radiusByDepth.get(depth)!;
+          const baseRadius = radiusByDepth.get(depth)!;
           const count = nodesAtDepth.length;
           if (count === 0) continue;
+          
+          const minRadiusForCount = (count * minNodeSpacing) / (2 * Math.PI);
+          const radius = Math.max(baseRadius, minRadiusForCount);
           
           nodesAtDepth.forEach((node, i) => {
             const angle = (2 * Math.PI * i) / count - Math.PI / 2;
             node.targetX = centerX + radius * Math.cos(angle);
             node.targetY = centerY + radius * Math.sin(angle);
             (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+            // Seed unpositioned nodes near target so they animate in smoothly
+            if (node.x === 0 && node.y === 0) {
+              node.x = node.targetX;
+              node.y = node.targetY;
+            }
           });
         }
       } else {
@@ -1515,7 +1529,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     let sleepFrames = 0;
     let totalFrames = 0;
     const simulationStartTime = performance.now();
-    const SLEEP_DELAY_FRAMES = 30; // Frames below threshold before sleeping
+    const SLEEP_DELAY_FRAMES = 90; // Frames below threshold before sleeping
     
     const wake = () => {
       if (simulationGenerationRef.current !== thisGeneration) return; // stale generation
@@ -1581,10 +1595,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       warmupFrameRef.current++;
       
       // Constrained modes: apply return-to-target force
-      // In equidistant mode this is the primary positioning force
-      // In physics mode only a very gentle hint — N-body forces handle clustering
+      // In equidistant mode this is the primary positioning force — strong enough
+      // to overcome tangential repulsion and hold nodes at their predefined spots.
+      // In physics mode only a very gentle hint — N-body forces handle clustering.
       if (isConstrainedMode) {
-        const returnStrength = currentSettings.constraintMode === 'equidistant' ? RETURN_FORCE : RETURN_FORCE * 0.05;
+        const returnStrength = currentSettings.constraintMode === 'equidistant' ? 0.5 : RETURN_FORCE * 0.05;
         for (const node of nodes) {
           if (dragNodeRef.current?.id === node.id || node.pinned) continue;
           
@@ -1764,9 +1779,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Tangential overlap prevention for constrained modes (tree/circle).
       // In these modes, radial velocity is stripped so only tangential forces
-      // can separate overlapping nodes on the same ring. This runs in both
-      // physics and equidistant modes.
-      if (isConstrainedMode) {
+      // can separate overlapping nodes on the same ring.
+      // In equidistant mode, skip entirely — the return force handles spacing
+      // and tangential repulsion would fight it, causing pairing artifacts.
+      if (isConstrainedMode && currentSettings.constraintMode !== 'equidistant') {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
         const TANGENTIAL_REPULSION = 300; // Strength of tangential push
@@ -1879,56 +1895,61 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Applied as a velocity impulse (force) so it integrates naturally with
       // the existing damping/deadzone system and reaches smooth equilibrium.
       // Linear in overlap so force is zero at the collision boundary (no discontinuity).
+      // Skipped in equidistant mode: spacing is pre-computed to prevent overlap,
+      // and the collision force fights the return force causing node pairing.
       const COLLISION_PADDING = 1.8; // Multiplier on visual radius for collision zone
       const COLLISION_STRENGTH = 0.8; // Velocity impulse per pixel of overlap per frame
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
       let hasCollisions = false; // Track if any overlaps exist — prevents premature sleep
+      const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        if (!a.visible) continue;
-        const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
-        const radiusA = getNodeRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
-        
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
-          if (!b.visible) continue;
-          const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
-          if (aImmovable && bImmovable) continue;
+      if (!skipCollisions) {
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          if (!a.visible) continue;
+          const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
+          const radiusA = getNodeRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
           
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const distSq = dx * dx + dy * dy;
-          const radiusB = getNodeRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
-          const minDist = radiusA + radiusB;
-          
-          // Quick squared-distance check to skip most pairs
-          if (distSq >= minDist * minDist) continue;
-          
-          hasCollisions = true;
-          
-          const dist = Math.sqrt(distSq) || 0.1;
-          const overlap = minDist - dist;
-          
-          // Direction from a to b
-          const nx = dx / dist;
-          const ny = dy / dist;
-          
-          // Linear impulse proportional to overlap (zero at boundary, max at center)
-          const impulse = overlap * COLLISION_STRENGTH;
-          
-          if (aImmovable) {
-            b.vx += nx * impulse;
-            b.vy += ny * impulse;
-          } else if (bImmovable) {
-            a.vx -= nx * impulse;
-            a.vy -= ny * impulse;
-          } else {
-            const halfImpulse = impulse * 0.5;
-            a.vx -= nx * halfImpulse;
-            a.vy -= ny * halfImpulse;
-            b.vx += nx * halfImpulse;
-            b.vy += ny * halfImpulse;
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            if (!b.visible) continue;
+            const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
+            if (aImmovable && bImmovable) continue;
+            
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const distSq = dx * dx + dy * dy;
+            const radiusB = getNodeRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+            const minDist = radiusA + radiusB;
+            
+            // Quick squared-distance check to skip most pairs
+            if (distSq >= minDist * minDist) continue;
+            
+            hasCollisions = true;
+            
+            const dist = Math.sqrt(distSq) || 0.1;
+            const overlap = minDist - dist;
+            
+            // Direction from a to b
+            const nx = dx / dist;
+            const ny = dy / dist;
+            
+            // Linear impulse proportional to overlap (zero at boundary, max at center)
+            const impulse = overlap * COLLISION_STRENGTH;
+            
+            if (aImmovable) {
+              b.vx += nx * impulse;
+              b.vy += ny * impulse;
+            } else if (bImmovable) {
+              a.vx -= nx * impulse;
+              a.vy -= ny * impulse;
+            } else {
+              const halfImpulse = impulse * 0.5;
+              a.vx -= nx * halfImpulse;
+              a.vy -= ny * halfImpulse;
+              b.vx += nx * halfImpulse;
+              b.vy += ny * halfImpulse;
+            }
           }
         }
       }
