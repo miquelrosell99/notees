@@ -139,7 +139,7 @@
  * TypePill Component Styles
  */
 
-.type-pill {
+.class-pill {
   display: inline;
   position: relative;
   padding: 2px 6px;
@@ -165,12 +165,12 @@
   box-decoration-break: clone;
 }
 
-.type-pill:hover {
+.class-pill:hover {
   background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-tertiary) 20%);
 }
 
 /* Icon */
-.type-pill__icon {
+.class-pill__icon {
   display: inline-flex;
   align-items: center;
   margin-right: 4px;
@@ -179,18 +179,18 @@
 }
 
 /* Text */
-.type-pill__text {
+.class-pill__text {
   vertical-align: middle;
 }
 
 /* When used inside contenteditable, prevent editing */
-.type-pill[contenteditable="false"] {
+.class-pill[contenteditable="false"] {
   outline: none;
 }
 
 /* Selection styles for contenteditable parent */
-[contenteditable] .type-pill::selection,
-[contenteditable] .type-pill *::selection {
+[contenteditable] .class-pill::selection,
+[contenteditable] .class-pill *::selection {
   background: transparent;
 }
 

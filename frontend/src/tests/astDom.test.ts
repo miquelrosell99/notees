@@ -161,9 +161,9 @@ describe('astToHtml', () => {
     expect(html).toContain('[42:abc]');
   });
 
-  it('renders class link as type-pill', () => {
+  it('renders class link as class-pill', () => {
     const html = astToHtml(p(link('cls:1', 'class')), testCtx);
-    expect(html).toContain('class="type-pill"');
+    expect(html).toContain('class="class-pill"');
     expect(html).toContain('data-ref-type="class"');
   });
 
@@ -276,8 +276,8 @@ describe('domToAST', () => {
     expect(domToAST(el)).toEqual(p(link('42:abc')));
   });
 
-  it('extracts type-pill as class ref', () => {
-    const el = createElement('<span class="type-pill" data-ast="node_link" data-link-id="cls:1" data-ref-type="class">Type</span>');
+  it('extracts class-pill as class ref', () => {
+    const el = createElement('<span class="class-pill" data-ast="node_link" data-link-id="cls:1" data-ref-type="class">Type</span>');
     expect(domToAST(el)).toEqual(p(link('cls:1', 'class')));
   });
 

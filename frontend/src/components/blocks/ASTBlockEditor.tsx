@@ -1403,7 +1403,7 @@ function isPillEl(el: HTMLElement): boolean {
     el.classList?.contains('inline-link') ||
     el.classList?.contains('inline-node-link') ||
     el.classList?.contains('link-pill') ||
-    el.classList?.contains('type-pill') ||
+    el.classList?.contains('class-pill') ||
     el.classList?.contains('tag-pill')
   );
 }
