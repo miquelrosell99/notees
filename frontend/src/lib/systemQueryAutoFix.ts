@@ -65,7 +65,7 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
         (child) =>
           child.type === 'condition' &&
           isReferenceCondition(child) &&
-          child.target_uuid === context.nodeUuid
+          (child.target_uuid === context.nodeUuid || child.target_uuid === '{current_node_uuid}')
       );
     },
   },
@@ -210,7 +210,7 @@ export function autoFixSystemQuery(
           }
         } else if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
           const refCond = child as ReferenceCondition;
-          if (refCond.target_uuid === context.nodeUuid) {
+          if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') {
             return markAsSystemNode(child);
           }
         } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
@@ -260,7 +260,7 @@ export function autoFixSystemQuery(
     if (child.type === 'condition') {
       if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
         const refCond = child as ReferenceCondition;
-        if (refCond.target_uuid === context.nodeUuid) return false;
+        if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') return false;
       } else if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
         const parentCond = child as ParentCondition;
         if (parentCond.parent_uuid && (
