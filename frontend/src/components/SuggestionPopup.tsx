@@ -354,7 +354,7 @@ export function SuggestionPopup({
       <div className="suggestion-popup__list">
         {isLoading && query.length > 0 ? (
           <div className="suggestion-popup__loading">Searching...</div>
-        ) : allItems.length === 0 && !showCreateOption && selectedNodes.length === 0 && !hasDateSuggestion ? (
+        ) : allItems.length === 0 && !showCreateOption && selectedNodes.length === 0 ? (
           <div className="suggestion-popup__empty">
             {query ? 'No matches found' : 'Start typing to search'}
           </div>
