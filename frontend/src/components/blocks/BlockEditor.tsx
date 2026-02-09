@@ -1656,6 +1656,45 @@ export function BlockEditor({
     }, 0);
   }, [trigger, onChange, onCreateClass, onCreateTag, onCreatePageLink, linkNames]);
 
+  // Handle date page selection from SuggestionPopup
+  const handleDatePageSelect = useCallback((pageId: string, pageName: string) => {
+    if (!editorRef.current) return;
+    
+    const currentContent = htmlToContent(editorRef.current);
+    const textBeforeTrigger = currentContent.substring(0, trigger.triggerPosition);
+    const cursorPos = getCursorPosition(editorRef.current);
+    const textAfterCursor = currentContent.substring(cursorPos);
+    
+    const linkUuid = generateLinkUuid();
+    const linkText = `[[${pageId}:${linkUuid}]]`;
+    const newContent = textBeforeTrigger + linkText + ' ' + textAfterCursor;
+    const cursorTargetPos = textBeforeTrigger.length + linkText.length + 1;
+    
+    isInternalChange.current = true;
+    lastContentRef.current = newContent;
+    onChange(newContent);
+    
+    // Update linkNames with the new date page
+    const updatedLinkNames = new Map(linkNames);
+    updatedLinkNames.set(pageId, {
+      name: pageName,
+      isPage: true,
+      effectiveIcon: undefined,
+    });
+    
+    const html = contentToHtml(newContent, updatedLinkNames, linkCustomNames, typeNames);
+    editorRef.current.innerHTML = html || '<br>';
+    
+    setTrigger(prev => ({ ...prev, isOpen: false }));
+    
+    setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+        setCursorPosition(editorRef.current, cursorTargetPos);
+      }
+    }, 0);
+  }, [trigger, onChange, linkNames, linkCustomNames, typeNames]);
+
   const handleClose = useCallback(() => {
     setTrigger(prev => ({ ...prev, isOpen: false }));
   }, []);
@@ -2060,6 +2099,7 @@ export function BlockEditor({
             onCreate={handleCreate}
             excludeNodeId={!isPage ? nodeId : undefined}
             showInlineOption={true}
+            onSelectDatePage={handleDatePageSelect}
           />
           
           <SlashCommandPopup
