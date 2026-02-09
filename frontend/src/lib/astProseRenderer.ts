@@ -408,24 +408,6 @@ export function getGroupCapabilities(_group: GroupNode): NodeProseCapabilities {
   };
 }
 
-// ==================== Backward Compatibility ====================
-
-/**
- * Legacy function - kept for compatibility
- * Use getQueryIntent instead
- */
-export function getQueryLabel(ast: QueryAST): string {
-  return getQueryIntent(ast);
-}
-
-/**
- * Legacy function - kept for compatibility
- * Use renderConditionProse instead
- */
-export function getConditionLabel(condition: ConditionNode): string {
-  return renderConditionProse(condition);
-}
-
 /**
  * Check if a condition can be negated
  */

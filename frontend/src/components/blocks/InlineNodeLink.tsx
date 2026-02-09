@@ -12,6 +12,7 @@
  */
 import { useCallback, useMemo } from 'react';
 import { useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import './InlineNodeLink.css';
 
@@ -46,7 +47,9 @@ export function InlineNodeLink({
       return `[Missing: ${uuid.substring(0, 8)}...]`;
     }
     
-    if (!linkedNode.name || linkedNode.name.trim() === '') {
+    const name = nodeNameToText(linkedNode.name);
+    
+    if (!name) {
       if (linkedNode.is_page) {
         return '[Untitled Page]';
       } else {
@@ -55,11 +58,11 @@ export function InlineNodeLink({
     }
     
     // For blocks, truncate long content
-    if (!linkedNode.is_page && linkedNode.name.length > 60) {
-      return `${linkedNode.name.slice(0, 60)}...`;
+    if (!linkedNode.is_page && name.length > 60) {
+      return `${name.slice(0, 60)}...`;
     }
     
-    return linkedNode.name;
+    return name;
   }, [linkedNode, uuid]);
   
   const handleClick = useCallback((e: React.MouseEvent) => {

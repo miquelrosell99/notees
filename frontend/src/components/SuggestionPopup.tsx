@@ -26,6 +26,7 @@ import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 
 export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
 
@@ -225,7 +226,7 @@ export function SuggestionPopup({
         queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
         queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
       }
-      onSelectDatePage(String(dateNode.id), dateNode.name || parsedDate.label);
+      onSelectDatePage(String(dateNode.id), nodeNameToText(dateNode.name) || parsedDate.label);
     } catch (error) {
       console.error('Failed to create date page from suggestion:', error);
     }
@@ -374,7 +375,7 @@ export function SuggestionPopup({
                   </span>
                   <span className="suggestion-popup__item-name">
                     {existingDateNode
-                      ? `${existingDateNode.name || parsedDate.label}`
+                      ? `${nodeNameToText(existingDateNode.name) || parsedDate.label}`
                       : `Create ${parsedDate.type === 'day' ? 'daily' : parsedDate.type === 'month' ? 'monthly' : 'yearly'}: ${parsedDate.label}`
                     }
                   </span>
@@ -405,7 +406,7 @@ export function SuggestionPopup({
                         {renderItemIcon(node, node.is_page)}
                       </span>
                       <span className="suggestion-popup__item-name">
-                        {node.name || 'Untitled'}
+                        {nodeNameToText(node.name) || 'Untitled'}
                       </span>
                     </button>
                   );
@@ -432,7 +433,7 @@ export function SuggestionPopup({
                         <NodeIcon icon={item.node.icon} isPage={true} size="sm" />
                       </span>
                       <span className="suggestion-popup__item-name">
-                        {item.displayName}
+                        {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
                     </button>
                   );
@@ -475,7 +476,7 @@ export function SuggestionPopup({
                         <BulletIcon size="sm" />
                       </span>
                       <span className="suggestion-popup__item-name">
-                        {item.displayName}
+                        {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
                     </button>
                   );
@@ -513,7 +514,7 @@ export function SuggestionPopup({
                         {renderItemIcon(item.node, item.node.is_page)}
                       </span>
                       <span className="suggestion-popup__item-name">
-                        {item.displayName}
+                        {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
                     </button>
                   );

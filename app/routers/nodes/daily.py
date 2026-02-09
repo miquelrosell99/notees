@@ -177,7 +177,7 @@ async def get_or_create_daily(
             # Ensure day type is assigned (for legacy pages created before types were added)
             class_ids = await _get_class_ids(service, existing.id) if existing.id else []
             if day_type_id not in class_ids and existing.id is not None:
-                await service.add_type(existing.id, day_type_id, _system_call=True)
+                await service.add_class(existing.id, day_type_id, _system_call=True)
                 class_ids.append(day_type_id)
             # Ensure parent_id is set to month (for legacy pages)
             if existing.parent_id != month_node.id and existing.id is not None and month_node:
@@ -256,7 +256,7 @@ async def get_or_create_monthly(
         # Ensure month type is assigned (for legacy pages created before types were added)
         class_ids = await _get_class_ids(service, existing.id) if existing.id else []
         if month_type_id not in class_ids and existing.id is not None:
-            await service.add_type(existing.id, month_type_id, _system_call=True)
+            await service.add_class(existing.id, month_type_id, _system_call=True)
             class_ids.append(month_type_id)
         # Ensure parent_id is set to year (for legacy pages)
         if existing.parent_id != year_node.id and existing.id is not None and year_node:
@@ -313,7 +313,7 @@ async def get_or_create_yearly(
         # Ensure year type is assigned (for legacy pages created before types were added)
         class_ids = await _get_class_ids(service, existing.id) if existing.id else []
         if year_type_id not in class_ids and existing.id is not None:
-            await service.add_type(existing.id, year_type_id, _system_call=True)
+            await service.add_class(existing.id, year_type_id, _system_call=True)
             class_ids.append(year_type_id)
         return _node_to_response(existing, classes=class_ids)
     

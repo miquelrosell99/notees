@@ -118,7 +118,7 @@ export interface QueryNodeCollectionProps {
   className?: string;
   /** Whether to hide the toolbar completely (for inline/headless use like query blocks) */
   hideToolbar?: boolean;
-  /** Whether to show add button in toolbar (deprecated - use can_create instead) */
+  /** Whether to show add button in toolbar */
   showAddButton?: boolean;
   /** Element to render at the left side of the toolbar (e.g., block element, collapsible header) */
   leftElement?: React.ReactNode | ((count: number) => React.ReactNode);

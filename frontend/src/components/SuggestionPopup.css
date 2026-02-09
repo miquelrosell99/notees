@@ -175,8 +175,8 @@
   font-family: inherit;
 }
 
-/* Inline type/tag display in content */
-.inline-type,
+/* Inline class/tag display in content */
+.inline-class,
 .inline-tag {
   display: inline;
   padding: 1px 4px;
@@ -186,12 +186,12 @@
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.inline-type {
+.inline-class {
   background: var(--color-secondary-container);
   color: var(--color-on-secondary-container);
 }
 
-.inline-type:hover {
+.inline-class:hover {
   background: color-mix(in srgb, var(--color-secondary-container) 80%, var(--color-on-secondary-container));
 }
 

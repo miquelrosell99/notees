@@ -20,6 +20,7 @@ import { useSearch, usePages, useNodes, useClasses, useSearchClasses, nodeKeys }
 import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
+import { nodeNameToText } from './useStringifyAST';
 
 export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags';
 
@@ -36,7 +37,6 @@ export interface NodeSearchFilters {
 
 export interface NodeSearchItem {
   node: Node;
-  displayName: string;
   section: 'page' | 'block' | 'class';
 }
 
@@ -131,7 +131,6 @@ export function useNodeSearch(
       return {
         pageResults: results.map(node => ({
           node,
-          displayName: node.name || 'Untitled',
           section: 'class' as const,
         })),
         blockResults: [],
@@ -166,7 +165,6 @@ export function useNodeSearch(
       return {
         pageResults: results.map(node => ({
           node,
-          displayName: node.name || 'Untitled',
           section: 'page' as const,
         })),
         blockResults: [],
@@ -194,7 +192,6 @@ export function useNodeSearch(
       return {
         pageResults: results.slice(0, maxResults).map(node => ({
           node,
-          displayName: node.name || 'Untitled',
           section: 'page' as const,
         })),
         blockResults: [],
@@ -211,7 +208,6 @@ export function useNodeSearch(
         pageResults: [],
         blockResults: results.slice(0, maxResults).map(node => ({
           node,
-          displayName: node.name || node.display_name || 'Untitled block',
           section: 'block' as const,
         })),
       };
@@ -259,7 +255,6 @@ export function useNodeSearch(
         if (pages.length < maxResults) {
           pages.push({
             node,
-            displayName: node.name || 'Untitled',
             section: 'page',
           });
         }
@@ -267,7 +262,6 @@ export function useNodeSearch(
         if (blocks.length < maxResults) {
           blocks.push({
             node,
-            displayName: node.name || node.display_name || 'Untitled block',
             section: 'block',
           });
         }
@@ -319,13 +313,13 @@ export function useNodeSearch(
       
       // Parent path exists, check if leaf exists
       const leafExists = pageResults.some(
-        r => r.displayName === parsed.leaf && r.node.parent_id === currentParentId
+        r => nodeNameToText(r.node.name) === parsed.leaf && r.node.parent_id === currentParentId
       );
       return !leafExists;
     }
     
     // No exact match in page results (case-sensitive comparison)
-    return !pageResults.some(r => r.displayName === searchTerm);
+    return !pageResults.some(r => nodeNameToText(r.node.name) === searchTerm);
   }, [pageResults, query, allPages]);
 
   return {

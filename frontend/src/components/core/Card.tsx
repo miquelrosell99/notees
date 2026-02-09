@@ -92,7 +92,3 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   );
 });
 
-// Re-export as Panel for backwards compatibility
-export const Panel = Card;
-export type PanelProps = CardProps;
-export type PanelElevation = CardElevation;
