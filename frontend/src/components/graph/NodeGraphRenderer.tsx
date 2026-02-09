@@ -1621,7 +1621,19 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (usePhysics) {
         // === Barnes-Hut repulsion (O(n log n)) ===
         const THETA = 0.7; // Barnes-Hut opening angle threshold
-        const tree = buildQuadtree(nodes, massCacheRef.current);
+        
+        // Build normalized mass map: use log-normalized mass everywhere to keep
+        // the quadtree, repulsion division, and linked-pair compensation consistent.
+        // Using raw mass in the quadtree but normalized mass in division caused
+        // over-compensation for class nodes (Barnes-Hut approximation error × raw mass).
+        const normalizedMasses = new Map<number, number>();
+        if (useMass) {
+          for (const node of nodes) {
+            const raw = massCache.get(node.id) ?? 1;
+            normalizedMasses.set(node.id, raw <= 1 ? 1 : 1 + Math.log(raw));
+          }
+        }
+        const tree = buildQuadtree(nodes, useMass ? normalizedMasses : massCacheRef.current);
         
         if (tree) {
           for (let i = 0; i < nodes.length; i++) {
@@ -1629,11 +1641,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             if (dragNodeRef.current?.id === node.id) continue;
             if (node.pinned) continue;
             
-            // Logarithmic mass normalization — prevents class nodes from becoming
-            // immovable "black holes" while preserving relative weight differences.
-            // mass=1→1, mass=5→2.6, mass=51→4.9 (smooth diminishing returns)
-            const rawMass = useMass ? (massCache.get(node.id) ?? 1) : 1;
-            const nodeMass = rawMass <= 1 ? 1 : 1 + Math.log(rawMass);
+            // Use pre-computed normalized mass for force division
+            const nodeMass = useMass ? (normalizedMasses.get(node.id) ?? 1) : 1;
             
             // Walk quadtree for repulsion (reuse pre-allocated stack)
             const stack = bhStackRef.current;
@@ -1710,11 +1719,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           // Spring attraction + dashpot (symmetric, applied to both nodes)
           let netForce = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
           
-          // Logarithmic mass normalization (matches repulsion normalization)
-          const rawMassA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
-          const rawMassB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
-          const massA = rawMassA <= 1 ? 1 : 1 + Math.log(rawMassA);
-          const massB = rawMassB <= 1 ? 1 : 1 + Math.log(rawMassB);
+          // Use pre-computed normalized mass (matches what the quadtree uses)
+          const massA = useMass ? (normalizedMasses.get(nodeA.id) ?? 1) : 1;
+          const massB = useMass ? (normalizedMasses.get(nodeB.id) ?? 1) : 1;
           
           // Dashpot: damp relative velocity along spring axis to prevent radial oscillation
           const rvx = nodeB.vx - nodeA.vx;
@@ -1726,23 +1733,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const sfy = (dy / dist) * netForce;
           
           // Counteract quadtree repulsion for linked pairs (per-node, asymmetric).
-          // Quadtree pushed A by massB and B by massA — must compensate each separately.
-          // Use raw mass for compensation (matches what quadtree actually applied),
-          // but divide by capped mass (matches how repulsion was received).
+          // Both the quadtree and force division use normalized mass, so compensation
+          // uses the same normalized values — no mismatch that could cause over-compensation.
           let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
           if (dist < UNLINKED_REPULSION_DISTANCE) {
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
             const clampedDistSq = clampedDist * clampedDist;
             const dirX = dx / dist;
             const dirY = dy / dist;
-            // Use RAW mass for the source (what quadtree used), normalized mass for receiver
-            // (rawMassA/B already computed above)
-            // Compensation for A: quadtree pushed A away from B with force ∝ rawMassB / massA
-            const compA = (REPULSION_STRENGTH * rawMassB / clampedDistSq) * warmupMultiplier;
+            // Compensation for A: quadtree pushed A away from B with force ∝ massB / massA
+            const compA = (REPULSION_STRENGTH * massB / clampedDistSq) * warmupMultiplier;
             compAx = dirX * compA / massA;
             compAy = dirY * compA / massA;
-            // Compensation for B: quadtree pushed B away from A with force ∝ rawMassA / massB
-            const compB = (REPULSION_STRENGTH * rawMassA / clampedDistSq) * warmupMultiplier;
+            // Compensation for B: quadtree pushed B away from A with force ∝ massA / massB
+            const compB = (REPULSION_STRENGTH * massA / clampedDistSq) * warmupMultiplier;
             compBx = dirX * compB / massB;
             compBy = dirY * compB / massB;
           }
@@ -1846,8 +1850,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             
             if (dist > LINKED_ATTRACTION_DISTANCE) {
               const rawM = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
-              const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);
-              const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
+              const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);              const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
               let dragMultiplier = 1;
               if (linkType === 'property-reference') {
                 dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
