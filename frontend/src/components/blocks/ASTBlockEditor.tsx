@@ -35,6 +35,7 @@ import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
 import { TextField } from '../core/TextField';
 import { Button } from '../core/Button';
+import { FloatingToolbar } from '../core/FloatingToolbar';
 
 // Hooks
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
@@ -85,6 +86,7 @@ import {
   toggleMark,
   toggleCode,
   insertText,
+  wrapInExternalLink,
 } from '@/lib/astMutations';
 import { ASTHistory, type HistoryEntry } from '@/lib/astHistory';
 
@@ -237,6 +239,14 @@ export function ASTBlockEditor({
     nodeId: number;
     position: { top: number; left: number };
   } | null>(null);
+
+  // ─── Selection toolbar state ───────────────────────────────────
+  const [selectionToolbar, setSelectionToolbar] = useState<{
+    visible: boolean;
+    position: { top: number; left: number };
+    start: number;
+    end: number;
+  }>({ visible: false, position: { top: 0, left: 0 }, start: 0, end: 0 });
 
   // ─── Query client ──────────────────────────────────────────────
   const queryClient = useQueryClient();
@@ -637,6 +647,112 @@ export function ASTBlockEditor({
       setSlashCommand(prev => (prev.isOpen ? { ...prev, isOpen: false } : prev));
     }
   }, [readOnly]);
+
+  // ─── Selection change handler ──────────────────────────────────
+  const handleSelectionChange = useCallback(() => {
+    if (readOnly || !editorRef.current) {
+      setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+      return;
+    }
+
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+      setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+      return;
+    }
+
+    // Check if selection is within our editor
+    const range = sel.getRangeAt(0);
+    if (!editorRef.current.contains(range.commonAncestorContainer)) {
+      setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+      return;
+    }
+
+    // Get selection range in logical characters
+    const start = getCursorPosition(editorRef.current);
+    
+    // Get end position by temporarily moving cursor to end of selection
+    const savedStart = { node: range.startContainer, offset: range.startOffset };
+    const tempRange = document.createRange();
+    tempRange.setStart(range.endContainer, range.endOffset);
+    tempRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(tempRange);
+    const end = getCursorPosition(editorRef.current);
+    
+    // Restore original selection
+    const restoreRange = document.createRange();
+    restoreRange.setStart(savedStart.node, savedStart.offset);
+    restoreRange.setEnd(range.endContainer, range.endOffset);
+    sel.removeAllRanges();
+    sel.addRange(restoreRange);
+
+    const actualStart = Math.min(start, end);
+    const actualEnd = Math.max(start, end);
+
+    if (actualEnd <= actualStart) {
+      setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+      return;
+    }
+
+    // Get position for toolbar (above selection)
+    const rect = range.getBoundingClientRect();
+    const editorRect = editorRef.current.getBoundingClientRect();
+    
+    setSelectionToolbar({
+      visible: true,
+      position: {
+        top: rect.top - editorRect.top,
+        left: rect.left + rect.width / 2 - editorRect.left,
+      },
+      start: actualStart,
+      end: actualEnd,
+    });
+  }, [readOnly]);
+
+  // Attach selectionchange listener
+  useEffect(() => {
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [handleSelectionChange]);
+
+  // ─── Toolbar formatting handlers ───────────────────────────────
+  const handleToolbarBold = useCallback(() => {
+    if (!selectionToolbar.visible) return;
+    const result = toggleMark(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, 'strong');
+    commitAST(result.ast, selectionToolbar.end);
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+  }, [selectionToolbar, commitAST]);
+
+  const handleToolbarItalic = useCallback(() => {
+    if (!selectionToolbar.visible) return;
+    const result = toggleMark(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, 'em');
+    commitAST(result.ast, selectionToolbar.end);
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+  }, [selectionToolbar, commitAST]);
+
+  const handleToolbarCode = useCallback(() => {
+    if (!selectionToolbar.visible) return;
+    const result = toggleCode(lastASTRef.current, selectionToolbar.start, selectionToolbar.end);
+    commitAST(result.ast, selectionToolbar.end);
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+  }, [selectionToolbar, commitAST]);
+
+  const handleToolbarStrikethrough = useCallback(() => {
+    if (!selectionToolbar.visible) return;
+    const result = toggleMark(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, 'strikethrough');
+    commitAST(result.ast, selectionToolbar.end);
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+  }, [selectionToolbar, commitAST]);
+
+  const handleToolbarLink = useCallback((url: string) => {
+    if (!selectionToolbar.visible) return;
+    const result = wrapInExternalLink(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, url);
+    commitAST(result.ast, selectionToolbar.end);
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+  }, [selectionToolbar, commitAST]);
 
   // ─── Key handler ───────────────────────────────────────────────
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1341,6 +1457,16 @@ export function ASTBlockEditor({
             position={slashCommand.position}
             onSelect={handleSlashCommandSelect}
             onClose={handleSlashCommandClose}
+          />
+
+          <FloatingToolbar
+            visible={selectionToolbar.visible}
+            position={selectionToolbar.position}
+            onBold={handleToolbarBold}
+            onItalic={handleToolbarItalic}
+            onStrikethrough={handleToolbarStrikethrough}
+            onCode={handleToolbarCode}
+            onLink={handleToolbarLink}
           />
 
           {linkNameDialog?.isOpen && (
