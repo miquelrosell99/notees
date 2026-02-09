@@ -1686,14 +1686,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             netForce += repulsionCompensation;
           }
           
-          // Dashpot: damp relative velocity along spring axis to prevent oscillation
-          const rvx = nodeB.vx - nodeA.vx;
-          const rvy = nodeB.vy - nodeA.vy;
-          const relVel = (rvx * dx + rvy * dy) / dist;
-          netForce += relVel * LINK_DAMPING;
+          // Dashpot: damp full relative velocity (both radial and tangential) to prevent jitter
+          const rvx = (nodeB.vx - nodeA.vx) * LINK_DAMPING;
+          const rvy = (nodeB.vy - nodeA.vy) * LINK_DAMPING;
           
-          const fx = (dx / dist) * netForce;
-          const fy = (dy / dist) * netForce;
+          const fx = (dx / dist) * netForce + rvx;
+          const fy = (dy / dist) * netForce + rvy;
           
           if (!nodeA.pinned) {
             nodeA.vx += fx / massA;
