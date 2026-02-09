@@ -5,6 +5,7 @@
  */
 import { useCallback, useState } from 'react';
 import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { useNodesStore } from '@/stores';
@@ -80,7 +81,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       id: 'copy-link',
       label: 'Copy link',
       onClick: () => {
-        const link = `[[${node.name || 'Untitled'}]]`;
+        const link = `[[${node.uuid}]]`;
         navigator.clipboard.writeText(link);
         onClose();
       }
@@ -126,7 +127,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       <ConfirmationModal
         isOpen={showUnarchiveModal}
         title="Unarchive Page"
-        message={`Unarchive "${node.name || 'Untitled'}"? It will be restored to normal view.`}
+        message={`Unarchive "${nodeNameToText(node.name) || 'Untitled'}"? It will be restored to normal view.`}
         confirmLabel="Unarchive"
         cancelLabel="Cancel"
         variant="primary"
@@ -136,7 +137,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       <ConfirmationModal
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
-        message={`Are you sure you want to delete "${node.name || 'Untitled'}"? It will be moved to trash.`}
+        message={`Are you sure you want to delete "${nodeNameToText(node.name) || 'Untitled'}"? It will be moved to trash.`}
         secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"

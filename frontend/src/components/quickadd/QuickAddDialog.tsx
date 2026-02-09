@@ -10,6 +10,7 @@
  */
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { usePages, useSearch, useQuickAdd } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import { PageIcon, NodeIcon, AddIcon, SearchIcon } from '../icons';
@@ -207,7 +208,7 @@ export function QuickAddDialog({ isOpen, onClose }: QuickAddProps) {
                             onClick={() => handleSelectDestination(page)}
                           >
                             <NodeIcon icon={page.icon} isPage={true} size="sm" />
-                            <span>{page.name || 'Untitled'}</span>
+                            <span>{nodeNameToText(page.name) || 'Untitled'}</span>
                           </button>
                         ))
                       ) : (

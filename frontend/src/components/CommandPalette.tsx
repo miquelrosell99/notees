@@ -13,6 +13,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useNodesStore, useSettingsStore } from '@/stores';
@@ -52,7 +53,7 @@ function buildBreadcrumb(node: Node, allNodes: Node[]): string {
   while (current?.parent_id) {
     const parent = allNodes.find(n => n.id === current?.parent_id);
     if (parent) {
-      parts.unshift(parent.name || 'Untitled');
+      parts.unshift(nodeNameToText(parent.name) || 'Untitled');
       current = parent;
     } else {
       break;
@@ -62,8 +63,11 @@ function buildBreadcrumb(node: Node, allNodes: Node[]): string {
   // If node has a page_id different from parent, add page name
   if (node.page_id && node.page_id !== node.parent_id) {
     const page = allNodes.find(n => n.id === node.page_id);
-    if (page && !parts.includes(page.name || 'Untitled')) {
-      parts.unshift(page.name || 'Untitled');
+    if (page) {
+      const pageName = nodeNameToText(page.name) || 'Untitled';
+      if (!parts.includes(pageName)) {
+        parts.unshift(pageName);
+      }
     }
   }
   

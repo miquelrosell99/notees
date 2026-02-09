@@ -9,6 +9,7 @@ import { useState, useCallback } from 'react';
 import './CommentsSidebar.css';
 import { useNodesStore } from '@/stores';
 import { useComments, useCreateComment, useDeleteComment, useUpdateNode, useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { mdiClose } from '@mdi/js';
 import { AddIcon, CommentIcon, TrashIcon } from '../icons';
 import { Card } from '../core/Card';
@@ -181,7 +182,7 @@ export function CommentsSidebar() {
         <div className="comments-node-info">
           <span className="comments-node-name">
             {node.icon && <span className="comments-node-icon">{node.icon}</span>}
-            {node.name || 'Untitled'}
+            {nodeNameToText(node.name) || 'Untitled'}
           </span>
         </div>
       )}

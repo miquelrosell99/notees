@@ -8,6 +8,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNodeSearch, usePages } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Node } from '@/types/api';
 import type { QueryAST, ConditionNode, GroupNode, NotNode, ParentPathCondition } from '@/types/queryAST';
 import { Button } from '../core/Button';
@@ -410,7 +411,7 @@ export function QuickPageFilter({
                           readOnly
                         />
                         <NodeIcon icon={page.icon} isPage={true} size="xs" />
-                        <span className="quick-page-filter__item-name">{page.name || 'Untitled'}</span>
+                        <span className="quick-page-filter__item-name">{nodeNameToText(page.name) || 'Untitled'}</span>
                       </div>
                     );
                   })}

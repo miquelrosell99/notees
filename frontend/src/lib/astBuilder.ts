@@ -101,17 +101,23 @@ export function fromPlainText(s: string): ASTDocument {
  *
  * Returns an empty document if the input is invalid.
  * This is the ONLY way to deserialize a `name` column value.
+ * 
+ * Note: The name field must ALWAYS contain valid AST JSON.
+ * Use the AST builder functions (paragraph, text, etc.) to create content.
  */
 export function parseAST(input: unknown): ASTDocument {
   if (typeof input === 'string') {
     if (!input) return [];
     try {
       const parsed = JSON.parse(input);
+      if (!Array.isArray(parsed)) {
+        // Invalid: not an AST array
+        return [];
+      }
       return validateDocument(parsed);
     } catch {
-      // If it's not valid JSON, treat as legacy plain-text name.
-      // Wrap in a paragraph for backward compatibility during migration.
-      return [paragraph(text(input))];
+      // Invalid JSON - should never happen with properly created AST
+      return [];
     }
   }
   if (Array.isArray(input)) {

@@ -10,9 +10,11 @@
  */
 import { useMemo, useCallback, useState, useRef } from 'react';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
+import { ASTViewerModal } from './ASTViewerModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { SearchBox } from '../SearchBox';
@@ -92,7 +94,8 @@ function useCommonMenuItems(
   node: Node, 
   onClose: () => void, 
   onDeleteClick: () => void,
-  onArchiveClick: () => void
+  onArchiveClick: () => void,
+  onViewAST?: () => void
 ): ContextMenuItem[] {
   const unarchiveNode = useUnarchiveNode();
   const { addSidebarCard, openLocalGraph } = useNodesStore();
@@ -112,7 +115,7 @@ function useCommonMenuItems(
         label: 'Copy link',
         shortcut: '⌘C',
         onClick: () => {
-          const link = `[[${node.name || 'Untitled'}]]`;
+          const link = `[[${node.uuid}]]`;
           navigator.clipboard.writeText(link);
           onClose();
         }
@@ -135,8 +138,19 @@ function useCommonMenuItems(
           onClose();
         }
       },
-      { id: 'sep-common-2', label: '', separator: true },
     ];
+    
+    // View AST (debug) - keepOpen so modal renders before unmount
+    if (onViewAST) {
+      items.push({
+        id: 'view-ast',
+        label: 'View AST',
+        keepOpen: true,
+        onClick: onViewAST
+      });
+    }
+    
+    items.push({ id: 'sep-common-2', label: '', separator: true });
     
     // Archive/Unarchive
     if (node.active !== false) {
@@ -168,7 +182,7 @@ function useCommonMenuItems(
     });
     
     return items;
-  }, [node, onClose, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick]);
+  }, [node, onClose, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick, onViewAST]);
 }
 
 // ==================== Node Context Menu (Base) ====================
@@ -181,6 +195,7 @@ interface NodeContextMenuProps extends BaseContextMenuProps {}
 export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showASTModal, setShowASTModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -205,7 +220,11 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
     }
   }, [node.parent_id, node.id, archiveNode, onClose]);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
+  const handleViewAST = useCallback(() => {
+    setShowASTModal(true);
+  }, []);
+  
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
@@ -238,7 +257,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   
   return (
     <>
-      {!showDeleteModal && !showArchiveModal && (
+      {!showDeleteModal && !showArchiveModal && !showASTModal && (
         <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -252,7 +271,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
       <ConfirmationModal
         isOpen={showDeleteModal}
         title="Delete page"
-        message={`Are you sure you want to delete "${node.name || 'Untitled'}"?`}
+        message={`Are you sure you want to delete "${nodeNameToText(node.name) || 'Untitled'}"?`}
         secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
@@ -271,6 +290,11 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
         onConfirm={handleConfirmArchive}
         onCancel={handleCancelArchive}
       />
+      <ASTViewerModal
+        isOpen={showASTModal}
+        onClose={() => { setShowASTModal(false); onClose(); }}
+        node={node}
+      />
     </>
   );
 }
@@ -288,6 +312,7 @@ interface PageContextMenuProps extends BaseContextMenuProps {
 export function PageContextMenu({ node, position, onClose, onParentChange }: PageContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showASTModal, setShowASTModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -306,7 +331,11 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     }
   }, [node.parent_id, node.id, archiveNode, onClose]);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
+  const handleViewAST = useCallback(() => {
+    setShowASTModal(true);
+  }, []);
+  
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
@@ -421,7 +450,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   
   return (
     <>
-      {!showDeleteModal && !showArchiveModal && (
+      {!showDeleteModal && !showArchiveModal && !showASTModal && (
         <div ref={wrapperRef} className="page-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -435,7 +464,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
       <ConfirmationModal
         isOpen={showDeleteModal}
         title="Delete page"
-        message={`Are you sure you want to delete "${node.name || 'Untitled'}"?`}
+        message={`Are you sure you want to delete "${nodeNameToText(node.name) || 'Untitled'}"?`}
         secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"
@@ -453,6 +482,11 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         variant="danger"
         onConfirm={handleConfirmArchive}
         onCancel={handleCancelArchive}
+      />
+      <ASTViewerModal
+        isOpen={showASTModal}
+        onClose={() => { setShowASTModal(false); onClose(); }}
+        node={node}
       />
     </>
   );
@@ -478,6 +512,7 @@ export function BlockContextMenu({
   onMoveBlock 
 }: BlockContextMenuProps) {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showASTModal, setShowASTModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -492,7 +527,11 @@ export function BlockContextMenu({
     setShowArchiveModal(true);
   }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick);
+  const handleViewAST = useCallback(() => {
+    setShowASTModal(true);
+  }, []);
+  
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST);
   const updateNode = useUpdateNode();
   
   const blockItems = useMemo((): ContextMenuItem[] => {
@@ -544,7 +583,7 @@ export function BlockContextMenu({
   
   return (
     <>
-      {!showArchiveModal && (
+      {!showArchiveModal && !showASTModal && (
         <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -565,6 +604,11 @@ export function BlockContextMenu({
         variant="danger"
         onConfirm={handleConfirmArchive}
         onCancel={handleCancelArchive}
+      />
+      <ASTViewerModal
+        isOpen={showASTModal}
+        onClose={() => { setShowASTModal(false); onClose(); }}
+        node={node}
       />
     </>
   );

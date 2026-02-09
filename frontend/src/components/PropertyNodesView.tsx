@@ -8,6 +8,7 @@ import { useState, useMemo, useCallback } from 'react';
 import './PropertyNodesView.css';
 import { useQuery } from '@tanstack/react-query';
 import { getNodesWithProperty } from '@/api/properties';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon } from './icons';
@@ -152,8 +153,8 @@ function PropertyNodesList({
                 <BulletIcon size="xs" />
               )}
             </span>
-            <span className="property-nodes-view__item-name">
-              {node.name || 'Untitled'}
+                        <span className="property-nodes-view__item-name">
+              {nodeNameToText(node.name) || 'Untitled'}
             </span>
             <span className="property-nodes-view__item-value">
               {property.type === 'boolean' ? (

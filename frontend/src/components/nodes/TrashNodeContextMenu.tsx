@@ -6,6 +6,7 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { restoreNode, permanentDeleteNode } from '@/api/nodes';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { nodeKeys } from '@/hooks/useNodes';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
@@ -115,7 +116,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       <ConfirmationModal
         isOpen={showRestoreModal}
         title="Restore Node"
-        message={`Restore "${node.name || 'Untitled'}" from trash?`}
+        message={`Restore "${nodeNameToText(node.name) || 'Untitled'}" from trash?`}
         confirmLabel="Restore"
         cancelLabel="Cancel"
         variant="primary"
@@ -125,7 +126,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       <ConfirmationModal
         isOpen={showPermanentDeleteModal}
         title="Permanently Delete"
-        message={`Are you sure you want to permanently delete "${node.name || 'Untitled'}"? This cannot be undone!`}
+        message={`Are you sure you want to permanently delete "${nodeNameToText(node.name) || 'Untitled'}"? This cannot be undone!`}
         confirmLabel="Delete Permanently"
         cancelLabel="Cancel"
         variant="danger"
