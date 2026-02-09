@@ -115,10 +115,13 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline' }: NodeBreadcr
  * Returns breadcrumb items from root ancestor → immediate parent
  * (the current node itself is excluded).
  *
+ * For pages: walks the full parent_id chain (page → parent page → …).
+ * For blocks: walks up to (and including) the containing page, then stops.
+ *
  * Uses a fixed number of hook slots (20 max levels) — hooks beyond
  * the actual depth are disabled via null IDs.
  */
-function useAncestorChain(nodeId: number | null): BreadcrumbItem[] {
+function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): BreadcrumbItem[] {
   const { data: n0 } = useNode(nodeId);
   const { data: n1 } = useNode(n0?.parent_id ?? null);
   const { data: n2 } = useNode(n1?.parent_id ?? null);
@@ -151,12 +154,14 @@ function useAncestorChain(nodeId: number | null): BreadcrumbItem[] {
         icon: node.icon,
         isPage: node.is_page,
       });
+      // For blocks, stop once we reach the containing page
+      if (nodeType === 'block' && node.is_page) break;
     }
     // Reverse: we walked child→root, we want root→child
     chain.reverse();
     return chain;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19]);
+  }, [n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19, nodeType]);
 }
 
 // ─── NodeBreadcrumbs (main) ──────────────────────────────────────────────────
@@ -194,8 +199,8 @@ export function NodeBreadcrumbs({
   const popupRef = useRef<HTMLDivElement>(null);
   const ellipsisRef = useRef<HTMLButtonElement>(null);
 
-  // Walk the full ancestor chain
-  const ancestorBreadcrumbs = useAncestorChain(nodeId);
+  // Walk the full ancestor chain (stops at page for blocks)
+  const ancestorBreadcrumbs = useAncestorChain(nodeId, nodeType);
 
   // Build final breadcrumbs including property context
   const breadcrumbs = useMemo(() => {
