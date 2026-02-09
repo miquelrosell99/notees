@@ -37,7 +37,7 @@ const ATTRACTION_STRENGTH = 0.02;
 const ATTRACTION_STRENGTH_LINK_COUNT = 0.008;
 const REFERENCE_LINK_FORCE_MULTIPLIER = 0.5;
 const REPULSION_STRENGTH = 500;
-const VELOCITY_DAMPING = 0.75;
+const VELOCITY_DAMPING = 0.7;
 const RETURN_FORCE = 0.08;
 const DRAG_PULL_STRENGTH = 0.15;
 const PARENT_MASS_PER_CHILD = 2;
@@ -46,8 +46,8 @@ const MAX_VELOCITY = 10; // Clamp velocity to prevent explosive movement
 const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full strength
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
 const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
-const VELOCITY_DEADZONE = 0.05; // Zero out velocity below this to prevent jitter near equilibrium
-const LINK_DAMPING = 0.6; // Dashpot: damp relative velocity between linked nodes to prevent oscillation
+const VELOCITY_DEADZONE = 0.1; // Zero out velocity below this to prevent jitter near equilibrium
+const LINK_DAMPING = 0.4; // Dashpot: damp relative velocity along spring axis to prevent oscillation
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
@@ -1686,12 +1686,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             netForce += repulsionCompensation;
           }
           
-          // Dashpot: damp full relative velocity (both radial and tangential) to prevent jitter
-          const rvx = (nodeB.vx - nodeA.vx) * LINK_DAMPING;
-          const rvy = (nodeB.vy - nodeA.vy) * LINK_DAMPING;
+          // Dashpot: damp relative velocity along spring axis to prevent radial oscillation
+          const rvx = nodeB.vx - nodeA.vx;
+          const rvy = nodeB.vy - nodeA.vy;
+          const relVelAlongSpring = (rvx * dx + rvy * dy) / dist;
+          netForce += relVelAlongSpring * LINK_DAMPING;
           
-          const fx = (dx / dist) * netForce + rvx;
-          const fy = (dy / dist) * netForce + rvy;
+          const fx = (dx / dist) * netForce;
+          const fy = (dy / dist) * netForce;
           
           if (!nodeA.pinned) {
             nodeA.vx += fx / massA;
