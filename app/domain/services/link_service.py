@@ -431,7 +431,7 @@ class LinkParsingService:
         """Parse content and update inline class links for a node.
         
         Inline class references (ref_type='class' in AST) are stored as
-        NodeLink entries with is_inline_class=True.
+        NodeLink entries with is_inline_class=True AND added to class_ids array.
         
         Args:
             node_id: The block containing the inline class references
@@ -440,6 +440,18 @@ class LinkParsingService:
         Returns:
             List of created NodeLink objects (with is_inline_class=True)
         """
+        # Get old inline class IDs BEFORE deleting them
+        from ...db.connection import acquire_connection
+        pool = self._node_repo.get_connection()
+        
+        old_inline_class_ids = set()
+        async with acquire_connection(pool) as conn:
+            old_inline_rows = await conn.fetch(
+                "SELECT DISTINCT target_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE",
+                node_id
+            )
+            old_inline_class_ids = {r['target_id'] for r in old_inline_rows}
+        
         # Remove existing inline class links from this source
         await self._link_repo.delete_source_inline_classes(node_id)
         
@@ -447,6 +459,7 @@ class LinkParsingService:
         parsed = self.parse_inline_classes(content)
         
         created_links = []
+        new_inline_class_ids = []
         
         for class_id, position in parsed:
             # Verify the class node exists
@@ -462,6 +475,30 @@ class LinkParsingService:
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)
+            new_inline_class_ids.append(class_id)
+        
+        # Update class_ids array to include inline classes
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT class_ids FROM node WHERE id = $1",
+                node_id
+            )
+            if row:
+                current_class_ids = list(row['class_ids'] or [])
+                
+                # Remove old inline classes from class_ids
+                filtered_class_ids = [cid for cid in current_class_ids if cid not in old_inline_class_ids]
+                
+                # Add new inline classes to class_ids (avoid duplicates)
+                for class_id in new_inline_class_ids:
+                    if class_id not in filtered_class_ids:
+                        filtered_class_ids.append(class_id)
+                
+                # Update the class_ids array
+                await conn.execute(
+                    "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
+                    filtered_class_ids, node_id
+                )
         
         return created_links
     
