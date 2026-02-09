@@ -2574,9 +2574,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         hoveredNodeRef.current = node;
         setHoveredNode(node);
         onHoveredNodeChange?.(node);
+        // Re-render canvas so hover visual (larger circle) appears even when simulation is sleeping
+        requestRender();
       }
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect]);
+  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect, requestRender]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
