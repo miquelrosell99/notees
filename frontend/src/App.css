@@ -51,35 +51,7 @@ svg.mdi-icon,
   gap: var(--container-gap);
 }
 
-/* ==================== Main Container ==================== */
-.main-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  overflow: hidden;
-  min-width: 0;
-}
-
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  /* padding: var(--spacing-6); */
-  background: var(--color-surface);
-}
-
-/* ==================== Common States ==================== */
-.empty-state,
-.loading-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  color: var(--color-on-surface-variant);
-}
+/* Main container and content styles are in Layout.css */
 
 /* ==================== Node List ==================== */
 .node-list {
