@@ -547,6 +547,12 @@ export function useUpdateNode() {
         refetch: true,
       });
       
+      // Invalidate inline classes query to update pill display
+      queryClient.invalidateQueries({ 
+        queryKey: ['inlineClasses', updatedNode.id],
+        refetchType: 'active',
+      });
+      
       // If parent_id was updated, invalidate and refetch parent's view queries
       // to update child_pages sections immediately
       if (variables.data.parent_id !== undefined) {

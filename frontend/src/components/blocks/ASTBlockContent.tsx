@@ -43,6 +43,8 @@ export interface ASTBlockContentProps {
   className?: string;
   /** Callback when a link should be replaced with a different node. */
   onReplaceLink?: (oldLinkId: string, newNodeId: number, newLinkUuid: string) => void;
+  /** Callback when a link should be removed from content. */
+  onRemoveLink?: (linkId: string) => void;
 }
 
 // ─── Internal sub-components ──────────────────────────────────────
@@ -117,6 +119,7 @@ export function ASTBlockContent({
   onClick,
   className = '',
   onReplaceLink,
+  onRemoveLink,
 }: ASTBlockContentProps) {
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
   const { openNode, addSidebarCard } = useNodesStore();
@@ -158,6 +161,12 @@ export function ASTBlockContent({
     }
   }, [onReplaceLink]);
 
+  const handleRemoveLink = useCallback((linkId: string) => {
+    if (onRemoveLink) {
+      onRemoveLink(linkId);
+    }
+  }, [onRemoveLink]);
+
   // ─── Check if plain text (no AST needed) ──────────────────────
   if (ast.length === 0) {
     return <span className={`block-content ${className}`} onClick={onClick} />;
@@ -183,6 +192,7 @@ export function ASTBlockContent({
           onNavigate={handleNavigate}
           onColorChange={handleColorChange}
           onReplaceLink={handleReplaceLink}
+          onRemoveLink={handleRemoveLink}
         />
       ))}
     </span>
@@ -198,6 +208,7 @@ interface RenderParagraphProps {
   onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
   onColorChange: (nodeId: number, color: string | null) => void;
   onReplaceLink: (linkId: string, newNode: Node) => void;
+  onRemoveLink: (linkId: string) => void;
 }
 
 function RenderParagraph({
@@ -207,6 +218,7 @@ function RenderParagraph({
   onNavigate,
   onColorChange,
   onReplaceLink,
+  onRemoveLink,
 }: RenderParagraphProps) {
   return (
     <>
@@ -219,6 +231,7 @@ function RenderParagraph({
           onNavigate={onNavigate}
           onColorChange={onColorChange}
           onReplaceLink={onReplaceLink}
+          onRemoveLink={onRemoveLink}
         />
       ))}
     </>
@@ -232,6 +245,7 @@ interface NodePillWithStatusProps {
   clickCount: number;
   onColorChange: (color: string | null) => void;
   onReplaceLink: (newNode: Node) => void;
+  onRemove?: () => void;
 }
 
 function NodePillWithStatus({
@@ -239,6 +253,7 @@ function NodePillWithStatus({
   clickCount,
   onColorChange,
   onReplaceLink,
+  onRemove,
 }: NodePillWithStatusProps) {
   const { data: node, isError } = useNode(nodeId);
 
@@ -259,6 +274,7 @@ function NodePillWithStatus({
       readOnly={false}
       onColorChange={onColorChange}
       onReplace={onReplaceLink}
+      onRemove={onRemove}
     />
   );
 }
@@ -271,6 +287,7 @@ interface RenderInlineProps {
   onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
   onColorChange: (nodeId: number, color: string | null) => void;
   onReplaceLink: (linkId: string, newNode: Node) => void;
+  onRemoveLink: (linkId: string) => void;
 }
 
 function RenderInlineNode({
@@ -279,6 +296,7 @@ function RenderInlineNode({
   onNavigate,
   onColorChange,
   onReplaceLink,
+  onRemoveLink,
 }: RenderInlineProps) {
   switch (node.type) {
     case 'text':
@@ -306,6 +324,7 @@ function RenderInlineNode({
             clickCount={clickCounts.get(node.link_id) ?? 0}
             onColorChange={color => onColorChange(numericId, color)}
             onReplaceLink={newNode => onReplaceLink(node.link_id, newNode)}
+            onRemove={() => onRemoveLink(node.link_id)}
           />
         );
       }
@@ -317,7 +336,7 @@ function RenderInlineNode({
       return (
         <strong>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </strong>
       );
@@ -326,7 +345,7 @@ function RenderInlineNode({
       return (
         <em>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </em>
       );
@@ -338,7 +357,7 @@ function RenderInlineNode({
       return (
         <s>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </s>
       );
@@ -347,7 +366,7 @@ function RenderInlineNode({
       return (
         <mark>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </mark>
       );
@@ -362,7 +381,7 @@ function RenderInlineNode({
           onClick={e => e.stopPropagation()}
         >
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </a>
       );

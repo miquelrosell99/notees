@@ -206,6 +206,35 @@ function BlockInternal({
       });
     }
   }, [block, updateNode]);
+
+  // Handle removing a link from block content (AST-based)
+  const handleRemoveLink = useCallback((linkId: string) => {
+    if (!block) return;
+    const ast = parseAST(block.name);
+    // Remove the link by replacing it with an empty text node
+    const removeLink = (nodes: unknown[]): unknown[] => {
+      return nodes.flatMap((node) => {
+        if (typeof node !== 'object' || node === null) return [node];
+        const n = node as Record<string, unknown>;
+        if (n.type === 'node_link' && n.link_id === linkId) {
+          // Remove this node entirely
+          return [];
+        }
+        if ('children' in n && Array.isArray(n.children)) {
+          return [{ ...n, children: removeLink(n.children) }];
+        }
+        return [node];
+      });
+    };
+    const updated = ast.map(para => ({
+      ...para,
+      children: removeLink(para.children),
+    }));
+    updateNode.mutate({
+      id: block.id,
+      data: { name: JSON.stringify(updated) },
+    });
+  }, [block, updateNode]);
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
   const setPropertyMutation = useSetNodeProperty();
@@ -311,6 +340,48 @@ function BlockInternal({
   
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useResolvedClassDetails(block.classes, { skipNodesFallback: true });
+  
+  // Extract inline class IDs directly from block content
+  // This is more reliable than an API call since we already have the content
+  const inlineClassIds = useMemo(() => {
+    if (!block.name) return new Set<number>();
+    
+    try {
+      const ast = JSON.parse(block.name);
+      const ids = new Set<number>();
+      
+      // Recursively find all node_link with ref_type='class'
+      const walk = (nodes: unknown[]): void => {
+        if (!Array.isArray(nodes)) return;
+        for (const node of nodes) {
+          if (typeof node !== 'object' || node === null) continue;
+          const n = node as Record<string, unknown>;
+          if (n.type === 'node_link' && n.ref_type === 'class') {
+            const linkId = String(n.link_id || '');
+            // link_id format is "classId" or "classId:uuid"
+            const classId = parseInt(linkId.split(':')[0], 10);
+            if (!isNaN(classId)) {
+              ids.add(classId);
+            }
+          }
+          if ('children' in n && Array.isArray(n.children)) {
+            walk(n.children);
+          }
+        }
+      };
+      
+      walk(ast);
+      return ids;
+    } catch {
+      // Content is not valid JSON AST
+      return new Set<number>();
+    }
+  }, [block.name]);
+  
+  // Filter out inline classes from the class pills display
+  const displayClassDetails = useMemo(() => {
+    return blockClassDetails.filter(classNode => !inlineClassIds.has(classNode.id));
+  }, [blockClassDetails, inlineClassIds]);
   
   // Determine the icon to show on the bullet
   // Priority: block's own icon > first class's icon
@@ -1888,6 +1959,7 @@ function BlockInternal({
                   blockId={block.id}
                   onClick={() => {}}
                   onReplaceLink={handleReplaceLink}
+                  onRemoveLink={handleRemoveLink}
                 />
               )}
               
@@ -1911,9 +1983,9 @@ function BlockInternal({
         </Card>
         
         {/* Block classes - right-aligned */}
-        {showClasses && blockClassDetails.length > 0 && (
+        {showClasses && displayClassDetails.length > 0 && (
           <div className="block-types">
-            {blockClassDetails.map((classNode: Node) => {
+            {displayClassDetails.map((classNode: Node) => {
               return (
                 <NodePill
                   key={classNode.id}
@@ -2079,6 +2151,7 @@ function BlockInternal({
                         blockId={block.id}
                         onClick={() => {}}
                         onReplaceLink={handleReplaceLink}
+                        onRemoveLink={handleRemoveLink}
                       />
                     )}
                     
@@ -2102,9 +2175,9 @@ function BlockInternal({
               </Card>
               
               {/* Block classes */}
-              {showClasses && blockClassDetails.length > 0 && (
+              {showClasses && displayClassDetails.length > 0 && (
                 <div className="block-types">
-                  {blockClassDetails.map((classNode: Node) => {
+                  {displayClassDetails.map((classNode: Node) => {
                     return (
                       <NodePill
                         key={classNode.id}
