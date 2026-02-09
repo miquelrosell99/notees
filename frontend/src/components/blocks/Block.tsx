@@ -36,7 +36,7 @@ import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, u
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
 import { useNodesStore } from '@/stores/nodesStore';
-import { BlockEditor, type TaskState, type PastedTable } from './BlockEditor';
+import { ASTBlockEditor as BlockEditor, type TaskState, type PastedTable } from './ASTBlockEditor';
 import { Bullet } from './Bullet';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -53,11 +53,13 @@ import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node, Property, PropertyCreate } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
-import { BlockContent } from './BlockContent';
+import { ASTBlockContent as BlockContent } from './ASTBlockContent';
 import { CodeBlock } from './CodeBlock';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
 import { ImageNode } from '../ImageNode';
+import { parseAST } from '@/lib/astBuilder';
+import { replaceNodeLink } from '@/lib/astMutations';
 import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
 import { findNodeById } from '@/utils/nodeTree';
@@ -191,15 +193,18 @@ function BlockInternal({
   const setNodeProperty = useSetNodeProperty();
   const { data: allProperties } = useProperties();
 
-  // Handle replacing a link in block content
-  const handleReplaceLink = useCallback((oldRaw: string, newNodeId: number, newLinkUuid: string) => {
+  // Handle replacing a link in block content (AST-based)
+  const handleReplaceLink = useCallback((oldLinkId: string, newNodeId: number, newLinkUuid: string) => {
     if (!block) return;
-    const newLinkText = `[[${newNodeId}:${newLinkUuid}]]`;
-    const newContent = block.name.replace(oldRaw, newLinkText);
-    updateNode.mutate({
-      id: block.id,
-      data: { name: newContent },
-    });
+    const ast = parseAST(block.name);
+    const newLinkFullId = `${newNodeId}:${newLinkUuid}`;
+    const updated = replaceNodeLink(ast, oldLinkId, newLinkFullId, 'node');
+    if (updated !== ast) {
+      updateNode.mutate({
+        id: block.id,
+        data: { name: JSON.stringify(updated) },
+      });
+    }
   }, [block, updateNode]);
   const removeClass = useRemoveClass();
   const addClass = useAddClass();

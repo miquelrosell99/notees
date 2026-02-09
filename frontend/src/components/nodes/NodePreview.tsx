@@ -10,7 +10,7 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore, useBlockSelectionStore } from '@/stores';
 import { mdiPlus, mdiOpenInNew, mdiArrowExpand, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
-import { BlockEditor } from '../blocks/BlockEditor';
+import { ASTBlockEditor as BlockEditor } from '../blocks/ASTBlockEditor';
 import { BlockPreview } from '../blocks/BlockPreview';
 import { Bullet } from '../blocks/Bullet';
 import { NodeIcon } from '../icons';
