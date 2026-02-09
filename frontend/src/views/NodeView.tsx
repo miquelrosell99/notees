@@ -35,6 +35,7 @@ import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { useBlockCallbacksFactory } from '../components/blocks/useBlockCallbacksFactory';
+import { useResetNodeViews } from '@/hooks/useNodeViews';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/PropertiesSection';
@@ -217,6 +218,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const createNode = useCreateNode();
   const setPropertyMutation = useSetNodeProperty();
   const createPropertyMutation = useCreateProperty();
+  const resetNodeViews = useResetNodeViews();
   
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
@@ -810,8 +812,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             size="sm"
             onClick={async () => {
               try {
-                const { useResetNodeViews } = await import('@/hooks/useNodeViews');
-                await useResetNodeViews().mutateAsync(nodeId);
+                await resetNodeViews.mutateAsync(nodeId);
               } catch (error) {
                 console.error('Failed to reset views:', error);
               }
