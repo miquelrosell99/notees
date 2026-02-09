@@ -16,6 +16,8 @@ import { useAddClass, useAddTag, useAddTagLink, useCreateNode, useSystemClasses 
 import { useNodesStore } from '@/stores';
 import type { BlockCallbacks } from './BlockCallbacksContext';
 import type { AssetCategory } from '@/api/assets';
+import { parseDate } from '@/utils/dateParser';
+import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 
 interface BlockCallbacksFactoryOptions {
   /** Handler for opening backlinks — varies by context (sidebar vs page view) */
@@ -63,6 +65,21 @@ export function useBlockCallbacksFactory(options: BlockCallbacksFactoryOptions):
     },
     onCreatePageLink: async (name) => {
       try {
+        // Check if the name is a date format — create date page instead of regular page
+        const parsedDate = parseDate(name);
+        if (parsedDate) {
+          let dateNode;
+          if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
+            const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
+            dateNode = await getOrCreateDaily(dateStr);
+          } else if (parsedDate.type === 'month' && parsedDate.month) {
+            dateNode = await getOrCreateMonthly(parsedDate.year, parsedDate.month);
+          } else {
+            dateNode = await getOrCreateYearly(parsedDate.year);
+          }
+          return String(dateNode.id);
+        }
+        
         if (!systemClassIds?.page) return undefined;
         const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
         return String(newPage.id);

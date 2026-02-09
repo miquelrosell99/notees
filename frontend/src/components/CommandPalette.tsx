@@ -14,13 +14,16 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties } from '@/hooks';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
-import { listNodes } from '@/api/nodes';
+import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import type { Node, Property } from '@/types';
-import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon } from './icons';
+import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon } from './icons';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from './SuggestionPopup';
 import { NodePill } from './NodePill';
+import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
+import { useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
 
 export interface CommandPaletteProps {
   /** Whether the palette is open */
@@ -280,9 +283,32 @@ export function CommandPalette({
   // Display name for page creation (without @class suffix)
   const pageNameForCreation = searchTerm.trim();
   
+  // Parse query for date formats
+  const parsedDate = useMemo(() => parseDate(searchTerm), [searchTerm]);
+  
+  // Check if the date page already exists by looking up its deterministic UUID
+  const existingDateNode = useMemo(() => {
+    if (!parsedDate || !allPages) return null;
+    const uuid = generateDateUuid(parsedDate);
+    return allPages.find(p => p.uuid === uuid) ?? null;
+  }, [parsedDate, allPages]);
+  
+  // Query client for cache invalidation after date page creation
+  const queryClient = useQueryClient();
+  
   // All selectable items (pages, blocks, properties, quick-add actions)
   const allItems = useMemo(() => {
-    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add'; result?: SearchResult; label?: string }> = [];
+    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node }> = [];
+    
+    // Date suggestion (shown at top if query matches a date format)
+    if (parsedDate) {
+      const dateTypeLabel = parsedDate.type === 'day' ? 'daily' : parsedDate.type === 'month' ? 'monthly' : 'yearly';
+      if (existingDateNode) {
+        items.push({ type: 'date', label: `Go to ${dateTypeLabel} page: ${existingDateNode.name || parsedDate.label}`, parsedDate, existingNode: existingDateNode });
+      } else {
+        items.push({ type: 'date', label: `Create ${dateTypeLabel} page: ${parsedDate.label}`, parsedDate });
+      }
+    }
     
     // Pages section
     pages.forEach(result => items.push({ type: 'page', result }));
@@ -307,7 +333,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses]);
+  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode]);
   
   // Focus input when opened
   useEffect(() => {
@@ -377,6 +403,42 @@ export function CommandPalette({
     if (!item) return;
     
     switch (item.type) {
+      case 'date': {
+        // Navigate to date page — use existing if found, create if not
+        const pd = item.parsedDate;
+        if (!pd) break;
+        try {
+          let dateNode: Node;
+          if (item.existingNode) {
+            // Page already exists, navigate directly
+            dateNode = item.existingNode;
+          } else {
+            // Create the date page via API
+            if (pd.type === 'day' && pd.month && pd.day) {
+              const dateStr = `${pd.year}-${String(pd.month).padStart(2, '0')}-${String(pd.day).padStart(2, '0')}`;
+              dateNode = await getOrCreateDaily(dateStr);
+            } else if (pd.type === 'month' && pd.month) {
+              dateNode = await getOrCreateMonthly(pd.year, pd.month);
+            } else {
+              dateNode = await getOrCreateYearly(pd.year);
+            }
+            // Invalidate caches so the new page appears everywhere
+            queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+            queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
+          }
+          if (onSelect) {
+            onSelect(dateNode);
+          } else {
+            openNode(dateNode.id, 'page');
+          }
+        } catch (error) {
+          console.error('Failed to navigate to date page:', error);
+        }
+        onClose();
+        break;
+      }
+      
       case 'page':
       case 'block':
         if (item.result?.node) {
@@ -459,7 +521,7 @@ export function CommandPalette({
         onClose();
         break;
     }
-  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose]);
+  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose, queryClient]);
   
   // Keyboard list navigation
   const { selectedIndex, handleKeyDown: listKeyDown } = useKeyboardListNav({
@@ -491,6 +553,7 @@ export function CommandPalette({
   if (!isOpen) return null;
   
   // Group items for rendering
+  const dateItems = allItems.filter(i => i.type === 'date');
   const pageItems = allItems.filter(i => i.type === 'page' || i.type === 'add-page');
   const blockItems = allItems.filter(i => i.type === 'block');
   const propertyItems = allItems.filter(i => i.type === 'property');
@@ -578,6 +641,30 @@ export function CommandPalette({
               {!isLoading && !query && (
                 <div className="command-palette__hint">
                   Start typing to search pages, blocks, and properties
+                </div>
+              )}
+              
+              {/* Date suggestion section */}
+              {dateItems.length > 0 && (
+                <div className="command-palette__section">
+                  <div className="command-palette__section-header">Date Pages</div>
+                  {dateItems.map((item) => {
+                    const globalIndex = allItems.indexOf(item);
+                    return (
+                      <button
+                        key="date-page"
+                        className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                        onClick={() => handleSelect(globalIndex)}
+                      >
+                        <span className="command-palette__result-icon">
+                          <CalendarIcon size="sm" />
+                        </span>
+                        <span className="command-palette__result-content">
+                          <span className="command-palette__result-name">{item.label}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               
