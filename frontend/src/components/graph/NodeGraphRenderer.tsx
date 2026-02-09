@@ -47,7 +47,7 @@ const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
 const SLEEP_KE_PER_NODE = 0.005; // Per-node contribution to sleep threshold (scales with graph size)
 const VELOCITY_DEADZONE = 0.05; // Zero out velocity below this to prevent jitter near equilibrium
-const LINK_DAMPING = 0.3; // Dashpot: damp relative velocity along spring axis to prevent oscillation
+const LINK_DAMPING = 0.6; // Dashpot: damp relative velocity between linked nodes to prevent oscillation
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones

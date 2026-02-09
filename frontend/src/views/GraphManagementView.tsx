@@ -288,7 +288,6 @@ export function GraphManagementView({
                   className={`graph-management__card ${graph.name === data?.active ? 'graph-management__card--active' : ''} ${deleteConfirm === graph.name ? 'graph-management__card--delete-confirm' : ''}`}
                   elevation="low"
                   padding={false}
-                  interactive
                   selected={graph.name === data?.active}
                 >
                   <div className="graph-management__card-header">
