@@ -649,7 +649,7 @@ export function ASTBlockEditor({
   }, [readOnly]);
 
   // ─── Selection change handler ──────────────────────────────────
-  const handleSelectionChange = useCallback(() => {
+  const updateSelectionToolbar = useCallback(() => {
     if (readOnly || !editorRef.current) {
       setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
       return;
@@ -668,24 +668,34 @@ export function ASTBlockEditor({
       return;
     }
 
+    // Get selection bounds
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0) {
+      setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+      return;
+    }
+
     // Get selection range in logical characters
+    // Clone the range to avoid modifying the actual selection
+    const clonedRange = range.cloneRange();
+    
+    // Calculate start position
+    clonedRange.collapse(true);
+    const tempSel = window.getSelection();
+    tempSel?.removeAllRanges();
+    tempSel?.addRange(clonedRange);
     const start = getCursorPosition(editorRef.current);
     
-    // Get end position by temporarily moving cursor to end of selection
-    const savedStart = { node: range.startContainer, offset: range.startOffset };
-    const tempRange = document.createRange();
-    tempRange.setStart(range.endContainer, range.endOffset);
-    tempRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(tempRange);
+    // Calculate end position
+    const endRange = range.cloneRange();
+    endRange.collapse(false);
+    tempSel?.removeAllRanges();
+    tempSel?.addRange(endRange);
     const end = getCursorPosition(editorRef.current);
     
     // Restore original selection
-    const restoreRange = document.createRange();
-    restoreRange.setStart(savedStart.node, savedStart.offset);
-    restoreRange.setEnd(range.endContainer, range.endOffset);
-    sel.removeAllRanges();
-    sel.addRange(restoreRange);
+    tempSel?.removeAllRanges();
+    tempSel?.addRange(range);
 
     const actualStart = Math.min(start, end);
     const actualEnd = Math.max(start, end);
@@ -695,28 +705,46 @@ export function ASTBlockEditor({
       return;
     }
 
-    // Get position for toolbar (above selection)
-    const rect = range.getBoundingClientRect();
+    // Get position for toolbar (below selection, at start)
     const editorRect = editorRef.current.getBoundingClientRect();
     
     setSelectionToolbar({
       visible: true,
       position: {
-        top: rect.top - editorRect.top,
-        left: rect.left + rect.width / 2 - editorRect.left,
+        top: rect.bottom - editorRect.top + 4,
+        left: rect.left - editorRect.left,
       },
       start: actualStart,
       end: actualEnd,
     });
   }, [readOnly]);
 
-  // Attach selectionchange listener
+  // Handle mouse up to show toolbar after selection
+  const handleMouseUp = useCallback(() => {
+    // Small delay to let selection finalize
+    setTimeout(updateSelectionToolbar, 10);
+  }, [updateSelectionToolbar]);
+
+  // Handle keyup for keyboard selection (Shift+Arrow)
+  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    if (e.shiftKey && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) {
+      setTimeout(updateSelectionToolbar, 10);
+    }
+  }, [updateSelectionToolbar]);
+
+  // Hide toolbar on any input or when selection collapses
   useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        setSelectionToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+      }
+    };
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange);
     };
-  }, [handleSelectionChange]);
+  }, []);
 
   // ─── Toolbar formatting handlers ───────────────────────────────
   const handleToolbarBold = useCallback(() => {
@@ -1424,8 +1452,10 @@ export function ASTBlockEditor({
         contentEditable={!readOnly}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
         onPaste={handlePaste}
         onClick={handleEditorClick}
+        onMouseUp={handleMouseUp}
         onCompositionStart={() => { setIsComposing(true); isComposingRef.current = true; }}
         onCompositionEnd={() => {
           setIsComposing(false);
