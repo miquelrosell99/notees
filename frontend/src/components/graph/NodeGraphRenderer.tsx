@@ -1841,7 +1841,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             // Compute tangential direction (perpendicular to radial from center)
             const dax = a.x - cx;
             const day = a.y - cy;
-            const daDist = Math.sqrt(dax * dax + day * dy) || 1;
+            const daDist = Math.sqrt(dax * dax + day * day) || 1;
             
             const radialX = dax / daDist;
             const radialY = day / daDist;
@@ -1855,7 +1855,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             
             // Direct position correction — move nodes apart along tangent
             const overlap = minGlareDist - dist;
-            const correction = overlap * 0.1; // Gentle correction per frame
+            const correction = overlap * 0.15; // Gentle correction per frame
             
             const aMovable = !a.pinned && dragNodeRef.current?.id !== a.id;
             const bMovable = !b.pinned && dragNodeRef.current?.id !== b.id;
