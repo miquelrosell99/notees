@@ -267,15 +267,29 @@
 }
 
 /* Selection states */
+/* Individual selected blocks (not selection root) - minimal styling, let parent Card handle it */
 .block.selected {
-  background-color: var(--color-hover-overlay);
-  box-shadow: inset 0 0 0 2px var(--color-primary);
-  border-radius: var(--shape-medium);
+  /* No visible styling - the selection-root parent provides the Card */
 }
 
+/* Primary selection has slightly different background within the selection */
 .block.primary-selected {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+/* Selection root - topmost selected block, shows Card-like wrapper */
+/* This encompasses the block and all its children (which are also selected) */
+.block.selection-root {
+  background-color: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  border-radius: var(--shape-medium);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  padding: 4px;
+  margin: -4px;
+}
+
+/* Primary selection within selection root */
+.block.selection-root.primary-selected {
   background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  box-shadow: inset 0 0 0 2px var(--color-primary);
 }
 
 .block.editing {

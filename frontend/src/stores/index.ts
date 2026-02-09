@@ -37,6 +37,7 @@ export {
   type SelectionMode,
   type DragState,
   type BoxSelectState,
+  type DragSelectState,
   type EditorSelection,
   type OperationQueueEntry,
 } from './blockSelectionStore';
