@@ -34,7 +34,7 @@ import { BlockErrorBoundary } from './BlockErrorBoundary';
 import { useBlockSelectionStore, type BlockState } from '@/stores/blockSelectionStore';
 import { useMoveNode, useUpdateNode, useDeleteNode, useCreateNode, useClasses, useRemoveClass, useAddClass, useSetNodeProperty, useCreateProperty, useProperties, useResolvedClassDetails } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap } from '@/stores';
+import { useIsBlockSelected, useIsPrimarySelected, useBlockState as useBlockStateSelector, useIsBlockDragging, useSelectionMode, useOpenNodeAction, useEditorSelectionActions, useBlockNavigationActions, useBlockParentMap, useIsSelectionRoot, useIsDragSelecting } from '@/stores';
 import { useNodesStore } from '@/stores/nodesStore';
 import { ASTBlockEditor as BlockEditor, type TaskState, type PastedTable } from './ASTBlockEditor';
 import { Bullet } from './Bullet';
@@ -338,6 +338,10 @@ function BlockInternal({
   const globalIsBeingDragged = useIsBlockDragging(block.id);
   const selectionMode = useSelectionMode();
   
+  // Check if this is a selection root (selected but parent not selected)
+  // Used to wrap only the topmost selected block in a Card, avoiding nested cards
+  const globalIsSelectionRoot = useIsSelectionRoot(block.id, parentId);
+  
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useResolvedClassDetails(block.classes, { skipNodesFallback: true });
   
@@ -422,7 +426,14 @@ function BlockInternal({
     blockParentMap,
     clearSelection,
     selectedBlockIds, // Still need for multi-select operations
+    // Drag selection actions
+    startDragSelect,
+    updateDragSelect,
+    endDragSelect,
   } = useBlockSelectionStore();
+  
+  // Use selector for drag selection state to minimize re-renders
+  const isDragSelecting = useIsDragSelecting();
   
   // Get block state - use local state for isolated blocks, global state otherwise
   // If canEdit is false, always stay in display state
@@ -442,6 +453,7 @@ function BlockInternal({
   // For isolated blocks or non-selectable blocks, selection is handled locally/disabled
   const isSelected = (isolatedState || !canSelect) ? false : globalIsSelected;
   const isPrimarySelected = (isolatedState || !canSelect) ? false : globalIsPrimarySelected;
+  const isSelectionRoot = (isolatedState || !canSelect) ? false : globalIsSelectionRoot;
   const isEditing = blockState === 'edit';
   const isBeingDragged = (isolatedState || !canMove) ? false : globalIsBeingDragged;
   
@@ -531,6 +543,35 @@ function BlockInternal({
     // Regular click outside content area doesn't do anything special
     // Content area click is handled by handleContentClick
   }, [addToSelection, block.id, canSelect]);
+  
+  // Handle mouse down for drag selection start
+  const handleBlockMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only start drag selection on left click without modifiers, on the bullet area
+    if (e.button !== 0 || !canSelect) return;
+    // Don't start drag select if clicking on content area (allow text selection)
+    const target = e.target as HTMLElement;
+    if (target.closest('.block-content') || target.closest('.block-editor')) return;
+    // Start drag selection
+    startDragSelect(block.id);
+  }, [block.id, canSelect, startDragSelect]);
+  
+  // Handle mouse enter for drag selection update
+  const handleBlockMouseEnter = useCallback(() => {
+    if (!canSelect || !isDragSelecting) return;
+    updateDragSelect(block.id);
+  }, [block.id, canSelect, isDragSelecting, updateDragSelect]);
+  
+  // Handle mouse up for drag selection end (attached to document in useEffect)
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (isDragSelecting) {
+        endDragSelect();
+      }
+    };
+    
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [isDragSelecting, endDragSelect]);
   
   // Calculate cursor position from click event using browser's caret position APIs
   const getCursorPositionFromClick = useCallback((e: React.MouseEvent): number | undefined => {
@@ -792,6 +833,7 @@ function BlockInternal({
     const classes = ['block', `block-state--${blockState}`];
     if (isSelected) classes.push('selected');
     if (isPrimarySelected) classes.push('primary-selected');
+    if (isSelectionRoot) classes.push('selection-root');
     if (isEditing) classes.push('editing');
     if (isBeingDragged) classes.push('dragging');
     // Only add drop-inside for background highlight, other positions use drop indicator elements
@@ -802,7 +844,7 @@ function BlockInternal({
     if (isCollapsed) classes.push('collapsed');
     if (!canEdit) classes.push('readonly');
     return classes.join(' ');
-  }, [blockState, isSelected, isPrimarySelected, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, hasQueryResults, isCollapsed, canEdit]);
+  }, [blockState, isSelected, isPrimarySelected, isSelectionRoot, isEditing, isBeingDragged, isDragOver, dropPosition, depth, block.color, hasChildren, hasQueryResults, isCollapsed, canEdit]);
   
   // Indentation style (color now applied to block-content only)
   const blockStyle = useMemo(() => {
@@ -1858,6 +1900,8 @@ function BlockInternal({
       className={classNames}
       style={{ ...blockStyle, ...sortableStyle }}
       onClick={handleBlockClick}
+      onMouseDown={handleBlockMouseDown}
+      onMouseEnter={handleBlockMouseEnter}
       onKeyDown={handleKeyDown}
       data-block-id={block.id}
       data-block-state={blockState}

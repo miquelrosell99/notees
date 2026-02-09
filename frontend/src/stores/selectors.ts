@@ -95,6 +95,34 @@ export function useIsPrimarySelected(blockId: number): boolean {
 }
 
 /**
+ * Check if a block is a "selection root" - selected but parent is NOT selected.
+ * This is used to render the selection Card only on the topmost selected block in a tree,
+ * so that children don't show nested selection cards.
+ */
+export function useIsSelectionRoot(blockId: number, parentId: number | null | undefined): boolean {
+  return useBlockSelectionStore(
+    useCallback(state => {
+      // Block must be selected
+      if (!state.selectedBlockIds.has(blockId)) return false;
+      // If no parent, it's a root
+      if (parentId === null || parentId === undefined) return true;
+      // If parent is NOT selected, this is a selection root
+      return !state.selectedBlockIds.has(parentId);
+    }, [blockId, parentId])
+  );
+}
+
+/**
+ * Check if drag selection is currently active
+ * Used by Block component to determine if it should respond to mouseenter
+ */
+export function useIsDragSelecting(): boolean {
+  return useBlockSelectionStore(
+    state => state.dragSelectState.isDragSelecting
+  );
+}
+
+/**
  * Get block state (display/edit/selected) for a specific block
  * 
  * CRITICAL: Use this instead of getBlockState in render
