@@ -17,15 +17,21 @@
 
 /* Block state classes */
 .block.block-state--display {
-  /* Default display state - no special styling */
+  /* Default display state - text not selectable */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .block.block-state--edit {
-  /* Edit state - content is being edited */
+  /* Edit state - content is being edited, allow selection */
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .block.block-state--selected {
   /* Selected state - block is selected for operations */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Readonly blocks always stay in display-like state */
