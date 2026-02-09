@@ -1669,22 +1669,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
           }
           
-          // Counteract quadtree repulsion for linked pairs (it shouldn't have pushed them apart)
-          // Add back the repulsion that was applied, then apply attraction
-          // The quadtree applied repulsion scaled by peer mass, so compensation must match
+          // Spring attraction + dashpot (symmetric, applied to both nodes)
           let netForce = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
           
           const massA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
           const massB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
-          
-          if (dist < UNLINKED_REPULSION_DISTANCE) {
-            const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
-            // Compensate using average of both peer masses (quadtree pushed A by massB and B by massA)
-            const avgMass = (massA + massB) / 2;
-            const repulsionCompensation = (REPULSION_STRENGTH * avgMass / (clampedDist * clampedDist)) * warmupMultiplier;
-            // The quadtree applied this as repulsion; counteract it by adding attraction
-            netForce += repulsionCompensation;
-          }
           
           // Dashpot: damp relative velocity along spring axis to prevent radial oscillation
           const rvx = nodeB.vx - nodeA.vx;
@@ -1692,16 +1681,34 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const relVelAlongSpring = (rvx * dx + rvy * dy) / dist;
           netForce += relVelAlongSpring * LINK_DAMPING;
           
-          const fx = (dx / dist) * netForce;
-          const fy = (dy / dist) * netForce;
+          const sfx = (dx / dist) * netForce;
+          const sfy = (dy / dist) * netForce;
+          
+          // Counteract quadtree repulsion for linked pairs (per-node, asymmetric).
+          // Quadtree pushed A by massB and B by massA — must compensate each separately.
+          let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
+          if (dist < UNLINKED_REPULSION_DISTANCE) {
+            const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
+            const clampedDistSq = clampedDist * clampedDist;
+            const dirX = dx / dist;
+            const dirY = dy / dist;
+            // Compensation for A: quadtree pushed A away from B with force ∝ massB
+            const compA = (REPULSION_STRENGTH * massB / clampedDistSq) * warmupMultiplier;
+            compAx = dirX * compA / massA;
+            compAy = dirY * compA / massA;
+            // Compensation for B: quadtree pushed B away from A with force ∝ massA
+            const compB = (REPULSION_STRENGTH * massA / clampedDistSq) * warmupMultiplier;
+            compBx = dirX * compB / massB;
+            compBy = dirY * compB / massB;
+          }
           
           if (!nodeA.pinned) {
-            nodeA.vx += fx / massA;
-            nodeA.vy += fy / massA;
+            nodeA.vx += sfx / massA + compAx;
+            nodeA.vy += sfy / massA + compAy;
           }
           if (!nodeB.pinned) {
-            nodeB.vx -= fx / massB;
-            nodeB.vy -= fy / massB;
+            nodeB.vx -= sfx / massB - compBx;
+            nodeB.vy -= sfy / massB - compBy;
           }
         }
       }
