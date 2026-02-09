@@ -562,9 +562,13 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Calculate depth for each node using BFS
       const nodeDepth = new Map<number, number>();
       
+      // Build set of visible node IDs for parent lookup
+      const visibleNodeIds = new Set(nodes.map(n => n.id));
+      
       // Find root nodes - special handling for classes
-      const classRoots = nodes.filter(n => n.isClassNode && n.parentId === null);
-      const regularRoots = nodes.filter(n => !n.isClassNode && n.parentId === null);
+      // A node is a root if it has no parent OR its parent isn't in the visible set
+      const classRoots = nodes.filter(n => n.isClassNode && (n.parentId === null || !visibleNodeIds.has(n.parentId)));
+      const regularRoots = nodes.filter(n => !n.isClassNode && (n.parentId === null || !visibleNodeIds.has(n.parentId)));
       const hasVisibleClasses = classRoots.length > 0;
       
       // BFS: assign depths to class hierarchy first
@@ -634,28 +638,35 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Simple uniform radius calculation
-      const maxRadius = Math.min(centerX, centerY) * 0.9;
-      
+      // Uniform radius calculation — no cap so each depth gets its own ring
+      // (the user can pan/zoom to see deeper rings that extend beyond the viewport)
       const radiusByDepth = new Map<number, number>();
       for (let depth = 0; depth <= maxDepth; depth++) {
-        radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
+        radiusByDepth.set(depth, levelGap * (depth + 1));
       }
       
       if (constraintMode === 'equidistant') {
         // ── Equidistant mode: evenly space nodes at each depth ring ──
-        // Scale up ring radius if too many nodes would overlap at that depth
-        const minNodeSpacing = NODE_RADIUS_BASE * 2 * 1.8 + 4; // collision zone diameter + padding
+        // Multiple depths can share the same radius when capped at maxRadius.
+        // Merge them into a single ring so all nodes are spaced correctly.
+        const ringNodes = new Map<number, GraphNode[]>(); // radius → nodes
         for (let depth = 0; depth <= maxDepth; depth++) {
           const nodesAtDepth = nodesByDepth.get(depth) || [];
-          const baseRadius = radiusByDepth.get(depth)!;
-          const count = nodesAtDepth.length;
-          if (count === 0) continue;
-          
+          if (nodesAtDepth.length === 0) continue;
+          const radius = radiusByDepth.get(depth)!;
+          const existing = ringNodes.get(radius) || [];
+          existing.push(...nodesAtDepth);
+          ringNodes.set(radius, existing);
+        }
+        
+        // Scale up ring radius if too many nodes would overlap at that ring
+        const minNodeSpacing = NODE_RADIUS_BASE * 2 * 1.8 + 4; // collision zone diameter + padding
+        for (const [baseRadius, nodesOnRing] of ringNodes) {
+          const count = nodesOnRing.length;
           const minRadiusForCount = (count * minNodeSpacing) / (2 * Math.PI);
           const radius = Math.max(baseRadius, minRadiusForCount);
           
-          nodesAtDepth.forEach((node, i) => {
+          nodesOnRing.forEach((node, i) => {
             const angle = (2 * Math.PI * i) / count - Math.PI / 2;
             node.targetX = centerX + radius * Math.cos(angle);
             node.targetY = centerY + radius * Math.sin(angle);
@@ -830,13 +841,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Handle orphans (nodes without valid parent)
       const orphans = nodes.filter(n => !nodeDepth.has(n.id));
-      orphans.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / Math.max(orphans.length, 1) + Math.PI;
-        const radius = maxRadius;
-        node.targetX = centerX + radius * Math.cos(angle);
-        node.targetY = centerY + radius * Math.sin(angle);
-        (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
-      });
+      if (orphans.length > 0) {
+        const orphanRadius = levelGap * (maxDepth + 2); // one ring beyond the deepest
+        orphans.forEach((node, i) => {
+          const angle = (2 * Math.PI * i) / Math.max(orphans.length, 1) + Math.PI;
+          node.targetX = centerX + orphanRadius * Math.cos(angle);
+          node.targetY = centerY + orphanRadius * Math.sin(angle);
+          (node as GraphNode & { _treeRadius?: number })._treeRadius = orphanRadius;
+        });
+      }
     } else {
       nodes.forEach(node => {
         if (node.x === 0 && node.y === 0) {
