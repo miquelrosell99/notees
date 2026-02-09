@@ -2017,8 +2017,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Determine if there are dots at each end
       const dotSize = 4;
-      const hasTargetDot = renderAsParent || link.source === source.id;
-      const hasSourceDot = !renderAsParent && hasFwd && hasRev;
+      const hasTargetDot = !renderAsParent && link.source === source.id;
+      const hasSourceDot = renderAsParent || (!renderAsParent && hasFwd && hasRev);
       
       // Calculate line endpoints to stop where dots start (avoid transparency overlap)
       const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
@@ -2073,10 +2073,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const skipSourceDot = source.uuid === '00000000-0000-0000-0001-000000000001' || source.uuid === '00000000-0000-0000-0001-000000000002';
       
       if (renderAsParent) {
-        // Parent/extends links: hollow circle at target
-        if (!skipTargetDot) {
-          const cx = target.x - (targetLineGlare + 2 + dotSize / 2) * Math.cos(lineAngle);
-          const cy = target.y - (targetLineGlare + 2 + dotSize / 2) * Math.sin(lineAngle);
+        // Parent/extends links: hollow circle at source (parent)
+        if (!skipSourceDot) {
+          const revAngle = lineAngle + Math.PI;
+          const cx = source.x - (sourceLineGlare + 2 + dotSize / 2) * Math.cos(revAngle);
+          const cy = source.y - (sourceLineGlare + 2 + dotSize / 2) * Math.sin(revAngle);
           ctx.beginPath();
           ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
           ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
