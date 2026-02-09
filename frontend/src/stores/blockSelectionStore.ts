@@ -69,6 +69,15 @@ export interface BoxSelectState {
   currentY: number;
 }
 
+/** 
+ * Drag Selection State
+ * Tracks when user drags over blocks to select them
+ */
+export interface DragSelectState {
+  isDragSelecting: boolean;
+  startBlockId: number | null;
+}
+
 /** Anchor block for keyboard range selection */
 export interface SelectionAnchor {
   blockId: number;
@@ -128,6 +137,9 @@ interface BlockSelectionState {
   // Box selection state
   boxSelectState: BoxSelectState;
   
+  // Drag selection state (for dragging over blocks)
+  dragSelectState: DragSelectState;
+  
   // Block registry for position lookups (updated by components)
   blockElements: Map<number, HTMLElement>;
   
@@ -151,6 +163,7 @@ interface BlockSelectionState {
   
   selectBlock: (blockId: number, includeChildren?: boolean) => void;
   selectBlocks: (blockIds: number[]) => void;
+  selectBlocksInRange: (startId: number, endId: number) => void;
   addToSelection: (blockId: number, includeChildren?: boolean) => void;
   removeFromSelection: (blockId: number) => void;
   clearSelection: () => void;
@@ -183,6 +196,11 @@ interface BlockSelectionState {
   startBoxSelect: (x: number, y: number) => void;
   updateBoxSelect: (x: number, y: number) => void;
   endBoxSelect: () => void;
+  
+  // Drag selection (for dragging over blocks to select them)
+  startDragSelect: (blockId: number) => void;
+  updateDragSelect: (blockId: number) => void;
+  endDragSelect: () => void;
   
   // Block registry
   registerBlock: (blockId: number, element: HTMLElement) => void;
@@ -250,6 +268,10 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
     startY: 0,
     currentX: 0,
     currentY: 0,
+  },
+  dragSelectState: {
+    isDragSelecting: false,
+    startBlockId: null,
   },
   blockElements: new Map(),
   visibleBlockIds: [],
@@ -375,6 +397,52 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
       primarySelectedBlockId: blockIds.length > 0 ? blockIds[0] : null,
       selectionMode: blockIds.length > 0 ? 'selected' : 'none',
       editingBlockId: null,
+    });
+  },
+  
+  // Select all blocks between two blocks in visual order
+  selectBlocksInRange: (startId, endId) => {
+    const state = get();
+    const visibleBlocks = state.visibleBlockIds;
+    const startIndex = visibleBlocks.indexOf(startId);
+    const endIndex = visibleBlocks.indexOf(endId);
+    
+    if (startIndex === -1 || endIndex === -1) return;
+    
+    const minIndex = Math.min(startIndex, endIndex);
+    const maxIndex = Math.max(startIndex, endIndex);
+    
+    const blockIdsInRange = visibleBlocks.slice(minIndex, maxIndex + 1);
+    
+    // Select all blocks in range, including their children
+    const selectedIds = new Set<number>();
+    const newBlockStates = new Map(state.blockStates);
+    
+    // Clear existing selected states
+    newBlockStates.forEach((currentState, key) => {
+      if (currentState === 'selected' || currentState === 'edit') {
+        newBlockStates.set(key, 'display');
+      }
+    });
+    
+    for (const blockId of blockIdsInRange) {
+      selectedIds.add(blockId);
+      newBlockStates.set(blockId, 'selected');
+      // Add all children
+      const childIds = state.getAllChildrenIds(blockId);
+      for (const childId of childIds) {
+        selectedIds.add(childId);
+        newBlockStates.set(childId, 'selected');
+      }
+    }
+    
+    set({
+      blockStates: newBlockStates,
+      selectedBlockIds: selectedIds,
+      primarySelectedBlockId: blockIdsInRange[0],
+      selectionMode: 'selected',
+      editingBlockId: null,
+      selectionAnchor: { blockId: blockIdsInRange[0], direction: null },
     });
   },
   
@@ -580,6 +648,38 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
     });
   },
   
+  // Start drag selection - called on mousedown on a block
+  startDragSelect: (blockId) => {
+    set({
+      dragSelectState: {
+        isDragSelecting: true,
+        startBlockId: blockId,
+      },
+    });
+    // Select the starting block
+    get().selectBlock(blockId, true);
+  },
+  
+  // Update drag selection - called on mouseenter on a block
+  updateDragSelect: (blockId) => {
+    const state = get();
+    if (!state.dragSelectState.isDragSelecting) return;
+    if (state.dragSelectState.startBlockId === null) return;
+    
+    // Select all blocks in range from start to current
+    get().selectBlocksInRange(state.dragSelectState.startBlockId, blockId);
+  },
+  
+  // End drag selection - called on mouseup
+  endDragSelect: () => {
+    set({
+      dragSelectState: {
+        isDragSelecting: false,
+        startBlockId: null,
+      },
+    });
+  },
+
   // Register a block element
   registerBlock: (blockId, element) => {
     const newMap = new Map(get().blockElements);
