@@ -206,6 +206,67 @@
   max-width: 150px;
 }
 
+/* ─── Link status visual cues ─────────────────────────────────────── */
+
+/* Broken links: target deleted or unresolvable */
+.link-pill--broken,
+.inline-link.link-pill--broken {
+  background: var(--color-error-container);
+  color: var(--color-error);
+  border: 1px dashed var(--color-error);
+  opacity: 0.85;
+  text-decoration: line-through;
+}
+
+.link-pill--broken:hover,
+.inline-link.link-pill--broken:hover {
+  background: color-mix(in srgb, var(--color-error-container) 70%, var(--color-error) 15%);
+  opacity: 1;
+}
+
+.type-pill.link-pill--broken,
+.tag-pill.link-pill--broken {
+  background: var(--color-error-container);
+  color: var(--color-error);
+  border: 1px dashed var(--color-error);
+  text-decoration: line-through;
+}
+
+/* Cycle links: circular reference detected */
+.link-pill--cycle,
+.inline-link.link-pill--cycle {
+  background: var(--color-warning-container, color-mix(in srgb, var(--color-warning) 15%, var(--color-surface) 85%));
+  color: var(--color-warning);
+  border: 1px dashed var(--color-warning);
+  opacity: 0.85;
+}
+
+.link-pill--cycle:hover,
+.inline-link.link-pill--cycle:hover {
+  background: color-mix(in srgb, var(--color-warning) 20%, var(--color-surface) 80%);
+  opacity: 1;
+}
+
+.type-pill.link-pill--cycle,
+.tag-pill.link-pill--cycle {
+  background: var(--color-warning-container, color-mix(in srgb, var(--color-warning) 15%, var(--color-surface) 85%));
+  color: var(--color-warning);
+  border: 1px dashed var(--color-warning);
+}
+
+/* Broken/cycle icon indicator: prepend ⚠ via ::before */
+.link-pill--broken::before {
+  content: '✕ ';
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.link-pill--cycle::before {
+  content: '↻ ';
+  font-size: 0.9em;
+  opacity: 0.7;
+}
+
 /* Block Editor - Simplified Mode */
 .block-editor--simplified {
   cursor: pointer;

@@ -20,7 +20,7 @@ import {
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
 import type { Property } from '@/types/api';
-import { BlockEditor } from './BlockEditor';
+import { ASTBlockEditor as BlockEditor } from './ASTBlockEditor';
 import { Block } from './Block';
 import { Button } from '../core/Button';
 

@@ -30,7 +30,7 @@ import { useNodesStore } from '@/stores';
 import type { NodeUpdate, Node } from '@/types';
 import type { SidebarNodeType } from '@/stores';
 import { useBlockCallbacksFactory } from '../blocks/useBlockCallbacksFactory';
-import { BlockEditor } from '../blocks/BlockEditor';
+import { ASTBlockEditor as BlockEditor } from '../blocks/ASTBlockEditor';
 import { Block } from '../blocks/Block';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { PropertiesSection } from '../PropertiesSection';

@@ -55,3 +55,50 @@ export type {
   NodeLinkResolver,
   NodeLinkResolution,
 } from './stringifyAST';
+
+// AST ↔ DOM engine
+export {
+  astToHtml,
+  astToHtmlCached,
+  domToAST,
+  normalizeAST,
+  getCursorPosition,
+  setCursorPosition,
+  getContentLength,
+  getCaretX,
+  getCaretCoordinates,
+  getPlainText,
+  findOffsetAtXInFirstLine,
+  findOffsetAtXInLastLine,
+  isTextOnlyChange,
+  detectTrigger,
+} from './astDom';
+
+export type {
+  ASTRenderContext,
+  ResolvedLink,
+  LinkStatus,
+  TriggerMatch,
+} from './astDom';
+
+// AST mutations
+export {
+  splitAtPosition,
+  mergeDocuments,
+  insertNodeLink,
+  replaceTriggerWithLink,
+  removeTriggerText,
+  deleteRange,
+  insertText,
+  toggleMark,
+  toggleCode,
+  inlineNodeLength,
+  flattenToInlines,
+  documentLength,
+} from './astMutations';
+
+export type { ASTPosition, MarkType } from './astMutations';
+
+// AST history
+export { ASTHistory } from './astHistory';
+export type { HistoryEntry } from './astHistory';

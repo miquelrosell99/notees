@@ -6,8 +6,8 @@
 
 // Core block components
 export { Block } from './Block';
-export { BlockEditor, TASK_STATES } from './BlockEditor';
-export type { TaskState } from './BlockEditor';
+export { ASTBlockEditor as BlockEditor, TASK_STATES } from './ASTBlockEditor';
+export type { TaskState } from './ASTBlockEditor';
 export { CodeBlock } from './CodeBlock';
 export type { CodeBlockProps } from './CodeBlock';
 
