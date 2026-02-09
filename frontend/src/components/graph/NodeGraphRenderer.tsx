@@ -519,7 +519,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     nodes: GraphNode[],
     mode: GraphViewMode,
     w: number,
-    h: number
+    h: number,
+    constraintMode: ConstraintMode = 'physics'
   ) => {
     const centerX = w / 2;
     const centerY = h / 2;
@@ -637,6 +638,22 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         radiusByDepth.set(depth, Math.min(levelGap * (depth + 1), maxRadius));
       }
       
+      if (constraintMode === 'equidistant') {
+        // ── Equidistant mode: evenly space nodes at each depth ring ──
+        for (let depth = 0; depth <= maxDepth; depth++) {
+          const nodesAtDepth = nodesByDepth.get(depth) || [];
+          const radius = radiusByDepth.get(depth)!;
+          const count = nodesAtDepth.length;
+          if (count === 0) continue;
+          
+          nodesAtDepth.forEach((node, i) => {
+            const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+            node.targetX = centerX + radius * Math.cos(angle);
+            node.targetY = centerY + radius * Math.sin(angle);
+            (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
+          });
+        }
+      } else {
       // ── Bottom-up subtree angular width calculation ──
       // For each node, compute how much angular space its entire subtree
       // needs at the deepest level, then propagate upward so parents
@@ -795,6 +812,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           }
         }
       }
+      } // end physics (non-equidistant) branch
       
       // Handle orphans (nodes without valid parent)
       const orphans = nodes.filter(n => !nodeDepth.has(n.id));
@@ -819,7 +837,16 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
 
   // Keep refs in sync (fallback for setTransform calls not through setTransformDirect)
   useEffect(() => { transformRef.current = transform; }, [transform]);
-  useEffect(() => { settingsRef.current = settings; topologyDirtyRef.current = true; wakeSimulationRef.current(); }, [settings]);
+  useEffect(() => {
+    const prevConstraintMode = settingsRef.current.constraintMode;
+    settingsRef.current = settings;
+    topologyDirtyRef.current = true;
+    // Recalculate positions when constraint mode changes in tree/circle mode
+    if (settings.constraintMode !== prevConstraintMode && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') && nodesRef.current.length > 0) {
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settings.constraintMode);
+    }
+    wakeSimulationRef.current();
+  }, [settings, calculatePositions]);
   useEffect(() => { classColorsRef.current = [...classColors].sort((a, b) => a.order - b.order); requestRender(); }, [classColors, requestRender]);
   useEffect(() => { selectedNodeIdsRef.current = selectedNodeIds; requestRender(); }, [selectedNodeIds, requestRender]);
   useEffect(() => { currentNodeIdRef.current = currentNodeId; requestRender(); }, [currentNodeId, requestRender]);
@@ -833,7 +860,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     prevViewModeRef.current = viewMode;
     // Recalculate target positions and radii for the new mode
     if (nodesRef.current.length > 0) {
-      calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height);
+      calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
       topologyDirtyRef.current = true;
       wakeSimulationRef.current();
     }
@@ -942,7 +969,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if ((nodesToRemove.length > 0 || nodesToAdd.length > 0) && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree')) {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
     }
     
     if (nodesToRemove.length > 0 || nodesToAdd.length > 0) {
@@ -1019,7 +1046,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
     }
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
@@ -1039,7 +1066,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     
     // Recalculate positions if in constrained mode
     if (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') {
-      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height);
+      calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode);
     }
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
@@ -1165,7 +1192,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       link => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target) && shouldLinkBeActive(link, visibilityFilters)
     );
     
-    calculatePositions(nodesRef.current, viewMode, dimW, dimH);
+    calculatePositions(nodesRef.current, viewMode, dimW, dimH, settings.constraintMode);
     
     // Mark topology dirty and wake simulation
     topologyDirtyRef.current = true;
