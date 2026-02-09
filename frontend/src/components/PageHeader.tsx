@@ -13,6 +13,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useNodesStore } from '@/stores';
@@ -66,11 +67,11 @@ export function PageHeader({
   const [classPopupPosition, setClassPopupPosition] = useState({ top: 0, left: 0 });
   
   // Local state for input value (to show preview before committing)
-  const [inputValue, setInputValue] = useState(page.name || '');
+  const [inputValue, setInputValue] = useState(nodeNameToText(page.name) || '');
   
   // Sync with page name when it changes externally
   useEffect(() => {
-    setInputValue(page.name || '');
+    setInputValue(nodeNameToText(page.name) || '');
   }, [page.name]);
   
   // Auto-resize textarea to fit content
@@ -373,7 +374,7 @@ export function PageHeader({
       const hasSelection = input.selectionStart !== input.selectionEnd;
       if (!hasSelection && page.name) {
         e.preventDefault();
-        const pageLink = `[[${page.name}]]`;
+        const pageLink = `[[${page.uuid}]]`;
         navigator.clipboard.writeText(pageLink);
       }
     }
@@ -425,7 +426,7 @@ export function PageHeader({
                 onClick={(e) => { e.stopPropagation(); openNode(page.id, 'page'); }}
                 title="Click to open page"
               >
-                {page.name || 'Untitled'}
+                {nodeNameToText(page.name) || 'Untitled'}
               </h1>
             ) : (
               <>

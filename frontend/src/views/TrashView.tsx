@@ -4,6 +4,7 @@
  * Fetches directly from the /trash endpoint instead of using query system.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { TrashIcon } from '../components/icons';
@@ -91,7 +92,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         label: 'Delete Permanently',
         danger: true,
         onClick: () => {
-          if (confirm(`Permanently delete "${node.name || 'Untitled'}"? This cannot be undone.`)) {
+          if (confirm(`Permanently delete "${nodeNameToText(node.name) || 'Untitled'}"? This cannot be undone.`)) {
             permanentDeleteMutation.mutate(node.id);
           }
           closeMenu();

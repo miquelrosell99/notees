@@ -27,6 +27,7 @@ from jose import jwt
 from ..db.connection import acquire_connection, get_pool, get_graph_assets_dir, get_graph_uuid
 from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
+from ..domain.stringify_ast import build_text_ast
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
 from ..domain.services import NodeService, LinkParsingService
 from ..domain.services.asset_service import AssetService, AssetMissingError, AssetPermissionError, AssetInvariantViolation
@@ -305,7 +306,7 @@ async def upload_asset(
             # Create the asset node ONLY after file is safely written
             data = NodeCreateData(
                 uuid=asset_uuid,  # Use UUID from service
-                name=filename_without_ext,
+                name=build_text_ast(filename_without_ext),
                 parent_id=parent_id,
                 classes=[asset_type_id] if asset_type_id else [],
             )

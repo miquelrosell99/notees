@@ -7,6 +7,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
@@ -237,7 +238,7 @@ export function SearchBox<T = Node>({
             <NodeIcon icon={node.icon} isPage={true} />
           </span>
           <span className="result-title">
-            {node.name || 'Untitled'}
+            {nodeNameToText(node.name) || 'Untitled'}
           </span>
         </>
       );

@@ -121,6 +121,14 @@ export function formatMonth(year: number, month: number, format: DateFormat): st
 }
 
 /**
+ * Format a year according to the given format
+ * Years are always just the 4-digit number, regardless of format
+ */
+export function formatYear(year: number): string {
+  return String(year);
+}
+
+/**
  * Parse a date string from any supported format
  */
 export function parseFormattedDate(dateStr: string): { year: number; month: number; day: number } | null {

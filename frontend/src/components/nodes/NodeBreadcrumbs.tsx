@@ -12,6 +12,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
 import { ChevronRightIcon } from '../icons';
@@ -150,7 +151,7 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): Br
       if (!node) break;
       chain.push({
         id: node.id,
-        name: node.name || 'Untitled',
+        name: nodeNameToText(node.name) || 'Untitled',
         icon: node.icon,
         isPage: node.is_page,
       });
@@ -359,7 +360,7 @@ export function InlineNodeBreadcrumbs({
       if (page) {
         items.push({
           id: page.id,
-          name: page.name || 'Untitled',
+          name: nodeNameToText(page.name) || 'Untitled',
           icon: page.icon,
           isPage: true,
         });

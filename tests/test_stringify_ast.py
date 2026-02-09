@@ -391,9 +391,10 @@ class TestParseAST:
         ast = [{"type": "paragraph", "children": []}]
         assert parse_ast(ast) == ast
 
-    def test_legacy_plain_string(self):
+    def test_plain_string_returns_empty(self):
+        """Plain text is NOT valid AST - must use build_text_ast to create content."""
         result = parse_ast("hello world")
-        assert result == [{"type": "paragraph", "children": [{"type": "text", "text": "hello world"}]}]
+        assert result == []
 
     def test_empty_string(self):
         assert parse_ast("") == []
@@ -401,15 +402,40 @@ class TestParseAST:
     def test_none(self):
         assert parse_ast(None) == []
 
-    def test_invalid_json(self):
-        # Falls back to legacy plain-text wrap
+    def test_invalid_json_returns_empty(self):
+        """Invalid JSON is NOT valid AST - returns empty document."""
         result = parse_ast("{broken")
-        assert len(result) == 1
-        assert result[0]["children"][0]["text"] == "{broken"
+        assert result == []
+
+    def test_number_string_returns_empty(self):
+        """A number like '2026' is valid JSON but NOT valid AST - returns empty."""
+        result = parse_ast("2026")
+        assert result == []
 
     def test_invalid_structure(self):
         # Not a list of dicts with "type"
         assert parse_ast([1, 2, 3]) == []
+
+
+# ── build_text_ast ─────────────────────────────────────────────────
+
+
+class TestBuildTextAST:
+    def test_simple_text(self):
+        from app.domain.stringify_ast import build_text_ast
+        import json
+        
+        result = build_text_ast("Hello World")
+        parsed = json.loads(result)
+        assert parsed == [{"type": "paragraph", "children": [{"type": "text", "text": "Hello World"}]}]
+    
+    def test_roundtrip(self):
+        from app.domain.stringify_ast import build_text_ast
+        
+        ast_json = build_text_ast("2026")
+        result = parse_ast(ast_json)
+        assert len(result) == 1
+        assert result[0]["children"][0]["text"] == "2026"
 
 
 # ── Complex mixed content ──────────────────────────────────────────

@@ -26,6 +26,7 @@ import { Card } from './core/Card';
 import { SelectTrigger } from './core/SelectTrigger';
 import { mdiPlus } from '@mdi/js';
 import { useNodeSearch, type NodeSearchMode, usePages, useNodes } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
 import './NodeSelector.css';
@@ -306,7 +307,7 @@ export function NodeSelector({
                   onClick={() => onNodeClick?.(node)}
                 >
                   <NodeIcon icon={node.icon} isPage={node.is_page} size="xs" />
-                  <span>{node.name || 'Untitled'}</span>
+                  <span>{nodeNameToText(node.name) || 'Untitled'}</span>
                 </button>
               ))}
             </div>
@@ -421,7 +422,7 @@ export function NodeSelector({
                           <NodeIcon icon={node.icon} isPage={node.is_page} size="sm" />
                         </span>
                         <span className="node-selector__item-name">
-                          {node.name || 'Untitled'}
+                          {nodeNameToText(node.name) || 'Untitled'}
                         </span>
                         {isSelected && (
                           <span className="node-selector__item-check"><CheckIcon size="xs" /></span>
@@ -529,7 +530,7 @@ export function NodeSelector({
                         onMouseEnter={() => setSelectedIndex(index)}
                       >
                         <NodeIcon icon={node.icon} isPage={true} size="xs" />
-                        <span>{node.name || 'Untitled'}</span>
+                        <span>{nodeNameToText(node.name) || 'Untitled'}</span>
                       </button>
                     ))}
                     {showCreateOption && (

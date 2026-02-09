@@ -415,34 +415,57 @@ def _node_to_comment_response(node: Node, children: list[Node] | None = None) ->
 
 
 def _format_date_with_pattern(year: int, month: int, day: int, pattern: str) -> str:
-    """Format a date according to the given pattern."""
+    """Format a date according to the given pattern.
+    
+    Returns a JSON-serialized AST document suitable for the name field.
+    """
+    from ...domain.stringify_ast import build_text_ast
+    
     month_str = str(month).zfill(2)
     day_str = str(day).zfill(2)
     
     if pattern == "YYYY/MM/DD":
-        return f"{year}/{month_str}/{day_str}"
+        text = f"{year}/{month_str}/{day_str}"
     elif pattern == "YYYY-MM-DD":
-        return f"{year}-{month_str}-{day_str}"
+        text = f"{year}-{month_str}-{day_str}"
     elif pattern == "DD/MM/YYYY":
-        return f"{day_str}/{month_str}/{year}"
+        text = f"{day_str}/{month_str}/{year}"
     elif pattern == "DD-MM-YYYY":
-        return f"{day_str}-{month_str}-{year}"
+        text = f"{day_str}-{month_str}-{year}"
     elif pattern == "MM/DD/YYYY":
-        return f"{month_str}/{day_str}/{year}"
+        text = f"{month_str}/{day_str}/{year}"
     elif pattern == "MM-DD-YYYY":
-        return f"{month_str}-{day_str}-{year}"
+        text = f"{month_str}-{day_str}-{year}"
     else:
-        return f"{year}/{month_str}/{day_str}"
+        text = f"{year}/{month_str}/{day_str}"
+    
+    return build_text_ast(text)
 
 
 def _format_month_with_pattern(year: int, month: int, pattern: str) -> str:
-    """Format a month according to the given pattern."""
+    """Format a month according to the given pattern.
+    
+    Returns a JSON-serialized AST document suitable for the name field.
+    """
+    from ...domain.stringify_ast import build_text_ast
+    
     month_str = str(month).zfill(2)
     separator = "/" if "/" in pattern else "-"
     
     if pattern.startswith("DD") or pattern.startswith("MM"):
         # European/US style
-        return f"{month_str}{separator}{year}"
+        text = f"{month_str}{separator}{year}"
     else:
         # ISO style
-        return f"{year}{separator}{month_str}"
+        text = f"{year}{separator}{month_str}"
+    
+    return build_text_ast(text)
+
+
+def _format_year(year: int) -> str:
+    """Format a year as an AST document.
+    
+    Returns a JSON-serialized AST document suitable for the name field.
+    """
+    from ...domain.stringify_ast import build_text_ast
+    return build_text_ast(str(year))

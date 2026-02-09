@@ -20,6 +20,7 @@ import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
 import { ColorPickerRow } from './nodes/NodeContextMenu';
 import { SuggestionPopup } from './SuggestionPopup';
 import { useNode, useClasses } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
@@ -89,14 +90,15 @@ export function NodePill({
   // Display text
   const displayText = useMemo(() => {
     if (!node) return nodeId ? `[Loading...]` : '[Missing]';
-    if (!node.name || node.name.trim() === '') {
+    const textContent = nodeNameToText(node.name);
+    if (!textContent || textContent.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }
     // Truncate long block content
-    if (!node.is_page && node.name.length > 50) {
-      return `${node.name.slice(0, 50)}...`;
+    if (!node.is_page && textContent.length > 50) {
+      return `${textContent.slice(0, 50)}...`;
     }
-    return node.name;
+    return textContent;
   }, [node, nodeId]);
   
   const isPage = node?.is_page ?? true;
@@ -247,7 +249,7 @@ export function NodePill({
   // Build title tooltip
   const title = useMemo(() => {
     if (!node) return '';
-    let t = `${isPage ? 'Page' : 'Block'}: ${node.name}`;
+    let t = `${isPage ? 'Page' : 'Block'}: ${nodeNameToText(node.name)}`;
     if (isLink) {
       t += '\nClick to open, Shift+click for sidebar';
     }

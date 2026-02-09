@@ -32,11 +32,6 @@ interface SidebarProps {
   collapsed: boolean;
 }
 
-// Helper to get node name for display
-function getNodeDisplayName(node: { name?: string | null } | undefined): string {
-  return nodeNameToText(node?.name) || 'Untitled';
-}
-
 interface RecentItemProps {
   nodeId: number;
   isActive: boolean;
@@ -84,7 +79,7 @@ function FavoriteItemIcon({ nodeId }: { nodeId: number }) {
 // Component to render favorite item text (needs to fetch node data)
 function FavoriteItemText({ nodeId }: { nodeId: number }) {
   const { data: node } = useNode(nodeId);
-  return <span className="sidebar-item-name">{getNodeDisplayName(node)}</span>;
+  return <span className="sidebar-item-name">{nodeNameToText(node?.name) || 'Untitled'}</span>;
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {

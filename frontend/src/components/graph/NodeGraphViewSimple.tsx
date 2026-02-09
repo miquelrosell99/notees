@@ -12,6 +12,7 @@
  */
 import { useRef, useMemo, useCallback } from 'react';
 import { useNodesStore } from '@/stores';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { 
   NodeGraphRenderer, 
@@ -62,7 +63,7 @@ export function NodeGraphViewSimple({
       vy: 0,
       targetX: 0,
       targetY: 0,
-      name: apiNode.name || 'Untitled',
+      name: nodeNameToText(apiNode.name) || 'Untitled',
       type: apiNode.type || 'page',
       isDaily: apiNode.is_daily || false,
       isMonthly: apiNode.is_monthly || false,

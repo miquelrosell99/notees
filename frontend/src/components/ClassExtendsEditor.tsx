@@ -13,6 +13,7 @@ import {
   useRemoveClassExtends,
   useNodes 
 } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { mdiPlus } from '@mdi/js';
 import { LinkIcon, NodeIcon } from './icons';
 import { Button } from './core/Button';
@@ -145,7 +146,7 @@ export function ClassExtendsEditor({
                     disabled={addExtendsMutation.isPending}
                   >
                     <NodeIcon isPage={true} size="xs" />
-                    {node.name}
+                    {nodeNameToText(node.name)}
                   </Button>
                 ))}
                 {availableClasses.length === 0 && (
