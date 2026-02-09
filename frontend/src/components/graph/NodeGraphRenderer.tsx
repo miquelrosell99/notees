@@ -80,7 +80,7 @@ const LINE_DASH_DOTTED: number[] = [2, 3];
 
 // Visual constants
 const NODE_RADIUS_BASE = 10;
-const NODE_RADIUS_MIN = 6;
+const NODE_RADIUS_MIN = 10;
 const NODE_RADIUS_MAX = 20;
 const NODE_HOVER_RADIUS_EXTRA = 4;
 const GLARE_SCALE_NORMAL = 1.8;
@@ -1921,7 +1921,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const a = nodes[i];
           if (!a.visible) continue;
           const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
-          const radiusA = getNodeRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+          const radiusA = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
           
           for (let j = i + 1; j < nodes.length; j++) {
             const b = nodes[j];
@@ -1932,7 +1932,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             const dx = b.x - a.x;
             const dy = b.y - a.y;
             const distSq = dx * dx + dy * dy;
-            const radiusB = getNodeRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+            const radiusB = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
             const minDist = radiusA + radiusB;
             
             // Quick squared-distance check to skip most pairs
