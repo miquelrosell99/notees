@@ -98,8 +98,11 @@ describe('astNormalizer', () => {
       });
       
       const result = normalizeAST(ast);
+      // The user root wrapper is flattened (single child), promoting the system group to root.
+      // The system group itself is NOT flattened — it keeps its single condition child.
+      expect(result.root_group.capabilities).toEqual(SYSTEM_CAPABILITIES);
       expect(result.root_group.children).toHaveLength(1);
-      expect(result.root_group.children[0].type).toBe('group');
+      expect(result.root_group.children[0].type).toBe('condition');
     });
   });
   

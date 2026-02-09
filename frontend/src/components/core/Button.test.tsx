@@ -20,7 +20,7 @@ describe('Button', () => {
 
   it('is disabled when disabled prop is true', () => {
     render(<Button disabled>Disabled</Button>);
-    expect(screen.getByText('Disabled')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Disabled' })).toBeDisabled();
   });
 
   it('renders with icon only', () => {
@@ -31,13 +31,13 @@ describe('Button', () => {
 
   it('applies correct variant class', () => {
     render(<Button variant="primary">Primary</Button>);
-    const button = screen.getByText('Primary');
-    expect(button).toHaveClass('button-primary');
+    const button = screen.getByRole('button', { name: 'Primary' });
+    expect(button).toHaveClass('btn--primary');
   });
 
   it('applies correct size class', () => {
     render(<Button size="lg">Large</Button>);
-    const button = screen.getByText('Large');
-    expect(button).toHaveClass('button-lg');
+    const button = screen.getByRole('button', { name: 'Large' });
+    expect(button).toHaveClass('btn--lg');
   });
 });
