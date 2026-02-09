@@ -1629,7 +1629,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             if (dragNodeRef.current?.id === node.id) continue;
             if (node.pinned) continue;
             
-            const nodeMass = useMass ? (massCache.get(node.id) ?? 1) : 1;
+            // Logarithmic mass normalization — prevents class nodes from becoming
+            // immovable "black holes" while preserving relative weight differences.
+            // mass=1→1, mass=5→2.6, mass=51→4.9 (smooth diminishing returns)
+            const rawMass = useMass ? (massCache.get(node.id) ?? 1) : 1;
+            const nodeMass = rawMass <= 1 ? 1 : 1 + Math.log(rawMass);
             
             // Walk quadtree for repulsion (reuse pre-allocated stack)
             const stack = bhStackRef.current;
@@ -1706,8 +1710,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           // Spring attraction + dashpot (symmetric, applied to both nodes)
           let netForce = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
           
-          const massA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
-          const massB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
+          // Logarithmic mass normalization (matches repulsion normalization)
+          const rawMassA = useMass ? (massCache.get(nodeA.id) ?? 1) : 1;
+          const rawMassB = useMass ? (massCache.get(nodeB.id) ?? 1) : 1;
+          const massA = rawMassA <= 1 ? 1 : 1 + Math.log(rawMassA);
+          const massB = rawMassB <= 1 ? 1 : 1 + Math.log(rawMassB);
           
           // Dashpot: damp relative velocity along spring axis to prevent radial oscillation
           const rvx = nodeB.vx - nodeA.vx;
@@ -1720,18 +1727,22 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           
           // Counteract quadtree repulsion for linked pairs (per-node, asymmetric).
           // Quadtree pushed A by massB and B by massA — must compensate each separately.
+          // Use raw mass for compensation (matches what quadtree actually applied),
+          // but divide by capped mass (matches how repulsion was received).
           let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
           if (dist < UNLINKED_REPULSION_DISTANCE) {
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
             const clampedDistSq = clampedDist * clampedDist;
             const dirX = dx / dist;
             const dirY = dy / dist;
-            // Compensation for A: quadtree pushed A away from B with force ∝ massB
-            const compA = (REPULSION_STRENGTH * massB / clampedDistSq) * warmupMultiplier;
+            // Use RAW mass for the source (what quadtree used), normalized mass for receiver
+            // (rawMassA/B already computed above)
+            // Compensation for A: quadtree pushed A away from B with force ∝ rawMassB / massA
+            const compA = (REPULSION_STRENGTH * rawMassB / clampedDistSq) * warmupMultiplier;
             compAx = dirX * compA / massA;
             compAy = dirY * compA / massA;
-            // Compensation for B: quadtree pushed B away from A with force ∝ massA
-            const compB = (REPULSION_STRENGTH * massA / clampedDistSq) * warmupMultiplier;
+            // Compensation for B: quadtree pushed B away from A with force ∝ rawMassA / massB
+            const compB = (REPULSION_STRENGTH * rawMassA / clampedDistSq) * warmupMultiplier;
             compBx = dirX * compB / massB;
             compBy = dirY * compB / massB;
           }
@@ -1743,6 +1754,78 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           if (!nodeB.pinned) {
             nodeB.vx -= sfx / massB - compBx;
             nodeB.vy -= sfy / massB - compBy;
+          }
+        }
+      }
+      
+      // Tangential overlap prevention for constrained modes (tree/circle).
+      // In these modes, radial velocity is stripped so only tangential forces
+      // can separate overlapping nodes on the same ring. This runs in both
+      // physics and equidistant modes.
+      if (isConstrainedMode) {
+        const cx = dimensionsRef.current.width / 2;
+        const cy = dimensionsRef.current.height / 2;
+        const TANGENTIAL_REPULSION = 300; // Strength of tangential push
+        const TANGENTIAL_RANGE = 60; // Distance within which nodes repel tangentially
+        const TANGENTIAL_MIN_DIST = 5; // Floor to prevent singularity
+        
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          if (dragNodeRef.current?.id === a.id || a.pinned) continue;
+          const aRadius = (a as GraphNode & { _treeRadius?: number })._treeRadius;
+          if (aRadius === undefined) continue;
+          
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            if (dragNodeRef.current?.id === b.id || b.pinned) continue;
+            const bRadius = (b as GraphNode & { _treeRadius?: number })._treeRadius;
+            if (bRadius === undefined) continue;
+            
+            // Only repel nodes on the same or nearby rings
+            if (Math.abs(aRadius - bRadius) > TANGENTIAL_RANGE) continue;
+            
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            
+            if (dist >= TANGENTIAL_RANGE) continue;
+            
+            // Compute tangential direction (perpendicular to radial from center)
+            // For each node, the tangential direction relative to center
+            const dax = a.x - cx;
+            const day = a.y - cy;
+            const daDist = Math.sqrt(dax * dax + day * day) || 1;
+            
+            // Use the displacement direction projected onto tangent
+            const radialX = dax / daDist;
+            const radialY = day / daDist;
+            
+            // Project the displacement onto tangential plane
+            const radialComponent = dx * radialX + dy * radialY;
+            let tangX = dx - radialComponent * radialX;
+            let tangY = dy - radialComponent * radialY;
+            const tangDist = Math.sqrt(tangX * tangX + tangY * tangY);
+            
+            if (tangDist < 0.01) {
+              // Nodes are radially aligned — pick arbitrary tangential direction
+              tangX = -radialY;
+              tangY = radialX;
+            } else {
+              tangX /= tangDist;
+              tangY /= tangDist;
+            }
+            
+            const clampedDist = Math.max(dist, TANGENTIAL_MIN_DIST);
+            const force = (TANGENTIAL_REPULSION / (clampedDist * clampedDist)) * warmupMultiplier;
+            
+            if (!a.pinned) {
+              a.vx -= tangX * force;
+              a.vy -= tangY * force;
+            }
+            if (!b.pinned) {
+              b.vx += tangX * force;
+              b.vy += tangY * force;
+            }
           }
         }
       }
@@ -1762,7 +1845,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             
             if (dist > LINKED_ATTRACTION_DISTANCE) {
-              const mass = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
+              const rawM = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
+              const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);
               const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
               let dragMultiplier = 1;
               if (linkType === 'property-reference') {
