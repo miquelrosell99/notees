@@ -94,13 +94,13 @@ function TypePillDisplay({ typeId, linkId, onNavigate }: TypePillDisplayProps) {
   return (
     <>
       <span
-        className="type-pill"
+        className="class-pill"
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        title={`Type: ${displayText}\nClick to open, Shift+click for sidebar`}
+        title={`Class: ${displayText}\nClick to open, Shift+click for sidebar`}
       >
-        <span className="type-pill__icon"><TagIcon size="xs" /></span>
-        <span className="type-pill__text">{displayText}</span>
+        <span className="class-pill__icon"><TagIcon size="xs" /></span>
+        <span className="class-pill__text">{displayText}</span>
       </span>
       {contextMenu && (
         <ContextMenu items={contextMenuItems} position={contextMenu} onClose={() => setContextMenu(null)} />

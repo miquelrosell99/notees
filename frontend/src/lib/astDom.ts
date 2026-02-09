@@ -175,7 +175,7 @@ function renderChildren(children: ASTInlineNode[], ctx: ASTRenderContext): strin
  * Render a node_link as an atomic pill element.
  *
  * For 'node' ref_type: renders as inline-link (a tag) or tag-pill (span)
- * For 'class' ref_type: renders as type-pill (span)
+ * For 'class' ref_type: renders as class-pilll (span)
  */
 function renderNodeLinkPill(node: ASTNodeLink, ctx: ASTRenderContext): string {
   const resolved = ctx.resolveLink(node.link_id, node.ref_type);
@@ -192,7 +192,7 @@ function renderNodeLinkPill(node: ASTNodeLink, ctx: ASTRenderContext): string {
   if (node.ref_type === 'class') {
     // Type/class pill
     const iconHtml = renderTagIcon();
-    return `<span class="type-pill${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="class"${statusAttr}${tooltip}>${iconHtml}<span class="type-pill__text">${escapeHtml(displayText)}</span></span>`;
+    return `<span class="class-pill${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="class"${statusAttr}${tooltip}>${iconHtml}<span class="class-pill__text">${escapeHtml(displayText)}</span></span>`;
   }
 
   // Node ref - could be a tag or regular link
@@ -281,9 +281,9 @@ function extractInlineNodes(element: HTMLElement | ChildNode): ASTInlineNode[] {
     }
 
     // Check for inline-link class (atomic pill without data-ast, e.g. after paste)
-    if (el.classList.contains('inline-link') || el.classList.contains('tag-pill') || el.classList.contains('type-pill')) {
+    if (el.classList.contains('inline-link') || el.classList.contains('tag-pill') || el.classList.contains('class-pill')) {
       const linkId = el.dataset.linkId || '';
-      const refType = (el.dataset.refType as 'node' | 'class') || (el.classList.contains('type-pill') ? 'class' : 'node');
+      const refType = (el.dataset.refType as 'node' | 'class') || (el.classList.contains('class-pill') ? 'class' : 'node');
       if (linkId) {
         result.push({ type: 'node_link', link_id: linkId, ref_type: refType });
         continue;
@@ -585,7 +585,7 @@ function isPillElement(el: HTMLElement): boolean {
     el.dataset.ast === 'node_link' ||
     el.classList.contains('inline-link') ||
     el.classList.contains('tag-pill') ||
-    el.classList.contains('type-pill') ||
+    el.classList.contains('class-pill') ||
     el.classList.contains('link-pill')
   );
 }

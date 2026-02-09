@@ -518,7 +518,7 @@ function BlockInternal({
           const raw = el.dataset?.linkRaw || '';
           foundTarget.position += raw.length;
           return foundTarget.position;
-        } else if (el.classList?.contains('type-pill')) {
+        } else if (el.classList?.contains('class-pill')) {
           const raw = el.dataset?.typeRaw || '';
           foundTarget.position += raw.length;
           return foundTarget.position;
