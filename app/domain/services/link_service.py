@@ -210,64 +210,17 @@ class LinkParsingService:
         """Parse content and extract all links.
         
         Returns list of tuples: (target_node_id, position, link_uuid)
-        
-        Handles both formats:
-        - AST JSON: extracts node_link entries with ref_type='node'
-        - Legacy text: [[nodeId]] or [[nodeId:linkUuid]] regex patterns
-        
-        Content is automatically sanitized to remove editor artifacts.
+        Extracts node_link entries with ref_type='node' from AST JSON content.
         """
-        # Try AST JSON first
-        ast_links = _parse_links_from_ast(content)
-        if ast_links is not None:
-            return ast_links
-        
-        # Fallback: legacy [[id]] regex parsing
-        sanitized_content = sanitize_content(content)
-        
-        links = []
-        
-        for match in LINK_PATTERN.finditer(sanitized_content):
-            try:
-                target_id = int(match.group(1))
-                position = match.start()
-                link_uuid = match.group(2)  # May be None if no UUID in link
-                links.append((target_id, position, link_uuid))
-            except ValueError:
-                continue
-        
-        return links
+        return _parse_links_from_ast(content) or []
     
     def parse_inline_classes(self, content: str) -> List[Tuple[int, int]]:
         """Parse content and extract all inline class references.
         
         Returns list of tuples: (class_node_id, position)
-        
-        Handles both formats:
-        - AST JSON: extracts node_link entries with ref_type='class'
-        - Legacy text: {{classId}} regex patterns
-        
-        Content is automatically sanitized to remove editor artifacts.
+        Extracts node_link entries with ref_type='class' from AST JSON content.
         """
-        # Try AST JSON first
-        ast_classes = _parse_inline_classes_from_ast(content)
-        if ast_classes is not None:
-            return ast_classes
-        
-        # Fallback: legacy {{id}} regex parsing
-        sanitized_content = sanitize_content(content)
-        
-        inline_classes = []
-        
-        for match in INLINE_CLASS_PATTERN.finditer(sanitized_content):
-            try:
-                class_id = int(match.group(1))
-                position = match.start()
-                inline_classes.append((class_id, position))
-            except ValueError:
-                continue
-        
-        return inline_classes
+        return _parse_inline_classes_from_ast(content) or []
 
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
