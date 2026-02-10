@@ -1564,8 +1564,12 @@ export function ASTBlockEditor({
     e.preventDefault();
     e.stopPropagation();
 
-    const linkUuid = linkElement.dataset.linkId;
-    if (!linkUuid) return;
+    const rawLinkId = linkElement.dataset.linkId;
+    if (!rawLinkId) return;
+
+    // Extract the UUID part from compound link_id ("nodeId:uuid" → "uuid")
+    const colonIdx = rawLinkId.indexOf(':');
+    const linkUuid = colonIdx > 0 ? rawLinkId.substring(colonIdx + 1) : rawLinkId;
 
     const currentName = linkCustomNames.get(linkUuid) || null;
     const rect = linkElement.getBoundingClientRect();
@@ -1575,7 +1579,7 @@ export function ASTBlockEditor({
       linkUuid,
       currentName,
       nodeId: nodeId ?? 0,
-      position: { top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX },
+      position: { top: rect.bottom + 4, left: rect.left },
     });
   }, [readOnly, linkCustomNames, nodeId]);
 
@@ -1653,7 +1657,7 @@ export function ASTBlockEditor({
             <div
               className="link-name-dialog"
               style={{
-                position: 'absolute',
+                position: 'fixed',
                 top: linkNameDialog.position.top,
                 left: linkNameDialog.position.left,
                 zIndex: 1000,
