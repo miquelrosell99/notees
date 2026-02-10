@@ -34,7 +34,7 @@ import './InlineNodeLink.css';
 // UI components
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
-import { FloatingToolbar } from '../core/FloatingToolbar';
+import { FloatingToolbar, type FloatingToolbarHandle } from '../core/FloatingToolbar';
 import { NodePill } from '../NodePill';
 import { LinkEditorCard } from '../LinkEditorCard';
 
@@ -219,6 +219,7 @@ export function ASTBlockEditor({
   const pendingUuidResolutions = useRef(new Set<string>());
   const pendingOnChange = useRef<string | null>(null);
   const rafId = useRef<number>(0);
+  const floatingToolbarRef = useRef<FloatingToolbarHandle>(null);
 
   // ─── Portal mount points for NodePill rendering ───────────────
   interface MountPoint {
@@ -827,6 +828,13 @@ export function ASTBlockEditor({
     setSelectionToolbar(prev => ({ ...prev, visible: false }));
   }, [selectionToolbar, commitAST]);
 
+  // ─── Handle toolbar close (ArrowUp pressed in toolbar) ─────────
+  const handleToolbarClose = useCallback(() => {
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+    // Restore focus to the editor
+    editorRef.current?.focus();
+  }, []);
+
   // ─── Key handler ───────────────────────────────────────────────
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!editorRef.current) return;
@@ -1012,6 +1020,16 @@ export function ASTBlockEditor({
       handleArrowNavigation(e);
     }
 
+    // ── ArrowDown: focus floating toolbar when visible and text is selected ──
+    if (e.key === 'ArrowDown' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && selectionToolbar.visible) {
+        e.preventDefault();
+        floatingToolbarRef.current?.focusFirstButton();
+        return;
+      }
+    }
+
     // ── Arrow up/down navigation ──
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
       const sel = window.getSelection();
@@ -1057,7 +1075,7 @@ export function ASTBlockEditor({
     onExtendSelection, isTask, taskState, onTaskStateChange,
     onEnterCreateBlock, onBackspaceAtStart, onDeleteAtEnd,
     onIndent, onOutdent, trigger.isOpen, slashCommand.isOpen,
-    nodeUuid, commitAST,
+    nodeUuid, commitAST, selectionToolbar.visible,
   ]);
 
   // ─── Arrow navigation around pills ────────────────────────────
@@ -1531,13 +1549,21 @@ export function ASTBlockEditor({
     const currentName = linkCustomNames.get(linkUuid) || null;
     // Resolve target via node_link table, NOT from AST nodeUuid
     const targetNodeId = linkTargets.get(linkUuid) ?? null;
+    // Compute position relative to editor (absolute positioning, like FloatingToolbar)
+    const editorRect = editorRef.current?.getBoundingClientRect();
+    const top = editorRect
+      ? pillRect.bottom - editorRect.top + 4
+      : pillRect.bottom + 4;
+    const left = editorRect
+      ? pillRect.left - editorRect.left
+      : pillRect.left;
     setLinkEditorCard({
       isOpen: true,
       linkId,
       linkUuid,
       currentNodeId: targetNodeId,
       currentName,
-      position: { top: pillRect.bottom + 4, left: pillRect.left },
+      position: { top, left },
       mode: 'edit',
     });
   }, [linkCustomNames, linkTargets]);
@@ -1560,10 +1586,10 @@ export function ASTBlockEditor({
     const urlRegex = /^https?:\/\/.+/i;
     const isUrl = urlRegex.test(selectedText);
 
-    // Position below cursor/selection
+    // Position below cursor/selection (relative to editor, like FloatingToolbar)
     const position = {
-      top: rect.bottom + 4,
-      left: rect.left,
+      top: rect.bottom - editorRect.top + 4,
+      left: rect.left - editorRect.left,
     };
 
     if (isUrl) {
@@ -1759,6 +1785,7 @@ export function ASTBlockEditor({
           />
 
           <FloatingToolbar
+            ref={floatingToolbarRef}
             visible={selectionToolbar.visible}
             position={selectionToolbar.position}
             onBold={handleToolbarBold}
@@ -1770,6 +1797,7 @@ export function ASTBlockEditor({
             italicActive={selectionToolbar.activeMarks.has('em')}
             underlineActive={selectionToolbar.activeMarks.has('underline')}
             strikethroughActive={selectionToolbar.activeMarks.has('strikethrough')}
+            onClose={handleToolbarClose}
           />
 
           {linkEditorCard?.isOpen && linkEditorCard.mode !== 'create-url' && (
