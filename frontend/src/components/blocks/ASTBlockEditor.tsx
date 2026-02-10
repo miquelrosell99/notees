@@ -1515,25 +1515,13 @@ export function ASTBlockEditor({
     };
   }, [trigger.isOpen, slashCommand.isOpen]);
 
-  // ─── Link click handler (select class pills only — node pills use NodePill) ─
+  // ─── Link click handler (node pills handled via portal callbacks) ─
   const handleEditorClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly) return;
 
     const target = e.target as HTMLElement;
-    // Only handle class pills — node link pills are handled by NodePill via portal
-    const linkElement = target.closest('.class-pill') as HTMLElement;
-    if (!linkElement) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const sel = window.getSelection();
-    if (sel) {
-      const range = document.createRange();
-      range.selectNode(linkElement);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
+    // Node link pills (including class refs) are handled by NodePill via portal callbacks
+    // No special link handling needed in the editor click handler
   }, [readOnly]);
 
   // ─── Portal pill callbacks (remove, color, edit link) ──
@@ -1774,6 +1762,7 @@ export function ASTBlockEditor({
             key={`${mountVersion}-${i}`}
             nodeId={targetNodeId}
             variant="link"
+            refType={mp.refType}
             editMode={true}
             customName={customName ?? null}
             onEditLink={parsed.linkUuid ? (pillRect: DOMRect) => handlePillEditLink(mp.linkId, pillRect) : undefined}
@@ -1904,7 +1893,6 @@ function isPillEl(el: HTMLElement): boolean {
     el.classList?.contains('inline-node-link') ||
     el.classList?.contains('node-link-mount') ||
     el.classList?.contains('link-pill') ||
-    el.classList?.contains('class-pill') ||
     el.classList?.contains('tag-pill')
   );
 }

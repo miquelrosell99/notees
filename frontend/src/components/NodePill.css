@@ -18,6 +18,30 @@
   color: var(--color-on-surface-variant);
 }
 
+/* Class reference pills - add subtle glare/shimmer effect */
+.node-pill--link.node-pill--class .pill:not([style*="background"]) {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-tertiary) 12%, var(--color-surface)),
+    color-mix(in srgb, var(--color-tertiary) 8%, var(--color-surface)) 50%,
+    color-mix(in srgb, var(--color-tertiary) 12%, var(--color-surface))
+  );
+  color: var(--color-on-tertiary-container);
+  border: 1px solid color-mix(in srgb, var(--color-tertiary) 15%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tertiary) 20%, transparent);
+}
+
+.node-pill--link.node-pill--class .pill:hover:not([style*="background"]) {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-tertiary) 18%, var(--color-surface)),
+    color-mix(in srgb, var(--color-tertiary) 12%, var(--color-surface)) 50%,
+    color-mix(in srgb, var(--color-tertiary) 18%, var(--color-surface))
+  );
+  border-color: color-mix(in srgb, var(--color-tertiary) 25%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tertiary) 30%, transparent);
+}
+
 /* When pill has a custom color, adjust text color for contrast */
 .node-pill--link .pill[style*="background"] {
   color: var(--color-on-surface);
