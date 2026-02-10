@@ -101,7 +101,7 @@ export function ClassColorsPanel({
             onReorder={moveClassColor}
             itemClassName="class-color-item"
             renderText={(item) => (
-              <span className="class-name">{nodeNameToText(item.className) || item.className || 'Untitled'}</span>
+              <span className="class-name">{item.className}</span>
             )}
             renderActions={(item) => [
               <ColorButton

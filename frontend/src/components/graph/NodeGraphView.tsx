@@ -128,11 +128,14 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
           // Handle both formats: raw object (new) or JSON string (legacy).
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
-            // Migrate legacy field names: typeName → className
-            const migrated = parsed.map((cc: Record<string, unknown>) => ({
-              ...cc,
-              className: cc.className ?? cc.typeName ?? 'Untitled',
-            }));
+            // Migrate legacy data: typeName → className, convert raw AST to text
+            const migrated = parsed.map((cc: Record<string, unknown>) => {
+              const rawName = (cc.className ?? cc.typeName ?? '') as string;
+              return {
+                ...cc,
+                className: nodeNameToText(rawName) || rawName || 'Untitled',
+              };
+            });
             skipClassColorsSaveRef.current++;  // skip the save-back on next render
             setClassColors(migrated);
           }
@@ -690,7 +693,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                 onReorder={moveSelectionItem}
                 itemClassName="selected-node-item"
                 renderText={(item) => (
-                  <span className="node-name">{nodeNameToText(item.name) || item.name || 'Untitled'}</span>
+                  <span className="node-name">{item.name}</span>
                 )}
                 renderAction={(item) => (
                   <Button
