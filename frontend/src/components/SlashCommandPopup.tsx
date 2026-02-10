@@ -100,6 +100,7 @@ export function SlashCommandPopup({
 }: SlashCommandPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   
   // Filter commands based on query
   const filteredCommands = useMemo(() => {
@@ -116,6 +117,17 @@ export function SlashCommandPopup({
   useEffect(() => {
     setSelectedIndex(0);
   }, [filteredCommands.length, query]);
+  
+  // Scroll selected item into view
+  useEffect(() => {
+    const selectedElement = itemRefs.current[selectedIndex];
+    if (selectedElement) {
+      selectedElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [selectedIndex]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -232,6 +244,7 @@ export function SlashCommandPopup({
           filteredCommands.map((cmd, index) => (
             <button
               key={cmd.id}
+              ref={(el) => (itemRefs.current[index] = el)}
               className={`slash-command-popup__item ${index === selectedIndex ? 'slash-command-popup__item--selected' : ''}`}
               onClick={() => onSelect(cmd.id)}
               onMouseEnter={() => setSelectedIndex(index)}
