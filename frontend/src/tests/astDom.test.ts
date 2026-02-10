@@ -69,6 +69,7 @@ const empty: ASTDocument = [];
 const testCtx: ASTRenderContext = {
   resolveLink: (linkId: string, refType: 'node' | 'class'): ResolvedLink => ({
     displayText: `[${linkId}]`,
+    targetName: `[${linkId}]`,
     isTag: false,
     effectiveIcon: null,
     customLabel: null,
@@ -79,6 +80,7 @@ const testCtx: ASTRenderContext = {
 const tagCtx: ASTRenderContext = {
   resolveLink: (linkId: string): ResolvedLink => ({
     displayText: `#${linkId}`,
+    targetName: `#${linkId}`,
     isTag: true,
     effectiveIcon: null,
     customLabel: null,
@@ -659,6 +661,7 @@ describe('link status rendering', () => {
     const brokenCtx: ASTRenderContext = {
       resolveLink: () => ({
         displayText: 'Missing',
+        targetName: 'Missing',
         isTag: false,
         effectiveIcon: null,
         customLabel: null,
@@ -674,6 +677,7 @@ describe('link status rendering', () => {
     const cycleCtx: ASTRenderContext = {
       resolveLink: () => ({
         displayText: 'Cyclic',
+        targetName: 'Cyclic',
         isTag: false,
         effectiveIcon: null,
         customLabel: null,
@@ -695,6 +699,7 @@ describe('link status rendering', () => {
     const brokenCtx: ASTRenderContext = {
       resolveLink: () => ({
         displayText: 'Missing',
+        targetName: 'Missing',
         isTag: false,
         effectiveIcon: null,
         customLabel: null,
@@ -709,6 +714,7 @@ describe('link status rendering', () => {
     const cycleCtx: ASTRenderContext = {
       resolveLink: () => ({
         displayText: 'Cyclic',
+        targetName: 'Cyclic',
         isTag: false,
         effectiveIcon: null,
         customLabel: null,
