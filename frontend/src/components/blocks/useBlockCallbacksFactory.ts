@@ -77,12 +77,12 @@ export function useBlockCallbacksFactory(options: BlockCallbacksFactoryOptions):
           } else {
             dateNode = await getOrCreateYearly(parsedDate.year);
           }
-          return String(dateNode.id);
+          return dateNode.uuid;
         }
         
         if (!systemClassIds?.page) return undefined;
         const newPage = await createNode.mutateAsync({ name, classes: [systemClassIds.page] });
-        return String(newPage.id);
+        return newPage.uuid;
       } catch (error) {
         console.error('Failed to create page for link:', error);
         return undefined;
