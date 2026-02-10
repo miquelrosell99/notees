@@ -12,17 +12,6 @@
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
 
-/* Page and Block color styling is applied at main-content level in Layout.css */
-
-/* Colored card wrapper - appears "over" the colored background */
-.node-view__colored-card {
-  /* Negative margins to extend card to article edges */
-  margin: 0 calc(-1 * var(--spacing-4)) calc(-1 * var(--spacing-6));
-  /* Add back the padding inside the card */
-  padding: 0 var(--spacing-4) var(--spacing-6);
-  overflow: visible;
-}
-
 /* Loading and error states */
 .node-view--loading,
 .node-view--error {
