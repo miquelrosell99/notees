@@ -120,3 +120,23 @@ export function isDarkModeActive(): boolean {
 export function getNodeColorStylesAuto(color: string): React.CSSProperties {
   return getNodeColorStyles(color, isDarkModeActive());
 }
+
+/**
+ * Generate CSS custom properties for thick colored border only (no background)
+ * Used for NodeView with colored border
+ * 
+ * @param color - The node's color (hex or rgb)
+ * @returns CSS properties object to apply to the element
+ */
+export function getNodeBorderStyles(color: string): React.CSSProperties {
+  const rgb = parseColorToRgb(color);
+  if (!rgb) return {};
+  
+  const { r, g, b } = rgb;
+  
+  return {
+    '--node-color': color,
+    '--node-color-rgb': `${r}, ${g}, ${b}`,
+    '--node-border-color': color,
+  } as React.CSSProperties;
+}
