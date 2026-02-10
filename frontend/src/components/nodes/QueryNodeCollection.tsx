@@ -310,6 +310,11 @@ export function QueryNodeCollection({
           children: [
             {
               type: 'condition',
+              condition_type: 'parent',
+              operator: 'has_no_parent',
+            } as any,
+            {
+              type: 'condition',
               condition_type: 'class',
               operator: 'is_any_of',
               class_uuids: [],
@@ -331,7 +336,7 @@ export function QueryNodeCollection({
       current_node_uuid: nodeUuid,
       current_node_id: nodeId,
     },
-    includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || collectionViewMode === 'card',
+    includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || viewType === 'all_pages' || collectionViewMode === 'card',
     includeProperties: true,
     enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
   });
