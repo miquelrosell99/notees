@@ -481,6 +481,12 @@
   display: block;
 }
 
+/* Ensure inner block-content span displays as block to match editor */
+.block-content-view > .block-content {
+  display: block;
+  line-height: 1.6;
+}
+
 /* Block content no longer has hover background */
 
 .block-content-view .block-content-pills {
