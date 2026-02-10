@@ -23,6 +23,21 @@ if TYPE_CHECKING:
 # Type alias for connection types
 ConnectionType = Union[Connection, PoolConnectionProxy]
 
+from ..stringify_ast import parse_ast, serialize_ast, ParseMode
+
+
+def _normalize_name_to_ast(name: Optional[str]) -> Optional[str]:
+    """Normalize a name to AST format. Plain text is parsed for inline
+    Markdown and converted to AST JSON."""
+    if name is None or name == "":
+        return name
+    # Try JSON first — if it's valid AST, return as-is
+    ast = parse_ast(name, ParseMode.JSON)
+    if ast:
+        return name
+    # Plain text — parse inline Markdown into AST
+    return serialize_ast(parse_ast(name, ParseMode.MARKDOWN))
+
 
 class PostgresNodeRepository(NodeRepository):
     """PostgreSQL implementation of the NodeRepository.
@@ -268,6 +283,9 @@ class PostgresNodeRepository(NodeRepository):
         uuid = uuid or data.uuid or generate_uuid()  # Use provided UUID or generate
         uid = user_id or self._user_id
         
+        # Normalize name to AST format (converts plain text to AST if needed)
+        normalized_name = _normalize_name_to_ast(data.name)
+        
         # Compute page_id for blocks
         page_id = None
         if data.parent_id:
@@ -342,7 +360,7 @@ class PostgresNodeRepository(NodeRepository):
                     )
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
                     RETURNING id
-                """, uuid, self._graph_id, data.name, data.icon, data.color,
+                """, uuid, self._graph_id, normalized_name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
                     is_class, is_page, is_day,
                     is_month, is_year, is_asset,
@@ -358,7 +376,7 @@ class PostgresNodeRepository(NodeRepository):
             id=node_id,
             uuid=uuid,
             graph_id=self._graph_id,
-            name=data.name,
+            name=normalized_name,
             icon=data.icon,
             color=data.color,
             parent_id=data.parent_id,
@@ -447,8 +465,10 @@ class PostgresNodeRepository(NodeRepository):
         param_idx = 3
         
         if data.name is not None:
+            # Normalize name to AST format (converts plain text to AST if needed)
+            normalized_name = _normalize_name_to_ast(data.name)
             set_clauses.append(f"name = ${param_idx}")
-            params.append(data.name)
+            params.append(normalized_name)
             param_idx += 1
         
         if data.icon is not None:

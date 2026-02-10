@@ -24,6 +24,7 @@
  */
 import { useCallback, useRef, useEffect } from 'react';
 import { useUpdateNode } from './useNodes';
+import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 
 /** Pending change entry */
 interface PendingChange {
@@ -51,10 +52,15 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   // Track pending changes per block
   const pendingChangesRef = useRef<Map<number, PendingChange>>(new Map());
   
-  // Save a specific block
+  // Save a specific block — convert markdown syntax in text nodes before saving
   const saveBlock = useCallback((blockId: number, content: string) => {
+    // Parse AST, convert any markdown syntax in text nodes, re-serialize
+    const ast = parseAST(content);
+    const converted = convertMarkdownInAST(ast);
+    const finalContent = converted !== ast ? JSON.stringify(converted) : content;
+
     updateNode.mutate(
-      { id: blockId, data: { name: content } },
+      { id: blockId, data: { name: finalContent } },
       {
         onSuccess: () => onSaved?.(blockId),
         onError: (error) => onError?.(blockId, error as Error),

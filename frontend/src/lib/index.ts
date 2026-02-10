@@ -40,8 +40,8 @@ export {
   paragraph,
   doc,
   inlineDoc,
-  fromPlainText,
   parseAST,
+  ParseMode,
 } from './astBuilder';
 
 // Stringifier
@@ -80,6 +80,9 @@ export type {
   LinkStatus,
   TriggerMatch,
 } from './astDom';
+
+// AST Markdown conversion
+export { convertMarkdownInAST } from './astBuilder';
 
 // AST mutations
 export {

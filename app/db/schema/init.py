@@ -11,6 +11,7 @@ import asyncpg
 from datetime import datetime, timezone
 
 from ...domain.entities import generate_uuid
+from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
 from .constants import (
     SCHEMA_VERSION,
     SYSTEM_CLASSES,
@@ -78,9 +79,9 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     class_icon = SYSTEM_CLASS_ICONS.get("class")
     class_row = await conn.fetchrow("""
         INSERT INTO node (uuid, graph_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'class', $3, TRUE, TRUE, $4, $4, $5, $5)
+        VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5, $6, $6)
         RETURNING id
-    """, class_uuid, graph_id, class_icon, now, user_id)
+    """, class_uuid, graph_id, serialize_ast(parse_ast('class', ParseMode.PLAIN)), class_icon, now, user_id)
     if class_row is None:
         raise RuntimeError("Failed to create 'class' node")
     class_node_id = class_row['id']
@@ -89,9 +90,9 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     page_uuid = SYSTEM_CLASS_UUIDS["page"]
     page_row = await conn.fetchrow("""
         INSERT INTO node (uuid, graph_id, name, is_class, is_page, create_date, write_date, create_uid, write_uid)
-        VALUES ($1, $2, 'page', TRUE, TRUE, $3, $3, $4, $4)
+        VALUES ($1, $2, $3, TRUE, TRUE, $4, $4, $5, $5)
         RETURNING id
-    """, page_uuid, graph_id, now, user_id)
+    """, page_uuid, graph_id, serialize_ast(parse_ast('page', ParseMode.PLAIN)), now, user_id)
     if page_row is None:
         raise RuntimeError("Failed to create 'page' node")
     page_class_id = page_row['id']
@@ -156,7 +157,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             INSERT INTO node (uuid, graph_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5, $6, $6)
             RETURNING id
-        """, class_uuid, graph_id, class_name, class_icon, now, user_id)
+        """, class_uuid, graph_id, serialize_ast(parse_ast(class_name, ParseMode.PLAIN)), class_icon, now, user_id)
         if row is None:
             raise RuntimeError(f"Failed to create '{class_name}' class node")
         new_class_id = row['id']
@@ -188,7 +189,7 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
             INSERT INTO node (uuid, graph_id, name, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
             RETURNING id
-        """, generate_uuid(), graph_id, page_name, now, user_id)
+        """, generate_uuid(), graph_id, serialize_ast(parse_ast(page_name, ParseMode.PLAIN)), now, user_id)
         if row is None:
             raise RuntimeError(f"Failed to create '{page_name}' page")
         new_page_id = row['id']

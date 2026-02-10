@@ -51,6 +51,8 @@
 .block .block-content {
   flex: 1;
   min-width: 0;
+  /* Override Card's overflow:hidden to allow FloatingToolbar to show */
+  overflow: visible;
 }
 
 /* Quote blocks - special styling with faded background */

@@ -392,7 +392,7 @@ class TestParseAST:
         assert parse_ast(ast) == ast
 
     def test_plain_string_returns_empty(self):
-        """Plain text is NOT valid AST - must use build_text_ast to create content."""
+        """Plain text is NOT valid AST - use parse_ast(text, ParseMode.PLAIN) to create content."""
         result = parse_ast("hello world")
         assert result == []
 
@@ -417,22 +417,23 @@ class TestParseAST:
         assert parse_ast([1, 2, 3]) == []
 
 
-# ── build_text_ast ─────────────────────────────────────────────────
+# ── parse_ast with ParseMode.PLAIN ─────────────────────────────────
 
 
-class TestBuildTextAST:
+class TestParseASTPlain:
     def test_simple_text(self):
-        from app.domain.stringify_ast import build_text_ast
+        from app.domain.stringify_ast import parse_ast, serialize_ast, ParseMode
         import json
         
-        result = build_text_ast("Hello World")
+        ast = parse_ast("Hello World", ParseMode.PLAIN)
+        result = serialize_ast(ast)
         parsed = json.loads(result)
         assert parsed == [{"type": "paragraph", "children": [{"type": "text", "text": "Hello World"}]}]
     
     def test_roundtrip(self):
-        from app.domain.stringify_ast import build_text_ast
+        from app.domain.stringify_ast import parse_ast, serialize_ast, ParseMode
         
-        ast_json = build_text_ast("2026")
+        ast_json = serialize_ast(parse_ast("2026", ParseMode.PLAIN))
         result = parse_ast(ast_json)
         assert len(result) == 1
         assert result[0]["children"][0]["text"] == "2026"
