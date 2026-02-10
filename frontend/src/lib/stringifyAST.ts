@@ -151,6 +151,12 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
       }
       return `==${renderInlineSequence(node.children, opts)}==`;
 
+    case 'underline':
+      if (opts.mode === StringifyMode.TEXT_ONLY) {
+        return renderInlineSequence(node.children, opts);
+      }
+      return `__${renderInlineSequence(node.children, opts)}__`;
+
     case 'external_link': {
       const linkText = renderInlineSequence(node.children, opts);
       if (opts.mode === StringifyMode.TEXT_ONLY) {

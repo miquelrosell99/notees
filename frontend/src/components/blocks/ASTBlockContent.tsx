@@ -371,6 +371,15 @@ function RenderInlineNode({
         </mark>
       );
 
+    case 'underline':
+      return (
+        <u>
+          {node.children.map((child, i) => (
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+          ))}
+        </u>
+      );
+
     case 'external_link':
       return (
         <a

@@ -67,6 +67,11 @@ export interface ASTHighlight {
   readonly children: ASTInlineNode[];
 }
 
+export interface ASTUnderline {
+  readonly type: 'underline';
+  readonly children: ASTInlineNode[];
+}
+
 // ─── External link ─────────────────────────────────────────────────
 
 export interface ASTExternalLink {
@@ -94,6 +99,7 @@ export type ASTInlineNode =
   | ASTCode
   | ASTStrikethrough
   | ASTHighlight
+  | ASTUnderline
   | ASTExternalLink;
 
 /** Top-level node. A `name` column stores an array of these. */

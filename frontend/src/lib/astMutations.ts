@@ -116,7 +116,8 @@ function splitSingleNode(
     case 'strong':
     case 'em':
     case 'strikethrough':
-    case 'highlight': {
+    case 'highlight':
+    case 'underline': {
       const [childBefore, childAfter] = splitInlines(node.children, offset);
       const before = childBefore.length > 0
         ? { type: node.type, children: childBefore } as ASTInlineNode
@@ -306,7 +307,7 @@ export function wrapInExternalLink(
 
 // ─── Formatting (wrap/unwrap marks) ────────────────────────────────
 
-export type MarkType = 'strong' | 'em' | 'strikethrough' | 'highlight';
+export type MarkType = 'strong' | 'em' | 'strikethrough' | 'highlight' | 'underline';
 
 /**
  * Toggle a mark (bold, italic, etc.) on a range of content.
@@ -412,6 +413,7 @@ export function inlineNodeLength(node: ASTInlineNode): number {
     case 'em':
     case 'strikethrough':
     case 'highlight':
+    case 'underline':
       return node.children.reduce((sum, c) => sum + inlineNodeLength(c), 0);
     case 'external_link':
       return node.children.reduce((sum, c) => sum + inlineNodeLength(c), 0);
@@ -492,6 +494,7 @@ function extractText(node: ASTInlineNode): string {
     case 'em':
     case 'strikethrough':
     case 'highlight':
+    case 'underline':
       return node.children.map(extractText).join('');
     case 'external_link':
       return node.children.map(extractText).join('');
