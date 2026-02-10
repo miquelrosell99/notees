@@ -75,6 +75,7 @@ class Property:
     is_system: bool = False  # System-defined vs user-defined
     is_local: bool = False  # Local properties are unique per node_id, not globally
     node_id: Optional[int] = None  # For local properties: the page node this belongs to
+    icon_visibility: str = "hidden"  # Where to show selection value icon: 'hidden' | 'before_content' | 'after_bullet'
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
     

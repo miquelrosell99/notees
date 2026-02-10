@@ -75,6 +75,7 @@ class PostgresPropertyRepository(PropertyRepository):
             is_system=row.get('is_system', False),
             is_local=row.get('is_local', False),
             node_id=row.get('node_id'),
+            icon_visibility=row.get('icon_visibility', 'hidden'),
             create_date=create_date,
             write_date=write_date,
         )
@@ -374,7 +375,8 @@ class PostgresPropertyRepository(PropertyRepository):
             return properties
     
     async def update(self, property_id: int, name: Optional[str] = None,
-                     icon: Optional[str] = None) -> Optional[Property]:
+                     icon: Optional[str] = None,
+                     icon_visibility: Optional[str] = None) -> Optional[Property]:
         """Update a property definition."""
         prop = await self.get_by_id(property_id)
         if not prop:
@@ -396,6 +398,11 @@ class PostgresPropertyRepository(PropertyRepository):
         if icon is not None:
             updates.append(f"icon = ${param_idx}")
             params.append(icon)
+            param_idx += 1
+        
+        if icon_visibility is not None:
+            updates.append(f"icon_visibility = ${param_idx}")
+            params.append(icon_visibility)
             param_idx += 1
         
         if updates:

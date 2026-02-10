@@ -47,6 +47,7 @@ import { TableBlock } from './TableBlock';
 import { ColorPickerRow, PageContextMenu, BlockContextMenu } from '../nodes/NodeContextMenu';
 import { NodePill } from '../NodePill';
 import { PropertySuggestionPopup } from '../properties/PropertySuggestionPopup';
+import { PropertyIconButton } from '../properties/PropertyIconButton';
 import { useBlockCallbacks } from './BlockCallbacksContext';
 import { SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
@@ -371,6 +372,30 @@ function BlockInternal({
     }
     return null;
   }, [block.icon, blockClassDetails]);
+  
+  // Compute property icons to show at block level based on icon_visibility setting
+  const propertyIcons = useMemo(() => {
+    if (!block.properties || !allProperties) return { beforeContent: [], afterBullet: [] };
+    
+    const beforeContent: { property: Property; value: unknown }[] = [];
+    const afterBullet: { property: Property; value: unknown }[] = [];
+    
+    for (const prop of allProperties) {
+      if (prop.icon_visibility === 'hidden') continue;
+      
+      const propIdKey = prop.id;
+      const value = block.properties[propIdKey];
+      if (value === undefined || value === null) continue;
+      
+      if (prop.icon_visibility === 'before_content') {
+        beforeContent.push({ property: prop, value });
+      } else if (prop.icon_visibility === 'after_bullet') {
+        afterBullet.push({ property: prop, value });
+      }
+    }
+    
+    return { beforeContent, afterBullet };
+  }, [block.properties, allProperties]);
   
   // Check if block has query class (for collapse arrow) - reuse queryClass from above
   const hasQueryClass = !!(queryClass && block.classes?.includes(queryClass.id));
@@ -1825,6 +1850,21 @@ function BlockInternal({
           />
         )}
         
+        {/* Property value icons - after bullet position (like class pills but before content) */}
+        {propertyIcons.afterBullet.length > 0 && (
+          <div className="block-property-icons">
+            {propertyIcons.afterBullet.map(({ property: prop, value: val }) => (
+              <PropertyIconButton
+                key={prop.id}
+                property={prop}
+                node={block}
+                value={val}
+                editable={canEdit}
+              />
+            ))}
+          </div>
+        )}
+        
         {/* Block content - fixed width, no placeholder for empty blocks */}
         {/* When suppressColor is true, treat as if there's no color (for focused blocks where color is on container) */}
         {/* Quote blocks get special Card wrapper with faded background */}
@@ -1839,6 +1879,20 @@ function BlockInternal({
           paddingSize={hasQuoteClass ? "md" : undefined}
           radius={hasQuoteClass ? "md" : "none"}
         >
+          {/* Property value icons - before content position */}
+          {propertyIcons.beforeContent.length > 0 && blockState !== 'edit' && (
+            <span className="block-property-icons--before-content">
+              {propertyIcons.beforeContent.map(({ property: prop, value: val }) => (
+                <PropertyIconButton
+                  key={prop.id}
+                  property={prop}
+                  node={block}
+                  value={val}
+                  editable={canEdit}
+                />
+              ))}
+            </span>
+          )}
           {blockState === 'edit' ? (
             <BlockEditor
               nodeId={block.id}
@@ -2020,6 +2074,21 @@ function BlockInternal({
                 />
               )}
               
+              {/* Property value icons - after bullet position (query block) */}
+              {propertyIcons.afterBullet.length > 0 && (
+                <div className="block-property-icons">
+                  {propertyIcons.afterBullet.map(({ property: prop, value: val }) => (
+                    <PropertyIconButton
+                      key={prop.id}
+                      property={prop}
+                      node={block}
+                      value={val}
+                      editable={canEdit}
+                    />
+                  ))}
+                </div>
+              )}
+              
               {/* Block content */}
               <Card 
                 className={`block-content${block.color && !suppressColor ? ' block-content--colored' : ''}${hasQuoteClass ? ' block-content--quote' : ''}`}
@@ -2032,6 +2101,20 @@ function BlockInternal({
                 paddingSize={hasQuoteClass ? "md" : undefined}
                 radius={hasQuoteClass ? "md" : "none"}
               >
+                {/* Property value icons - before content position (query block) */}
+                {propertyIcons.beforeContent.length > 0 && blockState !== 'edit' && (
+                  <span className="block-property-icons--before-content">
+                    {propertyIcons.beforeContent.map(({ property: prop, value: val }) => (
+                      <PropertyIconButton
+                        key={prop.id}
+                        property={prop}
+                        node={block}
+                        value={val}
+                        editable={canEdit}
+                      />
+                    ))}
+                  </span>
+                )}
                 {blockState === 'edit' ? (
                   <BlockEditor
                     nodeId={block.id}
