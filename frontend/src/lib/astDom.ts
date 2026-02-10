@@ -34,6 +34,8 @@ export type LinkStatus = 'valid' | 'broken' | 'cycle';
 export interface ResolvedLink {
   /** Display text for the pill */
   readonly displayText: string;
+  /** The actual target node name (before custom label override) */
+  readonly targetName: string;
   /** Whether the target is a tag (renders as tag pill instead of inline link) */
   readonly isTag: boolean;
   /** SVG icon path (mdi) if available */
@@ -204,8 +206,17 @@ function renderNodeLinkPill(node: ASTNodeLink, ctx: ASTRenderContext): string {
     return `<span class="tag-pill${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node" data-is-tag="true"${statusAttr}${tooltip}>${iconHtml}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
   }
 
-  // Regular inline link
-  return `<a class="inline-link${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node"${statusAttr}${tooltip}>${escapeHtml(displayText)}</a>`;
+  // Regular inline link — show wiki-link syntax in edit mode
+  const targetName = resolved?.targetName ?? displayText;
+  let linkText: string;
+  if (resolved?.customLabel) {
+    // Custom label: [label]([[target]])
+    linkText = `[${resolved.customLabel}]([[${targetName}]])`;
+  } else {
+    // No custom label: [[target]]
+    linkText = `[[${displayText}]]`;
+  }
+  return `<a class="inline-link${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node"${statusAttr}${tooltip}>${escapeHtml(linkText)}</a>`;
 }
 
 /**
