@@ -97,6 +97,7 @@ export {
   insertText,
   toggleMark,
   toggleCode,
+  getActiveMarks,
   inlineNodeLength,
   flattenToInlines,
   documentLength,
