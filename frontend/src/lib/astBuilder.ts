@@ -22,6 +22,7 @@ import type {
   ASTCode,
   ASTStrikethrough,
   ASTHighlight,
+  ASTUnderline,
   ASTExternalLink,
   ASTInlineNode,
 } from '@/types/ast';
@@ -41,7 +42,7 @@ export const ParseMode = {
   JSON: 'JSON',
   /** Wrap plain text as-is in a single text node (no formatting). */
   PLAIN: 'PLAIN',
-  /** Parse inline Markdown: **bold**, *italic*, `code`, ~~strike~~, ==highlight==, [text](url). */
+  /** Parse inline Markdown: **bold**, *italic*, `code`, ~~strike~~, ==highlight==, __underline__, [text](url). */
   MARKDOWN: 'MARKDOWN',
 } as const;
 
@@ -81,6 +82,10 @@ export function strikethrough(...children: ASTInlineNode[]): ASTStrikethrough {
 
 export function highlight(...children: ASTInlineNode[]): ASTHighlight {
   return { type: 'highlight', children };
+}
+
+export function underline(...children: ASTInlineNode[]): ASTUnderline {
+  return { type: 'underline', children };
 }
 
 export function externalLink(url: string, ...children: ASTInlineNode[]): ASTExternalLink {
@@ -181,7 +186,7 @@ function validateDocument(doc: unknown): ASTDocument {
  *
  * Order matters — longer/more specific patterns first:
  *   `code`  →  ***bold italic***  →  **bold**  →  *italic*
- *   ~~strike~~  →  ==highlight==  →  [text](url)
+ *   ~~strike~~  →  ==highlight==  →  __underline__  →  [text](url)
  */
 /**
  * Build a fresh inline-Markdown regex.
@@ -192,7 +197,7 @@ function validateDocument(doc: unknown): ASTDocument {
  * corrupts the outer call's position → infinite re-matching → OOM.
  */
 function makeMdInlineRE(): RegExp {
-  return /(?<code>`[^`]+`)|(?<bold_italic>\*\*\*(?<bi>.+?)\*\*\*)|(?<bold>\*\*(?<b>.+?)\*\*)|(?<italic>\*(?<i>[^*]+?)\*)|(?<strike>~~(?<s>.+?)~~)|(?<highlight>==(?<h>.+?)==)|(?<link>\[(?<lt>[^\]]+)\]\((?<lu>[^)]+)\))/g;
+  return /(?<code>`[^`]+`)|(?<bold_italic>\*\*\*(?<bi>.+?)\*\*\*)|(?<bold>\*\*(?<b>.+?)\*\*)|(?<italic>\*(?<i>[^*]+?)\*)|(?<strike>~~(?<s>.+?)~~)|(?<highlight>==(?<h>.+?)==)|(?<underline>__(?<u>.+?)__)|(?<link>\[(?<lt>[^\]]+)\]\((?<lu>[^)]+)\))/g;
 }
 
 function parseMdDocument(input: string): ASTDocument {
@@ -236,6 +241,9 @@ function parseMdInline(input: string): ASTInlineNode[] {
     } else if (m.groups?.highlight) {
       const inner = m.groups.h!;
       nodes.push(highlight(...parseMdInline(inner)));
+    } else if (m.groups?.underline) {
+      const inner = m.groups.u!;
+      nodes.push(underline(...parseMdInline(inner)));
     } else if (m.groups?.link) {
       const linkText = m.groups.lt!;
       const url = m.groups.lu!;

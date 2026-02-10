@@ -156,6 +156,9 @@ function renderInlineNode(node: ASTInlineNode, ctx: ASTRenderContext): string {
     case 'highlight':
       return `<mark data-ast="highlight">${renderChildren(node.children, ctx)}</mark>`;
 
+    case 'underline':
+      return `<u data-ast="underline">${renderChildren(node.children, ctx)}</u>`;
+
     case 'external_link':
       return `<a data-ast="external_link" data-url="${escapeAttr(node.url)}" href="${escapeAttr(node.url)}" target="_blank" rel="noopener noreferrer">${renderChildren(node.children, ctx)}</a>`;
 
@@ -322,6 +325,11 @@ function extractInlineNodes(element: HTMLElement | ChildNode): ASTInlineNode[] {
 
     if (astType === 'highlight' || el.tagName === 'MARK') {
       result.push({ type: 'highlight', children: extractInlineNodes(el) });
+      continue;
+    }
+
+    if (astType === 'underline' || el.tagName === 'U') {
+      result.push({ type: 'underline', children: extractInlineNodes(el) });
       continue;
     }
 

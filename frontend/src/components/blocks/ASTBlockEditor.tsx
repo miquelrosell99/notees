@@ -775,6 +775,13 @@ export function ASTBlockEditor({
     setSelectionToolbar(prev => ({ ...prev, visible: false }));
   }, [selectionToolbar, commitAST]);
 
+  const handleToolbarUnderline = useCallback(() => {
+    if (!selectionToolbar.visible) return;
+    const result = toggleMark(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, 'underline');
+    commitAST(result.ast, selectionToolbar.end);
+    setSelectionToolbar(prev => ({ ...prev, visible: false }));
+  }, [selectionToolbar, commitAST]);
+
   const handleToolbarLink = useCallback((url: string) => {
     if (!selectionToolbar.visible) return;
     const result = wrapInExternalLink(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, url);
@@ -859,6 +866,12 @@ export function ASTBlockEditor({
         if (e.key === 'i') {
           e.preventDefault();
           const result = toggleMark(lastASTRef.current, actualStart, actualEnd, 'em');
+          commitAST(result.ast, actualEnd);
+          return;
+        }
+        if (e.key === 'u') {
+          e.preventDefault();
+          const result = toggleMark(lastASTRef.current, actualStart, actualEnd, 'underline');
           commitAST(result.ast, actualEnd);
           return;
         }
@@ -1494,6 +1507,7 @@ export function ASTBlockEditor({
             position={selectionToolbar.position}
             onBold={handleToolbarBold}
             onItalic={handleToolbarItalic}
+            onUnderline={handleToolbarUnderline}
             onStrikethrough={handleToolbarStrikethrough}
             onCode={handleToolbarCode}
             onLink={handleToolbarLink}
