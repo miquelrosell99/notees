@@ -14,7 +14,8 @@
  */
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import { BooleanToggle } from '../core/BooleanToggle';
-import type { Property, PropertyType, SelectionOption } from '@/types/api';
+import type { Property, PropertyType, SelectionOption, PropertyIconVisibility } from '@/types/api';
+import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { updateProperty, addSelectionOption, deleteSelectionOption, deleteProperty } from '@/api/properties';
 import { useSetNodeProperty } from '@/hooks';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
@@ -51,6 +52,7 @@ interface PanelState {
   defaultValue: boolean;
   choices: boolean;
   addChoice: boolean;
+  iconVisibility: boolean;
   hideOptions: boolean;
 }
 
@@ -70,6 +72,7 @@ export function PropertyConfigPanel({
   const [description, setDescription] = useState('');
   const [newChoiceName, setNewChoiceName] = useState('');
   const [newChoiceIcon, setNewChoiceIcon] = useState('');
+  const [iconVisibility, setIconVisibility] = useState<PropertyIconVisibility>('hidden');
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   
@@ -100,6 +103,7 @@ export function PropertyConfigPanel({
       setDescription(property.description || '');
       setNewChoiceName('');
       setNewChoiceIcon('');
+      setIconVisibility(property.icon_visibility || 'hidden');
       setError(null);
       // Reset panels
       setPanels({
@@ -109,6 +113,7 @@ export function PropertyConfigPanel({
         defaultValue: false,
         choices: false,
         addChoice: false,
+        iconVisibility: false,
         hideOptions: false,
       });
     }
@@ -229,6 +234,23 @@ export function PropertyConfigPanel({
     } catch (err) {
       setError('Failed to delete choice');
       console.error(err);
+    }
+  }, [property, onUpdate]);
+  
+  // Save icon visibility setting
+  const handleIconVisibilityChange = useCallback(async (newValue: PropertyIconVisibility) => {
+    if (!property) return;
+    
+    setIconVisibility(newValue);
+    
+    try {
+      const updated = await updateProperty(property.id, { icon_visibility: newValue });
+      onUpdate(updated);
+    } catch (err) {
+      setError('Failed to update icon visibility');
+      console.error(err);
+      // Revert on error
+      setIconVisibility(property.icon_visibility || 'hidden');
     }
   }, [property, onUpdate]);
   
@@ -567,6 +589,56 @@ export function PropertyConfigPanel({
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Icon visibility section (for supported property types) */}
+        {ICON_VISIBILITY_PROPERTY_TYPES.includes(property.type) && (
+          <div className="config-section">
+            <button
+              className={`config-section-header ${panels.iconVisibility ? 'expanded' : ''}`}
+              onClick={() => togglePanel('iconVisibility')}
+            >
+              <span className="config-section-icon">▶</span>
+              <span className="config-section-label">Value icon</span>
+              <span className="config-section-value">
+                {iconVisibility === 'hidden' ? 'Hidden' : iconVisibility === 'before_content' ? 'Before content' : 'After bullet'}
+              </span>
+            </button>
+            
+            {panels.iconVisibility && (
+              <div className="config-section-content">
+                <div className="config-type-list">
+                  <button
+                    className={`config-type-option ${iconVisibility === 'hidden' ? 'selected' : ''}`}
+                    onClick={() => handleIconVisibilityChange('hidden')}
+                  >
+                    <span className="config-type-icon">🚫</span>
+                    <span className="config-type-label">Hidden</span>
+                    {iconVisibility === 'hidden' && <span className="config-type-check">✓</span>}
+                  </button>
+                  <button
+                    className={`config-type-option ${iconVisibility === 'before_content' ? 'selected' : ''}`}
+                    onClick={() => handleIconVisibilityChange('before_content')}
+                  >
+                    <span className="config-type-icon">⬅</span>
+                    <span className="config-type-label">Before content</span>
+                    {iconVisibility === 'before_content' && <span className="config-type-check">✓</span>}
+                  </button>
+                  <button
+                    className={`config-type-option ${iconVisibility === 'after_bullet' ? 'selected' : ''}`}
+                    onClick={() => handleIconVisibilityChange('after_bullet')}
+                  >
+                    <span className="config-type-icon">➡</span>
+                    <span className="config-type-label">After bullet</span>
+                    {iconVisibility === 'after_bullet' && <span className="config-type-check">✓</span>}
+                  </button>
+                </div>
+                <p className="config-hint">
+                  Show the selected value's icon as a clickable button on the block row.
+                </p>
               </div>
             )}
           </div>

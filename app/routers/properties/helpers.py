@@ -46,6 +46,7 @@ def _property_to_response(prop: Property) -> PropertyResponse:
         is_system=prop.is_system,
         is_local=prop.is_local,
         node_id=prop.node_id,
+        icon_visibility=prop.icon_visibility,
         create_date=prop.create_date,
         write_date=prop.write_date,
         class_filters=prop._class_filters,

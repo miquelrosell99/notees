@@ -204,7 +204,7 @@ async def update_property(
             )
     
     try:
-        prop = await repo.update(property_id, name=request.name, icon=request.icon)
+        prop = await repo.update(property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility)
     except ValueError as e:
         raise HTTPException(400, str(e))
     
