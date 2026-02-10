@@ -4,8 +4,7 @@
  * Replaces the legacy regex-based BlockContent.
  * Renders an ASTDocument as React elements:
  *   - text → <span>
- *   - node_link → <NodePill>
- *   - class refs → <TypePill>
+ *   - node_link → <NodePill> (both regular and class refs)
  *   - strong → <strong>
  *   - em → <em>
  *   - code → <code>
@@ -21,10 +20,7 @@ import { useLinkClicks, useNode, useTextLinks, useTrackLinkClick, useUpdateNode 
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
 import { LinkEditorCard } from '../LinkEditorCard';
-import { ContextMenu } from '../core/ContextMenu';
-import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
-import { TagIcon } from '../icons';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { updateLinkName } from '@/api/nodes';
@@ -48,70 +44,6 @@ export interface ASTBlockContentProps {
   onReplaceLink?: (oldLinkId: string, newNodeId: number, newNodeUuid: string, newLinkUuid: string) => void;
   /** Callback when a link should be removed from content. */
   onRemoveLink?: (linkId: string) => void;
-}
-
-// ─── Internal sub-components ──────────────────────────────────────
-
-interface TypePillDisplayProps {
-  typeId: string;
-  linkId: string;
-  onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
-}
-
-function TypePillDisplay({ typeId, linkId, onNavigate }: TypePillDisplayProps) {
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const parsedId = parseInt(typeId, 10);
-  const { data: node } = useNode(isNaN(parsedId) ? null : parsedId);
-  const displayText = nodeNameToText(node?.name) || typeId;
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onNavigate(typeId, node, e.shiftKey);
-  }, [typeId, node, onNavigate]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  const contextMenuItems: ContextMenuItem[] = useMemo(() => [
-    {
-      id: 'open',
-      label: 'Open type',
-      onClick: () => { onNavigate(typeId, node, false); setContextMenu(null); },
-    },
-    {
-      id: 'open-sidebar',
-      label: 'Open in sidebar',
-      shortcut: '⇧Click',
-      onClick: () => { onNavigate(typeId, node, true); setContextMenu(null); },
-    },
-    { id: 'sep1', label: '', separator: true },
-    {
-      id: 'copy',
-      label: 'Copy reference',
-      onClick: () => { navigator.clipboard.writeText(linkId); setContextMenu(null); },
-    },
-  ], [typeId, node, linkId, onNavigate]);
-
-  return (
-    <>
-      <span
-        className="class-pill"
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-        title={`Class: ${displayText}\nClick to open, Shift+click for sidebar`}
-      >
-        <span className="class-pill__icon"><TagIcon size="xs" /></span>
-        <span className="class-pill__text">{displayText}</span>
-      </span>
-      {contextMenu && (
-        <ContextMenu items={contextMenuItems} position={contextMenu} onClose={() => setContextMenu(null)} />
-      )}
-    </>
-  );
 }
 
 // ─── Main component ───────────────────────────────────────────────
@@ -353,6 +285,7 @@ interface NodePillWithStatusProps {
   clickCount: number;
   customName?: string | null;
   linkId: string;
+  refType: 'node' | 'class';
   /** Color change callback that includes the resolved numeric nodeId */
   onColorChangeWithId: (nodeId: number, color: string | null) => void;
   onRemove?: () => void;
@@ -364,6 +297,7 @@ function NodePillWithStatus({
   clickCount,
   customName,
   linkId: _linkId,
+  refType,
   onColorChangeWithId,
   onRemove,
   onEditLink,
@@ -386,6 +320,7 @@ function NodePillWithStatus({
       variant="link"
       readOnly={false}
       customName={customName}
+      refType={refType}
       onColorChange={node ? (color => onColorChangeWithId(node.id, color)) : undefined}
       onRemove={onRemove}
       onEditLink={onEditLink}
@@ -424,21 +359,7 @@ function RenderInlineNode({
       return <br />;
 
     case 'node_link': {
-      if (node.ref_type === 'class') {
-        // Class refs: resolve via linkTargets map (same UUID format as regular links)
-        const classParsed = parseLinkId(node.link_id);
-        const classTargetId = classParsed.linkUuid ? linkTargets.get(classParsed.linkUuid) : undefined;
-        // Fallback to legacy numeric ID
-        const typeId = classTargetId != null ? String(classTargetId) : node.link_id;
-        return (
-          <TypePillDisplay
-            typeId={typeId}
-            linkId={node.link_id}
-            onNavigate={onNavigate}
-          />
-        );
-      }
-      // Regular node link — resolve target via node_link table, NOT from AST nodeUuid
+      // All node links (both regular and class refs) — resolve target via node_link table
       const parsed = parseLinkId(node.link_id);
       const customName = parsed.linkUuid ? linkCustomNames.get(parsed.linkUuid) : undefined;
       const targetNodeId = parsed.linkUuid ? linkTargets.get(parsed.linkUuid) : undefined;
@@ -448,6 +369,7 @@ function RenderInlineNode({
           clickCount={clickCounts.get(node.link_id) ?? 0}
           customName={customName}
           linkId={node.link_id}
+          refType={node.ref_type}
           onColorChangeWithId={onColorChange}
           onRemove={() => onRemoveLink(node.link_id)}
           onEditLink={(pillRect: DOMRect) => onEditLink(node.link_id, pillRect)}

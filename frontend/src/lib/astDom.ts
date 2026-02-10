@@ -179,30 +179,15 @@ function renderChildren(children: ASTInlineNode[], ctx: ASTRenderContext): strin
 /**
  * Render a node_link as an atomic pill element.
  *
- * For 'node' ref_type: emits a placeholder span that will be hydrated
- *   with a React NodePill component via portal in the editor/display layer.
- * For 'class' ref_type: renders as class-pill HTML (no portal needed).
+ * ALL node_links (both 'node' and 'class' ref_type) are rendered as placeholder
+ * spans that will be hydrated with a React NodePill component via portal in the
+ * editor/display layer. The ref_type is preserved in data attributes so the
+ * NodePill can render with appropriate styling.
  */
 function renderNodeLinkPill(node: ASTNodeLink, ctx: ASTRenderContext): string {
-  if (node.ref_type === 'class') {
-    // Type/class pill — keep as full HTML (resolved inline)
-    const resolved = ctx.resolveLink(node.link_id, node.ref_type);
-    const linkStatus = resolved?.linkStatus ?? (resolved ? 'valid' : 'broken');
-    const displayText = resolved?.displayText ?? '…';
-    const statusAttr = ` data-link-status="${linkStatus}"`;
-    const statusClass = linkStatus !== 'valid' ? ` link-pill--${linkStatus}` : '';
-    const tooltip = linkStatus === 'broken'
-      ? ' title="Link target not found"'
-      : linkStatus === 'cycle'
-        ? ' title="Circular reference detected"'
-        : '';
-    const iconHtml = renderTagIcon();
-    return `<span class="class-pill${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="class"${statusAttr}${tooltip}>${iconHtml}<span class="class-pill__text">${escapeHtml(displayText)}</span></span>`;
-  }
-
-  // All ref_type='node' links (regular pages, blocks, tags) → placeholder span.
-  // The React layer mounts a NodePill component into this span via portal.
-  return `<span class="node-link-mount" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node"></span>`;
+  // All node_links → placeholder span for React NodePill portal
+  // The React layer mounts a NodePill component into this span via portal
+  return `<span class="node-link-mount" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="${escapeAttr(node.ref_type)}"></span>`;
 }
 
 /**
@@ -281,9 +266,10 @@ function extractInlineNodes(element: HTMLElement | ChildNode): ASTInlineNode[] {
     }
 
     // Check for inline-link class (atomic pill without data-ast, e.g. after paste)
-    if (el.classList.contains('inline-link') || el.classList.contains('node-link-mount') || el.classList.contains('tag-pill') || el.classList.contains('class-pill')) {
+    // All node_links (including class refs) now use .node-link-mount with data-ref-type attribute
+    if (el.classList.contains('inline-link') || el.classList.contains('node-link-mount') || el.classList.contains('tag-pill')) {
       const linkId = el.dataset.linkId || '';
-      const refType = (el.dataset.refType as 'node' | 'class') || (el.classList.contains('class-pill') ? 'class' : 'node');
+      const refType = (el.dataset.refType as 'node' | 'class') || 'node';
       if (linkId) {
         result.push({ type: 'node_link', link_id: linkId, ref_type: refType });
         continue;
@@ -594,6 +580,7 @@ function findDOMPosition(
 
 /**
  * Check if an element is an atomic pill (node link, type pill, or tag pill).
+ * All node_links (including class refs) now use .node-link-mount placeholder.
  */
 function isPillElement(el: HTMLElement): boolean {
   return (
@@ -601,7 +588,6 @@ function isPillElement(el: HTMLElement): boolean {
     el.classList.contains('inline-link') ||
     el.classList.contains('node-link-mount') ||
     el.classList.contains('tag-pill') ||
-    el.classList.contains('class-pill') ||
     el.classList.contains('link-pill')
   );
 }

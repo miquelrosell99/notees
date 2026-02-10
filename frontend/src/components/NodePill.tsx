@@ -32,6 +32,8 @@ export interface NodePillProps {
   nodeId?: number;
   /** Display variant: 'default' for class pills, 'link' for inline links with faded colors */
   variant?: 'default' | 'link';
+  /** Reference type: 'node' for regular links, 'class' for inline class references */
+  refType?: 'node' | 'class';
   /** When true, clicking selects the pill (for contenteditable edit mode) instead of navigating */
   editMode?: boolean;
   /** Click count badge (for link tracking) */
@@ -56,6 +58,7 @@ export function NodePill({
   node: providedNode,
   nodeId,
   variant = 'default',
+  refType = 'node',
   editMode = false,
   clickCount = 0,
   onClick,
@@ -262,7 +265,7 @@ export function NodePill({
 
   // Determine pill styling class
   const pillClass = isLink
-    ? `node-pill node-pill--link ${isPage ? 'node-pill--page' : 'node-pill--block'} ${className}`
+    ? `node-pill node-pill--link ${isPage ? 'node-pill--page' : 'node-pill--block'} ${refType === 'class' ? 'node-pill--class' : ''} ${className}`
     : `node-pill ${className}`;
 
   return (

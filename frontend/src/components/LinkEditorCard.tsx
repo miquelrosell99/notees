@@ -17,9 +17,11 @@ import { TextField } from './core/TextField';
 import { Button } from './core/Button';
 import { Separator } from './core/Separator';
 import { SuggestionPopup } from './SuggestionPopup';
-import { useNode } from '@/hooks';
+import { useNode, useCreateNode, usePageClass } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Node } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
 import './LinkEditorCard.css';
 
 // ─── Node link mode ────────────────────────────────────────────────
@@ -166,6 +168,11 @@ function NodeLinkFields({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Mutations for creating nodes
+  const createNodeMutation = useCreateNode();
+  const { pageClass } = usePageClass();
+  const queryClient = useQueryClient();
+
   // Look up the currently selected node for display
   const { data: selectedNode } = useNode(selectedNodeId);
 
@@ -187,6 +194,27 @@ function NodeLinkFields({
     setSearchQuery('');
     setShowSuggestions(false);
   }, []);
+
+  // Handle creating a new page from the suggestion popup
+  const handleCreateNode = useCallback(async (name: string, _keepInline: boolean) => {
+    if (!pageClass) return;
+    
+    try {
+      const newNode = await createNodeMutation.mutateAsync({
+        name,
+        classes: [pageClass.id],
+      });
+      
+      // Invalidate caches to ensure the new node is visible
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      
+      // Select the newly created node
+      handleSelectNode(newNode);
+    } catch (error) {
+      console.error('Failed to create node from link editor:', error);
+    }
+  }, [pageClass, createNodeMutation, queryClient, handleSelectNode]);
 
   const handleConfirm = useCallback(() => {
     if (!canConfirm || !selectedNodeId) return;
@@ -253,6 +281,7 @@ function NodeLinkFields({
                 position={{ top: 0, left: 0 }}
                 onSelect={handleSelectNode}
                 onClose={() => setShowSuggestions(false)}
+                onCreate={handleCreateNode}
               />
             )}
           </>
