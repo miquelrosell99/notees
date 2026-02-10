@@ -88,7 +88,7 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline' }: NodeBreadcr
             onClick={() => onClick(item)}
           >
             {item.icon && <span className="node-breadcrumb-popup-icon">{item.icon}</span>}
-            <span className="node-breadcrumb-popup-name">{item.name}</span>
+            <span className="node-breadcrumb-popup-name">{item.isProperty ? item.name : (nodeNameToText(item.name) || 'Untitled')}</span>
           </button>
         ))}
       </div>
@@ -151,7 +151,7 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): Br
       if (!node) break;
       chain.push({
         id: node.id,
-        name: nodeNameToText(node.name) || 'Untitled',
+        name: node.name || '',
         icon: node.icon,
         isPage: node.is_page,
       });
