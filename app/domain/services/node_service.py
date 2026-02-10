@@ -289,6 +289,10 @@ class NodeService:
         - Applies tag properties (SuperTags)
         - For pages with '/' in name, creates parent hierarchy automatically
         """
+        # Strip trailing spaces from name
+        if data.name is not None:
+            data.name = data.name.rstrip()
+        
         # Compute flags from classes to determine if this is a page
         flags = await self._compute_flags_from_classes(data.classes)
         is_page = flags.get('is_page', False)
@@ -539,6 +543,10 @@ class NodeService:
             user_id: User performing the update
             expected_version: For optimistic locking - update only if version matches
         """
+        # Strip trailing spaces from name
+        if data.name is not None:
+            data.name = data.name.rstrip()
+        
         # Validate input
         validate_node_update(data.name, data.icon, data.color)
         
