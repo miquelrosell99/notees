@@ -15,6 +15,7 @@ import { mdiTrashCanOutline } from '@mdi/js';
 import { Card } from './core/Card';
 import { TextField } from './core/TextField';
 import { Button } from './core/Button';
+import { Separator } from './core/Separator';
 import { SuggestionPopup } from './SuggestionPopup';
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -64,30 +65,32 @@ export type LinkEditorCardProps = LinkEditorNodeProps | LinkEditorUrlProps;
 export function LinkEditorCard(props: LinkEditorCardProps) {
   const { position, onClose, onDelete } = props;
   const cardRef = useRef<HTMLDivElement>(null);
+  const readyRef = useRef(false);
+  const [canConfirm, setCanConfirm] = useState(false);
+  const confirmRef = useRef<(() => void) | null>(null);
 
-  // Click outside to close
+  // Click outside to close — delay activation so the triggering click doesn't close us
   useEffect(() => {
-    // Delay setup to avoid closing from the same event that opened the card
-    const timeoutId = setTimeout(() => {
-      const handleMouseDown = (e: MouseEvent) => {
-        if (cardRef.current && !cardRef.current.contains(e.target as globalThis.Node)) {
-          // Don't close if clicking inside the suggestion popup
-          const target = e.target as HTMLElement;
-          if (target.closest('.suggestion-popup')) return;
-          onClose();
-        }
-      };
-      document.addEventListener('mousedown', handleMouseDown, true);
-      
-      // Store the handler for cleanup
-      (timeoutId as any).handler = handleMouseDown;
-    }, 0);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      if ((timeoutId as any).handler) {
-        document.removeEventListener('mousedown', (timeoutId as any).handler, true);
+    readyRef.current = false;
+    const frameId = requestAnimationFrame(() => {
+      readyRef.current = true;
+    });
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!readyRef.current) return;
+      if (cardRef.current && !cardRef.current.contains(e.target as globalThis.Node)) {
+        const target = e.target as HTMLElement;
+        if (target.closest('.suggestion-popup')) return;
+        if (target.closest('.link-editor-card')) return;
+        onClose();
       }
+    };
+
+    document.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      document.removeEventListener('mousedown', handleMouseDown);
     };
   }, [onClose]);
 
@@ -96,7 +99,7 @@ export function LinkEditorCard(props: LinkEditorCardProps) {
       ref={cardRef}
       className="link-editor-card"
       style={{
-        position: 'fixed',
+        position: 'absolute',
         top: position.top,
         left: position.left,
         zIndex: 1000,
@@ -106,13 +109,13 @@ export function LinkEditorCard(props: LinkEditorCardProps) {
       onFocus={e => e.stopPropagation()}
     >
       <Card elevation="high" padding paddingSize="md" radius="md">
-        <div className="link-editor-card__header">Edit Link</div>
-
         {props.mode === 'node' ? (
-          <NodeLinkFields {...props} />
+          <NodeLinkFields {...props} onCanConfirmChange={setCanConfirm} confirmRef={confirmRef} />
         ) : (
-          <UrlLinkFields {...props} />
+          <UrlLinkFields {...props} onCanConfirmChange={setCanConfirm} confirmRef={confirmRef} />
         )}
+
+        <Separator orientation="horizontal" spacing="sm" />
 
         <div className="link-editor-card__footer">
           <button
@@ -123,6 +126,19 @@ export function LinkEditorCard(props: LinkEditorCardProps) {
           >
             <Icon path={mdiTrashCanOutline} size={0.72} />
           </button>
+          <div className="link-editor-card__footer-actions">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => confirmRef.current?.()}
+              disabled={!canConfirm}
+            >
+              Save
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
@@ -137,7 +153,12 @@ function NodeLinkFields({
   linkUuid,
   onSave,
   onClose,
-}: LinkEditorNodeProps) {
+  onCanConfirmChange,
+  confirmRef,
+}: LinkEditorNodeProps & {
+  onCanConfirmChange: (v: boolean) => void;
+  confirmRef: React.MutableRefObject<(() => void) | null>;
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(currentNodeId);
   const [selectedNodeUuid, setSelectedNodeUuid] = useState<string | null>(null);
@@ -155,6 +176,11 @@ function NodeLinkFields({
 
   const canConfirm = !!selectedNode;
 
+  // Expose canConfirm and handleConfirm to the parent
+  useEffect(() => {
+    onCanConfirmChange(canConfirm);
+  }, [canConfirm, onCanConfirmChange]);
+
   const handleSelectNode = useCallback((node: Node) => {
     setSelectedNodeId(node.id);
     setSelectedNodeUuid(node.uuid);
@@ -169,6 +195,12 @@ function NodeLinkFields({
     const trimmedName = customName.trim();
     onSave(linkUuid, selectedNodeId, uuid, trimmedName || null);
   }, [canConfirm, selectedNodeId, selectedNodeUuid, selectedNode, customName, linkUuid, onSave]);
+
+  // Expose confirm handler to parent
+  useEffect(() => {
+    confirmRef.current = handleConfirm;
+    return () => { confirmRef.current = null; };
+  }, [handleConfirm, confirmRef]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -236,19 +268,6 @@ function NodeLinkFields({
           onKeyDown={handleKeyDown}
         />
       </div>
-
-      <div className="link-editor-card__actions">
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          onClick={handleConfirm}
-          disabled={!canConfirm}
-        >
-          Save
-        </Button>
-      </div>
     </>
   );
 }
@@ -260,16 +279,32 @@ function UrlLinkFields({
   currentText,
   onSave,
   onClose,
-}: LinkEditorUrlProps) {
+  onCanConfirmChange,
+  confirmRef,
+}: LinkEditorUrlProps & {
+  onCanConfirmChange: (v: boolean) => void;
+  confirmRef: React.MutableRefObject<(() => void) | null>;
+}) {
   const [url, setUrl] = useState(currentUrl);
   const [displayText, setDisplayText] = useState(currentText);
 
   const canConfirm = url.trim().length > 0;
 
+  // Expose canConfirm and handleConfirm to the parent
+  useEffect(() => {
+    onCanConfirmChange(canConfirm);
+  }, [canConfirm, onCanConfirmChange]);
+
   const handleConfirm = useCallback(() => {
     if (!canConfirm) return;
     onSave(url.trim(), displayText.trim());
   }, [canConfirm, url, displayText, onSave]);
+
+  // Expose confirm handler to parent
+  useEffect(() => {
+    confirmRef.current = handleConfirm;
+    return () => { confirmRef.current = null; };
+  }, [handleConfirm, confirmRef]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && canConfirm) {
@@ -302,19 +337,6 @@ function UrlLinkFields({
           placeholder="Link text"
           onKeyDown={handleKeyDown}
         />
-      </div>
-
-      <div className="link-editor-card__actions">
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          onClick={handleConfirm}
-          disabled={!canConfirm}
-        >
-          Save
-        </Button>
       </div>
     </>
   );

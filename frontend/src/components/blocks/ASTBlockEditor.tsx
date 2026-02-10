@@ -1318,6 +1318,29 @@ export function ASTBlockEditor({
       return;
     }
 
+    if (command === 'url') {
+      // Open LinkEditorCard in URL mode
+      commitAST(cleaned, slashCommand.triggerPosition);
+      const editorRect = editorRef.current.getBoundingClientRect();
+      const position = {
+        top: slashCommand.position.top - editorRect.top,
+        left: slashCommand.position.left - editorRect.left,
+      };
+      setLinkEditorCard({
+        isOpen: true,
+        linkId: '',
+        linkUuid: generateLinkUuid(),
+        currentNodeId: null,
+        currentName: null,
+        position,
+        mode: 'create-url',
+        initialUrl: '',
+        initialText: '',
+      });
+      setSlashCommand(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+
     if (command === 'type') {
       const { ast: withTrigger, cursorOffset } = insertText(
         cleaned, slashCommand.triggerPosition, '@',
