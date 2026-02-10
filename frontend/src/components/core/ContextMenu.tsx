@@ -178,6 +178,8 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
       elevation="high"
       padding={false}
       onFocus={(e: React.FocusEvent) => e.stopPropagation()}
+      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
     >
       {title && <div className="context-menu-title">{title}</div>}
       {items.map((item, index) => {
