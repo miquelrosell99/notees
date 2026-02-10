@@ -105,10 +105,36 @@
   gap: var(--spacing-2);
 }
 
+.link-editor-card__footer-left {
+  display: flex;
+  gap: var(--spacing-1);
+  align-items: center;
+}
+
 .link-editor-card__footer-actions {
   display: flex;
   gap: var(--spacing-2);
   align-items: center;
+}
+
+.link-editor-card__mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.link-editor-card__mode-toggle:hover {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
 }
 
 .link-editor-card__delete-btn {

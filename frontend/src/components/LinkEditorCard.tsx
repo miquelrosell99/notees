@@ -11,7 +11,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Icon from '@mdi/react';
-import { mdiTrashCanOutline } from '@mdi/js';
+import { mdiTrashCanOutline, mdiWeb, mdiFileDocumentOutline } from '@mdi/js';
 import { Card } from './core/Card';
 import { TextField } from './core/TextField';
 import { Button } from './core/Button';
@@ -42,6 +42,8 @@ export interface LinkEditorNodeProps {
   onDelete: () => void;
   /** Called when the user cancels or clicks outside */
   onClose: () => void;
+  /** Called when user toggles to URL mode */
+  onModeToggle?: (mode: 'url') => void;
 }
 
 // ─── External link mode ────────────────────────────────────────────
@@ -60,6 +62,8 @@ export interface LinkEditorUrlProps {
   onDelete: () => void;
   /** Called when the user cancels or clicks outside */
   onClose: () => void;
+  /** Called when user toggles to node mode */
+  onModeToggle?: (mode: 'node') => void;
 }
 
 export type LinkEditorCardProps = LinkEditorNodeProps | LinkEditorUrlProps;
@@ -70,6 +74,17 @@ export function LinkEditorCard(props: LinkEditorCardProps) {
   const readyRef = useRef(false);
   const [canConfirm, setCanConfirm] = useState(false);
   const confirmRef = useRef<(() => void) | null>(null);
+
+  // Handle mode toggle
+  const handleModeToggle = useCallback(() => {
+    if (props.mode === 'node') {
+      const nodeProps = props as LinkEditorNodeProps;
+      nodeProps.onModeToggle?.('url');
+    } else {
+      const urlProps = props as LinkEditorUrlProps;
+      urlProps.onModeToggle?.('node');
+    }
+  }, [props]);
 
   // Click outside to close — delay activation so the triggering click doesn't close us
   useEffect(() => {
@@ -112,22 +127,32 @@ export function LinkEditorCard(props: LinkEditorCardProps) {
     >
       <Card elevation="high" padding paddingSize="md" radius="md">
         {props.mode === 'node' ? (
-          <NodeLinkFields {...props} onCanConfirmChange={setCanConfirm} confirmRef={confirmRef} />
+          <NodeLinkFields {...(props as LinkEditorNodeProps)} onCanConfirmChange={setCanConfirm} confirmRef={confirmRef} />
         ) : (
-          <UrlLinkFields {...props} onCanConfirmChange={setCanConfirm} confirmRef={confirmRef} />
+          <UrlLinkFields {...(props as LinkEditorUrlProps)} onCanConfirmChange={setCanConfirm} confirmRef={confirmRef} />
         )}
 
         <Separator orientation="horizontal" spacing="sm" />
 
         <div className="link-editor-card__footer">
-          <button
-            className="link-editor-card__delete-btn"
-            onClick={onDelete}
-            title="Delete link"
-            type="button"
-          >
-            <Icon path={mdiTrashCanOutline} size={0.72} />
-          </button>
+          <div className="link-editor-card__footer-left">
+            <button
+              className="link-editor-card__mode-toggle"
+              onClick={handleModeToggle}
+              title={props.mode === 'node' ? 'Switch to URL link' : 'Switch to page link'}
+              type="button"
+            >
+              <Icon path={props.mode === 'node' ? mdiWeb : mdiFileDocumentOutline} size={0.72} />
+            </button>
+            <button
+              className="link-editor-card__delete-btn"
+              onClick={onDelete}
+              title="Delete link"
+              type="button"
+            >
+              <Icon path={mdiTrashCanOutline} size={0.72} />
+            </button>
+          </div>
           <div className="link-editor-card__footer-actions">
             <Button variant="ghost" size="sm" onClick={onClose}>
               Cancel

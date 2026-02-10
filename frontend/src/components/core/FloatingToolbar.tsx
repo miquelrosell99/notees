@@ -9,7 +9,6 @@ import { forwardRef, useCallback, useState, useRef, useEffect, useImperativeHand
 import { mdiFormatBold, mdiFormatItalic, mdiFormatStrikethrough, mdiFormatUnderline, mdiCodeTags, mdiLinkVariant } from '@mdi/js';
 import { Card } from './Card';
 import { Button } from './Button';
-import { TextField } from './TextField';
 import './FloatingToolbar.css';
 
 export interface FloatingToolbarHandle {
@@ -42,7 +41,7 @@ export interface FloatingToolbarProps {
   onUnderline?: () => void;
   onStrikethrough?: () => void;
   onCode?: () => void;
-  onLink?: (url: string) => void;
+  onLink?: () => void;
   /** Active state for default actions */
   boldActive?: boolean;
   italicActive?: boolean;
@@ -86,10 +85,6 @@ export const FloatingToolbar = forwardRef<FloatingToolbarHandle, FloatingToolbar
     },
     ref
   ) {
-    // State for link URL input
-    const [showLinkInput, setShowLinkInput] = useState(false);
-    const [linkUrl, setLinkUrl] = useState('');
-    
     // State for keyboard navigation
     const [focusedButtonIndex, setFocusedButtonIndex] = useState(-1);
     
@@ -116,34 +111,6 @@ export const FloatingToolbar = forwardRef<FloatingToolbarHandle, FloatingToolbar
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
       e.preventDefault();
     }, []);
-
-    const handleLinkClick = useCallback(() => {
-      setShowLinkInput(true);
-      setLinkUrl('');
-    }, []);
-
-    const handleLinkSubmit = useCallback(() => {
-      if (linkUrl.trim() && onLink) {
-        // Add https:// if no protocol specified
-        let finalUrl = linkUrl.trim();
-        if (!/^https?:\/\//i.test(finalUrl)) {
-          finalUrl = 'https://' + finalUrl;
-        }
-        onLink(finalUrl);
-      }
-      setShowLinkInput(false);
-      setLinkUrl('');
-    }, [linkUrl, onLink]);
-
-    const handleLinkKeyDown = useCallback((e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleLinkSubmit();
-      } else if (e.key === 'Escape') {
-        setShowLinkInput(false);
-        setLinkUrl('');
-      }
-    }, [handleLinkSubmit]);
 
   // Handle keyboard navigation within the toolbar
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -241,9 +208,9 @@ export const FloatingToolbar = forwardRef<FloatingToolbarHandle, FloatingToolbar
       defaultActions.push({
         key: 'link',
         icon: mdiLinkVariant,
-        title: 'Link (Ctrl+K)',
-        active: linkActive || showLinkInput,
-        onClick: handleLinkClick,
+        title: 'Link (Ctrl+L)',
+        active: linkActive,
+        onClick: onLink,
       });
     }
 
@@ -284,31 +251,6 @@ export const FloatingToolbar = forwardRef<FloatingToolbarHandle, FloatingToolbar
                 className="floating-toolbar__button"
               />
             ))}
-            {showLinkInput && (
-              <div className="floating-toolbar__link-input">
-                <TextField
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="Enter URL..."
-                  autoFocus
-                  onKeyDown={handleLinkKeyDown}
-                  onBlur={() => {
-                    // Small delay to allow button click to register
-                    setTimeout(() => {
-                      setShowLinkInput(false);
-                      setLinkUrl('');
-                    }, 150);
-                  }}
-                />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleLinkSubmit}
-                >
-                  Add
-                </Button>
-              </div>
-            )}
             {children}
           </div>
         </Card>
