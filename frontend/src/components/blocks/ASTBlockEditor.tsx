@@ -85,9 +85,11 @@ import {
   removeTriggerText,
   toggleMark,
   toggleCode,
+  getActiveMarks,
   insertText,
   wrapInExternalLink,
 } from '@/lib/astMutations';
+import type { MarkType } from '@/lib/astMutations';
 import { ASTHistory, type HistoryEntry } from '@/lib/astHistory';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -246,7 +248,8 @@ export function ASTBlockEditor({
     position: { top: number; left: number };
     start: number;
     end: number;
-  }>({ visible: false, position: { top: 0, left: 0 }, start: 0, end: 0 });
+    activeMarks: Set<MarkType>;
+  }>({ visible: false, position: { top: 0, left: 0 }, start: 0, end: 0, activeMarks: new Set() });
 
   // ─── Query client ──────────────────────────────────────────────
   const queryClient = useQueryClient();
@@ -708,6 +711,8 @@ export function ASTBlockEditor({
     // Get position for toolbar (below selection, at start)
     const editorRect = editorRef.current.getBoundingClientRect();
     
+    const activeMarks = getActiveMarks(lastASTRef.current, actualStart, actualEnd);
+
     setSelectionToolbar({
       visible: true,
       position: {
@@ -716,6 +721,7 @@ export function ASTBlockEditor({
       },
       start: actualStart,
       end: actualEnd,
+      activeMarks,
     });
   }, [readOnly]);
 
@@ -1510,6 +1516,10 @@ export function ASTBlockEditor({
             onUnderline={handleToolbarUnderline}
             onStrikethrough={handleToolbarStrikethrough}
             onLink={handleToolbarLink}
+            boldActive={selectionToolbar.activeMarks.has('strong')}
+            italicActive={selectionToolbar.activeMarks.has('em')}
+            underlineActive={selectionToolbar.activeMarks.has('underline')}
+            strikethroughActive={selectionToolbar.activeMarks.has('strikethrough')}
           />
 
           {linkNameDialog?.isOpen && (
