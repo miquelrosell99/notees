@@ -14,6 +14,7 @@
   font-size: 0.875rem;
   border-radius: var(--shape-medium);
   overflow: hidden;
+  border: 1px solid var(--color-outline-variant);
 }
 
 .table-caption {
@@ -120,11 +121,12 @@
 
 /* Body */
 .table-body .table-row {
-  border-bottom: 1px solid var(--color-outline-variant);
+  /* Row borders applied to cells instead of rows for proper border rendering */
 }
 
 .table-body .table-cell {
   border-right: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
 }
 
