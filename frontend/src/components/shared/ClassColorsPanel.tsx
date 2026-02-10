@@ -12,6 +12,7 @@
  */
 import { mdiClose } from '@mdi/js';
 import type { Node } from '@/types';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { Button } from '../core/Button';
 import { ColorButton } from '../core/ColorButton';
 import { ListSortable } from '../core/ListSortable';
@@ -20,7 +21,7 @@ import './ClassColorsPanel.css';
 
 export interface ClassColor {
   typeId: number;
-  typeName: string;
+  className: string;
   color: string;
   order: number;
 }
@@ -47,7 +48,7 @@ export function ClassColorsPanel({
   const addClassColor = (classNode: Node) => {
     const newClassColor: ClassColor = {
       typeId: classNode.id,
-      typeName: classNode.name || 'Untitled',
+      className: nodeNameToText(classNode.name) || 'Untitled',
       color: defaultColors[classColors.length % defaultColors.length],
       order: classColors.length,
     };
@@ -100,7 +101,7 @@ export function ClassColorsPanel({
             onReorder={moveClassColor}
             itemClassName="class-color-item"
             renderText={(item) => (
-              <span className="class-name">{item.typeName}</span>
+              <span className="class-name">{item.className}</span>
             )}
             renderActions={(item) => [
               <ColorButton

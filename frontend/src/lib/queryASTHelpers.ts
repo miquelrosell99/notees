@@ -11,6 +11,7 @@ import type {
   QueryAST,
   ClassCondition,
   ContentCondition,
+  StyleCondition,
   PropertyCondition,
   ReferenceCondition,
   ReferencePathCondition,
@@ -20,6 +21,8 @@ import type {
   ChildPathCondition,
   ClassPathCondition,
   ContentOperator,
+  StyleOperator,
+  StyleType,
   PropertyOperator,
   PropertyType,
 } from '@/types/queryAST';
@@ -89,6 +92,39 @@ export function createConditionFromType(blockType: string): ConditionNode {
         operator: 'contains' as ContentOperator,
         value: '',
       } as ContentCondition;
+    
+    case 'style':
+    case 'style_bold':
+      return {
+        type: 'condition',
+        condition_type: 'style',
+        style_type: 'bold' as StyleType,
+        operator: 'contains' as StyleOperator,
+      } as StyleCondition;
+    
+    case 'style_italic':
+      return {
+        type: 'condition',
+        condition_type: 'style',
+        style_type: 'italic' as StyleType,
+        operator: 'contains' as StyleOperator,
+      } as StyleCondition;
+    
+    case 'style_underline':
+      return {
+        type: 'condition',
+        condition_type: 'style',
+        style_type: 'underline' as StyleType,
+        operator: 'contains' as StyleOperator,
+      } as StyleCondition;
+    
+    case 'style_strikethrough':
+      return {
+        type: 'condition',
+        condition_type: 'style',
+        style_type: 'strikethrough' as StyleType,
+        operator: 'contains' as StyleOperator,
+      } as StyleCondition;
     
     case 'property':
       return {

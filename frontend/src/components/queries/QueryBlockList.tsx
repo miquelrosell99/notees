@@ -9,7 +9,7 @@ import { mdiPlus } from '@mdi/js';
 import { Button } from '../core/Button';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
-import type { GroupNode, ConditionNode, NotNode as ASTNotNode } from '@/types/queryAST';
+import type { GroupNode, ConditionNode, NotNode as ASTNotNode, StyleType } from '@/types/queryAST';
 import { isNodeEditable } from '@/types/queryAST';
 import './QueryBlockList.css';
 
@@ -189,6 +189,16 @@ export function QueryBlockList({
     
   }, [blocks, onChange]);
 
+  const handleAddStyle = useCallback((styleType: StyleType) => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'style',
+      style_type: styleType,
+      operator: 'contains',
+    };
+    onChange([...blocks, newCondition]);
+  }, [blocks, onChange]);
+
 
 
   // State for context menu
@@ -250,6 +260,27 @@ export function QueryBlockList({
       onClick: () => { handleAddChildPath(); setMenuPosition(null); },
     },
     { id: 'sep-4', label: '', separator: true },
+    {
+      id: 'style-bold',
+      label: 'BOLD',
+      onClick: () => { handleAddStyle('bold'); setMenuPosition(null); },
+    },
+    {
+      id: 'style-italic',
+      label: 'ITALIC',
+      onClick: () => { handleAddStyle('italic'); setMenuPosition(null); },
+    },
+    {
+      id: 'style-underline',
+      label: 'UNDERLINE',
+      onClick: () => { handleAddStyle('underline'); setMenuPosition(null); },
+    },
+    {
+      id: 'style-strikethrough',
+      label: 'STRIKETHROUGH',
+      onClick: () => { handleAddStyle('strikethrough'); setMenuPosition(null); },
+    },
+    { id: 'sep-5', label: '', separator: true },
     {
       id: 'group',
       label: 'AND/OR/NOT',

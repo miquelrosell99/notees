@@ -141,6 +141,18 @@ export const FLAG_OPERATORS: OperatorDefinition[] = [
   { value: 'is_false', label: 'is false' },
 ];
 
+// ==================== Style Operators ====================
+
+/**
+ * Operators for style/formatting conditions (bold, italic, etc.)
+ */
+export const STYLE_OPERATORS: OperatorDefinition[] = [
+  { value: 'contains', label: 'contains' },
+  { value: 'does_not_contain', label: 'does not contain' },
+  { value: 'is', label: 'is entirely' },
+  { value: 'is_not', label: 'is not entirely' },
+];
+
 // ==================== Operator Maps ====================
 
 /**
@@ -155,6 +167,7 @@ export const OPERATOR_MAP = new Map<string, OperatorDefinition>(
     ...PARENT_OPERATORS,
     ...CHILD_OPERATORS,
     ...FLAG_OPERATORS,
+    ...STYLE_OPERATORS,
   ].map(op => [op.value, op])
 );
 
