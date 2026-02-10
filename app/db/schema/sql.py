@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS property (
     is_system BOOLEAN DEFAULT FALSE,
     is_local BOOLEAN DEFAULT FALSE,
     node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+    icon_visibility VARCHAR(50) DEFAULT 'hidden',
     active BOOLEAN DEFAULT TRUE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -567,6 +568,17 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'property_class_filter') THEN
         ALTER TABLE property_type_filter RENAME TO property_class_filter;
         ALTER TABLE property_class_filter RENAME COLUMN type_node_id TO class_node_id;
+    END IF;
+END $$;
+
+-- Migration: Add icon_visibility column to property table
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'property' AND column_name = 'icon_visibility'
+    ) THEN
+        ALTER TABLE property ADD COLUMN icon_visibility VARCHAR(50) DEFAULT 'hidden';
     END IF;
 END $$;
 

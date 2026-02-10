@@ -16,6 +16,7 @@ class PropertyResponse(BaseModel):
     is_system: bool = False
     is_local: bool = False
     node_id: Optional[int] = None  # For local properties
+    icon_visibility: str = "hidden"  # 'hidden' | 'before_content' | 'after_bullet'
     create_date: str
     write_date: str
     # For relation-type properties
@@ -120,6 +121,7 @@ class PropertyUpdateRequest(BaseModel):
     name: Optional[str] = None
     icon: Optional[str] = None
     multi: Optional[bool] = None  # Aligned with frontend naming
+    icon_visibility: Optional[str] = None  # 'hidden' | 'before_content' | 'after_bullet'
 
 
 class PropertyTypeChangeRequest(BaseModel):

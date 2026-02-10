@@ -248,6 +248,15 @@ export interface NodeUpdate {
 export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'node' | 'selection' | 'date' | 'image';
 
 /**
+ * Icon visibility for property values at block level.
+ * Controls where the selection property icon appears relative to the block bullet.
+ */
+export type PropertyIconVisibility = 'hidden' | 'before_content' | 'after_bullet';
+
+/** Property types that support icon visibility settings */
+export const ICON_VISIBILITY_PROPERTY_TYPES: PropertyType[] = ['selection'];
+
+/**
  * Property definition
  */
 export interface Property {
@@ -261,6 +270,7 @@ export interface Property {
   is_system: boolean;
   is_local: boolean;  // Local properties apply only to specific nodes, not globally unique
   node_id: number | null;  // For local properties, the node this property is scoped to
+  icon_visibility: PropertyIconVisibility;  // Where to show selection value icon at block level
   create_date: string;
   write_date: string;
   // For node-type properties
@@ -374,6 +384,7 @@ export interface PropertyUpdate {
   icon?: string | null;
   multi?: boolean | null;  // Aligned with backend naming
   class_filters?: number[] | null;
+  icon_visibility?: PropertyIconVisibility | null;
 }
 
 // ==================== User Types ====================
