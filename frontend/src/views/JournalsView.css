@@ -21,39 +21,10 @@
   position: relative;
 }
 
-/* Colored journal entry background */
-.journal-entry--colored {
-  /* Border gradient similar to has-page-color */
-  border-left: 6px solid transparent;
-  border-image: linear-gradient(
-    to right,
-    var(--node-border-solid) 0%,
-    var(--node-border-solid) 33%,
-    var(--node-border-halo) 33%,
-    var(--node-border-halo) 100%
-  ) 1;
-  
-  /* Subtle background tint */
-  background: linear-gradient(
-    to right,
-    var(--node-tint) 0%,
-    var(--node-tint) 100%
-  );
-  
-  /* Add padding to accommodate border and card */
-  padding-left: var(--spacing-3);
-  padding-right: var(--spacing-3);
-  padding-top: var(--spacing-3);
-  margin-left: calc(-1 * var(--spacing-3) - 6px);
-  margin-right: calc(-1 * var(--spacing-3));
-}
-
 /* Card wrapper for colored journal entries */
 .journal-entry__card {
-  /* Negative margins to extend card to entry edges (minus border space) */
-  margin: 0 calc(-1 * var(--spacing-3)) calc(-1 * (2rem - var(--spacing-3)));
-  /* Add back padding inside card */
-  padding: 0 var(--spacing-3) 2rem;
+  /* Padding inside card */
+  padding: 0 var(--spacing-3) var(--spacing-3);
   overflow: visible;
 }
 

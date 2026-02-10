@@ -4,14 +4,13 @@
  * Only shows pages that already exist, does not create new ones.
  * Uses NodeView component for each daily page for consistent editing experience.
  */
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useExistingDailyPages, useNode } from '@/hooks';
 import './JournalsView.css';
 import { useNodesStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
-import { getNodeColorStyles } from '@/utils/color';
 
 interface JournalEntryProps {
   dailyPageId: number;
@@ -20,37 +19,23 @@ interface JournalEntryProps {
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
   const { viewMode } = useNodesStore();
   const { data: page } = useNode(dailyPageId);
-  const [isDarkMode, setIsDarkMode] = useState(() => 
-    document.documentElement.getAttribute('data-theme') === 'dark'
-  );
   
-  // Listen for theme changes
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDarkMode(document.documentElement.getAttribute('data-theme') === 'dark');
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
-  
-  // Get color style if page has a color
-  const colorStyle = useMemo(() => {
-    if (!page?.color) return undefined;
-    return getNodeColorStyles(page.color, isDarkMode);
-  }, [page?.color, isDarkMode]);
+  // Get border color if page has a color
+  const borderColor = page?.color;
   
   return (
-    <article 
-      className={`journal-entry${colorStyle ? ' journal-entry--colored' : ''}`}
-      style={colorStyle}
-    >
-      {colorStyle ? (
+    <article className="journal-entry">
+      {borderColor ? (
         <Card 
           elevation="medium" 
           variant="default" 
           padding={false}
           radius="lg"
           className="journal-entry__card"
+          style={{ 
+            '--card-border-color': borderColor,
+            borderLeft: '8px solid var(--card-border-color)'
+          } as React.CSSProperties}
         >
           <NodeViewContent 
             nodeId={dailyPageId} 
