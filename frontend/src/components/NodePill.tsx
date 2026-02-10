@@ -14,7 +14,6 @@
  * - Faded background color based on node's isPage status
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { Pill } from './core/Pill';
 import { NodeIcon, CloseIcon } from './icons';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
@@ -331,7 +330,6 @@ export function NodePill({
                 }}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                onFocus={(e) => e.stopPropagation()}
               >
                 <ColorPickerRow
                   currentColor={node?.color ?? null}
@@ -356,8 +354,8 @@ export function NodePill({
         </>
       )}
       
-      {/* Replace popup (for link variant) — portaled to avoid Block edit-mode trigger */}
-      {showReplacePopup && createPortal(
+      {/* Replace popup (for link variant) */}
+      {showReplacePopup && (
         <SuggestionPopup
           isOpen={showReplacePopup}
           query=""
@@ -366,8 +364,7 @@ export function NodePill({
           onSelect={handleReplaceSelect}
           onClose={handleCloseReplacePopup}
           excludeNodeId={node?.id}
-        />,
-        document.body
+        />
       )}
     </>
   );
