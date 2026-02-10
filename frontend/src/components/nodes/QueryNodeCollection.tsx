@@ -660,14 +660,17 @@ export function QueryNodeCollection({
             </div>
           )}
           
-          <Button
-            icon={mdiPlusBox}
-            iconOnly
-            variant="ghost"
-            size="xs"
-            onClick={handleAddView}
-            title="Add view"
-          />
+          {/* Hide add view button for pseudo-nodes (all_pages, etc.) */}
+          {!isPseudoNode && (
+            <Button
+              icon={mdiPlusBox}
+              iconOnly
+              variant="ghost"
+              size="xs"
+              onClick={handleAddView}
+              title="Add view"
+            />
+          )}
         </>
       )}
     </>
