@@ -16,6 +16,7 @@ from app.domain.entities.query_ast import (
     ExtendsCondition,
     PropertyCondition,
     ContentCondition,
+    StyleCondition,
     ReferenceCondition,
     ReferencePathCondition,
     ParentPathCondition,
@@ -195,6 +196,8 @@ class QueryASTToSQL:
             return self._generate_property_condition(condition)
         elif isinstance(condition, ContentCondition):
             return self._generate_content_condition(condition)
+        elif isinstance(condition, StyleCondition):
+            return self._generate_style_condition(condition)
         elif isinstance(condition, ReferenceCondition):
             return self._generate_reference_condition(condition)
         elif isinstance(condition, ReferencePathCondition):
@@ -332,6 +335,17 @@ class QueryASTToSQL:
                 elif condition.operator == 'not_equals':
                     return f"n.{column_name}::text != %({value_param})s"
             
+            # Special handling for name column - extract text from JSON AST
+            if column_name == 'name':
+                text_expr = self._name_text_expr()
+                if condition.operator == 'equals':
+                    return f"{text_expr} = %({value_param})s"
+                elif condition.operator == 'not_equals':
+                    return f"{text_expr} != %({value_param})s"
+                elif condition.operator == 'contains':
+                    return f"{text_expr} ILIKE '%%' || %({value_param})s || '%%'"
+                return None
+            
             # Standard text comparison for other columns
             if condition.operator == 'equals':
                 return f"n.{column_name}::text = %({value_param})s"
@@ -404,39 +418,119 @@ class QueryASTToSQL:
         
         return None
     
+    def _name_text_expr(self) -> str:
+        """SQL expression that extracts plain text from n.name.
+        
+        Handles both:
+        - JSON AST (starts with '[') → recursively extracts all 'text' field values
+        - Plain text → returns as-is
+        
+        Uses PostgreSQL jsonb_path_query for recursive text extraction.
+        """
+        return """(CASE
+            WHEN n.name IS NOT NULL AND n.name LIKE '[%' THEN
+                COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(n.name::jsonb, '$.**.text') AS t), '')
+            ELSE COALESCE(n.name, '')
+        END)"""
+    
     def _generate_content_condition(self, condition: ContentCondition) -> Optional[str]:
-        """Generate SQL for content/name search condition."""
+        """Generate SQL for content/name search condition.
+        
+        Extracts plain text from JSON AST before matching, so searches
+        work on readable text rather than raw JSON strings.
+        """
         if not condition.value:
             return None
         
         value_param = self._add_param(condition.value)
+        text_expr = self._name_text_expr()
         
         if condition.operator == 'contains':
             if condition.case_sensitive:
-                return f"n.name LIKE '%%' || %({value_param})s || '%%'"
+                return f"{text_expr} LIKE '%%' || %({value_param})s || '%%'"
             else:
-                return f"n.name ILIKE '%%' || %({value_param})s || '%%'"
+                return f"{text_expr} ILIKE '%%' || %({value_param})s || '%%'"
         
         elif condition.operator == 'starts_with':
             if condition.case_sensitive:
-                return f"n.name LIKE %({value_param})s || '%%'"
+                return f"{text_expr} LIKE %({value_param})s || '%%'"
             else:
-                return f"n.name ILIKE %({value_param})s || '%%'"
+                return f"{text_expr} ILIKE %({value_param})s || '%%'"
         
         elif condition.operator == 'ends_with':
             if condition.case_sensitive:
-                return f"n.name LIKE '%%' || %({value_param})s"
+                return f"{text_expr} LIKE '%%' || %({value_param})s"
             else:
-                return f"n.name ILIKE '%%' || %({value_param})s"
+                return f"{text_expr} ILIKE '%%' || %({value_param})s"
         
         elif condition.operator == 'equals':
             if condition.case_sensitive:
-                return f"n.name = %({value_param})s"
+                return f"{text_expr} = %({value_param})s"
             else:
-                return f"LOWER(n.name) = LOWER(%({value_param})s)"
+                return f"LOWER({text_expr}) = LOWER(%({value_param})s)"
         
         elif condition.operator == 'regex':
-            return f"n.name ~ %({value_param})s"
+            return f"{text_expr} ~ %({value_param})s"
+        
+        return None
+    
+    def _generate_style_condition(self, condition: StyleCondition) -> Optional[str]:
+        """Generate SQL for style/formatting condition.
+        
+        Checks whether node content (JSON AST in n.name) contains specific
+        formatting types (strong, em, underline, strikethrough).
+        
+        Uses PostgreSQL jsonb_path_exists for recursive type matching.
+        
+        Operators:
+        - contains: at least one node of the given mark type exists
+        - does_not_contain: no node of the given mark type exists
+        - is: ALL direct children of paragraphs are of the given mark type (entire content is styled)
+        - is_not: NOT all content is styled with this type
+        """
+        # Map style_type to AST node type name
+        STYLE_TO_AST_TYPE = {
+            'bold': 'strong',
+            'italic': 'em',
+            'underline': 'underline',
+            'strikethrough': 'strikethrough',
+        }
+        
+        ast_type = STYLE_TO_AST_TYPE.get(condition.style_type.value if hasattr(condition.style_type, 'value') else condition.style_type)
+        if not ast_type:
+            return None
+        
+        # Guard: only check nodes with JSON AST content (starts with '[')
+        json_guard = "n.name IS NOT NULL AND n.name LIKE '[%%'"
+        
+        # jsonpath expression to check for the mark type at any depth
+        # Safe to interpolate ast_type since it comes from a fixed map
+        has_type_expr = f"""jsonb_path_exists(n.name::jsonb, '$.**.type ? (@ == "{ast_type}")')"""
+        
+        if condition.operator.value == 'contains' if hasattr(condition.operator, 'value') else condition.operator == 'contains':
+            return f"({json_guard} AND {has_type_expr})"
+        
+        elif (condition.operator.value if hasattr(condition.operator, 'value') else condition.operator) == 'does_not_contain':
+            return f"(NOT ({json_guard} AND {has_type_expr}))"
+        
+        elif (condition.operator.value if hasattr(condition.operator, 'value') else condition.operator) == 'is':
+            # All direct children of all paragraphs must be of this type
+            # AND at least one such node must exist
+            all_styled = f"""NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements(n.name::jsonb) AS block,
+                LATERAL jsonb_array_elements(block -> 'children') AS child
+                WHERE child ->> 'type' != '{ast_type}'
+            )"""
+            return f"({json_guard} AND {has_type_expr} AND {all_styled})"
+        
+        elif (condition.operator.value if hasattr(condition.operator, 'value') else condition.operator) == 'is_not':
+            # Not entirely styled: either no AST, or has non-styled children, or no styled content
+            all_styled = f"""NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements(n.name::jsonb) AS block,
+                LATERAL jsonb_array_elements(block -> 'children') AS child
+                WHERE child ->> 'type' != '{ast_type}'
+            )"""
+            return f"(NOT ({json_guard} AND {has_type_expr} AND {all_styled}))"
         
         return None
     

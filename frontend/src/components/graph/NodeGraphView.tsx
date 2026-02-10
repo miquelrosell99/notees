@@ -367,15 +367,15 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
     if (!searchQuery.trim() || !graphData?.nodes) return [];
     const query = searchQuery.toLowerCase();
     return graphData.nodes
-      .filter(p => p.name?.toLowerCase().includes(query))
-      .slice(0, 10)
-      .map(p => ({ id: p.id, uuid: p.uuid, name: p.name || 'Untitled', icon: p.icon }));
+      .map(p => ({ id: p.id, uuid: p.uuid, name: nodeNameToText(p.name) || 'Untitled', icon: p.icon }))
+      .filter(p => p.name.toLowerCase().includes(query))
+      .slice(0, 10);
   }, [searchQuery, graphData]);
   
   const addToSelection = useCallback((node: { id: number; name?: string }) => {
     setSelectedNodes(prev => {
       if (prev.find(s => s.id === node.id)) return prev;
-      return [...prev, { id: node.id, name: node.name || 'Untitled', order: prev.length }];
+      return [...prev, { id: node.id, name: nodeNameToText(node.name) || 'Untitled', order: prev.length }];
     });
     setSearchQuery('');
     setSearchOpen(false);
@@ -662,7 +662,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                     onClick={() => addToSelection(page)}
                   >
                     {page.icon && <span className="result-icon">{page.icon}</span>}
-                    <span className="result-name">{nodeNameToText(page.name) || 'Untitled'}</span>
+                    <span className="result-name">{page.name}</span>
                   </Button>
                 ))}
               </div>

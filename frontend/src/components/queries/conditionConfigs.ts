@@ -16,6 +16,7 @@ import {
   PARENT_PATH_OPERATORS,
   CHILD_PATH_OPERATORS,
   FLAG_OPERATORS,
+  STYLE_OPERATORS,
   type OperatorDefinition,
 } from './operators';
 
@@ -260,6 +261,18 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
       inputType: 'text', // For flag name selection
       placeholder: 'Select flag...',
       required: true,
+    },
+  },
+  
+  style: {
+    label: 'STYLE',
+    operators: STYLE_OPERATORS,
+    defaultOperator: 'contains',
+    hasStaticDynamicToggle: false,
+    staticMode: {
+      inputType: 'none',
+      placeholder: '',
+      required: false,
     },
   },
 };
