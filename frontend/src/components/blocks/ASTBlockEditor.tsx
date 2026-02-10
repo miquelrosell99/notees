@@ -256,6 +256,8 @@ export function ASTBlockEditor({
     mode: 'edit' | 'create' | 'create-url';
     initialUrl?: string;
     initialText?: string;
+    selectionStart?: number;
+    selectionEnd?: number;
   } | null>(null);
 
   // ─── Selection toolbar state ───────────────────────────────────
@@ -821,10 +823,49 @@ export function ASTBlockEditor({
     setSelectionToolbar(prev => ({ ...prev, visible: false }));
   }, [selectionToolbar, commitAST]);
 
-  const handleToolbarLink = useCallback((url: string) => {
-    if (!selectionToolbar.visible) return;
-    const result = wrapInExternalLink(lastASTRef.current, selectionToolbar.start, selectionToolbar.end, url);
-    commitAST(result.ast, selectionToolbar.end);
+  const handleToolbarLink = useCallback(() => {
+    if (!selectionToolbar.visible || !editorRef.current) return;
+    
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const editorRect = editorRef.current.getBoundingClientRect();
+
+    // Get selected text
+    const selectedText = sel.toString().trim();
+
+    // Check if selected text is a URL
+    const urlRegex = /^https?:\/\/.+/i;
+    const isUrl = urlRegex.test(selectedText);
+
+    // Capture selection range BEFORE opening popup
+    const actualStart = Math.min(selectionToolbar.start, selectionToolbar.end);
+    const actualEnd = Math.max(selectionToolbar.start, selectionToolbar.end);
+
+    // Position below selection
+    const position = {
+      top: rect.bottom - editorRect.top + 4,
+      left: rect.left - editorRect.left,
+    };
+
+    // Open LinkEditorCard in URL mode
+    setLinkEditorCard({
+      isOpen: true,
+      linkId: '',
+      linkUuid: generateLinkUuid(),
+      currentNodeId: null,
+      currentName: null,
+      position,
+      mode: 'create-url',
+      initialUrl: isUrl ? selectedText : '',
+      initialText: isUrl ? '' : selectedText,
+      selectionStart: actualStart,
+      selectionEnd: actualEnd,
+    });
+    
+    // Hide the floating toolbar
     setSelectionToolbar(prev => ({ ...prev, visible: false }));
   }, [selectionToolbar, commitAST]);
 
@@ -1597,37 +1638,50 @@ export function ASTBlockEditor({
     const urlRegex = /^https?:\/\/.+/i;
     const isUrl = urlRegex.test(selectedText);
 
+    // Capture selection range if there is a selection
+    let selectionStart: number | undefined;
+    let selectionEnd: number | undefined;
+    if (!sel.isCollapsed) {
+      const clonedRange = range.cloneRange();
+      clonedRange.collapse(true);
+      const tempSel = window.getSelection();
+      tempSel?.removeAllRanges();
+      tempSel?.addRange(clonedRange);
+      const start = getCursorPosition(editorRef.current);
+      
+      const endRange = range.cloneRange();
+      endRange.collapse(false);
+      tempSel?.removeAllRanges();
+      tempSel?.addRange(endRange);
+      const end = getCursorPosition(editorRef.current);
+      
+      tempSel?.removeAllRanges();
+      tempSel?.addRange(range);
+
+      selectionStart = Math.min(start, end);
+      selectionEnd = Math.max(start, end);
+    }
+
     // Position below cursor/selection (relative to editor, like FloatingToolbar)
     const position = {
       top: rect.bottom - editorRect.top + 4,
       left: rect.left - editorRect.left,
     };
 
-    if (isUrl) {
-      // Open in URL mode with the URL prefilled
-      setLinkEditorCard({
-        isOpen: true,
-        linkId: '',
-        linkUuid: generateLinkUuid(),
-        currentNodeId: null,
-        currentName: null,
-        position,
-        mode: 'create-url',
-        initialUrl: selectedText,
-        initialText: '',
-      });
-    } else {
-      // Open in node mode with selected text as custom label
-      setLinkEditorCard({
-        isOpen: true,
-        linkId: '',
-        linkUuid: generateLinkUuid(),
-        currentNodeId: null,
-        currentName: selectedText || null,
-        position,
-        mode: 'create',
-      });
-    }
+    // Always open in URL mode for Ctrl+L
+    setLinkEditorCard({
+      isOpen: true,
+      linkId: '',
+      linkUuid: generateLinkUuid(),
+      currentNodeId: null,
+      currentName: null,
+      position,
+      mode: 'create-url',
+      initialUrl: isUrl ? selectedText : '',
+      initialText: isUrl ? '' : selectedText,
+      selectionStart,
+      selectionEnd,
+    });
   }, [linkCustomNames, linkTargets]);
 
   const handleSaveLinkEditor = useCallback(async (linkUuid: string, _newNodeId: number, newNodeUuid: string, newCustomName: string | null) => {
@@ -1827,6 +1881,15 @@ export function ASTBlockEditor({
                 setLinkEditorCard(null);
               }}
               onClose={() => setLinkEditorCard(null)}
+              onModeToggle={(mode) => {
+                // Switch to URL mode, preserve position and state
+                setLinkEditorCard({
+                  ...linkEditorCard,
+                  mode: 'create-url',
+                  initialUrl: '',
+                  initialText: linkEditorCard.currentName || '',
+                });
+              }}
             />
           )}
 
@@ -1837,32 +1900,16 @@ export function ASTBlockEditor({
               currentText={linkEditorCard.initialText || ''}
               position={linkEditorCard.position}
               onSave={(url, displayText) => {
-                // Insert/wrap external link
-                if (editorRef.current) {
-                  const sel = window.getSelection();
-                  if (sel && !sel.isCollapsed) {
-                    // Wrap selected text in external link
-                    const range = sel.getRangeAt(0);
-                    const clonedRange = range.cloneRange();
-                    clonedRange.collapse(true);
-                    const tempSel = window.getSelection();
-                    tempSel?.removeAllRanges();
-                    tempSel?.addRange(clonedRange);
-                    const start = getCursorPosition(editorRef.current);
-                    
-                    const endRange = range.cloneRange();
-                    endRange.collapse(false);
-                    tempSel?.removeAllRanges();
-                    tempSel?.addRange(endRange);
-                    const end = getCursorPosition(editorRef.current);
-                    
-                    tempSel?.removeAllRanges();
-                    tempSel?.addRange(range);
-
-                    const actualStart = Math.min(start, end);
-                    const actualEnd = Math.max(start, end);
-
-                    const result = wrapInExternalLink(lastASTRef.current, actualStart, actualEnd, url);
+                // Insert/wrap external link using stored selection range
+                if (editorRef.current && linkEditorCard) {
+                  if (linkEditorCard.selectionStart !== undefined && linkEditorCard.selectionEnd !== undefined) {
+                    // Wrap the stored selection in external link
+                    const result = wrapInExternalLink(
+                      lastASTRef.current, 
+                      linkEditorCard.selectionStart, 
+                      linkEditorCard.selectionEnd, 
+                      url
+                    );
                     commitAST(result.ast, result.end);
                   } else {
                     // Insert link text at cursor
@@ -1877,6 +1924,15 @@ export function ASTBlockEditor({
               }}
               onDelete={() => setLinkEditorCard(null)}
               onClose={() => setLinkEditorCard(null)}
+              onModeToggle={(mode) => {
+                // Switch to node mode, preserve position and state  
+                setLinkEditorCard({
+                  ...linkEditorCard,
+                  mode: 'create',
+                  currentNodeId: null,
+                  currentName: linkEditorCard.initialText || '',
+                });
+              }}
             />
           )}
         </>
