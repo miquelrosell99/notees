@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, OptimisticLockError
-from ...db.schema import SYSTEM_CLASS_UUIDS
 from ...db.connection import acquire_connection, get_graph_assets_dir, get_graph_uuid
 from ..auth import get_current_user
 from ...models import User
@@ -216,32 +215,6 @@ async def get_node(
     
     # Get tags for the node (from node_link with is_tag=1)
     tag_ids = await _get_tag_ids(service._pool, service._graph_id or 0, node_id)
-    
-    # Auto-fix legacy date nodes that don't have their date type assigned
-    if node.is_day or node.is_month or node.is_year:
-        page_type_id = service._page_class_id
-        
-        # Ensure page type is assigned
-        if page_type_id and page_type_id not in class_ids:
-            await service.add_class(node_id, page_type_id, _system_call=True)
-            class_ids.append(page_type_id)
-        
-        # Ensure date-specific type is assigned
-        if node.is_day:
-            day_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
-            if day_type and day_type.id and day_type.id not in class_ids:
-                await service.add_class(node_id, day_type.id, _system_call=True)
-                class_ids.append(day_type.id)
-        elif node.is_month:
-            month_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["month"])
-            if month_type and month_type.id and month_type.id not in class_ids:
-                await service.add_class(node_id, month_type.id, _system_call=True)
-                class_ids.append(month_type.id)
-        elif node.is_year:
-            year_type = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["year"])
-            if year_type and year_type.id and year_type.id not in class_ids:
-                await service.add_class(node_id, year_type.id, _system_call=True)
-                class_ids.append(year_type.id)
     
     response = _node_to_response(node, tags=tag_ids, classes=class_ids)
     

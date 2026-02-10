@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
 from ..validation import validate_node_create, validate_node_update
-from ..stringify_ast import build_text_ast
+from ..stringify_ast import parse_ast, serialize_ast, ParseMode
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...db.connection import acquire_connection, get_graph_uuid
 from ...logging_config import get_logger
@@ -365,7 +365,7 @@ class NodeService:
                                 else:
                                     # For TEXT, IMAGE, DATE - create a text node with the default value
                                     text_node = await self._node_repo.create(
-                                        NodeCreateData(name=build_text_ast(str(default)), parent_id=node.id),
+                                        NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node.id),
                                         user_id
                                     )
                                     await self._property_repo.set_relation_value(node.id, cp.property_id, text_node.id)
@@ -1095,7 +1095,7 @@ class NodeService:
                         else:
                             # For TEXT - create a text node with the default value
                             text_node = await self._node_repo.create(
-                                NodeCreateData(name=build_text_ast(str(default)), parent_id=node_id),
+                                NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node_id),
                                 None  # user_id
                             )
                             await self._property_repo.set_relation_value(node_id, cp.property_id, text_node.id)

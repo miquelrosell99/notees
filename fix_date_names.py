@@ -4,10 +4,7 @@ import asyncio
 import os
 import json
 
-def build_text_ast(text: str) -> str:
-    """Build an AST document for plain text."""
-    ast = [{"type": "paragraph", "children": [{"type": "text", "text": text}]}]
-    return json.dumps(ast)
+from app.domain.stringify_ast import parse_ast, serialize_ast, ParseMode
 
 async def fix_dates():
     # Parse DATABASE_URL or use defaults
@@ -29,7 +26,7 @@ async def fix_dates():
         old_name = row['name'] or ''
         
         # Build proper AST JSON
-        ast_name = build_text_ast(old_name)
+        ast_name = serialize_ast(parse_ast(old_name, ParseMode.PLAIN))
         
         await conn.execute('UPDATE node SET name = $1 WHERE id = $2', ast_name, node_id)
         print(f'  Fixed node {node_id}: "{old_name}" -> AST')

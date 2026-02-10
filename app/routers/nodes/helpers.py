@@ -419,7 +419,7 @@ def _format_date_with_pattern(year: int, month: int, day: int, pattern: str) -> 
     
     Returns a JSON-serialized AST document suitable for the name field.
     """
-    from ...domain.stringify_ast import build_text_ast
+    from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
     
     month_str = str(month).zfill(2)
     day_str = str(day).zfill(2)
@@ -439,7 +439,7 @@ def _format_date_with_pattern(year: int, month: int, day: int, pattern: str) -> 
     else:
         text = f"{year}/{month_str}/{day_str}"
     
-    return build_text_ast(text)
+    return serialize_ast(parse_ast(text, ParseMode.PLAIN))
 
 
 def _format_month_with_pattern(year: int, month: int, pattern: str) -> str:
@@ -447,7 +447,7 @@ def _format_month_with_pattern(year: int, month: int, pattern: str) -> str:
     
     Returns a JSON-serialized AST document suitable for the name field.
     """
-    from ...domain.stringify_ast import build_text_ast
+    from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
     
     month_str = str(month).zfill(2)
     separator = "/" if "/" in pattern else "-"
@@ -459,7 +459,7 @@ def _format_month_with_pattern(year: int, month: int, pattern: str) -> str:
         # ISO style
         text = f"{year}{separator}{month_str}"
     
-    return build_text_ast(text)
+    return serialize_ast(parse_ast(text, ParseMode.PLAIN))
 
 
 def _format_year(year: int) -> str:
@@ -467,5 +467,5 @@ def _format_year(year: int) -> str:
     
     Returns a JSON-serialized AST document suitable for the name field.
     """
-    from ...domain.stringify_ast import build_text_ast
-    return build_text_ast(str(year))
+    from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
+    return serialize_ast(parse_ast(str(year), ParseMode.PLAIN))

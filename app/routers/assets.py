@@ -27,7 +27,7 @@ from jose import jwt
 from ..db.connection import acquire_connection, get_pool, get_graph_assets_dir, get_graph_uuid
 from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
-from ..domain.stringify_ast import build_text_ast
+from ..domain.stringify_ast import parse_ast, serialize_ast, ParseMode
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
 from ..domain.services import NodeService, LinkParsingService
 from ..domain.services.asset_service import AssetService, AssetMissingError, AssetPermissionError, AssetInvariantViolation
@@ -178,19 +178,19 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
         
         # Get or create asset class ID
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'asset' AND is_class = TRUE AND graph_id = $1",
-            graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND is_class = TRUE AND graph_id = $2",
+            SYSTEM_CLASS_UUIDS['asset'], graph_id
         )
         if row:
             asset_type_id = row['id']
         else:
-            # Create the asset class
+            # Create the asset class using proper AST name format
             uuid = generate_uuid()
             asset_type_id = await conn.fetchval("""
                 INSERT INTO node (graph_id, uuid, name, icon, is_class, is_asset, create_date, write_date, create_uid, write_uid)
-                VALUES ($1, $2, 'asset', NULL, TRUE, TRUE, $3, $3, $4, $4)
+                VALUES ($1, $2, $3, NULL, TRUE, TRUE, $4, $4, $5, $5)
                 RETURNING id
-            """, graph_id, uuid, now, user_id)
+            """, graph_id, uuid, serialize_ast(parse_ast('asset', ParseMode.PLAIN)), now, user_id)
             
             # Give it the 'class' class itself
             type_row = await conn.fetchrow(
@@ -306,7 +306,7 @@ async def upload_asset(
             # Create the asset node ONLY after file is safely written
             data = NodeCreateData(
                 uuid=asset_uuid,  # Use UUID from service
-                name=build_text_ast(filename_without_ext),
+                name=serialize_ast(parse_ast(filename_without_ext, ParseMode.PLAIN)),
                 parent_id=parent_id,
                 classes=[asset_type_id] if asset_type_id else [],
             )
@@ -336,23 +336,6 @@ async def upload_asset(
     except Exception as e:
         logger.error(f"Failed to upload asset: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload asset: {e}")
-
-
-async def get_user_from_token_param(token: Optional[str] = None) -> Optional[User]:
-    """Get user from token query parameter (for img/audio src URLs)."""
-    if not token:
-        return None
-    from .. import auth
-    payload = auth.decode_token(token)
-    if not payload:
-        return None
-    user_id = payload.get("user_id")
-    if not user_id:
-        return None
-    user_data = await auth.get_user_by_id(user_id)
-    if not user_data:
-        return None
-    return User(**user_data)
 
 
 @router.post("/{asset_uuid}/token", response_model=AssetTokenResponse)
@@ -399,7 +382,6 @@ async def generate_asset_token(
 async def get_asset(
     asset_uuid: str,
     asset_token: Optional[str] = Query(None, description="Short-lived asset access token"),
-    token: Optional[str] = Query(None, description="Deprecated: Use asset_token instead"),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Get an asset file by its UUID.
@@ -409,7 +391,6 @@ async def get_asset(
     Authentication methods (in order of preference):
     1. asset_token query parameter (short-lived, asset-specific)
     2. Authorization header (standard JWT)
-    3. token query parameter (deprecated, for backward compatibility)
     
     Scans the per-asset folder: assets/{uuid}/{uuid}.{ext}
     """
@@ -423,10 +404,6 @@ async def get_asset(
     # Fall back to header auth
     if not user:
         user = current_user
-    
-    # Fall back to deprecated token param (for backward compatibility during migration)
-    if not user and token:
-        user = await get_user_from_token_param(token)
     
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -473,7 +450,6 @@ async def get_asset(
 async def get_asset_thumbnail(
     asset_uuid: str,
     asset_token: Optional[str] = Query(None, description="Short-lived asset access token"),
-    token: Optional[str] = Query(None, description="Deprecated: Use asset_token instead"),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
@@ -484,7 +460,6 @@ async def get_asset_thumbnail(
     Authentication methods (in order of preference):
     1. asset_token query parameter (short-lived, asset-specific)
     2. Authorization header (standard JWT)
-    3. token query parameter (deprecated, for backward compatibility)
     """
     # Try asset_token first (preferred method)
     user = None
@@ -496,10 +471,6 @@ async def get_asset_thumbnail(
     # Fall back to header auth
     if not user:
         user = current_user
-    
-    # Fall back to deprecated token param (for backward compatibility)
-    if not user and token:
-        user = await get_user_from_token_param(token)
     
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")

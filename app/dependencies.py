@@ -23,6 +23,7 @@ import asyncpg
 from .routers.auth import get_current_user
 from .models import User
 from .db.connection import get_pool, acquire_connection
+from .db.schema.constants import SYSTEM_CLASS_UUIDS
 from .db.schema import get_or_create_user_graph
 from .domain.repositories import (
     PostgresNodeRepository,
@@ -57,8 +58,8 @@ async def _get_graph_context_cached(pool: asyncpg.Pool, user_id: int) -> tuple[i
         conn = cast(asyncpg.Connection, conn)
         graph_id = await get_or_create_user_graph(conn, user_id)
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE name = 'page' AND is_class = TRUE AND graph_id = $1 LIMIT 1",
-            graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND is_class = TRUE AND graph_id = $2 LIMIT 1",
+            SYSTEM_CLASS_UUIDS["page"], graph_id
         )
         page_class_id = row['id'] if row else 1
     

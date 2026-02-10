@@ -1,13 +1,23 @@
 """
-Canonical AST → string stringifier for Notees (Python backend).
+Canonical AST ↔ string conversion for Notees (Python backend).
 
-ONE function — ``stringify_ast`` — controlled ONLY by ``StringifyMode``.
-No other stringifier may exist on the backend.
+Two symmetrical entry points:
 
-Modes (closed enum):
+    ``stringify_ast(ast, options)``  – AST → readable string
+    ``parse_ast(value, mode)``      – input → AST objects
+
+``stringify_ast`` modes (closed enum — ``StringifyMode``):
     NODE_MARKDOWN   – preserves node semantics ([[…]], [label]([[…]]))
     PLAIN_MARKDOWN  – standard portable Markdown, no [[…]]
     TEXT_ONLY        – plain text for search / indexing
+
+``parse_ast`` modes (closed enum — ``ParseMode``):
+    JSON       – JSON string or list → validated AST (default)
+    PLAIN      – wrap plain text as-is in a paragraph
+    MARKDOWN   – parse inline Markdown (bold, italic, code, …)
+
+Helper:
+    ``serialize_ast(ast)``  – ``json.dumps`` shortcut for DB storage
 
 Node links are resolved recursively with cycle detection.
 
@@ -32,33 +42,21 @@ from typing import (
 
 __all__ = [
     "StringifyMode",
+    "ParseMode",
     "NodeLinkResolution",
     "NodeLinkResolver",
     "StringifyOptions",
     "stringify_ast",
     "parse_ast",
-    "build_text_ast",
+    "serialize_ast",
 ]
-
-
-# ── AST Builders ────────────────────────────────────────────────────
-
-
-def build_text_ast(text: str) -> str:
-    """Build a simple AST document containing just a text node.
-    
-    Returns a JSON string suitable for storing in the name column.
-    This is the ONLY way to create AST content in Python code.
-    """
-    ast = [{"type": "paragraph", "children": [{"type": "text", "text": text}]}]
-    return json.dumps(ast)
 
 
 # ── Public types ────────────────────────────────────────────────────
 
 
 class StringifyMode(str, Enum):
-    """Closed enum of stringify modes."""
+    """Closed enum of stringify modes (AST → string)."""
 
     NODE_MARKDOWN = "NODE_MARKDOWN"
     """Internal Markdown that preserves node semantics."""
@@ -68,6 +66,19 @@ class StringifyMode(str, Enum):
 
     TEXT_ONLY = "TEXT_ONLY"
     """Plain text for search indexing."""
+
+
+class ParseMode(str, Enum):
+    """Closed enum of parse modes (string → AST)."""
+
+    JSON = "JSON"
+    """Deserialize a JSON string (or pass through a list). Default."""
+
+    PLAIN = "PLAIN"
+    """Wrap plain text as-is in a single text node (no formatting)."""
+
+    MARKDOWN = "MARKDOWN"
+    """Parse inline Markdown: **bold**, *italic*, `code`, ~~strike~~, ==highlight==, [text](url)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,31 +128,44 @@ def stringify_ast(
     return result
 
 
-def parse_ast(value: Any) -> List[dict]:
-    """Parse a ``name`` column value into a validated AST document.
+def parse_ast(value: Any, mode: ParseMode = ParseMode.JSON) -> List[dict]:
+    """Parse input into a validated AST document.
 
-    - JSON string → parse → validate
-    - list        → validate
-    - anything else → empty document
-    
-    Note: The name field must ALWAYS contain valid AST JSON.
-    Use build_text_ast() to create AST content.
+    Modes:
+        JSON (default):
+            - JSON string → parse → validate
+            - list         → validate
+            - anything else → empty document
+        PLAIN:
+            - Wrap text as-is in ``[{paragraph: [{text: value}]}]``
+            - Empty / None → empty document
+        MARKDOWN:
+            - Parse inline Markdown formatting into AST nodes
+            - Supports: **bold**, *italic*, `code`, ~~strike~~,
+              ==highlight==, [text](url)
+            - Empty / None → empty document
     """
-    if isinstance(value, str):
-        if not value:
-            return []
-        try:
-            parsed = json.loads(value)
-            if not isinstance(parsed, list):
-                # Invalid: not an AST array
-                return []
-            return _validate_document(parsed)
-        except (json.JSONDecodeError, TypeError):
-            # Invalid JSON - should never happen with properly created AST
-            return []
-    if isinstance(value, list):
-        return _validate_document(value)
-    return []
+    if mode is ParseMode.JSON:
+        return _parse_json(value)
+
+    # PLAIN and MARKDOWN both need a string
+    if not isinstance(value, str) or not value:
+        return []
+
+    if mode is ParseMode.PLAIN:
+        return [{"type": "paragraph", "children": [{"type": "text", "text": value}]}]
+
+    # MARKDOWN
+    return _parse_markdown(value)
+
+
+def serialize_ast(ast: List[dict]) -> str:
+    """Serialize an AST document to a JSON string for DB storage.
+
+    This is a thin wrapper around ``json.dumps`` that pairs with
+    ``parse_ast(..., ParseMode.JSON)`` for deserialization.
+    """
+    return json.dumps(ast)
 
 
 # ── Document / block rendering ─────────────────────────────────────
@@ -276,6 +300,107 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions) -> st
 
     # PLAIN_MARKDOWN / TEXT_ONLY
     return label if label else resolved_text
+
+
+# ── parse_ast helpers ───────────────────────────────────────────────
+
+
+def _parse_json(value: Any) -> List[dict]:
+    """Parse a JSON string or list into a validated AST document."""
+    if isinstance(value, str):
+        if not value:
+            return []
+        try:
+            parsed = json.loads(value)
+            if not isinstance(parsed, list):
+                return []
+            return _validate_document(parsed)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    if isinstance(value, list):
+        return _validate_document(value)
+    return []
+
+
+# ── Markdown inline patterns ───────────────────────────────────────
+#
+# We parse a flat string into inline AST nodes.  The grammar handles:
+#     **bold**  *italic*  `code`  ~~strikethrough~~  ==highlight==
+#     [link text](url)
+#
+# Nesting (e.g. **bold *and italic***) is supported one level deep.
+
+_MD_INLINE_RE = re.compile(
+    r"(?P<code>`[^`]+`)"                   # `code`
+    r"|(?P<bold_italic>\*\*\*(?P<bi>.+?)\*\*\*)"  # ***bold italic***
+    r"|(?P<bold>\*\*(?P<b>.+?)\*\*)"       # **bold**
+    r"|(?P<italic>\*(?P<i>[^*]+?)\*)"       # *italic*
+    r"|(?P<strike>~~(?P<s>.+?)~~)"          # ~~strike~~
+    r"|(?P<highlight>==(?P<h>.+?)==)"        # ==highlight==
+    r"|(?P<link>\[(?P<lt>[^\]]+)\]\((?P<lu>[^)]+)\))"  # [text](url)
+)
+
+
+def _parse_markdown(text: str) -> List[dict]:
+    """Parse inline Markdown into an AST document (one paragraph)."""
+    children = _parse_md_inline(text)
+    if not children:
+        return []
+    return [{"type": "paragraph", "children": children}]
+
+
+def _parse_md_inline(text: str) -> List[dict]:
+    """Parse inline Markdown patterns into a list of AST inline nodes."""
+    nodes: List[dict] = []
+    pos = 0
+
+    for m in _MD_INLINE_RE.finditer(text):
+        start, end = m.start(), m.end()
+
+        # Emit plain text before this match
+        if start > pos:
+            nodes.append({"type": "text", "text": text[pos:start]})
+
+        if m.group("code"):
+            raw = m.group("code")
+            nodes.append({"type": "code", "text": raw[1:-1]})
+
+        elif m.group("bold_italic"):
+            inner = m.group("bi")
+            nodes.append({"type": "strong", "children": [
+                {"type": "em", "children": [{"type": "text", "text": inner}]}
+            ]})
+
+        elif m.group("bold"):
+            inner = m.group("b")
+            nodes.append({"type": "strong", "children": _parse_md_inline(inner)})
+
+        elif m.group("italic"):
+            inner = m.group("i")
+            nodes.append({"type": "em", "children": _parse_md_inline(inner)})
+
+        elif m.group("strike"):
+            inner = m.group("s")
+            nodes.append({"type": "strikethrough", "children": _parse_md_inline(inner)})
+
+        elif m.group("highlight"):
+            inner = m.group("h")
+            nodes.append({"type": "highlight", "children": _parse_md_inline(inner)})
+
+        elif m.group("link"):
+            link_text = m.group("lt")
+            url = m.group("lu")
+            nodes.append({"type": "external_link", "url": url, "children": [
+                {"type": "text", "text": link_text}
+            ]})
+
+        pos = end
+
+    # Trailing text
+    if pos < len(text):
+        nodes.append({"type": "text", "text": text[pos:]})
+
+    return nodes
 
 
 # ── Utilities ───────────────────────────────────────────────────────
