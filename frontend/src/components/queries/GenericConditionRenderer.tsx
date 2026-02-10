@@ -16,7 +16,7 @@ import { NodeSelector } from '../NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
 import { useCurrentNodeUuid } from '@/hooks/useRouter';
-import type { ConditionNode } from '@/types/queryAST';
+import type { ConditionNode, StyleType } from '@/types/queryAST';
 import { 
   getConditionConfig, 
   operatorNeedsValue, 
@@ -382,10 +382,43 @@ export function GenericConditionRenderer({
     }
   };
   
+  // Style type options for style conditions
+  const STYLE_TYPE_OPTIONS = [
+    { value: 'bold', label: 'BOLD' },
+    { value: 'italic', label: 'ITALIC' },
+    { value: 'underline', label: 'UNDERLINE' },
+    { value: 'strikethrough', label: 'STRIKETHROUGH' },
+  ];
+
+  // Get display label - dynamic for style conditions
+  const displayLabel = condition.condition_type === 'style'
+    ? (STYLE_TYPE_OPTIONS.find(o => o.value === (condition as unknown as Record<string, unknown>).style_type)?.label || 'STYLE')
+    : config.label;
+
+  // Handler for style type change
+  const handleStyleTypeChange = (newStyleType: string | null) => {
+    if (!newStyleType) return;
+    onUpdate({
+      ...condition,
+      style_type: newStyleType as StyleType,
+    } as unknown as ConditionNode);
+  };
+
   // Main render
   return (
     <div className="prose-condition__inline">
-      <span className="prose-condition__word">{config.label}</span>
+      {condition.condition_type === 'style' ? (
+        <Dropdown
+          value={(condition as unknown as Record<string, unknown>).style_type as string}
+          onChange={handleStyleTypeChange}
+          disabled={readOnly}
+          options={STYLE_TYPE_OPTIONS}
+          size="sm"
+          className="prose-condition__label-dropdown"
+        />
+      ) : (
+        <span className="prose-condition__word">{displayLabel}</span>
+      )}
       {renderOperator()}
       {renderModeToggle()}
       {renderStaticInput()}

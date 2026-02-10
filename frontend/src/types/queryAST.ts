@@ -45,6 +45,24 @@ export type ContentOperator =
   | 'fts';
 
 /**
+ * Operators for style/formatting conditions
+ */
+export type StyleOperator =
+  | 'is'
+  | 'is_not'
+  | 'contains'
+  | 'does_not_contain';
+
+/**
+ * Style types for formatting filter conditions
+ */
+export type StyleType =
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strikethrough';
+
+/**
  * Property types for property filter conditions
  * Matches backend: PropertyType enum
  */
@@ -140,6 +158,7 @@ export type ConditionType =
   | 'extends'
   | 'property'
   | 'content'
+  | 'style'
   | 'reference'
   | 'reference_path'
   | 'parent'
@@ -201,6 +220,15 @@ export interface ContentCondition extends BaseConditionNode {
   operator: ContentOperator;
   value: string;
   case_sensitive?: boolean;
+}
+
+/**
+ * Style condition - filter by text formatting (bold, italic, underline, strikethrough)
+ */
+export interface StyleCondition extends BaseConditionNode {
+  condition_type: 'style';
+  style_type: StyleType;
+  operator: StyleOperator;
 }
 
 /**
@@ -305,6 +333,7 @@ export type ConditionNode =
   | ExtendsCondition
   | PropertyCondition
   | ContentCondition
+  | StyleCondition
   | ReferenceCondition
   | ReferencePathCondition
   | ParentCondition

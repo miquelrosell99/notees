@@ -86,6 +86,7 @@ class ConditionType(str, Enum):
     EXTENDS = "extends"
     PROPERTY = "property"
     CONTENT = "content"
+    STYLE = "style"
     REFERENCE = "reference"
     REFERENCE_PATH = "reference_path"
     PARENT_PATH = "parent_path"
@@ -201,6 +202,30 @@ class ContentCondition(BaseConditionNode):
     case_sensitive: Optional[bool] = None
 
 
+class StyleType(str, Enum):
+    """Style types for formatting filters."""
+    BOLD = "bold"
+    ITALIC = "italic"
+    UNDERLINE = "underline"
+    STRIKETHROUGH = "strikethrough"
+
+
+class StyleOperator(str, Enum):
+    """Operators for style/formatting conditions."""
+    IS = "is"
+    IS_NOT = "is_not"
+    CONTAINS = "contains"
+    DOES_NOT_CONTAIN = "does_not_contain"
+
+
+@dataclass
+class StyleCondition(BaseConditionNode):
+    """Style condition - filter by text formatting (bold, italic, underline, strikethrough)."""
+    condition_type: Literal[ConditionType.STYLE] = ConditionType.STYLE
+    style_type: StyleType = StyleType.BOLD
+    operator: StyleOperator = StyleOperator.CONTAINS
+
+
 @dataclass
 class ReferenceCondition(BaseConditionNode):
     """Reference condition - filter by references."""
@@ -276,6 +301,7 @@ ConditionNode = Union[
     ExtendsCondition,
     PropertyCondition,
     ContentCondition,
+    StyleCondition,
     ReferenceCondition,
     ReferencePathCondition,
     ParentPathCondition,
@@ -440,6 +466,11 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
             operator=ContentOperator(data.get("operator", "contains")),
             value=data.get("value", ""),
             case_sensitive=data.get("case_sensitive"),
+        )
+    elif condition_type == ConditionType.STYLE:
+        return StyleCondition(
+            style_type=StyleType(data.get("style_type", "bold")),
+            operator=StyleOperator(data.get("operator", "contains")),
         )
     elif condition_type == ConditionType.REFERENCE:
         nested_group = None

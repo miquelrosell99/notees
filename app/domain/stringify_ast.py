@@ -230,6 +230,10 @@ def _render_inline(node: dict, opts: StringifyOptions) -> str:
         inner = _render_inline_sequence(node.get("children", []), opts)
         return inner if is_text else f"=={inner}=="
 
+    if node_type == "underline":
+        inner = _render_inline_sequence(node.get("children", []), opts)
+        return inner if is_text else f"<u>{inner}</u>"
+
     if node_type == "external_link":
         link_text = _render_inline_sequence(node.get("children", []), opts)
         if is_text:
