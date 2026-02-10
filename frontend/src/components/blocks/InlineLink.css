@@ -1,18 +1,21 @@
 /**
  * InlineLink Component Styles
  * 
- * HTML anchor-style link for inline node references in contenteditable.
- * Atomic inline element that looks like a standard hyperlink.
+ * Inline wiki-link rendering in contenteditable edit mode.
+ * Shows [[target]] or [label]([[target]]) syntax.
  */
 
 .inline-link {
   display: inline;
+  position: relative;
   color: var(--color-primary);
   text-decoration: none;
   cursor: pointer;
   user-select: none;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.15s, color 0.15s;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+  transition: color 0.15s;
   
   /* Atomic inline behavior */
   -webkit-user-modify: read-only;
@@ -20,8 +23,8 @@
 }
 
 .inline-link:hover {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: color-mix(in srgb, var(--color-primary) 80%, var(--color-on-surface));
+  text-decoration: underline;
 }
 
 .inline-link--selected {

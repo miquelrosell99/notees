@@ -326,9 +326,9 @@ export function ASTBlockEditor({
     return ids;
   }, [ast]);
 
-  const { data: allNodes } = useNodes(linkIds.length > 0 ? {} : null);
+  const { data: allNodes, isFetched: allNodesFetched } = useNodes(linkIds.length > 0 ? {} : null);
   const { data: allClasses } = useClasses();
-  const { data: textLinks } = useTextLinks(nodeId ?? null);
+  const { data: textLinks, isFetched: textLinksFetched } = useTextLinks(nodeId ?? null);
 
   // Build lookup maps
   const tagTargetIds = useMemo(() => {
@@ -353,21 +353,26 @@ export function ASTBlockEditor({
     return map;
   }, [textLinks]);
 
+  // Map of all nodes by ID for direct node-ID-based link resolution
+  const allNodesMap = useMemo(() => {
+    if (!allNodes || !allNodesFetched) return new Map<number, Node>();
+    return new Map(allNodes.map(n => [n.id, n]));
+  }, [allNodes, allNodesFetched]);
+
   // Map of link UUID → resolved info for display
   const linkResolveMap = useMemo(() => {
     const map = new Map<string, ResolvedLink>();
-    if (allNodes && textLinks) {
-      const nodeIdMap = new Map(allNodes.map(n => [n.id, n]));
-
+    if (allNodesFetched && allNodes && textLinks) {
       for (const tl of textLinks) {
         if (!tl.uuid) continue;
-        const target = nodeIdMap.get(tl.target_node_id);
+        const target = allNodesMap.get(tl.target_node_id);
         const linkStatus: LinkStatus = target ? 'valid' : 'broken';
 
         if (!target) {
           // Broken link — target node deleted/missing
           map.set(tl.uuid, {
             displayText: tl.name || 'Deleted',
+            targetName: tl.name || 'Deleted',
             isTag: false,
             effectiveIcon: null,
             customLabel: tl.name || null,
@@ -377,15 +382,16 @@ export function ASTBlockEditor({
         }
 
         const customLabel = tl.name || null;
-        const displayText = customLabel || nodeNameToText(target.name) || 'Untitled';
+        const targetName = nodeNameToText(target.name) || 'Untitled';
+        const displayText = customLabel || targetName;
         const effectiveIcon = getEffectiveIcon(target, allClasses ?? []);
         const isTag = tagTargetIds.has(target.id);
 
-        map.set(tl.uuid, { displayText, isTag, effectiveIcon: effectiveIcon ?? null, customLabel, linkStatus });
+        map.set(tl.uuid, { displayText, targetName, isTag, effectiveIcon: effectiveIcon ?? null, customLabel, linkStatus });
       }
     }
     return map;
-  }, [allNodes, allClasses, textLinks, tagTargetIds]);
+  }, [allNodes, allNodesFetched, allNodesMap, allClasses, textLinks, tagTargetIds]);
 
   // Clean up pending links once they appear in the real resolve map
   useEffect(() => {
@@ -396,17 +402,69 @@ export function ASTBlockEditor({
     }
   }, [linkResolveMap]);
 
+  // Whether link resolution data has fully loaded (not just placeholder)
+  const linkDataLoaded = linkIds.length === 0 || (textLinksFetched && allNodesFetched);
+
   // ─── Render context ────────────────────────────────────────────
   const renderCtx = useMemo<ASTRenderContext>(() => ({
-    resolveLink: (linkId: string, _refType: 'node' | 'class'): ResolvedLink | null => {
+    resolveLink: (linkId: string, refType: 'node' | 'class'): ResolvedLink | null => {
+      // 1. Direct lookup by link UUID (matches textLinks.uuid)
       const resolved = linkResolveMap.get(linkId);
       if (resolved) return resolved;
-      // Fallback: check optimistic pending links
+
+      // 2. Compound format "nodeId:uuid" — try the UUID part
+      const colonIdx = linkId.indexOf(':');
+      if (colonIdx > 0) {
+        const uuidPart = linkId.substring(colonIdx + 1);
+        const byUuid = linkResolveMap.get(uuidPart);
+        if (byUuid) return byUuid;
+      }
+
+      // 3. Check optimistic pending links
       const pending = pendingLinksRef.current.get(linkId);
       if (pending) return pending;
+
+      // 4. Try as numeric node ID (old format where link_id = "42")
+      //    This covers existing links stored before the UUID system
+      const numericPart = colonIdx > 0 ? linkId.substring(0, colonIdx) : linkId;
+      const numericId = parseInt(numericPart, 10);
+      if (!isNaN(numericId) && allNodesFetched && refType === 'node') {
+        const node = allNodesMap.get(numericId);
+        if (node) {
+          const name = nodeNameToText(node.name) || 'Untitled';
+          return {
+            displayText: name,
+            targetName: name,
+            isTag: tagTargetIds.has(node.id),
+            effectiveIcon: getEffectiveIcon(node, allClasses ?? []) ?? null,
+            customLabel: null,
+            linkStatus: 'valid',
+          };
+        }
+      }
+      // For class refs, link_id is the class node ID
+      if (!isNaN(numericId) && allNodesFetched && refType === 'class') {
+        const node = allNodesMap.get(numericId);
+        if (node) {
+          const name = nodeNameToText(node.name) || 'Untitled';
+          return {
+            displayText: name,
+            targetName: name,
+            isTag: false,
+            effectiveIcon: null,
+            customLabel: null,
+            linkStatus: 'valid',
+          };
+        }
+      }
+
+      // 5. Data still loading — show placeholder
+      if (!linkDataLoaded) {
+        return { displayText: '…', targetName: '…', isTag: false, effectiveIcon: null, customLabel: null, linkStatus: 'valid' };
+      }
       return null;
     },
-  }), [linkResolveMap]);
+  }), [linkResolveMap, linkDataLoaded, allNodesMap, allNodesFetched, allClasses, tagTargetIds]);
 
   // ─── Sync external ref ────────────────────────────────────────
   useEffect(() => {
@@ -1143,11 +1201,13 @@ export function ASTBlockEditor({
 
     if (trigger.type === 'link') {
       const linkUuid = generateLinkUuid();
+      // Use "nodeId:linkUuid" format so backend can parse the target node ID
+      const compoundLinkId = `${node.id}:${linkUuid}`;
       const result = replaceTriggerWithLink(
         lastASTRef.current,
         trigger.triggerPosition,
         cursorPos,
-        linkUuid,
+        compoundLinkId,
         'node',
       );
       // Also notify parent about the link
@@ -1156,8 +1216,9 @@ export function ASTBlockEditor({
       // Store optimistic link info so the pill renders immediately
       const displayText = nodeNameToText(node.name) || 'Untitled';
       const effectiveIcon = getEffectiveIcon(node, allClasses ?? []);
-      pendingLinksRef.current.set(linkUuid, {
+      pendingLinksRef.current.set(compoundLinkId, {
         displayText,
+        targetName: displayText,
         isTag: false,
         effectiveIcon: effectiveIcon ?? null,
         customLabel: null,
@@ -1167,17 +1228,19 @@ export function ASTBlockEditor({
       commitAST(result.ast, result.cursorOffset);
     } else if (trigger.type === 'tag' && keepInline) {
       const linkUuid = generateLinkUuid();
+      const compoundLinkId = `${node.id}:${linkUuid}`;
       const result = replaceTriggerWithLink(
         lastASTRef.current,
         trigger.triggerPosition,
         cursorPos,
-        linkUuid,
+        compoundLinkId,
         'node',
       );
       // Store optimistic tag link info
       const displayText = nodeNameToText(node.name) || 'Untitled';
-      pendingLinksRef.current.set(linkUuid, {
+      pendingLinksRef.current.set(compoundLinkId, {
         displayText,
+        targetName: displayText,
         isTag: true,
         effectiveIcon: null,
         customLabel: null,
@@ -1198,6 +1261,7 @@ export function ASTBlockEditor({
       const displayText = nodeNameToText(node.name) || 'Untitled';
       pendingLinksRef.current.set(linkId, {
         displayText,
+        targetName: displayText,
         isTag: false,
         effectiveIcon: null,
         customLabel: null,
@@ -1227,16 +1291,19 @@ export function ASTBlockEditor({
     if (trigger.type === 'link') {
       const newPageId = await onCreatePageLink?.(name);
       if (newPageId) {
+        const linkUuid = generateLinkUuid();
+        const compoundLinkId = `${newPageId}:${linkUuid}`;
         const result = replaceTriggerWithLink(
           lastASTRef.current,
           trigger.triggerPosition,
           cursorPos,
-          newPageId,
+          compoundLinkId,
           'node',
         );
         // Store optimistic link info for the newly created page
-        pendingLinksRef.current.set(newPageId, {
+        pendingLinksRef.current.set(compoundLinkId, {
           displayText: name || 'Untitled',
+          targetName: name || 'Untitled',
           isTag: false,
           effectiveIcon: null,
           customLabel: null,
@@ -1267,16 +1334,18 @@ export function ASTBlockEditor({
     if (!editorRef.current) return;
     const cursorPos = getCursorPosition(editorRef.current);
     const linkUuid = generateLinkUuid();
+    const compoundLinkId = `${_pageId}:${linkUuid}`;
     const result = replaceTriggerWithLink(
       lastASTRef.current,
       trigger.triggerPosition,
       cursorPos,
-      linkUuid,
+      compoundLinkId,
       'node',
     );
     // Store optimistic link info for date page
-    pendingLinksRef.current.set(linkUuid, {
+    pendingLinksRef.current.set(compoundLinkId, {
       displayText: _pageName || 'Untitled',
+      targetName: _pageName || 'Untitled',
       isTag: false,
       effectiveIcon: null,
       customLabel: null,
