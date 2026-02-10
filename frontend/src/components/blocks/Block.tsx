@@ -482,6 +482,9 @@ function BlockInternal({
     if (blockState !== 'edit') return;
     
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Don't exit edit mode when clicking inside a link editor card, suggestion popup, or context menu
+      if (target.closest('.link-editor-card') || target.closest('.suggestion-popup') || target.closest('.context-menu') || target.closest('.node-pill-context-menu-wrapper') || target.closest('.node-pill-context-menu-backdrop')) return;
       if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
         setBlockState(block.id, 'display');
       }
@@ -563,6 +566,11 @@ function BlockInternal({
     
     // If already editing, don't interfere with native cursor positioning
     if (blockState === 'edit') return;
+
+    // Don't enter edit mode if the click originated from a context menu, link editor, or popup
+    // (These may have unmounted by the time the click reached us, so we can't rely on stopPropagation.)
+    const target = e.target as HTMLElement;
+    if (target.closest('.context-menu') || target.closest('.link-editor-card') || target.closest('.suggestion-popup') || target.closest('.node-pill-context-menu-wrapper') || target.closest('.node-pill-context-menu-backdrop')) return;
     
     e.stopPropagation();
     
@@ -717,7 +725,10 @@ function BlockInternal({
   }, [block.id, blockState, extendSelectionKeyboard, getNextBlockId, isEditing, selectBlock, selectionMode, setBlockState, selectedBlockIds, blockParentMap, deleteNode, clearSelection]);
   
   // Handle focus (enter edit mode)
-  const handleFocus = useCallback(() => {
+  const handleFocus = useCallback((e: React.FocusEvent) => {
+    // Don't enter edit mode if focus went to a link editor card, context menu, or popup
+    const target = e.target as HTMLElement;
+    if (target.closest('.link-editor-card') || target.closest('.context-menu') || target.closest('.suggestion-popup') || target.closest('.node-pill-context-menu-wrapper')) return;
     if (canEdit && blockState !== 'edit') {
       setBlockState(block.id, 'edit');
     }
