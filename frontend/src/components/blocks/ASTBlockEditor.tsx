@@ -36,9 +36,11 @@ import { SlashCommandPopup } from '../SlashCommandPopup';
 import { TextField } from '../core/TextField';
 import { Button } from '../core/Button';
 import { FloatingToolbar } from '../core/FloatingToolbar';
+import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 
 // Hooks
 import { useNodes, useTextLinks, useClasses } from '@/hooks';
+import { useNodesStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 
@@ -244,6 +246,13 @@ export function ASTBlockEditor({
     nodeId: number;
     position: { top: number; left: number };
   } | null>(null);
+  const linkNameDialogRef = useRef<HTMLDivElement>(null);
+  const [editorContextMenu, setEditorContextMenu] = useState<{
+    position: { x: number; y: number };
+    linkUuid: string;
+    targetNodeId: number;
+    isPage: boolean;
+  } | null>(null);
 
   // ─── Selection toolbar state ───────────────────────────────────
   const [selectionToolbar, setSelectionToolbar] = useState<{
@@ -256,6 +265,7 @@ export function ASTBlockEditor({
 
   // ─── Query client ──────────────────────────────────────────────
   const queryClient = useQueryClient();
+  const { openNode, addSidebarCard } = useNodesStore();
 
   // ─── Batched onChange via requestAnimationFrame ────────────────
   const flushOnChange = useCallback(() => {
@@ -1553,8 +1563,29 @@ export function ASTBlockEditor({
     };
   }, [trigger.isOpen, slashCommand.isOpen]);
 
-  // ─── Link name dialog ──────────────────────────────────────────
+  // ─── Link click handler (select the pill) ─────────────────────
   const handleEditorClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+
+    const target = e.target as HTMLElement;
+    const linkElement = target.closest('.inline-link, .tag-pill, .class-pill') as HTMLElement;
+    if (!linkElement) return;
+
+    // Select the pill element instead of opening a dialog
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sel = window.getSelection();
+    if (sel) {
+      const range = document.createRange();
+      range.selectNode(linkElement);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }, [readOnly]);
+
+  // ─── Context menu on right-click of link pills ─────────────────
+  const handleEditorContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly) return;
 
     const target = e.target as HTMLElement;
@@ -1567,21 +1598,24 @@ export function ASTBlockEditor({
     const rawLinkId = linkElement.dataset.linkId;
     if (!rawLinkId) return;
 
-    // Extract the UUID part from compound link_id ("nodeId:uuid" → "uuid")
+    // Extract nodeId and UUID from "nodeId:uuid" format
     const colonIdx = rawLinkId.indexOf(':');
+    const targetNodeIdStr = colonIdx > 0 ? rawLinkId.substring(0, colonIdx) : rawLinkId;
     const linkUuid = colonIdx > 0 ? rawLinkId.substring(colonIdx + 1) : rawLinkId;
+    const targetNodeId = parseInt(targetNodeIdStr, 10);
+    if (isNaN(targetNodeId)) return;
 
-    const currentName = linkCustomNames.get(linkUuid) || null;
+    // Look up whether the target is a page
+    const targetIsPage = allNodesMap.get(targetNodeId)?.is_page ?? true;
+
     const rect = linkElement.getBoundingClientRect();
-
-    setLinkNameDialog({
-      isOpen: true,
+    setEditorContextMenu({
+      position: { x: rect.left, y: rect.bottom + 4 },
       linkUuid,
-      currentName,
-      nodeId: nodeId ?? 0,
-      position: { top: rect.bottom + 4, left: rect.left },
+      targetNodeId,
+      isPage: targetIsPage,
     });
-  }, [readOnly, linkCustomNames, nodeId]);
+  }, [readOnly, allNodesMap]);
 
   const handleSaveLinkName = useCallback(async (linkUuid: string, newName: string | null) => {
     try {
@@ -1592,6 +1626,59 @@ export function ASTBlockEditor({
       console.error('Failed to update link name:', error);
     }
   }, [nodeId, queryClient]);
+
+  // Close linkNameDialog on click outside
+  useEffect(() => {
+    if (!linkNameDialog?.isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (linkNameDialogRef.current && !linkNameDialogRef.current.contains(e.target as globalThis.Node)) {
+        setLinkNameDialog(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+  }, [linkNameDialog?.isOpen]);
+
+  // ─── Editor context menu items ─────────────────────────────────
+  const editorContextMenuItems: ContextMenuItem[] = useMemo(() => {
+    if (!editorContextMenu) return [];
+    const { linkUuid, targetNodeId, isPage: targetIsPage } = editorContextMenu;
+    return [
+      {
+        id: 'open',
+        label: targetIsPage ? 'Open page' : 'Open block',
+        onClick: () => {
+          openNode(targetNodeId, targetIsPage ? 'page' : 'block');
+          setEditorContextMenu(null);
+        },
+      },
+      {
+        id: 'open-sidebar',
+        label: 'Open in sidebar',
+        shortcut: '⇧Click',
+        onClick: () => {
+          addSidebarCard(targetNodeId, targetIsPage ? 'page' : 'block');
+          setEditorContextMenu(null);
+        },
+      },
+      { id: 'sep1', label: '', separator: true },
+      {
+        id: 'custom-label',
+        label: 'Edit link text',
+        onClick: () => {
+          const currentName = linkCustomNames.get(linkUuid) || null;
+          setEditorContextMenu(null);
+          setLinkNameDialog({
+            isOpen: true,
+            linkUuid,
+            currentName,
+            nodeId: nodeId ?? 0,
+            position: { top: editorContextMenu.position.y, left: editorContextMenu.position.x },
+          });
+        },
+      },
+    ];
+  }, [editorContextMenu, linkCustomNames, nodeId, openNode, addSidebarCard]);
 
   // ─── Render ────────────────────────────────────────────────────
   return (
@@ -1605,6 +1692,7 @@ export function ASTBlockEditor({
         onKeyUp={handleKeyUp}
         onPaste={handlePaste}
         onClick={handleEditorClick}
+        onContextMenu={handleEditorContextMenu}
         onMouseUp={handleMouseUp}
         onCompositionStart={() => { setIsComposing(true); isComposingRef.current = true; }}
         onCompositionEnd={() => {
@@ -1655,6 +1743,7 @@ export function ASTBlockEditor({
 
           {linkNameDialog?.isOpen && (
             <div
+              ref={linkNameDialogRef}
               className="link-name-dialog"
               style={{
                 position: 'fixed',
@@ -1669,6 +1758,8 @@ export function ASTBlockEditor({
                 minWidth: '250px',
               }}
               onClick={e => e.stopPropagation()}
+              onMouseDown={e => e.stopPropagation()}
+              onFocus={e => e.stopPropagation()}
             >
               <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
                 Edit Link Text
@@ -1699,6 +1790,14 @@ export function ASTBlockEditor({
                 </Button>
               </div>
             </div>
+          )}
+
+          {editorContextMenu && (
+            <ContextMenu
+              items={editorContextMenuItems}
+              position={editorContextMenu.position}
+              onClose={() => setEditorContextMenu(null)}
+            />
           )}
         </>
       )}
