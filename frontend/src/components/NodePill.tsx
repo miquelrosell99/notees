@@ -43,6 +43,8 @@ export interface NodePillProps {
   onColorChange?: (color: string | null) => void;
   /** Callback when replacing the link with a new node */
   onReplace?: (newNode: Node) => void;
+  /** Callback when requesting custom label edit (for inline links). Receives pill position. */
+  onCustomLabel?: (pillRect: DOMRect) => void;
   /** Whether the pill is read-only (hides remove button and color change) */
   readOnly?: boolean;
   /** Additional CSS class */
@@ -60,6 +62,7 @@ export function NodePill({
   onRemove,
   onColorChange,
   onReplace,
+  onCustomLabel,
   readOnly = false,
   className = '',
   customName,
@@ -188,8 +191,21 @@ export function NodePill({
       },
     ];
     
-    if (onReplace || onRemove) {
+    if (onCustomLabel || onReplace || onRemove) {
       items.push({ id: 'sep1', label: '', separator: true });
+
+      if (onCustomLabel) {
+        items.push({
+          id: 'custom-label',
+          label: 'Edit link text',
+          onClick: () => {
+            handleCloseContextMenu();
+            if (pillRef.current) {
+              onCustomLabel(pillRef.current.getBoundingClientRect());
+            }
+          },
+        });
+      }
       
       if (onReplace) {
         items.push({
@@ -224,7 +240,7 @@ export function NodePill({
     }
     
     return items;
-  }, [isLink, node, isPage, onRemove, onReplace, openNode, addSidebarCard, handleCloseContextMenu]);
+  }, [isLink, node, isPage, onRemove, onReplace, onCustomLabel, openNode, addSidebarCard, handleCloseContextMenu]);
 
   // Handler for color change from context menu
   const handleColorChangeFromMenu = useCallback((color: string | null) => {
