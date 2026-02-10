@@ -47,6 +47,8 @@ export interface NodePillProps {
   readOnly?: boolean;
   /** Additional CSS class */
   className?: string;
+  /** Custom display name (from link's name field). When set, pill shows this text and tooltip shows the actual node name. */
+  customName?: string | null;
 }
 
 export function NodePill({
@@ -60,6 +62,7 @@ export function NodePill({
   onReplace,
   readOnly = false,
   className = '',
+  customName,
 }: NodePillProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
@@ -87,19 +90,25 @@ export function NodePill({
   // Get effective icon (considers inherited icons from classes)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
-  // Display text
-  const displayText = useMemo(() => {
-    if (!node) return nodeId ? `[Loading...]` : '[Missing]';
+  // Actual node name (for tooltip when customName is used)
+  const actualNodeName = useMemo(() => {
+    if (!node) return '';
     const textContent = nodeNameToText(node.name);
     if (!textContent || textContent.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }
-    // Truncate long block content
     if (!node.is_page && textContent.length > 50) {
       return `${textContent.slice(0, 50)}...`;
     }
     return textContent;
-  }, [node, nodeId]);
+  }, [node]);
+
+  // Display text: prefer custom name, fall back to actual node name
+  const displayText = useMemo(() => {
+    if (customName) return customName;
+    if (!node) return nodeId ? `[Loading...]` : '[Missing]';
+    return actualNodeName;
+  }, [customName, node, nodeId, actualNodeName]);
   
   const isPage = node?.is_page ?? true;
   const isLink = variant === 'link';
@@ -254,10 +263,13 @@ export function NodePill({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showReplacePopup]);
 
-  // Build title tooltip
+  // Build title tooltip — when customName is used, show actual node name
   const title = useMemo(() => {
     if (!node) return '';
-    let t = `${isPage ? 'Page' : 'Block'}: ${nodeNameToText(node.name)}`;
+    const nameForTooltip = actualNodeName;
+    let t = customName
+      ? `${isPage ? 'Page' : 'Block'}: ${nameForTooltip}`
+      : `${isPage ? 'Page' : 'Block'}: ${nameForTooltip}`;
     if (isLink) {
       t += '\nClick to open, Shift+click for sidebar';
     }
@@ -265,7 +277,7 @@ export function NodePill({
       t += '\nRight-click to change color';
     }
     return t;
-  }, [node, isPage, isLink, onColorChange, readOnly]);
+  }, [node, isPage, isLink, onColorChange, readOnly, customName, actualNodeName]);
 
   // Determine pill styling class
   const pillClass = isLink

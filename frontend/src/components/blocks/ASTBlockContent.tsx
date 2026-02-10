@@ -16,7 +16,7 @@
  */
 
 import { useMemo, useCallback, useState } from 'react';
-import { useLinkClicks, useNode, useTrackLinkClick, useUpdateNode } from '@/hooks';
+import { useLinkClicks, useNode, useTextLinks, useTrackLinkClick, useUpdateNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
 import { ContextMenu } from '../core/ContextMenu';
@@ -122,12 +122,26 @@ export function ASTBlockContent({
   onRemoveLink,
 }: ASTBlockContentProps) {
   const { data: linkClicksData } = useLinkClicks(blockId ?? null);
+  const { data: textLinks } = useTextLinks(blockId ?? null);
   const { openNode, addSidebarCard } = useNodesStore();
   const trackLinkClick = useTrackLinkClick();
   const updateNode = useUpdateNode();
 
   // Parse content to AST
   const ast = useMemo(() => parseAST(content), [content]);
+
+  // Map of link UUID → custom display name (from node_link.name)
+  const linkCustomNames = useMemo(() => {
+    const map = new Map<string, string>();
+    if (textLinks) {
+      for (const link of textLinks) {
+        if (link.uuid && link.name) {
+          map.set(link.uuid, link.name);
+        }
+      }
+    }
+    return map;
+  }, [textLinks]);
 
   const clickCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -189,6 +203,7 @@ export function ASTBlockContent({
           paragraph={para}
           paragraphIndex={pIdx}
           clickCounts={clickCounts}
+          linkCustomNames={linkCustomNames}
           onNavigate={handleNavigate}
           onColorChange={handleColorChange}
           onReplaceLink={handleReplaceLink}
@@ -205,6 +220,7 @@ interface RenderParagraphProps {
   paragraph: ASTParagraph;
   paragraphIndex: number;
   clickCounts: Map<string, number>;
+  linkCustomNames: Map<string, string>;
   onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
   onColorChange: (nodeId: number, color: string | null) => void;
   onReplaceLink: (linkId: string, newNode: Node) => void;
@@ -215,6 +231,7 @@ function RenderParagraph({
   paragraph,
   paragraphIndex,
   clickCounts,
+  linkCustomNames,
   onNavigate,
   onColorChange,
   onReplaceLink,
@@ -228,6 +245,7 @@ function RenderParagraph({
           key={`${paragraphIndex}-${idx}`}
           node={node}
           clickCounts={clickCounts}
+          linkCustomNames={linkCustomNames}
           onNavigate={onNavigate}
           onColorChange={onColorChange}
           onReplaceLink={onReplaceLink}
@@ -243,6 +261,7 @@ function RenderParagraph({
 interface NodePillWithStatusProps {
   nodeId: number;
   clickCount: number;
+  customName?: string | null;
   onColorChange: (color: string | null) => void;
   onReplaceLink: (newNode: Node) => void;
   onRemove?: () => void;
@@ -251,6 +270,7 @@ interface NodePillWithStatusProps {
 function NodePillWithStatus({
   nodeId,
   clickCount,
+  customName,
   onColorChange,
   onReplaceLink,
   onRemove,
@@ -272,6 +292,7 @@ function NodePillWithStatus({
       clickCount={clickCount}
       variant="link"
       readOnly={false}
+      customName={customName}
       onColorChange={onColorChange}
       onReplace={onReplaceLink}
       onRemove={onRemove}
@@ -284,6 +305,7 @@ function NodePillWithStatus({
 interface RenderInlineProps {
   node: ASTInlineNode;
   clickCounts: Map<string, number>;
+  linkCustomNames: Map<string, string>;
   onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
   onColorChange: (nodeId: number, color: string | null) => void;
   onReplaceLink: (linkId: string, newNode: Node) => void;
@@ -293,6 +315,7 @@ interface RenderInlineProps {
 function RenderInlineNode({
   node,
   clickCounts,
+  linkCustomNames,
   onNavigate,
   onColorChange,
   onReplaceLink,
@@ -318,10 +341,15 @@ function RenderInlineNode({
       // Regular node link — render as NodePill
       const numericId = parseInt(node.link_id, 10);
       if (!isNaN(numericId)) {
+        // Extract link UUID from "nodeId:linkUuid" format
+        const colonIdx = node.link_id.indexOf(':');
+        const linkUuid = colonIdx >= 0 ? node.link_id.slice(colonIdx + 1) : undefined;
+        const customName = linkUuid ? linkCustomNames.get(linkUuid) : undefined;
         return (
           <NodePillWithStatus
             nodeId={numericId}
             clickCount={clickCounts.get(node.link_id) ?? 0}
+            customName={customName}
             onColorChange={color => onColorChange(numericId, color)}
             onReplaceLink={newNode => onReplaceLink(node.link_id, newNode)}
             onRemove={() => onRemoveLink(node.link_id)}
@@ -336,7 +364,7 @@ function RenderInlineNode({
       return (
         <strong>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </strong>
       );
@@ -345,7 +373,7 @@ function RenderInlineNode({
       return (
         <em>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </em>
       );
@@ -357,7 +385,7 @@ function RenderInlineNode({
       return (
         <s>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </s>
       );
@@ -366,7 +394,7 @@ function RenderInlineNode({
       return (
         <mark>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </mark>
       );
@@ -375,7 +403,7 @@ function RenderInlineNode({
       return (
         <u>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </u>
       );
@@ -390,7 +418,7 @@ function RenderInlineNode({
           onClick={e => e.stopPropagation()}
         >
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} />
           ))}
         </a>
       );
