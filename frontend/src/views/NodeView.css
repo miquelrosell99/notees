@@ -14,6 +14,13 @@
 
 /* Page and Block color styling is applied at main-content level in Layout.css */
 
+/* Colored card wrapper - appears "over" the colored background */
+.node-view__colored-card {
+  margin: var(--spacing-4) 0;
+  padding: var(--spacing-4);
+  overflow: visible;
+}
+
 /* Loading and error states */
 .node-view--loading,
 .node-view--error {

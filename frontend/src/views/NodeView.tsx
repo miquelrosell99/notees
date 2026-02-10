@@ -42,6 +42,7 @@ import { PropertiesSection } from '../components/PropertiesSection';
 import { PropertySuggestionPopup } from '../components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '../components/ClassPropertiesEditor';
 import { Modal } from '../components/core/Modal';
+import { Card } from '../components/core/Card';
 import { TableIcon, PageIcon, LinkIcon } from '../components/icons';
 import { Button } from '../components/core/Button';
 import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiRestore } from '@mdi/js';
@@ -827,10 +828,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   );
 
   // Build main content
-  const mainContent = (
-    <article 
-      className={`node-view node-view--${resolvedType} ${viewMode}`}
-    >
+  const mainContentInner = (
+    <>
       {/* Page Header or Block Header based on variant */}
       {resolvedType === 'page' ? (
         <>
@@ -1180,6 +1179,27 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             excludeIds={[]}
           />
         </Modal>
+      )}
+    </>
+  );
+
+  // Wrap content in a Card when node has color
+  const mainContent = (
+    <article 
+      className={`node-view node-view--${resolvedType} ${viewMode}`}
+    >
+      {node.color ? (
+        <Card 
+          elevation="medium" 
+          variant="default" 
+          padding={false}
+          radius="lg"
+          className="node-view__colored-card"
+        >
+          {mainContentInner}
+        </Card>
+      ) : (
+        mainContentInner
       )}
     </article>
   );
