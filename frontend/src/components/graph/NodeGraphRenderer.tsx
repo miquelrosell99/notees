@@ -411,6 +411,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const didDragMoveRef = useRef(false);
   const lastClickTimeRef = useRef<number>(0);
   const lastClickedNodeRef = useRef<number | null>(null);
+  const lastClickedLinkRef = useRef<{ source: number; target: number } | null>(null);
   const renderRef = useRef<((ctx: CanvasRenderingContext2D) => void) | null>(null);
   const wasJustDraggingRef = useRef(false);
   const dragLiftProgressRef = useRef(0); // 0 to 1 for drag lift animation
@@ -2566,6 +2567,76 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     return null;
   }, [screenToWorld]);
 
+  // Get link at position - checks if click is near a link line
+  const getLinkAtPosition = useCallback((screenX: number, screenY: number): GraphLink | null => {
+    const { x, y } = screenToWorld(screenX, screenY);
+    const t = transformRef.current;
+    const currentSettings = settingsRef.current;
+    
+    // Hit threshold in world coordinates (adjusted for zoom)
+    const hitThreshold = 8 / t.scale;
+    
+    // Build node map for quick lookup
+    const nodeMap = new Map<number, GraphNode>();
+    let maxConnections = 0, maxMass = 0;
+    for (const node of nodesRef.current) {
+      if (node.visible) {
+        nodeMap.set(node.id, node);
+        maxConnections = Math.max(maxConnections, node.connectionCount);
+        maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
+      }
+    }
+    
+    // Check each link
+    for (const link of linksRef.current) {
+      const source = nodeMap.get(link.source);
+      const target = nodeMap.get(link.target);
+      if (!source || !target) continue;
+      
+      // Calculate distance from point to line segment
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const lengthSquared = dx * dx + dy * dy;
+      
+      // Skip zero-length links
+      if (lengthSquared < 0.001) continue;
+      
+      // Project point onto line segment
+      const t_param = Math.max(0, Math.min(1, 
+        ((x - source.x) * dx + (y - source.y) * dy) / lengthSquared
+      ));
+      
+      // Find closest point on segment
+      const closestX = source.x + t_param * dx;
+      const closestY = source.y + t_param * dy;
+      
+      // Check distance to closest point
+      const distX = x - closestX;
+      const distY = y - closestY;
+      const distance = Math.sqrt(distX * distX + distY * distY);
+      
+      if (distance < hitThreshold) {
+        // Make sure we're not too close to the nodes themselves
+        // (to avoid selecting link when user intended to click node)
+        const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass);
+        const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass);
+        
+        const distToSource = Math.sqrt((x - source.x) ** 2 + (y - source.y) ** 2);
+        const distToTarget = Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2);
+        
+        // Only return link if we're not within node hit radius
+        const sourceHitRadius = (sourceRadius + NODE_HOVER_RADIUS_EXTRA + 4) / t.scale;
+        const targetHitRadius = (targetRadius + NODE_HOVER_RADIUS_EXTRA + 4) / t.scale;
+        
+        if (distToSource > sourceHitRadius && distToTarget > targetHitRadius) {
+          return link;
+        }
+      }
+    }
+    
+    return null;
+  }, [screenToWorld]);
+
   // Get canvas coordinates
   const getCanvasCoordinates = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -2584,6 +2655,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Mouse handlers
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
+    const canvas = canvasRef.current;
     
     if (isPanningRef.current) {
       const dx = screenX - panStartRef.current.x;
@@ -2598,6 +2670,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         scale: prev.scale
       });
       panStartRef.current = { x: screenX, y: screenY };
+      if (canvas) canvas.style.cursor = 'grabbing';
     } else if (dragNodeRef.current) {
       const { x, y } = screenToWorld(screenX, screenY);
       const dx = x - dragNodeRef.current.x;
@@ -2623,8 +2696,22 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       dragNodeRef.current.vx = 0;
       dragNodeRef.current.vy = 0;
       wakeSimulationRef.current();
+      if (canvas) canvas.style.cursor = 'grabbing';
     } else {
       const node = getNodeAtPosition(screenX, screenY);
+      const link = node ? null : getLinkAtPosition(screenX, screenY);
+      
+      // Update cursor based on what's under the mouse
+      if (canvas) {
+        if (node) {
+          canvas.style.cursor = 'pointer';
+        } else if (link) {
+          canvas.style.cursor = 'pointer';
+        } else {
+          canvas.style.cursor = 'grab';
+        }
+      }
+      
       // Only update state if hovered node actually changed (avoid unnecessary re-renders)
       if (node !== hoveredNodeRef.current) {
         hoveredNodeRef.current = node;
@@ -2634,7 +2721,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         requestRender();
       }
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect, requestRender]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getLinkAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect, requestRender]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
@@ -2676,8 +2763,36 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     if (wasJustDraggingRef.current) return;
     
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
-    const node = getNodeAtPosition(screenX, screenY);
     const now = Date.now();
+    
+    // Check for link click first (before node, since nodes have larger hit areas)
+    const link = getLinkAtPosition(screenX, screenY);
+    if (link) {
+      const lastLink = lastClickedLinkRef.current;
+      const isSameLink = lastLink && 
+        ((lastLink.source === link.source && lastLink.target === link.target) ||
+         (lastLink.source === link.target && lastLink.target === link.source));
+      
+      const currentSelection = selectedNodeIdsRef.current;
+      const bothSelected = currentSelection.includes(link.source) && currentSelection.includes(link.target);
+      
+      // Toggle: if same link clicked and both nodes are selected, deselect them
+      if (isSameLink && bothSelected) {
+        onSelectionChange?.([]);
+        lastClickedLinkRef.current = null;
+      } else {
+        // Select both endpoint nodes
+        onSelectionChange?.([link.source, link.target]);
+        lastClickedLinkRef.current = { source: link.source, target: link.target };
+      }
+      return;
+    }
+    
+    // Clear last clicked link when clicking elsewhere
+    lastClickedLinkRef.current = null;
+    
+    // Check for node click
+    const node = getNodeAtPosition(screenX, screenY);
     
     if (!node) {
       onSelectionChange?.([]);
@@ -2696,7 +2811,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     } else {
       onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, onNodeClick, onNodeDoubleClick, onSelectionChange]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getLinkAtPosition, onNodeClick, onNodeDoubleClick, onSelectionChange]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();

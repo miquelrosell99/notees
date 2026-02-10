@@ -351,8 +351,17 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const handleSelectionChange = useCallback((nodeIds: number[]) => {
     if (nodeIds.length === 0) {
       setSelectedNodes([]);
+    } else {
+      // Convert node IDs to SelectedNodeItem objects
+      const nodeMap = new Map(nodes.map(n => [n.id, n.name]));
+      const newSelection = nodeIds.map((id, index) => ({
+        id,
+        name: nodeMap.get(id) || 'Untitled',
+        order: index,
+      }));
+      setSelectedNodes(newSelection);
     }
-  }, []);
+  }, [nodes]);
   
   // Class color handler
   const handleClassColorsChange = useCallback((newClassColors: ClassColor[]) => {
