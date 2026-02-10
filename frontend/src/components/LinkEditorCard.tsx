@@ -67,16 +67,28 @@ export function LinkEditorCard(props: LinkEditorCardProps) {
 
   // Click outside to close
   useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (cardRef.current && !cardRef.current.contains(e.target as globalThis.Node)) {
-        // Don't close if clicking inside the suggestion popup
-        const target = e.target as HTMLElement;
-        if (target.closest('.suggestion-popup')) return;
-        onClose();
+    // Delay setup to avoid closing from the same event that opened the card
+    const timeoutId = setTimeout(() => {
+      const handleMouseDown = (e: MouseEvent) => {
+        if (cardRef.current && !cardRef.current.contains(e.target as globalThis.Node)) {
+          // Don't close if clicking inside the suggestion popup
+          const target = e.target as HTMLElement;
+          if (target.closest('.suggestion-popup')) return;
+          onClose();
+        }
+      };
+      document.addEventListener('mousedown', handleMouseDown, true);
+      
+      // Store the handler for cleanup
+      (timeoutId as any).handler = handleMouseDown;
+    }, 0);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      if ((timeoutId as any).handler) {
+        document.removeEventListener('mousedown', (timeoutId as any).handler, true);
       }
     };
-    document.addEventListener('mousedown', handleMouseDown, true);
-    return () => document.removeEventListener('mousedown', handleMouseDown, true);
   }, [onClose]);
 
   return (
