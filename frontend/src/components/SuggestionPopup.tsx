@@ -322,6 +322,7 @@ export function SuggestionPopup({
         left: adjustedPosition.left,
         zIndex: 1000,
       }}
+      onFocus={(e) => e.stopPropagation()}
     >
       <div className="suggestion-popup__header">
         {headerText ? (
