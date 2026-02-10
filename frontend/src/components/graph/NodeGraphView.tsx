@@ -128,8 +128,13 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
           // Handle both formats: raw object (new) or JSON string (legacy).
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
+            // Migrate legacy field names: typeName → className
+            const migrated = parsed.map((cc: Record<string, unknown>) => ({
+              ...cc,
+              className: cc.className ?? cc.typeName ?? 'Untitled',
+            }));
             skipClassColorsSaveRef.current++;  // skip the save-back on next render
-            setClassColors(parsed);
+            setClassColors(migrated);
           }
         } catch (e) {
           console.error('Failed to parse graph_class_colors:', e);
@@ -375,7 +380,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
   const addToSelection = useCallback((node: { id: number; name?: string }) => {
     setSelectedNodes(prev => {
       if (prev.find(s => s.id === node.id)) return prev;
-      return [...prev, { id: node.id, name: nodeNameToText(node.name) || 'Untitled', order: prev.length }];
+      return [...prev, { id: node.id, name: node.name || 'Untitled', order: prev.length }];
     });
     setSearchQuery('');
     setSearchOpen(false);
@@ -685,7 +690,7 @@ export function NodeGraphView({ viewId = 'global', className = '' }: NodeGraphVi
                 onReorder={moveSelectionItem}
                 itemClassName="selected-node-item"
                 renderText={(item) => (
-                  <span className="node-name">{item.name}</span>
+                  <span className="node-name">{nodeNameToText(item.name) || item.name || 'Untitled'}</span>
                 )}
                 renderAction={(item) => (
                   <Button
