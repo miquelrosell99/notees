@@ -183,8 +183,17 @@ function validateDocument(doc: unknown): ASTDocument {
  *   `code`  →  ***bold italic***  →  **bold**  →  *italic*
  *   ~~strike~~  →  ==highlight==  →  [text](url)
  */
-const MD_INLINE_RE =
-  /(?<code>`[^`]+`)|(?<bold_italic>\*\*\*(?<bi>.+?)\*\*\*)|(?<bold>\*\*(?<b>.+?)\*\*)|(?<italic>\*(?<i>[^*]+?)\*)|(?<strike>~~(?<s>.+?)~~)|(?<highlight>==(?<h>.+?)==)|(?<link>\[(?<lt>[^\]]+)\]\((?<lu>[^)]+)\))/g;
+/**
+ * Build a fresh inline-Markdown regex.
+ *
+ * Each call to `parseMdInline` needs its own RegExp instance because
+ * `.exec()` on a global regex mutates `lastIndex`.  Sharing a single
+ * module-level regex across recursive calls (bold inner content, etc.)
+ * corrupts the outer call's position → infinite re-matching → OOM.
+ */
+function makeMdInlineRE(): RegExp {
+  return /(?<code>`[^`]+`)|(?<bold_italic>\*\*\*(?<bi>.+?)\*\*\*)|(?<bold>\*\*(?<b>.+?)\*\*)|(?<italic>\*(?<i>[^*]+?)\*)|(?<strike>~~(?<s>.+?)~~)|(?<highlight>==(?<h>.+?)==)|(?<link>\[(?<lt>[^\]]+)\]\((?<lu>[^)]+)\))/g;
+}
 
 function parseMdDocument(input: string): ASTDocument {
   const children = parseMdInline(input);
@@ -196,11 +205,12 @@ function parseMdInline(input: string): ASTInlineNode[] {
   const nodes: ASTInlineNode[] = [];
   let pos = 0;
 
-  // Reset regex state (it's global)
-  MD_INLINE_RE.lastIndex = 0;
+  // Each invocation gets its own regex so recursive calls
+  // (for bold/italic inner content) don't corrupt our lastIndex.
+  const re = makeMdInlineRE();
 
   let m: RegExpExecArray | null;
-  while ((m = MD_INLINE_RE.exec(input)) !== null) {
+  while ((m = re.exec(input)) !== null) {
     const start = m.index;
 
     // Emit plain text before this match
