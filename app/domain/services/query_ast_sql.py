@@ -507,13 +507,15 @@ class QueryASTToSQL:
         # Safe to interpolate ast_type since it comes from a fixed map
         has_type_expr = f"""jsonb_path_exists(n.name::jsonb, '$.**.type ? (@ == "{ast_type}")')"""
         
-        if condition.operator.value == 'contains' if hasattr(condition.operator, 'value') else condition.operator == 'contains':
+        op = condition.operator.value if hasattr(condition.operator, 'value') else condition.operator
+        
+        if op == 'contains':
             return f"({json_guard} AND {has_type_expr})"
         
-        elif (condition.operator.value if hasattr(condition.operator, 'value') else condition.operator) == 'does_not_contain':
+        elif op == 'does_not_contain':
             return f"(NOT ({json_guard} AND {has_type_expr}))"
         
-        elif (condition.operator.value if hasattr(condition.operator, 'value') else condition.operator) == 'is':
+        elif op == 'is':
             # All direct children of all paragraphs must be of this type
             # AND at least one such node must exist
             all_styled = f"""NOT EXISTS (
@@ -523,7 +525,7 @@ class QueryASTToSQL:
             )"""
             return f"({json_guard} AND {has_type_expr} AND {all_styled})"
         
-        elif (condition.operator.value if hasattr(condition.operator, 'value') else condition.operator) == 'is_not':
+        elif op == 'is_not':
             # Not entirely styled: either no AST, or has non-styled children, or no styled content
             all_styled = f"""NOT EXISTS (
                 SELECT 1 FROM jsonb_array_elements(n.name::jsonb) AS block,
