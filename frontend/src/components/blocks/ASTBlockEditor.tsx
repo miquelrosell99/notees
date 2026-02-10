@@ -217,6 +217,9 @@ export function ASTBlockEditor({
   const pendingUuidResolutions = useRef(new Set<string>());
   const pendingOnChange = useRef<string | null>(null);
   const rafId = useRef<number>(0);
+  // Optimistic link resolution — stores link info for newly inserted links
+  // before the API returns them in textLinks
+  const pendingLinksRef = useRef(new Map<string, ResolvedLink>());
 
   // ─── State ─────────────────────────────────────────────────────
   const [selectedPill, setSelectedPill] = useState<HTMLElement | null>(null);
@@ -384,12 +387,23 @@ export function ASTBlockEditor({
     return map;
   }, [allNodes, allClasses, textLinks, tagTargetIds]);
 
+  // Clean up pending links once they appear in the real resolve map
+  useEffect(() => {
+    for (const key of pendingLinksRef.current.keys()) {
+      if (linkResolveMap.has(key)) {
+        pendingLinksRef.current.delete(key);
+      }
+    }
+  }, [linkResolveMap]);
+
   // ─── Render context ────────────────────────────────────────────
   const renderCtx = useMemo<ASTRenderContext>(() => ({
     resolveLink: (linkId: string, _refType: 'node' | 'class'): ResolvedLink | null => {
       const resolved = linkResolveMap.get(linkId);
       if (resolved) return resolved;
-      // Fallback: unresolved link
+      // Fallback: check optimistic pending links
+      const pending = pendingLinksRef.current.get(linkId);
+      if (pending) return pending;
       return null;
     },
   }), [linkResolveMap]);
@@ -1139,8 +1153,17 @@ export function ASTBlockEditor({
       // Also notify parent about the link
       onLinkPage?.(node);
 
-      // Store the link info so the render context can resolve it immediately
-      // by adding to the textLinks cache
+      // Store optimistic link info so the pill renders immediately
+      const displayText = nodeNameToText(node.name) || 'Untitled';
+      const effectiveIcon = getEffectiveIcon(node, allClasses ?? []);
+      pendingLinksRef.current.set(linkUuid, {
+        displayText,
+        isTag: false,
+        effectiveIcon: effectiveIcon ?? null,
+        customLabel: null,
+        linkStatus: 'valid',
+      });
+
       commitAST(result.ast, result.cursorOffset);
     } else if (trigger.type === 'tag' && keepInline) {
       const linkUuid = generateLinkUuid();
@@ -1151,16 +1174,35 @@ export function ASTBlockEditor({
         linkUuid,
         'node',
       );
+      // Store optimistic tag link info
+      const displayText = nodeNameToText(node.name) || 'Untitled';
+      pendingLinksRef.current.set(linkUuid, {
+        displayText,
+        isTag: true,
+        effectiveIcon: null,
+        customLabel: null,
+        linkStatus: 'valid',
+      });
       onAddTag?.(node.id, keepInline, node.name || '');
       commitAST(result.ast, result.cursorOffset);
     } else if (trigger.type === 'type' && keepInline) {
+      const linkId = String(node.id);
       const result = replaceTriggerWithLink(
         lastASTRef.current,
         trigger.triggerPosition,
         cursorPos,
-        String(node.id),
+        linkId,
         'class',
       );
+      // Store optimistic class link info
+      const displayText = nodeNameToText(node.name) || 'Untitled';
+      pendingLinksRef.current.set(linkId, {
+        displayText,
+        isTag: false,
+        effectiveIcon: null,
+        customLabel: null,
+        linkStatus: 'valid',
+      });
       onAddClass?.(node.id, keepInline, node.name || '');
       commitAST(result.ast, result.cursorOffset);
     } else {
@@ -1175,7 +1217,7 @@ export function ASTBlockEditor({
     }
 
     setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, [trigger, commitAST, onAddClass, onAddTag, onLinkPage]);
+  }, [trigger, commitAST, onAddClass, onAddTag, onLinkPage, allClasses]);
 
   const handleCreate = useCallback(async (name: string, keepInline: boolean) => {
     if (!editorRef.current) return;
@@ -1192,6 +1234,14 @@ export function ASTBlockEditor({
           newPageId,
           'node',
         );
+        // Store optimistic link info for the newly created page
+        pendingLinksRef.current.set(newPageId, {
+          displayText: name || 'Untitled',
+          isTag: false,
+          effectiveIcon: null,
+          customLabel: null,
+          linkStatus: 'valid',
+        });
         commitAST(result.ast, result.cursorOffset);
       } else {
         const cleaned = removeTriggerText(lastASTRef.current, trigger.triggerPosition, cursorPos);
@@ -1224,6 +1274,14 @@ export function ASTBlockEditor({
       linkUuid,
       'node',
     );
+    // Store optimistic link info for date page
+    pendingLinksRef.current.set(linkUuid, {
+      displayText: _pageName || 'Untitled',
+      isTag: false,
+      effectiveIcon: null,
+      customLabel: null,
+      linkStatus: 'valid',
+    });
     commitAST(result.ast, result.cursorOffset);
     setTrigger(prev => ({ ...prev, isOpen: false }));
   }, [trigger, commitAST]);
