@@ -973,6 +973,12 @@ function BlockInternal({
     isCreatingTableStructure.current = true;
     
     try {
+      // Clear the table block's name (remove any placeholder text like "[]")
+      await updateNode.mutateAsync({
+        id: block.id,
+        data: { name: '' }
+      });
+      
       // Create column blocks as children of the table block
       for (let colIndex = 0; colIndex < size.columns; colIndex++) {
         const columnNode = await createNode.mutateAsync({
@@ -994,7 +1000,7 @@ function BlockInternal({
       // Re-enable auto-balance after creation is complete
       isCreatingTableStructure.current = false;
     }
-  }, [createNode, block.id]);
+  }, [createNode, updateNode, block.id]);
 
   // Adapt existing children blocks to table structure
   // Direct children become columns, their children become cells (rows)
@@ -1006,6 +1012,12 @@ function BlockInternal({
     isCreatingTableStructure.current = true;
     
     try {
+      // Clear the table block's name (remove any placeholder text like "[]")
+      await updateNode.mutateAsync({
+        id: block.id,
+        data: { name: '' }
+      });
+      
       // Sort children by sequence to maintain order
       const sortedChildren = [...children].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
       
@@ -1166,16 +1178,26 @@ function BlockInternal({
     });
   }, [allProperties, block.id, setNodeProperty]);
 
-  // Wrapped onAddClass that intercepts table class additions
-  const handleAddClass = useCallback((classNodeId: number, keepInline: boolean, className: string) => {
+  // Wrapped onAddClass that intercepts table and query class additions
+  const handleAddClass = useCallback(async (classNodeId: number, keepInline: boolean, className: string) => {
     // Check if this is the table class - show size selector modal
     if (tableClass && classNodeId === tableClass.id) {
       setTableCreationState({ isOpen: true, classNodeId, keepInline, className });
       return;
     }
-    // For other classes, pass through to parent callback
+    // Check if this is the query class - clear name if it's "[]" and add the class
+    if (queryClass && classNodeId === queryClass.id) {
+      // Clear the block's name if it's empty or "[]" (from slash command)
+      if (!block.name || block.name.trim() === '' || block.name === '[]') {
+        await updateNode.mutateAsync({
+          id: block.id,
+          data: { name: '' }
+        });
+      }
+    }
+    // For all classes, pass through to parent callback
     onAddClass?.(classNodeId, keepInline, className);
-  }, [tableClass, onAddClass]);
+  }, [tableClass, queryClass, block.id, block.name, updateNode, onAddClass]);
   
   // Handle Backspace at start of block - delete block and merge text with visual block above
   // Rules:
