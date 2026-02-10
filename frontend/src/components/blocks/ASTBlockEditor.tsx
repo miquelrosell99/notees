@@ -74,6 +74,7 @@ import {
   findOffsetAtXInLastLine,
   isTextOnlyChange,
   detectTrigger,
+  getOffsetInElement,
   type ASTRenderContext,
   type ResolvedLink,
 } from '@/lib/astDom';
@@ -727,26 +728,9 @@ export function ASTBlockEditor({
     }
 
     // Get selection range in logical characters
-    // Clone the range to avoid modifying the actual selection
-    const clonedRange = range.cloneRange();
-    
-    // Calculate start position
-    clonedRange.collapse(true);
-    const tempSel = window.getSelection();
-    tempSel?.removeAllRanges();
-    tempSel?.addRange(clonedRange);
-    const start = getCursorPosition(editorRef.current);
-    
-    // Calculate end position
-    const endRange = range.cloneRange();
-    endRange.collapse(false);
-    tempSel?.removeAllRanges();
-    tempSel?.addRange(endRange);
-    const end = getCursorPosition(editorRef.current);
-    
-    // Restore original selection
-    tempSel?.removeAllRanges();
-    tempSel?.addRange(range);
+    // Calculate offsets directly from range endpoints without touching window.getSelection()
+    const start = getOffsetInElement(editorRef.current, range.startContainer, range.startOffset);
+    const end = getOffsetInElement(editorRef.current, range.endContainer, range.endOffset);
 
     const actualStart = Math.min(start, end);
     const actualEnd = Math.max(start, end);

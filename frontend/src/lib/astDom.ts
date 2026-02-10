@@ -404,7 +404,7 @@ export function getCursorPosition(element: HTMLElement): number {
  * Calculate the character offset of a DOM position within an element.
  * Pills count as 1 character. ZWS is excluded.
  */
-function getOffsetInElement(
+export function getOffsetInElement(
   root: HTMLElement,
   targetContainer: globalThis.Node,
   targetOffset: number,
