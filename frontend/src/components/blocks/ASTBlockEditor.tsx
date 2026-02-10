@@ -1509,7 +1509,6 @@ export function ASTBlockEditor({
             onItalic={handleToolbarItalic}
             onUnderline={handleToolbarUnderline}
             onStrikethrough={handleToolbarStrikethrough}
-            onCode={handleToolbarCode}
             onLink={handleToolbarLink}
           />
 
