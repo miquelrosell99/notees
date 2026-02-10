@@ -2200,13 +2200,36 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const hasSourceDot = renderAsParent || (!renderAsParent && hasFwd && hasRev);
       
       // Calculate line endpoints to stop where dots start (avoid transparency overlap)
-      const lineAngle = Math.atan2(target.y - source.y, target.x - source.x);
+      // Simple approach: join node centers with a line, then trim both ends
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      // Skip if nodes are at the same position
+      if (dist < 0.001) continue;
+      
+      // Unit vector from source to target
+      const ux = dx / dist;
+      const uy = dy / dist;
+      
+      // How much to trim from each end
       const targetOffset = hasTargetDot ? (arrowGap + dotSize) : arrowGap;
       const sourceOffset = hasSourceDot ? (arrowGap + dotSize) : arrowGap;
-      const lineStartX = source.x + (sourceLineGlare + sourceOffset) * Math.cos(lineAngle);
-      const lineStartY = source.y + (sourceLineGlare + sourceOffset) * Math.sin(lineAngle);
-      const lineEndX = target.x - (targetLineGlare + targetOffset) * Math.cos(lineAngle);
-      const lineEndY = target.y - (targetLineGlare + targetOffset) * Math.sin(lineAngle);
+      const trimStart = sourceLineGlare + sourceOffset;
+      const trimEnd = targetLineGlare + targetOffset;
+      
+      // Skip if trimming would exceed the line length (nodes too close)
+      if (trimStart + trimEnd >= dist) continue;
+      
+      // Trim the line: start from source center + trimStart along the vector,
+      // end at target center - trimEnd along the vector
+      const lineStartX = source.x + ux * trimStart;
+      const lineStartY = source.y + uy * trimStart;
+      const lineEndX = target.x - ux * trimEnd;
+      const lineEndY = target.y - uy * trimEnd;
+      
+      // Angle for dot positioning
+      const lineAngle = Math.atan2(dy, dx);
       
       // Draw line - wavy for class links, straight for others
       if (isClassLink) {
