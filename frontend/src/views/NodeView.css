@@ -16,8 +16,10 @@
 
 /* Colored card wrapper - appears "over" the colored background */
 .node-view__colored-card {
-  margin: var(--spacing-4) 0;
-  padding: var(--spacing-4);
+  /* Negative margins to extend card to article edges */
+  margin: 0 calc(-1 * var(--spacing-4)) calc(-1 * var(--spacing-6));
+  /* Add back the padding inside the card */
+  padding: 0 var(--spacing-4) var(--spacing-6);
   overflow: visible;
 }
 

@@ -1183,12 +1183,12 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     </>
   );
 
-  // Wrap content in a Card when node has color
+  // Wrap content in a Card when node has color (but not in compact mode for journals)
   const mainContent = (
     <article 
       className={`node-view node-view--${resolvedType} ${viewMode}`}
     >
-      {node.color ? (
+      {node.color && !compactMode ? (
         <Card 
           elevation="medium" 
           variant="default" 
