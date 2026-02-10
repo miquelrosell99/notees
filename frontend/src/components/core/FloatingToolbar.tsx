@@ -6,7 +6,7 @@
  * Uses Card for styling and Button for actions.
  */
 import { forwardRef, useCallback, useState, type ReactNode } from 'react';
-import { mdiFormatBold, mdiFormatItalic, mdiFormatStrikethrough, mdiCodeTags, mdiLinkVariant } from '@mdi/js';
+import { mdiFormatBold, mdiFormatItalic, mdiFormatStrikethrough, mdiFormatUnderline, mdiCodeTags, mdiLinkVariant } from '@mdi/js';
 import { Card } from './Card';
 import { Button } from './Button';
 import { TextField } from './TextField';
@@ -32,15 +32,17 @@ export interface FloatingToolbarProps {
   visible: boolean;
   /** Custom actions to display */
   actions?: FloatingToolbarAction[];
-  /** Default formatting actions (bold, italic, strikethrough, code, link) */
+  /** Default formatting actions (bold, italic, underline, strikethrough, code, link) */
   onBold?: () => void;
   onItalic?: () => void;
+  onUnderline?: () => void;
   onStrikethrough?: () => void;
   onCode?: () => void;
   onLink?: (url: string) => void;
   /** Active state for default actions */
   boldActive?: boolean;
   italicActive?: boolean;
+  underlineActive?: boolean;
   strikethroughActive?: boolean;
   codeActive?: boolean;
   linkActive?: boolean;
@@ -62,11 +64,13 @@ export const FloatingToolbar = forwardRef<HTMLDivElement, FloatingToolbarProps>(
       actions,
       onBold,
       onItalic,
+      onUnderline,
       onStrikethrough,
       onCode,
       onLink,
       boldActive = false,
       italicActive = false,
+      underlineActive = false,
       strikethroughActive = false,
       codeActive = false,
       linkActive = false,
@@ -134,6 +138,16 @@ export const FloatingToolbar = forwardRef<HTMLDivElement, FloatingToolbarProps>(
         title: 'Italic (Ctrl+I)',
         active: italicActive,
         onClick: onItalic,
+      });
+    }
+    
+    if (onUnderline) {
+      defaultActions.push({
+        key: 'underline',
+        icon: mdiFormatUnderline,
+        title: 'Underline (Ctrl+U)',
+        active: underlineActive,
+        onClick: onUnderline,
       });
     }
     

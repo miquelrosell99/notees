@@ -20,6 +20,7 @@ export type {
   ASTCode,
   ASTStrikethrough,
   ASTHighlight,
+  ASTUnderline,
   ASTExternalLink,
   ASTParagraph,
 } from '@/types/ast';
@@ -36,6 +37,7 @@ export {
   em,
   strikethrough,
   highlight,
+  underline,
   externalLink,
   paragraph,
   doc,
