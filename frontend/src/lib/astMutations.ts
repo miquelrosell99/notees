@@ -351,6 +351,59 @@ export function toggleMark(
 }
 
 /**
+ * Check which marks are active for a given selection range.
+ * A mark is "active" if the entire selected range is wrapped in that mark type.
+ */
+export function getActiveMarks(
+  ast: ASTDocument,
+  start: number,
+  end: number,
+): Set<MarkType> {
+  const active = new Set<MarkType>();
+  if (start >= end) return active;
+
+  const inlines = flattenToInlines(ast);
+  const [, rest] = splitInlines(inlines, start);
+  const [selected] = splitInlines(rest, end - start);
+
+  if (selected.length === 0) return active;
+
+  const markTypes: MarkType[] = ['strong', 'em', 'strikethrough', 'highlight', 'underline'];
+  for (const mt of markTypes) {
+    if (isMarkActive(selected, mt)) {
+      active.add(mt);
+    }
+  }
+
+  return active;
+}
+
+/**
+ * Check if a mark type is active across a set of inline nodes.
+ * A mark is active if every leaf text node is wrapped in that mark type.
+ */
+function isMarkActive(nodes: ASTInlineNode[], markType: MarkType): boolean {
+  if (nodes.length === 0) return false;
+
+  for (const node of nodes) {
+    if (!nodeHasMark(node, markType)) return false;
+  }
+  return true;
+}
+
+/**
+ * Check if an inline node (or all its text content) is wrapped in a given mark.
+ */
+function nodeHasMark(node: ASTInlineNode, markType: MarkType): boolean {
+  if (node.type === markType) return true;
+  if (node.type === 'text' || node.type === 'code' || node.type === 'hard_break' || node.type === 'node_link') return false;
+  if ('children' in node) {
+    return (node.children as ASTInlineNode[]).every(child => nodeHasMark(child, markType));
+  }
+  return false;
+}
+
+/**
  * Toggle inline code on a range. Code is special because it uses `text`
  * instead of `children`.
  */
