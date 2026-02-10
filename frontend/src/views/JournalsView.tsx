@@ -10,6 +10,7 @@ import './JournalsView.css';
 import { useNodesStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
+import { Card } from '../components/core/Card';
 import { getNodeColorStyles } from '@/utils/color';
 
 interface JournalEntryProps {
@@ -43,12 +44,29 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
       className={`journal-entry${colorStyle ? ' journal-entry--colored' : ''}`}
       style={colorStyle}
     >
-      <NodeViewContent 
-        nodeId={dailyPageId} 
-        nodeType="page" 
-        viewMode={viewMode} 
-        compactMode={true} 
-      />
+      {colorStyle ? (
+        <Card 
+          elevation="medium" 
+          variant="default" 
+          padding={false}
+          radius="lg"
+          className="journal-entry__card"
+        >
+          <NodeViewContent 
+            nodeId={dailyPageId} 
+            nodeType="page" 
+            viewMode={viewMode} 
+            compactMode={true} 
+          />
+        </Card>
+      ) : (
+        <NodeViewContent 
+          nodeId={dailyPageId} 
+          nodeType="page" 
+          viewMode={viewMode} 
+          compactMode={true} 
+        />
+      )}
     </article>
   );
 }
