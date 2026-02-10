@@ -327,6 +327,7 @@ class LinkParsingService:
             link = NodeLink(
                 source_id=node_id,
                 target_id=target_id,
+                uuid=link_uuid,
                 is_tag=is_tag,
                 position=position,
             )

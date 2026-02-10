@@ -59,12 +59,20 @@ class PostgresLinkRepository(LinkRepository):
     async def create(self, link: NodeLink) -> NodeLink:
         """Create a new link."""
         async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow("""
-                INSERT INTO node_link (source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, graph_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING id, uuid
-            """, link.source_id, link.target_id, link.is_tag, link.is_inline_class,
-                link.name, link.create_date, link.create_uid or self._user_id, self._graph_id)
+            if link.uuid:
+                row = await conn.fetchrow("""
+                    INSERT INTO node_link (uuid, source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, graph_id)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+                    RETURNING id, uuid
+                """, link.uuid, link.source_id, link.target_id, link.is_tag, link.is_inline_class,
+                    link.name, link.create_date, link.create_uid or self._user_id, self._graph_id)
+            else:
+                row = await conn.fetchrow("""
+                    INSERT INTO node_link (source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, graph_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    RETURNING id, uuid
+                """, link.source_id, link.target_id, link.is_tag, link.is_inline_class,
+                    link.name, link.create_date, link.create_uid or self._user_id, self._graph_id)
             
             if row is None:
                 raise RuntimeError("Failed to create link - no row returned")
