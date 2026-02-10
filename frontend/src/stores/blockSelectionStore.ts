@@ -51,6 +51,9 @@ export interface EditorSelection {
   focusOffset: number;
   /** Horizontal X position for preserving caret position during vertical navigation */
   caretX?: number;
+  /** Click coordinates for projection-based cursor placement */
+  clickX?: number;
+  clickY?: number;
 }
 
 export interface DragState {
@@ -185,7 +188,7 @@ interface BlockSelectionState {
   clearPendingSelection: () => void;
   
   // Convenience: set pending selection for a specific block and offset
-  setPendingCaret: (blockId: number, offset: number, caretX?: number) => void;
+  setPendingCaret: (blockId: number, offset: number, caretX?: number, clickCoords?: { x: number; y: number }) => void;
   
   // Drag and drop
   startDrag: (blockId: number) => void;
@@ -552,7 +555,7 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
   },
   
   // Convenience: set pending caret at a specific block and offset
-  setPendingCaret: (blockId, offset, caretX) => {
+  setPendingCaret: (blockId, offset, caretX, clickCoords) => {
     set({
       pendingSelection: {
         anchorBlockId: blockId,
@@ -560,6 +563,8 @@ export const useBlockSelectionStore = create<BlockSelectionState>()((set, get) =
         focusBlockId: blockId,
         focusOffset: offset,
         caretX,
+        clickX: clickCoords?.x,
+        clickY: clickCoords?.y,
       },
     });
   },

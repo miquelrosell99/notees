@@ -15,18 +15,17 @@
  *   - hard_break → <br>
  */
 
-import { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLinkClicks, useNode, useTextLinks, useTrackLinkClick, useUpdateNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
 import { NodePill } from '../NodePill';
+import { LinkEditorCard } from '../LinkEditorCard';
 import { ContextMenu } from '../core/ContextMenu';
-import { TextField } from '../core/TextField';
-import { Button } from '../core/Button';
 import type { ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import { TagIcon } from '../icons';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { updateLinkName } from '@/api/nodes';
 import type {
@@ -46,7 +45,7 @@ export interface ASTBlockContentProps {
   /** Additional CSS class. */
   className?: string;
   /** Callback when a link should be replaced with a different node. */
-  onReplaceLink?: (oldLinkId: string, newNodeId: number, newLinkUuid: string) => void;
+  onReplaceLink?: (oldLinkId: string, newNodeId: number, newNodeUuid: string, newLinkUuid: string) => void;
   /** Callback when a link should be removed from content. */
   onRemoveLink?: (linkId: string) => void;
 }
@@ -132,14 +131,15 @@ export function ASTBlockContent({
   const updateNode = useUpdateNode();
   const queryClient = useQueryClient();
 
-  // Link name dialog state (for display-mode "Edit link text")
-  const [linkNameDialog, setLinkNameDialog] = useState<{
+  // Link editor card state (unified edit link target + custom text)
+  const [linkEditorCard, setLinkEditorCard] = useState<{
     isOpen: boolean;
+    linkId: string;
     linkUuid: string;
+    currentNodeId: number | null;
     currentName: string | null;
     position: { top: number; left: number };
   } | null>(null);
-  const linkNameDialogRef = useRef<HTMLDivElement>(null);
 
   // Parse content to AST
   const ast = useMemo(() => parseAST(content), [content]);
@@ -151,6 +151,20 @@ export function ASTBlockContent({
       for (const link of textLinks) {
         if (link.uuid && link.name) {
           map.set(link.uuid, link.name);
+        }
+      }
+    }
+    return map;
+  }, [textLinks]);
+
+  // Map of link UUID → target node ID (from node_link.target_node_id)
+  // Canonical way to resolve link targets — NOT from AST nodeUuid
+  const linkTargets = useMemo(() => {
+    const map = new Map<string, number>();
+    if (textLinks) {
+      for (const link of textLinks) {
+        if (link.uuid) {
+          map.set(link.uuid, link.target_node_id);
         }
       }
     }
@@ -182,46 +196,48 @@ export function ASTBlockContent({
     updateNode.mutate({ id: nodeId, data: { color } });
   }, [updateNode]);
 
-  const handleReplaceLink = useCallback((linkId: string, newNode: Node) => {
-    if (onReplaceLink) {
-      const newLinkUuid = crypto.randomUUID();
-      onReplaceLink(linkId, newNode.id, newLinkUuid);
-    }
-  }, [onReplaceLink]);
-
-  const handleRemoveLink = useCallback((linkId: string) => {
-    if (onRemoveLink) {
-      onRemoveLink(linkId);
-    }
-  }, [onRemoveLink]);
-
-  // Custom label dialog handlers
-  const handleCustomLabel = useCallback((linkUuid: string, position: { top: number; left: number }) => {
+  // Unified link editor handler
+  const handleEditLink = useCallback((linkId: string, pillRect: DOMRect) => {
+    const parsed = parseLinkId(linkId);
+    const linkUuid = parsed.linkUuid || linkId;
     const currentName = linkCustomNames.get(linkUuid) || null;
-    setLinkNameDialog({ isOpen: true, linkUuid, currentName, position });
-  }, [linkCustomNames]);
+    // Resolve target via node_link table, NOT from AST nodeUuid
+    const targetNodeId = linkTargets.get(linkUuid) ?? null;
+    setLinkEditorCard({
+      isOpen: true,
+      linkId,
+      linkUuid,
+      currentNodeId: targetNodeId,
+      currentName,
+      position: { top: pillRect.bottom + 4, left: pillRect.left },
+    });
+  }, [linkCustomNames, linkTargets]);
 
-  const handleSaveLinkName = useCallback(async (linkUuid: string, newName: string | null) => {
+  const handleSaveLinkEditor = useCallback(async (linkUuid: string, newNodeId: number, newNodeUuid: string, newCustomName: string | null) => {
     try {
-      await updateLinkName(linkUuid, newName);
-      queryClient.invalidateQueries({ queryKey: ['textLinks', blockId] });
-      setLinkNameDialog(null);
-    } catch (error) {
-      console.error('Failed to update link name:', error);
-    }
-  }, [blockId, queryClient]);
+      if (!linkEditorCard) return;
+      const oldLinkId = linkEditorCard.linkId;
+      const oldTargetId = linkEditorCard.currentNodeId;
 
-  // Close linkNameDialog on click outside
-  useEffect(() => {
-    if (!linkNameDialog?.isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (linkNameDialogRef.current && !linkNameDialogRef.current.contains(e.target as globalThis.Node)) {
-        setLinkNameDialog(null);
+      // If node target changed, notify parent
+      if (newNodeId !== oldTargetId && onReplaceLink) {
+        const newLinkUuid = crypto.randomUUID();
+        onReplaceLink(oldLinkId, newNodeId, newNodeUuid, newLinkUuid);
+        // Save custom name on the new link UUID
+        if (newCustomName) {
+          await updateLinkName(newLinkUuid, newCustomName);
+        }
+      } else {
+        // Same target — just update custom name
+        await updateLinkName(linkUuid, newCustomName);
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside, true);
-    return () => document.removeEventListener('mousedown', handleClickOutside, true);
-  }, [linkNameDialog?.isOpen]);
+
+      queryClient.invalidateQueries({ queryKey: ['textLinks', blockId] });
+      setLinkEditorCard(null);
+    } catch (error) {
+      console.error('Failed to save link editor:', error);
+    }
+  }, [linkEditorCard, blockId, queryClient, onReplaceLink]);
 
   // ─── Check if plain text (no AST needed) ──────────────────────
   if (ast.length === 0) {
@@ -247,64 +263,31 @@ export function ASTBlockContent({
             paragraphIndex={pIdx}
             clickCounts={clickCounts}
             linkCustomNames={linkCustomNames}
+            linkTargets={linkTargets}
             onNavigate={handleNavigate}
             onColorChange={handleColorChange}
-            onReplaceLink={handleReplaceLink}
-            onRemoveLink={handleRemoveLink}
-            onCustomLabel={handleCustomLabel}
+            onRemoveLink={linkId => onRemoveLink?.(linkId)}
+            onEditLink={handleEditLink}
           />
         ))}
       </span>
 
-      {linkNameDialog?.isOpen && (
-        <div
-          ref={linkNameDialogRef}
-          className="link-name-dialog"
-          style={{
-            position: 'fixed',
-            top: linkNameDialog.position.top,
-            left: linkNameDialog.position.left,
-            zIndex: 1000,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-outline)',
-            borderRadius: '8px',
-            padding: '12px',
-            boxShadow: 'var(--elevation-2)',
-            minWidth: '250px',
+      {linkEditorCard?.isOpen && (
+        <LinkEditorCard
+          mode="node"
+          linkUuid={linkEditorCard.linkUuid}
+          currentNodeId={linkEditorCard.currentNodeId}
+          currentCustomName={linkEditorCard.currentName}
+          position={linkEditorCard.position}
+          onSave={handleSaveLinkEditor}
+          onDelete={() => {
+            if (linkEditorCard.linkId) {
+              onRemoveLink?.(linkEditorCard.linkId);
+            }
+            setLinkEditorCard(null);
           }}
-          onClick={e => e.stopPropagation()}
-          onMouseDown={e => e.stopPropagation()}
-          onFocus={e => e.stopPropagation()}
-        >
-          <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-            Edit Link Text
-          </div>
-          <TextField
-            value={linkNameDialog.currentName || ''}
-            onChange={e => setLinkNameDialog({ ...linkNameDialog, currentName: e.target.value })}
-            placeholder="Custom link text (leave empty for node name)"
-            autoFocus
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSaveLinkName(linkNameDialog.linkUuid, linkNameDialog.currentName);
-              } else if (e.key === 'Escape') {
-                setLinkNameDialog(null);
-              }
-            }}
-          />
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
-            <Button variant="ghost" onClick={() => setLinkNameDialog(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => handleSaveLinkName(linkNameDialog.linkUuid, linkNameDialog.currentName)}
-            >
-              Save
-            </Button>
-          </div>
-        </div>
+          onClose={() => setLinkEditorCard(null)}
+        />
       )}
     </>
   );
@@ -317,11 +300,11 @@ interface RenderParagraphProps {
   paragraphIndex: number;
   clickCounts: Map<string, number>;
   linkCustomNames: Map<string, string>;
+  linkTargets: Map<string, number>;
   onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
   onColorChange: (nodeId: number, color: string | null) => void;
-  onReplaceLink: (linkId: string, newNode: Node) => void;
   onRemoveLink: (linkId: string) => void;
-  onCustomLabel: (linkUuid: string, position: { top: number; left: number }) => void;
+  onEditLink: (linkId: string, pillRect: DOMRect) => void;
 }
 
 function RenderParagraph({
@@ -329,11 +312,11 @@ function RenderParagraph({
   paragraphIndex,
   clickCounts,
   linkCustomNames,
+  linkTargets,
   onNavigate,
   onColorChange,
-  onReplaceLink,
   onRemoveLink,
-  onCustomLabel,
+  onEditLink,
 }: RenderParagraphProps) {
   return (
     <>
@@ -344,11 +327,11 @@ function RenderParagraph({
           node={node}
           clickCounts={clickCounts}
           linkCustomNames={linkCustomNames}
+          linkTargets={linkTargets}
           onNavigate={onNavigate}
           onColorChange={onColorChange}
-          onReplaceLink={onReplaceLink}
           onRemoveLink={onRemoveLink}
-          onCustomLabel={onCustomLabel}
+          onEditLink={onEditLink}
         />
       ))}
     </>
@@ -358,30 +341,29 @@ function RenderParagraph({
 // ─── NodePill with link status detection ─────────────────────────
 
 interface NodePillWithStatusProps {
-  nodeId: number;
+  nodeId: number | undefined;
   clickCount: number;
   customName?: string | null;
-  linkUuid?: string;
-  onColorChange: (color: string | null) => void;
-  onReplaceLink: (newNode: Node) => void;
+  linkId: string;
+  /** Color change callback that includes the resolved numeric nodeId */
+  onColorChangeWithId: (nodeId: number, color: string | null) => void;
   onRemove?: () => void;
-  onCustomLabel?: (linkUuid: string, position: { top: number; left: number }) => void;
+  onEditLink?: (pillRect: DOMRect) => void;
 }
 
 function NodePillWithStatus({
   nodeId,
   clickCount,
   customName,
-  linkUuid,
-  onColorChange,
-  onReplaceLink,
+  linkId: _linkId,
+  onColorChangeWithId,
   onRemove,
-  onCustomLabel,
+  onEditLink,
 }: NodePillWithStatusProps) {
-  const { data: node, isError } = useNode(nodeId);
+  const { data: node, isError } = useNode(nodeId ?? null);
 
   // If the node failed to load or returned null, render as broken link
-  if (isError || (node === null)) {
+  if (isError || (!nodeId && nodeId !== 0) || (node === null)) {
     return (
       <span className="inline-link link-pill--broken" title="Link target not found">
         <span className="link-pill__text">Deleted</span>
@@ -396,12 +378,9 @@ function NodePillWithStatus({
       variant="link"
       readOnly={false}
       customName={customName}
-      onColorChange={onColorChange}
-      onReplace={onReplaceLink}
+      onColorChange={node ? (color => onColorChangeWithId(node.id, color)) : undefined}
       onRemove={onRemove}
-      onCustomLabel={linkUuid && onCustomLabel ? (pillRect: DOMRect) => {
-        onCustomLabel(linkUuid, { top: pillRect.bottom + 4, left: pillRect.left });
-      } : undefined}
+      onEditLink={onEditLink}
     />
   );
 }
@@ -412,22 +391,22 @@ interface RenderInlineProps {
   node: ASTInlineNode;
   clickCounts: Map<string, number>;
   linkCustomNames: Map<string, string>;
+  linkTargets: Map<string, number>;
   onNavigate: (typeId: string, node: Node | undefined, openInSidebar: boolean) => void;
   onColorChange: (nodeId: number, color: string | null) => void;
-  onReplaceLink: (linkId: string, newNode: Node) => void;
   onRemoveLink: (linkId: string) => void;
-  onCustomLabel: (linkUuid: string, position: { top: number; left: number }) => void;
+  onEditLink: (linkId: string, pillRect: DOMRect) => void;
 }
 
 function RenderInlineNode({
   node,
   clickCounts,
   linkCustomNames,
+  linkTargets,
   onNavigate,
   onColorChange,
-  onReplaceLink,
   onRemoveLink,
-  onCustomLabel,
+  onEditLink,
 }: RenderInlineProps) {
   switch (node.type) {
     case 'text':
@@ -438,43 +417,41 @@ function RenderInlineNode({
 
     case 'node_link': {
       if (node.ref_type === 'class') {
+        // Class refs: resolve via linkTargets map (same UUID format as regular links)
+        const classParsed = parseLinkId(node.link_id);
+        const classTargetId = classParsed.linkUuid ? linkTargets.get(classParsed.linkUuid) : undefined;
+        // Fallback to legacy numeric ID
+        const typeId = classTargetId != null ? String(classTargetId) : node.link_id;
         return (
           <TypePillDisplay
-            typeId={node.link_id}
+            typeId={typeId}
             linkId={node.link_id}
             onNavigate={onNavigate}
           />
         );
       }
-      // Regular node link — render as NodePill
-      const numericId = parseInt(node.link_id, 10);
-      if (!isNaN(numericId)) {
-        // Extract link UUID from "nodeId:linkUuid" format
-        const colonIdx = node.link_id.indexOf(':');
-        const linkUuid = colonIdx >= 0 ? node.link_id.slice(colonIdx + 1) : undefined;
-        const customName = linkUuid ? linkCustomNames.get(linkUuid) : undefined;
-        return (
-          <NodePillWithStatus
-            nodeId={numericId}
-            clickCount={clickCounts.get(node.link_id) ?? 0}
-            customName={customName}
-            linkUuid={linkUuid}
-            onColorChange={color => onColorChange(numericId, color)}
-            onReplaceLink={newNode => onReplaceLink(node.link_id, newNode)}
-            onRemove={() => onRemoveLink(node.link_id)}
-            onCustomLabel={linkUuid ? onCustomLabel : undefined}
-          />", "oldString": "          <NodePillWithStatus\n            nodeId={numericId}\n            clickCount={clickCounts.get(node.link_id) ?? 0}\n            customName={customName}\n            linkUuid={linkUuid}\n            onColorChange={color => onColorChange(numericId, color)}\n            onReplaceLink={newNode => onReplaceLink(node.link_id, newNode)}\n            onRemove={() => onRemoveLink(node.link_id)}\n            onCustomLabel={linkUuid ? () => {\n              // We need the pill's position — use a small trick: find the pill DOM element\n              // The onCustomLabel on NodePill will be called which doesn't need position\n              // But we need uuid for the handler. Let's use a placeholder position.\n            } : undefined}\n          />
-        );
-      }
-      // UUID-based link — fall back to a basic span
-      return <span className="inline-link link-pill--broken" title="Unresolved link">{node.link_id}</span>;
+      // Regular node link — resolve target via node_link table, NOT from AST nodeUuid
+      const parsed = parseLinkId(node.link_id);
+      const customName = parsed.linkUuid ? linkCustomNames.get(parsed.linkUuid) : undefined;
+      const targetNodeId = parsed.linkUuid ? linkTargets.get(parsed.linkUuid) : undefined;
+      return (
+        <NodePillWithStatus
+          nodeId={targetNodeId}
+          clickCount={clickCounts.get(node.link_id) ?? 0}
+          customName={customName}
+          linkId={node.link_id}
+          onColorChangeWithId={onColorChange}
+          onRemove={() => onRemoveLink(node.link_id)}
+          onEditLink={(pillRect: DOMRect) => onEditLink(node.link_id, pillRect)}
+        />
+      );
     }
 
     case 'strong':
       return (
         <strong>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} onCustomLabel={onCustomLabel} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} linkTargets={linkTargets} onNavigate={onNavigate} onColorChange={onColorChange} onRemoveLink={onRemoveLink} onEditLink={onEditLink} />
           ))}
         </strong>
       );
@@ -483,7 +460,7 @@ function RenderInlineNode({
       return (
         <em>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} onCustomLabel={onCustomLabel} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} linkTargets={linkTargets} onNavigate={onNavigate} onColorChange={onColorChange} onRemoveLink={onRemoveLink} onEditLink={onEditLink} />
           ))}
         </em>
       );
@@ -495,7 +472,7 @@ function RenderInlineNode({
       return (
         <s>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} onCustomLabel={onCustomLabel} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} linkTargets={linkTargets} onNavigate={onNavigate} onColorChange={onColorChange} onRemoveLink={onRemoveLink} onEditLink={onEditLink} />
           ))}
         </s>
       );
@@ -504,7 +481,7 @@ function RenderInlineNode({
       return (
         <mark>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} onCustomLabel={onCustomLabel} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} linkTargets={linkTargets} onNavigate={onNavigate} onColorChange={onColorChange} onRemoveLink={onRemoveLink} onEditLink={onEditLink} />
           ))}
         </mark>
       );
@@ -513,7 +490,7 @@ function RenderInlineNode({
       return (
         <u>
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} onCustomLabel={onCustomLabel} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} linkTargets={linkTargets} onNavigate={onNavigate} onColorChange={onColorChange} onRemoveLink={onRemoveLink} onEditLink={onEditLink} />
           ))}
         </u>
       );
@@ -528,7 +505,7 @@ function RenderInlineNode({
           onClick={e => e.stopPropagation()}
         >
           {node.children.map((child, i) => (
-            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} onNavigate={onNavigate} onColorChange={onColorChange} onReplaceLink={onReplaceLink} onRemoveLink={onRemoveLink} onCustomLabel={onCustomLabel} />
+            <RenderInlineNode key={i} node={child} clickCounts={clickCounts} linkCustomNames={linkCustomNames} linkTargets={linkTargets} onNavigate={onNavigate} onColorChange={onColorChange} onRemoveLink={onRemoveLink} onEditLink={onEditLink} />
           ))}
         </a>
       );

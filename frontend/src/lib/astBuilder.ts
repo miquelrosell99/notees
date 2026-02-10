@@ -62,6 +62,45 @@ export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node'): AS
   return { type: 'node_link', link_id: linkId, ref_type: refType };
 }
 
+// ─── Link ID utilities ─────────────────────────────────────────────
+
+/**
+ * Parsed components of a compound link_id ("nodeUuid:linkUuid").
+ */
+export interface ParsedLinkId {
+  /** The target node's UUID (informational — used for display/damage control) */
+  nodeUuid: string;
+  /** The unique link-instance UUID (stored in node_link table) */
+  linkUuid: string | undefined;
+}
+
+/**
+ * Build a compound link_id string: "nodeUuid:linkUuid".
+ */
+export function buildLinkId(nodeUuid: string, linkUuid: string): string {
+  return `${nodeUuid}:${linkUuid}`;
+}
+
+/**
+ * Parse a compound link_id ("nodeUuid:linkUuid") into its parts.
+ *
+ * Format: "nodeUuid:linkUuid"
+ *   - nodeUuid: target node UUID (for display / damage control)
+ *   - linkUuid: unique per-link-instance UUID
+ *
+ * Legacy format "nodeId:linkUuid" (numeric first part) is also handled.
+ */
+export function parseLinkId(linkId: string): ParsedLinkId {
+  const colonIdx = linkId.indexOf(':');
+  if (colonIdx > 0) {
+    return {
+      nodeUuid: linkId.substring(0, colonIdx),
+      linkUuid: linkId.substring(colonIdx + 1),
+    };
+  }
+  return { nodeUuid: linkId, linkUuid: undefined };
+}
+
 export function code(t: string): ASTCode {
   return { type: 'code', text: t };
 }
