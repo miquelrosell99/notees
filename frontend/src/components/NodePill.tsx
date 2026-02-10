@@ -128,8 +128,13 @@ export function NodePill({
     e.stopPropagation();
     
     if (isLink) {
-      // Show context menu for links
-      setContextMenu({ x: e.clientX, y: e.clientY });
+      // Show context menu for links — aligned to pill's left edge, just below it
+      if (pillRef.current) {
+        const rect = pillRef.current.getBoundingClientRect();
+        setContextMenu({ x: rect.left, y: rect.bottom + 4 });
+      } else {
+        setContextMenu({ x: e.clientX, y: e.clientY });
+      }
     } else if (onColorChange) {
       // Show color picker for class/tag pills
       setColorPickerPos({ x: e.clientX, y: e.clientY });
@@ -183,11 +188,11 @@ export function NodePill({
           label: 'Replace',
           onClick: () => {
             handleCloseContextMenu();
-            // Position popup at the pill position
+            // Position popup just below the pill
             if (pillRef.current) {
               const rect = pillRef.current.getBoundingClientRect();
               setReplacePopupPos({
-                top: rect.top,
+                top: rect.bottom + 4,
                 left: rect.left,
               });
             }
