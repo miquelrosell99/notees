@@ -331,6 +331,7 @@ export function NodePill({
                 }}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
               >
                 <ColorPickerRow
                   currentColor={node?.color ?? null}
