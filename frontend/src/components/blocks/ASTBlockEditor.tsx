@@ -1024,7 +1024,7 @@ export function ASTBlockEditor({
     }
 
     // ── Arrow navigation around pills ──
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey) {
       handleArrowNavigation(e);
     }
 
