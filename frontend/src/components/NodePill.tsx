@@ -13,12 +13,11 @@
  * - Optional color picker via right-click
  * - Faded background color based on node's isPage status
  */
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Pill } from './core/Pill';
 import { NodeIcon, CloseIcon } from './icons';
 import { ContextMenu, type ContextMenuItem } from './core/ContextMenu';
 import { ColorPickerRow } from './nodes/NodeContextMenu';
-import { SuggestionPopup } from './SuggestionPopup';
 import { useNode, useClasses } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNodesStore } from '@/stores';
@@ -33,6 +32,8 @@ export interface NodePillProps {
   nodeId?: number;
   /** Display variant: 'default' for class pills, 'link' for inline links with faded colors */
   variant?: 'default' | 'link';
+  /** When true, clicking selects the pill (for contenteditable edit mode) instead of navigating */
+  editMode?: boolean;
   /** Click count badge (for link tracking) */
   clickCount?: number;
   /** Callback when clicking the pill */
@@ -41,10 +42,8 @@ export interface NodePillProps {
   onRemove?: () => void;
   /** Callback when changing the color via right-click menu */
   onColorChange?: (color: string | null) => void;
-  /** Callback when replacing the link with a new node */
-  onReplace?: (newNode: Node) => void;
-  /** Callback when requesting custom label edit (for inline links). Receives pill position. */
-  onCustomLabel?: (pillRect: DOMRect) => void;
+  /** Callback when opening the link editor (edit target + custom label). Receives pill position. */
+  onEditLink?: (pillRect: DOMRect) => void;
   /** Whether the pill is read-only (hides remove button and color change) */
   readOnly?: boolean;
   /** Additional CSS class */
@@ -57,12 +56,12 @@ export function NodePill({
   node: providedNode,
   nodeId,
   variant = 'default',
+  editMode = false,
   clickCount = 0,
   onClick,
   onRemove,
   onColorChange,
-  onReplace,
-  onCustomLabel,
+  onEditLink,
   readOnly = false,
   className = '',
   customName,
@@ -70,8 +69,6 @@ export function NodePill({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showReplacePopup, setShowReplacePopup] = useState(false);
-  const [replacePopupPos, setReplacePopupPos] = useState({ top: 0, left: 0 });
   
   const pillRef = useRef<HTMLDivElement>(null);
   const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
@@ -122,6 +119,21 @@ export function NodePill({
     
     if (readOnly) return;
     
+    if (editMode && isLink) {
+      // Edit mode: select the mount point (parent element) for contenteditable
+      const mountPoint = pillRef.current?.parentElement;
+      if (mountPoint) {
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNode(mountPoint);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+      return;
+    }
+    
     if (isLink && node) {
       // Navigation mode (for inline links)
       if (e.shiftKey) {
@@ -132,7 +144,7 @@ export function NodePill({
     } else if (onClick) {
       onClick();
     }
-  }, [readOnly, isLink, onClick, node, isPage, openNode, addSidebarCard]);
+  }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, addSidebarCard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (readOnly) return;
@@ -191,37 +203,18 @@ export function NodePill({
       },
     ];
     
-    if (onCustomLabel || onReplace || onRemove) {
+    if (onEditLink || onRemove) {
       items.push({ id: 'sep1', label: '', separator: true });
 
-      if (onCustomLabel) {
+      if (onEditLink) {
         items.push({
-          id: 'custom-label',
-          label: 'Edit link text',
+          id: 'edit-link',
+          label: 'Edit link',
           onClick: () => {
             handleCloseContextMenu();
             if (pillRef.current) {
-              onCustomLabel(pillRef.current.getBoundingClientRect());
+              onEditLink(pillRef.current.getBoundingClientRect());
             }
-          },
-        });
-      }
-      
-      if (onReplace) {
-        items.push({
-          id: 'replace',
-          label: 'Replace',
-          onClick: () => {
-            handleCloseContextMenu();
-            // Position popup just below the pill
-            if (pillRef.current) {
-              const rect = pillRef.current.getBoundingClientRect();
-              setReplacePopupPos({
-                top: rect.bottom + 4,
-                left: rect.left,
-              });
-            }
-            setShowReplacePopup(true);
           },
         });
       }
@@ -240,7 +233,7 @@ export function NodePill({
     }
     
     return items;
-  }, [isLink, node, isPage, onRemove, onReplace, onCustomLabel, openNode, addSidebarCard, handleCloseContextMenu]);
+  }, [isLink, node, isPage, onRemove, onEditLink, openNode, addSidebarCard, handleCloseContextMenu]);
 
   // Handler for color change from context menu
   const handleColorChangeFromMenu = useCallback((color: string | null) => {
@@ -249,35 +242,7 @@ export function NodePill({
     handleCloseContextMenu();
   }, [onColorChange, handleCloseContextMenu]);
 
-  // Handler for replace popup selection
-  const handleReplaceSelect = useCallback((newNode: Node) => {
-    // Blur before unmounting to prevent focus returning to block content
-    (document.activeElement as HTMLElement)?.blur();
-    onReplace?.(newNode);
-    setShowReplacePopup(false);
-  }, [onReplace]);
 
-  // Handler to close replace popup
-  const handleCloseReplacePopup = useCallback(() => {
-    (document.activeElement as HTMLElement)?.blur();
-    setShowReplacePopup(false);
-  }, []);
-
-  // Close replace popup on ESC key
-  useEffect(() => {
-    if (!showReplacePopup) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setShowReplacePopup(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showReplacePopup]);
 
   // Build title tooltip — when customName is used, show actual node name
   const title = useMemo(() => {
@@ -390,18 +355,7 @@ export function NodePill({
         </>
       )}
       
-      {/* Replace popup (for link variant) */}
-      {showReplacePopup && (
-        <SuggestionPopup
-          isOpen={showReplacePopup}
-          query=""
-          type="link"
-          position={replacePopupPos}
-          onSelect={handleReplaceSelect}
-          onClose={handleCloseReplacePopup}
-          excludeNodeId={node?.id}
-        />
-      )}
+
     </>
   );
 }

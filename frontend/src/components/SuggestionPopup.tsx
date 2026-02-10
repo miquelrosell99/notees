@@ -226,7 +226,7 @@ export function SuggestionPopup({
         queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
         queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
       }
-      onSelectDatePage(String(dateNode.id), nodeNameToText(dateNode.name) || parsedDate.label);
+      onSelectDatePage(dateNode.uuid, nodeNameToText(dateNode.name) || parsedDate.label);
     } catch (error) {
       console.error('Failed to create date page from suggestion:', error);
     }

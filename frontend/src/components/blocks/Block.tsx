@@ -63,6 +63,7 @@ import { replaceNodeLink } from '@/lib/astMutations';
 import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
 import { findNodeById } from '@/utils/nodeTree';
+import { useInlineClassIds } from '@/hooks/useInlineClasses';
 import './Block.css';
 
 // ==================== Block Component ====================
@@ -194,10 +195,10 @@ function BlockInternal({
   const { data: allProperties } = useProperties();
 
   // Handle replacing a link in block content (AST-based)
-  const handleReplaceLink = useCallback((oldLinkId: string, newNodeId: number, newLinkUuid: string) => {
+  const handleReplaceLink = useCallback((oldLinkId: string, _newNodeId: number, newNodeUuid: string, newLinkUuid: string) => {
     if (!block) return;
     const ast = parseAST(block.name);
-    const newLinkFullId = `${newNodeId}:${newLinkUuid}`;
+    const newLinkFullId = `${newNodeUuid}:${newLinkUuid}`;
     const updated = replaceNodeLink(ast, oldLinkId, newLinkFullId, 'node');
     if (updated !== ast) {
       updateNode.mutate({
@@ -345,42 +346,9 @@ function BlockInternal({
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useResolvedClassDetails(block.classes, { skipNodesFallback: true });
   
-  // Extract inline class IDs directly from block content
-  // This is more reliable than an API call since we already have the content
-  const inlineClassIds = useMemo(() => {
-    if (!block.name) return new Set<number>();
-    
-    try {
-      const ast = JSON.parse(block.name);
-      const ids = new Set<number>();
-      
-      // Recursively find all node_link with ref_type='class'
-      const walk = (nodes: unknown[]): void => {
-        if (!Array.isArray(nodes)) return;
-        for (const node of nodes) {
-          if (typeof node !== 'object' || node === null) continue;
-          const n = node as Record<string, unknown>;
-          if (n.type === 'node_link' && n.ref_type === 'class') {
-            const linkId = String(n.link_id || '');
-            // link_id format is "classId" or "classId:uuid"
-            const classId = parseInt(linkId.split(':')[0], 10);
-            if (!isNaN(classId)) {
-              ids.add(classId);
-            }
-          }
-          if ('children' in n && Array.isArray(n.children)) {
-            walk(n.children);
-          }
-        }
-      };
-      
-      walk(ast);
-      return ids;
-    } catch {
-      // Content is not valid JSON AST
-      return new Set<number>();
-    }
-  }, [block.name]);
+  // Extract inline class IDs from the backend node_link table (is_inline_class=true)
+  // This is the canonical source — AST link_ids use UUID format and can't be parsed for numeric IDs
+  const inlineClassIds = useInlineClassIds(block.id);
   
   // Filter out inline classes from the class pills display
   const displayClassDetails = useMemo(() => {
@@ -529,35 +497,22 @@ function BlockInternal({
     opacity: isSortableDragging ? 0.5 : 1,
   } : {};
   
-  // Handle block click (for selection)
+  // Handle block click (for selection) - removed shift+click block selection per user request
   const handleBlockClick = useCallback((e: React.MouseEvent) => {
-    if (!canSelect) return;
-    
-    // Shift+click adds to selection
-    if (e.shiftKey) {
-      e.preventDefault();
-      addToSelection(block.id);
-      return;
-    }
-    
-    // Regular click outside content area doesn't do anything special
-    // Content area click is handled by handleContentClick
-  }, [addToSelection, block.id, canSelect]);
+    // Removed: block selection logic that was interfering with text selection
+    // This will be reimplemented later
+  }, []);
   
-  // Handle mouse down for drag selection start
+  // Handle mouse down for drag selection start - removed per user request
   const handleBlockMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start drag selection on left click without modifiers, on the bullet area
-    if (e.button !== 0 || !canSelect) return;
-    // Don't start drag select if clicking on content area (allow text selection)
-    const target = e.target as HTMLElement;
-    if (target.closest('.block-content') || target.closest('.block-editor')) return;
-    // Start drag selection
-    startDragSelect(block.id);
-  }, [block.id, canSelect, startDragSelect]);
+    // Removed: drag selection logic that was interfering with text selection
+    // This will be reimplemented later
+  }, []);
   
-  // Handle mouse enter for drag selection update
+  // Handle mouse enter for drag selection update - removed per user request
   const handleBlockMouseEnter = useCallback(() => {
-    if (!canSelect || !isDragSelecting) return;
+    // Removed: drag selection logic
+    return;
     updateDragSelect(block.id);
   }, [block.id, canSelect, isDragSelecting, updateDragSelect]);
   
@@ -573,90 +528,11 @@ function BlockInternal({
     return () => document.removeEventListener('mouseup', handleMouseUp);
   }, [isDragSelecting, endDragSelect]);
   
-  // Calculate cursor position from click event using browser's caret position APIs
-  const getCursorPositionFromClick = useCallback((e: React.MouseEvent): number | undefined => {
-    const content = block.name || '';
-    if (!content || !contentRef.current) return undefined;
-    
-    // Use caretPositionFromPoint (standard) or caretRangeFromPoint (WebKit fallback)
-    // These APIs correctly handle complex DOM with inline elements like pills
-    let range: Range | null = null;
-    
-    // Try standard API first (Firefox, newer browsers)
-    if ('caretPositionFromPoint' in document) {
-      const pos = (document as any).caretPositionFromPoint(e.clientX, e.clientY);
-      if (pos) {
-        range = document.createRange();
-        range.setStart(pos.offsetNode, pos.offset);
-        range.collapse(true);
-      }
-    }
-    // Fallback to WebKit API (Chrome, Safari)
-    else if ('caretRangeFromPoint' in document) {
-      range = (document as Document).caretRangeFromPoint(e.clientX, e.clientY);
-    }
-    
-    if (!range) return undefined;
-    
-    // Now convert the DOM position to a plain text position
-    // We need to walk through the DOM and count characters, treating pills as their raw content
-    const container = contentRef.current;
-    const rangeStartContainer = range.startContainer;
-    const rangeStartOffset = range.startOffset;
-    
-    // Recursive function to calculate position
-    function calculatePosition(node: globalThis.Node, foundTarget: { found: boolean, position: number }): number {
-      if (foundTarget.found) return foundTarget.position;
-      
-      // Check if this is the target node
-      if (node === rangeStartContainer) {
-        foundTarget.found = true;
-        if (node.nodeType === Node.TEXT_NODE) {
-          foundTarget.position += rangeStartOffset;
-        }
-        return foundTarget.position;
-      }
-      
-      if (node.nodeType === Node.TEXT_NODE) {
-        foundTarget.position += node.textContent?.length || 0;
-        return foundTarget.position;
-      }
-      
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
-        
-        // Check for pills - use their raw content length and skip children
-        if (el.classList?.contains('link-pill')) {
-          const raw = el.dataset?.linkRaw || '';
-          foundTarget.position += raw.length;
-          return foundTarget.position;
-        } else if (el.classList?.contains('class-pill')) {
-          const raw = el.dataset?.typeRaw || '';
-          foundTarget.position += raw.length;
-          return foundTarget.position;
-        } else if (el.classList?.contains('tag-pill')) {
-          const raw = el.dataset?.linkRaw || '';
-          foundTarget.position += raw.length;
-          return foundTarget.position;
-        }
-        
-        // For other elements, recurse into children
-        for (const child of el.childNodes) {
-          calculatePosition(child, foundTarget);
-          if (foundTarget.found) break;
-        }
-      }
-      
-      return foundTarget.position;
-    }
-    
-    const result = { found: false, position: 0 };
-    calculatePosition(container, result);
-    
-    return result.found ? result.position : undefined;
-  }, [block.name]);
+  // No longer needed — we pass click coordinates to the editor for projection-based cursor placement
   
   // Handle content area click - enters edit mode
+  // Uses projection: passes raw click coordinates to the editor, which uses
+  // caretPositionFromPoint on its own DOM to find the correct cursor position.
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     if (!canEdit) return;
     
@@ -665,18 +541,12 @@ function BlockInternal({
     
     e.stopPropagation();
     
-    // Calculate cursor position from click and set via model-first approach
-    const cursorPos = getCursorPositionFromClick(e);
-    if (cursorPos !== undefined) {
-      setPendingCaret(block.id, cursorPos);
-    } else {
-      // Position at end if click position couldn't be determined
-      setPendingCaret(block.id, (block.name || '').length);
-    }
+    // Pass click coordinates — the editor will project them onto its own DOM
+    setPendingCaret(block.id, 0, undefined, { x: e.clientX, y: e.clientY });
     
     // Enter edit mode
     setBlockState(block.id, 'edit');
-  }, [block.id, block.name, blockState, canEdit, setBlockState, getCursorPositionFromClick, setPendingCaret]);
+  }, [block.id, blockState, canEdit, setBlockState, setPendingCaret]);
   
   // Handle bullet click for navigation
   const handleBulletClickInternal = useCallback((e: React.MouseEvent) => {

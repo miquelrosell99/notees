@@ -46,11 +46,13 @@ def generate_link_uuid() -> str:
     return str(uuid_module.uuid4())
 
 
-def _parse_links_from_ast(content: str) -> Optional[List[Tuple[int, int, Optional[str]]]]:
+def _parse_links_from_ast(content: str) -> Optional[List[Tuple[str, int, Optional[str]]]]:
     """Try to parse content as AST JSON and extract node links (ref_type='node').
     
     Returns None if content is not valid AST JSON, otherwise returns
-    list of (target_node_id, position, link_uuid) tuples.
+    list of (target_node_uuid, position, link_uuid) tuples.
+    
+    The link_id format is "nodeUuid:linkUuid" (or legacy "nodeId:linkUuid").
     """
     try:
         ast = json.loads(content)
@@ -64,7 +66,7 @@ def _parse_links_from_ast(content: str) -> Optional[List[Tuple[int, int, Optiona
     if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
         return None
     
-    links: List[Tuple[int, int, Optional[str]]] = []
+    links: List[Tuple[str, int, Optional[str]]] = []
     position = 0
     
     def walk(nodes: Any) -> None:
@@ -76,14 +78,13 @@ def _parse_links_from_ast(content: str) -> Optional[List[Tuple[int, int, Optiona
                 continue
             if node.get('type') == 'node_link' and node.get('ref_type', 'node') == 'node':
                 link_id = str(node.get('link_id', ''))
-                # link_id format: "nodeId" or "nodeId:linkUuid"
+                # link_id format: "nodeUuid:linkUuid" (or legacy "nodeId:linkUuid")
                 parts = link_id.split(':', 1)
-                try:
-                    target_id = int(parts[0])
-                except (ValueError, IndexError):
+                if not parts[0]:
                     continue
+                node_identifier = parts[0]  # UUID string (or legacy numeric ID)
                 link_uuid = parts[1] if len(parts) > 1 else None
-                links.append((target_id, position, link_uuid))
+                links.append((node_identifier, position, link_uuid))
                 position += 1
             # Recurse into children
             if 'children' in node:
@@ -93,11 +94,13 @@ def _parse_links_from_ast(content: str) -> Optional[List[Tuple[int, int, Optiona
     return links
 
 
-def _parse_inline_classes_from_ast(content: str) -> Optional[List[Tuple[int, int]]]:
+def _parse_inline_classes_from_ast(content: str) -> Optional[List[Tuple[str, int, Optional[str]]]]:
     """Try to parse content as AST JSON and extract inline class refs (ref_type='class').
     
     Returns None if content is not valid AST JSON, otherwise returns
-    list of (class_node_id, position) tuples.
+    list of (node_identifier, position, link_uuid) tuples.
+    
+    The link_id format is "nodeUuid:linkUuid" (or legacy numeric "classId").
     """
     try:
         ast = json.loads(content)
@@ -110,7 +113,7 @@ def _parse_inline_classes_from_ast(content: str) -> Optional[List[Tuple[int, int
     if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
         return None
     
-    classes: List[Tuple[int, int]] = []
+    classes: List[Tuple[str, int, Optional[str]]] = []
     position = 0
     
     def walk(nodes: Any) -> None:
@@ -122,11 +125,13 @@ def _parse_inline_classes_from_ast(content: str) -> Optional[List[Tuple[int, int
                 continue
             if node.get('type') == 'node_link' and node.get('ref_type') == 'class':
                 link_id = str(node.get('link_id', ''))
-                try:
-                    class_id = int(link_id.split(':', 1)[0])
-                except (ValueError, IndexError):
+                # link_id format: "nodeUuid:linkUuid" (or legacy "classId")
+                parts = link_id.split(':', 1)
+                if not parts[0]:
                     continue
-                classes.append((class_id, position))
+                node_identifier = parts[0]  # UUID string (or legacy numeric ID)
+                link_uuid = parts[1] if len(parts) > 1 else None
+                classes.append((node_identifier, position, link_uuid))
                 position += 1
             if 'children' in node:
                 walk(node['children'])
@@ -201,18 +206,19 @@ class LinkParsingService:
         self._link_repo = link_repository
         self._property_repo = property_repository
     
-    def parse_links(self, content: str) -> List[Tuple[int, int, Optional[str]]]:
+    def parse_links(self, content: str) -> List[Tuple[str, int, Optional[str]]]:
         """Parse content and extract all links.
         
-        Returns list of tuples: (target_node_id, position, link_uuid)
+        Returns list of tuples: (target_node_uuid, position, link_uuid)
         Extracts node_link entries with ref_type='node' from AST JSON content.
+        The first element is the node UUID (or legacy numeric ID string).
         """
         return _parse_links_from_ast(content) or []
     
-    def parse_inline_classes(self, content: str) -> List[Tuple[int, int]]:
+    def parse_inline_classes(self, content: str) -> List[Tuple[str, int, Optional[str]]]:
         """Parse content and extract all inline class references.
         
-        Returns list of tuples: (class_node_id, position)
+        Returns list of tuples: (node_identifier, position, link_uuid)
         Extracts node_link entries with ref_type='class' from AST JSON content.
         """
         return _parse_inline_classes_from_ast(content) or []
@@ -310,16 +316,26 @@ class LinkParsingService:
         # Remove existing non-tag text links from this source (property_id IS NULL, is_tag=0)
         await self._delete_non_tag_text_links(node_id)
         
-        # Parse new links from [[id]] or [[id:uuid]] patterns
+        # Parse new links from AST (link_id format: "nodeUuid:linkUuid")
         parsed = self.parse_links(content)
         
         created_links = []
         
-        for target_id, position, link_uuid in parsed:
-            # Verify the target node exists
-            target_node = await self._node_repo.get_by_id(target_id)
+        for node_identifier, position, link_uuid in parsed:
+            # Resolve the target node — try UUID first, fall back to numeric ID
+            target_node = None
+            try:
+                # Legacy format: numeric ID
+                target_id = int(node_identifier)
+                target_node = await self._node_repo.get_by_id(target_id)
+            except (ValueError, TypeError):
+                # New format: UUID string
+                target_node = await self._node_repo.get_by_uuid(node_identifier)
+            
             if not target_node:
                 continue
+            
+            target_id = target_node.id
             
             # Check if this was previously a tag link - if so, preserve that
             is_tag = target_id in existing_tag_targets
@@ -462,21 +478,29 @@ class LinkParsingService:
         created_links = []
         new_inline_class_ids = []
         
-        for class_id, position in parsed:
-            # Verify the class node exists
-            class_node = await self._node_repo.get_by_id(class_id)
+        for node_identifier, position, link_uuid in parsed:
+            # Resolve identifier: try as UUID first, fall back to numeric ID
+            class_node = None
+            try:
+                numeric_id = int(node_identifier)
+                class_node = await self._node_repo.get_by_id(numeric_id)
+            except (ValueError, TypeError):
+                # Not numeric — treat as UUID
+                class_node = await self._node_repo.get_by_uuid(node_identifier)
+            
             if not class_node:
                 continue
             
             link = NodeLink(
                 source_id=node_id,
-                target_id=class_id,
+                target_id=class_node.id,
                 position=position,
                 is_inline_class=True,
+                uuid=link_uuid,
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)
-            new_inline_class_ids.append(class_id)
+            new_inline_class_ids.append(class_node.id)
         
         # Update class_ids array to include inline classes
         async with acquire_connection(pool) as conn:

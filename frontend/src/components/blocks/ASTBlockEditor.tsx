@@ -24,6 +24,7 @@ import {
   useLayoutEffect,
   useMemo,
 } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 // CSS — reuse existing styles
@@ -33,19 +34,16 @@ import './InlineNodeLink.css';
 // UI components
 import { SuggestionPopup, type SuggestionType } from '../SuggestionPopup';
 import { SlashCommandPopup } from '../SlashCommandPopup';
-import { TextField } from '../core/TextField';
-import { Button } from '../core/Button';
 import { FloatingToolbar } from '../core/FloatingToolbar';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { NodePill } from '../NodePill';
+import { LinkEditorCard } from '../LinkEditorCard';
 
 // Hooks
-import { useNodes, useTextLinks, useClasses } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useNodes, useTextLinks, useUpdateNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { usePendingSelectionForBlock, useEditorSelectionActions } from '@/stores/selectors';
 
 // Utils
-import { getEffectiveIcon } from '@/utils/nodeIcon';
 import {
   analyzeClipboard,
   regenerateLinkUuids,
@@ -60,8 +58,8 @@ import type { Node } from '@/types';
 import { getNodeByUuid, updateLinkName } from '@/api/nodes';
 
 // AST infrastructure
-import { parseAST } from '@/lib/astBuilder';
-import type { ASTDocument } from '@/types/ast';
+import { parseAST, buildLinkId, parseLinkId } from '@/lib/astBuilder';
+import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 import {
   astToHtmlCached,
   domToAST,
@@ -78,7 +76,6 @@ import {
   detectTrigger,
   type ASTRenderContext,
   type ResolvedLink,
-  type LinkStatus,
 } from '@/lib/astDom';
 import {
   splitAtPosition,
@@ -90,6 +87,8 @@ import {
   getActiveMarks,
   insertText,
   wrapInExternalLink,
+  deleteRange,
+  insertNodeLink,
 } from '@/lib/astMutations';
 import type { MarkType } from '@/lib/astMutations';
 import { ASTHistory, type HistoryEntry } from '@/lib/astHistory';
@@ -219,9 +218,15 @@ export function ASTBlockEditor({
   const pendingUuidResolutions = useRef(new Set<string>());
   const pendingOnChange = useRef<string | null>(null);
   const rafId = useRef<number>(0);
-  // Optimistic link resolution — stores link info for newly inserted links
-  // before the API returns them in textLinks
-  const pendingLinksRef = useRef(new Map<string, ResolvedLink>());
+
+  // ─── Portal mount points for NodePill rendering ───────────────
+  interface MountPoint {
+    element: HTMLElement;
+    linkId: string;
+    refType: 'node' | 'class';
+  }
+  const mountPointsRef = useRef<MountPoint[]>([]);
+  const [mountVersion, setMountVersion] = useState(0);
 
   // ─── State ─────────────────────────────────────────────────────
   const [selectedPill, setSelectedPill] = useState<HTMLElement | null>(null);
@@ -239,19 +244,16 @@ export function ASTBlockEditor({
     triggerPosition: 0,
     position: { top: 0, left: 0 },
   });
-  const [linkNameDialog, setLinkNameDialog] = useState<{
+  const [linkEditorCard, setLinkEditorCard] = useState<{
     isOpen: boolean;
+    linkId: string;
     linkUuid: string;
+    currentNodeId: number | null;
     currentName: string | null;
-    nodeId: number;
     position: { top: number; left: number };
-  } | null>(null);
-  const linkNameDialogRef = useRef<HTMLDivElement>(null);
-  const [editorContextMenu, setEditorContextMenu] = useState<{
-    position: { x: number; y: number };
-    linkUuid: string;
-    targetNodeId: number;
-    isPage: boolean;
+    mode: 'edit' | 'create' | 'create-url';
+    initialUrl?: string;
+    initialText?: string;
   } | null>(null);
 
   // ─── Selection toolbar state ───────────────────────────────────
@@ -265,7 +267,6 @@ export function ASTBlockEditor({
 
   // ─── Query client ──────────────────────────────────────────────
   const queryClient = useQueryClient();
-  const { openNode, addSidebarCard } = useNodesStore();
 
   // ─── Batched onChange via requestAnimationFrame ────────────────
   const flushOnChange = useCallback(() => {
@@ -337,22 +338,12 @@ export function ASTBlockEditor({
   }, [ast]);
 
   const { data: allNodes, isFetched: allNodesFetched } = useNodes(linkIds.length > 0 ? {} : null);
-  const { data: allClasses } = useClasses();
-  const { data: textLinks, isFetched: textLinksFetched } = useTextLinks(nodeId ?? null);
+  const { data: textLinks } = useTextLinks(nodeId ?? null);
+  const updateNode = useUpdateNode();
 
-  // Build lookup maps
-  const tagTargetIds = useMemo(() => {
-    const set = new Set<number>();
-    if (textLinks) {
-      for (const link of textLinks) {
-        if (link.is_tag) set.add(link.target_node_id);
-      }
-    }
-    return set;
-  }, [textLinks]);
-
+  // Map of link UUID → custom display name (from node_link.name)
   const linkCustomNames = useMemo(() => {
-    const map = new Map<string, string | null>();
+    const map = new Map<string, string>();
     if (textLinks) {
       for (const link of textLinks) {
         if (link.uuid && link.name) {
@@ -363,97 +354,39 @@ export function ASTBlockEditor({
     return map;
   }, [textLinks]);
 
-  // Map of all nodes by ID for direct node-ID-based link resolution
+  // Map of link UUID → target node ID (from node_link.target_node_id)
+  // This is the canonical way to resolve link targets — NOT from the AST nodeUuid
+  const linkTargets = useMemo(() => {
+    const map = new Map<string, number>();
+    if (textLinks) {
+      for (const link of textLinks) {
+        if (link.uuid) {
+          map.set(link.uuid, link.target_node_id);
+        }
+      }
+    }
+    return map;
+  }, [textLinks]);
+
+  // Map of all nodes by ID — used only for class pill resolution in renderCtx
   const allNodesMap = useMemo(() => {
     if (!allNodes || !allNodesFetched) return new Map<number, Node>();
     return new Map(allNodes.map(n => [n.id, n]));
   }, [allNodes, allNodesFetched]);
 
-  // Map of link UUID → resolved info for display
-  const linkResolveMap = useMemo(() => {
-    const map = new Map<string, ResolvedLink>();
-    if (allNodesFetched && allNodes && textLinks) {
-      for (const tl of textLinks) {
-        if (!tl.uuid) continue;
-        const target = allNodesMap.get(tl.target_node_id);
-        const linkStatus: LinkStatus = target ? 'valid' : 'broken';
-
-        if (!target) {
-          // Broken link — target node deleted/missing
-          map.set(tl.uuid, {
-            displayText: tl.name || 'Deleted',
-            targetName: tl.name || 'Deleted',
-            isTag: false,
-            effectiveIcon: null,
-            customLabel: tl.name || null,
-            linkStatus: 'broken',
-          });
-          continue;
-        }
-
-        const customLabel = tl.name || null;
-        const targetName = nodeNameToText(target.name) || 'Untitled';
-        const displayText = customLabel || targetName;
-        const effectiveIcon = getEffectiveIcon(target, allClasses ?? []);
-        const isTag = tagTargetIds.has(target.id);
-
-        map.set(tl.uuid, { displayText, targetName, isTag, effectiveIcon: effectiveIcon ?? null, customLabel, linkStatus });
-      }
-    }
-    return map;
-  }, [allNodes, allNodesFetched, allNodesMap, allClasses, textLinks, tagTargetIds]);
-
-  // Clean up pending links once they appear in the real resolve map
-  useEffect(() => {
-    for (const key of pendingLinksRef.current.keys()) {
-      if (linkResolveMap.has(key)) {
-        pendingLinksRef.current.delete(key);
-      }
-    }
-  }, [linkResolveMap]);
-
-  // Whether link resolution data has fully loaded (not just placeholder)
-  const linkDataLoaded = linkIds.length === 0 || (textLinksFetched && allNodesFetched);
-
-  // ─── Render context ────────────────────────────────────────────
+  // ─── Render context (only resolves class pills — node links use portals) ──
   const renderCtx = useMemo<ASTRenderContext>(() => ({
     resolveLink: (linkId: string, refType: 'node' | 'class'): ResolvedLink | null => {
-      // 1. Direct lookup by link UUID (matches textLinks.uuid)
-      const resolved = linkResolveMap.get(linkId);
-      if (resolved) return resolved;
+      // Node links are rendered as placeholder spans → no resolution needed
+      if (refType !== 'class') return null;
 
-      // 2. Compound format "nodeId:uuid" — try the UUID part
-      const colonIdx = linkId.indexOf(':');
-      if (colonIdx > 0) {
-        const uuidPart = linkId.substring(colonIdx + 1);
-        const byUuid = linkResolveMap.get(uuidPart);
-        if (byUuid) return byUuid;
-      }
+      // Class refs: link_id is "nodeUuid:linkUuid" — resolve via linkTargets map
+      const parsed = parseLinkId(linkId);
+      const targetNodeId = parsed.linkUuid ? linkTargets.get(parsed.linkUuid) : undefined;
 
-      // 3. Check optimistic pending links
-      const pending = pendingLinksRef.current.get(linkId);
-      if (pending) return pending;
-
-      // 4. Try as numeric node ID (old format where link_id = "42")
-      //    This covers existing links stored before the UUID system
-      const numericPart = colonIdx > 0 ? linkId.substring(0, colonIdx) : linkId;
-      const numericId = parseInt(numericPart, 10);
-      if (!isNaN(numericId) && allNodesFetched && refType === 'node') {
-        const node = allNodesMap.get(numericId);
-        if (node) {
-          const name = nodeNameToText(node.name) || 'Untitled';
-          return {
-            displayText: name,
-            targetName: name,
-            isTag: tagTargetIds.has(node.id),
-            effectiveIcon: getEffectiveIcon(node, allClasses ?? []) ?? null,
-            customLabel: null,
-            linkStatus: 'valid',
-          };
-        }
-      }
-      // For class refs, link_id is the class node ID
-      if (!isNaN(numericId) && allNodesFetched && refType === 'class') {
+      // Fallback: try parsing as legacy numeric ID
+      const numericId = targetNodeId ?? parseInt(linkId, 10);
+      if (!isNaN(numericId) && allNodesFetched) {
         const node = allNodesMap.get(numericId);
         if (node) {
           const name = nodeNameToText(node.name) || 'Untitled';
@@ -468,13 +401,13 @@ export function ASTBlockEditor({
         }
       }
 
-      // 5. Data still loading — show placeholder
-      if (!linkDataLoaded) {
+      // Data still loading — show placeholder
+      if (!allNodesFetched) {
         return { displayText: '…', targetName: '…', isTag: false, effectiveIcon: null, customLabel: null, linkStatus: 'valid' };
       }
       return null;
     },
-  }), [linkResolveMap, linkDataLoaded, allNodesMap, allNodesFetched, allClasses, tagTargetIds]);
+  }), [allNodesMap, allNodesFetched, linkTargets]);
 
   // ─── Sync external ref ────────────────────────────────────────
   useEffect(() => {
@@ -488,10 +421,23 @@ export function ASTBlockEditor({
     if (!editorRef.current) return;
     const html = astToHtmlCached(astDoc, renderCtx);
     editorRef.current.innerHTML = html || '<br>';
+
+    // Collect placeholder mount points for NodePill portals
+    const points: MountPoint[] = [];
+    editorRef.current.querySelectorAll('.node-link-mount').forEach((el) => {
+      const linkId = el.getAttribute('data-link-id') || '';
+      const refType = (el.getAttribute('data-ref-type') as 'node' | 'class') || 'node';
+      points.push({ element: el as HTMLElement, linkId, refType });
+    });
+    mountPointsRef.current = points;
+    // Force synchronous re-render with portals to prevent flash
+    flushSync(() => {
+      setMountVersion(v => v + 1);
+    });
   }, [renderCtx]);
 
   // ─── Content sync effect ───────────────────────────────────────
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editorRef.current) return;
 
     // Skip if this is an internal change (user typing)
@@ -529,21 +475,6 @@ export function ASTBlockEditor({
     }
   }, [ast, renderToDOM, pendingSelection]);
 
-  // Re-render when link names become available
-  const resolveMapSize = linkResolveMap.size;
-  useEffect(() => {
-    if (!editorRef.current || !initialCursorApplied.current) return;
-    const editorIsFocused = document.activeElement === editorRef.current;
-    let savedPos: number | undefined;
-    if (editorIsFocused) {
-      savedPos = getCursorPosition(editorRef.current);
-    }
-    renderToDOM(lastASTRef.current);
-    if (savedPos !== undefined && editorIsFocused) {
-      setCursorPosition(editorRef.current, savedPos);
-    }
-  }, [resolveMapSize, renderToDOM]);
-
   // ─── Pending selection restoration ─────────────────────────────
   useLayoutEffect(() => {
     if (!pendingSelection || !editorRef.current) return;
@@ -553,7 +484,42 @@ export function ASTBlockEditor({
       editorRef.current.focus();
     }
 
-    if (pendingSelection.caretX !== undefined) {
+    // Projection mode: use original click coordinates to find cursor position
+    // in the editor's own DOM (which has the correct pill placeholders)
+    if (pendingSelection.clickX !== undefined && pendingSelection.clickY !== undefined) {
+      const x = pendingSelection.clickX;
+      const y = pendingSelection.clickY;
+      let placed = false;
+
+      // Try standard API first (Firefox, newer browsers)
+      if ('caretPositionFromPoint' in document) {
+        const pos = (document as any).caretPositionFromPoint(x, y);
+        if (pos) {
+          const range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+          range.collapse(true);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+          placed = true;
+        }
+      }
+      // Fallback to WebKit API (Chrome, Safari)
+      if (!placed && 'caretRangeFromPoint' in document) {
+        const range = (document as Document).caretRangeFromPoint(x, y);
+        if (range) {
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+          placed = true;
+        }
+      }
+      // If projection failed, fall back to end of content
+      if (!placed) {
+        const contentLen = getContentLength(editorRef.current);
+        setCursorPosition(editorRef.current, contentLen);
+      }
+    } else if (pendingSelection.caretX !== undefined) {
       const contentLen = getContentLength(editorRef.current);
       let targetOffset: number;
       if (pendingSelection.anchorOffset === 0) {
@@ -987,7 +953,10 @@ export function ASTBlockEditor({
       e.preventDefault();
       if (onEnterCreateBlock) {
         const [before, after] = splitAtPosition(lastASTRef.current, cursorPos);
-        onEnterCreateBlock(JSON.stringify(before), JSON.stringify(after));
+        // Convert empty AST arrays to empty string, not "[]"
+        const beforeStr = before.length === 0 ? '' : JSON.stringify(before);
+        const afterStr = after.length === 0 ? '' : JSON.stringify(after);
+        onEnterCreateBlock(beforeStr, afterStr);
       }
       return;
     }
@@ -1008,6 +977,13 @@ export function ASTBlockEditor({
         onDeleteAtEnd();
         return;
       }
+    }
+
+    // ── Ctrl+L: insert/edit link ──
+    if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+      e.preventDefault();
+      handleInsertLink();
+      return;
     }
 
     // ── Ctrl+C with no selection: copy block link ──
@@ -1211,8 +1187,8 @@ export function ASTBlockEditor({
 
     if (trigger.type === 'link') {
       const linkUuid = generateLinkUuid();
-      // Use "nodeId:linkUuid" format so backend can parse the target node ID
-      const compoundLinkId = `${node.id}:${linkUuid}`;
+      // Use "nodeUuid:linkUuid" format for human-readable AST and damage control
+      const compoundLinkId = buildLinkId(node.uuid, linkUuid);
       const result = replaceTriggerWithLink(
         lastASTRef.current,
         trigger.triggerPosition,
@@ -1223,22 +1199,10 @@ export function ASTBlockEditor({
       // Also notify parent about the link
       onLinkPage?.(node);
 
-      // Store optimistic link info so the pill renders immediately
-      const displayText = nodeNameToText(node.name) || 'Untitled';
-      const effectiveIcon = getEffectiveIcon(node, allClasses ?? []);
-      pendingLinksRef.current.set(compoundLinkId, {
-        displayText,
-        targetName: displayText,
-        isTag: false,
-        effectiveIcon: effectiveIcon ?? null,
-        customLabel: null,
-        linkStatus: 'valid',
-      });
-
       commitAST(result.ast, result.cursorOffset);
     } else if (trigger.type === 'tag' && keepInline) {
       const linkUuid = generateLinkUuid();
-      const compoundLinkId = `${node.id}:${linkUuid}`;
+      const compoundLinkId = buildLinkId(node.uuid, linkUuid);
       const result = replaceTriggerWithLink(
         lastASTRef.current,
         trigger.triggerPosition,
@@ -1246,37 +1210,18 @@ export function ASTBlockEditor({
         compoundLinkId,
         'node',
       );
-      // Store optimistic tag link info
-      const displayText = nodeNameToText(node.name) || 'Untitled';
-      pendingLinksRef.current.set(compoundLinkId, {
-        displayText,
-        targetName: displayText,
-        isTag: true,
-        effectiveIcon: null,
-        customLabel: null,
-        linkStatus: 'valid',
-      });
       onAddTag?.(node.id, keepInline, node.name || '');
       commitAST(result.ast, result.cursorOffset);
     } else if (trigger.type === 'type' && keepInline) {
-      const linkId = String(node.id);
+      const linkUuid = generateLinkUuid();
+      const compoundLinkId = buildLinkId(node.uuid, linkUuid);
       const result = replaceTriggerWithLink(
         lastASTRef.current,
         trigger.triggerPosition,
         cursorPos,
-        linkId,
+        compoundLinkId,
         'class',
       );
-      // Store optimistic class link info
-      const displayText = nodeNameToText(node.name) || 'Untitled';
-      pendingLinksRef.current.set(linkId, {
-        displayText,
-        targetName: displayText,
-        isTag: false,
-        effectiveIcon: null,
-        customLabel: null,
-        linkStatus: 'valid',
-      });
       onAddClass?.(node.id, keepInline, node.name || '');
       commitAST(result.ast, result.cursorOffset);
     } else {
@@ -1291,7 +1236,7 @@ export function ASTBlockEditor({
     }
 
     setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, [trigger, commitAST, onAddClass, onAddTag, onLinkPage, allClasses]);
+  }, [trigger, commitAST, onAddClass, onAddTag, onLinkPage]);
 
   const handleCreate = useCallback(async (name: string, keepInline: boolean) => {
     if (!editorRef.current) return;
@@ -1302,7 +1247,7 @@ export function ASTBlockEditor({
       const newPageId = await onCreatePageLink?.(name);
       if (newPageId) {
         const linkUuid = generateLinkUuid();
-        const compoundLinkId = `${newPageId}:${linkUuid}`;
+        const compoundLinkId = buildLinkId(newPageId, linkUuid);
         const result = replaceTriggerWithLink(
           lastASTRef.current,
           trigger.triggerPosition,
@@ -1310,15 +1255,6 @@ export function ASTBlockEditor({
           compoundLinkId,
           'node',
         );
-        // Store optimistic link info for the newly created page
-        pendingLinksRef.current.set(compoundLinkId, {
-          displayText: name || 'Untitled',
-          targetName: name || 'Untitled',
-          isTag: false,
-          effectiveIcon: null,
-          customLabel: null,
-          linkStatus: 'valid',
-        });
         commitAST(result.ast, result.cursorOffset);
       } else {
         const cleaned = removeTriggerText(lastASTRef.current, trigger.triggerPosition, cursorPos);
@@ -1344,7 +1280,7 @@ export function ASTBlockEditor({
     if (!editorRef.current) return;
     const cursorPos = getCursorPosition(editorRef.current);
     const linkUuid = generateLinkUuid();
-    const compoundLinkId = `${_pageId}:${linkUuid}`;
+    const compoundLinkId = buildLinkId(_pageId, linkUuid);
     const result = replaceTriggerWithLink(
       lastASTRef.current,
       trigger.triggerPosition,
@@ -1352,15 +1288,6 @@ export function ASTBlockEditor({
       compoundLinkId,
       'node',
     );
-    // Store optimistic link info for date page
-    pendingLinksRef.current.set(compoundLinkId, {
-      displayText: _pageName || 'Untitled',
-      targetName: _pageName || 'Untitled',
-      isTag: false,
-      effectiveIcon: null,
-      customLabel: null,
-      linkStatus: 'valid',
-    });
     commitAST(result.ast, result.cursorOffset);
     setTrigger(prev => ({ ...prev, isOpen: false }));
   }, [trigger, commitAST]);
@@ -1563,15 +1490,15 @@ export function ASTBlockEditor({
     };
   }, [trigger.isOpen, slashCommand.isOpen]);
 
-  // ─── Link click handler (select the pill) ─────────────────────
+  // ─── Link click handler (select class pills only — node pills use NodePill) ─
   const handleEditorClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly) return;
 
     const target = e.target as HTMLElement;
-    const linkElement = target.closest('.inline-link, .tag-pill, .class-pill') as HTMLElement;
+    // Only handle class pills — node link pills are handled by NodePill via portal
+    const linkElement = target.closest('.class-pill') as HTMLElement;
     if (!linkElement) return;
 
-    // Select the pill element instead of opening a dialog
     e.preventDefault();
     e.stopPropagation();
 
@@ -1584,101 +1511,200 @@ export function ASTBlockEditor({
     }
   }, [readOnly]);
 
-  // ─── Context menu on right-click of link pills ─────────────────
-  const handleEditorContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (readOnly) return;
+  // ─── Portal pill callbacks (remove, color, edit link) ──
 
-    const target = e.target as HTMLElement;
-    const linkElement = target.closest('.inline-link') as HTMLElement;
-    if (!linkElement) return;
+  const handlePillRemove = useCallback((linkId: string) => {
+    const removeLink = (nodes: ASTInlineNode[]): ASTInlineNode[] =>
+      nodes.flatMap(n => {
+        if (n.type === 'node_link' && n.link_id === linkId) {
+          return []; // Remove
+        }
+        if ('children' in n && n.type !== 'node_link') {
+          return [{ ...n, children: removeLink((n as { children: ASTInlineNode[] }).children) } as ASTInlineNode];
+        }
+        return [n];
+      });
 
-    e.preventDefault();
-    e.stopPropagation();
+    const newAST = lastASTRef.current.map(para => ({
+      ...para,
+      children: removeLink(para.children),
+    }));
+    commitAST(normalizeAST(newAST));
+  }, [commitAST]);
 
-    const rawLinkId = linkElement.dataset.linkId;
-    if (!rawLinkId) return;
-
-    // Extract nodeId and UUID from "nodeId:uuid" format
-    const colonIdx = rawLinkId.indexOf(':');
-    const targetNodeIdStr = colonIdx > 0 ? rawLinkId.substring(0, colonIdx) : rawLinkId;
-    const linkUuid = colonIdx > 0 ? rawLinkId.substring(colonIdx + 1) : rawLinkId;
-    const targetNodeId = parseInt(targetNodeIdStr, 10);
-    if (isNaN(targetNodeId)) return;
-
-    // Look up whether the target is a page
-    const targetIsPage = allNodesMap.get(targetNodeId)?.is_page ?? true;
-
-    const rect = linkElement.getBoundingClientRect();
-    setEditorContextMenu({
-      position: { x: rect.left, y: rect.bottom + 4 },
-      linkUuid,
-      targetNodeId,
-      isPage: targetIsPage,
-    });
-  }, [readOnly, allNodesMap]);
-
-  const handleSaveLinkName = useCallback(async (linkUuid: string, newName: string | null) => {
-    try {
-      await updateLinkName(linkUuid, newName);
-      queryClient.invalidateQueries({ queryKey: ['textLinks', nodeId] });
-      setLinkNameDialog(null);
-    } catch (error) {
-      console.error('Failed to update link name:', error);
+  const handlePillColorChange = useCallback((linkId: string, color: string | null) => {
+    const parsed = parseLinkId(linkId);
+    // Resolve target via node_link table (linkTargets map), NOT from AST nodeUuid
+    const targetNodeId = parsed.linkUuid ? linkTargets.get(parsed.linkUuid) : undefined;
+    if (targetNodeId) {
+      updateNode.mutate({ id: targetNodeId, data: { color } });
     }
-  }, [nodeId, queryClient]);
+  }, [updateNode, linkTargets]);
 
-  // Close linkNameDialog on click outside
-  useEffect(() => {
-    if (!linkNameDialog?.isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (linkNameDialogRef.current && !linkNameDialogRef.current.contains(e.target as globalThis.Node)) {
-        setLinkNameDialog(null);
-      }
+  const handlePillEditLink = useCallback((linkId: string, pillRect: DOMRect) => {
+    const parsed = parseLinkId(linkId);
+    const linkUuid = parsed.linkUuid || linkId;
+    const currentName = linkCustomNames.get(linkUuid) || null;
+    // Resolve target via node_link table, NOT from AST nodeUuid
+    const targetNodeId = linkTargets.get(linkUuid) ?? null;
+    setLinkEditorCard({
+      isOpen: true,
+      linkId,
+      linkUuid,
+      currentNodeId: targetNodeId,
+      currentName,
+      position: { top: pillRect.bottom + 4, left: pillRect.left },
+      mode: 'edit',
+    });
+  }, [linkCustomNames, linkTargets]);
+
+  // ── Insert new link (Ctrl+L) ──
+  const handleInsertLink = useCallback(() => {
+    if (!editorRef.current) return;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const editorRect = editorRef.current.getBoundingClientRect();
+
+    // Get selected text if any
+    const selectedText = sel.toString().trim();
+
+    // Check if selected text is a URL
+    const urlRegex = /^https?:\/\/.+/i;
+    const isUrl = urlRegex.test(selectedText);
+
+    // Position below cursor/selection
+    const position = {
+      top: rect.bottom + 4,
+      left: rect.left,
     };
-    document.addEventListener('mousedown', handleClickOutside, true);
-    return () => document.removeEventListener('mousedown', handleClickOutside, true);
-  }, [linkNameDialog?.isOpen]);
 
-  // ─── Editor context menu items ─────────────────────────────────
-  const editorContextMenuItems: ContextMenuItem[] = useMemo(() => {
-    if (!editorContextMenu) return [];
-    const { linkUuid, targetNodeId, isPage: targetIsPage } = editorContextMenu;
-    return [
-      {
-        id: 'open',
-        label: targetIsPage ? 'Open page' : 'Open block',
-        onClick: () => {
-          openNode(targetNodeId, targetIsPage ? 'page' : 'block');
-          setEditorContextMenu(null);
-        },
-      },
-      {
-        id: 'open-sidebar',
-        label: 'Open in sidebar',
-        shortcut: '⇧Click',
-        onClick: () => {
-          addSidebarCard(targetNodeId, targetIsPage ? 'page' : 'block');
-          setEditorContextMenu(null);
-        },
-      },
-      { id: 'sep1', label: '', separator: true },
-      {
-        id: 'custom-label',
-        label: 'Edit link text',
-        onClick: () => {
-          const currentName = linkCustomNames.get(linkUuid) || null;
-          setEditorContextMenu(null);
-          setLinkNameDialog({
-            isOpen: true,
-            linkUuid,
-            currentName,
-            nodeId: nodeId ?? 0,
-            position: { top: editorContextMenu.position.y, left: editorContextMenu.position.x },
+    if (isUrl) {
+      // Open in URL mode with the URL prefilled
+      setLinkEditorCard({
+        isOpen: true,
+        linkId: '',
+        linkUuid: generateLinkUuid(),
+        currentNodeId: null,
+        currentName: null,
+        position,
+        mode: 'create-url',
+        initialUrl: selectedText,
+        initialText: '',
+      });
+    } else {
+      // Open in node mode with selected text as custom label
+      setLinkEditorCard({
+        isOpen: true,
+        linkId: '',
+        linkUuid: generateLinkUuid(),
+        currentNodeId: null,
+        currentName: selectedText || null,
+        position,
+        mode: 'create',
+      });
+    }
+  }, [linkCustomNames, linkTargets]);
+
+  const handleSaveLinkEditor = useCallback(async (linkUuid: string, _newNodeId: number, newNodeUuid: string, newCustomName: string | null) => {
+    try {
+      if (!linkEditorCard) return;
+      const oldLinkId = linkEditorCard.linkId;
+      const oldTargetId = linkEditorCard.currentNodeId;
+
+      // Creating new link
+      if (linkEditorCard.mode === 'create' && editorRef.current) {
+        const newLinkUuid = generateLinkUuid();
+        const newLinkId = buildLinkId(newNodeUuid, newLinkUuid);
+        const sel = window.getSelection();
+        
+        if (sel && !sel.isCollapsed) {
+          // Replace selected text with link
+          const range = sel.getRangeAt(0);
+          const clonedRange = range.cloneRange();
+          clonedRange.collapse(true);
+          const tempSel = window.getSelection();
+          tempSel?.removeAllRanges();
+          tempSel?.addRange(clonedRange);
+          const start = getCursorPosition(editorRef.current);
+          
+          const endRange = range.cloneRange();
+          endRange.collapse(false);
+          tempSel?.removeAllRanges();
+          tempSel?.addRange(endRange);
+          const end = getCursorPosition(editorRef.current);
+          
+          tempSel?.removeAllRanges();
+          tempSel?.addRange(range);
+
+          const actualStart = Math.min(start, end);
+          const actualEnd = Math.max(start, end);
+
+          // Delete selected text and insert link
+          const cleaned = deleteRange(lastASTRef.current, actualStart, actualEnd);
+          const result = insertNodeLink(cleaned, actualStart, newLinkId, 'node');
+          
+          onLinkPage?.({ id: _newNodeId, uuid: newNodeUuid } as Node);
+          commitAST(result.ast, result.cursorOffset);
+        } else {
+          // Insert link at cursor
+          const cursorPos = getCursorPosition(editorRef.current);
+          const result = insertNodeLink(lastASTRef.current, cursorPos, newLinkId, 'node');
+          onLinkPage?.({ id: _newNodeId, uuid: newNodeUuid } as Node);
+          commitAST(result.ast, result.cursorOffset);
+        }
+        
+        // Save custom name if provided
+        if (newCustomName) {
+          await updateLinkName(newLinkUuid, newCustomName);
+        }
+        
+        setLinkEditorCard(null);
+        return;
+      }
+
+      // Editing existing link - node target changed
+      if (_newNodeId !== oldTargetId) {
+        const newLinkUuid = generateLinkUuid();
+        const newLinkId = buildLinkId(newNodeUuid, newLinkUuid);
+
+        const replaceLink = (nodes: ASTInlineNode[]): ASTInlineNode[] =>
+          nodes.map(n => {
+            if (n.type === 'node_link' && n.link_id === oldLinkId) {
+              return { ...n, link_id: newLinkId };
+            }
+            if ('children' in n && n.type !== 'node_link') {
+              return { ...n, children: replaceLink((n as { children: ASTInlineNode[] }).children) } as ASTInlineNode;
+            }
+            return n;
           });
-        },
-      },
-    ];
-  }, [editorContextMenu, linkCustomNames, nodeId, openNode, addSidebarCard]);
+
+        const newAST = lastASTRef.current.map(para => ({
+          ...para,
+          children: replaceLink(para.children),
+        }));
+        // onLinkPage notification (dead code — never provided by callers)
+        onLinkPage?.({ id: _newNodeId, uuid: newNodeUuid } as Node);
+        commitAST(newAST);
+
+        // Save custom name on the new link UUID
+        if (newCustomName) {
+          await updateLinkName(newLinkUuid, newCustomName);
+        }
+      } else {
+        // Same target — just update custom name
+        await updateLinkName(linkUuid, newCustomName);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['textLinks', nodeId] });
+      setLinkEditorCard(null);
+    } catch (error) {
+      console.error('Failed to save link editor:', error);
+    }
+  }, [linkEditorCard, nodeId, queryClient, commitAST, onLinkPage]);
 
   // ─── Render ────────────────────────────────────────────────────
   return (
@@ -1692,7 +1718,6 @@ export function ASTBlockEditor({
         onKeyUp={handleKeyUp}
         onPaste={handlePaste}
         onClick={handleEditorClick}
-        onContextMenu={handleEditorContextMenu}
         onMouseUp={handleMouseUp}
         onCompositionStart={() => { setIsComposing(true); isComposingRef.current = true; }}
         onCompositionEnd={() => {
@@ -1703,6 +1728,28 @@ export function ASTBlockEditor({
         suppressContentEditableWarning
         data-placeholder=""
       />
+
+      {/* Node link pill portals — mount React NodePill into each placeholder */}
+      {mountPointsRef.current.map((mp, i) => {
+        const parsed = parseLinkId(mp.linkId);
+        const customName = parsed.linkUuid ? linkCustomNames.get(parsed.linkUuid) : undefined;
+        // Resolve target via node_link table, NOT from AST nodeUuid
+        const targetNodeId = parsed.linkUuid ? linkTargets.get(parsed.linkUuid) : undefined;
+
+        return createPortal(
+          <NodePill
+            key={`${mountVersion}-${i}`}
+            nodeId={targetNodeId}
+            variant="link"
+            editMode={true}
+            customName={customName ?? null}
+            onEditLink={parsed.linkUuid ? (pillRect: DOMRect) => handlePillEditLink(mp.linkId, pillRect) : undefined}
+            onRemove={() => handlePillRemove(mp.linkId)}
+            onColorChange={(color: string | null) => handlePillColorChange(mp.linkId, color)}
+          />,
+          mp.element,
+        );
+      })}
 
       {!readOnly && (
         <>
@@ -1741,62 +1788,71 @@ export function ASTBlockEditor({
             strikethroughActive={selectionToolbar.activeMarks.has('strikethrough')}
           />
 
-          {linkNameDialog?.isOpen && (
-            <div
-              ref={linkNameDialogRef}
-              className="link-name-dialog"
-              style={{
-                position: 'fixed',
-                top: linkNameDialog.position.top,
-                left: linkNameDialog.position.left,
-                zIndex: 1000,
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-outline)',
-                borderRadius: '8px',
-                padding: '12px',
-                boxShadow: 'var(--elevation-2)',
-                minWidth: '250px',
+          {linkEditorCard?.isOpen && linkEditorCard.mode !== 'create-url' && (
+            <LinkEditorCard
+              mode="node"
+              linkUuid={linkEditorCard.linkUuid}
+              currentNodeId={linkEditorCard.currentNodeId}
+              currentCustomName={linkEditorCard.currentName}
+              position={linkEditorCard.position}
+              onSave={handleSaveLinkEditor}
+              onDelete={() => {
+                if (linkEditorCard.linkId) {
+                  handlePillRemove(linkEditorCard.linkId);
+                }
+                setLinkEditorCard(null);
               }}
-              onClick={e => e.stopPropagation()}
-              onMouseDown={e => e.stopPropagation()}
-              onFocus={e => e.stopPropagation()}
-            >
-              <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-                Edit Link Text
-              </div>
-              <TextField
-                value={linkNameDialog.currentName || ''}
-                onChange={e => setLinkNameDialog({ ...linkNameDialog, currentName: e.target.value })}
-                placeholder="Custom link text (leave empty for node name)"
-                autoFocus
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSaveLinkName(linkNameDialog.linkUuid, linkNameDialog.currentName);
-                  } else if (e.key === 'Escape') {
-                    setLinkNameDialog(null);
-                  }
-                }}
-              />
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
-                <Button variant="ghost" onClick={() => setLinkNameDialog(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => handleSaveLinkName(linkNameDialog.linkUuid, linkNameDialog.currentName)}
-                >
-                  Save
-                </Button>
-              </div>
-            </div>
+              onClose={() => setLinkEditorCard(null)}
+            />
           )}
 
-          {editorContextMenu && (
-            <ContextMenu
-              items={editorContextMenuItems}
-              position={editorContextMenu.position}
-              onClose={() => setEditorContextMenu(null)}
+          {linkEditorCard?.isOpen && linkEditorCard.mode === 'create-url' && (
+            <LinkEditorCard
+              mode="url"
+              currentUrl={linkEditorCard.initialUrl || ''}
+              currentText={linkEditorCard.initialText || ''}
+              position={linkEditorCard.position}
+              onSave={(url, displayText) => {
+                // Insert/wrap external link
+                if (editorRef.current) {
+                  const sel = window.getSelection();
+                  if (sel && !sel.isCollapsed) {
+                    // Wrap selected text in external link
+                    const range = sel.getRangeAt(0);
+                    const clonedRange = range.cloneRange();
+                    clonedRange.collapse(true);
+                    const tempSel = window.getSelection();
+                    tempSel?.removeAllRanges();
+                    tempSel?.addRange(clonedRange);
+                    const start = getCursorPosition(editorRef.current);
+                    
+                    const endRange = range.cloneRange();
+                    endRange.collapse(false);
+                    tempSel?.removeAllRanges();
+                    tempSel?.addRange(endRange);
+                    const end = getCursorPosition(editorRef.current);
+                    
+                    tempSel?.removeAllRanges();
+                    tempSel?.addRange(range);
+
+                    const actualStart = Math.min(start, end);
+                    const actualEnd = Math.max(start, end);
+
+                    const result = wrapInExternalLink(lastASTRef.current, actualStart, actualEnd, url);
+                    commitAST(result.ast, result.end);
+                  } else {
+                    // Insert link text at cursor
+                    const cursorPos = getCursorPosition(editorRef.current);
+                    const textToInsert = displayText || url;
+                    const withText = insertText(lastASTRef.current, cursorPos, textToInsert);
+                    const result = wrapInExternalLink(withText.ast, cursorPos, cursorPos + textToInsert.length, url);
+                    commitAST(result.ast, result.end);
+                  }
+                }
+                setLinkEditorCard(null);
+              }}
+              onDelete={() => setLinkEditorCard(null)}
+              onClose={() => setLinkEditorCard(null)}
             />
           )}
         </>
@@ -1811,6 +1867,7 @@ function isPillEl(el: HTMLElement): boolean {
   return (
     el.classList?.contains('inline-link') ||
     el.classList?.contains('inline-node-link') ||
+    el.classList?.contains('node-link-mount') ||
     el.classList?.contains('link-pill') ||
     el.classList?.contains('class-pill') ||
     el.classList?.contains('tag-pill')

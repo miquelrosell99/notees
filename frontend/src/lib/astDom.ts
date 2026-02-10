@@ -179,44 +179,30 @@ function renderChildren(children: ASTInlineNode[], ctx: ASTRenderContext): strin
 /**
  * Render a node_link as an atomic pill element.
  *
- * For 'node' ref_type: renders as inline-link (a tag) or tag-pill (span)
- * For 'class' ref_type: renders as class-pilll (span)
+ * For 'node' ref_type: emits a placeholder span that will be hydrated
+ *   with a React NodePill component via portal in the editor/display layer.
+ * For 'class' ref_type: renders as class-pill HTML (no portal needed).
  */
 function renderNodeLinkPill(node: ASTNodeLink, ctx: ASTRenderContext): string {
-  const resolved = ctx.resolveLink(node.link_id, node.ref_type);
-  const linkStatus = resolved?.linkStatus ?? (resolved ? 'valid' : 'broken');
-  const displayText = resolved?.displayText ?? '…';
-  const statusAttr = ` data-link-status="${linkStatus}"`;
-  const statusClass = linkStatus !== 'valid' ? ` link-pill--${linkStatus}` : '';
-  const tooltip = linkStatus === 'broken'
-    ? ' title="Link target not found"'
-    : linkStatus === 'cycle'
-      ? ' title="Circular reference detected"'
-      : '';
-
   if (node.ref_type === 'class') {
-    // Type/class pill
+    // Type/class pill — keep as full HTML (resolved inline)
+    const resolved = ctx.resolveLink(node.link_id, node.ref_type);
+    const linkStatus = resolved?.linkStatus ?? (resolved ? 'valid' : 'broken');
+    const displayText = resolved?.displayText ?? '…';
+    const statusAttr = ` data-link-status="${linkStatus}"`;
+    const statusClass = linkStatus !== 'valid' ? ` link-pill--${linkStatus}` : '';
+    const tooltip = linkStatus === 'broken'
+      ? ' title="Link target not found"'
+      : linkStatus === 'cycle'
+        ? ' title="Circular reference detected"'
+        : '';
     const iconHtml = renderTagIcon();
     return `<span class="class-pill${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="class"${statusAttr}${tooltip}>${iconHtml}<span class="class-pill__text">${escapeHtml(displayText)}</span></span>`;
   }
 
-  // Node ref - could be a tag or regular link
-  if (resolved?.isTag) {
-    const iconHtml = renderTagIcon();
-    return `<span class="tag-pill${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node" data-is-tag="true"${statusAttr}${tooltip}>${iconHtml}<span class="tag-pill__text">${escapeHtml(displayText)}</span></span>`;
-  }
-
-  // Regular inline link — show wiki-link syntax in edit mode
-  const targetName = resolved?.targetName ?? displayText;
-  let linkText: string;
-  if (resolved?.customLabel) {
-    // Custom label: [label]([[target]])
-    linkText = `[${resolved.customLabel}]([[${targetName}]])`;
-  } else {
-    // No custom label: [[target]]
-    linkText = `[[${displayText}]]`;
-  }
-  return `<a class="inline-link${statusClass}" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node"${statusAttr}${tooltip}>${escapeHtml(linkText)}</a>`;
+  // All ref_type='node' links (regular pages, blocks, tags) → placeholder span.
+  // The React layer mounts a NodePill component into this span via portal.
+  return `<span class="node-link-mount" contenteditable="false" data-ast="node_link" data-link-id="${escapeAttr(node.link_id)}" data-ref-type="node"></span>`;
 }
 
 /**
@@ -295,7 +281,7 @@ function extractInlineNodes(element: HTMLElement | ChildNode): ASTInlineNode[] {
     }
 
     // Check for inline-link class (atomic pill without data-ast, e.g. after paste)
-    if (el.classList.contains('inline-link') || el.classList.contains('tag-pill') || el.classList.contains('class-pill')) {
+    if (el.classList.contains('inline-link') || el.classList.contains('node-link-mount') || el.classList.contains('tag-pill') || el.classList.contains('class-pill')) {
       const linkId = el.dataset.linkId || '';
       const refType = (el.dataset.refType as 'node' | 'class') || (el.classList.contains('class-pill') ? 'class' : 'node');
       if (linkId) {
@@ -451,7 +437,16 @@ function getOffsetInElement(
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       // Atomic pill — count as 1 character
+      // Important: don't recurse into pill children (React portal content)
       if (isPillElement(el)) {
+        // Check if target is inside this pill (e.g., inside portal content)
+        if (el.contains(targetContainer as Node)) {
+          // Target is inside pill content — count pill as 1 and mark found
+          position += 1;
+          found = true;
+          return true;
+        }
+        // Target is not inside — just count and continue
         position += 1;
         return false;
       }
@@ -553,8 +548,9 @@ function findDOMPosition(
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
 
-      // Atomic pill
+      // Atomic pill (including node-link-mount placeholders with portal content)
       if (isPillElement(el)) {
+        // For node-link-mount, count the portal content as 1 character
         if (currentPos + 1 >= targetPosition) {
           // Position after this pill — find next text node
           const next = el.nextSibling;
@@ -603,6 +599,7 @@ function isPillElement(el: HTMLElement): boolean {
   return (
     el.dataset.ast === 'node_link' ||
     el.classList.contains('inline-link') ||
+    el.classList.contains('node-link-mount') ||
     el.classList.contains('tag-pill') ||
     el.classList.contains('class-pill') ||
     el.classList.contains('link-pill')
