@@ -18,18 +18,35 @@
   background: transparent;
   border-bottom: 1px solid var(--color-outline-variant);
   padding-bottom: 2rem;
+  position: relative;
+}
+
+/* Colored journal entry background */
+.journal-entry--colored {
+  /* Border gradient similar to has-page-color */
+  border-left: 6px solid transparent;
+  border-image: linear-gradient(
+    to right,
+    var(--node-border-solid) 0%,
+    var(--node-border-solid) 33%,
+    var(--node-border-halo) 33%,
+    var(--node-border-halo) 100%
+  ) 1;
+  
+  /* Subtle background tint */
+  background: linear-gradient(
+    to right,
+    var(--node-tint) 0%,
+    var(--node-tint) 100%
+  );
+  
+  /* Add padding for left border */
+  padding-left: var(--spacing-3);
+  margin-left: calc(-1 * var(--spacing-3) - 6px);
 }
 
 .journal-entry:last-child {
   border-bottom: none;
-}
-
-.journal-entry.loading {
-  opacity: 0.5;
-  min-height: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .journal-entry.loading {

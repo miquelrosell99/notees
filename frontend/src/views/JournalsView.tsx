@@ -4,12 +4,13 @@
  * Only shows pages that already exist, does not create new ones.
  * Uses NodeView component for each daily page for consistent editing experience.
  */
-import { useState, useMemo } from 'react';
-import { useExistingDailyPages } from '@/hooks';
+import { useState, useMemo, useEffect } from 'react';
+import { useExistingDailyPages, useNode } from '@/hooks';
 import './JournalsView.css';
 import { useNodesStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
+import { getNodeColorStyles } from '@/utils/color';
 
 interface JournalEntryProps {
   dailyPageId: number;
@@ -17,12 +18,31 @@ interface JournalEntryProps {
 
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
   const { viewMode } = useNodesStore();
+  const { data: page } = useNode(dailyPageId);
+  const [isDarkMode, setIsDarkMode] = useState(() => 
+    document.documentElement.getAttribute('data-theme') === 'dark'
+  );
   
-  // NodeViewContent handles its own data fetching — no need to pre-fetch here.
-  // Previously this called useNode(dailyPageId, { include_children: true }) which
-  // created a duplicate request (different query key than what NodeView uses).
+  // Listen for theme changes
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.getAttribute('data-theme') === 'dark');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  
+  // Get color style if page has a color
+  const colorStyle = useMemo(() => {
+    if (!page?.color) return undefined;
+    return getNodeColorStyles(page.color, isDarkMode);
+  }, [page?.color, isDarkMode]);
+  
   return (
-    <article className="journal-entry">
+    <article 
+      className={`journal-entry${colorStyle ? ' journal-entry--colored' : ''}`}
+      style={colorStyle}
+    >
       <NodeViewContent 
         nodeId={dailyPageId} 
         nodeType="page" 
