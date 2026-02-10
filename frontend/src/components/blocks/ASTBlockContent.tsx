@@ -15,7 +15,7 @@
  *   - hard_break → <br>
  */
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLinkClicks, useNode, useTextLinks, useTrackLinkClick, useUpdateNode } from '@/hooks';
 import { useNodesStore } from '@/stores';
@@ -196,23 +196,6 @@ export function ASTBlockContent({
     updateNode.mutate({ id: nodeId, data: { color } });
   }, [updateNode]);
 
-  // Unified link editor handler
-  const handleEditLink = useCallback((linkId: string, pillRect: DOMRect) => {
-    const parsed = parseLinkId(linkId);
-    const linkUuid = parsed.linkUuid || linkId;
-    const currentName = linkCustomNames.get(linkUuid) || null;
-    // Resolve target via node_link table, NOT from AST nodeUuid
-    const targetNodeId = linkTargets.get(linkUuid) ?? null;
-    setLinkEditorCard({
-      isOpen: true,
-      linkId,
-      linkUuid,
-      currentNodeId: targetNodeId,
-      currentName,
-      position: { top: pillRect.bottom + 4, left: pillRect.left },
-    });
-  }, [linkCustomNames, linkTargets]);
-
   const handleSaveLinkEditor = useCallback(async (linkUuid: string, newNodeId: number, newNodeUuid: string, newCustomName: string | null) => {
     try {
       if (!linkEditorCard) return;
@@ -239,6 +222,33 @@ export function ASTBlockContent({
     }
   }, [linkEditorCard, blockId, queryClient, onReplaceLink]);
 
+  const contentRef = useRef<HTMLSpanElement>(null);
+
+  // Unified link editor handler
+  const handleEditLink = useCallback((linkId: string, pillRect: DOMRect) => {
+    const parsed = parseLinkId(linkId);
+    const linkUuid = parsed.linkUuid || linkId;
+    const currentName = linkCustomNames.get(linkUuid) || null;
+    // Resolve target via node_link table, NOT from AST nodeUuid
+    const targetNodeId = linkTargets.get(linkUuid) ?? null;
+    // Compute position relative to the content container (absolute positioning)
+    const containerRect = contentRef.current?.getBoundingClientRect();
+    const top = containerRect
+      ? pillRect.bottom - containerRect.top + 4
+      : pillRect.bottom + 4;
+    const left = containerRect
+      ? pillRect.left - containerRect.left
+      : pillRect.left;
+    setLinkEditorCard({
+      isOpen: true,
+      linkId,
+      linkUuid,
+      currentNodeId: targetNodeId,
+      currentName,
+      position: { top, left },
+    });
+  }, [linkCustomNames, linkTargets]);
+
   // ─── Check if plain text (no AST needed) ──────────────────────
   if (ast.length === 0) {
     return <span className={`block-content ${className}`} onClick={onClick} />;
@@ -254,23 +264,21 @@ export function ASTBlockContent({
 
   // ─── Render AST nodes as React elements ────────────────────────
   return (
-    <>
-      <span className={`block-content ${className}`} onClick={onClick}>
-        {ast.map((para, pIdx) => (
-          <RenderParagraph
-            key={pIdx}
-            paragraph={para}
-            paragraphIndex={pIdx}
-            clickCounts={clickCounts}
-            linkCustomNames={linkCustomNames}
-            linkTargets={linkTargets}
-            onNavigate={handleNavigate}
-            onColorChange={handleColorChange}
-            onRemoveLink={linkId => onRemoveLink?.(linkId)}
-            onEditLink={handleEditLink}
-          />
-        ))}
-      </span>
+    <span ref={contentRef} className={`block-content ${className}`} style={{ position: 'relative' }} onClick={onClick}>
+      {ast.map((para, pIdx) => (
+        <RenderParagraph
+          key={pIdx}
+          paragraph={para}
+          paragraphIndex={pIdx}
+          clickCounts={clickCounts}
+          linkCustomNames={linkCustomNames}
+          linkTargets={linkTargets}
+          onNavigate={handleNavigate}
+          onColorChange={handleColorChange}
+          onRemoveLink={linkId => onRemoveLink?.(linkId)}
+          onEditLink={handleEditLink}
+        />
+      ))}
 
       {linkEditorCard?.isOpen && (
         <LinkEditorCard
@@ -289,7 +297,7 @@ export function ASTBlockContent({
           onClose={() => setLinkEditorCard(null)}
         />
       )}
-    </>
+    </span>
   );
 }
 

@@ -23,6 +23,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     icon: <LinkIcon size="sm" />,
   },
   {
+    id: 'url',
+    label: 'Add URL',
+    description: 'Add a URL link to external website',
+    icon: <LinkIcon size="sm" />,
+  },
+  {
     id: 'type',
     label: 'Add Class',
     description: 'Add a class to this block @',

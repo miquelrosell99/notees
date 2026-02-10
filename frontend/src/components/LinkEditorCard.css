@@ -102,7 +102,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: var(--spacing-1);
+  gap: var(--spacing-2);
+}
+
+.link-editor-card__footer-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
 }
 
 .link-editor-card__delete-btn {
@@ -123,10 +129,4 @@
 .link-editor-card__delete-btn:hover {
   background: color-mix(in srgb, var(--color-error) 12%, transparent);
   color: var(--color-error);
-}
-
-.link-editor-card__actions {
-  display: flex;
-  gap: var(--spacing-2);
-  justify-content: flex-end;
 }
