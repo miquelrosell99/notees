@@ -183,11 +183,11 @@ export function NodePill({
           label: 'Replace',
           onClick: () => {
             handleCloseContextMenu();
-            // Position popup below the pill
+            // Position popup at the pill position
             if (pillRef.current) {
               const rect = pillRef.current.getBoundingClientRect();
               setReplacePopupPos({
-                top: rect.bottom + 4,
+                top: rect.top,
                 left: rect.left,
               });
             }
