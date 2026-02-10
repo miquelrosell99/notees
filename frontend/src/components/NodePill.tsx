@@ -226,12 +226,15 @@ export function NodePill({
 
   // Handler for replace popup selection
   const handleReplaceSelect = useCallback((newNode: Node) => {
+    // Blur before unmounting to prevent focus returning to block content
+    (document.activeElement as HTMLElement)?.blur();
     onReplace?.(newNode);
     setShowReplacePopup(false);
   }, [onReplace]);
 
   // Handler to close replace popup
   const handleCloseReplacePopup = useCallback(() => {
+    (document.activeElement as HTMLElement)?.blur();
     setShowReplacePopup(false);
   }, []);
 

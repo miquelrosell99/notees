@@ -323,6 +323,8 @@ export function SuggestionPopup({
         zIndex: 1000,
       }}
       onFocus={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="suggestion-popup__header">
         {headerText ? (
