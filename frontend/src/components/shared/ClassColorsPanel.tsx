@@ -46,9 +46,11 @@ export function ClassColorsPanel({
   onChange,
 }: ClassColorsPanelProps) {
   const addClassColor = (classNode: Node) => {
+    const converted = nodeNameToText(classNode.name);
+    console.log('[ClassColorsPanel] addClassColor:', { rawName: classNode.name, converted, type: typeof classNode.name });
     const newClassColor: ClassColor = {
       typeId: classNode.id,
-      className: nodeNameToText(classNode.name) || 'Untitled',
+      className: converted || 'Untitled',
       color: defaultColors[classColors.length % defaultColors.length],
       order: classColors.length,
     };
@@ -100,9 +102,12 @@ export function ClassColorsPanel({
             items={classColors.map(cc => ({ id: cc.typeId, ...cc }))}
             onReorder={moveClassColor}
             itemClassName="class-color-item"
-            renderText={(item) => (
-              <span className="class-name">{item.className}</span>
-            )}
+            renderText={(item) => {
+              console.log('[ClassColorsPanel] renderText:', { className: item.className, type: typeof item.className });
+              return (
+                <span className="class-name">{item.className}</span>
+              );
+            }}
             renderActions={(item) => [
               <ColorButton
                 key="color"
