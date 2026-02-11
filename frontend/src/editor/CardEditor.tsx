@@ -30,6 +30,7 @@ import { FormattingPlugin } from './plugins/FormattingPlugin';
 import { SlashCommandPlugin, type TriggerType } from './plugins/SlashCommandPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
+import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import type { ContentAST } from '../runtime/types';
@@ -225,6 +226,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onNavigateToNode={onNavigateToNode}
           onOpenInSidebar={onOpenInSidebar}
         />
+        <BlurOnClickOutsidePlugin readOnly={readOnly} />
       </LexicalComposer>
     </div>
   );

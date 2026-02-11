@@ -163,11 +163,34 @@ export function BlockDragSelectionPlugin({
     rootEl.addEventListener('mouseup', handleMouseUp);
     rootEl.addEventListener('mouseleave', handleMouseLeave);
 
+    // Document-level click: clear block selection when clicking outside selected blocks
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      // Skip if no selection to clear
+      if (selectedBlocks.current.size === 0) return;
+      
+      const target = e.target as HTMLElement;
+      
+      // Check if click is inside a selected block — if so, don't clear
+      const clickedBlock = target.closest('[data-block-id]') as HTMLElement | null;
+      if (clickedBlock) {
+        const blockId = clickedBlock.getAttribute('data-block-id');
+        if (blockId && selectedBlocks.current.has(blockId)) return;
+      }
+      
+      // Click is outside all selected blocks — clear selection
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      onSelectionChange?.([]);
+    };
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+
     return () => {
       rootEl.removeEventListener('mousedown', handleMouseDown);
       rootEl.removeEventListener('mousemove', handleMouseMove);
       rootEl.removeEventListener('mouseup', handleMouseUp);
       rootEl.removeEventListener('mouseleave', handleMouseLeave);
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
     };
   }, [editor, readOnly, onSelectionChange]);
 
