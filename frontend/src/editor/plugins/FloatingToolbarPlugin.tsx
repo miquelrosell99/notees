@@ -12,6 +12,10 @@ import {
   type TextFormatType,
 } from 'lexical';
 import { createPortal } from 'react-dom';
+import { mdiFormatBold, mdiFormatItalic, mdiFormatUnderline, mdiFormatStrikethrough, mdiCodeTags } from '@mdi/js';
+import { Card } from '../../components/core/Card';
+import { Button } from '../../components/core/Button';
+import '../../components/core/FloatingToolbar.css';
 
 export interface FloatingToolbarPluginProps {
   anchorElement?: HTMLElement;
@@ -94,50 +98,65 @@ export function FloatingToolbarPlugin({
         left: position.left,
         transform: 'translateX(-50%)',
         zIndex: 1000,
+        pointerEvents: 'auto',
       }}
     >
-      <div className="floating-toolbar-inner">
-        <button
-          className={`floating-toolbar-btn ${activeFormats.has('bold') ? 'active' : ''}`}
-          onClick={() => handleFormat('bold')}
-          title="Bold (Ctrl+B)"
-          type="button"
-        >
-          <strong>B</strong>
-        </button>
-        <button
-          className={`floating-toolbar-btn ${activeFormats.has('italic') ? 'active' : ''}`}
-          onClick={() => handleFormat('italic')}
-          title="Italic (Ctrl+I)"
-          type="button"
-        >
-          <em>I</em>
-        </button>
-        <button
-          className={`floating-toolbar-btn ${activeFormats.has('underline') ? 'active' : ''}`}
-          onClick={() => handleFormat('underline')}
-          title="Underline (Ctrl+U)"
-          type="button"
-        >
-          <u>U</u>
-        </button>
-        <button
-          className={`floating-toolbar-btn ${activeFormats.has('strikethrough') ? 'active' : ''}`}
-          onClick={() => handleFormat('strikethrough')}
-          title="Strikethrough (Ctrl+Shift+D)"
-          type="button"
-        >
-          <s>S</s>
-        </button>
-        <button
-          className={`floating-toolbar-btn ${activeFormats.has('code') ? 'active' : ''}`}
-          onClick={() => handleFormat('code')}
-          title="Code (Ctrl+E)"
-          type="button"
-        >
-          {'</>'}
-        </button>
-      </div>
+      <Card
+        elevation="high"
+        variant="default"
+        padding={true}
+        paddingSize="sm"
+        radius="md"
+        className="floating-toolbar__card"
+      >
+        <div className="floating-toolbar__actions">
+          <Button
+            icon={mdiFormatBold}
+            variant="ghost"
+            size="sm"
+            title="Bold (Ctrl+B)"
+            active={activeFormats.has('bold')}
+            onClick={() => handleFormat('bold')}
+            className="floating-toolbar__button"
+          />
+          <Button
+            icon={mdiFormatItalic}
+            variant="ghost"
+            size="sm"
+            title="Italic (Ctrl+I)"
+            active={activeFormats.has('italic')}
+            onClick={() => handleFormat('italic')}
+            className="floating-toolbar__button"
+          />
+          <Button
+            icon={mdiFormatUnderline}
+            variant="ghost"
+            size="sm"
+            title="Underline (Ctrl+U)"
+            active={activeFormats.has('underline')}
+            onClick={() => handleFormat('underline')}
+            className="floating-toolbar__button"
+          />
+          <Button
+            icon={mdiFormatStrikethrough}
+            variant="ghost"
+            size="sm"
+            title="Strikethrough (Ctrl+Shift+D)"
+            active={activeFormats.has('strikethrough')}
+            onClick={() => handleFormat('strikethrough')}
+            className="floating-toolbar__button"
+          />
+          <Button
+            icon={mdiCodeTags}
+            variant="ghost"
+            size="sm"
+            title="Code (Ctrl+E)"
+            active={activeFormats.has('code')}
+            onClick={() => handleFormat('code')}
+            className="floating-toolbar__button"
+          />
+        </div>
+      </Card>
     </div>
   );
 
