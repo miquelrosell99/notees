@@ -1565,6 +1565,53 @@ export function ASTBlockEditor({
     // No special link handling needed in the editor click handler
   }, [readOnly]);
 
+  // ─── External link context menu (right-click to edit URL) ─
+  const handleEditorContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+
+    // Walk up from target to find an <a class="external-link"> element
+    let target = e.target as HTMLElement | null;
+    let linkEl: HTMLAnchorElement | null = null;
+    while (target && target !== editorRef.current) {
+      if (target.tagName === 'A' && target.classList.contains('external-link')) {
+        linkEl = target as HTMLAnchorElement;
+        break;
+      }
+      target = target.parentElement;
+    }
+    if (!linkEl || !editorRef.current) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Compute AST offset range of this <a> element
+    const startOffset = getOffsetInElement(editorRef.current, linkEl, 0);
+    const endOffset = startOffset + (linkEl.textContent?.replace(/\u200B/g, '').length ?? 0);
+
+    const currentUrl = linkEl.dataset.url || linkEl.getAttribute('href') || '';
+    const currentText = linkEl.textContent?.replace(/\u200B/g, '') || '';
+
+    const linkRect = linkEl.getBoundingClientRect();
+    const editorRect = editorRef.current.getBoundingClientRect();
+
+    setLinkEditorCard({
+      isOpen: true,
+      linkId: '',
+      linkUuid: '',
+      currentNodeId: null,
+      currentName: null,
+      position: {
+        top: linkRect.bottom - editorRect.top + 4,
+        left: linkRect.left - editorRect.left,
+      },
+      mode: 'create-url',
+      initialUrl: currentUrl,
+      initialText: currentText,
+      selectionStart: startOffset,
+      selectionEnd: endOffset,
+    });
+  }, [readOnly]);
+
   // ─── Portal pill callbacks (remove, color, edit link) ──
 
   const handlePillRemove = useCallback((linkId: string) => {
@@ -1793,6 +1840,7 @@ export function ASTBlockEditor({
         onKeyUp={handleKeyUp}
         onPaste={handlePaste}
         onClick={handleEditorClick}
+        onContextMenu={handleEditorContextMenu}
         onMouseUp={handleMouseUp}
         onCompositionStart={() => { setIsComposing(true); isComposingRef.current = true; }}
         onCompositionEnd={() => {
@@ -1922,7 +1970,19 @@ export function ASTBlockEditor({
                 }
                 setLinkEditorCard(null);
               }}
-              onDelete={() => setLinkEditorCard(null)}
+              onDelete={() => {
+                // If editing an existing external link, unwrap it (remove link, keep text)
+                if (editorRef.current && linkEditorCard?.selectionStart !== undefined && linkEditorCard?.selectionEnd !== undefined) {
+                  const result = wrapInExternalLink(
+                    lastASTRef.current,
+                    linkEditorCard.selectionStart,
+                    linkEditorCard.selectionEnd,
+                    '' // empty URL = unwrap
+                  );
+                  commitAST(result.ast, result.end);
+                }
+                setLinkEditorCard(null);
+              }}
               onClose={() => setLinkEditorCard(null)}
               onModeToggle={(mode) => {
                 // Switch to node mode, preserve position and state  

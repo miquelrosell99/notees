@@ -366,7 +366,7 @@ function RenderInlineNode({
       return (
         <NodePillWithStatus
           nodeId={targetNodeId}
-          clickCount={clickCounts.get(node.link_id) ?? 0}
+          clickCount={targetNodeId !== undefined ? (clickCounts.get(String(targetNodeId)) ?? 0) : 0}
           customName={customName}
           linkId={node.link_id}
           refType={node.ref_type}
