@@ -224,15 +224,22 @@
 .sidebar-favorites-list {
   padding-top: 0;
   padding-left: var(--spacing-2);
+  position: relative;
+}
+
+.sidebar-favorites-list.dragging {
+  user-select: none;
 }
 
 .sidebar-favorite-item {
   display: flex;
   align-items: center;
   padding: 0;
-  cursor: grab;
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  position: relative;
+  will-change: transform;
+  cursor: pointer;
 }
 
 .sidebar-favorite-item:hover {
@@ -243,13 +250,55 @@
   background: var(--color-primary-container);
 }
 
-.sidebar-favorite-item:active {
+.sidebar-favorite-item.dragging {
+  background: var(--color-surface-container-high);
+  box-shadow: var(--elevation-2);
+  opacity: 0.95;
+  z-index: 100;
+}
+
+/* Drag handle for favorites */
+.sidebar-drag-handle {
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  cursor: grab;
+  padding: var(--spacing-1);
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0.5;
+  transition: opacity var(--motion-duration-short);
+}
+
+.sidebar-favorite-item:hover .sidebar-drag-handle {
+  opacity: 1;
+}
+
+.sidebar-drag-handle:active {
   cursor: grabbing;
 }
 
-.sidebar-favorite-item.drag-over {
-  background: var(--color-primary-container);
-  opacity: 0.5;
+.sidebar-drag-handle:hover {
+  color: var(--color-on-surface);
+}
+
+/* Block container within favorite item */
+.sidebar-favorite-block {
+  flex: 1;
+  min-width: 0;
+  pointer-events: none;
+}
+
+/* Remove button */
+.sidebar-favorite-remove {
+  opacity: 0;
+  transition: opacity var(--motion-duration-short);
+}
+
+.sidebar-favorite-item:hover .sidebar-favorite-remove {
+  opacity: 1;
 }
 
 /* Block component styling within sidebar items */
