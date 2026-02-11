@@ -59,12 +59,13 @@ import { CodeBlock } from './CodeBlock';
 import { QueryNodeCollection } from '../nodes/QueryNodeCollection';
 import { PropertiesSection } from '../PropertiesSection';
 import { ImageNode } from '../ImageNode';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import type { ASTInlineNode } from '@/types/ast';
 import { replaceNodeLink } from '@/lib/astMutations';
 import { deleteAsset } from '@/api/assets';
 import { useSystemClasses } from '@/hooks/useNodes';
 import { findNodeById } from '@/utils/nodeTree';
-import { useInlineClassIds } from '@/hooks/useInlineClasses';
+
 import './Block.css';
 
 // ==================== Block Component ====================
@@ -346,15 +347,45 @@ function BlockInternal({
   
   // Resolve class details from IDs (excluding the implicit "page" class)
   const blockClassDetails = useResolvedClassDetails(block.classes, { skipNodesFallback: true });
+  const { data: allClasses } = useClasses();
   
-  // Extract inline class IDs from the backend node_link table (is_inline_class=true)
-  // This is the canonical source — AST link_ids use UUID format and can't be parsed for numeric IDs
-  const inlineClassIds = useInlineClassIds(block.id);
-  
-  // Filter out inline classes from the class pills display
+  // Extract inline class UUIDs directly from the block's AST content
+  // This avoids a per-block API call and reacts instantly to content changes
   const displayClassDetails = useMemo(() => {
+    if (blockClassDetails.length === 0) return blockClassDetails;
+    
+    // Collect class ref UUIDs from AST
+    const inlineClassUuids = new Set<string>();
+    try {
+      const ast = parseAST(block.name);
+      const collectClassRefs = (nodes: ASTInlineNode[]) => {
+        for (const node of nodes) {
+          if (node.type === 'node_link' && node.ref_type === 'class') {
+            const { nodeUuid } = parseLinkId(node.link_id);
+            inlineClassUuids.add(nodeUuid);
+          } else if ('children' in node) {
+            collectClassRefs((node as { children: ASTInlineNode[] }).children);
+          }
+        }
+      };
+      for (const para of ast) {
+        collectClassRefs(para.children);
+      }
+    } catch {
+      // If AST parsing fails, show all class pills
+    }
+    
+    if (inlineClassUuids.size === 0) return blockClassDetails;
+    
+    // Map UUIDs to numeric IDs via allClasses lookup
+    const inlineClassIds = new Set<number>();
+    for (const uuid of inlineClassUuids) {
+      const cls = allClasses?.find(c => c.uuid === uuid);
+      if (cls) inlineClassIds.add(cls.id);
+    }
+    
     return blockClassDetails.filter(classNode => !inlineClassIds.has(classNode.id));
-  }, [blockClassDetails, inlineClassIds]);
+  }, [blockClassDetails, block.name, allClasses]);
   
   // Determine the icon to show on the bullet
   // Priority: block's own icon > first class's icon
