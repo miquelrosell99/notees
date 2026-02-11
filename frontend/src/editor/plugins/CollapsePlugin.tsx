@@ -27,26 +27,34 @@ export function CollapsePlugin(): null {
     return editor.registerCommand(
       KEY_ARROW_LEFT_COMMAND,
       (event) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
-        if (!selection.isCollapsed()) return false;
+        let blockIdToCollapse: string | null = null;
 
-        const anchor = selection.anchor;
-        if (anchor.offset !== 0) return false;
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          if (!selection.isCollapsed()) return;
 
-        const anchorNode = anchor.getNode();
-        let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
-        while (blockNode && !$isNodeBlockNode(blockNode)) {
-          blockNode = blockNode.getParent();
-        }
+          const anchor = selection.anchor;
+          if (anchor.offset !== 0) return;
 
-        if (!blockNode || !$isNodeBlockNode(blockNode)) return false;
-        if (!blockNode.getHasChildren()) return false;
-        if (blockNode.getCollapsed()) return false;
+          const anchorNode = anchor.getNode();
+          let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
+          while (blockNode && !$isNodeBlockNode(blockNode)) {
+            blockNode = blockNode.getParent();
+          }
+
+          if (!blockNode || !$isNodeBlockNode(blockNode)) return;
+          if (!blockNode.getHasChildren()) return;
+          if (blockNode.getCollapsed()) return;
+
+          blockIdToCollapse = blockNode.getBlockId();
+        });
+
+        if (!blockIdToCollapse) return false;
 
         event?.preventDefault();
         const runtime = getNodeGraphRuntime();
-        runtime.applyIntent({ type: 'set_collapsed', blockId: blockNode.getBlockId(), collapsed: true });
+        runtime.applyIntent({ type: 'set_collapsed', blockId: blockIdToCollapse, collapsed: true });
         return true;
       },
       COMMAND_PRIORITY_HIGH,
@@ -59,27 +67,35 @@ export function CollapsePlugin(): null {
     return editor.registerCommand(
       KEY_ARROW_RIGHT_COMMAND,
       (event) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
-        if (!selection.isCollapsed()) return false;
+        let blockIdToExpand: string | null = null;
 
-        const anchorNode = selection.anchor.getNode();
-        let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
-        while (blockNode && !$isNodeBlockNode(blockNode)) {
-          blockNode = blockNode.getParent();
-        }
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          if (!selection.isCollapsed()) return;
 
-        if (!blockNode || !$isNodeBlockNode(blockNode)) return false;
-        if (!blockNode.getHasChildren()) return false;
-        if (!blockNode.getCollapsed()) return false;
+          const anchorNode = selection.anchor.getNode();
+          let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
+          while (blockNode && !$isNodeBlockNode(blockNode)) {
+            blockNode = blockNode.getParent();
+          }
 
-        // Check if at end of content
-        const textContent = blockNode.getTextContent();
-        if (selection.anchor.offset < textContent.length) return false;
+          if (!blockNode || !$isNodeBlockNode(blockNode)) return;
+          if (!blockNode.getHasChildren()) return;
+          if (!blockNode.getCollapsed()) return;
+
+          // Check if at end of content
+          const textContent = blockNode.getTextContent();
+          if (selection.anchor.offset < textContent.length) return;
+
+          blockIdToExpand = blockNode.getBlockId();
+        });
+
+        if (!blockIdToExpand) return false;
 
         event?.preventDefault();
         const runtime = getNodeGraphRuntime();
-        runtime.applyIntent({ type: 'set_collapsed', blockId: blockNode.getBlockId(), collapsed: false });
+        runtime.applyIntent({ type: 'set_collapsed', blockId: blockIdToExpand, collapsed: false });
         return true;
       },
       COMMAND_PRIORITY_HIGH,

@@ -187,6 +187,53 @@ export class NodeBlockNode extends ElementNode {
     if (this.__color) {
       dom.style.setProperty('--node-block-color', this.__color);
     }
+    if (this.__hasChildren) {
+      dom.classList.add('node-block--has-children');
+    }
+
+    // Create bullet wrapper
+    const bullet = document.createElement('div');
+    bullet.className = 'node-block-bullet';
+    bullet.dataset.blockId = this.__blockId;
+    bullet.draggable = true;
+    
+    // Prevent text selection when mousedown on bullet
+    bullet.addEventListener('mousedown', (e: MouseEvent) => {
+      e.preventDefault();
+    });
+    
+    // Collapse arrow (hidden by default, shown on hover when has children)
+    const collapseArrow = document.createElement('button');
+    collapseArrow.className = 'node-block-collapse-arrow';
+    collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
+    collapseArrow.innerHTML = this.__collapsed
+      ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
+    bullet.appendChild(collapseArrow);
+
+    // Bullet container
+    const bulletContainer = document.createElement('span');
+    bulletContainer.className = 'node-block-bullet-container';
+    
+    // Outer ring (for collapsed state or hover)
+    const outerRing = document.createElement('span');
+    outerRing.className = 'node-block-outer-ring';
+    bulletContainer.appendChild(outerRing);
+    
+    // Bullet dot or icon
+    if (this.__icon) {
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'node-block-icon';
+      iconSpan.textContent = this.__icon;
+      bulletContainer.appendChild(iconSpan);
+    } else {
+      const dot = document.createElement('span');
+      dot.className = 'node-block-dot';
+      bulletContainer.appendChild(dot);
+    }
+    
+    bullet.appendChild(bulletContainer);
+    dom.appendChild(bullet);
 
     return dom;
   }
@@ -201,6 +248,14 @@ export class NodeBlockNode extends ElementNode {
     // Update collapsed
     if (prevNode.__collapsed !== this.__collapsed) {
       dom.classList.toggle('node-block--collapsed', this.__collapsed);
+      // Update collapse arrow icon
+      const collapseArrow = dom.querySelector('.node-block-collapse-arrow');
+      if (collapseArrow) {
+        collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
+        collapseArrow.innerHTML = this.__collapsed
+          ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
+      }
     }
 
     // Update node type
@@ -209,12 +264,41 @@ export class NodeBlockNode extends ElementNode {
       dom.classList.add(`node-block--${this.__nodeType}`);
     }
 
+    // Update hasChildren
+    if (prevNode.__hasChildren !== this.__hasChildren) {
+      dom.classList.toggle('node-block--has-children', this.__hasChildren);
+    }
+
     // Update color
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
         dom.style.setProperty('--node-block-color', this.__color);
       } else {
         dom.style.removeProperty('--node-block-color');
+      }
+    }
+
+    // Update icon
+    if (prevNode.__icon !== this.__icon) {
+      const bulletContainer = dom.querySelector('.node-block-bullet-container');
+      if (bulletContainer) {
+        // Remove old dot/icon
+        const oldDot = bulletContainer.querySelector('.node-block-dot');
+        const oldIcon = bulletContainer.querySelector('.node-block-icon');
+        if (oldDot) oldDot.remove();
+        if (oldIcon) oldIcon.remove();
+        
+        // Add new dot/icon
+        if (this.__icon) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = 'node-block-icon';
+          iconSpan.textContent = this.__icon;
+          bulletContainer.appendChild(iconSpan);
+        } else {
+          const dot = document.createElement('span');
+          dot.className = 'node-block-dot';
+          bulletContainer.appendChild(dot);
+        }
       }
     }
 

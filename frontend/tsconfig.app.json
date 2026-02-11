@@ -24,7 +24,9 @@
       "@/components/*": ["./src/components/*"],
       "@/hooks/*": ["./src/hooks/*"],
       "@/stores/*": ["./src/stores/*"],
-      "@/api/*": ["./src/api/*"]
+      "@/api/*": ["./src/api/*"],
+      "@/editor/*": ["./src/editor/*"],
+      "@/runtime/*": ["./src/runtime/*"]
     },
 
     /* Linting */

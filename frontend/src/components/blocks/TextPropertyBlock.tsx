@@ -180,7 +180,7 @@ export function TextPropertyBlock({
           <NoteesEditor
             editorId={`text-prop-${blockNode.id}`}
             rootBlockId={String(blockNode.uuid || blockNode.id)}
-            viewMode="list"
+            mode="list"
             readOnly={readOnly}
             placeholder="Type here…"
           />

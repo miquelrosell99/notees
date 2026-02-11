@@ -86,8 +86,6 @@ function SortableFavoriteItem({
 }: SortableFavoriteItemProps) {
   const { data: node } = useNode(nodeId);
   
-  if (!node) return null;
-  
   const handleClick = useCallback((e: React.MouseEvent) => {
     // Don't navigate if clicking drag handle or remove button
     if ((e.target as HTMLElement).closest('.sidebar-drag-handle, .sidebar-favorite-remove')) {
@@ -111,6 +109,8 @@ function SortableFavoriteItem({
     e.stopPropagation();
     onDragStart(index, e);
   }, [index, onDragStart]);
+  
+  if (!node) return null;
   
   return (
     <div

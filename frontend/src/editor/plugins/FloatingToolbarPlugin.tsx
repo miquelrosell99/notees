@@ -3,7 +3,7 @@
  * for formatting operations.
  */
 
-import { useEffect, useState, useCallback, type JSX } from 'react';
+import { useEffect, useState, useCallback, useRef, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getSelection,
@@ -24,9 +24,16 @@ export function FloatingToolbarPlugin({
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [activeFormats, setActiveFormats] = useState<Set<TextFormatType>>(new Set());
+  const showTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const updateToolbar = () => {
+      // Clear any pending show timeout
+      if (showTimeoutRef.current !== null) {
+        window.clearTimeout(showTimeoutRef.current);
+        showTimeoutRef.current = null;
+      }
+
       editor.getEditorState().read(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection) || selection.isCollapsed()) {
@@ -48,17 +55,28 @@ export function FloatingToolbarPlugin({
         if (nativeSel && nativeSel.rangeCount > 0) {
           const range = nativeSel.getRangeAt(0);
           const rect = range.getBoundingClientRect();
-          setPosition({
+          const newPosition = {
             top: rect.top - 40 + window.scrollY,
             left: rect.left + rect.width / 2 + window.scrollX,
-          });
-          setIsVisible(true);
+          };
+          
+          // Delay showing the toolbar to avoid flash during drag-to-select
+          showTimeoutRef.current = window.setTimeout(() => {
+            setPosition(newPosition);
+            setIsVisible(true);
+            showTimeoutRef.current = null;
+          }, 150);
         }
       });
     };
 
     document.addEventListener('selectionchange', updateToolbar);
-    return () => document.removeEventListener('selectionchange', updateToolbar);
+    return () => {
+      document.removeEventListener('selectionchange', updateToolbar);
+      if (showTimeoutRef.current !== null) {
+        window.clearTimeout(showTimeoutRef.current);
+      }
+    };
   }, [editor]);
 
   const handleFormat = useCallback((format: TextFormatType) => {

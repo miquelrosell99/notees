@@ -104,7 +104,7 @@
   align-items: center;
   gap: 2px;
   font-size: 12px;
-  color: var(--color-primary);
+  color: var(--color-on-surface-variant);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -139,7 +139,7 @@
 }
 
 .table--hoverable .table-body .table-row:hover > .table-cell {
-  background: var(--color-surface-container-low);
+  background: var(--color-selection-bg);
 }
 
 .table--selectable .table-body .table-row {
@@ -147,7 +147,7 @@
 }
 
 .table-row--selected > .table-cell {
-  background: var(--color-primary-container) !important;
+  background: var(--color-selection-bg) !important;
 }
 
 /* Alignment */

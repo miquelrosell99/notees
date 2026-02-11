@@ -75,13 +75,6 @@ export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
 export { ImportDataModal } from './ImportDataModal';
 
-// New NodeBlock view components
-export { NodeBlockListView } from './nodes/views/NodeBlockListView';
-export { NodeBlockDocumentView } from './nodes/views/NodeBlockDocumentView';
-export { NodeBlockCardView } from './nodes/views/NodeBlockCardView';
-export { NodeBlockTableView } from './nodes/views/NodeBlockTableView';
-export { NodeBlockGraphView } from './nodes/views/NodeBlockGraphView';
-
 // New core components
 export { Separator } from './core/Separator';
 export type { SeparatorProps, SeparatorOrientation, SeparatorSize } from './core/Separator';
@@ -174,11 +167,11 @@ export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './
 export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCollection';
 
 // NodeCollection view mode components
-export { NodeListView } from './nodes/views/NodeListView';
+export { NodeBlockListView } from './nodes/views';
 export { NodeDocumentView } from './nodes/views/NodeDocumentView';
 export { NodeCardView } from './nodes/views/NodeCardView';
 export { NodeTableView } from './nodes/views/NodeTableView';
-export { NodeGanttView } from './nodes/views/NodeGanttView';
+export { NodeGanttView } from './nodes/views/NodeBlockGanttView';
 
 // Query builder components
 export { ViewBuilder } from './queries';

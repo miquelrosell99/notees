@@ -30,11 +30,11 @@ export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './
 export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';
 
 // NodeCollection view mode components
-export { NodeListView } from './views/NodeListView';
-export { NodeDocumentView } from './views/NodeDocumentView';
-export { NodeCardView } from './views/NodeCardView';
-export { NodeTableView } from './views/NodeTableView';
-export { NodeGanttView } from './views/NodeGanttView';
+export { NodeBlockListView } from './views';
+export { NodeBlockDocumentView } from './views/NodeBlockDocumentView';
+export { NodeBlockCardView } from './views/NodeBlockCardView';
+export { NodeBlockTableView } from './views/NodeBlockTableView';
+export { NodeBlockGanttView } from './views/NodeBlockGanttView';
 
 // Re-exports from graph/
 export { NodeCircle, drawNodeCircle } from './NodeCircle';
