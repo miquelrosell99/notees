@@ -157,7 +157,9 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
     const runtime = getNodeGraphRuntime();
     
     const unsubscribe = runtime.subscribe((event) => {
-      if (event.type === 'structure_changed') {
+      // Only sync structural changes from user intents (indent, outdent, reorder, drag)
+      // NOT from cache/API sync (source: 'sync') to prevent infinite loops
+      if (event.type === 'structure_changed' && event.source === 'intent') {
         // Extract all affected block IDs
         const affectedBlockIds: string[] = [];
         

@@ -21,6 +21,8 @@
   padding: 8px 0;
   caret-color: var(--color-on-surface);
   cursor: default;
+  /* Don't catch clicks on empty space - only on actual content */
+  pointer-events: none;
 }
 
 .notees-editor-placeholder {
@@ -82,6 +84,8 @@
   transition: margin-left var(--motion-duration-medium) var(--motion-easing-standard);
   border-radius: var(--shape-small);
   cursor: default;
+  /* Re-enable pointer events on blocks */
+  pointer-events: auto;
 }
 
 /* ─── Bullet wrapper ───────────────────────────────────────────── */
@@ -191,9 +195,7 @@
 }
 
 /* Lexical inserts paragraph/text nodes directly as children of .node-block.
-   Make them fill the remaining flex space after the bullet.
-   EmptyClickPlugin uses Range.getClientRects() to detect clicks beyond
-   the actual text extent, so these can safely be full-width. */
+   Make them fill the remaining flex space after the bullet. */
 .node-block > p,
 .node-block > span,
 .node-block > .notees-editor-paragraph {
@@ -204,7 +206,6 @@
   margin: 0;
   line-height: 1.6;
   caret-color: var(--color-on-surface) !important;
-  cursor: text !important;
 }
 
 /* Ensure empty text nodes have space for cursor */
@@ -214,12 +215,17 @@
   display: inline;
 }
 
-/* Text content shows text cursor; bullet and block container stay default */
+/* Text content shows text cursor in editable mode */
 .notees-editor:not(.notees-editor--readonly) .node-block > p,
 .notees-editor:not(.notees-editor--readonly) .node-block > span:not(.node-block-bullet),
 .notees-editor:not(.notees-editor--readonly) .node-block > .notees-editor-paragraph {
   cursor: text;
   caret-color: var(--color-on-surface);
+}
+
+/* Editor root shows default cursor - clicks on margins should not enter edit mode */
+.notees-editor-content {
+  cursor: default;
 }
 
 /* ─── Collapsed state ──────────────────────────────────────────── */

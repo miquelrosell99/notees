@@ -48,9 +48,14 @@ interface UseContentSaveOptions {
 export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = 500, onSaved, onError } = options;
   const updateNode = useUpdateNode();
+  // Use stable mutate reference to avoid dependency instability
+  const mutateRef = useRef(updateNode.mutate);
+  mutateRef.current = updateNode.mutate;
   
   // Track pending changes per block
   const pendingChangesRef = useRef<Map<number, PendingChange>>(new Map());
+  // Track last saved content per block to skip no-op saves
+  const lastSavedContentRef = useRef<Map<number, string>>(new Map());
   
   // Save a specific block — convert markdown syntax in text nodes before saving
   const saveBlock = useCallback((blockId: number, content: string) => {
@@ -59,14 +64,18 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     const converted = convertMarkdownInAST(ast);
     const finalContent = converted !== ast ? JSON.stringify(converted) : content;
 
-    updateNode.mutate(
+    // Skip save if content hasn't changed since last save
+    if (lastSavedContentRef.current.get(blockId) === finalContent) return;
+    lastSavedContentRef.current.set(blockId, finalContent);
+
+    mutateRef.current(
       { id: blockId, data: { name: finalContent } },
       {
         onSuccess: () => onSaved?.(blockId),
         onError: (error) => onError?.(blockId, error as Error),
       }
     );
-  }, [updateNode, onSaved, onError]);
+  }, [onSaved, onError]);
   
   // Flush a specific block
   const flushBlock = useCallback((blockId: number) => {
