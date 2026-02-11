@@ -74,11 +74,13 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding: 3px 0 3px calc(var(--node-block-depth, 0) * var(--indent-width));
+  padding: 3px 0;
+  margin-left: calc(var(--node-block-depth, 0) * var(--indent-width));
   min-height: 1.6em;
   line-height: 1.6;
-  transition: padding-left var(--motion-duration-medium) var(--motion-easing-standard);
+  transition: margin-left var(--motion-duration-medium) var(--motion-easing-standard);
   border-radius: var(--shape-small);
+  cursor: default;
 }
 
 /* ─── Bullet wrapper ───────────────────────────────────────────── */
@@ -209,11 +211,10 @@
   display: inline;
 }
 
-/* Ensure all content in editable mode shows cursor */
-.notees-editor:not(.notees-editor--readonly) .node-block,
-.notees-editor:not(.notees-editor--readonly) .node-block > *,
-.notees-editor:not(.notees-editor--readonly) .notees-editor-content,
-.notees-editor:not(.notees-editor--readonly) .notees-editor-content * {
+/* Text content shows text cursor; bullet and block container stay default */
+.notees-editor:not(.notees-editor--readonly) .node-block > p,
+.notees-editor:not(.notees-editor--readonly) .node-block > span:not(.node-block-bullet),
+.notees-editor:not(.notees-editor--readonly) .node-block > .notees-editor-paragraph {
   cursor: text;
   caret-color: var(--color-on-surface);
 }
@@ -317,7 +318,7 @@
 /* Color accent */
 .node-block[style*="--node-block-color"] {
   border-left: 3px solid var(--node-block-color);
-  padding-left: calc(var(--node-block-depth, 0) * var(--indent-width) + 4px);
+  padding-left: 4px;
 }
 
 /* ─── Selection state ──────────────────────────────────────────── */
@@ -556,7 +557,7 @@ th.node-block-table-cell {
 }
 
 .notees-editor--document .node-block {
-  padding-left: 0;
+  margin-left: 0;
 }
 
 /* Hide bullet in document mode */
