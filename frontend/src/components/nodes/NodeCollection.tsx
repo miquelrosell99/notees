@@ -7,28 +7,24 @@
  * Features:
  * - Multiple view modes: list, document, card, table, gantt, graph
  * - Built-in view mode switcher (hidden when only one mode available)
- * - Editable toggle (Block vs BlockPreview)
+ * - Editable toggle (NoteesEditor vs NodeInline)
  * - Recursive children handling
  * - Consistent prop propagation to all view modes
- * - Optional block callbacks via context (provideBlockCallbacks)
  * 
  * Component Hierarchy:
  * NodeCollection
- * ├─ ViewModeSwitcher (SelectionButton)
- * ├─ BlockCallbacksProvider (optional, when provideBlockCallbacks=true)
+ * ├─ NodeCollectionToolbar
  * ├─ NodeListView (list)
- * │   └─ recursive nodes → Block / BlockPreview
+ * │   └─ NoteesEditor (editable) / NodeInline (read-only)
  * ├─ NodeDocumentView (document)
- * │   └─ recursive nodes → Block / BlockPreview
+ * │   └─ NoteesEditor / NodeInline
  * ├─ NodeCardView (card)
- * │   └─ NodeCard
- * │       └─ recursive children → Block / BlockPreview
+ * │   └─ NoteesEditor per card
  * ├─ NodeTableView (table)
- * │   └─ rows → Block / BlockPreview
+ * │   └─ row cells via NodeInline
  * ├─ NodeGanttView (gantt)
- * │   └─ timeline nodes → Block / BlockPreview
- * └─ NodeGraphView (graph)
- *     └─ GraphRenderer → nodes only with is_page = true
+ * ├─ NodeTimelineRenderer (timeline)
+ * └─ NodeGraphViewSimple (graph)
  */
 import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useNodesStore } from '@/stores';
@@ -73,7 +69,6 @@ import {
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
 import { NodeTimelineRenderer } from '@/components/timeline';
-import { BlockCallbacksProvider, type BlockCallbacks } from '../blocks/BlockCallbacksContext';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import './NodeCollection.css';
 
@@ -139,8 +134,6 @@ export function NodeCollection({
   emptyMessage = 'No items',
   maxDepth = Infinity,
   tableColumns,
-  provideBlockCallbacks = false,
-  blockCallbacks,
   pageMap,
   isolatedBlockState = false,
   suppressRootColor = false,
@@ -347,22 +340,9 @@ export function NodeCollection({
     }
   };
 
-  // Wrapper for optional BlockCallbacksProvider
-  const wrapWithCallbacks = (content: ReactNode): ReactNode => {
-    if (provideBlockCallbacks && blockCallbacks) {
-      return (
-        <BlockCallbacksProvider callbacks={blockCallbacks as BlockCallbacks}>
-          {content}
-        </BlockCallbacksProvider>
-      );
-    }
-    return content;
-  };
-
   return (
     <NodeCollectionContext.Provider value={contextValue}>
-      {wrapWithCallbacks(
-        <div className={`node-collection node-collection--${viewMode} ${isEmpty ? 'node-collection--empty' : ''} ${className}`}>
+      <div className={`node-collection node-collection--${viewMode} ${isEmpty ? 'node-collection--empty' : ''} ${className}`}>
           {/* Header with GroupBy and View Mode Switcher - hidden when hideToolbar is true */}
           {showInternalToolbar && (
             <div className="node-collection__header">
@@ -393,7 +373,6 @@ export function NodeCollection({
             </div>
           )}
         </div>
-      )}
     </NodeCollectionContext.Provider>
   );
 }

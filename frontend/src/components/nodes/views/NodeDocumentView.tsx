@@ -17,8 +17,8 @@ import { useCallback, useMemo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
-import { Block } from '../../blocks/Block';
-import { BlockPreview } from '../../blocks/BlockPreview';
+import { NodeInline } from '../../blocks/NodeInline';
+import { NoteesEditor } from '@/editor/NoteesEditor';
 import { findNodeById } from '@/utils/nodeTree';
 import './NodeDocumentView.css';
 
@@ -48,65 +48,45 @@ function DocumentNode({
   const children = useMemo(() => node.children ?? [], [node.children]);
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
 
-  // Handlers
-  const handleBulletClick = useCallback((blockId: number) => {
-    if (blockId === node.id) {
+  const handleNavigateToNode = useCallback((linkId: string) => {
+    const id = Number(linkId);
+    if (isNaN(id)) return;
+    if (id === node.id) {
       onNodeClick?.(node);
     } else {
-      const childNode = findNodeById(blockId, children);
-      if (childNode) {
-        onNodeClick?.(childNode);
-      } else {
-        onNodeClick?.({ id: blockId, is_page: false } as Node);
-      }
+      const childNode = findNodeById(id, children);
+      if (childNode) onNodeClick?.(childNode);
+      else onNodeClick?.({ id, is_page: false } as Node);
     }
   }, [node, children, onNodeClick]);
 
-  const handleShiftClick = useCallback((blockId: number) => {
-    if (blockId === node.id) {
-      onNodeShiftClick?.(node);
-    } else {
-      const childNode = findNodeById(blockId, children);
-      if (childNode) {
-        onNodeShiftClick?.(childNode);
-      } else {
-        onNodeShiftClick?.({ id: blockId, is_page: false } as Node);
-      }
-    }
-  }, [node, children, onNodeShiftClick]);
-
-  const handleContentChange = useCallback((blockId: number, content: string) => {
-    onContentChange?.(blockId, content);
+  const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
+    const id = Number(blockId);
+    if (!isNaN(id)) onContentChange?.(id, content);
   }, [onContentChange]);
 
   return (
     <div className="document-node">
-      {/* Editable mode: render Block without bullet */}
       {editable ? (
-        <Block
-          block={node}
-          children={children}
-          siblings={siblings}
-          depth={0}
-          parentId={node.parent_id}
-          parentBlock={parentBlock}
-          onContentChange={handleContentChange}
-          onBulletClick={handleBulletClick}
-          onShiftClick={handleShiftClick}
-          showBullet={false}
+        <NoteesEditor
+          editorId={`doc-${node.id}`}
+          rootBlockId={String(node.uuid || node.id)}
+          viewMode="document"
+          readOnly={false}
+          onNavigateToNode={handleNavigateToNode}
+          onContentChange={handleContentChangeBridge}
+          placeholder="Type here…"
         />
       ) : (
-        /* Read-only mode: render BlockPreview without bullet */
         <div className="document-node__content">
-          <BlockPreview
-            variant="simple"
-            node={node}
-            showBullet={false}
+          <NodeInline
+            name={node.name}
+            isPage={node.is_page}
+            nodeId={node.id}
             onClick={() => onNodeClick?.(node)}
             onShiftClick={() => onNodeShiftClick?.(node)}
           />
           
-          {/* Recursive children */}
           {shouldRenderChildren && (
             <div className="document-node__children">
               {children.map((child) => (

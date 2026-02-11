@@ -4,19 +4,13 @@
  * Store Categories:
  * - Auth: useAuthStore
  * - UI State: useNodesStore, useSettingsStore, useFavoritesStore
- * - Selection: useBlockSelectionStore
- * - History: useHistoryStore
- * - Commands: useBlockCommandStore
  * - Notifications: useNotificationStore
  * - Feature Flags: useFeatureFlagStore
  * - Keyboard: useKeyboardStore
  * 
  * ⚠️ PERFORMANCE WARNING:
- * Do NOT subscribe to node maps or collections directly (e.g., state.nodes, state.selectedBlocks).
+ * Do NOT subscribe to node maps or collections directly.
  * Use selectors from './selectors' only. Direct subscriptions cause render cascades.
- * 
- * ✅ CORRECT: useIsBlockSelected(blockId)
- * ❌ WRONG:  useBlockSelectionStore(state => state.selectedBlocks.has(blockId))
  */
 export { useAuthStore } from './authStore';
 export { useNodesStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard, type SidebarCardType } from './nodesStore';
@@ -32,23 +26,6 @@ export {
   type DateFormatOption,
   type QuickAddDestination,
 } from './settingsStore';
-export { 
-  useBlockSelectionStore,
-  type SelectionMode,
-  type DragState,
-  type BoxSelectState,
-  type DragSelectState,
-  type EditorSelection,
-  type OperationQueueEntry,
-} from './blockSelectionStore';
-export {
-  useHistoryStore,
-  useHistoryActions,
-  useHistoryAvailability,
-  type HistoryEntry,
-  type HistoryOperationType,
-  type NodeSnapshot,
-} from './historyStore';
 export {
   useFavoritesStore,
   type FavoriteItem,
@@ -60,16 +37,6 @@ export {
   type Notification,
   type NotificationType,
 } from './notificationStore';
-export {
-  useBlockCommandStore,
-  useBlockCommands,
-  useRegisterBlockCommands,
-  type BlockCommandType,
-  type CommandContext,
-  type CommandResult,
-  type BlockCommand,
-  type CommandDefinition,
-} from './blockCommandStore';
 export {
   useFeatureFlagStore,
   useFeatureFlag,

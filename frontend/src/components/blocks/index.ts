@@ -1,29 +1,21 @@
 /**
  * Block Components Index
  * 
- * Block-related components for editing and displaying blocks.
+ * Contains NodeInline (lightweight node display) and surviving components.
+ * NoteesEditor (Lexical-based) replaces the old Block component for editing.
  */
 
-// Core block components
-export { Block } from './Block';
-export { ASTBlockEditor as BlockEditor, TASK_STATES } from './ASTBlockEditor';
-export type { TaskState } from './ASTBlockEditor';
+// NodeInline - lightweight node display (replaces BlockPreview)
+export { NodeInline } from './NodeInline';
+export type { NodeInlineProps } from './NodeInline';
+
+// Bullet component (shared, domain-agnostic)
+export { Bullet } from './Bullet';
+export type { BulletProps, BulletSize, BulletVariant } from './Bullet';
+
+// Code block display component
 export { CodeBlock } from './CodeBlock';
 export type { CodeBlockProps } from './CodeBlock';
 
-// Block preview (deprecated - use Block with capability flags)
-export { BlockPreview } from './BlockPreview';
-export type { BlockPreviewProps } from './BlockPreview';
-
-// Block callbacks context
-export { BlockCallbacksProvider, useBlockCallbacks, useBlockCallbacksRequired } from './BlockCallbacksContext';
-export type { BlockCallbacks } from './BlockCallbacksContext';
-
-// Block drag preview
-export { BlockDrag } from './BlockDrag';
-export type { BlockDragProps } from './BlockDrag';
-
-// Bullet component
-export { Bullet } from './Bullet';
-export type { BulletProps, BulletSize, BulletVariant } from './Bullet';
+// Text property block (uses NoteesEditor)
 export { TextPropertyBlock } from './TextPropertyBlock';

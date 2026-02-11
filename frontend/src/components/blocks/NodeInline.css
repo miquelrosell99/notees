@@ -1,0 +1,28 @@
+/**
+ * NodeInline styles
+ */
+.node-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.node-inline--clickable {
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.node-inline--clickable:hover {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+}
+
+.node-inline__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
