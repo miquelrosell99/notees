@@ -136,6 +136,7 @@ export interface UndoEntry {
 export type RuntimeEvent =
   | { type: 'nodes_changed'; blockIds: string[] }
   | { type: 'structure_changed'; parentIds: string[] }
+  | { type: 'block_deleted'; blockId: string; serverId?: number }
   | { type: 'projection_invalidated'; projectionId: string }
   | { type: 'undo'; entry: UndoEntry }
   | { type: 'redo'; entry: UndoEntry };
