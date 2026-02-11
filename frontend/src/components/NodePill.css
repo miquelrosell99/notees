@@ -4,52 +4,64 @@
 
 .node-pill {
   cursor: pointer;
-  display: inline-flex;
+  display: inline;
 }
 
-/* Link variant - faded colors (only when no custom color is set) */
+/* Link variant - inline text style with subtle underline + micro-tint */
+.node-pill--link .pill {
+  display: inline;
+  padding: 0 2px;
+  margin: 0 1px;
+  background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
+  border-radius: 2px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  font: inherit;
+  line-height: inherit;
+  gap: 2px;
+}
+
+.node-pill--link .pill:hover {
+  background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+  border-bottom-color: var(--color-on-surface-variant);
+  filter: none;
+}
+
 .node-pill--link.node-pill--page .pill:not([style*="background"]) {
-  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
   color: var(--color-on-surface);
 }
 
 .node-pill--link.node-pill--block .pill:not([style*="background"]) {
-  background-color: color-mix(in srgb, var(--color-secondary) 8%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-on-surface) 3%, transparent);
   color: var(--color-on-surface-variant);
 }
 
-/* Class reference pills - add subtle glare/shimmer effect */
+/* Class reference — dotted underline, italic */
 .node-pill--link.node-pill--class .pill:not([style*="background"]) {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-tertiary) 12%, var(--color-surface)),
-    color-mix(in srgb, var(--color-tertiary) 8%, var(--color-surface)) 50%,
-    color-mix(in srgb, var(--color-tertiary) 12%, var(--color-surface))
-  );
-  color: var(--color-on-tertiary-container);
-  border: 1px solid color-mix(in srgb, var(--color-tertiary) 15%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tertiary) 20%, transparent);
+  background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px dotted var(--color-outline-variant);
+  font-style: italic;
+  border-radius: 2px;
+  box-shadow: none;
 }
 
 .node-pill--link.node-pill--class .pill:hover:not([style*="background"]) {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--color-tertiary) 18%, var(--color-surface)),
-    color-mix(in srgb, var(--color-tertiary) 12%, var(--color-surface)) 50%,
-    color-mix(in srgb, var(--color-tertiary) 18%, var(--color-surface))
-  );
-  border-color: color-mix(in srgb, var(--color-tertiary) 25%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-tertiary) 30%, transparent);
+  background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+  border-bottom-color: var(--color-on-surface-variant);
+  box-shadow: none;
 }
 
 /* When pill has a custom color, adjust text color for contrast */
 .node-pill--link .pill[style*="background"] {
   color: var(--color-on-surface);
+  border-radius: 2px;
+  padding: 0 2px;
 }
 
 /* Click count badge */
 .node-pill__badge {
-  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -59,9 +71,11 @@
   font-size: 0.625rem;
   font-weight: 500;
   line-height: 1;
-  background-color: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  background-color: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
   color: var(--color-on-surface);
   border-radius: var(--shape-full);
+  vertical-align: middle;
+  margin-left: 2px;
 }
 
 /* Pill Color Picker Popup */
@@ -103,9 +117,9 @@
 /* Selection highlight when pill is arrow-key selected in editor */
 .node-link-mount.link-pill--selected > .node-pill > .pill,
 .node-link-mount.inline-node-link--selected > .node-pill > .pill {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-on-surface);
   outline-offset: 1px;
-  border-radius: var(--shape-small);
+  border-radius: 2px;
 }
 
 /* Context menu wrapper for link variant with color picker */
