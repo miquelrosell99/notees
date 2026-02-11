@@ -34,6 +34,7 @@ import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 import { EmptyClickPlugin } from './plugins/EmptyClickPlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
+import { queueContentSave } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
 
 import type { Node } from '@/types';
@@ -495,25 +496,34 @@ export const NodeCard = memo(function NodeCard({
 
   // Bridge: Lexical content change → numeric nodeId
   const handleLexicalContentChange = useCallback((blockId: string, content: string) => {
-    const id = Number(blockId);
-    if (!isNaN(id)) handleContentChange(id, content);
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    const serverId = graphNode?.serverId;
+    if (serverId != null) {
+      handleContentChange(serverId, content);
+    } else if (graphNode) {
+      // Block not yet persisted — queue for when serverId arrives
+      queueContentSave(blockId, content);
+    }
   }, [handleContentChange]);
 
   // Navigate via pills
   const handleNavigateToNode = useCallback((linkId: string) => {
-    const id = Number(linkId);
-    if (isNaN(id)) return;
-    const targetNode = { id, is_page: false } as Node;
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(linkId);
+    if (!graphNode?.serverId) return;
+    const targetNode = { id: graphNode.serverId, is_page: graphNode.isPage } as Node;
     onNodeClick?.(targetNode);
   }, [onNodeClick]);
 
   const handleOpenBlockInSidebar = useCallback((blockId: string) => {
-    const id = Number(blockId);
-    if (isNaN(id)) return;
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    if (!graphNode?.serverId) return;
     if (onNodeShiftClick) {
-      onNodeShiftClick({ id, is_page: false } as Node);
+      onNodeShiftClick({ id: graphNode.serverId, is_page: false } as Node);
     } else {
-      addSidebarCard(id, 'block');
+      addSidebarCard(graphNode.serverId, 'block');
     }
   }, [onNodeShiftClick, addSidebarCard]);
 

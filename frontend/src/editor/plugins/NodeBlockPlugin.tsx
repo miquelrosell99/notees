@@ -373,39 +373,40 @@ export function NodeBlockPlugin({
     );
   }, [editor, readOnly, onIndent, onOutdent]);
 
-  // ─── Arrow up/down: cross-block navigation ────────────────
+  // ─── Left/Right: navigate between blocks ──────────────────
 
   useEffect(() => {
-    const handleArrowUp = () => {
-      let shouldMoveToPrev = false;
+    if (readOnly) return;
+
+    const handleArrowLeft = (event: KeyboardEvent | null) => {
       let prevBlockNode: NodeBlockNode | null = null;
 
       editor.read(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
+        if (!selection.isCollapsed()) return;
 
         const anchor = selection.anchor;
+        if (anchor.offset !== 0) return; // Not at start
+
         const anchorNode = anchor.getNode();
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return;
 
-        // If at start of first line, move to previous block
-        if (anchor.offset === 0) {
-          const root = $getRoot();
-          const children = root.getChildren();
-          const blockIndex = children.indexOf(blockNode);
-          if (blockIndex <= 0) return;
+        const root = $getRoot();
+        const children = root.getChildren();
+        const blockIndex = children.indexOf(blockNode);
+        if (blockIndex <= 0) return;
 
-          const prevBlock = children[blockIndex - 1];
-          if ($isNodeBlockNode(prevBlock)) {
-            shouldMoveToPrev = true;
-            prevBlockNode = prevBlock;
-          }
+        const prevBlock = children[blockIndex - 1];
+        if ($isNodeBlockNode(prevBlock)) {
+          prevBlockNode = prevBlock;
         }
       });
 
-      if (!shouldMoveToPrev || !prevBlockNode) return false;
+      if (!prevBlockNode) return false;
 
+      event?.preventDefault();
       editor.update(() => {
         const lastChild = prevBlockNode!.getLastDescendant();
         if (lastChild) {
@@ -416,37 +417,36 @@ export function NodeBlockPlugin({
       return true;
     };
 
-    const handleArrowDown = () => {
-      let shouldMoveToNext = false;
+    const handleArrowRight = (event: KeyboardEvent | null) => {
       let nextBlockNode: NodeBlockNode | null = null;
 
       editor.read(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
+        if (!selection.isCollapsed()) return;
 
-        const anchor = selection.anchor;
-        const anchorNode = anchor.getNode();
+        const anchorNode = selection.anchor.getNode();
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return;
 
-        // If at end, move to next block
         const textContent = blockNode.getTextContent();
-        if (anchor.offset >= textContent.length) {
-          const root = $getRoot();
-          const children = root.getChildren();
-          const blockIndex = children.indexOf(blockNode);
-          if (blockIndex >= children.length - 1) return;
+        const anchor = selection.anchor;
+        if (anchor.offset < textContent.length) return; // Not at end
 
-          const nextBlock = children[blockIndex + 1];
-          if ($isNodeBlockNode(nextBlock)) {
-            shouldMoveToNext = true;
-            nextBlockNode = nextBlock;
-          }
+        const root = $getRoot();
+        const children = root.getChildren();
+        const blockIndex = children.indexOf(blockNode);
+        if (blockIndex >= children.length - 1) return;
+
+        const nextBlock = children[blockIndex + 1];
+        if ($isNodeBlockNode(nextBlock)) {
+          nextBlockNode = nextBlock;
         }
       });
 
-      if (!shouldMoveToNext || !nextBlockNode) return false;
+      if (!nextBlockNode) return false;
 
+      event?.preventDefault();
       editor.update(() => {
         const firstChild = nextBlockNode!.getFirstDescendant();
         if (firstChild) {
@@ -455,6 +455,76 @@ export function NodeBlockPlugin({
       });
 
       return true;
+    };
+
+    const unsubLeft = editor.registerCommand(KEY_ARROW_LEFT_COMMAND, handleArrowLeft, COMMAND_PRIORITY_NORMAL);
+    const unsubRight = editor.registerCommand(KEY_ARROW_RIGHT_COMMAND, handleArrowRight, COMMAND_PRIORITY_NORMAL);
+
+    return () => {
+      unsubLeft();
+      unsubRight();
+    };
+  }, [editor, readOnly]);
+
+  // ─── Up/Down: navigate vertically across all blocks ───────
+
+  useEffect(() => {
+    const handleArrowUp = () => {
+      let prevBlockNode: NodeBlockNode | null = null;
+
+      editor.read(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+
+        const anchorNode = selection.anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return;
+
+        const root = $getRoot();
+        const children = root.getChildren();
+        const blockIndex = children.indexOf(blockNode);
+        if (blockIndex <= 0) return;
+
+        const prevBlock = children[blockIndex - 1];
+        if ($isNodeBlockNode(prevBlock)) {
+          prevBlockNode = prevBlock;
+        }
+      });
+
+      if (!prevBlockNode) return false;
+
+      // Let default arrow behavior handle vertical movement within the block
+      // Only intervene when we need to jump to previous block
+      return false;
+    };
+
+    const handleArrowDown = () => {
+      let nextBlockNode: NodeBlockNode | null = null;
+
+      editor.read(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+
+        const anchorNode = selection.anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return;
+
+        const root = $getRoot();
+        const children = root.getChildren();
+        const blockIndex = children.indexOf(blockNode);
+        if (blockIndex >= children.length - 1) return;
+
+        const nextBlock = children[blockIndex + 1];
+        if ($isNodeBlockNode(nextBlock)) {
+          nextBlockNode = nextBlock;
+        }
+      });
+
+      if (!nextBlockNode) return false;
+
+      // Let default arrow behavior handle vertical movement within the block
+      // Only intervene when we need to jump to next block
+      return false;
     };
 
     const unsubUp = editor.registerCommand(KEY_ARROW_UP_COMMAND, handleArrowUp, COMMAND_PRIORITY_NORMAL);

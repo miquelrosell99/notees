@@ -16,6 +16,8 @@ import {
   KEY_ESCAPE_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
   COMMAND_PRIORITY_HIGH,
 } from 'lexical';
 import { selectBlockWithChildren, clearBlockSelection, findParentNodeBlock } from '../utils/selectionUtils';
@@ -271,6 +273,109 @@ export function KeyboardSelectionPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
+  }, [editor, readOnly, onSelectionChange]);
+
+  // ─── Left/Right: Deselect and place cursor in anchor block ──────
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const handleArrowLeft = (event: KeyboardEvent) => {
+      if (event.shiftKey) return false; // Let shift+arrow be handled elsewhere
+      if (selectedBlocks.current.size === 0) return false; // Not in selection mode
+
+      event.preventDefault();
+      
+      const rootEl = editor.getRootElement();
+      if (!rootEl) return true;
+
+      const blockIdToFocus = anchorBlockId.current || [...selectedBlocks.current][0];
+      
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      anchorBlockId.current = null;
+      onSelectionChange?.([]);
+
+      // Focus at start of anchor block
+      editor.update(() => {
+        const root = editor.getRootElement();
+        if (!root) return;
+        
+        const blockEl = root.querySelector(`[data-block-id="${blockIdToFocus}"]`);
+        if (!blockEl) return;
+        
+        const lexicalKey = blockEl.getAttribute('data-lexical-editor');
+        if (!lexicalKey) return;
+        
+        // Find the block node in Lexical
+        const allBlocks = editor.getEditorState().read(() => {
+          const root = editor.getEditorState()._nodeMap;
+          return Array.from(root.values()).filter((node: any) => 
+            node.__type === 'node-block' && node.__blockId === blockIdToFocus
+          );
+        });
+        
+        if (allBlocks.length > 0) {
+          const firstChild = (allBlocks[0] as any).getFirstDescendant();
+          if (firstChild) {
+            firstChild.selectStart();
+          }
+        }
+      });
+
+      return true;
+    };
+
+    const handleArrowRight = (event: KeyboardEvent) => {
+      if (event.shiftKey) return false;
+      if (selectedBlocks.current.size === 0) return false;
+
+      event.preventDefault();
+      
+      const rootEl = editor.getRootElement();
+      if (!rootEl) return true;
+
+      const blockIdToFocus = anchorBlockId.current || [...selectedBlocks.current][0];
+      
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      anchorBlockId.current = null;
+      onSelectionChange?.([]);
+
+      // Focus at end of anchor block
+      editor.update(() => {
+        const root = editor.getRootElement();
+        if (!root) return;
+        
+        const blockEl = root.querySelector(`[data-block-id="${blockIdToFocus}"]`);
+        if (!blockEl) return;
+        
+        // Find the block node in Lexical
+        const allBlocks = editor.getEditorState().read(() => {
+          const root = editor.getEditorState()._nodeMap;
+          return Array.from(root.values()).filter((node: any) => 
+            node.__type === 'node-block' && node.__blockId === blockIdToFocus
+          );
+        });
+        
+        if (allBlocks.length > 0) {
+          const lastChild = (allBlocks[0] as any).getLastDescendant();
+          if (lastChild) {
+            lastChild.selectEnd();
+          }
+        }
+      });
+
+      return true;
+    };
+
+    const unsubLeft = editor.registerCommand(KEY_ARROW_LEFT_COMMAND, handleArrowLeft, COMMAND_PRIORITY_HIGH);
+    const unsubRight = editor.registerCommand(KEY_ARROW_RIGHT_COMMAND, handleArrowRight, COMMAND_PRIORITY_HIGH);
+
+    return () => {
+      unsubLeft();
+      unsubRight();
+    };
   }, [editor, readOnly, onSelectionChange]);
 
   return null;
