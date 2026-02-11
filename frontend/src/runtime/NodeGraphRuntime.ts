@@ -63,33 +63,54 @@ export class NodeGraphRuntime {
     }
 
     this.rebuildChildrenIndex();
-    this.emit({ type: 'structure_changed', parentIds: ['__root__'] });
+    this.emit({ type: 'structure_changed', parentIds: ['__root__'], source: 'sync' });
   }
 
   /**
    * Incrementally update/add nodes from the backend.
+   * Only emits events when data actually changes to prevent infinite loops.
    */
   upsertNodes(nodes: GraphNode[]): void {
     const changedParents = new Set<string>();
+    const changedBlockIds: string[] = [];
 
     for (const node of nodes) {
       const existing = this.nodes.get(node.blockId);
-      if (existing && existing.parentId !== node.parentId) {
+      if (!existing) {
+        // New node — mark parent as structurally changed
+        if (node.parentId) changedParents.add(node.parentId);
+        changedBlockIds.push(node.blockId);
+      } else if (existing.parentId !== node.parentId) {
         // Parent changed — mark both old and new parent
         if (existing.parentId) changedParents.add(existing.parentId);
         if (node.parentId) changedParents.add(node.parentId);
-      } else if (node.parentId) {
-        changedParents.add(node.parentId);
+        changedBlockIds.push(node.blockId);
+      } else if (
+        existing.orderIndex !== node.orderIndex ||
+        existing.collapsed !== node.collapsed ||
+        existing.name !== node.name ||
+        existing.icon !== node.icon ||
+        existing.color !== node.color ||
+        existing.isDeleted !== node.isDeleted
+      ) {
+        // Content/metadata changed but structure unchanged
+        changedBlockIds.push(node.blockId);
       }
+      // Always update the stored node (to keep data fresh)
       this.nodes.set(node.blockId, node);
     }
 
-    this.rebuildChildrenIndex();
+    // Only rebuild index and emit events if something actually changed
+    if (changedParents.size > 0 || changedBlockIds.length > 0) {
+      this.rebuildChildrenIndex();
+    }
 
     if (changedParents.size > 0) {
-      this.emit({ type: 'structure_changed', parentIds: [...changedParents] });
+      this.emit({ type: 'structure_changed', parentIds: [...changedParents], source: 'sync' });
     }
-    this.emit({ type: 'nodes_changed', blockIds: nodes.map(n => n.blockId) });
+    if (changedBlockIds.length > 0) {
+      this.emit({ type: 'nodes_changed', blockIds: changedBlockIds });
+    }
   }
 
   /**
@@ -104,7 +125,7 @@ export class NodeGraphRuntime {
     }
     this.rebuildChildrenIndex();
     if (parentIds.size > 0) {
-      this.emit({ type: 'structure_changed', parentIds: [...parentIds] });
+      this.emit({ type: 'structure_changed', parentIds: [...parentIds], source: 'sync' });
     }
   }
 
@@ -633,7 +654,7 @@ export class NodeGraphRuntime {
           this.pendingChangedBlockIds.clear();
         }
         if (this.pendingStructureParentIds.size > 0) {
-          this.emit({ type: 'structure_changed', parentIds: [...this.pendingStructureParentIds] });
+          this.emit({ type: 'structure_changed', parentIds: [...this.pendingStructureParentIds], source: 'intent' });
           this.pendingStructureParentIds.clear();
         }
       });
@@ -651,7 +672,7 @@ export class NodeGraphRuntime {
       this.pendingChangedBlockIds.clear();
     }
     if (this.pendingStructureParentIds.size > 0) {
-      this.emit({ type: 'structure_changed', parentIds: [...this.pendingStructureParentIds] });
+      this.emit({ type: 'structure_changed', parentIds: [...this.pendingStructureParentIds], source: 'intent' });
       this.pendingStructureParentIds.clear();
     }
   }

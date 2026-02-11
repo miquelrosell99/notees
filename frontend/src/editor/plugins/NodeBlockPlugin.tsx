@@ -24,6 +24,8 @@ import {
   KEY_TAB_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
   KEY_ESCAPE_COMMAND,
 } from 'lexical';
 
@@ -81,10 +83,14 @@ export function NodeBlockPlugin({
 }: NodeBlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
+  // Flag to suppress content change callbacks during external sync
+  const isSyncingRef = useRef(false);
 
   // ─── Sync projected nodes into Lexical ──────────────────────
 
   const syncProjection = useCallback((projectedNodes: ProjectedNode[]) => {
+    // Set flag BEFORE the update so the update listener skips content saves
+    isSyncingRef.current = true;
     editor.update(() => {
       const root = $getRoot();
       const existingNodes = root.getChildren();
@@ -147,7 +153,9 @@ export function NodeBlockPlugin({
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
         }
       }
-    });
+    }, { tag: 'runtime-sync' });
+    // Reset flag after a microtask - Lexical update listeners fire before this
+    Promise.resolve().then(() => { isSyncingRef.current = false; });
   }, [editor]);
 
   // ─── Subscribe to runtime events ───────────────────────────
@@ -184,8 +192,11 @@ export function NodeBlockPlugin({
   useEffect(() => {
     if (readOnly) return;
 
-    return editor.registerUpdateListener(({ editorState, dirtyElements }) => {
+    return editor.registerUpdateListener(({ editorState, dirtyElements, tags }) => {
       if (dirtyElements.size === 0) return;
+      // Skip content saves triggered by external sync (runtime → Lexical)
+      // Only save when the user actually edited content
+      if (isSyncingRef.current || tags.has('runtime-sync')) return;
 
       editorState.read(() => {
         const root = $getRoot();

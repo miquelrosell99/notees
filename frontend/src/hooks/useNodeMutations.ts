@@ -111,37 +111,22 @@ function invalidateNodeCaches(
   if (linkedRefs) {
     queryClient.invalidateQueries({ 
       queryKey: ['nodes', 'linked-refs'],
+      refetchType,
     });
-    if (refetch) {
-      queryClient.refetchQueries({ 
-        queryKey: ['nodes', 'linked-refs'],
-        type: 'active',
-      });
-    }
   }
 
   if (backlinks) {
     queryClient.invalidateQueries({ 
       queryKey: ['nodes', 'backlinks'],
+      refetchType,
     });
-    if (refetch) {
-      queryClient.refetchQueries({ 
-        queryKey: ['nodes', 'backlinks'],
-        type: 'active',
-      });
-    }
   }
 
   if (propertyBacklinks) {
     queryClient.invalidateQueries({ 
       queryKey: ['nodes', 'property-backlinks'],
+      refetchType,
     });
-    if (refetch) {
-      queryClient.refetchQueries({ 
-        queryKey: ['nodes', 'property-backlinks'],
-        type: 'active',
-      });
-    }
   }
 
   if (queryResults) {
@@ -497,14 +482,10 @@ export function useUpdateNode() {
         { queryKey: nodeKeys.detailBase(updatedNode.id) },
         (oldNode) => {
           if (!oldNode) return updatedNode;
-          // Create a filtered version of updatedNode that excludes null values for fields
-          // that should be preserved from the cache (children, backlinks, linked_references, properties)
-          // These fields are not returned by the update endpoint but exist in the cached data
           const { children, backlinks, linked_references, properties, ...rest } = updatedNode;
           return {
             ...oldNode,
             ...rest,
-            // Only overwrite these fields if the API actually returned data for them
             ...(children !== null && children !== undefined ? { children } : {}),
             ...(backlinks !== null && backlinks !== undefined ? { backlinks } : {}),
             ...(linked_references !== null && linked_references !== undefined ? { linked_references } : {}),
@@ -513,64 +494,43 @@ export function useUpdateNode() {
         }
       );
       
-      // IMPORTANT: Explicitly update all detail queries for this node
-      // The setQueriesData above may not trigger re-renders for all subscribed components
-      // because React Query's query key matching can be inconsistent.
-      // This ensures pills and other components showing this node get the updated color.
-      const queryCache = queryClient.getQueryCache();
-      const detailQueries = queryCache.findAll({ 
-        queryKey: nodeKeys.detailBase(updatedNode.id),
-        exact: false 
-      });
-      for (const query of detailQueries) {
-        const oldData = query.state.data as Node | undefined;
-        if (oldData && oldData.id === updatedNode.id) {
-          const { children, backlinks, linked_references, properties, ...rest } = updatedNode;
-          queryClient.setQueryData(query.queryKey, {
-            ...oldData,
-            ...rest,
-            ...(children !== null && children !== undefined ? { children } : {}),
-            ...(backlinks !== null && backlinks !== undefined ? { backlinks } : {}),
-            ...(linked_references !== null && linked_references !== undefined ? { linked_references } : {}),
-            ...(properties !== null && properties !== undefined && Object.keys(properties).length > 0 ? { properties } : {}),
-          });
-        }
+      // Only invalidate lists/pages if fields that affect display changed
+      // (icon, color, is_page, etc.) - not for simple content/sequence updates
+      const displayFieldsChanged = 
+        variables.data.icon !== undefined ||
+        variables.data.color !== undefined ||
+        variables.data.is_page !== undefined ||
+        variables.data.is_favorite !== undefined;
+      
+      if (displayFieldsChanged) {
+        // SOFT invalidation - no active refetch
+        invalidateNodeCaches(queryClient, {
+          nodeId: updatedNode.id,
+          lists: true,
+          pages: true,
+          refetch: false, // Let queries refetch on next mount
+        });
       }
       
-      // Force refetch the specific node detail query to ensure UI updates
-      // This is needed for node color updates on inline link pills
-      invalidateNodeCaches(queryClient, {
-        nodeId: updatedNode.id,
-        lists: true,
-        pages: true,
-        classes: true,
-        refetch: true,
-      });
+      // Invalidate inline classes query to update pill display (only if color changed)
+      if (variables.data.color !== undefined) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['inlineClasses', updatedNode.id],
+          refetchType: 'none',
+        });
+      }
       
-      // Invalidate inline classes query to update pill display
-      queryClient.invalidateQueries({ 
-        queryKey: ['inlineClasses', updatedNode.id],
-        refetchType: 'active',
-      });
-      
-      // If parent_id was updated, invalidate and refetch parent's view queries
-      // to update child_pages sections immediately
+      // If parent_id was updated, invalidate parent's view queries
+      // to update child_pages sections (soft invalidation - no forced refetch)
       if (variables.data.parent_id !== undefined) {
         const newParentId = variables.data.parent_id;
         
-        // Invalidate and refetch new parent's views (to show new child)
+        // Invalidate new parent's views (to show new child)
+        // Use soft invalidation - let queries refetch on next render
         if (newParentId) {
           queryClient.invalidateQueries({ 
             queryKey: ['nodeViews', 'queryResults'],
-            predicate: (query) => {
-              const key = query.queryKey as unknown[];
-              // Match queries that execute views for the new parent node
-              return key.length >= 4 && key[0] === 'nodeViews' && key[1] === 'queryResults';
-            },
-          });
-          queryClient.refetchQueries({ 
-            queryKey: ['nodeViews', 'queryResults'],
-            type: 'active',
+            refetchType: 'none', // Soft invalidation
           });
         }
         
@@ -580,14 +540,7 @@ export function useUpdateNode() {
         if (oldParentId && oldParentId !== newParentId) {
           queryClient.invalidateQueries({ 
             queryKey: ['nodeViews', 'queryResults'],
-            predicate: (query) => {
-              const key = query.queryKey as unknown[];
-              return key.length >= 4 && key[0] === 'nodeViews' && key[1] === 'queryResults';
-            },
-          });
-          queryClient.refetchQueries({ 
-            queryKey: ['nodeViews', 'queryResults'],
-            type: 'active',
+            refetchType: 'none', // Soft invalidation
           });
         }
       }
@@ -596,13 +549,14 @@ export function useUpdateNode() {
       // This ensures backlink badges and linked references update in real-time
       // when block references are added/removed (e.g., [[linkId]] or ((uuid)))
       if (variables.data.name !== undefined) {
-        // Invalidate all link-related caches with active refetch
+        // SOFT invalidation - don't force refetch, let queries update on next mount
+        // This prevents excessive API calls when typing
         invalidateNodeCaches(queryClient, {
           linkedRefs: true,
           backlinks: true,
           propertyBacklinks: true,
           graph: true,
-          refetch: true,
+          refetch: false, // No active refetch - too expensive
         });
         
         // SOFT invalidate the parent page's detail query to refresh children's backlink_count
