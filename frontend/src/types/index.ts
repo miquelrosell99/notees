@@ -4,7 +4,6 @@
  */
 export * from './api';
 export * from './ast';
-export * from './views';
 export * from './nodeCollection';
 export * from './viewModes';
 

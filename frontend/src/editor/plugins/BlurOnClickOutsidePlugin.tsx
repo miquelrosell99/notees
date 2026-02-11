@@ -2,7 +2,8 @@
  * BlurOnClickOutsidePlugin — Blurs the editor when clicking outside.
  * 
  * When the user clicks anywhere outside the editor container,
- * this plugin blurs the editor to exit edit mode.
+ * this plugin blurs the editor to exit edit mode and clears
+ * any block selection.
  * 
  * Interactive overlays (popups, menus, dialogs) should add the
  * `data-editor-companion` attribute to avoid triggering blur.
@@ -41,7 +42,9 @@ export function BlurOnClickOutsidePlugin({
         target.closest('[role="menu"]')
       ) return;
       
+      // Blur editor and clear block selection
       editor.blur();
+      (editor as any).__clearBlockSelection?.();
     };
 
     document.addEventListener('mousedown', handleClickOutside, true);

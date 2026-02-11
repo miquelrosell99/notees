@@ -10,7 +10,6 @@ export { NodeBlockListView } from './NodeBlockListView';
 export { NodeBlockDocumentView } from './NodeBlockDocumentView';
 export { NodeBlockCardView } from './NodeBlockCardView';
 export { NodeBlockTableView } from './NodeBlockTableView';
-export { NodeBlockGraphView } from './NodeBlockGraphView';
 
 // Gantt view (not yet migrated to Lexical)
 export { NodeBlockGanttView } from './NodeBlockGanttView';

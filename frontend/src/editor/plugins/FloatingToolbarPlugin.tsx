@@ -15,7 +15,7 @@ import { createPortal } from 'react-dom';
 import { mdiFormatBold, mdiFormatItalic, mdiFormatUnderline, mdiFormatStrikethrough, mdiCodeTags } from '@mdi/js';
 import { Card } from '../../components/core/Card';
 import { Button } from '../../components/core/Button';
-import '../../components/core/FloatingToolbar.css';
+import './FloatingToolbarPlugin.css';
 
 export interface FloatingToolbarPluginProps {
   anchorElement?: HTMLElement;

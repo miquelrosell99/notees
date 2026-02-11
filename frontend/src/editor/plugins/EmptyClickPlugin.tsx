@@ -1,59 +1,89 @@
 /**
  * EmptyClickPlugin — Handles clicks in empty space (gutters, margins, below blocks).
  * 
- * In list mode:
+ * Works in both list and document modes:
  * - Clicking below the last block should not create a cursor there
  * - Clicking on empty space to the left of blocks (margin area) should blur the editor
+ * - Clicking on the .node-block div itself (not on content children) should blur
  * 
  * This plugin intercepts mousedown events and:
- * 1. Prevents default if the click is not on an actual block element
+ * 1. Prevents default if the click is not on actual block content
  * 2. Blurs the editor if clicking on empty space while in edit mode
+ * 3. Clears any block selection via the editor's __clearBlockSelection method
+ *
+ * IMPORTANT: The handler is registered on the .notees-editor wrapper (parent of
+ * the ContentEditable), not on the ContentEditable root itself. This ensures our
+ * capture-phase handler fires BEFORE Lexical's own contenteditable handlers,
+ * so we can preventDefault() before the browser places a cursor.
  */
 
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 
 export interface EmptyClickPluginProps {
-  /** Only active in list mode */
+  /** Editor display mode (both modes are handled) */
   mode?: 'list' | 'document';
 }
 
-export function EmptyClickPlugin({ mode = 'list' }: EmptyClickPluginProps): null {
+export function EmptyClickPlugin({ mode: _mode = 'list' }: EmptyClickPluginProps): null {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    // Only apply in list mode
-    if (mode !== 'list') return;
-
     const rootElement = editor.getRootElement();
     if (!rootElement) return;
 
+    // Register on a parent of the ContentEditable so our capture-phase
+    // handler fires BEFORE any handler Lexical registers on rootElement.
+    const container = (rootElement.closest('.notees-editor')
+      || rootElement.closest('.node-card__children')
+      || rootElement.parentElement) as HTMLElement | null;
+    if (!container) return;
+
     const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      
+
+      // Only handle clicks that land inside (or on) the contenteditable area
+      if (!rootElement.contains(target) && target !== rootElement) return;
+
       // Check if the click is on a node-block or inside one
       const nodeBlock = target.closest('.node-block');
       
-      // If clicking directly on the ContentEditable root or empty space (not on a block)
+      // Case 1: Click on the ContentEditable root or empty space (not on a block)
       if (target === rootElement || !nodeBlock) {
-        // Prevent the default focus behavior
         event.preventDefault();
         event.stopPropagation();
-        
-        // If editor is focused, blur it to exit edit mode
         editor.blur();
         window.getSelection()?.removeAllRanges();
+        (editor as any).__clearBlockSelection?.();
         return;
       }
+
+      // Case 2: Click on the .node-block div itself (empty space beyond text),
+      // not on a content child like <p> or <span>
+      if (target === nodeBlock) {
+        event.preventDefault();
+        event.stopPropagation();
+        editor.blur();
+        window.getSelection()?.removeAllRanges();
+        (editor as any).__clearBlockSelection?.();
+        return;
+      }
+
+      // Case 3: Click on the bullet area — let bullet's own handler deal with it
+      if (target.closest('.node-block-bullet')) {
+        return;
+      }
+
+      // Everything else (actual text content in <p>/<span>) → let through to Lexical
     };
 
-    // Use capture phase to intercept before Lexical processes
-    rootElement.addEventListener('mousedown', handleMouseDown, true);
+    // Capture phase on ancestor → fires before contenteditable handlers
+    container.addEventListener('mousedown', handleMouseDown, true);
 
     return () => {
-      rootElement.removeEventListener('mousedown', handleMouseDown, true);
+      container.removeEventListener('mousedown', handleMouseDown, true);
     };
-  }, [editor, mode]);
+  }, [editor]);
 
   return null;
 }
