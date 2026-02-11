@@ -85,6 +85,33 @@
   --color-accent: #404040;
   --color-accent-subtle: #737373;
 
+  /* ==================== Tactile / TE-Inspired Tokens ==================== */
+  --color-bullet: var(--color-on-surface-variant);
+  --color-bullet-hover: var(--color-on-surface);
+  --color-connector-line: var(--color-outline-variant);
+  --color-connector-line-active: var(--color-on-surface-variant);
+  --color-connector-line-bold: var(--color-on-surface);
+  --color-selection-bg: rgba(0, 0, 0, 0.05);
+  --color-ghost-card-bg: var(--color-surface-container-high);
+  --color-ghost-card-border: var(--color-outline-variant);
+  --color-drop-indicator: var(--color-on-surface);
+  --color-depth-guide: var(--color-outline-variant);
+
+  --bullet-size-xs: 4px;
+  --bullet-size-sm: 5px;
+  --bullet-size-md: 6px;
+  --bullet-ring-size: 16px;
+  --connector-line-width: 1px;
+  --connector-line-bold-width: 1.5px;
+  --connector-corner-radius: 6px;
+  --indent-width: 24px;
+  --ghost-card-opacity: 0.55;
+
+  --tactile-press-scale: 0.88;
+  --tactile-hover-scale: 1.12;
+  --tactile-lift-shadow: var(--elevation-2);
+  --tactile-press-shadow: var(--elevation-0);
+
   /* ==================== Preset Colors (Muted, Accessible for Light & Dark Mode) ==================== */
   --color-preset-red:    #c55a55;
   --color-preset-orange: #c98557;
@@ -160,6 +187,8 @@
   --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
   --motion-easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
   --motion-easing-linear: linear;
+  --motion-easing-tactile: cubic-bezier(0.34, 1.56, 0.64, 1);  /* spring-like overshoot */
+  --motion-easing-collapse: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ==================== Spacing ==================== */
   --spacing-0: 0;
@@ -268,4 +297,16 @@
   /* Accent */
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
+
+  /* ==================== Tactile / TE-Inspired Tokens (Dark) ==================== */
+  --color-bullet: var(--color-on-surface-variant);
+  --color-bullet-hover: var(--color-on-surface);
+  --color-connector-line: var(--color-outline-variant);
+  --color-connector-line-active: var(--color-on-surface-variant);
+  --color-connector-line-bold: var(--color-on-surface);
+  --color-selection-bg: rgba(255, 255, 255, 0.06);
+  --color-ghost-card-bg: var(--color-surface-container-high);
+  --color-ghost-card-border: var(--color-outline-variant);
+  --color-drop-indicator: var(--color-on-surface);
+  --color-depth-guide: var(--color-outline-variant);
 }

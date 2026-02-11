@@ -38,7 +38,7 @@ export const NodeBlockGraphView: React.FC<NodeBlockGraphViewProps> = ({
       <NoteesEditor
         rootBlockId={rootBlockId}
         readOnly={readOnly}
-        viewMode="graph"
+        mode="list"
         onNavigateToNode={onNavigateToNode}
       />
     </div>

@@ -196,7 +196,7 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
                 <NoteesEditor
                   editorId={`preview-${nodeId}`}
                   rootBlockId={String(node.uuid || node.id)}
-                  viewMode="list"
+                  mode="list"
                   readOnly={!isEditing}
                   placeholder="No content"
                 />
@@ -222,7 +222,7 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
           <NoteesEditor
             editorId={`preview-block-${nodeId}`}
             rootBlockId={String(node.uuid || node.id)}
-            viewMode="document"
+            mode="document"
             readOnly={!isEditing}
             placeholder="Empty block"
           />

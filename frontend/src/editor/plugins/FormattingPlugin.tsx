@@ -26,8 +26,14 @@ export function FormattingPlugin(): null {
         const { key, ctrlKey, metaKey, shiftKey } = event;
         if (!ctrlKey && !metaKey) return false;
 
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
+        let canFormat = false;
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          canFormat = true;
+        });
+
+        if (!canFormat) return false;
 
         let format: TextFormatType | null = null;
 

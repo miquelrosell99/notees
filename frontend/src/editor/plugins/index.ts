@@ -10,6 +10,10 @@ export type { NodePillPluginProps } from './NodePillPlugin';
 
 export { DragDropPlugin } from './DragDropPlugin';
 export type { DragDropPluginProps } from './DragDropPlugin';
+export { BlockDragSelectionPlugin } from './BlockDragSelectionPlugin';
+export type { BlockDragSelectionPluginProps } from './BlockDragSelectionPlugin';
+export { KeyboardSelectionPlugin } from './KeyboardSelectionPlugin';
+export type { KeyboardSelectionPluginProps } from './KeyboardSelectionPlugin';
 
 export { SelectionPlugin } from './SelectionPlugin';
 export type { SelectionPluginProps } from './SelectionPlugin';
@@ -20,3 +24,6 @@ export { SlashCommandPlugin } from './SlashCommandPlugin';
 export type { SlashCommandPluginProps, TriggerType } from './SlashCommandPlugin';
 
 export { FloatingToolbarPlugin } from './FloatingToolbarPlugin';
+
+export { ContextMenuPlugin } from './ContextMenuPlugin';
+export type { ContextMenuPluginProps } from './ContextMenuPlugin';

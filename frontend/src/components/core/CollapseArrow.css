@@ -1,8 +1,9 @@
 /**
- * CollapseArrow styles
+ * CollapseArrow styles — TE-inspired tactile collapse toggle.
  * 
  * Positioned absolutely to the left of the parent element.
  * Parent should have position: relative.
+ * Smooth rotation, press-in feel, subtle hover background.
  */
 
 .collapse-arrow {
@@ -24,10 +25,17 @@
   
   /* Hidden by default, visible on hover */
   opacity: 0;
-  transition: opacity 0.1s ease, background-color 0.1s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
   
   /* Icon color */
-  color: var(--color-on-surface-variant);
+  color: var(--color-bullet);
+}
+
+/* Smooth icon rotation */
+.collapse-arrow .mdi {
+  transition: transform var(--motion-duration-long) var(--motion-easing-collapse);
 }
 
 /* Sizes */
@@ -49,9 +57,15 @@
   left: -18px;
 }
 
-/* Hover background */
+/* Hover: subtle background + color darkens */
 .collapse-arrow:hover {
-  background-color: var(--color-surface-container);
+  background-color: var(--color-selection-bg);
+  color: var(--color-bullet-hover);
+}
+
+/* Press: tactile press-in */
+.collapse-arrow:active {
+  transform: translateY(-50%) scale(var(--tactile-press-scale));
 }
 
 /* Visible states */

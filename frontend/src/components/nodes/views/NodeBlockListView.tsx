@@ -1,41 +1,135 @@
 /**
- * NodeBlockListView — List view using Lexical editor.
+ * NodeBlockListView — List/outline view using Lexical NoteesEditor.
  *
- * Flat node list with depth for indentation.
- * The primary outliner-style editing mode.
+ * Uses a SINGLE NoteesEditor instance for performance.
+ * Passes nodes directly - NoteesEditor handles runtime sync internally.
  */
+import { useCallback, useMemo, useId } from 'react';
+import type { Node } from '@/types';
+import type { NodeListViewProps } from '@/types/nodeCollection';
+import { Bullet } from '../../blocks/Bullet';
+import { NoteesEditor } from '@/editor/NoteesEditor';
+import { ListSortable } from '../../core/ListSortable';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import './NodeBlockListView.css';
 
-import { useCallback, type JSX } from 'react';
-import { NoteesEditor } from '../../editor/NoteesEditor';
-import type { ViewMode } from '../../runtime/types';
-
-export interface NodeBlockListViewProps {
-  rootBlockId: string;
-  editorId?: string;
-  readOnly?: boolean;
-  onNavigateToNode?: (linkId: string) => void;
-  onEscape?: () => void;
-  className?: string;
-}
-
+/**
+ * NodeBlockListView - List/outline view using Lexical editor
+ *
+ * Simply passes nodes to NoteesEditor - no manual runtime sync needed.
+ * The readOnly prop on NoteesEditor controls edit vs preview mode.
+ */
 export function NodeBlockListView({
-  rootBlockId,
-  editorId,
-  readOnly = false,
-  onNavigateToNode,
-  onEscape,
-  className,
-}: NodeBlockListViewProps): JSX.Element {
+  nodes,
+  editable,
+  pagesOnly = false,
+  sortable = false,
+  onReorder,
+  renderItemAction,
+  onNodeClick,
+  onContentChange,
+  className = '',
+}: NodeListViewProps) {
+  const viewId = useId();
+
+  // Collect all nodes recursively, filtering by pagesOnly if needed
+  const allNodes = useMemo(() => {
+    const result: Node[] = [];
+    const collect = (n: Node) => {
+      if (pagesOnly && !n.is_page) return;
+      result.push(n);
+      if (n.children) {
+        for (const child of n.children) {
+          collect(child);
+        }
+      }
+    };
+    for (const n of nodes) {
+      collect(n);
+    }
+    return result;
+  }, [nodes, pagesOnly]);
+
+  // Handler for navigation from editor
+  const handleNavigateToNode = useCallback((blockId: string) => {
+    // Get runtime to resolve blockId to serverId
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    
+    if (!graphNode) return;
+    
+    const serverId = graphNode.serverId;
+    if (!serverId) return;
+    
+    // Find node in allNodes or create stub
+    const targetNode = allNodes.find(n => n.id === serverId);
+    if (targetNode) {
+      onNodeClick?.(targetNode);
+    } else {
+      onNodeClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
+    }
+  }, [allNodes, onNodeClick]);
+
+  // Handler for content changes from editor
+  const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
+    const id = Number(blockId);
+    if (!isNaN(id)) {
+      onContentChange?.(id, content);
+    }
+  }, [onContentChange]);
+
+  // If sortable, use ListSortable wrapper (special mode for reordering)
+  if (sortable && onReorder) {
+    return (
+      <ListSortable
+        items={nodes.map(n => ({ id: n.id, node: n }))}
+        onReorder={onReorder}
+        onItemClick={(item) => onNodeClick?.(item.node)}
+        className={`node-list-view node-list-view--sortable ${className}`}
+        itemClassName="node-list-view__sortable-item"
+        showDragHandle={true}
+        renderIcon={(item) => (
+          <Bullet
+            nodeId={item.node.id}
+            icon={item.node.icon}
+            isPage={item.node.is_page}
+            interactive={false}
+            size="sm"
+          />
+        )}
+        renderText={(item) => (
+          <span className="node-list-view__item-name">
+            {item.node.name || 'Untitled'}
+          </span>
+        )}
+        renderAction={renderItemAction
+          ? (item, index) => renderItemAction(item.node, index)
+          : undefined
+        }
+      />
+    );
+  }
+
+  // Early return if no nodes
+  if (allNodes.length === 0) {
+    return (
+      <div className={`node-list-view node-list-view--empty ${className}`}>
+        <span className="node-list-view__empty-message">No items</span>
+      </div>
+    );
+  }
+
+  // NoteesEditor handles runtime sync internally
   return (
-    <div className={`node-block-list-view ${className || ''}`}>
+    <div className={`node-list-view ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
       <NoteesEditor
-        editorId={editorId || `list-${rootBlockId}`}
-        rootBlockId={rootBlockId}
-        viewMode="list"
-        readOnly={readOnly}
-        onNavigateToNode={onNavigateToNode}
-        onEscape={onEscape}
-        placeholder="Type / for commands…"
+        editorId={`list-view-${viewId}`}
+        nodes={allNodes}
+        mode="list"
+        readOnly={!editable}
+        onNavigateToNode={handleNavigateToNode}
+        onContentChange={handleContentChangeBridge}
+        className="node-list-view__editor"
       />
     </div>
   );

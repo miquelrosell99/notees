@@ -60,6 +60,12 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         const blockId = blockEl.getAttribute('data-block-id');
         if (!blockId) return false;
 
+        // Clear any text selection
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+        }
+
         const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
         const coordinator = getDragCoordinator();
         coordinator.startDrag({ blockId, sourceEditorId: editorId, sourceDepth: depth });

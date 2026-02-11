@@ -79,6 +79,14 @@ export class NodeBlockCodeNode extends NodeBlockNode {
       language: this.__language,
     } as SerializedNodeBlockNode & { type: 'node-block-code'; language: string };
   }
+
+  static importJSON(json: SerializedNodeBlockNode & { language?: string }): NodeBlockCodeNode {
+    return $createNodeBlockCodeNode(
+      json.blockId,
+      json.language ?? '',
+      json.depth,
+    );
+  }
 }
 
 export function $createNodeBlockCodeNode(

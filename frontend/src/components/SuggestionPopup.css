@@ -43,8 +43,8 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
   border-radius: var(--shape-extra-small);
   font-weight: 600;
   font-size: 12px;
@@ -90,23 +90,28 @@
   border-radius: var(--shape-small);
   cursor: pointer;
   text-align: left;
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .suggestion-popup__item:hover {
-  background: var(--color-hover-overlay);
+  background: var(--color-selection-bg);
+}
+
+.suggestion-popup__item:active {
+  transform: scale(0.98);
 }
 
 .suggestion-popup__item--selected {
-  background: var(--color-surface-container-high);
+  background: var(--color-selection-bg);
 }
 
 .suggestion-popup__item--create {
-  color: var(--color-primary);
+  color: var(--color-on-surface);
 }
 
 .suggestion-popup__item--create .suggestion-popup__item-icon {
-  color: var(--color-primary);
+  color: var(--color-on-surface-variant);
 }
 
 .suggestion-popup__item-icon {
@@ -146,7 +151,7 @@
 }
 
 .suggestion-popup__item--create .suggestion-popup__item-name {
-  color: var(--color-primary);
+  color: var(--color-on-surface);
 }
 
 .suggestion-popup__footer {

@@ -1,66 +1,12 @@
 /**
- * NodeCardView CSS
- * 
- * Styles for card masonry view mode
+ * CardEditor CSS
+ *
+ * Styles for card view mode — individual card layout and interactivity.
+ * Direct port of the old NodeCardView.css adapted for Lexical editors.
  */
 
-.node-card-view {
-  column-gap: 1rem;
-  width: 100%;
-}
+/* ─── Individual card — extends Card core component ────────────── */
 
-/* Card size variants - column-based masonry layout */
-.node-card-view--size-1 {
-  column-count: 1;
-}
-
-.node-card-view--size-2 {
-  column-count: 2;
-}
-
-.node-card-view--size-3 {
-  column-count: 3;
-}
-
-.node-card-view--size-4 {
-  column-count: 4;
-}
-
-.node-card-view--size-5 {
-  column-count: 5;
-}
-
-/* Horizontal layout overrides: max 2 columns */
-.node-card-view--size-1.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  column-count: 1;
-}
-
-.node-card-view--size-2.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-3.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-4.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-5.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  column-count: 2;
-}
-
-/* Individual cards in masonry layout */
-.node-card-view .node-card {
-  break-inside: avoid;
-  margin-bottom: 1rem;
-  width: 100%;
-  min-width: 0;
-}
-
-/* Vertical layouts with natural cover heights */
-.node-card-view--vertical-layout {
-  /* Cards use natural heights based on content */
-}
-
-/* Set cover height to natural aspect ratio */
-.node-card-view--vertical-layout .node-card__cover {
-  height: auto;
-}
-
-/* Individual card - extends Card core component */
 .node-card.card {
   cursor: pointer;
   display: flex;
@@ -74,7 +20,7 @@
   overflow: clip;
 }
 
-/* Card layouts */
+/* Card layouts — CSS grid */
 .node-card--cover-top {
   display: grid !important;
   grid-template-columns: 1fr;
@@ -82,7 +28,6 @@
   gap: 0;
 }
 
-/* Grid-based layouts: no-cover uses single column, horizontal layouts use 2 columns */
 .node-card--no-cover {
   display: grid !important;
   grid-template-columns: 1fr;
@@ -90,7 +35,6 @@
   gap: 0;
 }
 
-/* Horizontal layouts use CSS Grid - override flex display */
 .node-card--cover-left,
 .node-card--cover-right {
   display: grid !important;
@@ -103,7 +47,8 @@
   grid-template-columns: 1fr auto;
 }
 
-/* Cover in horizontal layouts - spans first 3 rows (title, classes, tags) */
+/* ─── Cover positioning ────────────────────────────────────────── */
+
 .node-card--cover-top .node-card__cover {
   grid-column: 1;
   grid-row: 1;
@@ -127,7 +72,8 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
-/* Header positioning for grid layouts */
+/* ─── Header positioning ───────────────────────────────────────── */
+
 .node-card--cover-top .node-card__header {
   grid-column: 1;
   grid-row: 2;
@@ -148,7 +94,8 @@
   grid-row: 1;
 }
 
-/* Classes row positioning */
+/* ─── Classes row positioning ──────────────────────────────────── */
+
 .node-card--cover-top .node-card__classes-row {
   grid-column: 1;
   grid-row: 3;
@@ -169,7 +116,8 @@
   grid-row: 2;
 }
 
-/* Tags row positioning */
+/* ─── Tags row positioning ─────────────────────────────────────── */
+
 .node-card--cover-top .node-card__tags-row {
   grid-column: 1;
   grid-row: 4;
@@ -190,7 +138,8 @@
   grid-row: 3;
 }
 
-/* Children body spans all columns */
+/* ─── Body positioning — spans all columns ─────────────────────── */
+
 .node-card--cover-top .node-card__body,
 .node-card--no-cover .node-card__body,
 .node-card--cover-left .node-card__body,
@@ -208,14 +157,14 @@
   grid-row: 4;
 }
 
-/* Cover image */
+/* ─── Cover image ──────────────────────────────────────────────── */
+
 .node-card__cover {
   position: relative;
   background: var(--color-surface-container-high);
   width: 100%;
 }
 
-/* Cover action buttons - positioned at bottom right */
 .node-card__cover-actions {
   position: absolute;
   bottom: var(--spacing-2);
@@ -223,7 +172,6 @@
   z-index: 10;
 }
 
-/* Cover bullet - positioned at top left */
 .node-card__cover-bullet {
   position: absolute;
   top: var(--spacing-2);
@@ -235,9 +183,8 @@
   padding: 2px;
 }
 
-/* Vertical layout covers use natural aspect ratio of images */
+/* Vertical layout covers use natural aspect ratio */
 .node-card--cover-top .node-card__cover {
-  /* Natural aspect ratio based on image */
   aspect-ratio: auto;
 }
 
@@ -246,7 +193,7 @@
   height: auto;
 }
 
-/* Ensure ImageNode and img scale naturally with column width */
+/* Ensure ImageNode and img scale naturally */
 .node-card__cover .image-node {
   width: 100% !important;
   height: auto !important;
@@ -259,7 +206,177 @@
   display: block;
 }
 
-/* Card body */
+/* ─── Card header ──────────────────────────────────────────────── */
+
+.node-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.node-card__header:first-child {
+  border-radius: var(--shape-medium) var(--shape-medium) 0 0;
+}
+
+/* Separators between header and cover */
+.node-card--cover-top .node-card__header {
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.node-card--cover-left .node-card__header {
+  border-left: 1px solid var(--color-outline-variant);
+}
+
+.node-card--cover-right .node-card__header {
+  border-right: 1px solid var(--color-outline-variant);
+}
+
+/* ─── Metadata rows (classes and tags) ─────────────────────────── */
+
+.node-card__metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-outline-variant);
+  min-height: 2rem;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.node-card--cover-left .node-card__metadata-row {
+  border-left: 1px solid var(--color-outline-variant);
+}
+
+.node-card--cover-right .node-card__metadata-row {
+  border-right: 1px solid var(--color-outline-variant);
+}
+
+.node-card__add-metadata-btn {
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.node-card__add-metadata-btn:hover {
+  opacity: 1;
+}
+
+/* ─── Title wrapper ────────────────────────────────────────────── */
+
+.node-card__title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.node-card__title-block {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Force all Lexical wrapper divs inside the title to be transparent flex parents */
+.node-card__title-block > div {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.node-card__title-block > div > div {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* Override NoteesEditor wrapper styles inside the title */
+.node-card__title-editor.notees-editor {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-card__title-editor .notees-editor-content {
+  outline: none;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  caret-color: var(--color-on-surface);
+  flex: 1;
+  min-width: 0;
+}
+
+.node-card__title-editor .notees-editor-placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.4;
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.node-card__title-block .block-container {
+  padding: 0;
+}
+
+.node-card__title-block .block-content {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 0.9375rem;
+}
+
+/* Hide bullets in title editor */
+.node-card__title-block .node-block-bullet {
+  display: none;
+}
+
+.node-card__title-block .node-block {
+  padding: 0;
+  min-height: unset;
+}
+
+/* Strip extra spacing from Lexical paragraph inside title */
+.node-card__title-block .notees-editor-paragraph {
+  min-height: unset;
+  line-height: 1.4;
+}
+
+/* ─── Action buttons ───────────────────────────────────────────── */
+
+.node-card__action-button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.node-card:hover .node-card__action-button {
+  opacity: 1;
+}
+
+.node-card__action-button--always-visible {
+  opacity: 1;
+}
+
+/* ─── Card body ────────────────────────────────────────────────── */
+
 .node-card__body {
   padding: 0.5rem 0.75rem 0.75rem;
   min-width: 0;
@@ -267,7 +384,7 @@
   height: auto;
 }
 
-/* Hover-reveal body - collapsed by default, expands on hover */
+/* Hover-reveal body — collapsed by default, expands on hover */
 .node-card__body--hover-reveal {
   padding: 0;
   min-height: 8px;
@@ -293,7 +410,7 @@
   padding: 0;
 }
 
-/* Content wrapper inside hover-reveal body */
+/* Content wrapper — hidden by default */
 .node-card__body--hover-reveal .node-card__body-content {
   opacity: 0;
   max-height: 0;
@@ -315,189 +432,63 @@
   pointer-events: auto;
 }
 
-/* Show border on tags row only when body is hovered */
+/* Show border on tags row to separate from body */
 .node-card__tags-row {
-  border-bottom: none;
-  transition: border-color 0.15s ease;
-}
-
-/* Show bottom border on tags when hover-reveal body is hovered */
-.node-card:has(.node-card__body--hover-reveal:hover) .node-card__tags-row {
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
-/* Content section header - collapsible */
-.node-card__content-header {
-  cursor: pointer;
-  user-select: none;
-  padding: 0.25rem 0;
-}
+/* ─── Children (Lexical subtree editor) ────────────────────────── */
 
-.node-card__content-toggle {
-  opacity: 0.7;
-  transition: opacity 0.15s ease;
-}
-
-.node-card__content-header:hover .node-card__content-toggle {
-  opacity: 1;
-}
-
-/* Card header - similar to sidebar cards */
-.node-card__header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-surface-container);
-  border-bottom: 1px solid var(--color-outline-variant);
-}
-
-.node-card__header:first-child {
-  border-radius: var(--shape-medium) var(--shape-medium) 0 0;
-}
-
-/* Separator between header and cover in vertical layouts */
-.node-card--cover-top .node-card__header {
-  border-top: 1px solid var(--color-outline-variant);
-}
-
-/* Separator between header and cover in horizontal layouts */
-.node-card--cover-left .node-card__header {
-  border-left: 1px solid var(--color-outline-variant);
-}
-
-.node-card--cover-right .node-card__header {
-  border-right: 1px solid var(--color-outline-variant);
-}
-
-/* Metadata rows (classes and tags) */
-.node-card__metadata-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-outline-variant);
-  min-height: 2rem;
-  align-items: center;
-}
-
-.node-card--cover-left .node-card__metadata-row {
-  border-left: 1px solid var(--color-outline-variant);
-}
-
-.node-card--cover-right .node-card__metadata-row {
-  border-right: 1px solid var(--color-outline-variant);
-}
-
-.node-card__metadata-row {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.node-card__add-metadata-btn {
-  opacity: 0.5;
-  transition: opacity 0.15s ease;
-}
-
-.node-card__add-metadata-btn:hover {
-  opacity: 1;
-}
-
-/* Title wrapper - contains block and nav button */
-.node-card__title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Title block inside header */
-.node-card__title-block {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.node-card__title-block .block-container {
-  padding: 0;
-}
-
-.node-card__title-block .block-content {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  font-size: 0.9375rem;
-}
-
-/* Action buttons (+ and →) - only visible on hover */
-.node-card__action-button {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  flex-shrink: 0;
-}
-
-.node-card:hover .node-card__action-button {
-  opacity: 1;
-}
-
-/* Always visible action buttons */
-.node-card__action-button--always-visible {
-  opacity: 1;
-}
-
-/* Card children via Block components */
 .node-card__children {
   font-size: 0.875rem;
-  padding: 0.25rem 0.75rem 0.5rem;
+  padding: 0.25rem 0;
 }
 
 .node-card__children .block-container {
   padding: 0.25rem 0;
 }
 
-.node-card__more {
-  font-size: 0.75rem;
-  color: var(--color-outline);
-  padding-top: 0.25rem;
+.node-card__children-editable {
+  outline: none;
+  min-height: 1.4em;
+  caret-color: var(--color-on-surface);
 }
 
-/* Colored card - left border + background tint inside card shape
- * Uses CSS custom properties set by getNodeColorStylesAuto():
- *   --node-color: the raw color value
- *   --node-tint: very low opacity background tint
- *   --node-border-solid: solid color for border
- */
+/* ─── Colored cards ────────────────────────────────────────────── */
+
 .node-card--colored.card {
-  /* Solid left border */
   border-left: 4px solid var(--node-border-solid);
-  
-  /* Subtle background tint */
-  background: var(--node-tint);
 }
 
-/* Header also gets tinted background on colored cards */
-.node-card--colored .node-card__header {
-  background: var(--node-tint);
+/* Remove per-block color accents inside cards — the card itself is already colored */
+.node-card .node-block[style*="--node-block-color"] {
+  border-left: none;
+  padding-left: calc(var(--node-block-depth, 0) * var(--indent-width));
+  background: transparent;
 }
+
+/* ─── Card states ──────────────────────────────────────────────── */
 
 .node-card {
   position: relative;
 }
 
-/* Sortable header - drag from empty area */
-.node-card__header--sortable {
+/* Sortable cards: show grab cursor only near the border */
+.node-card-view--sortable .node-card {
   cursor: grab;
 }
 
-.node-card--dragging .node-card__header--sortable {
+.node-card-view--sortable .node-card > * {
+  cursor: default;
+}
+
+.node-card--dragging {
+  opacity: 0.5;
   cursor: grabbing;
 }
 
-/* Dragging states */
-.node-card--dragging {
-  opacity: 0.5;
+.node-card--dragging > * {
+  cursor: grabbing;
 }
 
 .node-card--drop-target {
@@ -505,11 +496,8 @@
   transform: scale(1.02);
 }
 
-.node-card-view--sortable {
-  user-select: none;
-}
+/* ─── Selection checkbox ───────────────────────────────────────── */
 
-/* Selection checkbox */
 .node-card__checkbox {
   position: absolute;
   top: 0.5rem;
@@ -529,7 +517,6 @@
   pointer-events: auto;
 }
 
-/* Show checkbox when there are any selected items in the grid */
 .node-card-view--selectable .node-card__checkbox {
   opacity: 0;
   pointer-events: none;
@@ -541,13 +528,29 @@
   pointer-events: auto;
 }
 
-/* Selected card state */
 .node-card--selected {
   box-shadow: 0 0 0 2px var(--color-primary);
   background: var(--color-surface-container-high);
 }
 
-/* Add card pseudo-card */
+/* ─── Add block button ─────────────────────────────────────────── */
+
+.node-card__add-block {
+  padding: 0.5rem 0.75rem;
+}
+
+.node-card__add-block-button {
+  justify-content: flex-start;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.node-card__add-block-button:hover {
+  opacity: 1;
+}
+
+/* ─── Add card pseudo-card ─────────────────────────────────────── */
+
 .node-card-add {
   break-inside: avoid;
   margin-bottom: 1rem;
@@ -584,19 +587,3 @@
 .node-card-add:hover .node-card-add__button {
   opacity: 1;
 }
-
-/* Add block button at end of children list */
-.node-card__add-block {
-  padding: 0.5rem 0.75rem;
-}
-
-.node-card__add-block-button {
-  justify-content: flex-start;
-  opacity: 0.7;
-  transition: opacity 0.15s ease;
-}
-
-.node-card__add-block-button:hover {
-  opacity: 1;
-}
-

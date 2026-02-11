@@ -5,45 +5,15 @@
  * Lexical editors are projections of subsets of this graph.
  */
 
+import type { ASTDocument } from '@/types/ast';
+
 // ─── Content AST ──────────────────────────────────────────────────
 
-/** Inline marks that can be applied to text spans */
-export type InlineMark = 'strong' | 'em' | 'underline' | 'strikethrough' | 'code';
-
-/** Base inline node in the content AST */
-export interface ASTTextNode {
-  type: 'text';
-  text: string;
-  marks?: InlineMark[];
-}
-
-export interface ASTNodeLinkNode {
-  type: 'node_link';
-  linkId: string;       // "nodeUuid:linkUuid"
-  refType: 'node' | 'class';
-}
-
-export interface ASTExternalLinkNode {
-  type: 'external_link';
-  url: string;
-  children: ASTInlineNode[];
-}
-
-export interface ASTCodeSpanNode {
-  type: 'code_span';
-  text: string;
-}
-
-export type ASTInlineNode = ASTTextNode | ASTNodeLinkNode | ASTExternalLinkNode | ASTCodeSpanNode;
-
-/** A paragraph (single line of content within a block) */
-export interface ASTParagraph {
-  type: 'paragraph';
-  children: ASTInlineNode[];
-}
-
-/** The content of a single node-block */
-export type ContentAST = ASTParagraph[];
+/**
+ * ContentAST is the canonical ASTDocument from types/ast.ts.
+ * No duplicate AST types — we use the single source of truth.
+ */
+export type ContentAST = ASTDocument;
 
 // ─── Graph Nodes ──────────────────────────────────────────────────
 
@@ -213,4 +183,8 @@ export interface ProjectionQuery {
 
 // ─── View modes ───────────────────────────────────────────────────
 
+/** Editor modes for NoteesEditor (single-editor projections) */
+export type EditorMode = 'list' | 'document';
+
+/** Display modes including card (which uses separate CardModeView) */
 export type ViewMode = 'list' | 'document' | 'table' | 'card' | 'graph';

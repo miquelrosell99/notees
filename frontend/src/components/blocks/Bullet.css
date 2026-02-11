@@ -3,6 +3,8 @@
  * 
  * Reusable bullet/dot element for blocks and property values.
  * Supports interactive and decorative modes.
+ * 
+ * Teenage Engineering-inspired: tactile, circular, responsive to input.
  */
 
 /* ==================== Bullet Wrapper ==================== */
@@ -15,15 +17,20 @@
   flex-shrink: 0;
   /* Align bullet dot with text baseline */
   margin-top: 1px;
+  /* Prevent text selection when clicking/dragging */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 /* Expand hover area to include collapse arrow position */
 .bullet-has-children::before {
   content: '';
   position: absolute;
-  left: -16px;
+  left: -18px;
   top: 0;
-  width: 16px;
+  width: 18px;
   height: 100%;
 }
 
@@ -31,8 +38,8 @@
 .bullet-cover-indicator {
   position: absolute;
   left: -6px;
-  width: 4px;
-  height: 4px;
+  width: var(--bullet-size-xs);
+  height: var(--bullet-size-xs);
   border-radius: 50%;
   background-color: var(--color-primary);
   opacity: 0.7;
@@ -57,6 +64,14 @@
 /* Interactive bullet (clickable/draggable) */
 .bullet-interactive {
   cursor: pointer;
+  border-radius: 50%;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  /* Prevent text cursor from showing */
+  pointer-events: auto;
+}
+
+.bullet-interactive:hover {
+  background-color: var(--color-selection-bg);
 }
 
 .bullet-interactive[draggable="true"] {
@@ -65,6 +80,7 @@
 
 .bullet-interactive[draggable="true"]:active {
   cursor: grabbing;
+  transform: scale(var(--tactile-press-scale));
 }
 
 /* ==================== Bullet Container ==================== */
@@ -81,24 +97,31 @@
 /* ==================== Bullet Dot ==================== */
 
 .bullet-dot {
-  width: 6px;
-  height: 6px;
+  width: var(--bullet-size-md);
+  height: var(--bullet-size-md);
   border-radius: 50%;
-  background-color: var(--color-on-surface-variant);
-  opacity: 0.6;
+  background-color: var(--color-bullet);
+  opacity: 0.55;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               background-color var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-standard);
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .bullet-hovered .bullet-dot {
-  opacity: 1;
+  opacity: 0.85;
 }
 
-/* Hover effect: slight size increase */
+/* Hover: tactile enlarge */
 .bullet-interactive:hover .bullet-dot {
   opacity: 1;
-  transform: scale(1.15);
+  transform: scale(var(--tactile-hover-scale));
+  background-color: var(--color-bullet-hover);
+}
+
+/* Press: tactile press-in */
+.bullet-interactive:active .bullet-dot {
+  transform: scale(var(--tactile-press-scale));
+  opacity: 1;
 }
 
 /* ==================== Bullet Icon ==================== */
@@ -108,11 +131,9 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-  /* Allow NodeIcon to set font-size via inline styles for emojis */
 }
 
 .bullet-has-icon .bullet-container {
-  /* Ensure emoji icons are properly centered */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,60 +143,78 @@
 
 .bullet-outer-ring {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: var(--bullet-ring-size);
+  height: var(--bullet-ring-size);
   border-radius: 50%;
-  background-color: var(--color-on-surface-variant);
+  border: 1.5px solid var(--color-bullet);
+  background-color: transparent;
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-standard);
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
-/* Show ring when collapsed with children */
+/* Show ring when collapsed with children — stroked circle, TE style */
 .bullet-collapsed .bullet-outer-ring {
-  opacity: 0.15;
+  opacity: 0.35;
 }
 
 .bullet-collapsed.bullet-hovered .bullet-outer-ring {
-  opacity: 0.25;
+  opacity: 0.55;
 }
 
-/* Show ring on hover for interactive bullets */
+/* Hover ring for interactive bullets */
 .bullet-interactive:hover .bullet-outer-ring {
-  opacity: 0.15;
-  transform: scale(1.1);
+  opacity: 0.2;
+  transform: scale(1.08);
 }
 
 .bullet-interactive.bullet-collapsed:hover .bullet-outer-ring {
-  opacity: 0.25;
+  opacity: 0.5;
+  transform: scale(1.08);
 }
 
 /* ==================== Collapse Arrow ==================== */
 
 .bullet-collapse-arrow {
   position: absolute;
-  left: -16px;
+  left: -18px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  border-radius: 50%;
+  color: var(--color-bullet);
   cursor: pointer;
-  opacity: 0.7;
+  opacity: 0.6;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard);
+              color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
   z-index: 5;
+  /* Prevent text selection */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .bullet-collapse-arrow:hover {
   opacity: 1;
-  color: var(--color-on-surface);
+  color: var(--color-bullet-hover);
+  background-color: var(--color-selection-bg);
+}
+
+.bullet-collapse-arrow:active {
+  transform: translateY(-50%) scale(var(--tactile-press-scale));
+}
+
+/* Smooth rotation for collapse icon */
+.bullet-collapse-arrow .mdi {
+  transition: transform var(--motion-duration-long) var(--motion-easing-collapse);
 }
 
 /* ==================== Dragging State ==================== */

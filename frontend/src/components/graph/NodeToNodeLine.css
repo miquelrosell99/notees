@@ -1,5 +1,5 @@
 /**
- * NodeToNodeLine Component Styles
+ * NodeToNodeLine Component Styles — TE graph edges.
  */
 
 .node-to-node-line {
@@ -7,9 +7,9 @@
 }
 
 .node-to-node-line--highlighted line {
-  filter: drop-shadow(0 0 2px var(--color-primary));
+  filter: drop-shadow(0 0 2px var(--color-on-surface-variant));
 }
 
 .node-to-node-line--dimmed {
-  opacity: 0.3;
+  opacity: 0.25;
 }

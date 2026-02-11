@@ -2,8 +2,13 @@
  * Editor barrel export.
  */
 
-export { NoteesEditor } from './NoteesEditor';
-export type { NoteesEditorProps } from './NoteesEditor';
+export { NoteesEditor, EDITOR_NODES, serializeContentAST } from './NoteesEditor';
+export type { NoteesEditorProps, EditorMode } from './NoteesEditor';
+
+export { NodeCard } from './CardEditor';
+export type { NodeCardProps } from './CardEditor';
+
+export { CardModeView } from './CardModeView';
 
 // Nodes
 export {
@@ -34,6 +39,7 @@ export {
   FormattingPlugin,
   SlashCommandPlugin,
   FloatingToolbarPlugin,
+  ContextMenuPlugin,
 } from './plugins';
 
 // Theme

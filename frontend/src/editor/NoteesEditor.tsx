@@ -1,11 +1,15 @@
 /**
- * NoteesEditor — The main Lexical editor component for Notees.
+ * NoteesEditor — Single Lexical editor for List Mode and Document Mode.
  *
- * This is a projection-based editor. It does NOT own hierarchy.
- * The NodeGraphRuntime is the source of truth. This editor renders
- * a flat list of NodeBlockNodes with depth metadata.
+ * This component renders ONE Lexical editor instance that projects
+ * the entire block hierarchy from NodeGraphRuntime as a flat list
+ * of NodeBlockNodes with depth metadata for indentation.
  *
- * Supports multiple simultaneous instances (main editor, sidebar cards, etc.)
+ * Used by:
+ * - List Mode: full hierarchy with bullets, indent, collapse
+ * - Document Mode: same hierarchy, bullets hidden via CSS
+ *
+ * NOT used for Card Mode — see CardModeView for per-card editors.
  */
 
 import { useCallback, useMemo, useId, type JSX } from 'react';
@@ -25,30 +29,59 @@ import { NodeBlockTableCellNode } from './nodes/NodeBlockTableCellNode';
 import { NodeBlockPlugin } from './plugins/NodeBlockPlugin';
 import { NodePillPlugin } from './plugins/NodePillPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
+import { BlockDragSelectionPlugin } from './plugins/BlockDragSelectionPlugin';
+import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
 import { SelectionPlugin } from './plugins/SelectionPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
 import { SlashCommandPlugin, type TriggerType } from './plugins/SlashCommandPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
+import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
+import { EmptyClickPlugin } from './plugins/EmptyClickPlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
-import type { ContentAST, ViewMode } from '../runtime/types';
+import { apiNodesToGraphNodesWithVirtualRoot } from '../hooks/useRuntimeSync';
+import { useStructureSync } from '../hooks/useStructureSync';
+import type { ContentAST } from '../runtime/types';
+import type { Node } from '../types/api';
 
 import './NoteesEditor.css';
 
+// ─── Lexical node registry (shared between List and Card editors) ─
+
+export const EDITOR_NODES = [
+  NodeBlockNode,
+  NodePillNode,
+  NodeBlockHeadingNode,
+  NodeBlockCodeNode,
+  NodeBlockTableCellNode,
+];
+
 // ─── Props ────────────────────────────────────────────────────────
+
+export type EditorMode = 'list' | 'document';
 
 export interface NoteesEditorProps {
   /** Unique editor instance ID */
   editorId?: string;
-  /** Root block ID to project from */
-  rootBlockId: string;
-  /** View mode affects rendering style */
-  viewMode?: ViewMode;
+  /** 
+   * Nodes to display - primary input for query-driven views.
+   * Top-level nodes in the array become children of a virtual root.
+   */
+  nodes?: Node[];
+  /**
+   * Root block ID - alternative to nodes[] for runtime-managed scenarios.
+   * If both nodes and rootBlockId provided, nodes takes precedence.
+   */
+  rootBlockId?: string;
+  /** Editor mode: 'list' (bullets + indent) or 'document' (prose) */
+  mode?: EditorMode;
   /** Read-only mode */
   readOnly?: boolean;
   /** Called when a node pill is clicked */
   onNavigateToNode?: (linkId: string) => void;
+  /** Called when bullet is shift+clicked (for sidebar) */
+  onOpenInSidebar?: (blockId: string) => void;
   /** Called on escape */
   onEscape?: () => void;
   /** Called when selection changes (block IDs) */
@@ -67,38 +100,74 @@ export interface NoteesEditorProps {
   className?: string;
   /** Placeholder text */
   placeholder?: string;
+  /** Whether to include the root block itself in projection (default: false) */
+  includeRoot?: boolean;
+  /** Maximum depth to project (-1 = unlimited, default: -1) */
+  maxDepth?: number;
+}
+
+// ─── Shared content serializer ────────────────────────────────────
+
+export function serializeContentAST(contentAST: ContentAST): string {
+  return contentAST
+    .map(node => {
+      if ('text' in node) return node.text;
+      if ('children' in node) return node.children.map((c: any) => c.text ?? '').join('');
+      return '';
+    })
+    .join('\n');
 }
 
 // ─── Component ────────────────────────────────────────────────────
 
 export function NoteesEditor({
   editorId: externalEditorId,
-  rootBlockId,
-  viewMode = 'list',
+  nodes,
+  rootBlockId: externalRootBlockId,
+  mode = 'list',
   readOnly = false,
   onNavigateToNode,
+  onOpenInSidebar,
   onEscape,
   onSelectionChange,
   onContentChange: onContentChangeCallback,
   renderTriggerPopup,
   className,
   placeholder = 'Type / for commands…',
+  includeRoot,
+  maxDepth,
 }: NoteesEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
+  
+  // Generate stable virtual root ID for this editor instance
+  const virtualRootId = useMemo(() => `__editor_${editorId}__`, [editorId]);
+
+  // ─── Sync structural changes to database ───────────────────
+  // Listens to runtime structure_changed events (indent, outdent, reorder)
+  // and persists parent_id and sequence to the backend
+  useStructureSync();
+
+  // ─── Sync nodes to runtime ─────────────────────────────────
+  // If nodes[] provided, sync them to runtime with a virtual root.
+  // This happens synchronously before render so Lexical has data.
+  
+  const resolvedRootBlockId = useMemo(() => {
+    if (nodes && nodes.length > 0) {
+      const runtime = getNodeGraphRuntime();
+      const { graphNodes, virtualRootId: rootId } = apiNodesToGraphNodesWithVirtualRoot(nodes, virtualRootId);
+      runtime.upsertNodes(graphNodes);
+      return rootId;
+    }
+    return externalRootBlockId || virtualRootId;
+  }, [nodes, externalRootBlockId, virtualRootId]);
 
   // ─── Lexical config ────────────────────────────────────────
 
   const initialConfig = useMemo(() => ({
     namespace: `NoteesEditor-${editorId}`,
     theme: notesEditorTheme,
-    nodes: [
-      NodeBlockNode,
-      NodePillNode,
-      NodeBlockHeadingNode,
-      NodeBlockCodeNode,
-      NodeBlockTableCellNode,
-    ],
+    nodes: EDITOR_NODES,
     editable: !readOnly,
     onError: (error: Error) => {
       console.error(`[NoteesEditor ${editorId}]`, error);
@@ -114,17 +183,8 @@ export function NoteesEditor({
       blockId,
       contentAST,
     });
-    // Notify parent for API persistence
     if (onContentChangeCallback) {
-      // Serialize AST to plain text for API
-      const text = contentAST
-        .map(node => {
-          if ('text' in node) return node.text;
-          if ('children' in node) return node.children.map((c: any) => c.text ?? '').join('');
-          return '';
-        })
-        .join('\n');
-      onContentChangeCallback(blockId, text);
+      onContentChangeCallback(blockId, serializeContentAST(contentAST));
     }
   }, [onContentChangeCallback]);
 
@@ -171,7 +231,7 @@ export function NoteesEditor({
 
   const editorClassName = [
     'notees-editor',
-    `notees-editor--${viewMode}`,
+    `notees-editor--${mode}`,
     readOnly ? 'notees-editor--readonly' : '',
     className || '',
   ].filter(Boolean).join(' ');
@@ -192,7 +252,7 @@ export function NoteesEditor({
           ErrorBoundary={LexicalErrorBoundary}
         />
 
-        {/* Core plugins */}
+        {/* Core plugins — global undo/redo in list mode */}
         <HistoryPlugin />
         <FormattingPlugin />
         <CollapsePlugin />
@@ -200,7 +260,7 @@ export function NoteesEditor({
         {/* NodeBlock projection plugin */}
         <NodeBlockPlugin
           editorId={editorId}
-          rootBlockId={rootBlockId}
+          rootBlockId={resolvedRootBlockId}
           onContentChange={handleContentChange}
           onBlockCreate={handleBlockCreate}
           onBlockMerge={handleBlockMerge}
@@ -208,6 +268,8 @@ export function NoteesEditor({
           onOutdent={handleOutdent}
           onEscape={onEscape}
           readOnly={readOnly}
+          includeRoot={includeRoot}
+          maxDepth={maxDepth}
         />
 
         {/* NodePill plugin */}
@@ -220,6 +282,21 @@ export function NoteesEditor({
         <DragDropPlugin
           editorId={editorId}
           readOnly={readOnly}
+        />
+
+        {/* Block drag selection (Logseq-style vertical drag) */}
+        <BlockDragSelectionPlugin
+          editorId={editorId}
+          readOnly={readOnly}
+          onSelectionChange={onSelectionChange}
+        />
+
+        {/* Keyboard-based block selection (Esc, Shift+arrows) */}
+        <KeyboardSelectionPlugin
+          editorId={editorId}
+          readOnly={readOnly}
+          onSelectionChange={onSelectionChange}
+          onEscape={onEscape}
         />
 
         {/* Selection */}
@@ -236,6 +313,15 @@ export function NoteesEditor({
 
         {/* Floating toolbar */}
         <FloatingToolbarPlugin />
+
+        {/* Context menu for bullet right-click */}
+        <ContextMenuPlugin
+          onNavigateToNode={onNavigateToNode}
+          onOpenInSidebar={onOpenInSidebar}
+        />
+
+        {/* Prevent clicks in empty space below blocks from focusing */}
+        <EmptyClickPlugin mode={mode} />
       </LexicalComposer>
     </div>
   );

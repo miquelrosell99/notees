@@ -768,18 +768,26 @@ function mergeContentASTs(a: ContentAST, b: ContentAST): ContentAST {
   return result;
 }
 
-import type { ASTInlineNode } from './types';
+import type { ASTInlineNode } from '@/types/ast';
 
 function getInlineLength(node: ASTInlineNode): number {
   switch (node.type) {
     case 'text':
       return node.text.length;
+    case 'hard_break':
+      return 1;
     case 'node_link':
       return 1; // Pills count as 1 character
-    case 'code_span':
+    case 'code':
       return node.text.length;
+    case 'strong':
+    case 'em':
+    case 'strikethrough':
+    case 'underline':
+    case 'highlight':
+      return node.children.reduce((sum: number, c: ASTInlineNode) => sum + getInlineLength(c), 0);
     case 'external_link':
-      return node.children.reduce((sum, c) => sum + getInlineLength(c), 0);
+      return node.children.reduce((sum: number, c: ASTInlineNode) => sum + getInlineLength(c), 0);
     default:
       return 0;
   }
@@ -805,8 +813,8 @@ function splitInlinesAtOffset(
     } else {
       // Split this node
       if (node.type === 'text') {
-        before.push({ type: 'text', text: node.text.slice(0, remaining), marks: node.marks });
-        after.push({ type: 'text', text: node.text.slice(remaining), marks: node.marks });
+        before.push({ type: 'text', text: node.text.slice(0, remaining) });
+        after.push({ type: 'text', text: node.text.slice(remaining) });
       } else {
         before.push(node);
       }

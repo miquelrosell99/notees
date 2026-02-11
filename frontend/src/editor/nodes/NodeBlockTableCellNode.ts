@@ -81,6 +81,15 @@ export class NodeBlockTableCellNode extends NodeBlockNode {
       isHeader: this.__isHeader,
     } as SerializedNodeBlockNode & { type: 'node-block-table-cell'; rowIndex: number; colIndex: number; isHeader: boolean };
   }
+
+  static importJSON(json: SerializedNodeBlockNode & { rowIndex?: number; colIndex?: number; isHeader?: boolean }): NodeBlockTableCellNode {
+    return $createNodeBlockTableCellNode(
+      json.blockId,
+      json.rowIndex ?? 0,
+      json.colIndex ?? 0,
+      json.isHeader ?? false,
+    );
+  }
 }
 
 export function $createNodeBlockTableCellNode(

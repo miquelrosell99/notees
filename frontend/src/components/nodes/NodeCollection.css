@@ -83,6 +83,10 @@
 }
 
 /* View mode specific containers */
+.node-collection--list .node-collection__content {
+  flex: none;
+}
+
 .node-collection--list,
 .node-collection--document {
   /* Full width for list/document modes */

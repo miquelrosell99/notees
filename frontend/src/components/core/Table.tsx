@@ -483,7 +483,13 @@ export function Table<T>({
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">
                     <span className="table-node-cell__name">
-                      <span>{cellValue.name || 'Untitled'}</span>
+                      <NodeInline
+                        name={cellValue.name}
+                        icon={cellValue.icon}
+                        isPage={cellValue.is_page}
+                        nodeId={cellValue.id}
+                        showIcon={false}
+                      />
                     </span>
                     <div className="table-node-cell__actions">
                       {onNodeOpenInSidebar && (

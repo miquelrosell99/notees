@@ -34,7 +34,8 @@ import {
 } from '../nodes/NodeBlockNode';
 import { $createNodePillNode, $isNodePillNode } from '../nodes/NodePillNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
-import type { ProjectedNode, ContentAST, ASTInlineNode, InlineMark } from '../../runtime/types';
+import type { ProjectedNode, ContentAST } from '../../runtime/types';
+import type { ASTInlineNode } from '@/types/ast';
 
 // ─── Props ────────────────────────────────────────────────────────
 
@@ -56,6 +57,10 @@ export interface NodeBlockPluginProps {
   onEscape?: () => void;
   /** Read-only mode */
   readOnly?: boolean;
+  /** Whether to include the root block itself in projection (default: false) */
+  includeRoot?: boolean;
+  /** Maximum depth to project (-1 = unlimited, default: -1) */
+  maxDepth?: number;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -70,6 +75,8 @@ export function NodeBlockPlugin({
   onOutdent,
   onEscape,
   readOnly = false,
+  includeRoot = false,
+  maxDepth = -1,
 }: NodeBlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -152,8 +159,8 @@ export function NodeBlockPlugin({
         const projection = runtime.project({
           projectionId: editorId,
           rootBlockId,
-          maxDepth: -1,
-          includeRoot: false,
+          maxDepth,
+          includeRoot,
         });
         syncProjection(projection);
       }
@@ -163,8 +170,8 @@ export function NodeBlockPlugin({
     const initialProjection = runtime.project({
       projectionId: editorId,
       rootBlockId,
-      maxDepth: -1,
-      includeRoot: false,
+      maxDepth,
+      includeRoot,
     });
     syncProjection(initialProjection);
 
@@ -200,18 +207,24 @@ export function NodeBlockPlugin({
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
+        let blockId: string | null = null;
 
-        const anchorNode = selection.anchor.getNode();
-        const blockNode = findParentNodeBlock(anchorNode);
-        if (!blockNode) return false;
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+
+          const anchorNode = selection.anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (!blockNode) return;
+
+          blockId = blockNode.getBlockId();
+        });
+
+        if (!blockId) return false;
 
         event?.preventDefault();
 
-        const blockId = blockNode.getBlockId();
         const newBlockId = crypto.randomUUID();
-
         onBlockCreate?.(blockId, blockId, newBlockId);
         return true;
       },
@@ -227,33 +240,46 @@ export function NodeBlockPlugin({
     return editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
       (event) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
-        if (!selection.isCollapsed()) return false;
+        let currentBlockId: string | null = null;
+        let prevBlockId: string | null = null;
 
-        const anchor = selection.anchor;
-        if (anchor.offset !== 0) return false;
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          if (!selection.isCollapsed()) return;
 
-        const anchorNode = anchor.getNode();
-        const blockNode = findParentNodeBlock(anchorNode);
-        if (!blockNode) return false;
+          const anchor = selection.anchor;
+          const anchorNode = anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (!blockNode) return;
 
-        // Check if cursor is at the very start of the block
-        const firstChild = blockNode.getFirstChild();
-        if (anchorNode !== firstChild && anchorNode.getParent() !== blockNode) return false;
+          // Check if block is effectively empty (only contains zero-width space or empty)
+          const textContent = blockNode.getTextContent();
+          const isEmptyBlock = textContent === '' || textContent === '\u200B';
+          
+          // Allow backspace at start OR if block is empty
+          if (anchor.offset !== 0 && !isEmptyBlock) return;
+
+          // Check if cursor is at the very start of the block (or block is empty)
+          const firstChild = blockNode.getFirstChild();
+          if (!isEmptyBlock && anchorNode !== firstChild && anchorNode.getParent() !== blockNode) return;
+
+          const root = $getRoot();
+          const children = root.getChildren();
+          const blockIndex = children.indexOf(blockNode);
+          if (blockIndex <= 0) return;
+
+          const prevBlock = children[blockIndex - 1];
+          if ($isNodeBlockNode(prevBlock)) {
+            currentBlockId = blockNode.getBlockId();
+            prevBlockId = prevBlock.getBlockId();
+          }
+        });
+
+        if (!currentBlockId || !prevBlockId) return false;
 
         event?.preventDefault();
-
-        const root = $getRoot();
-        const children = root.getChildren();
-        const blockIndex = children.indexOf(blockNode);
-        if (blockIndex <= 0) return true;
-
-        const prevBlock = children[blockIndex - 1];
-        if ($isNodeBlockNode(prevBlock)) {
-          onBlockMerge?.(blockNode.getBlockId(), prevBlock.getBlockId());
-        }
-
+        onBlockMerge?.(currentBlockId, prevBlockId);
         return true;
       },
       COMMAND_PRIORITY_HIGH,
@@ -268,31 +294,39 @@ export function NodeBlockPlugin({
     return editor.registerCommand(
       KEY_DELETE_COMMAND,
       (event) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
-        if (!selection.isCollapsed()) return false;
+        let currentBlockId: string | null = null;
+        let nextBlockId: string | null = null;
 
-        const anchorNode = selection.anchor.getNode();
-        const blockNode = findParentNodeBlock(anchorNode);
-        if (!blockNode) return false;
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          if (!selection.isCollapsed()) return;
 
-        // Check if at end of block
-        const textContent = blockNode.getTextContent();
-        const anchor = selection.anchor;
-        if (anchor.offset < textContent.length) return false;
+          const anchorNode = selection.anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (!blockNode) return;
+
+          // Check if at end of block
+          const textContent = blockNode.getTextContent();
+          const anchor = selection.anchor;
+          if (anchor.offset < textContent.length) return;
+
+          const root = $getRoot();
+          const children = root.getChildren();
+          const blockIndex = children.indexOf(blockNode);
+          if (blockIndex >= children.length - 1) return;
+
+          const nextBlock = children[blockIndex + 1];
+          if ($isNodeBlockNode(nextBlock)) {
+            currentBlockId = blockNode.getBlockId();
+            nextBlockId = nextBlock.getBlockId();
+          }
+        });
+
+        if (!nextBlockId || !currentBlockId) return false;
 
         event?.preventDefault();
-
-        const root = $getRoot();
-        const children = root.getChildren();
-        const blockIndex = children.indexOf(blockNode);
-        if (blockIndex >= children.length - 1) return true;
-
-        const nextBlock = children[blockIndex + 1];
-        if ($isNodeBlockNode(nextBlock)) {
-          onBlockMerge?.(nextBlock.getBlockId(), blockNode.getBlockId());
-        }
-
+        onBlockMerge?.(nextBlockId, currentBlockId);
         return true;
       },
       COMMAND_PRIORITY_HIGH,
@@ -307,20 +341,29 @@ export function NodeBlockPlugin({
     return editor.registerCommand(
       KEY_TAB_COMMAND,
       (event) => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
+        let blockIdToIndent: string | null = null;
+        let shouldOutdent = false;
 
-        const anchorNode = selection.anchor.getNode();
-        const blockNode = findParentNodeBlock(anchorNode);
-        if (!blockNode) return false;
+        editor.read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+
+          const anchorNode = selection.anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (!blockNode) return;
+
+          blockIdToIndent = blockNode.getBlockId();
+          shouldOutdent = event?.shiftKey ?? false;
+        });
+
+        if (!blockIdToIndent) return false;
 
         event?.preventDefault();
 
-        const blockId = blockNode.getBlockId();
-        if (event?.shiftKey) {
-          onOutdent?.(blockId);
+        if (shouldOutdent) {
+          onOutdent?.(blockIdToIndent);
         } else {
-          onIndent?.(blockId);
+          onIndent?.(blockIdToIndent);
         }
 
         return true;
@@ -333,62 +376,84 @@ export function NodeBlockPlugin({
 
   useEffect(() => {
     const handleArrowUp = () => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return false;
+      let shouldMoveToPrev = false;
+      let prevBlockNode: NodeBlockNode | null = null;
 
-      const anchor = selection.anchor;
-      const anchorNode = anchor.getNode();
-      const blockNode = findParentNodeBlock(anchorNode);
-      if (!blockNode) return false;
+      editor.read(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
 
-      // If at start of first line, move to previous block
-      if (anchor.offset === 0) {
-        const root = $getRoot();
-        const children = root.getChildren();
-        const blockIndex = children.indexOf(blockNode);
-        if (blockIndex <= 0) return false;
+        const anchor = selection.anchor;
+        const anchorNode = anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return;
 
-        const prevBlock = children[blockIndex - 1];
-        if ($isNodeBlockNode(prevBlock)) {
-          const lastChild = prevBlock.getLastDescendant();
-          if (lastChild) {
-            lastChild.selectEnd();
-            return true;
+        // If at start of first line, move to previous block
+        if (anchor.offset === 0) {
+          const root = $getRoot();
+          const children = root.getChildren();
+          const blockIndex = children.indexOf(blockNode);
+          if (blockIndex <= 0) return;
+
+          const prevBlock = children[blockIndex - 1];
+          if ($isNodeBlockNode(prevBlock)) {
+            shouldMoveToPrev = true;
+            prevBlockNode = prevBlock;
           }
         }
-      }
+      });
 
-      return false;
+      if (!shouldMoveToPrev || !prevBlockNode) return false;
+
+      editor.update(() => {
+        const lastChild = prevBlockNode!.getLastDescendant();
+        if (lastChild) {
+          lastChild.selectEnd();
+        }
+      });
+
+      return true;
     };
 
     const handleArrowDown = () => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return false;
+      let shouldMoveToNext = false;
+      let nextBlockNode: NodeBlockNode | null = null;
 
-      const anchor = selection.anchor;
-      const anchorNode = anchor.getNode();
-      const blockNode = findParentNodeBlock(anchorNode);
-      if (!blockNode) return false;
+      editor.read(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
 
-      // If at end, move to next block
-      const textContent = blockNode.getTextContent();
-      if (anchor.offset >= textContent.length) {
-        const root = $getRoot();
-        const children = root.getChildren();
-        const blockIndex = children.indexOf(blockNode);
-        if (blockIndex >= children.length - 1) return false;
+        const anchor = selection.anchor;
+        const anchorNode = anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return;
 
-        const nextBlock = children[blockIndex + 1];
-        if ($isNodeBlockNode(nextBlock)) {
-          const firstChild = nextBlock.getFirstDescendant();
-          if (firstChild) {
-            firstChild.selectStart();
-            return true;
+        // If at end, move to next block
+        const textContent = blockNode.getTextContent();
+        if (anchor.offset >= textContent.length) {
+          const root = $getRoot();
+          const children = root.getChildren();
+          const blockIndex = children.indexOf(blockNode);
+          if (blockIndex >= children.length - 1) return;
+
+          const nextBlock = children[blockIndex + 1];
+          if ($isNodeBlockNode(nextBlock)) {
+            shouldMoveToNext = true;
+            nextBlockNode = nextBlock;
           }
         }
-      }
+      });
 
-      return false;
+      if (!shouldMoveToNext || !nextBlockNode) return false;
+
+      editor.update(() => {
+        const firstChild = nextBlockNode!.getFirstDescendant();
+        if (firstChild) {
+          firstChild.selectStart();
+        }
+      });
+
+      return true;
     };
 
     const unsubUp = editor.registerCommand(KEY_ARROW_UP_COMMAND, handleArrowUp, COMMAND_PRIORITY_NORMAL);
@@ -432,52 +497,83 @@ function findParentNodeBlock(node: any): NodeBlockNode | null {
  */
 function populateBlockContent(block: NodeBlockNode, contentAST: ContentAST): void {
   if (!contentAST || contentAST.length === 0) {
-    block.append($createTextNode(''));
+    // Use zero-width space so empty blocks have a focusable cursor position
+    block.append($createTextNode('\u200B'));
     return;
   }
 
   for (const para of contentAST) {
     for (const inline of para.children) {
-      appendInlineNode(block, inline);
+      appendInlineNode(block, inline, 0);
     }
   }
 }
 
-function appendInlineNode(parent: NodeBlockNode, inline: ASTInlineNode): void {
+/**
+ * Recursively append inline nodes to a block, tracking format flags for nested marks.
+ */
+function appendInlineNode(parent: NodeBlockNode, inline: ASTInlineNode, format: number): void {
   switch (inline.type) {
     case 'text': {
       const textNode = $createTextNode(inline.text);
-      if (inline.marks) {
-        let format = 0;
-        for (const mark of inline.marks) {
-          switch (mark) {
-            case 'strong': format |= 1; break;  // IS_BOLD
-            case 'em': format |= 2; break;       // IS_ITALIC
-            case 'strikethrough': format |= 4; break; // IS_STRIKETHROUGH
-            case 'underline': format |= 8; break; // IS_UNDERLINE
-            case 'code': format |= 16; break;    // IS_CODE
-          }
-        }
+      if (format !== 0) {
         textNode.setFormat(format);
       }
       parent.append(textNode);
       break;
     }
+    case 'hard_break': {
+      // Treat as newline text for now
+      parent.append($createTextNode('\\n'));
+      break;
+    }
     case 'node_link': {
-      const pill = $createNodePillNode(inline.linkId, inline.refType);
+      const pill = $createNodePillNode(inline.link_id, inline.ref_type);
       parent.append(pill);
       break;
     }
-    case 'code_span': {
+    case 'code': {
       const codeText = $createTextNode(inline.text);
-      codeText.setFormat(16); // IS_CODE
+      codeText.setFormat(format | 16); // IS_CODE
       parent.append(codeText);
       break;
     }
-    case 'external_link': {
-      // For now, render as plain text with a mark
+    case 'strong': {
+      // Recurse into children with bold flag added
       for (const child of inline.children) {
-        appendInlineNode(parent, child);
+        appendInlineNode(parent, child, format | 1); // IS_BOLD
+      }
+      break;
+    }
+    case 'em': {
+      for (const child of inline.children) {
+        appendInlineNode(parent, child, format | 2); // IS_ITALIC
+      }
+      break;
+    }
+    case 'strikethrough': {
+      for (const child of inline.children) {
+        appendInlineNode(parent, child, format | 4); // IS_STRIKETHROUGH
+      }
+      break;
+    }
+    case 'underline': {
+      for (const child of inline.children) {
+        appendInlineNode(parent, child, format | 8); // IS_UNDERLINE
+      }
+      break;
+    }
+    case 'highlight': {
+      // No Lexical highlight format, just recurse
+      for (const child of inline.children) {
+        appendInlineNode(parent, child, format);
+      }
+      break;
+    }
+    case 'external_link': {
+      // For now, render children as plain text
+      for (const child of inline.children) {
+        appendInlineNode(parent, child, format);
       }
       break;
     }
@@ -495,25 +591,26 @@ function extractBlockContent(block: NodeBlockNode): ContentAST {
     if ($isNodePillNode(child)) {
       inlines.push({
         type: 'node_link',
-        linkId: child.getLinkId(),
-        refType: child.getRefType(),
+        link_id: child.getLinkId(),
+        ref_type: child.getRefType(),
       });
     } else {
       const text = child.getTextContent();
-      const marks: InlineMark[] = [];
-
-      // Check format flags
       const format = (child as any).getFormat?.() ?? 0;
-      if (format & 1) marks.push('strong');
-      if (format & 2) marks.push('em');
-      if (format & 4) marks.push('strikethrough');
-      if (format & 8) marks.push('underline');
-
+      
+      // Build the AST node with nested marks
+      let node: ASTInlineNode = { type: 'text', text };
+      
       if (format & 16) {
-        inlines.push({ type: 'code_span', text });
+        node = { type: 'code', text };
       } else {
-        inlines.push({ type: 'text', text, marks: marks.length > 0 ? marks : undefined });
+        if (format & 8) node = { type: 'underline', children: [node] };
+        if (format & 4) node = { type: 'strikethrough', children: [node] };
+        if (format & 2) node = { type: 'em', children: [node] };
+        if (format & 1) node = { type: 'strong', children: [node] };
       }
+      
+      inlines.push(node);
     }
   }
 

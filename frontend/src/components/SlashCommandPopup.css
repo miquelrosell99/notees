@@ -27,7 +27,7 @@
 
 .slash-command-popup__icon {
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--color-on-surface-variant);
 }
 
 .slash-command-popup__list {
@@ -54,12 +54,17 @@
   text-align: left;
   cursor: pointer;
   border-radius: var(--shape-medium);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .slash-command-popup__item:hover,
 .slash-command-popup__item--selected {
-  background: var(--color-surface-variant);
+  background: var(--color-selection-bg);
+}
+
+.slash-command-popup__item:active {
+  transform: scale(0.98);
 }
 
 .slash-command-popup__item-icon {
