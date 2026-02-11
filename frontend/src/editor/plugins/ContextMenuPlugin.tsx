@@ -137,29 +137,6 @@ export function ContextMenuPlugin({
         }
         return;
       }
-      
-      // Check if clicking on empty area of a node-block (for empty blocks)
-      // This helps focus empty blocks that have no text content to click on
-      const nodeBlock = target.closest('.node-block') as HTMLElement;
-      if (nodeBlock && target === nodeBlock) {
-        const blockInfo = findBlockNodeFromElement(target);
-        if (blockInfo) {
-          // Focus the block content
-          editor.update(() => {
-            const root = $getRoot();
-            const children = root.getChildren();
-            for (const child of children) {
-              if ($isNodeBlockNode(child) && child.getBlockId() === blockInfo.blockId) {
-                const firstChild = child.getFirstChild();
-                if (firstChild) {
-                  firstChild.selectStart();
-                }
-                break;
-              }
-            }
-          });
-        }
-      }
     };
 
     const handleRightClick = (event: MouseEvent) => {

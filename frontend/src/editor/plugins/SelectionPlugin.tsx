@@ -15,8 +15,9 @@ import {
   $getSelection,
   $isRangeSelection,
 } from 'lexical';
-import { $isNodeBlockNode, NodeBlockNode } from '../nodes/NodeBlockNode';
+import { $isNodeBlockNode } from '../nodes/NodeBlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { findParentNodeBlock } from '../utils/selectionUtils';
 
 export interface SelectionPluginProps {
   editorId: string;
@@ -190,15 +191,6 @@ export function SelectionPlugin({
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
-
-function findParentNodeBlock(node: any): NodeBlockNode | null {
-  let current = node;
-  while (current != null) {
-    if ($isNodeBlockNode(current)) return current;
-    current = current.getParent?.();
-  }
-  return null;
-}
 
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false;
