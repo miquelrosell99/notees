@@ -33,6 +33,8 @@ export interface ListSortableProps<T extends ListSortableItem> {
   renderActions?: (item: T, index: number) => ReactNode[];
   /** Click handler for the entire row */
   onItemClick?: (item: T, index: number) => void;
+  /** Context menu handler for the row */
+  onItemContextMenu?: (item: T, event: React.MouseEvent) => void;
   /** Additional CSS class for the container */
   className?: string;
   /** Additional CSS class for each item */
@@ -58,6 +60,7 @@ export function ListSortable<T extends ListSortableItem>({
   renderAction,
   renderActions,
   onItemClick,
+  onItemContextMenu,
   className = '',
   itemClassName = '',
   showDragHandle = true,
@@ -254,11 +257,22 @@ export function ListSortable<T extends ListSortableItem>({
   };
 
   // Handle item click
-  const handleItemClick = useCallback((item: T, index: number) => {
+  const handleItemClick = useCallback((item: T, index: number, e: React.MouseEvent) => {
     // Don't trigger click if we were dragging
     if (dragState) return;
     onItemClick?.(item, index);
   }, [dragState, onItemClick]);
+  
+  // Handle context menu
+  const handleItemContextMenu = useCallback((item: T, e: React.MouseEvent) => {
+    onItemContextMenu?.(item, e);
+  }, [onItemContextMenu]);
+  
+  // Handle drag handle mouse down - prevent click propagation
+  const handleDragHandleMouseDown = useCallback((index: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent item click
+    handleDragStart(index, e);
+  }, [handleDragStart]);
 
   if (items.length === 0) {
     return null;
@@ -279,13 +293,15 @@ export function ListSortable<T extends ListSortableItem>({
             key={item.id}
             className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
             style={style}
-            onClick={() => handleItemClick(item, index)}
+            onClick={(e) => handleItemClick(item, index, e)}
+            onContextMenu={(e) => handleItemContextMenu(item, e)}
           >
             {/* Drag handle */}
             {showDragHandle && (
               <span 
                 className="list-sortable__drag-handle"
-                onMouseDown={(e) => handleDragStart(index, e)}
+                onMouseDown={(e) => handleDragHandleMouseDown(index, e)}
+                onClick={(e) => e.stopPropagation()}
               >
                 {dragHandleContent || '⋮⋮'}
               </span>
