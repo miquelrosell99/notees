@@ -16,6 +16,7 @@ import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } fr
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import { Block } from '../blocks/Block';
+import { ASTBlockContent } from '../blocks/ASTBlockContent';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import './Table.css';
@@ -482,7 +483,9 @@ export function Table<T>({
               >
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">
-                    <span className="table-node-cell__name">{cellValue.name}</span>
+                    <span className="table-node-cell__name">
+                      <ASTBlockContent content={cellValue.name} />
+                    </span>
                     <div className="table-node-cell__actions">
                       {onNodeOpenInSidebar && (
                         <Button
