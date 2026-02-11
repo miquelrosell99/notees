@@ -53,7 +53,7 @@ export function KeyboardSelectionPlugin({
   // Note: Click clearing is handled by BlockDragSelectionPlugin's mousedown handler
   // to avoid conflicts with drag selection. This plugin only manages keyboard selection.
 
-  // ─── Escape: Select current block ─────────────────────────
+  // ─── Escape: Toggle between edit mode → selection mode → clear ─────────
 
   useEffect(() => {
     if (readOnly) return;
@@ -61,25 +61,39 @@ export function KeyboardSelectionPlugin({
     return editor.registerCommand(
       KEY_ESCAPE_COMMAND,
       (_event: KeyboardEvent) => {
-        let blockIdToSelect: string | null = null;
+        const rootEl = editor.getRootElement();
+        if (!rootEl) return true;
         
-        editor.update(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-
-          const anchorNode = selection.anchor.getNode();
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (!blockNode) return;
-
-          blockIdToSelect = blockNode.getBlockId();
-          $setSelection(null);
-        });
+        // Check if in selection mode (blocks are selected)
+        const hasBlockSelection = selectedBlocks.current.size > 0;
         
-        window.getSelection()?.removeAllRanges();
+        if (hasBlockSelection) {
+          // Selection mode → clear selection
+          clearBlockSelection(rootEl);
+          selectedBlocks.current.clear();
+          onSelectionChange?.([]);
+        } else {
+          // Edit mode → select current block
+          let blockIdToSelect: string | null = null;
+          
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return;
 
-        if (blockIdToSelect) {
-          // Use queueMicrotask to ensure Lexical has finished DOM updates
-          queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
+            const anchorNode = selection.anchor.getNode();
+            const blockNode = findParentNodeBlock(anchorNode);
+            if (!blockNode) return;
+
+            blockIdToSelect = blockNode.getBlockId();
+            $setSelection(null);
+          });
+          
+          window.getSelection()?.removeAllRanges();
+
+          if (blockIdToSelect) {
+            // Use queueMicrotask to ensure Lexical has finished DOM updates
+            queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
+          }
         }
 
         onEscape?.();
