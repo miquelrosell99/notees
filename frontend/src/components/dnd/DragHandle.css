@@ -1,5 +1,5 @@
 /**
- * DragHandle Component Styles
+ * DragHandle Component Styles — TE-inspired tactile drag affordance.
  */
 
 .drag-handle {
@@ -7,9 +7,13 @@
   align-items: center;
   justify-content: center;
   cursor: grab;
-  color: var(--color-on-surface-variant);
+  color: var(--color-bullet);
   opacity: 0;
-  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+  border-radius: var(--shape-small);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
   user-select: none;
   touch-action: none;
 }
@@ -19,18 +23,19 @@
 }
 
 .drag-handle:hover {
-  color: var(--color-on-surface);
-  background-color: var(--color-hover-overlay);
+  color: var(--color-bullet-hover);
+  background-color: var(--color-selection-bg);
 }
 
 .drag-handle:active {
   cursor: grabbing;
   background-color: var(--color-pressed-overlay);
+  transform: scale(var(--tactile-press-scale));
 }
 
 /* Focus styles for accessibility */
 .drag-handle:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-on-surface);
   outline-offset: 2px;
 }
 

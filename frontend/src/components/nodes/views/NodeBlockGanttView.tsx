@@ -15,7 +15,7 @@ import { useMemo, useCallback } from 'react';
 import type { Node } from '@/types';
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
 import { NodeIcon } from '../../icons';
-import './NodeGanttView.css';
+import './NodeBlockGanttView.css';
 
 interface TimelineNode {
   node: Node;
@@ -174,7 +174,7 @@ function GanttRow({
 /**
  * NodeGanttView - Gantt/timeline view for NodeCollection
  */
-export function NodeGanttView({
+export function NodeBlockGanttView({
   nodes,
   // editable,  // Not used in this view
   dateProperty,

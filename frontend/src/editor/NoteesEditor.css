@@ -1,5 +1,6 @@
 /**
- * NoteesEditor styles — Clean, modern editor styling.
+ * NoteesEditor styles — Teenage Engineering-inspired tactile editor.
+ * Black-and-white palette, modular, playful micro-interactions.
  */
 
 /* ─── Root editor ──────────────────────────────────────────────── */
@@ -16,12 +17,15 @@
 
 .notees-editor-content {
   outline: none;
-  min-height: 100px;
+  min-height: 2.4em;
   padding: 8px 0;
+  caret-color: var(--color-on-surface);
+  cursor: text;
 }
 
 .notees-editor-placeholder {
-  color: var(--color-text-tertiary, #999);
+  color: var(--color-on-surface-variant);
+  opacity: 0.45;
   position: absolute;
   top: 8px;
   left: 0;
@@ -34,56 +38,296 @@
   display: none;
 }
 
+/* Disable text selection in readonly mode */
+.notees-editor--readonly .notees-editor-content {
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.notees-editor--readonly .node-block,
+.notees-editor--readonly .node-block > *,
+.notees-editor--readonly .notees-editor-content * {
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Exception: bullets should still be draggable in readonly mode */
+.notees-editor--readonly .node-block-bullet {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.notees-editor--readonly .node-block-bullet:active {
+  cursor: grabbing;
+}
+
 /* ─── Node blocks ──────────────────────────────────────────────── */
 
 .node-block {
   position: relative;
-  padding: 2px 0 2px calc(var(--node-block-depth, 0) * 24px);
+  display: flex;
+  align-items: center;
+  padding: 3px 0 3px calc(var(--node-block-depth, 0) * var(--indent-width));
   min-height: 1.6em;
   line-height: 1.6;
-  transition: padding-left 0.15s ease;
+  transition: padding-left var(--motion-duration-medium) var(--motion-easing-standard);
+  border-radius: var(--shape-small);
 }
 
-.node-block::before {
-  content: '';
-  display: inline-block;
+/* ─── Bullet wrapper ───────────────────────────────────────────── */
+
+.node-block-bullet {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  /* Prevent text selection when clicking/dragging */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.node-block-bullet:active {
+  cursor: grabbing;
+}
+
+.node-block-bullet:hover {
+  background-color: var(--color-hover-overlay);
+}
+
+/* Bullet container - holds dot */
+.node-block-bullet-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+/* Bullet dot */
+.node-block-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--color-text-tertiary, #999);
+  background-color: var(--color-on-surface-variant);
+  opacity: 0.5;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  pointer-events: none;
+}
+
+.node-block:hover .node-block-dot {
+  opacity: 1;
+}
+
+/* Bullet icon (when node has icon) */
+.node-block-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85em;
+}
+
+/* Collapse arrow - shows on hover when has children */
+.node-block-collapse-arrow {
   position: absolute;
-  left: calc(var(--node-block-depth, 0) * 24px - 16px);
-  top: 0.75em;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: var(--color-bullet);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
+  z-index: 5;
+  /* Prevent text selection */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.node-block:first-child::before {
-  left: calc(var(--node-block-depth, 0) * 24px - 16px);
+.node-block--has-children .node-block-bullet:hover .node-block-collapse-arrow,
+.node-block--collapsed .node-block-collapse-arrow {
+  opacity: 0.6;
 }
 
-/* Hide bullet for depth 0 at root */
-.node-block[data-depth="0"]::before {
-  left: -16px;
+.node-block-collapse-arrow:hover {
+  opacity: 1 !important;
+  color: var(--color-bullet-hover);
+  background-color: var(--color-selection-bg);
 }
+
+.node-block-collapse-arrow:active {
+  transform: translateY(-50%) scale(var(--tactile-press-scale));
+}
+
+/* Lexical inserts paragraph/text nodes directly as children of .node-block.
+   Make them fill the remaining flex space after the bullet. */
+.node-block > p,
+.node-block > span,
+.node-block > .notees-editor-paragraph {
+  flex: 1;
+  min-width: 2em;
+  min-height: 1.6em;
+  outline: none;
+  margin: 0;
+  line-height: 1.6;
+  caret-color: var(--color-on-surface) !important;
+  cursor: text !important;
+}
+
+/* Ensure empty text nodes have space for cursor */
+.node-block > span:empty::before,
+.node-block > p:empty::before {
+  content: '\200B';
+  display: inline;
+}
+
+/* Ensure all content in editable mode shows cursor */
+.notees-editor:not(.notees-editor--readonly) .node-block,
+.notees-editor:not(.notees-editor--readonly) .node-block > *,
+.notees-editor:not(.notees-editor--readonly) .notees-editor-content,
+.notees-editor:not(.notees-editor--readonly) .notees-editor-content * {
+  cursor: text;
+  caret-color: var(--color-on-surface);
+}
+
+/* ─── Collapsed state ──────────────────────────────────────────── */
 
 .node-block--collapsed > .node-block {
   display: none;
+  animation: slideCollapse var(--motion-duration-long) var(--motion-easing-collapse) forwards;
 }
 
-.node-block--collapsed::after {
-  content: '▸';
+/* ─── Selected state (block drag selection) ──────────────────────── */
+
+/* Selection creates a card-like appearance encompassing block + children */
+.node-block--selected {
+  background-color: var(--color-selection-bg, rgba(59, 130, 246, 0.04));
+  position: relative;
+}
+
+/* First selected block gets top border radius */
+.node-block--selected-first {
+  border-top-left-radius: var(--shape-medium);
+  border-top-right-radius: var(--shape-medium);
+}
+
+/* Last selected block (or child) gets bottom border radius */
+.node-block--selected-last {
+  border-bottom-left-radius: var(--shape-medium);
+  border-bottom-right-radius: var(--shape-medium);
+}
+
+/* Single selected block without children */
+.node-block--selected-single {
+  border-radius: var(--shape-medium);
+}
+
+/* Subtle left border for the selection card */
+.node-block--selected-first::before {
+  content: '';
   position: absolute;
-  left: calc(var(--node-block-depth, 0) * 24px - 24px);
+  left: 0;
   top: 0;
-  color: var(--color-text-tertiary, #999);
-  font-size: 0.8em;
-  line-height: 1.6;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--color-accent, #3b82f6);
+  opacity: 0.3;
+  border-top-left-radius: var(--shape-medium);
+  border-bottom-left-radius: var(--shape-medium);
+}
+
+/* Selected block bullets are highlighted */
+.node-block--selected .node-block-bullet,
+.node-block--selected-child .node-block-bullet {
+  opacity: 1;
+}
+
+.node-block--selected .node-block-dot,
+.node-block--selected-child .node-block-dot {
+  opacity: 0.9;
+  background-color: var(--color-accent, #3b82f6);
+}
+
+/* Child blocks of a selected block share the background */
+.node-block--selected-child {
+  background-color: var(--color-selection-bg, rgba(59, 130, 246, 0.04));
+  margin: 0;
+}
+
+/* ─── Collapse animations ──────────────────────────────────────────── */
+
+@keyframes slideCollapse {
+  from {
+    opacity: 1;
+    max-height: 200px;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes slideExpand {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+.node-block--expanding > .node-block {
+  animation: slideExpand var(--motion-duration-long) var(--motion-easing-collapse) forwards;
 }
 
 /* Color accent */
 .node-block[style*="--node-block-color"] {
   border-left: 3px solid var(--node-block-color);
-  padding-left: calc(var(--node-block-depth, 0) * 24px + 8px);
+  padding-left: calc(var(--node-block-depth, 0) * var(--indent-width) + 4px);
 }
+
+/* ─── Selection state ──────────────────────────────────────────── */
+
+.node-block--selected,
+.node-block.selected {
+  background-color: var(--color-selection-bg);
+}
+
+/* No hover background on the entire block - only on bullet */
 
 /* ─── Node block variants ──────────────────────────────────────── */
 
@@ -92,19 +336,24 @@
 }
 
 .node-block--card {
-  background: var(--color-surface-elevated, #f8f9fa);
-  border-radius: 8px;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
   padding: 12px 16px;
   margin: 4px 0;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-outline-variant);
+  transition: box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.node-block--card:hover {
+  box-shadow: var(--tactile-lift-shadow);
 }
 
 .node-block--query {
-  background: var(--color-surface-elevated, #f8f9fa);
-  border-radius: 4px;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
   padding: 8px 12px;
   margin: 4px 0;
-  border-left: 3px solid var(--color-accent, #3b82f6);
+  border-left: 3px solid var(--color-on-surface-variant);
 }
 
 /* ─── Node block heading ───────────────────────────────────────── */
@@ -135,29 +384,30 @@
 /* ─── Node block code ──────────────────────────────────────────── */
 
 .node-block-code {
-  background: var(--color-code-bg, #f1f3f5);
-  border-radius: 4px;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
   padding: 12px 16px;
   margin: 4px 0;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-family-mono);
   font-size: 0.9em;
   line-height: 1.5;
   overflow-x: auto;
   white-space: pre-wrap;
+  border: 1px solid var(--color-outline-variant);
 }
 
 /* ─── Node block table cell ────────────────────────────────────── */
 
 .node-block-table-cell {
   padding: 6px 8px;
-  border: 1px solid var(--color-border, #e2e8f0);
+  border: 1px solid var(--color-outline-variant);
   min-width: 80px;
   vertical-align: top;
 }
 
 th.node-block-table-cell {
   font-weight: 600;
-  background: var(--color-surface-elevated, #f8f9fa);
+  background: var(--color-surface-container);
 }
 
 /* ─── Inline formatting ───────────────────────────────────────── */
@@ -183,15 +433,15 @@ th.node-block-table-cell {
 }
 
 .notees-text-code {
-  background: var(--color-code-bg, #f1f3f5);
+  background: var(--color-surface-container-high);
   border-radius: 3px;
   padding: 1px 4px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-family-mono);
   font-size: 0.9em;
-  color: var(--color-code-text, #e83e8c);
+  color: var(--color-on-surface);
 }
 
-/* ─── Node pill ────────────────────────────────────────────────── */
+/* ─── Node pill (inline, TE style) ─────────────────────────────── */
 
 .node-pill-wrapper {
   display: inline-flex;
@@ -206,13 +456,16 @@ th.node-block-table-cell {
   align-items: center;
   gap: 4px;
   padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--color-pill-bg, #e8f0fe);
-  color: var(--color-pill-text, #1a73e8);
+  border-radius: var(--shape-small);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
   font-size: 0.95em;
   line-height: 1.4;
   text-decoration: none;
-  transition: background 0.1s ease;
+  border: 1px solid transparent;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              border-color var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -220,7 +473,13 @@ th.node-block-table-cell {
 }
 
 .node-pill-wrapper:hover .node-pill-inner {
-  background: var(--color-pill-bg-hover, #d2e3fc);
+  background: var(--color-surface-container-highest);
+  border-color: var(--color-outline-variant);
+}
+
+.node-pill-wrapper:active .node-pill-inner {
+  box-shadow: var(--tactile-press-shadow);
+  transform: scale(0.97);
 }
 
 .node-pill-wrapper .node-pill-icon {
@@ -228,11 +487,51 @@ th.node-block-table-cell {
   flex-shrink: 0;
 }
 
-/* ─── Drop indicator ───────────────────────────────────────────── */
+/* ─── Ghost card (drag preview) ────────────────────────────────── */
+
+.node-block-ghost-card {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10000;
+  background: var(--color-ghost-card-bg);
+  border: 1px solid var(--color-ghost-card-border);
+  border-radius: var(--shape-medium);
+  padding: 8px 14px;
+  opacity: var(--ghost-card-opacity);
+  box-shadow: var(--elevation-2);
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+/* ─── Drop indicator line ──────────────────────────────────────── */
 
 .node-block-drop-indicator {
   pointer-events: none;
   z-index: 100;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-drop-indicator);
+  border-radius: 1px;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Drop depth guide — vertical shading hint for indent level */
+.node-block-drop-indicator::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: -4px;
+  width: 6px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--color-drop-indicator);
 }
 
 /* ─── Selection box ────────────────────────────────────────────── */
@@ -240,15 +539,19 @@ th.node-block-table-cell {
 .selection-box {
   pointer-events: none;
   z-index: 1000;
+  position: fixed;
+  background: var(--color-selection-bg);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
 }
 
-/* ─── Floating toolbar ─────────────────────────────────────────── */
+/* ─── Floating toolbar (TE modular feel) ───────────────────────── */
 
 .floating-toolbar {
-  background: var(--color-surface, #fff);
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-2);
   padding: 2px;
   display: flex;
   align-items: center;
@@ -263,22 +566,28 @@ th.node-block-table-cell {
   border: none;
   background: transparent;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   cursor: pointer;
   font-size: 14px;
-  color: var(--color-text, #1a1a1a);
+  color: var(--color-on-surface);
   line-height: 1;
   min-width: 28px;
   text-align: center;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .floating-toolbar-btn:hover {
-  background: var(--color-hover, #f0f0f0);
+  background: var(--color-surface-container);
+}
+
+.floating-toolbar-btn:active {
+  transform: scale(0.93);
 }
 
 .floating-toolbar-btn.active {
-  background: var(--color-accent-light, #e8f0fe);
-  color: var(--color-accent, #3b82f6);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
 }
 
 /* ─── View mode variants ───────────────────────────────────────── */
@@ -287,12 +596,32 @@ th.node-block-table-cell {
   display: none;
 }
 
+.notees-editor--document .node-block::after {
+  display: none;
+}
+
 .notees-editor--document .node-block {
   padding-left: 0;
 }
 
-.notees-editor--list .notees-editor-root {
-  padding-left: 24px;
+/* Hide bullet in document mode */
+.notees-editor--document .node-block-bullet {
+  display: none;
+}
+
+/* ─── Card mode — REMOVED ──────────────────────────────────────── */
+/* Card mode now uses separate CardEditor/CardModeView components.
+   See CardEditor.css and CardModeView.css for card-specific styles. */
+
+.notees-editor--list .notees-editor-content {
+  padding: 0 0 0 var(--indent-width);
+  min-height: 0;
+  cursor: default;
+}
+
+/* Text cursor only on actual blocks in list mode */
+.notees-editor--list .node-block {
+  cursor: text;
 }
 
 /* ─── Paragraph ────────────────────────────────────────────────── */

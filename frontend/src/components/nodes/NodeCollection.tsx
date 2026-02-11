@@ -7,22 +7,18 @@
  * Features:
  * - Multiple view modes: list, document, card, table, gantt, graph
  * - Built-in view mode switcher (hidden when only one mode available)
- * - Editable toggle (NoteesEditor vs NodeInline)
+ * - All views use NoteesEditor internally (Lexical-based)
  * - Recursive children handling
  * - Consistent prop propagation to all view modes
  * 
  * Component Hierarchy:
  * NodeCollection
  * ├─ NodeCollectionToolbar
- * ├─ NodeListView (list)
- * │   └─ NoteesEditor (editable) / NodeInline (read-only)
- * ├─ NodeDocumentView (document)
- * │   └─ NoteesEditor / NodeInline
- * ├─ NodeCardView (card)
- * │   └─ NoteesEditor per card
- * ├─ NodeTableView (table)
- * │   └─ row cells via NodeInline
- * ├─ NodeGanttView (gantt)
+ * ├─ NodeBlockListView (list) → NoteesEditor
+ * ├─ NodeBlockDocumentView (document) → NoteesEditor
+ * ├─ NodeBlockCardView (card) → NoteesEditor per card
+ * ├─ NodeBlockTableView (table) → NoteesEditor per cell
+ * ├─ NodeBlockGanttView (gantt)
  * ├─ NodeTimelineRenderer (timeline)
  * └─ NodeGraphViewSimple (graph)
  */
@@ -61,11 +57,11 @@ import type {
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
 import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { 
-  NodeListView, 
-  NodeDocumentView, 
-  NodeCardView, 
-  NodeTableView, 
-  NodeGanttView,
+  NodeBlockListView, 
+  NodeBlockDocumentView, 
+  NodeBlockCardView, 
+  NodeBlockTableView, 
+  NodeBlockGanttView,
 } from './views';
 import { NodeGraphViewSimple } from '@/components/graph';
 import { NodeTimelineRenderer } from '@/components/timeline';
@@ -271,49 +267,67 @@ export function NodeCollection({
     switch (viewMode) {
       case 'list':
         return (
-          <NodeListView 
-            {...viewProps} 
-            showBullets={true} 
-            showIndentation={true}
-            showClasses={showClasses}
+          <NodeBlockListView 
+            nodes={nodes}
+            editable={editable}
             pagesOnly={pagesOnly}
             sortable={sortable}
             onReorder={onReorder}
             renderItemAction={renderItemAction}
-            groupBy={groupBy}
-            pageMap={pageMap}
-            enableGrouping={enableGrouping}
+            onNodeClick={onNodeClick}
+            onContentChange={onContentChange}
+            className={viewProps.className}
           />
         );
       
       case 'document':
-        return <NodeDocumentView {...viewProps} />;
+        return (
+          <NodeBlockDocumentView
+            nodes={nodes}
+            editable={editable}
+            maxDepth={maxDepth}
+            onNodeClick={onNodeClick}
+            onContentChange={onContentChange}
+            className={viewProps.className}
+          />
+        );
       
       case 'card':
         return (
-          <NodeCardView 
-            {...viewProps} 
+          <NodeBlockCardView 
+            nodes={nodes}
+            editable={editable}
             layout={effectiveCardLayout}
             sortable={sortable}
             onReorder={onReorder}
-            onAdd={can_create ? onAdd : undefined}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            onContentChange={onContentChange}
+            onAdd={onAdd}
+            customContextMenu={customContextMenu}
+            className={viewProps.className}
           />
         );
       
       case 'table':
         return (
-          <NodeTableView 
-            {...viewProps} 
+          <NodeBlockTableView 
+            nodes={nodes}
+            editable={editable}
             columns={tableColumns}
+            propertyUuids={selectedPropertyUuids}
             sortable={sortable}
             onReorder={onReorder}
-            propertyUuids={selectedPropertyUuids}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            onContentChange={onContentChange}
             customContextMenu={customContextMenu}
+            className={viewProps.className}
           />
         );
       
       case 'gantt':
-        return <NodeGanttView {...viewProps} />;
+        return <NodeBlockGanttView {...viewProps} />;
       
       case 'timeline':
         return <NodeTimelineRenderer nodes={nodes} />;
@@ -336,7 +350,15 @@ export function NodeCollection({
       
       default:
         // Fallback to list view
-        return <NodeListView {...viewProps} showBullets={true} showIndentation={true} showClasses={showClasses} pagesOnly={pagesOnly} />;
+        return (
+          <NodeBlockListView 
+            nodes={nodes}
+            editable={editable}
+            pagesOnly={pagesOnly}
+            onNodeClick={onNodeClick}
+            onContentChange={onContentChange}
+          />
+        );
     }
   };
 

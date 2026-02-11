@@ -1,38 +1,86 @@
 /**
  * NodeBlockDocumentView — Document view using Lexical editor.
  *
- * Flat list ignoring depth — renders as a continuous document.
+ * Accepts nodes[] from queries and renders as a continuous document.
+ * Passes nodes directly to NoteesEditor which handles runtime sync.
  */
 
-import { type JSX } from 'react';
-import { NoteesEditor } from '../../editor/NoteesEditor';
+import { useMemo, useCallback, useId, type JSX } from 'react';
+import { NoteesEditor } from '../../../editor/NoteesEditor';
+import type { Node } from '@/types';
+import type { NodeDocumentViewProps } from '@/types/nodeCollection';
+import './NodeBlockDocumentView.css';
 
-export interface NodeBlockDocumentViewProps {
-  rootBlockId: string;
-  editorId?: string;
-  readOnly?: boolean;
-  onNavigateToNode?: (linkId: string) => void;
-  onEscape?: () => void;
-  className?: string;
-}
-
+/**
+ * NodeBlockDocumentView - Document view using Lexical editor
+ *
+ * Accepts nodes[] and renders as a flat document (no bullets/indentation).
+ */
 export function NodeBlockDocumentView({
-  rootBlockId,
-  editorId,
-  readOnly = false,
-  onNavigateToNode,
-  onEscape,
-  className,
-}: NodeBlockDocumentViewProps): JSX.Element {
+  nodes,
+  editable,
+  maxDepth = Infinity,
+  onNodeClick,
+  onContentChange,
+  className = '',
+}: NodeDocumentViewProps): JSX.Element {
+  const viewId = useId();
+
+  // Collect all nodes recursively up to maxDepth
+  const allNodes = useMemo(() => {
+    const result: Node[] = [];
+    const collect = (n: Node, depth: number) => {
+      result.push(n);
+      if (depth < maxDepth && n.children) {
+        for (const child of n.children) {
+          collect(child, depth + 1);
+        }
+      }
+    };
+    for (const n of nodes) {
+      collect(n, 0);
+    }
+    return result;
+  }, [nodes, maxDepth]);
+
+  // Handler for navigation from editor
+  const handleNavigateToNode = useCallback((linkId: string) => {
+    const id = Number(linkId);
+    if (isNaN(id)) return;
+    const targetNode = allNodes.find(n => n.id === id);
+    if (targetNode) {
+      onNodeClick?.(targetNode);
+    } else {
+      onNodeClick?.({ id, is_page: false } as Node);
+    }
+  }, [allNodes, onNodeClick]);
+
+  // Handler for content changes from editor
+  const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
+    const id = Number(blockId);
+    if (!isNaN(id)) {
+      onContentChange?.(id, content);
+    }
+  }, [onContentChange]);
+
+  // Early return if no nodes
+  if (allNodes.length === 0) {
+    return (
+      <div className={`node-document-view node-document-view--empty ${className}`}>
+        <span className="node-document-view__empty-message">No content</span>
+      </div>
+    );
+  }
+
   return (
-    <div className={`node-block-document-view ${className || ''}`}>
+    <div className={`node-document-view ${className}`}>
       <NoteesEditor
-        editorId={editorId || `doc-${rootBlockId}`}
-        rootBlockId={rootBlockId}
-        viewMode="document"
-        readOnly={readOnly}
-        onNavigateToNode={onNavigateToNode}
-        onEscape={onEscape}
+        editorId={`document-view-${viewId}`}
+        nodes={allNodes}
+        mode="document"
+        readOnly={!editable}
+        onNavigateToNode={handleNavigateToNode}
+        onContentChange={handleContentChangeBridge}
         placeholder="Start writing…"
       />
     </div>

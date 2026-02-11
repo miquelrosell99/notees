@@ -112,8 +112,8 @@ input:focus, textarea:focus, select:focus {
 
 /* Selection styling */
 ::selection {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  color: var(--color-on-surface);
 }
 
 /* Common button styles */
@@ -125,7 +125,12 @@ input:focus, textarea:focus, select:focus {
   padding: var(--spacing-2) var(--spacing-4);
   border-radius: var(--shape-small);
   font: var(--font-label-large);
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.btn:active {
+  transform: scale(0.97);
 }
 
 .btn-primary {
@@ -167,7 +172,7 @@ input:focus, textarea:focus, select:focus {
   cursor: not-allowed;
 }
 
-/* Icon Button - clean rounded square icon buttons */
+/* Icon Button - TE modular rounded square icon buttons */
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -180,16 +185,20 @@ input:focus, textarea:focus, select:focus {
   background: var(--color-surface-container);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: all var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .icon-btn:hover {
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .icon-btn:active {
   background: var(--color-surface-container-highest);
+  transform: scale(var(--tactile-press-scale));
+  box-shadow: none;
 }
 
 .icon-btn.active {

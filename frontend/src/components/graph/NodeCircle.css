@@ -1,14 +1,14 @@
 /**
- * NodeCircle Component Styles
+ * NodeCircle Component Styles — TE-inspired graph nodes.
  */
 
 .node-circle {
   pointer-events: all;
-  transition: transform 0.1s ease;
+  transition: transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .node-circle--hovered {
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 .node-circle--dragging {
@@ -20,7 +20,7 @@
 }
 
 .node-circle__body {
-  transition: r 0.1s ease;
+  transition: r var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-circle__pin-ring {
@@ -29,19 +29,19 @@
 
 .node-circle__label {
   pointer-events: none;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-family-base);
   user-select: none;
 }
 
 /* State-specific styles */
 .node-circle--bright .node-circle__body {
-  filter: drop-shadow(0 0 4px currentColor);
+  filter: drop-shadow(0 0 3px currentColor);
 }
 
 .node-circle--current .node-circle__body {
-  filter: drop-shadow(0 0 6px currentColor);
+  filter: drop-shadow(0 0 5px currentColor);
 }
 
 .node-circle--dim .node-circle__body {
-  opacity: 0.4;
+  opacity: 0.35;
 }

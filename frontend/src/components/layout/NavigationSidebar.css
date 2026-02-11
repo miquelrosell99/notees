@@ -107,8 +107,8 @@
 }
 
 .sidebar-nav-item.btn--active {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
 }
 
 .sidebar-nav-item .btn__icon {
@@ -116,7 +116,7 @@
 }
 
 .sidebar-nav-item.btn--active .btn__icon {
-  color: var(--color-on-primary-container);
+  color: var(--color-on-surface);
 }
 
 .sidebar-nav-item .btn__text {

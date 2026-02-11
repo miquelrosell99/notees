@@ -83,22 +83,27 @@
   padding: var(--spacing-3);
 }
 
-/* Interactive state */
+/* Interactive state — TE tactile: lift on hover, press-in on click */
 .card--interactive {
   cursor: pointer;
   transition: 
     background-color var(--motion-duration-short) var(--motion-easing-standard),
-    box-shadow var(--motion-duration-short) var(--motion-easing-standard),
-    border-color var(--motion-duration-short) var(--motion-easing-standard);
+    box-shadow var(--motion-duration-medium) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .card--interactive:hover {
   background: var(--color-hover-overlay);
   border-color: var(--color-outline);
+  box-shadow: var(--tactile-lift-shadow);
+  transform: translateY(-1px);
 }
 
 .card--interactive:active {
   background: var(--color-pressed-overlay);
+  box-shadow: var(--tactile-press-shadow);
+  transform: translateY(0) scale(0.99);
 }
 
 /* Selected state */
