@@ -13,17 +13,15 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState } from 'react';
-import { useCreateNode, useBlockSelection, useContentSave, useNodeNavigation } from '@/hooks';
-import { useNodesStore, useBlockSelectionStore } from '@/stores';
+import { useCreateNode, useContentSave, useNodeNavigation } from '@/hooks';
+import { useNodesStore } from '@/stores';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { mdiPlus } from '@mdi/js';
 import { NodeCollection } from './NodeCollection';
-import { BoxSelect } from '../core/BoxSelect';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
 import { type Asset, type AssetCategory } from '@/api/assets';
-import { useBlockCallbacksFactory } from '../blocks/useBlockCallbacksFactory';
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -59,10 +57,6 @@ export function NodeContent({
   const createNode = useCreateNode();
   const { addSidebarCard } = useNodesStore();
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
-  
-  // Block selection
-  const { enterEditMode } = useBlockSelectionStore();
-  useBlockSelection(children, { containerRef: contentRef, enabled: true });
 
   // Debounced content save - batches rapid edits to reduce API calls
   // saveImmediate bypasses debounce for operations like asset uploads
@@ -86,9 +80,8 @@ export function NodeContent({
       parent_id: node.id,
       sequence: maxSequence + 1,
     });
-    // Set the new block to edit mode so the user can start typing right away
-    enterEditMode(newNode.id);
-  }, [createNode, node.id, node.children, enterEditMode]);
+    // New block created — NoteesEditor will pick it up via runtime sync
+  }, [createNode, node.id, node.children]);
 
   // Handle successful asset upload
   // Strategy:
@@ -111,36 +104,10 @@ export function NodeContent({
     setPendingFile(null);
   }, [targetBlockId, convertToAsset, children, saveImmediate]);
 
-  // Build block callbacks for context provider
-  const blockCallbacks = useBlockCallbacksFactory({
-    onOpenBacklinks: (blockId) => addSidebarCard(blockId, 'block'),
-    onAssetUpload: (blockId, typesOrFile) => {
-      setTargetBlockId(blockId);
-      // Check if block is empty - if so, convert it to an asset
-      const block = children.find(c => c.id === blockId);
-      const isEmpty = !block?.name || block.name.trim() === '';
-      setConvertToAsset(isEmpty);
-      
-      if (typesOrFile instanceof File) {
-        setPendingFile(typesOrFile);
-        setAssetTypeFilter(undefined);
-      } else {
-        setPendingFile(null);
-        setAssetTypeFilter(typesOrFile);
-      }
-      setIsAssetUploadOpen(true);
-    },
-  });
-
   const viewMode = toViewMode(displayMode);
 
   return (
     <div className={`node-content ${displayMode}`} ref={contentRef}>
-      {/* Box selection for multi-select (disabled in card mode) */}
-      {displayMode !== 'card' && (
-        <BoxSelect containerRef={contentRef} enabled={true} />
-      )}
-      
       {/* Late night filter indicator */}
       {lateNightFilterActive && children.length === 0 && totalChildrenCount > 0 && (
         <div className="node-content-filter-indicator">
@@ -161,8 +128,6 @@ export function NodeContent({
             onContentChange={handleBlockChange}
             showEmpty={false}
             showClasses={true}
-            provideBlockCallbacks={true}
-            blockCallbacks={blockCallbacks}
           />
         </section>
       )}

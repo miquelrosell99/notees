@@ -20,14 +20,13 @@ import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '../../core/ContextMenu';
-import { Block } from '../../blocks/Block';
-import { BlockPreview } from '../../blocks/BlockPreview';
 import { Bullet } from '../../blocks/Bullet';
+import { NodeInline } from '../../blocks/NodeInline';
+import { NoteesEditor } from '@/editor/NoteesEditor';
 import { Button } from '../../core/Button';
 import { ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { InlineNodeBreadcrumbs } from '../NodeBreadcrumbs';
 import { ListSortable } from '../../core/ListSortable';
-import { useBlockCallbacks } from '../../blocks/BlockCallbacksContext';
 import { useNodesStore, useSettingsStore } from '@/stores';
 import { sortNodes, compareNodes } from '@/utils/sorting';
 import { findNodeById } from '@/utils/nodeTree';
@@ -247,181 +246,133 @@ function NodeListItem({
   }, [effectiveNode.children, pagesOnly]);
   
   const shouldRenderChildren = depth < maxDepth && children.length > 0;
-  
-  // Get block callbacks from context (only available in editable mode with provider)
-  const blockCallbacks = useBlockCallbacks();
 
   // Handlers
-  const handleBulletClick = useCallback((blockId: number) => {
-    // If clicking the same node, use it directly
-    if (blockId === node.id) {
+  const handleNavigateToNode = useCallback((linkId: string) => {
+    const id = Number(linkId);
+    if (isNaN(id)) return;
+    if (id === node.id) {
       onNodeClick?.(node);
     } else {
-      // Find the child node in the tree, or create a minimal block node
-      const childNode = findNodeById(blockId, children);
+      const childNode = findNodeById(id, children);
       if (childNode) {
         onNodeClick?.(childNode);
       } else {
-        // Fallback: create a minimal node object (block, not page)
-        onNodeClick?.({ id: blockId, is_page: false } as Node);
+        onNodeClick?.({ id, is_page: false } as Node);
       }
     }
   }, [node, children, onNodeClick]);
 
-  const handleShiftClick = useCallback((blockId: number) => {
-    if (blockId === node.id) {
-      onNodeShiftClick?.(node);
-    } else {
-      const childNode = findNodeById(blockId, children);
-      if (childNode) {
-        onNodeShiftClick?.(childNode);
-      } else {
-        onNodeShiftClick?.({ id: blockId, is_page: false } as Node);
-      }
+  const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
+    const id = Number(blockId);
+    if (!isNaN(id)) {
+      onContentChange?.(id, content);
     }
-  }, [node, children, onNodeShiftClick]);
-
-  const handleContentChange = useCallback((blockId: number, content: string) => {
-    onContentChange?.(blockId, content);
   }, [onContentChange]);
-
-  // Generate custom context menu items if provided
-  const generatedContextMenuItems = useMemo(() => {
-    if (!customContextMenuItems) return undefined;
-    return customContextMenuItems(node, () => {
-      // closeMenu callback - handled by Block component internally
-    });
-  }, [customContextMenuItems, node]);
   
   // Handle collapse toggle for pages and configurable level blocks - use local state instead of persisting
-  const handleCollapseToggle = useCallback((e: React.MouseEvent, blockDepth: number) => {
-    // If auto-collapse is disabled, don't intercept - let Block handle it
+  const handleCollapseToggle = useCallback((e: React.MouseEvent) => {
+    // If auto-collapse is disabled, don't intercept
     if (!autoCollapse || collapseLevel === 0) return;
     
-    const relativeDepthAtToggle = blockDepth - (initialDepth ?? depth);
-    if ((node.is_page || relativeDepthAtToggle >= collapseLevel) && onToggleNodeCollapse) {
+    if ((node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse) {
       e.preventDefault();
       e.stopPropagation();
       onToggleNodeCollapse(node.id);
     }
-    // For other blocks, let Block component handle normally (will persist to DB)
-  }, [node.is_page, node.id, initialDepth, depth, autoCollapse, collapseLevel, onToggleNodeCollapse]);
+  }, [node.is_page, node.id, relativeDepth, autoCollapse, collapseLevel, onToggleNodeCollapse]);
 
-  // Editable mode: render full Block component
+  // Breadcrumbs element (shared between editable and read-only)
+  const breadcrumbsElement = showBreadcrumbs && depth === 0 && !node.is_page && (page || context || (node.page_id && node.page_name)) ? (
+    <InlineNodeBreadcrumbs
+      node={node}
+      page={page}
+      context={context}
+      onNavigate={(nodeId, nodeType) => {
+        if (nodeType === 'page') {
+          const pageNode = page && page.id === nodeId ? page : { id: nodeId } as Node;
+          onNodeClick?.(pageNode);
+        }
+      }}
+      compact={true}
+    />
+  ) : null;
+
+  // Editable mode: render NoteesEditor for the block subtree
   if (editable) {
-    // Build block-specific callbacks from context
-    const blockProps = blockCallbacks ? {
-      onAddClass: blockCallbacks.onAddClass 
-        ? (classNodeId: number, keepInline: boolean, className: string) => 
-            blockCallbacks.onAddClass!(node.id, classNodeId, keepInline, className)
-        : undefined,
-      onAddTag: blockCallbacks.onAddTag
-        ? (tagNodeId: number, keepInline: boolean, tagName: string) =>
-            blockCallbacks.onAddTag!(node.id, tagNodeId, keepInline, tagName)
-        : undefined,
-      onCreateClass: blockCallbacks.onCreateClass
-        ? (name: string, keepInline: boolean) =>
-            blockCallbacks.onCreateClass!(node.id, name, keepInline)
-        : undefined,
-      onCreateTag: blockCallbacks.onCreateTag
-        ? (name: string, keepInline: boolean) =>
-            blockCallbacks.onCreateTag!(node.id, name, keepInline)
-        : undefined,
-      onCreatePageLink: blockCallbacks.onCreatePageLink,
-      onOpenComments: blockCallbacks.onOpenComments
-        ? () => blockCallbacks.onOpenComments!(node.id)
-        : undefined,
-      onAssetUpload: blockCallbacks.onAssetUpload
-        ? (assetTypesOrFile?: ('image' | 'audio' | 'file')[] | File) =>
-            blockCallbacks.onAssetUpload!(node.id, assetTypesOrFile)
-        : undefined,
-      onOpenBacklinks: blockCallbacks.onOpenBacklinks
-        ? () => blockCallbacks.onOpenBacklinks!(node.id)
-        : undefined,
-      commentCount: blockCallbacks.getCommentCount?.(node) ?? node.comment_count ?? 0,
-      backlinkCount: blockCallbacks.getBacklinkCount?.(node) ?? node.backlink_count ?? 0,
-    } : {};
-
     return (
       <div className="node-list-item-wrapper">
-        {/* Breadcrumbs for top-level items */}
-        {showBreadcrumbs && depth === 0 && !node.is_page && (page || context || (node.page_id && node.page_name)) && (
-          <InlineNodeBreadcrumbs
-            node={node}
-            page={page}
-            context={context}
-            onNavigate={(nodeId, nodeType) => {
-              if (nodeType === 'page') {
-                // Create a minimal page node to pass to onNodeClick
-                const pageNode = page && page.id === nodeId ? page : { 
-                  id: nodeId
-                } as Node;
-                onNodeClick?.(pageNode);
-              }
-            }}
-            compact={true}
-          />
-        )}
-        <Block
-          block={effectiveNode}
-          children={children}
-          siblings={siblings}
-          depth={showIndentation ? depth : 0}
-          parentId={node.parent_id}
-          parentBlock={parentBlock}
-          onContentChange={handleContentChange}
-          onBulletClick={handleBulletClick}
-          onShiftClick={handleShiftClick}
-          showBullet={showBullets}
-          showClasses={showClasses}
-          isolatedState={isolatedBlockState}
-          suppressColor={suppressColor}
-          customContextMenuItems={generatedContextMenuItems}
-          onCollapseToggle={autoCollapse && collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
-          {...blockProps}
+        {breadcrumbsElement}
+        <NoteesEditor
+          editorId={`list-${effectiveNode.id}`}
+          rootBlockId={String(effectiveNode.uuid || effectiveNode.id)}
+          viewMode="list"
+          readOnly={false}
+          onNavigateToNode={handleNavigateToNode}
+          onContentChange={handleContentChangeBridge}
         />
       </div>
     );
   }
 
-  // Read-only mode: render Block with children (but no editing capabilities)
+  // Read-only mode: lightweight rendering with NodeInline + recursive children
   return (
     <div className="node-list-item-wrapper">
-      {/* Breadcrumbs for top-level items */}
-      {showBreadcrumbs && depth === 0 && !node.is_page && (page || context || (node.page_id && node.page_name)) && (
-        <InlineNodeBreadcrumbs
-          node={node}
-          page={page}
-          context={context}
-          onNavigate={(nodeId, nodeType) => {
-            if (nodeType === 'page') {
-              const pageNode = page && page.id === nodeId ? page : { 
-                id: nodeId
-              } as Node;
-              onNodeClick?.(pageNode);
-            }
-          }}
-          compact={true}
-        />
-      )}
-      <Block
-        block={effectiveNode}
-        children={children}
-        siblings={siblings}
-        depth={showIndentation ? depth : 0}
-        parentId={node.parent_id}
-        parentBlock={parentBlock}
-        onBulletClick={() => onNodeClick?.(node)}
-        onShiftClick={() => onNodeShiftClick?.(node)}
-        onCollapseToggle={autoCollapse && collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
-        showBullet={showBullets}
-        showChildren={shouldRenderChildren}
-        showClasses={showClasses}
-        canMove={false}
-        canEdit={false}
-        canSelect={false}
-        customContextMenuItems={generatedContextMenuItems}
-      />
+      {breadcrumbsElement}
+      <div className="node-list-item" style={showIndentation && depth > 0 ? { paddingLeft: `${depth * 1.5}rem` } : undefined}>
+        <div className="node-list-item__row">
+          {showBullets && (
+            <Bullet
+              nodeId={effectiveNode.id}
+              icon={effectiveNode.icon}
+              isPage={effectiveNode.is_page}
+              interactive={true}
+              hasChildren={children.length > 0}
+              collapsed={effectiveNode.collapsed}
+              onClick={() => onNodeClick?.(effectiveNode)}
+              onShiftClick={() => onNodeShiftClick?.(effectiveNode)}
+              onCollapseToggle={autoCollapse && collapseLevel > 0 && (node.is_page || relativeDepth >= collapseLevel) && onToggleNodeCollapse ? handleCollapseToggle : undefined}
+              size="sm"
+            />
+          )}
+          <NodeInline
+            name={effectiveNode.name}
+            icon={!showBullets ? effectiveNode.icon : undefined}
+            isPage={effectiveNode.is_page}
+            nodeId={effectiveNode.id}
+            onClick={() => onNodeClick?.(effectiveNode)}
+            onShiftClick={() => onNodeShiftClick?.(effectiveNode)}
+            className="node-list-item__content"
+          />
+        </div>
+        {shouldRenderChildren && !effectiveNode.collapsed && (
+          <div className="node-list-item__children">
+            {children.map(child => (
+              <NodeListItem
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                initialDepth={initialDepthProp ?? depth}
+                editable={false}
+                maxDepth={maxDepth}
+                showBullets={showBullets}
+                showIndentation={showIndentation}
+                showBreadcrumbs={false}
+                showClasses={showClasses}
+                pagesOnly={pagesOnly}
+                siblings={children}
+                parentBlock={effectiveNode}
+                onNodeClick={onNodeClick}
+                onNodeShiftClick={onNodeShiftClick}
+                onContentChange={onContentChange}
+                localExpandedNodes={localExpandedNodes}
+                onToggleNodeCollapse={onToggleNodeCollapse}
+                autoCollapse={autoCollapse}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -500,10 +451,11 @@ function GroupHeader({
           </button>
         )}
         {page ? (
-          <BlockPreview
-            variant="simple"
-            node={page}
-            showBullet={false}
+          <NodeInline
+            name={page.name}
+            icon={page.icon}
+            isPage={page.is_page}
+            nodeId={page.id}
             showIcon={true}
             onClick={() => onNodeClick?.(page)}
             onShiftClick={() => onNodeShiftClick?.(page)}

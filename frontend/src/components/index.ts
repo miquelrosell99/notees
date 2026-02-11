@@ -21,21 +21,23 @@ export { PageHeader } from './PageHeader';
 export { NodeContent } from './nodes/NodeContent';
 export { NodeContextMenu, PageContextMenu, BlockContextMenu } from './nodes/NodeContextMenu';
 
-// Block components (from blocks/ folder)
-export { Block } from './blocks/Block';
-export { ASTBlockEditor as BlockEditor, TASK_STATES } from './blocks/ASTBlockEditor';
-export type { TaskState } from './blocks/ASTBlockEditor';
-export { ASTBlockContent as BlockContent } from './blocks/ASTBlockContent';
-export { BlockPreview } from './blocks/BlockPreview';
-export type { BlockPreviewProps } from './blocks/BlockPreview';
-export { BlockDrag } from './blocks/BlockDrag';
-export type { BlockDragProps } from './blocks/BlockDrag';
+// Block components
+export { NodeInline } from './blocks/NodeInline';
+export type { NodeInlineProps } from './blocks/NodeInline';
 export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
+export { CodeBlock } from './blocks/CodeBlock';
+export type { CodeBlockProps } from './blocks/CodeBlock';
 export { TextPropertyBlock } from './blocks/TextPropertyBlock';
 
+// NoteesEditor (Lexical-based editor)
+export { NoteesEditor } from '../editor/NoteesEditor';
+export type { NoteesEditorProps } from '../editor/NoteesEditor';
+
+// NodeGraphRuntime
+export { getNodeGraphRuntime, resetNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
+
 // Core UI components
-export { BoxSelect } from './core/BoxSelect';
 export { SuggestionPopup } from './SuggestionPopup';
 export type { SuggestionPopupProps, SuggestionType } from './SuggestionPopup';
 export { SlashCommandPopup } from './SlashCommandPopup';
@@ -73,8 +75,12 @@ export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
 export { ImportDataModal } from './ImportDataModal';
 
-// Table block component
-export { TableBlock } from './blocks/TableBlock';
+// New NodeBlock view components
+export { NodeBlockListView } from './nodes/views/NodeBlockListView';
+export { NodeBlockDocumentView } from './nodes/views/NodeBlockDocumentView';
+export { NodeBlockCardView } from './nodes/views/NodeBlockCardView';
+export { NodeBlockTableView } from './nodes/views/NodeBlockTableView';
+export { NodeBlockGraphView } from './nodes/views/NodeBlockGraphView';
 
 // New core components
 export { Separator } from './core/Separator';

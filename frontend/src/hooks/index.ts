@@ -3,8 +3,6 @@
  * 
  * Categories:
  * - Data fetching: useNodes, useNodeViews, usePrefetch
- * - Selection/interaction: useBlockSelection, useSearchableList, useFocusedView
- * - Block operations: useBlockOperation, useStructuralHistory
  * - UI utilities: useNodeIcon, useNodeCollection, useVirtualizedNodes
  * - Keyboard/focus: useKeyboardShortcuts, useFocusTrap
  * - Routing: useRouter, RouterSync
@@ -13,7 +11,6 @@ export * from './useNodes';
 export * from './useNodeViews';
 export * from './useRouter';
 export { RouterSync } from './RouterSync';
-export * from './useBlockSelection';
 export * from './useSearchableList';
 export * from './useKeyboardListNav';
 export * from './useViewportFlip';
@@ -24,8 +21,6 @@ export * from './useNodeCollection';
 export * from './useVirtualizedNodes';
 export * from './usePrefetch';
 export * from './useFocusedView';
-export * from './useBlockOperation';
-export * from './useStructuralHistory';
 export * from './useContentSave';
 export * from './useKeyboardShortcuts';
 export * from './useLinkedReferencesCount';

@@ -16,7 +16,7 @@ import { useQueries } from '@tanstack/react-query';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty, useClasses, useNode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
-import { Block } from '../blocks/Block';
+import { NodeInline } from '../blocks/NodeInline';
 import { ImageNode } from '../ImageNode';
 import { NodePill } from '../NodePill';
 import { NodeSelector } from '../NodeSelector';
@@ -282,15 +282,11 @@ function InlineBlock({ nodeId }: { nodeId: number }) {
   }
 
   return (
-    <Block
-      block={blockNode}
-      parentId={blockNode.parent_id}
-      canMove={false}
-      canEdit={false}
-      canSelect={false}
-      showChildren={false}
-      showClasses={false}
-      showQueryResults={false}
+    <NodeInline
+      name={blockNode.name}
+      icon={blockNode.icon}
+      isPage={blockNode.is_page}
+      nodeId={blockNode.id}
     />
   );
 }

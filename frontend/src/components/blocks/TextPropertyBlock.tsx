@@ -1,15 +1,13 @@
 /**
  * TextPropertyBlock - Component for text-type properties that behave as block nodes
  * 
- * Text properties are stored as node references (blocks), displayed using the bullet component.
- * - Single block with child block support
- * - Normal block editor functionality
+ * Text properties are stored as node references (blocks), displayed using the NoteesEditor.
+ * - Single block with child block support (via Lexical)
  * - Draggable to other locations (clears property on drag)
  * - Shift-click opens in sidebar
  * - Empty state shows "+ Add text" button
  * 
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
- * This component only renders the content and any child blocks (which do have bullets).
  */
 import { useState, useCallback, useRef } from 'react';
 import { 
@@ -20,8 +18,7 @@ import {
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
 import type { Property } from '@/types/api';
-import { ASTBlockEditor as BlockEditor } from './ASTBlockEditor';
-import { Block } from './Block';
+import { NoteesEditor } from '@/editor/NoteesEditor';
 import { Button } from '../core/Button';
 
 interface TextPropertyBlockProps {
@@ -92,19 +89,14 @@ export function TextPropertyBlock({
   }, [readOnly, isCreating, createNode, nodeId, property.id, onPropertyChange]);
   
   // Handle content change
-  const handleContentChange = useCallback((content: string) => {
-    if (!blockNodeId || readOnly) return;
-    
-    updateNode.mutate({
-      id: blockNodeId,
-      data: { name: content },
-    });
-  }, [blockNodeId, readOnly, updateNode]);
+  const handleContentChange = useCallback((_content: string) => {
+    // Content changes are handled by NoteesEditor → NodeGraphRuntime
+  }, []);
   
   // Handle shift-click to open in sidebar
-  const handleShiftClick = useCallback((blockId: number) => {
-    onOpenInSidebar?.(blockId);
-  }, [onOpenInSidebar]);
+  const handleShiftClick = useCallback((_blockId: number) => {
+    // Will be wired through NoteesEditor navigation
+  }, []);
   
   // Handle drop on this property (to receive a block)
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -175,23 +167,7 @@ export function TextPropertyBlock({
     );
   }
   
-  // Check if block has children
-  const hasChildren = blockNode.children && blockNode.children.length > 0;
-  
-  // Handle child block content change
-  const handleChildContentChange = useCallback((childId: number, content: string) => {
-    updateNode.mutate({ 
-      id: childId, 
-      data: { name: content } 
-    });
-  }, [updateNode]);
-  
-  // Handle child bullet click (open focused view)
-  const handleChildBulletClick = useCallback((childId: number) => {
-    onBulletClick?.(childId);
-  }, [onBulletClick]);
-  
-  // Show the block editor (no bullet - it's rendered by PropertiesSection)
+  // Show the block with Lexical-based NoteesEditor
   return (
     <div 
       ref={containerRef}
@@ -199,41 +175,17 @@ export function TextPropertyBlock({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {/* Main block content - no bullet here */}
       <div className="text-property-block__row">
         <div className="text-property-block__content">
-          <BlockEditor
-            nodeId={blockNode.id}
-            content={blockNode.name || ''}
-            onChange={handleContentChange}
+          <NoteesEditor
+            editorId={`text-prop-${blockNode.id}`}
+            rootBlockId={String(blockNode.uuid || blockNode.id)}
+            viewMode="list"
             readOnly={readOnly}
+            placeholder="Type here…"
           />
         </div>
       </div>
-      
-      {/* Show child blocks with full Block component (with bullets) */}
-      {hasChildren && (
-        <div className="text-property-block__children">
-          {blockNode.children!.map((child) => (
-            <Block
-              key={child.id}
-              block={child}
-              children={child.children}
-              siblings={blockNode.children}
-              parentId={blockNode.id}
-              parentBlock={blockNode}
-              onContentChange={handleChildContentChange}
-              onBulletClick={handleChildBulletClick}
-              onShiftClick={handleShiftClick}
-              canEdit={!readOnly}
-              canMove={!readOnly}
-              canSelect={false}
-              backlinkCount={child.backlink_count}
-              onOpenBacklinks={() => handleShiftClick?.(child.id)}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

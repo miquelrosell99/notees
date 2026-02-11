@@ -20,7 +20,7 @@ import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { getNodeColorStylesAuto } from '@/utils/color';
-import { Block } from '../../blocks/Block';
+import { NoteesEditor } from '@/editor/NoteesEditor';
 import { useClasses, useNodes, useTags, useProperties, useSetNodeProperty, useNode, useCreateNode, useRemoveClass, useUpdateNode, useResolvedClassDetails } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -138,17 +138,13 @@ function CommonCardLayout({
       >
         <div className="node-card__title-wrapper">
           <div className="node-card__title-block">
-            <Block
-              block={node}
-              parentId={node.parent_id}
-              showBullet={showBullet}
-              showChildren={false}
-              showClasses={false}
-              canMove={false}
-              canSelect={false}
-              canEdit={editable}
-              suppressColor={true}
-              onContentChange={handleContentChange}
+            <NoteesEditor
+              editorId={`card-title-${node.id}`}
+              rootBlockId={String(node.uuid || node.id)}
+              viewMode="document"
+              readOnly={!editable}
+              onContentChange={(blockId, content) => handleContentChange(Number(blockId), content)}
+              placeholder="Untitled"
             />
           </div>
           {editable && (
@@ -240,20 +236,20 @@ function CommonCardLayout({
                   : { ...child, collapsed: effectiveCollapsed };
                 
                 return (
-                  <Block
+                  <NoteesEditor
                     key={child.id}
-                    block={childWithCollapse}
-                    children={child.children}
-                    parentId={node.id}
-                    depth={1}
-                    canMove={false}
-                    canSelect={false}
-                    canEdit={editable}
-                    showBullet={true}
-                    showChildren={true}
-                    onContentChange={handleContentChange}
-                    onBulletClick={onNodeClick ? () => onNodeClick(child) : undefined}
-                    onShiftClick={onNodeShiftClick ? () => onNodeShiftClick(child) : undefined}
+                    editorId={`card-child-${child.id}`}
+                    rootBlockId={String(childWithCollapse.uuid || childWithCollapse.id)}
+                    viewMode="list"
+                    readOnly={!editable}
+                    onNavigateToNode={onNodeClick ? (linkId) => {
+                      const id = Number(linkId);
+                      if (!isNaN(id)) {
+                        const childNode = children.find(c => c.id === id) || { id, is_page: false } as Node;
+                        onNodeClick(childNode);
+                      }
+                    } : undefined}
+                    onContentChange={(blockId, content) => handleContentChange(Number(blockId), content)}
                   />
                 );
               })}

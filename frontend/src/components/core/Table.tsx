@@ -15,8 +15,7 @@
 import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
-import { Block } from '../blocks/Block';
-import { ASTBlockContent } from '../blocks/ASTBlockContent';
+import { NodeInline } from '../blocks/NodeInline';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import './Table.css';
@@ -484,7 +483,7 @@ export function Table<T>({
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">
                     <span className="table-node-cell__name">
-                      <ASTBlockContent content={cellValue.name} />
+                      <span>{cellValue.name || 'Untitled'}</span>
                     </span>
                     <div className="table-node-cell__actions">
                       {onNodeOpenInSidebar && (
@@ -588,16 +587,12 @@ export function Table<T>({
                   >
                     <div className="table-header-content">
                       {column.headerNode ? (
-                        <Block
-                          block={column.headerNode as Node}
-                          parentId={null}
-                          showBullet={!!column.headerNode.icon}
-                          showChildren={false}
-                          showClasses={false}
-                          canMove={false}
-                          canEdit={false}
-                          canSelect={false}
-                          isolatedState={true}
+                        <NodeInline
+                          name={(column.headerNode as Node).name}
+                          icon={(column.headerNode as Node).icon}
+                          isPage={false}
+                          nodeId={(column.headerNode as Node).id}
+                          showBullet={!!(column.headerNode as Node).icon}
                         />
                       ) : (
                         <span>{column.header}</span>

@@ -8,11 +8,10 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNode, useUpdateNode, useCreateNode, useClasses } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { useNodesStore, useBlockSelectionStore } from '@/stores';
+import { useNodesStore } from '@/stores';
 import { mdiPlus, mdiOpenInNew, mdiArrowExpand, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
-import { ASTBlockEditor as BlockEditor } from '../blocks/ASTBlockEditor';
-import { BlockPreview } from '../blocks/BlockPreview';
+import { NoteesEditor } from '@/editor/NoteesEditor';
 import { Bullet } from '../blocks/Bullet';
 import { NodeIcon } from '../icons';
 import { Button } from '../core/Button';
@@ -32,7 +31,6 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const { openNode, addSidebarCard } = useNodesStore();
-  const { enterEditMode } = useBlockSelectionStore();
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -122,14 +120,12 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
     const maxSequence = node?.children?.reduce((max, child) => 
       Math.max(max, child.sequence ?? 0), -1) ?? -1;
     
-    const newNode = await createNode.mutateAsync({ 
+    const _newNode = await createNode.mutateAsync({ 
       name: '', 
       parent_id: nodeId,
       sequence: maxSequence + 1,
     });
-    // Set the new block to edit mode so the user can start typing right away
-    enterEditMode(newNode.id);
-  }, [nodeId, node?.children, createNode, enterEditMode]);
+  }, [nodeId, node?.children, createNode]);
 
   if (isLoading) {
     return (
@@ -197,34 +193,13 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
             {/* Page content - show children */}
             <div className="node-preview-blocks">
               {node.children && node.children.length > 0 ? (
-                node.children.map(child => (
-                  <div key={child.id} className="node-preview-block">
-                    <Bullet
-                      nodeId={child.id}
-                      icon={child.icon}
-                      size="xs"
-                      interactive={true}
-                      onClick={() => {
-                        openNode(child.id, 'block');
-                        onClose();
-                      }}
-                    />
-                    {isEditing ? (
-                      <BlockEditor
-                        content={child.name || ''}
-                        onChange={(content) => handleChildContentChange(child.id, content)}
-                      />
-                    ) : (
-                      <BlockPreview
-                        variant="simple"
-                        blockId={child.id}
-                        content={child.name || ''}
-                        showBullet={false}
-                        onClick={() => setIsEditing(true)}
-                      />
-                    )}
-                  </div>
-                ))
+                <NoteesEditor
+                  editorId={`preview-${nodeId}`}
+                  rootBlockId={String(node.uuid || node.id)}
+                  viewMode="list"
+                  readOnly={!isEditing}
+                  placeholder="No content"
+                />
               ) : (
                 <div className="node-preview-empty">No content</div>
               )}
@@ -244,20 +219,13 @@ export function NodePreview({ nodeId, position, onClose, anchorRect }: NodePrevi
           </>
         ) : (
           /* Block content - show the block itself */
-          isEditing ? (
-            <BlockEditor
-              content={node.name || ''}
-              onChange={handleContentChange}
-            />
-          ) : (
-            <BlockPreview
-              variant="simple"
-              blockId={node.id}
-              content={node.name || ''}
-              showBullet={false}
-              onClick={() => setIsEditing(true)}
-            />
-          )
+          <NoteesEditor
+            editorId={`preview-block-${nodeId}`}
+            rootBlockId={String(node.uuid || node.id)}
+            viewMode="document"
+            readOnly={!isEditing}
+            placeholder="Empty block"
+          />
         )}
       </div>
       

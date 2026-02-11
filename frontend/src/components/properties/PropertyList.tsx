@@ -17,7 +17,7 @@ import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { Property, PropertyType, Node } from '@/types/api';
 import { useNodesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { Block } from '../blocks/Block';
+import { NodeInline } from '../blocks/NodeInline';
 import { Bullet } from '../blocks/Bullet';
 import { ChevronRightIcon } from '../icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -281,19 +281,14 @@ function PropertyRow({
       <div className="property-row" onClick={handleNameClick}>
         <div className="property-row__label">
 
-          <Block
-            block={propertyAsNode}
-            parentId={null}
+          <NodeInline
+            name={propertyAsNode.name}
+            icon={propertyAsNode.icon}
+            isPage={false}
+            nodeId={propertyAsNode.id}
             showBullet={true}
-            showChildren={false}
-            showClasses={false}
-            canMove={false}
-            canEdit={false}
-            canSelect={false}
-            isolatedState={true}
-            onBulletClick={handleBulletClick}
+            onClick={handleBulletClick}
             onShiftClick={handleBulletShiftClick}
-            customContextMenuItems={contextMenuItems}
           />
           {source && (
             <span className="property-row__source" title={`From ${source}`}>

@@ -16,7 +16,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
 import { ChevronRightIcon } from '../icons';
-import { BlockPreview } from '../blocks/BlockPreview';
+import { NodeInline } from '../blocks/NodeInline';
 import './NodeBreadcrumbs.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,9 +47,8 @@ interface NodeBreadcrumbsElementProps {
 function NodeBreadcrumbsElement({ item, onClick, showSeparator = true }: NodeBreadcrumbsElementProps) {
   return (
     <span className="node-breadcrumb-item">
-      <BlockPreview
-        variant="simple"
-        content={item.name}
+      <NodeInline
+        name={item.name}
         icon={item.icon}
         showBullet={!!item.icon}
         propertyName={item.isProperty ? item.name : undefined}
