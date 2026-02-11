@@ -145,6 +145,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
     theme: notesEditorTheme,
     nodes: EDITOR_NODES,
     editable: !readOnly,
+    editorState: null,
     onError: (error: Error) => {
       console.error(`[CardChildrenEditor ${rootBlockId}]`, error);
     },
@@ -171,6 +172,11 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
   const handleBlockMerge = useCallback((sourceBlockId: string, targetBlockId: string) => {
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({ type: 'merge_blocks', sourceBlockId, targetBlockId });
+  }, []);
+
+  const handleBlockDelete = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    runtime.applyIntent({ type: 'delete_block', blockId });
   }, []);
 
   const handleIndent = useCallback((blockId: string) => {
@@ -209,6 +215,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onContentChange={handleContentChange}
           onBlockCreate={handleBlockCreate}
           onBlockMerge={handleBlockMerge}
+          onBlockDelete={handleBlockDelete}
           onIndent={handleIndent}
           onOutdent={handleOutdent}
           readOnly={readOnly}
