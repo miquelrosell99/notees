@@ -29,21 +29,21 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   // ─── Create/destroy drop indicator ─────────────────────────
 
   useEffect(() => {
+    const rootEl = editor.getRootElement();
+    if (!rootEl) return;
+
+    // Attach indicator to the editor root's parent for proper scoping
+    const container = rootEl.parentElement || document.body;
     const indicator = document.createElement('div');
     indicator.className = 'node-block-drop-indicator';
     indicator.style.display = 'none';
-    indicator.style.position = 'absolute';
-    indicator.style.height = '2px';
-    indicator.style.background = 'var(--color-accent, #3b82f6)';
-    indicator.style.pointerEvents = 'none';
-    indicator.style.zIndex = '100';
-    document.body.appendChild(indicator);
+    container.appendChild(indicator);
     dropIndicatorRef.current = indicator;
 
     return () => {
       indicator.remove();
     };
-  }, []);
+  }, [editor]);
 
   // ─── Drag start ────────────────────────────────────────────
 

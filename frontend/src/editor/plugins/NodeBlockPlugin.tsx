@@ -34,6 +34,7 @@ import {
 } from '../nodes/NodeBlockNode';
 import { $createNodePillNode, $isNodePillNode } from '../nodes/NodePillNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { findParentNodeBlock } from '../utils/selectionUtils';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
 import type { ASTInlineNode } from '@/types/ast';
 
@@ -482,15 +483,6 @@ export function NodeBlockPlugin({
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
-
-function findParentNodeBlock(node: any): NodeBlockNode | null {
-  let current = node;
-  while (current != null) {
-    if ($isNodeBlockNode(current)) return current;
-    current = current.getParent?.();
-  }
-  return null;
-}
 
 /**
  * Populate a NodeBlockNode's children from a ContentAST.

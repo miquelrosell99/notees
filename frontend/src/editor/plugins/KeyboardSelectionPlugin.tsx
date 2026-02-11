@@ -18,57 +18,7 @@ import {
   KEY_ARROW_DOWN_COMMAND,
   COMMAND_PRIORITY_HIGH,
 } from 'lexical';
-import { $isNodeBlockNode, NodeBlockNode } from '../nodes/NodeBlockNode';
-
-/**
- * Helper: Select a block and all its children (card-style selection)
- */
-function selectBlockWithChildren(rootEl: HTMLElement, blockId: string, selectedBlocks: Set<string>) {
-  const blockEl = rootEl.querySelector(`[data-block-id=\"${blockId}\"]`) as HTMLElement;
-  if (!blockEl) return;
-
-  const blockDepth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
-  const allBlocks = Array.from(rootEl.querySelectorAll('[data-block-id]')) as HTMLElement[];
-  const blockIndex = allBlocks.indexOf(blockEl);
-  
-  // Add the block itself
-  selectedBlocks.add(blockId);
-  blockEl.classList.add('node-block--selected');
-  
-  // Find and add all children (blocks with greater depth that follow)
-  const children: HTMLElement[] = [];
-  for (let i = blockIndex + 1; i < allBlocks.length; i++) {
-    const nextBlock = allBlocks[i];
-    const nextDepth = parseInt(nextBlock.getAttribute('data-depth') || '0', 10);
-    
-    // Stop when we hit a block at same or lesser depth
-    if (nextDepth <= blockDepth) break;
-    
-    const nextBlockId = nextBlock.getAttribute('data-block-id');
-    if (nextBlockId) {
-      selectedBlocks.add(nextBlockId);
-      nextBlock.classList.add('node-block--selected-child');
-      children.push(nextBlock);
-    }
-  }
-  
-  // Apply first/last/single classes for proper card styling
-  if (children.length === 0) {
-    blockEl.classList.add('node-block--selected-single');
-  } else {
-    blockEl.classList.add('node-block--selected-first');
-    children[children.length - 1].classList.add('node-block--selected-last');
-  }
-}
-
-/**
- * Helper: Clear all selection classes
- */
-function clearBlockSelection(rootEl: HTMLElement) {
-  rootEl.querySelectorAll('.node-block--selected, .node-block--selected-child, .node-block--selected-first, .node-block--selected-last, .node-block--selected-single').forEach(el => {
-    el.classList.remove('node-block--selected', 'node-block--selected-child', 'node-block--selected-first', 'node-block--selected-last', 'node-block--selected-single');
-  });
-}
+import { selectBlockWithChildren, clearBlockSelection, findParentNodeBlock } from '../utils/selectionUtils';
 
 export interface KeyboardSelectionPluginProps {
   editorId: string;
@@ -87,6 +37,17 @@ export function KeyboardSelectionPlugin({
   
   const selectedBlocks = useRef<Set<string>>(new Set());
   const anchorBlockId = useRef<string | null>(null);
+
+  // ─── Helper: apply block selection after clearing text selection ─
+  const applyBlockSelection = (blockId: string) => {
+    const rootEl = editor.getRootElement();
+    if (!rootEl) return;
+    clearBlockSelection(rootEl);
+    selectedBlocks.current.clear();
+    selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
+    anchorBlockId.current = blockId;
+    onSelectionChange?.([...selectedBlocks.current]);
+  };
 
   // ─── Clear selection when clicking in editor (entering edit mode) ─
   // Note: Click clearing is handled by BlockDragSelectionPlugin's mousedown handler
@@ -111,36 +72,17 @@ export function KeyboardSelectionPlugin({
           if (!blockNode) return;
 
           blockIdToSelect = blockNode.getBlockId();
-
-          // Clear text selection first - exit edit mode
           $setSelection(null);
         });
         
-        // Clear window selection
-        const windowSelection = window.getSelection();
-        if (windowSelection) {
-          windowSelection.removeAllRanges();
-        }
+        window.getSelection()?.removeAllRanges();
 
-        // Apply block selection after Lexical update is complete
         if (blockIdToSelect) {
-          // Use setTimeout to ensure Lexical has finished DOM updates
-          setTimeout(() => {
-            const rootEl = editor.getRootElement();
-            if (!rootEl) return;
-            
-            clearBlockSelection(rootEl);
-            selectedBlocks.current.clear();
-            selectBlockWithChildren(rootEl, blockIdToSelect!, selectedBlocks.current);
-            anchorBlockId.current = blockIdToSelect;
-
-            onSelectionChange?.([...selectedBlocks.current]);
-          }, 0);
+          // Use queueMicrotask to ensure Lexical has finished DOM updates
+          queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
         }
 
-        // Call the original onEscape handler
         onEscape?.();
-        
         return true;
       },
       COMMAND_PRIORITY_HIGH,
@@ -179,22 +121,9 @@ export function KeyboardSelectionPlugin({
           });
           
           if (blockIdToSelect) {
-            // Clear text selection first
-            editor.update(() => {
-              $setSelection(null);
-            });
-            
-            const windowSelection = window.getSelection();
-            if (windowSelection) windowSelection.removeAllRanges();
-            
-            // Apply block selection after DOM is stable
-            setTimeout(() => {
-              clearBlockSelection(rootEl);
-              selectedBlocks.current.clear();
-              selectBlockWithChildren(rootEl, blockIdToSelect!, selectedBlocks.current);
-              anchorBlockId.current = blockIdToSelect;
-              onSelectionChange?.([...selectedBlocks.current]);
-            }, 0);
+            editor.update(() => { $setSelection(null); });
+            window.getSelection()?.removeAllRanges();
+            queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }
         } else {
           // Extend/shrink existing selection
@@ -277,22 +206,9 @@ export function KeyboardSelectionPlugin({
           });
           
           if (blockIdToSelect) {
-            // Clear text selection first
-            editor.update(() => {
-              $setSelection(null);
-            });
-            
-            const windowSelection = window.getSelection();
-            if (windowSelection) windowSelection.removeAllRanges();
-            
-            // Apply block selection after DOM is stable
-            setTimeout(() => {
-              clearBlockSelection(rootEl);
-              selectedBlocks.current.clear();
-              selectBlockWithChildren(rootEl, blockIdToSelect!, selectedBlocks.current);
-              anchorBlockId.current = blockIdToSelect;
-              onSelectionChange?.([...selectedBlocks.current]);
-            }, 0);
+            editor.update(() => { $setSelection(null); });
+            window.getSelection()?.removeAllRanges();
+            queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }
         } else {
           // Extend/shrink existing selection
@@ -343,16 +259,5 @@ export function KeyboardSelectionPlugin({
     );
   }, [editor, readOnly, onSelectionChange]);
 
-  return null;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function findParentNodeBlock(node: any): NodeBlockNode | null {
-  let current = node;
-  while (current != null) {
-    if ($isNodeBlockNode(current)) return current;
-    current = current.getParent?.();
-  }
   return null;
 }

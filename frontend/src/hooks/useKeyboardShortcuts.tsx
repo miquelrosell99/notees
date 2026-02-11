@@ -93,14 +93,15 @@ export function useShortcutsForContext(context: ShortcutContext) {
 export function useGlobalKeyboardListener() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Skip if target is an input/textarea (unless it's our block editor)
       const target = event.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      const isContentEditable = target.isContentEditable;
       
-      // Allow some global shortcuts even in inputs (contentEditable handled by store)
-      const isGlobalShortcut = event.ctrlKey || event.metaKey;
+      // Allow modifier shortcuts (Ctrl/Cmd) even in text editing contexts
+      const isModifierShortcut = event.ctrlKey || event.metaKey;
       
-      if (isInput && !isGlobalShortcut) {
+      // Skip text-editing contexts unless using modifier shortcuts
+      if ((isInput || isContentEditable) && !isModifierShortcut) {
         return;
       }
       

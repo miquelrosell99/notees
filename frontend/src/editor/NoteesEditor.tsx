@@ -38,6 +38,7 @@ import { SlashCommandPlugin, type TriggerType } from './plugins/SlashCommandPlug
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { EmptyClickPlugin } from './plugins/EmptyClickPlugin';
+import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodesWithVirtualRoot } from '../hooks/useRuntimeSync';
@@ -322,6 +323,9 @@ export function NoteesEditor({
 
         {/* Prevent clicks in empty space below blocks from focusing */}
         <EmptyClickPlugin mode={mode} />
+
+        {/* Blur editor when clicking outside */}
+        <BlurOnClickOutsidePlugin readOnly={readOnly} />
       </LexicalComposer>
     </div>
   );
