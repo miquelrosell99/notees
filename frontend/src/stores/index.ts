@@ -56,6 +56,3 @@ export {
   type ShortcutDefinition,
   type ModifierKeys,
 } from './keyboardStore';
-
-// Performance-optimized selectors
-export * from './selectors';

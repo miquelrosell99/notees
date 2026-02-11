@@ -14,7 +14,6 @@ export { NodeContent } from './NodeContent';
 
 export { NodeContextMenu, PageContextMenu, BlockContextMenu, ColorPickerRow } from './NodeContextMenu';
 
-export { NodePreview } from './NodePreview';
 
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';
@@ -36,8 +35,3 @@ export { NodeBlockCardView } from './views/NodeBlockCardView';
 export { NodeBlockTableView } from './views/NodeBlockTableView';
 export { NodeBlockGanttView } from './views/NodeBlockGanttView';
 
-// Re-exports from graph/
-export { NodeCircle, drawNodeCircle } from './NodeCircle';
-export type { NodeCircleProps, NodeCircleState } from '../graph/NodeCircle';
-export { NodeToNodeLine, drawNodeToNodeLine } from './NodeToNodeLine';
-export type { NodeToNodeLineProps, LineStyle, ArrowDirection } from '../graph/NodeToNodeLine';

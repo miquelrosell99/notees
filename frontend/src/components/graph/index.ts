@@ -10,12 +10,6 @@
  * - GraphViewLocal: Sidebar card with local graph around current node
  */
 
-// Drawing primitives
-export { NodeCircle, drawNodeCircle } from './NodeCircle';
-export type { NodeCircleProps, NodeCircleState } from './NodeCircle';
-
-export { NodeToNodeLine, drawNodeToNodeLine } from './NodeToNodeLine';
-export type { NodeToNodeLineProps, LineStyle, ArrowDirection } from './NodeToNodeLine';
 
 // Core components
 export { NodeGraphRenderer } from './NodeGraphRenderer';
