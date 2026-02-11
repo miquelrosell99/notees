@@ -625,6 +625,7 @@ class LinkParsingService:
             LEFT JOIN node page ON n.page_id = page.id
             WHERE nl.target_id = ANY($1)
               AND (p.name IS NULL OR p.name NOT IN ('classes', 'extends'))
+              AND (nl.is_inline_class IS NULL OR nl.is_inline_class = FALSE)
         """, descendant_ids)
         
         backlinks = []
