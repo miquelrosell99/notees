@@ -7,6 +7,8 @@
 
 import { useMemo, useCallback, useId, type JSX } from 'react';
 import { NoteesEditor } from '../../../editor/NoteesEditor';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { queueContentSave } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import './NodeBlockDocumentView.css';
@@ -45,21 +47,29 @@ export function NodeBlockDocumentView({
 
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback((linkId: string) => {
-    const id = Number(linkId);
-    if (isNaN(id)) return;
-    const targetNode = allNodes.find(n => n.id === id);
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(linkId);
+    if (!graphNode) return;
+    const serverId = graphNode.serverId;
+    if (!serverId) return;
+    const targetNode = allNodes.find(n => n.id === serverId);
     if (targetNode) {
       onNodeClick?.(targetNode);
     } else {
-      onNodeClick?.({ id, is_page: false } as Node);
+      onNodeClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
     }
   }, [allNodes, onNodeClick]);
 
   // Handler for content changes from editor
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
-    const id = Number(blockId);
-    if (!isNaN(id)) {
-      onContentChange?.(id, content);
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    const serverId = graphNode?.serverId;
+    if (serverId != null) {
+      onContentChange?.(serverId, content);
+    } else if (graphNode) {
+      // Block not yet persisted — queue for when serverId arrives
+      queueContentSave(blockId, content);
     }
   }, [onContentChange]);
 

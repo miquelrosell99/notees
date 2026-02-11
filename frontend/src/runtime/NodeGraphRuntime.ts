@@ -153,6 +153,30 @@ export class NodeGraphRuntime {
     return this.getChildren(node.parentId);
   }
 
+  /**
+   * Assign a server-side numeric ID to a runtime node.
+   * Called after the API creates the node and returns its ID.
+   */
+  setServerId(blockId: string, serverId: number): void {
+    const node = this.nodes.get(blockId);
+    if (!node) return;
+    node.serverId = serverId;
+  }
+
+  /**
+   * Get all nodes that have no serverId (i.e. not yet persisted).
+   * Excludes virtual root nodes (blockIds starting with '__').
+   */
+  getUnpersistedNodes(): GraphNode[] {
+    const result: GraphNode[] = [];
+    for (const node of this.nodes.values()) {
+      if (node.serverId == null && !node.blockId.startsWith('__')) {
+        result.push(node);
+      }
+    }
+    return result;
+  }
+
   getAllPages(): GraphNode[] {
     return [...this.nodes.values()].filter(n => n.isPage && !n.isDeleted);
   }
@@ -287,6 +311,9 @@ export class NodeGraphRuntime {
     const target = this.nodes.get(targetBlockId);
     if (!source || !target) return;
 
+    // Capture serverId before removing the node
+    const sourceServerId = source.serverId;
+
     // Append source content to target
     target.contentAST = mergeContentASTs(target.contentAST, source.contentAST);
     target.updatedAt = new Date().toISOString();
@@ -301,6 +328,7 @@ export class NodeGraphRuntime {
     const parentId = source.parentId;
     this.nodes.delete(sourceBlockId);
     this.rebuildChildrenIndex();
+    this.emit({ type: 'block_deleted', blockId: sourceBlockId, serverId: sourceServerId });
     this.scheduleEmit(targetBlockId, parentId);
   }
 
@@ -352,15 +380,22 @@ export class NodeGraphRuntime {
     const node = this.nodes.get(blockId);
     if (!node) return;
 
-    // Recursively delete descendants
+    // Capture serverId before removing the node
+    const serverId = node.serverId;
+
+    // Recursively delete descendants — emit delete events for each
     const descendants = this.getDescendants(blockId);
     for (const desc of descendants) {
+      if (desc.serverId != null) {
+        this.emit({ type: 'block_deleted', blockId: desc.blockId, serverId: desc.serverId });
+      }
       this.nodes.delete(desc.blockId);
     }
 
     const parentId = node.parentId;
     this.nodes.delete(blockId);
     this.rebuildChildrenIndex();
+    this.emit({ type: 'block_deleted', blockId, serverId });
     this.scheduleEmit(blockId, parentId);
   }
 

@@ -11,6 +11,7 @@ import { Bullet } from '../../blocks/Bullet';
 import { NoteesEditor } from '@/editor/NoteesEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { queueContentSave } from '@/hooks/useBlockPersist';
 import './NodeBlockListView.css';
 
 /**
@@ -72,9 +73,14 @@ export function NodeBlockListView({
 
   // Handler for content changes from editor
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
-    const id = Number(blockId);
-    if (!isNaN(id)) {
-      onContentChange?.(id, content);
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    const serverId = graphNode?.serverId;
+    if (serverId != null) {
+      onContentChange?.(serverId, content);
+    } else if (graphNode) {
+      // Block not yet persisted — queue for when serverId arrives
+      queueContentSave(blockId, content);
     }
   }, [onContentChange]);
 

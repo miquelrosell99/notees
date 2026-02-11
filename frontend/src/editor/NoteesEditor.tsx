@@ -43,6 +43,7 @@ import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodesWithVirtualRoot } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
+import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 
@@ -148,6 +149,10 @@ export function NoteesEditor({
   // Listens to runtime structure_changed events (indent, outdent, reorder)
   // and persists parent_id and sequence to the backend
   useStructureSync();
+
+  // ─── Persist new blocks to database ────────────────────────
+  // Watches for runtime nodes without serverId and creates them via API
+  useBlockPersist();
 
   // ─── Sync nodes to runtime ─────────────────────────────────
   // If nodes[] provided, sync them to runtime with a virtual root.

@@ -26,6 +26,7 @@ import { NodeCard } from './CardEditor';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodesWithVirtualRoot } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
+import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
@@ -61,6 +62,10 @@ export function CardModeView({
   // Listens to runtime structure_changed events (indent, outdent, reorder within cards)
   // and persists parent_id and sequence to the backend
   useStructureSync();
+
+  // ─── Persist new blocks to database ────────────────────────
+  // Watches for runtime nodes without serverId and creates them via API
+  useBlockPersist();
 
   // ─── Sync nodes to runtime ──────────────────────────────────
   // Flatten all nodes (including children) and upsert into the
