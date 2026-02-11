@@ -455,6 +455,10 @@
   cursor: default;
   /* Don't catch clicks on empty space - only on actual content */
   pointer-events: none;
+  /* Prevent text selection in empty space */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
 }
 
 /* ─── Colored cards ────────────────────────────────────────────── */
