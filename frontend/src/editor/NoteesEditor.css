@@ -23,6 +23,10 @@
   cursor: default;
   /* Don't catch clicks on empty space - only on actual content */
   pointer-events: none;
+  /* Prevent text selection in margins/empty space */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
 }
 
 .notees-editor-placeholder {
@@ -206,6 +210,10 @@
   margin: 0;
   line-height: 1.6;
   caret-color: var(--color-on-surface) !important;
+  /* Re-enable text selection within blocks */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
 }
 
 /* Ensure empty text nodes have space for cursor */
