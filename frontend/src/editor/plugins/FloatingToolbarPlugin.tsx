@@ -39,6 +39,13 @@ export function FloatingToolbarPlugin({
       }
 
       editor.getEditorState().read(() => {
+        // Only process if the editor root is focused
+        const rootElement = editor.getRootElement();
+        if (!rootElement || !rootElement.contains(document.activeElement)) {
+          setIsVisible(false);
+          return;
+        }
+
         const selection = $getSelection();
         if (!$isRangeSelection(selection) || selection.isCollapsed()) {
           setIsVisible(false);
@@ -54,23 +61,26 @@ export function FloatingToolbarPlugin({
         if (selection.hasFormat('code')) formats.add('code');
         setActiveFormats(formats);
 
-        // Position
+        // Position the toolbar above the selection
         const nativeSel = window.getSelection();
-        if (nativeSel && nativeSel.rangeCount > 0) {
-          const range = nativeSel.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
-          const newPosition = {
-            top: rect.top - 40 + window.scrollY,
-            left: rect.left + rect.width / 2 + window.scrollX,
-          };
-          
-          // Delay showing the toolbar to avoid flash during drag-to-select
-          showTimeoutRef.current = window.setTimeout(() => {
-            setPosition(newPosition);
-            setIsVisible(true);
-            showTimeoutRef.current = null;
-          }, 150);
+        if (!nativeSel || nativeSel.rangeCount === 0) {
+          setIsVisible(false);
+          return;
         }
+
+        const range = nativeSel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        const newPosition = {
+          top: rect.top - 40 + window.scrollY,
+          left: rect.left + rect.width / 2 + window.scrollX,
+        };
+        
+        // Delay showing the toolbar to avoid flash during drag-to-select
+        showTimeoutRef.current = window.setTimeout(() => {
+          setPosition(newPosition);
+          setIsVisible(true);
+          showTimeoutRef.current = null;
+        }, 150);
       });
     };
 
