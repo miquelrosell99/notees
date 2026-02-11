@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation } from '@/hooks';
-import { useNodesStore, useBlockSelectionStore, useSettingsStore, formatDate } from '@/stores';
+import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -34,7 +34,6 @@ import { ImageNode } from '../components/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
-import { useBlockCallbacksFactory } from '../components/blocks/useBlockCallbacksFactory';
 import { useResetNodeViews } from '@/hooks/useNodeViews';
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { QuerySection } from '../components/nodes';
@@ -119,7 +118,6 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   const createNode = useCreateNode();
   const addTag = useAddTag();
   const addClass = useAddClass();
-  const { enterEditMode } = useBlockSelectionStore();
   const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -141,14 +139,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
       parent_id: node.id,
       sequence: maxSequence + 1,
     });
-    // Set the new block to edit mode so the user can start typing right away
-    enterEditMode(newNode.id);
-  }, [createNode, node.id, node.children, enterEditMode]);
-
-  // Block callbacks for context provider
-  const blockCallbacks = useBlockCallbacksFactory({
-    onOpenBacklinks: (blockId) => onAddSidebarCard(blockId),
-  });
+  }, [createNode, node.id, node.children]);
 
   return (
     <div className="focused-block-content">
@@ -162,8 +153,6 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
         onContentChange={handleContentChange}
         showEmpty={false}
         showClasses={true}
-        provideBlockCallbacks={true}
-        blockCallbacks={blockCallbacks}
         suppressRootColor={true}
       />
       <div className="focused-block-content-add">
@@ -222,13 +211,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
-  const selectedBlocksSet = useBlockSelectionStore(state => state.blockStates);
-  const selectedBlocks = useMemo(() => 
-    Array.from(selectedBlocksSet.entries())
-      .filter(([_, state]) => state === 'selected')
-      .map(([id]) => id),
-    [selectedBlocksSet]
-  );
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
@@ -309,8 +291,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {
     if (!node) return;
-    // Determine target node: selected block or page
-    const targetNodeId = selectedBlocks.length === 1 ? selectedBlocks[0] : node.id;
+    // Always add to the page node
+    const targetNodeId = node.id;
     
     // Set a default value based on property type
     let defaultValue: unknown;
@@ -334,13 +316,13 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     }
     setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: property.id, value: defaultValue });
     setShowPropertyPopup(false);
-  }, [node, selectedBlocks, setPropertyMutation]);
+  }, [node, setPropertyMutation]);
 
   // Handler for creating a new property
   const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     if (!node) return;
     setShowPropertyPopup(false);
-    const targetNodeId = selectedBlocks.length === 1 ? selectedBlocks[0] : node.id;
+    const targetNodeId = node.id;
     
     createPropertyMutation.mutate(data, {
       onSuccess: async (newProperty) => {
@@ -349,7 +331,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: newProperty.id, value: defaultValue });
       },
     });
-  }, [node, selectedBlocks, createPropertyMutation, setPropertyMutation]);
+  }, [node, createPropertyMutation, setPropertyMutation]);
 
   // Handle keyboard shortcut Ctrl+Alt+P to add property
   useKeyboardShortcut(SHORTCUT_IDS.ADD_PROPERTY, () => {

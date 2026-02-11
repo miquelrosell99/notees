@@ -9,7 +9,7 @@
 import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { mdiTrashCanOutline } from '@mdi/js';
-import { BlockPreview } from '../blocks/BlockPreview';
+import { NodeInline } from '../blocks/NodeInline';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import type { Node } from '@/types';
 import './NodeActivityLogSection.css';
@@ -170,9 +170,9 @@ export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) 
               className="node-activity-item"
               onContextMenu={(e) => handleContextMenu(activity.id, e)}
             >
-              <BlockPreview
-                variant="simple"
-                node={activityToNode(activity)}
+              <NodeInline
+                name={activityToNode(activity).name}
+                nodeId={activity.id}
                 showBullet={true}
               />
             </div>

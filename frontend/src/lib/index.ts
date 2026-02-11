@@ -1,5 +1,8 @@
 /**
- * Core AST library — the canonical module for AST operations.
+ * Core library — builder helpers and stringification.
+ *
+ * The old AST DOM, mutations, and history modules have been removed.
+ * Content editing is now handled by Lexical via NoteesEditor.
  *
  * Import from '@/lib' for:
  *   - AST type definitions
@@ -58,53 +61,5 @@ export type {
   NodeLinkResolution,
 } from './stringifyAST';
 
-// AST ↔ DOM engine
-export {
-  astToHtml,
-  astToHtmlCached,
-  domToAST,
-  normalizeAST,
-  getCursorPosition,
-  setCursorPosition,
-  getContentLength,
-  getCaretX,
-  getCaretCoordinates,
-  getPlainText,
-  findOffsetAtXInFirstLine,
-  findOffsetAtXInLastLine,
-  isTextOnlyChange,
-  detectTrigger,
-} from './astDom';
-
-export type {
-  ASTRenderContext,
-  ResolvedLink,
-  LinkStatus,
-  TriggerMatch,
-} from './astDom';
-
 // AST Markdown conversion
 export { convertMarkdownInAST } from './astBuilder';
-
-// AST mutations
-export {
-  splitAtPosition,
-  mergeDocuments,
-  insertNodeLink,
-  replaceTriggerWithLink,
-  removeTriggerText,
-  deleteRange,
-  insertText,
-  toggleMark,
-  toggleCode,
-  getActiveMarks,
-  inlineNodeLength,
-  flattenToInlines,
-  documentLength,
-} from './astMutations';
-
-export type { ASTPosition, MarkType } from './astMutations';
-
-// AST history
-export { ASTHistory } from './astHistory';
-export type { HistoryEntry } from './astHistory';

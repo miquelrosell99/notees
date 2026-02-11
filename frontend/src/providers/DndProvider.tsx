@@ -28,7 +28,6 @@ import {
 } from '@dnd-kit/core';
 import { useDndSensors } from '@/hooks/dnd/useDndSensors';
 import { useMoveNode } from '@/hooks';
-import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 
 // ==================== Types ====================
 
@@ -89,59 +88,42 @@ const dropAnimation: DropAnimation = {
 export function DndProvider({ children }: DndProviderProps) {
   const sensors = useDndSensors();
   const moveNode = useMoveNode();
-  const { startDrag, updateDragTarget, endDrag } = useBlockSelectionStore();
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  // Track drop position locally instead of via store
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside'>('after');
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id);
-    
-    // Handle block drag
-    if (active.data.current?.type === 'block') {
-      const blockId = active.data.current.blockId;
-      startDrag(blockId);
-    }
-  }, [startDrag]);
+    setActiveId(event.active.id);
+  }, []);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over || !active.data.current) return;
 
-    // Handle block drag over
+    // Determine drop position based on pointer location
     if (active.data.current.type === 'block') {
-      const overBlockId = over.data.current?.blockId;
-      if (!overBlockId) return;
-
-      // Determine drop position based on pointer location
       const overRect = over.rect;
       if (overRect && event.delta.y !== 0) {
-        const pointerY = event.delta.y + overRect.top;
-        const relativeY = pointerY - overRect.top;
+        const relativeY = event.delta.y;
         const height = overRect.height;
 
-        let position: 'before' | 'after' | 'inside';
         if (relativeY < height * 0.3) {
-          position = 'before';
+          setDropPosition('before');
         } else if (relativeY > height * 0.7) {
-          position = 'after';
+          setDropPosition('after');
         } else {
-          position = 'inside';
+          setDropPosition('inside');
         }
-
-        updateDragTarget(overBlockId, position);
       }
     }
-  }, [updateDragTarget]);
+  }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
     setActiveId(null);
 
-    if (!over || !active.data.current) {
-      endDrag();
-      return;
-    }
+    if (!over || !active.data.current) return;
 
     // Handle block drop
     if (active.data.current.type === 'block') {
@@ -150,47 +132,34 @@ export function DndProvider({ children }: DndProviderProps) {
       const overParentId = over.data.current?.parentId;
       const overSequence = over.data.current?.sequence;
 
-      if (!overBlockId || activeBlockId === overBlockId) {
-        endDrag();
-        return;
-      }
-
-      // Get drop position from store
-      const dragState = useBlockSelectionStore.getState().dragState;
-      const dropPosition = dragState.dropPosition || 'after';
+      if (!overBlockId || activeBlockId === overBlockId) return;
 
       // Perform the move based on drop position
       if (dropPosition === 'inside') {
-        // Move as first child of target block
         moveNode.mutate({
           id: activeBlockId,
           parentId: overBlockId,
           position: 0,
         });
       } else if (dropPosition === 'before') {
-        // Move before target block (same parent as target)
         moveNode.mutate({
           id: activeBlockId,
           parentId: overParentId ?? null,
           position: overSequence ?? 0,
         });
       } else if (dropPosition === 'after') {
-        // Move after target block (same parent as target)
         moveNode.mutate({
           id: activeBlockId,
           parentId: overParentId ?? null,
           position: (overSequence ?? 0) + 1,
         });
       }
-
-      endDrag();
     }
-  }, [moveNode, endDrag]);
+  }, [moveNode, dropPosition]);
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null);
-    endDrag();
-  }, [endDrag]);
+  }, []);
 
   return (
     <DndContext

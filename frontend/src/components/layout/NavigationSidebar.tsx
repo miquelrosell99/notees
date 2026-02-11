@@ -16,8 +16,7 @@ import { GraphModal } from '../graphs/GraphModal';
 import { SettingsModal } from '../SettingsModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
-import { Block } from '../blocks/Block';
-import { BlockPreview } from '../blocks/BlockPreview';
+import { NodeInline } from '../blocks/NodeInline';
 import { PageContextMenu } from '../nodes/NodeContextMenu';
 import { 
   StarIcon,
@@ -47,8 +46,11 @@ function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProp
   
   return (
     <div onContextMenu={onContextMenu}>
-      <BlockPreview
-        node={node}
+      <NodeInline
+        name={node.name}
+        icon={node.icon}
+        isPage={node.is_page}
+        nodeId={node.id}
         showBullet={true}
         onClick={onClick}
         className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
@@ -126,17 +128,14 @@ function SortableFavoriteItem({
         ⋮⋮
       </span>
       
-      {/* Block component in readonly mode */}
+      {/* Node name in readonly mode */}
       <div className="sidebar-favorite-block">
-        <Block
-          block={node}
-          parentId={null}
+        <NodeInline
+          name={node.name}
+          icon={node.icon}
+          isPage={node.is_page}
+          nodeId={node.id}
           showBullet={true}
-          showChildren={false}
-          showClasses={false}
-          canMove={false}
-          canEdit={false}
-          canSelect={false}
           suppressColor={true}
         />
       </div>
