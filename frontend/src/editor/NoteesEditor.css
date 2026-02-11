@@ -545,51 +545,6 @@ th.node-block-table-cell {
   border-radius: var(--shape-small);
 }
 
-/* ─── Floating toolbar (TE modular feel) ───────────────────────── */
-
-.floating-toolbar {
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  box-shadow: var(--elevation-2);
-  padding: 2px;
-  display: flex;
-  align-items: center;
-}
-
-.floating-toolbar-inner {
-  display: flex;
-  gap: 2px;
-}
-
-.floating-toolbar-btn {
-  border: none;
-  background: transparent;
-  padding: 4px 8px;
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--color-on-surface);
-  line-height: 1;
-  min-width: 28px;
-  text-align: center;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-tactile);
-}
-
-.floating-toolbar-btn:hover {
-  background: var(--color-surface-container);
-}
-
-.floating-toolbar-btn:active {
-  transform: scale(0.93);
-}
-
-.floating-toolbar-btn.active {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
-
 /* ─── View mode variants ───────────────────────────────────────── */
 
 .notees-editor--document .node-block::before {
