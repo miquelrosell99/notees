@@ -31,6 +31,7 @@ import { SlashCommandPlugin, type TriggerType } from './plugins/SlashCommandPlug
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
+import { EmptyClickPlugin } from './plugins/EmptyClickPlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import type { ContentAST } from '../runtime/types';
@@ -226,6 +227,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onNavigateToNode={onNavigateToNode}
           onOpenInSidebar={onOpenInSidebar}
         />
+        <EmptyClickPlugin mode="list" />
         <BlurOnClickOutsidePlugin readOnly={readOnly} />
       </LexicalComposer>
     </div>

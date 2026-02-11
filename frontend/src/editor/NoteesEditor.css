@@ -20,7 +20,7 @@
   min-height: 2.4em;
   padding: 8px 0;
   caret-color: var(--color-on-surface);
-  cursor: text;
+  cursor: default;
 }
 
 .notees-editor-placeholder {
@@ -74,7 +74,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding: 3px 0;
+  padding: 0;
+  margin: 3px 0;
   margin-left: calc(var(--node-block-depth, 0) * var(--indent-width));
   min-height: 1.6em;
   line-height: 1.6;
@@ -190,11 +191,14 @@
 }
 
 /* Lexical inserts paragraph/text nodes directly as children of .node-block.
-   Make them fill the remaining flex space after the bullet. */
+   Size to content so clicks on empty space beyond text hit the .node-block div
+   (caught by EmptyClickPlugin) instead of the <p>. */
 .node-block > p,
 .node-block > span,
 .node-block > .notees-editor-paragraph {
-  flex: 1;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
   min-width: 2em;
   min-height: 1.6em;
   outline: none;
@@ -575,10 +579,8 @@ th.node-block-table-cell {
   cursor: default;
 }
 
-/* Text cursor only on actual blocks in list mode */
-.notees-editor--list .node-block {
-  cursor: text;
-}
+/* Text cursor only on actual content elements inside blocks in list mode */
+/* .node-block itself stays cursor:default — only content children get cursor:text */
 
 /* ─── Paragraph ────────────────────────────────────────────────── */
 

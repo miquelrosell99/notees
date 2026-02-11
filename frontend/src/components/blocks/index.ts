@@ -13,9 +13,5 @@ export type { NodeInlineProps } from './NodeInline';
 export { Bullet } from './Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './Bullet';
 
-// Code block display component
-export { CodeBlock } from './CodeBlock';
-export type { CodeBlockProps } from './CodeBlock';
-
 // Text property block (uses NoteesEditor)
 export { TextPropertyBlock } from './TextPropertyBlock';

@@ -26,8 +26,7 @@ export { NodeInline } from './blocks/NodeInline';
 export type { NodeInlineProps } from './blocks/NodeInline';
 export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
-export { CodeBlock } from './blocks/CodeBlock';
-export type { CodeBlockProps } from './blocks/CodeBlock';
+
 export { TextPropertyBlock } from './blocks/TextPropertyBlock';
 
 // NoteesEditor (Lexical-based editor)
@@ -40,11 +39,9 @@ export { getNodeGraphRuntime, resetNodeGraphRuntime } from '../runtime/NodeGraph
 // Core UI components
 export { SuggestionPopup } from './SuggestionPopup';
 export type { SuggestionPopupProps, SuggestionType } from './SuggestionPopup';
-export { SlashCommandPopup } from './SlashCommandPopup';
-export type { SlashCommandPopupProps, SlashCommand } from './SlashCommandPopup';
 
-// List components
-export { TagList, TaggedNodes } from './TagList';
+
+
 
 // Node View Section
 export { NodeViewSection } from './nodes/NodeViewSection';
@@ -52,9 +49,9 @@ export type { NodeViewSectionProps } from './nodes/NodeViewSection';
 
 // Properties (from properties/ folder)
 export { PropertiesSection, InlineProperties } from './PropertiesSection';
-export { ClassExtendsEditor } from './ClassExtendsEditor';
+
 export { ClassPropertiesEditor } from './ClassPropertiesEditor';
-export { PropertyConfigPanel } from './properties/PropertyConfigPanel';
+
 export { PropertyList } from './properties/PropertyList';
 export type { PropertyListProps, PropertyEntry } from './properties/PropertyList';
 export { PropertyView } from '../views/PropertyView';
@@ -68,7 +65,7 @@ export { Card } from './core/Card';
 export type { CardProps, CardElevation, CardVariant } from './core/Card';
 export { SearchBox } from './SearchBox';
 export { CalendarPopup } from './core/CalendarPopup';
-export { QuickAddDialog } from './quickadd/QuickAddDialog';
+
 export { QuickAddPanel } from './quickadd/QuickAddPanel';
 export { SidebarCard } from './sidebar/SidebarCard';
 export { CommandPalette } from './CommandPalette';
@@ -84,17 +81,12 @@ export { BooleanToggle } from './core/BooleanToggle';
 export type { BooleanToggleProps, BooleanToggleSize } from './core/BooleanToggle';
 export { Table } from './core/Table';
 export type { TableProps, TableColumn, TableSize, TableVariant, SortDirection } from './core/Table';
-export { CollapseArrow } from './core/CollapseArrow';
-export type { CollapseArrowProps, CollapseArrowSize } from './core/CollapseArrow';
+
 export { Dropdown } from './core/Dropdown';
 export type { DropdownProps, DropdownOption, DropdownSize } from './core/Dropdown';
 
 // Graph components (domain-specific)
 export { 
-  NodeToNodeLine, 
-  drawNodeToNodeLine, 
-  NodeCircle, 
-  drawNodeCircle,
   NodeGraphRenderer,
   NodeGraphView,
   NodeGraphViewSimple,
@@ -103,11 +95,6 @@ export {
   GraphViewLocal,
 } from './graph';
 export type { 
-  NodeToNodeLineProps, 
-  LineStyle, 
-  ArrowDirection,
-  NodeCircleProps, 
-  NodeCircleState,
   NodeGraphRendererRef,
   GraphNode,
   GraphLink,
@@ -124,8 +111,7 @@ export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './sidebar/SidebarNodeView';
 export { CommentsSidebar } from './sidebar/CommentsSidebar';
 // CalendarView, ChartView, GanttView, QueryView - not yet implemented
-export { PropertyNodesView } from './PropertyNodesView';
-export type { PropertyNodesViewProps, PropertyViewMode } from './PropertyNodesView';
+
 
 // Modal components
 export { Modal } from './core/Modal';
@@ -138,9 +124,6 @@ export { ImportOptionsModal } from './graphs/ImportOptionsModal';
 export { GraphSwitcher } from './graphs/GraphSwitcher';
 export { GraphManagementView } from '../views/GraphManagementView';
 export { AssetUploadModal } from './assets/AssetUploadModal';
-
-// Asset components
-export { AssetPreview } from './assets/AssetPreview';
 
 // Emoji/Icon picker
 export { EmojiPicker, EmojiPickerTrigger } from './core/EmojiPicker';
@@ -155,8 +138,7 @@ export type { ContextMenuItem } from './core/ContextMenu';
 // Scratchpad
 export { Scratchpad } from './Scratchpad';
 
-// Node preview (transclusion)
-export { NodePreview } from './nodes/NodePreview';
+
 
 // Activity log
 export { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
@@ -173,10 +155,9 @@ export { NodeCardView } from './nodes/views/NodeCardView';
 export { NodeTableView } from './nodes/views/NodeTableView';
 export { NodeGanttView } from './nodes/views/NodeBlockGanttView';
 
+
 // Query builder components
 export { ViewBuilder } from './queries';
-export { NodeViewTabs } from './NodeViewTabs';
-export type { ViewType } from './NodeViewTabs';
 
 // Icons
 export * from './icons';

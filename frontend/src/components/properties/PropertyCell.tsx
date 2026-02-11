@@ -15,6 +15,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty, useClasses, useNode, nodeKeys } from '@/hooks';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import * as nodesApi from '@/api/nodes';
 import { NodeInline } from '../blocks/NodeInline';
 import { ImageNode } from '../ImageNode';
@@ -510,8 +511,14 @@ function SelectionPropertyCell({
   editable: boolean;
 }) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const cellRef = useRef<HTMLDivElement>(null);
   const setPropertyMutation = useSetNodeProperty();
   const options = property.options ?? [];
+
+  // Close picker on outside click
+  useClickOutside(cellRef, () => {
+    if (isPickerOpen) setIsPickerOpen(false);
+  }, isPickerOpen);
 
   // Parse selected values
   const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
@@ -560,6 +567,7 @@ function SelectionPropertyCell({
   if (resolvedOptions.length === 0) {
     return (
       <div 
+        ref={cellRef}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={() => editable && setIsPickerOpen(true)}
         title={editable ? 'Click to select' : undefined}
@@ -585,7 +593,7 @@ function SelectionPropertyCell({
 
   // Has values
   return (
-    <div className="property-cell property-cell--selection">
+    <div ref={cellRef} className="property-cell property-cell--selection">
       {resolvedOptions.map((option) => (
         <Pill
           key={option.id}

@@ -452,6 +452,7 @@
   outline: none;
   min-height: 1.4em;
   caret-color: var(--color-on-surface);
+  cursor: default;
 }
 
 /* ─── Colored cards ────────────────────────────────────────────── */
