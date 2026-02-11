@@ -281,15 +281,14 @@ export function NodePill({
           text={displayText}
           leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
           rightIcon={
-            clickCount > 0 
-              ? <span className="node-pill__badge">{clickCount}</span>
-              : (!readOnly && onRemove && !isLink) 
-                ? <CloseIcon size="xs" /> 
-                : undefined
+            (!readOnly && onRemove && !isLink) 
+              ? <CloseIcon size="xs" /> 
+              : undefined
           }
           onRightIconClick={(!readOnly && onRemove && !isLink) ? onRemove : undefined}
           color={node?.color || undefined}
         />
+        {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
       </div>
       
       {/* Color Picker Popup (for class/tag pills) */}

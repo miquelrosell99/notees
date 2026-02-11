@@ -162,7 +162,7 @@ function renderInlineNode(node: ASTInlineNode, ctx: ASTRenderContext): string {
       return `<u data-ast="underline">${renderChildren(node.children, ctx)}</u>`;
 
     case 'external_link':
-      return `<a data-ast="external_link" data-url="${escapeAttr(node.url)}" href="${escapeAttr(node.url)}" target="_blank" rel="noopener noreferrer">${renderChildren(node.children, ctx)}</a>`;
+      return `<a class="external-link" data-ast="external_link" data-url="${escapeAttr(node.url)}" href="${escapeAttr(node.url)}" target="_blank" rel="noopener noreferrer">${renderChildren(node.children, ctx)}</a>`;
 
     default:
       return '';

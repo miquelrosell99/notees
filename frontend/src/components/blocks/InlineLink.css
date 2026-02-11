@@ -8,14 +8,19 @@
 .inline-link {
   display: inline;
   position: relative;
-  color: var(--color-primary);
+  color: var(--color-on-surface);
   text-decoration: none;
   cursor: pointer;
   user-select: none;
   font: inherit;
   line-height: inherit;
   vertical-align: baseline;
-  transition: color 0.15s;
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 1px;
+  transition: border-color 0.15s, background 0.15s;
   
   /* Atomic inline behavior */
   -webkit-user-modify: read-only;
@@ -23,14 +28,13 @@
 }
 
 .inline-link:hover {
-  color: color-mix(in srgb, var(--color-primary) 80%, var(--color-on-surface));
-  text-decoration: underline;
+  border-bottom-color: var(--color-on-surface-variant);
+  background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
 }
 
 .inline-link--selected {
-  color: var(--color-primary);
-  border-bottom: 2px solid var(--color-primary);
-  font-weight: 500;
+  border-bottom: 2px solid var(--color-on-surface);
+  background: color-mix(in srgb, var(--color-on-surface) 10%, transparent);
 }
 
 /* When used inside contenteditable, prevent editing */
@@ -52,34 +56,17 @@
  */
 
 .link-pill {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
+  display: inline;
   cursor: pointer;
   user-select: none;
-  margin: 0 2px;
   
   /* Atomic inline behavior */
-  white-space: nowrap;
   -webkit-user-modify: read-only;
   -moz-user-modify: read-only;
 }
 
-/* Style the pill for page links - faded primary color */
-.link-pill--page .pill {
-  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
-  color: var(--color-on-surface);
-}
-
-/* Style the pill for block links - faded secondary color */
-.link-pill--block .pill {
-  background-color: color-mix(in srgb, var(--color-secondary) 8%, var(--color-surface));
-  color: var(--color-on-surface-variant);
-}
-
 /* Click count badge */
 .link-pill__badge {
-  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -89,38 +76,37 @@
   font-size: 0.625rem;
   font-weight: 500;
   line-height: 1;
-  background-color: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+  background-color: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
   color: var(--color-on-surface);
   border-radius: var(--shape-full);
+  vertical-align: middle;
+  margin-left: 2px;
 }
 
 .link-pill--selected {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-on-surface);
   outline-offset: 1px;
-  border-radius: var(--shape-small);
+  border-radius: 2px;
 }
 
 /* When used inside contenteditable, prevent editing */
 .external-link {
   display: inline;
-  color: var(--color-primary);
+  color: var(--color-on-surface-variant);
   text-decoration: none;
   cursor: pointer;
-  transition: color 0.15s, text-decoration 0.15s;
-  border-bottom: 1px solid var(--color-primary-container);
+  border-bottom: 1px dashed var(--color-on-surface-variant);
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .external-link:hover {
-  color: var(--color-primary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-thickness: 1px;
-  border-bottom-color: var(--color-primary);
+  color: var(--color-on-surface);
+  border-bottom-color: var(--color-on-surface);
+  border-bottom-style: solid;
 }
 
 .external-link:visited {
-  color: var(--color-secondary);
-  border-bottom-color: var(--color-secondary-container);
+  color: var(--color-on-surface-variant);
 }
 
 .link-pill--readonly {
@@ -139,25 +125,27 @@
 }
 
 /**
- * TypePill Component Styles
+ * TypePill Component Styles — dotted underline variant
  */
 
 .class-pill {
   display: inline;
   position: relative;
-  padding: 2px 6px;
-  margin: 0 2px;
-  background: var(--color-tertiary-container);
-  border: 1px solid transparent;
-  border-radius: var(--shape-small);
+  padding: 0 2px;
+  margin: 0 1px;
+  background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
+  border: none;
+  border-bottom: 1px dotted var(--color-outline-variant);
+  border-radius: 2px;
   font: inherit;
   font-size: 0.95em;
+  font-style: italic;
   line-height: inherit;
   cursor: pointer;
   user-select: none;
   vertical-align: baseline;
-  color: var(--color-on-tertiary-container);
-  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  color: var(--color-on-surface-variant);
+  transition: border-color 0.15s, background 0.15s;
   
   /* Allow wrapping for multi-line content */
   white-space: normal;
@@ -169,15 +157,16 @@
 }
 
 .class-pill:hover {
-  background: color-mix(in srgb, var(--color-tertiary-container) 80%, var(--color-tertiary) 20%);
+  border-bottom-color: var(--color-on-surface-variant);
+  background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
 }
 
 /* Icon */
 .class-pill__icon {
   display: inline-flex;
   align-items: center;
-  margin-right: 4px;
-  opacity: 0.7;
+  margin-right: 2px;
+  opacity: 0.5;
   vertical-align: middle;
 }
 
