@@ -53,6 +53,8 @@ export interface NodeBlockPluginProps {
   onBlockCreate?: (parentId: string, afterBlockId: string, newBlockId: string) => void;
   /** Called when blocks should be merged */
   onBlockMerge?: (sourceBlockId: string, targetBlockId: string) => void;
+  /** Called when a block should be deleted */
+  onBlockDelete?: (blockId: string) => void;
   /** Called for indent/outdent */
   onIndent?: (blockId: string) => void;
   onOutdent?: (blockId: string) => void;
@@ -74,6 +76,7 @@ export function NodeBlockPlugin({
   onContentChange,
   onBlockCreate,
   onBlockMerge,
+  onBlockDelete,
   onIndent,
   onOutdent,
   onEscape,
@@ -279,7 +282,22 @@ export function NodeBlockPlugin({
           const root = $getRoot();
           const children = root.getChildren();
           const blockIndex = children.indexOf(blockNode);
-          if (blockIndex <= 0) return;
+
+          // Handle first block specially
+          if (blockIndex === 0) {
+            // If first block is empty, delete it (even if it's the only block)
+            if (isEmptyBlock) {
+              currentBlockId = blockNode.getBlockId();
+              // Set a flag to indicate we want to delete, not merge
+              prevBlockId = null;
+            } else if (anchor.offset === 0) {
+              // At start of non-empty first block - can't merge, just prevent default
+              event?.preventDefault();
+            }
+            return;
+          }
+
+          if (blockIndex < 0) return;
 
           const prevBlock = children[blockIndex - 1];
           if ($isNodeBlockNode(prevBlock)) {
@@ -288,15 +306,21 @@ export function NodeBlockPlugin({
           }
         });
 
-        if (!currentBlockId || !prevBlockId) return false;
+        if (!currentBlockId) return false;
 
         event?.preventDefault();
-        onBlockMerge?.(currentBlockId, prevBlockId);
+        
+        // If prevBlockId is null, this is a delete operation (empty first block)
+        if (prevBlockId === null) {
+          onBlockDelete?.(currentBlockId);
+        } else {
+          onBlockMerge?.(currentBlockId, prevBlockId);
+        }
         return true;
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly, onBlockMerge]);
+  }, [editor, readOnly, onBlockMerge, onBlockDelete]);
 
   // ─── Delete at end: merge with next ───────────────────────
 
@@ -482,6 +506,7 @@ export function NodeBlockPlugin({
   useEffect(() => {
     const handleArrowUp = () => {
       let prevBlockNode: NodeBlockNode | null = null;
+      let isFirstBlock = false;
 
       editor.read(() => {
         const selection = $getSelection();
@@ -494,13 +519,21 @@ export function NodeBlockPlugin({
         const root = $getRoot();
         const children = root.getChildren();
         const blockIndex = children.indexOf(blockNode);
-        if (blockIndex <= 0) return;
+
+        if (blockIndex <= 0) {
+          // On the first block — prevent cursor from escaping into empty space
+          isFirstBlock = true;
+          return;
+        }
 
         const prevBlock = children[blockIndex - 1];
         if ($isNodeBlockNode(prevBlock)) {
           prevBlockNode = prevBlock;
         }
       });
+
+      // Block arrow up on first block to prevent cursor from entering empty root space
+      if (isFirstBlock) return true;
 
       if (!prevBlockNode) return false;
 
@@ -511,6 +544,7 @@ export function NodeBlockPlugin({
 
     const handleArrowDown = () => {
       let nextBlockNode: NodeBlockNode | null = null;
+      let isLastBlock = false;
 
       editor.read(() => {
         const selection = $getSelection();
@@ -523,13 +557,21 @@ export function NodeBlockPlugin({
         const root = $getRoot();
         const children = root.getChildren();
         const blockIndex = children.indexOf(blockNode);
-        if (blockIndex >= children.length - 1) return;
+
+        if (blockIndex >= children.length - 1) {
+          // On the last block — prevent cursor from escaping into empty space
+          isLastBlock = true;
+          return;
+        }
 
         const nextBlock = children[blockIndex + 1];
         if ($isNodeBlockNode(nextBlock)) {
           nextBlockNode = nextBlock;
         }
       });
+
+      // Block arrow down on last block to prevent cursor from entering empty root space
+      if (isLastBlock) return true;
 
       if (!nextBlockNode) return false;
 

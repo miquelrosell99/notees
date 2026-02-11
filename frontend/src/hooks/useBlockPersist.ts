@@ -23,11 +23,13 @@
  * ```
  */
 import { useEffect, useRef, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { createNode as createNodeApi, updateNode as updateNodeApi, deleteNode as deleteNodeApi } from '@/api/nodes';
-import type { NodeCreate } from '@/types/api';
+import type { NodeCreate, Node } from '@/types/api';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
+import { nodeKeys } from './queryKeys';
+import { removeNodeFromTreeImmutable } from '@/utils/nodeTree';
 
 // ─── Singleton state ──────────────────────────────────────────────
 
@@ -68,6 +70,7 @@ interface UseBlockPersistOptions {
 export function useBlockPersist(options: UseBlockPersistOptions = {}) {
   const { onPersisted, onError } = options;
   const instanceIdRef = useRef(Math.random().toString(36));
+  const queryClient = useQueryClient();
 
   // Direct API mutation — no query invalidation to avoid refetch loops
   const createNodeMutation = useMutation({
@@ -169,9 +172,40 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
         persistAll();
       }
       if (event.type === 'block_deleted' && event.serverId != null) {
+        const deletedServerId = event.serverId;
+        
+        // Optimistically remove deleted node from query cache
+        const removeNode = (oldNode: Node | undefined): Node | undefined => {
+          if (!oldNode) return oldNode;
+          if (oldNode.id === deletedServerId) return oldNode;
+          if (oldNode.children && oldNode.children.length > 0) {
+            const newChildren = removeNodeFromTreeImmutable(oldNode.children, deletedServerId);
+            if (newChildren !== oldNode.children) {
+              return { ...oldNode, children: newChildren };
+            }
+          }
+          return oldNode;
+        };
+        
+        const queryCache = queryClient.getQueryCache();
+        for (const query of queryCache.findAll({ queryKey: nodeKeys.details() })) {
+          const oldData = query.state.data as Node | undefined;
+          if (oldData) {
+            const newData = removeNode(oldData);
+            if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+        for (const query of queryCache.findAll({ queryKey: ['nodes', 'page-content'] })) {
+          const oldData = query.state.data as Node | undefined;
+          if (oldData) {
+            const newData = removeNode(oldData);
+            if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+
         // Block was deleted/merged in the editor — persist to API
-        deleteNodeApi(event.serverId).catch((error) => {
-          console.error('[useBlockPersist] Failed to delete block serverId:', event.serverId, error);
+        deleteNodeApi(deletedServerId).catch((error) => {
+          console.error('[useBlockPersist] Failed to delete block serverId:', deletedServerId, error);
         });
         // Clean up any queued content save for this block
         pendingContentSaves.delete(event.blockId);

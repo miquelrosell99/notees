@@ -161,6 +161,17 @@ export function NoteesEditor({
     if (nodes && nodes.length > 0) {
       const runtime = getNodeGraphRuntime();
       const { graphNodes, virtualRootId: rootId } = apiNodesToGraphNodesWithVirtualRoot(nodes, virtualRootId);
+      
+      // Clean up stale nodes under this virtual root (e.g. optimistic nodes replaced by real ones)
+      const newBlockIds = new Set(graphNodes.map(n => n.blockId));
+      const currentChildren = runtime.getChildren(rootId);
+      const staleIds = currentChildren
+        .filter(child => !newBlockIds.has(child.blockId))
+        .map(child => child.blockId);
+      if (staleIds.length > 0) {
+        runtime.removeNodes(staleIds);
+      }
+      
       runtime.upsertNodes(graphNodes);
       return rootId;
     }
@@ -174,6 +185,7 @@ export function NoteesEditor({
     theme: notesEditorTheme,
     nodes: EDITOR_NODES,
     editable: !readOnly,
+    editorState: null,
     onError: (error: Error) => {
       console.error(`[NoteesEditor ${editorId}]`, error);
     },
@@ -212,6 +224,11 @@ export function NoteesEditor({
       sourceBlockId,
       targetBlockId,
     });
+  }, []);
+
+  const handleBlockDelete = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    runtime.applyIntent({ type: 'delete_block', blockId });
   }, []);
 
   const handleIndent = useCallback((blockId: string) => {
@@ -269,6 +286,7 @@ export function NoteesEditor({
           onContentChange={handleContentChange}
           onBlockCreate={handleBlockCreate}
           onBlockMerge={handleBlockMerge}
+          onBlockDelete={handleBlockDelete}
           onIndent={handleIndent}
           onOutdent={handleOutdent}
           onEscape={onEscape}
