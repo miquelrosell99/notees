@@ -97,6 +97,11 @@ export function FloatingToolbarPlugin({
     editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
   }, [editor]);
 
+  // Prevent toolbar clicks from blurring the editor
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+  }, []);
+
   if (!isVisible) return null;
 
   const toolbar = (
@@ -110,6 +115,7 @@ export function FloatingToolbarPlugin({
         zIndex: 1000,
         pointerEvents: 'auto',
       }}
+      onMouseDown={handleMouseDown}
     >
       <Card
         elevation="high"
