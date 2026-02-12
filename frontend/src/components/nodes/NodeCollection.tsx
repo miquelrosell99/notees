@@ -121,7 +121,7 @@ export function NodeCollection({
   onNodeShiftClick,
   onContentChange,
   className = '',
-  groupBy: groupByProp = 'page',
+  groupBy: groupByProp,
   onGroupByChange,
   showGroupBy: showGroupByProp = false,
   pagesOnly = false,
@@ -161,9 +161,12 @@ export function NodeCollection({
   const effectiveCardLayout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right' = 
     (rawCardLayout === 'cover-bottom' ? 'no-cover' : rawCardLayout);
   
+  // Default groupBy: 'none' for card mode, 'page' for others
+  const defaultGroupBy: NodeCollectionGroupBy = viewMode === 'card' ? 'none' : 'page';
+  
   // Internal groupBy state (controlled or uncontrolled)
-  const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp);
-  const groupBy = onGroupByChange ? groupByProp : internalGroupBy;
+  const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp ?? defaultGroupBy);
+  const groupBy = onGroupByChange ? (groupByProp ?? defaultGroupBy) : internalGroupBy;
   const handleGroupByChange = (value: NodeCollectionGroupBy) => {
     if (onGroupByChange) {
       onGroupByChange(value);
