@@ -186,7 +186,8 @@ export function useNodePhysics({
   const inReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
   const outReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
   const allReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
-  const linkForceJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random [0.8, 1.0]
+  const linkForceJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random force multiplier [0.6, 1.0]
+  const linkDistJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random rest distance multiplier [0.8, 1.2]
   
   // Barnes-Hut quadtree pool
   const quadPoolRef = useRef<QuadNode[]>([]);
@@ -679,9 +680,11 @@ export function useNodePhysics({
       node.outLinkCount = outLinkCounts.get(node.id) || 0;
     }
     
-    // Generate per-link random force jitter (0.8 to 1.0) for parent and sibling links
-    // This creates more natural, less uniform node positioning
+    // Generate per-link random jitter for parent and sibling links
+    // Force jitter [0.6, 1.0]: varies how strongly links pull
+    // Distance jitter [0.8, 1.2]: varies the equilibrium rest distance
     const linkForceJitter = new Map<number, number>();
+    const linkDistJitter = new Map<number, number>();
     const nodeParent = new Map<number, number>(); // nodeId → parentId
     for (const link of links) {
       if (link.type === 'parent') {
@@ -696,10 +699,12 @@ export function useNodePhysics({
         nodeParent.get(link.source) !== undefined && 
         nodeParent.get(link.source) === nodeParent.get(link.target);
       if (isParentLink || isSiblingLink) {
-        linkForceJitter.set(key, 0.8 + Math.random() * 0.2);
+        linkForceJitter.set(key, 0.6 + Math.random() * 0.4);
+        linkDistJitter.set(key, 0.8 + Math.random() * 0.4);
       }
     }
     linkForceJitterRef.current = linkForceJitter;
+    linkDistJitterRef.current = linkDistJitter;
     
     connectedPairsRef.current = connectedPairs;
     adjacencyRef.current = adjacency;
@@ -1081,6 +1086,7 @@ export function useNodePhysics({
       
       const connectedPairs = connectedPairsRef.current;
       const linkForceJitter = linkForceJitterRef.current;
+      const linkDistJitter = linkDistJitterRef.current;
       const adjacency = adjacencyRef.current;
       const massCache = massCacheRef.current;
       const useMass = currentSettings.massAccumulation;
@@ -1229,13 +1235,16 @@ export function useNodePhysics({
             }
           }
           
-          let netForce = (dist - LINKED_ATTRACTION_DISTANCE) * attractionStrength * warmupMultiplier;
+          let restDist = LINKED_ATTRACTION_DISTANCE;
           
           // Apply per-link random jitter for parent and sibling links
-          const jitter = linkForceJitter.get(key);
-          if (jitter !== undefined) {
-            netForce *= jitter;
+          const forceJitter = linkForceJitter.get(key);
+          if (forceJitter !== undefined) {
+            attractionStrength *= forceJitter;
+            restDist *= linkDistJitter.get(key) ?? 1;
           }
+          
+          let netForce = (dist - restDist) * attractionStrength * warmupMultiplier;
           
           const massA = useMass ? (normalizedMasses.get(nodeA.id) ?? 1) : 1;
           const massB = useMass ? (normalizedMasses.get(nodeB.id) ?? 1) : 1;
