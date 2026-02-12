@@ -33,6 +33,7 @@ export const nodeKeys = {
   classes: () => [...nodeKeys.all, 'classes'] as const,
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
+  graphLinks: (nodeIds: number[]) => [...nodeKeys.all, 'graph-links', ...nodeIds.sort()] as const,
   
   // PERFORMANCE: Metadata-only keys for lightweight queries
   // These are separate from detail queries to avoid cache pollution

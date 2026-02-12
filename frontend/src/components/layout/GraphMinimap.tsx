@@ -35,7 +35,6 @@ export function GraphMinimap({
         <GraphView
           viewId="minimap"
           nodes={graphData.nodes}
-          links={graphData.links}
           currentNodeId={currentNodeId}
           showSettings={false}
           showSearch={false}

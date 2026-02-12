@@ -17,12 +17,12 @@
  * Uses NodeGraphRenderer for the actual visualization.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useClasses } from '@/hooks';
+import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
-import type { GraphNode as ApiGraphNode, GraphLink as ApiGraphLink } from '@/api/nodes';
+import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { 
   NodeGraphRenderer, 
   type NodeGraphRendererRef,
@@ -57,8 +57,6 @@ export interface GraphViewProps {
   className?: string;
   /** Graph nodes to display */
   nodes: ApiGraphNode[];
-  /** Graph links between nodes */
-  links?: ApiGraphLink[];
   /** Currently highlighted node ID (e.g., current page for minimap) */
   currentNodeId?: number | null;
   /** Show settings panels (graph settings, class colors, visibility filters, animation). Default: true */
@@ -84,7 +82,6 @@ export function GraphView({
   viewId = 'default', 
   className = '',
   nodes: apiNodes,
-  links: apiLinks = [],
   currentNodeId = null,
   showSettings = true,
   showSearch = true,
@@ -92,6 +89,10 @@ export function GraphView({
   onNodeClick: customNodeClick,
 }: GraphViewProps) {
   const rendererRef = useRef<NodeGraphRendererRef>(null);
+  
+  // Fetch links between the provided nodes
+  const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
+  const { data: apiLinks = [] } = useGraphLinks(nodeIds);
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
@@ -268,7 +269,7 @@ export function GraphView({
     return set;
   }, [classes]);
   
-  // Data source: always from props
+  // Data source: nodes from props, links from hook
   const sourceNodes = apiNodes;
   const sourceLinks = apiLinks;
   
