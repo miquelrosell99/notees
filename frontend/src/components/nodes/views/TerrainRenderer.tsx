@@ -195,6 +195,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const { visibleNodes } = frameDataRef.current;
     const terrainHeights = frameDataRef.current.terrainHeights;
     const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+    const { accentColor, textColor } = cssVarsRef.current;
+    const currentClassColors = classColorsRef.current;
     
     // Skip contour rendering if not enough nodes
     if (visibleNodes.length < 2) {
@@ -202,8 +204,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const node = visibleNodes[0];
         const sx = node.x * t.scale + t.x;
         const sy = node.y * t.scale + t.y;
-        const { accentColor, textColor } = cssVarsRef.current;
-        const nodeColor = getNodeColor(node, classColorsRef.current, accentColor);
+        const nodeColor = getNodeColor(node, currentClassColors, accentColor);
         const plateauR = TERRAIN_BASE_PLATEAU_RADIUS * t.scale;
         ctx.globalAlpha = 0.45;
         ctx.beginPath();
@@ -316,60 +317,67 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
     
-    // ==================== Plateau Color Fill with Smooth Splines ====================
-    const { accentColor, textColor } = cssVarsRef.current;
-    const currentClassColors = classColorsRef.current;
-    
+    // ==================== Plateau Color Fill (Inset from Highest Contour) ====================
     // Get muted fill color from CSS variables
     const style = getComputedStyle(document.documentElement);
     const plateauFillColor = style.getPropertyValue('--color-surface-container-high').trim() || '#e5e5e5';
     
-    // Pre-compute node colors for reference (not used for fill anymore)
-    const nodeColors: string[] = [];
-    for (let ni = 0; ni < visibleNodes.length; ni++) {
-      nodeColors.push(getNodeColor(visibleNodes[ni], currentClassColors, accentColor));
-    }
-    
     const gs = TERRAIN_GRID_RES;
     
-    // Helper: Draw smooth cardinal spline through points
-    const drawCardinalSpline = (path: Path2D, points: Array<{x: number, y: number}>, tension = 0.5, closed = true) => {
-      if (points.length < 2) return;
-      if (points.length === 2) {
-        path.moveTo(points[0].x, points[0].y);
-        path.lineTo(points[1].x, points[1].y);
-        return;
+    // Helper: Chain line segments into continuous contours
+    const chainSegments = (segments: Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>): Array<{x: number, y: number}>[] => {
+      const contours: Array<Array<{x: number, y: number}>> = [];
+      const used = new Set<number>();
+      const eps = 0.5;
+      
+      const pointsMatch = (p1: {x: number, y: number}, p2: {x: number, y: number}) => 
+        Math.abs(p1.x - p2.x) < eps && Math.abs(p1.y - p2.y) < eps;
+      
+      for (let i = 0; i < segments.length; i++) {
+        if (used.has(i)) continue;
+        
+        const contour: Array<{x: number, y: number}> = [segments[i].p1, segments[i].p2];
+        used.add(i);
+        
+        let extended = true;
+        while (extended && contour.length < segments.length) {
+          extended = false;
+          const end = contour[contour.length - 1];
+          
+          for (let j = 0; j < segments.length; j++) {
+            if (used.has(j)) continue;
+            const seg = segments[j];
+            
+            if (pointsMatch(end, seg.p1)) {
+              contour.push(seg.p2);
+              used.add(j);
+              extended = true;
+              break;
+            } else if (pointsMatch(end, seg.p2)) {
+              contour.push(seg.p1);
+              used.add(j);
+              extended = true;
+              break;
+            }
+          }
+        }
+        
+        if (contour.length > 2 && pointsMatch(contour[0], contour[contour.length - 1])) {
+          contour.pop();
+        }
+        
+        if (contour.length >= 3) {
+          contours.push(contour);
+        }
       }
       
-      const pts = closed ? [...points, points[0], points[1]] : points;
-      path.moveTo(pts[0].x, pts[0].y);
-      
-      for (let i = 0; i < pts.length - 2; i++) {
-        const p0 = i > 0 ? pts[i - 1] : pts[0];
-        const p1 = pts[i];
-        const p2 = pts[i + 1];
-        const p3 = i < pts.length - 3 ? pts[i + 2] : pts[pts.length - 1];
-        
-        const cp1x = p1.x + (p2.x - p0.x) / 6 * tension;
-        const cp1y = p1.y + (p2.y - p0.y) / 6 * tension;
-        const cp2x = p2.x - (p3.x - p1.x) / 6 * tension;
-        const cp2y = p2.y - (p3.y - p1.y) / 6 * tension;
-        
-        path.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-      }
-      
-      if (closed) path.closePath();
+      return contours;
     };
     
-    // Build one Path2D per owner for batched fill.
-    // Use 85% of each node's peak height as the plateau threshold.
-    // Resample contours from marching squares edge points for smooth curves.
+    // Extract highest contour (0.92) segments for each owner, then inset and fill
     const ownerPaths = new Map<number, Path2D>();
-    
-    // First pass: Collect edge points from marching squares for each owner's contour
-    const ownerEdgePoints = new Map<number, Array<{x: number, y: number}>>();
-    
-    // Collect marching squares edge crossings for each owner
+    const ownerSegments = new Map<number, Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>>();
+    const highestLevel = 0.92;
     for (let gy = 0; gy < gridH - 1; gy++) {
       const rowOff = gy * gridW;
       const nextRowOff = rowOff + gridW;
@@ -380,23 +388,21 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const blIdx = nextRowOff + gx;
         const brIdx = blIdx + 1;
         
-        // Determine dominant owner
         const v00 = heightMap[tlIdx];
         const v10 = heightMap[trIdx];
         const v01 = heightMap[blIdx];
         const v11 = heightMap[brIdx];
         
+        // Determine owner at this cell
         let maxH = v00, owner = ownerMap[tlIdx];
         if (v10 > maxH) { maxH = v10; owner = ownerMap[trIdx]; }
         if (v01 > maxH) { maxH = v01; owner = ownerMap[blIdx]; }
         if (v11 > maxH) { maxH = v11; owner = ownerMap[brIdx]; }
         if (owner < 0 || !(nodePeakH[owner] > 0)) continue;
         
-        // Per-node threshold: 85% of peak height
-        const level = nodePeakH[owner] * 0.85;
-        
-        const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
-                     (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
+        // Check if this cell crosses the highest contour level
+        const code = (v00 >= highestLevel ? 8 : 0) | (v10 >= highestLevel ? 4 : 0) |
+                     (v11 >= highestLevel ? 2 : 0) | (v01 >= highestLevel ? 1 : 0);
         
         if (code === 0 || code === 15) continue;
         
@@ -416,78 +422,138 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         
         const px = gx * gs;
         
-        // Edge interpolation for smooth contours
+        // Edge interpolation
         const topD = v10 - v00;
-        const topT = topD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v00) / topD));
+        const topT = topD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v00) / topD));
         const rightD = v11 - v10;
-        const rightT = rightD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v10) / rightD));
+        const rightT = rightD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v10) / rightD));
         const bottomD = v11 - v01;
-        const bottomT = bottomD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v01) / bottomD));
+        const bottomT = bottomD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v01) / bottomD));
         const leftD = v01 - v00;
-        const leftT = leftD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v00) / leftD));
+        const leftT = leftD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v00) / leftD));
         
-        // Collect edge crossing points based on marching squares code
-        if (!ownerEdgePoints.has(owner)) ownerEdgePoints.set(owner, []);
-        const points = ownerEdgePoints.get(owner)!;
+        // Edge crossing points
+        const topPt = {x: px + topT * gs, y: py};
+        const rightPt = {x: px + gs, y: py + rightT * gs};
+        const bottomPt = {x: px + bottomT * gs, y: py + gs};
+        const leftPt = {x: px, y: py + leftT * gs};
         
-        // Add edge midpoints based on which edges are crossed
+        // Collect line segments based on marching squares code
+        if (!ownerSegments.has(owner)) ownerSegments.set(owner, []);
+        const segments = ownerSegments.get(owner)!;
+        
         switch (code) {
-          case 1: case 14:
-            points.push({x: px, y: py + leftT * gs}, {x: px + bottomT * gs, y: py + gs});
+          case 1: segments.push({p1: leftPt, p2: bottomPt}); break;
+          case 2: segments.push({p1: bottomPt, p2: rightPt}); break;
+          case 3: segments.push({p1: leftPt, p2: rightPt}); break;
+          case 4: segments.push({p1: topPt, p2: rightPt}); break;
+          case 5: 
+            segments.push({p1: leftPt, p2: topPt});
+            segments.push({p1: bottomPt, p2: rightPt});
             break;
-          case 2: case 13:
-            points.push({x: px + bottomT * gs, y: py + gs}, {x: px + gs, y: py + rightT * gs});
+          case 6: segments.push({p1: topPt, p2: bottomPt}); break;
+          case 7: segments.push({p1: leftPt, p2: topPt}); break;
+          case 8: segments.push({p1: topPt, p2: leftPt}); break;
+          case 9: segments.push({p1: topPt, p2: bottomPt}); break;
+          case 10:
+            segments.push({p1: topPt, p2: rightPt});
+            segments.push({p1: leftPt, p2: bottomPt});
             break;
-          case 3: case 12:
-            points.push({x: px, y: py + leftT * gs}, {x: px + gs, y: py + rightT * gs});
-            break;
-          case 4: case 11:
-            points.push({x: px + topT * gs, y: py}, {x: px + gs, y: py + rightT * gs});
-            break;
-          case 5: case 10:
-            points.push({x: px, y: py + leftT * gs}, {x: px + topT * gs, y: py});
-            points.push({x: px + bottomT * gs, y: py + gs}, {x: px + gs, y: py + rightT * gs});
-            break;
-          case 6: case 9:
-            points.push({x: px + topT * gs, y: py}, {x: px + bottomT * gs, y: py + gs});
-            break;
-          case 7: case 8:
-            points.push({x: px, y: py + leftT * gs}, {x: px + topT * gs, y: py});
-            break;
+          case 11: segments.push({p1: topPt, p2: rightPt}); break;
+          case 12: segments.push({p1: leftPt, p2: rightPt}); break;
+          case 13: segments.push({p1: bottomPt, p2: rightPt}); break;
+          case 14: segments.push({p1: leftPt, p2: bottomPt}); break;
         }
       }
     }
     
-    // Second pass: Build smooth spline paths from collected edge points
-    for (const [owner, edgePoints] of ownerEdgePoints) {
-      if (edgePoints.length < 6) continue;
+    // Helper: Chain segments into continuous contours
+    const chainSegments = (segments: Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>): Array<{x: number, y: number}>[] => {
+      const contours: Array<Array<{x: number, y: number}>> = [];
+      const used = new Set<number>();
+      const eps = 0.5;
+      
+      const pointsMatch = (p1: {x: number, y: number}, p2: {x: number, y: number}) => 
+        Math.abs(p1.x - p2.x) < eps && Math.abs(p1.y - p2.y) < eps;
+      
+      for (let i = 0; i < segments.length; i++) {
+        if (used.has(i)) continue;
+        
+        const contour: Array<{x: number, y: number}> = [segments[i].p1, segments[i].p2];
+        used.add(i);
+        
+        let extended = true;
+        while (extended && contour.length < segments.length) {
+          extended = false;
+          const end = contour[contour.length - 1];
+          
+          for (let j = 0; j < segments.length; j++) {
+            if (used.has(j)) continue;
+            const seg = segments[j];
+            
+            if (pointsMatch(end, seg.p1)) {
+              contour.push(seg.p2);
+              used.add(j);
+              extended = true;
+              break;
+            } else if (pointsMatch(end, seg.p2)) {
+              contour.push(seg.p1);
+              used.add(j);
+              extended = true;
+              break;
+            }
+          }
+        }
+        
+        // Close contour if endpoints match
+        if (contour.length > 2 && pointsMatch(contour[0], contour[contour.length - 1])) {
+          contour.pop();
+        }
+        
+        if (contour.length >= 3) {
+          contours.push(contour);
+        }
+      }
+      
+      return contours;
+    };
+    
+    // Second pass: Chain segments, inset, and fill
+    for (const [owner, segments] of ownerSegments) {
+      if (segments.length < 3) continue;
+      
+      const contours = chainSegments(segments);
+      if (contours.length === 0) continue;
+      
+      // Use the largest contour
+      const mainContour = contours.reduce((max, c) => c.length > max.length ? c : max, contours[0]);
+      
+      if (mainContour.length < 4) continue;
       
       // Calculate centroid
       let cx = 0, cy = 0;
-      for (const p of edgePoints) {
+      for (const p of mainContour) {
         cx += p.x;
         cy += p.y;
       }
-      cx /= edgePoints.length;
-      cy /= edgePoints.length;
+      cx /= mainContour.length;
+      cy /= mainContour.length;
       
-      // Sort by angle from centroid to form closed contour
-      edgePoints.sort((a, b) => {
-        const angleA = Math.atan2(a.y - cy, a.x - cx);
-        const angleB = Math.atan2(b.y - cy, b.x - cx);
-        return angleA - angleB;
-      });
-      
-      // Apply geometric inset (scale toward centroid)
-      const insetFactor = 0.88;
-      const insetPoints = edgePoints.map(p => ({
+      // Inset points toward center
+      const insetFactor = 0.85;
+      const insetPoints = mainContour.map(p => ({
         x: cx + (p.x - cx) * insetFactor,
         y: cy + (p.y - cy) * insetFactor
       }));
       
-      // Create smooth spline path
+      // Create simple polygon fill (anti-aliased by canvas)
       const path = new Path2D();
-      drawCardinalSpline(path, insetPoints, 0.4, true);
+      path.moveTo(insetPoints[0].x, insetPoints[0].y);
+      for (let i = 1; i < insetPoints.length; i++) {
+        path.lineTo(insetPoints[i].x, insetPoints[i].y);
+      }
+      path.closePath();
+      
       ownerPaths.set(owner, path);
     }
     
