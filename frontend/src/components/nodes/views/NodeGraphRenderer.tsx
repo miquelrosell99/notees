@@ -92,11 +92,11 @@ const LINK_DAMPING = 0.4; // Dashpot: damp relative velocity along spring axis t
 const TERRAIN_VELOCITY_DAMPING = 0.4; // Much more aggressive than normal 0.7
 const TERRAIN_VELOCITY_DEADZONE = 0.05; // Larger deadzone to freeze sooner
 
-// Terrain footprint collision avoidance (prevents nodes inside other nodes' cones)
-const TERRAIN_BASE_FOOTPRINT = 50;    // Base terrain radius for collision
-const TERRAIN_PEAK_FOOTPRINT = 100;   // Additional radius per unit peak size
-const TERRAIN_SEPARATION_STRENGTH = 0.25; // How strongly to push nodes apart
-const TERRAIN_MIN_SEPARATION = 30;    // Minimum distance between node centers
+// Terrain cone collision avoidance (prevents nodes inside other nodes' cones)
+// These define plateau and slope radii as: Rp = BASE*0.25 + PEAK*0.25*peakSize, Rs = BASE + PEAK*peakSize
+const TERRAIN_BASE_FOOTPRINT = 60;    // Base slope radius for collision
+const TERRAIN_PEAK_FOOTPRINT = 120;   // Additional slope radius per unit peak size
+const TERRAIN_SEPARATION_STRENGTH = 0.15; // How strongly to push nodes out of cones
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
@@ -1649,75 +1649,64 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
-      // Terrain mode: footprint-based collision avoidance
-      // Prevents smaller nodes from being hidden inside larger nodes' terrain cones
-      // Takes height into account: a tall node can be closer because it "pokes through"
+      // Terrain mode: cone-based collision avoidance
+      // For each node, check if it's "inside" any taller node's terrain cone
+      // If so, push it outward from that cone's center
       if (isTerrainMode && usePhysics) {
         const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
         const terrainHeights = frameDataRef.current.terrainHeights;
         
         for (let i = 0; i < nodes.length; i++) {
-          const a = nodes[i];
-          if (dragNodeRef.current?.id === a.id || a.pinned) continue;
+          const shortNode = nodes[i];
+          if (dragNodeRef.current?.id === shortNode.id || shortNode.pinned) continue;
           
-          const aPeak = terrainPeakRadii.get(a.id) ?? 0;
-          const aHeight = terrainHeights.get(a.id) ?? 0;
-          const aFootprint = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * aPeak;
+          const shortHeight = terrainHeights.get(shortNode.id) ?? 0;
+          const shortPeak = terrainPeakRadii.get(shortNode.id) ?? 0;
           
-          for (let j = i + 1; j < nodes.length; j++) {
-            const b = nodes[j];
-            if (dragNodeRef.current?.id === b.id || b.pinned) continue;
+          // Calculate this node's plateau and slope radii
+          const shortRp = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * shortPeak;
+          const shortRs = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * shortPeak;
+          
+          for (let j = 0; j < nodes.length; j++) {
+            if (i === j) continue;
+            const tallNode = nodes[j];
             
-            const bPeak = terrainPeakRadii.get(b.id) ?? 0;
-            const bHeight = terrainHeights.get(b.id) ?? 0;
-            const bFootprint = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * bPeak;
+            const tallHeight = terrainHeights.get(tallNode.id) ?? 0;
             
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
+            // Skip if this node is not taller
+            if (tallHeight <= shortHeight) continue;
+            
+            const tallPeak = terrainPeakRadii.get(tallNode.id) ?? 0;
+            
+            // Calculate tall node's plateau radius (Rp) and slope radius (Rs)
+            const tallRp = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * tallPeak;
+            const tallRs = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * tallPeak;
+            
+            // Calculate the cone radius at the short node's height level
+            // At height H (top), radius = Rp; at height 0, radius = Rs
+            // coneRadius(h) = Rp + (Rs - Rp) * (H - h) / H
+            const heightRatio = (tallHeight - shortHeight) / tallHeight;
+            const coneRadiusAtShortHeight = tallRp + (tallRs - tallRp) * heightRatio;
+            
+            const dx = shortNode.x - tallNode.x;
+            const dy = shortNode.y - tallNode.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             
-            // Calculate how much the smaller node "pokes through" the larger's terrain
-            // If smaller node's height > terrain height at that distance, it's visible
-            // Terrain height decreases linearly from H at center to 0 at footprint edge
-            const [larger, smaller] = aHeight >= bHeight 
-              ? [{ h: aHeight, fp: aFootprint }, { h: bHeight }]
-              : [{ h: bHeight, fp: bFootprint }, { h: aHeight }];
+            // Check if short node is inside the cone at its height level
+            // Also account for the short node's own radius
+            const effectiveConeRadius = coneRadiusAtShortHeight - shortRp * 0.5;
             
-            // At distance d, the larger cone's terrain height ≈ H * (1 - d/footprint)
-            // If smaller.h > that, the smaller node is visible above the terrain
-            const terrainAtDist = larger.h * Math.max(0, 1 - dist / larger.fp);
-            const heightAboveTerrain = smaller.h - terrainAtDist;
+            if (dist >= effectiveConeRadius) continue;
             
-            // If smaller node is above terrain, reduce required separation
-            // Full visibility (heightAboveTerrain >= 0.3) → no separation needed
-            // Partial visibility → proportionally reduced separation
-            const visibilityFactor = Math.min(1, Math.max(0, 1 - heightAboveTerrain / 0.3));
-            
-            // Minimum separation scales with visibility factor
-            const baseMinSep = Math.max(TERRAIN_MIN_SEPARATION, (aFootprint + bFootprint) * 0.4);
-            const minSeparation = baseMinSep * visibilityFactor;
-            
-            if (dist >= minSeparation || minSeparation < 1) continue;
-            
-            // Push nodes apart along the line connecting them
-            const overlap = minSeparation - dist;
+            // Node is inside the cone - push it outward
+            const overlap = effectiveConeRadius - dist;
             const correction = overlap * TERRAIN_SEPARATION_STRENGTH * warmupMultiplier;
             const nx = dx / dist;
             const ny = dy / dist;
             
-            // Asymmetric push: larger nodes push harder than smaller ones
-            const totalFootprint = aFootprint + bFootprint;
-            const aRatio = bFootprint / totalFootprint; // a moves more if b is bigger
-            const bRatio = aFootprint / totalFootprint; // b moves more if a is bigger
-            
-            if (!a.pinned) {
-              a.x -= nx * correction * aRatio;
-              a.y -= ny * correction * aRatio;
-            }
-            if (!b.pinned) {
-              b.x += nx * correction * bRatio;
-              b.y += ny * correction * bRatio;
-            }
+            // Only the shorter node moves (pushed away from taller node's cone)
+            shortNode.x += nx * correction;
+            shortNode.y += ny * correction;
           }
         }
       }
