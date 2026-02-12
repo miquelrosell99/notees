@@ -11,7 +11,7 @@ import { useAppStore } from '@/stores';
 import { useComments, useCreateComment, useDeleteComment, useUpdateNode, useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { mdiClose } from '@mdi/js';
-import { AddIcon, CommentIcon, TrashIcon } from '../icons';
+import { AddIcon, CommentIcon, TrashIcon } from '../core/icons';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import type { Comment } from '@/types/api';

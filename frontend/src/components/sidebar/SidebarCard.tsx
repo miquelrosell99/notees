@@ -9,7 +9,7 @@
 import type { ReactNode } from 'react';
 import { mdiClose } from '@mdi/js';
 import './SidebarCard.css';
-import { AlertIcon } from '../icons';
+import { AlertIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 

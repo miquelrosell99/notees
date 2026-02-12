@@ -12,7 +12,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useAppStore } from '@/stores';
 import type { SidebarNodeType } from '@/stores';
 import { NodeViewContent } from '@/views/NodeView';
-import { NodeIcon } from '../icons';
+import { NodeIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import './SidebarNodeView.css';
 

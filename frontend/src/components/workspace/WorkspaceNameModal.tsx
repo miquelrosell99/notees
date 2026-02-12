@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import './WorkspaceModal.css';
 import { useQuery } from '@tanstack/react-query';
 import { checkDatabaseName } from '@/api/databases';
-import { AlertIcon, SyncIcon } from '../icons';
+import { AlertIcon, SyncIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
 import { Button } from '../core/Button';

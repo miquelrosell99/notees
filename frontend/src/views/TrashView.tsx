@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
-import { TrashIcon } from '../components/icons';
+import { TrashIcon } from '../components/core/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useAppStore } from '@/stores';
 import { getTrash, restoreNode, permanentDeleteNode, emptyTrash } from '@/api/nodes';

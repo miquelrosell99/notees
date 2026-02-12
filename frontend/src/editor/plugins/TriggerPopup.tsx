@@ -10,9 +10,9 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
 import type { TriggerType } from './TriggerPlugin';
-import { SuggestionPopup, type SuggestionType } from '../../components/SuggestionPopup';
+import { SuggestionPopup, type SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, PropertiesIcon } from '../../components/icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, PropertiesIcon } from '../../components/core/icons';
 import './TriggerPopup.css';
 
 // ─── Slash Command Definitions ───────────────────────────────────

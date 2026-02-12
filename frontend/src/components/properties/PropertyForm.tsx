@@ -12,7 +12,7 @@ import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
 import { Button } from '../core/Button';
 import { ListSortable } from '../core/ListSortable';
-import { NodeSelector } from '../NodeSelector';
+import { NodeSelector } from '../nodes/NodeSelector';
 import './PropertyForm.css';
 
 export interface PropertyTypeOption {

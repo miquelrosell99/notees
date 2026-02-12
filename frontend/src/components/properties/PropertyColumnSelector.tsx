@@ -13,7 +13,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '../core/Checkbox';
-import { SearchIcon } from '../icons';
+import { SearchIcon } from '../core/icons';
 import type { Property } from '@/types';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyColumnSelector.css';

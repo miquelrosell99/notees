@@ -19,7 +19,7 @@ import { useAppStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { NodeInline } from '../blocks/NodeInline';
 import { Bullet } from '../blocks/Bullet';
-import { ChevronRightIcon } from '../icons';
+import { ChevronRightIcon } from '../core/icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { PageContextMenu } from '../nodes/NodeContextMenu';
 import './PropertyList.css';
