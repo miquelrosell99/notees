@@ -477,12 +477,15 @@ export function useUpdateNode() {
     },
     onSuccess: (updatedNode, variables) => {
       // Merge the updated node with existing cached data to preserve children and other fields
-      // that aren't returned by the update endpoint
+      // that aren't returned by the update endpoint.
+      // IMPORTANT: The PUT endpoint returns classes/tags as [] (it doesn't fetch them),
+      // so we must exclude them from the spread to avoid wiping out cached values
+      // that were set by addClass/addTag mutations.
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(updatedNode.id) },
         (oldNode) => {
           if (!oldNode) return updatedNode;
-          const { children, backlinks, linked_references, properties, ...rest } = updatedNode;
+          const { children, backlinks, linked_references, properties, classes, tags, ...rest } = updatedNode;
           return {
             ...oldNode,
             ...rest,
