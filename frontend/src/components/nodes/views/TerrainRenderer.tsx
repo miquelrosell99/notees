@@ -1,12 +1,13 @@
 /**
  * TerrainRenderer Component
  * 
- * Renders the terrain visualization with contour lines and canvas-drawn node dots.
+ * Renders the terrain visualization with contour lines and colored plateau fills.
  * Uses useNodePhysics hook for simulation.
  * Handles:
  * - Canvas rendering of contour lines (marching squares)
  * - Height map generation from node mass/positions
- * - Canvas-drawn node dots (no DOM overlay)
+ * - Colored plateau fills per node (ownership map + offscreen canvas)
+ * - Plateau-based hit testing for click/hover
  * - Mouse interactions (pan, zoom, click)
  */
 
@@ -29,19 +30,10 @@ import {
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_MIN_HEIGHT,
-  NODE_HOVER_RADIUS_EXTRA,
-  GLARE_SCALE_NORMAL,
-  GLARE_SCALE_BRIGHT,
-  GLARE_SCALE_CURRENT,
-  GLARE_OPACITY_NORMAL,
-  GLARE_OPACITY_BRIGHT,
-  GLARE_OPACITY_DIM,
   LABEL_FADE_ZOOM_MIN,
   LABEL_FADE_ZOOM_MAX,
   // Helpers
-  getNodeRadius,
   getNodeColor,
-  hexToRgba,
 } from './viewTypes';
 import { useNodePhysics } from './useNodePhysics';
 import './graph-renderer.css';
@@ -129,7 +121,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     setTransformDirect,
     dragNodeRef,
     dragStartTimeRef,
-    dragLiftProgressRef,
     wakeSimulation,
     simulationSleepingRef,
     ctxRef,
@@ -143,7 +134,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     getNodeAtPosition,
     classColorsRef,
     cssVarsRef,
-    settingsRef,
   } = physics;
   
   // Expose methods via ref
@@ -189,6 +179,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Reusable typed-array buffers to avoid per-frame allocation
   const heightMapBufRef = useRef<Float32Array | null>(null);
   const tempMapBufRef = useRef<Float32Array | null>(null);
+  const ownerMapRef = useRef<Int32Array | null>(null);
+  
+  // Store grid dims + owner map for plateau hit testing
+  const plateauGridRef = useRef({ gridW: 0, gridH: 0 });
   
   // ==================== Render Function ====================
   
@@ -198,25 +192,32 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     ctx.clearRect(0, 0, w, h);
     
-    const { visibleNodes, maxConnections, maxMass } = frameDataRef.current;
+    const { visibleNodes } = frameDataRef.current;
     const terrainHeights = frameDataRef.current.terrainHeights;
     const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-    const currentSettings = settingsRef.current;
     
     // Skip contour rendering if not enough nodes
     if (visibleNodes.length < 2) {
-      // Still draw dots for 1 node
       if (visibleNodes.length === 1) {
         const node = visibleNodes[0];
         const sx = node.x * t.scale + t.x;
         const sy = node.y * t.scale + t.y;
-        const { accentColor } = cssVarsRef.current;
+        const { accentColor, textColor } = cssVarsRef.current;
         const nodeColor = getNodeColor(node, classColorsRef.current, accentColor);
-        const r = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection) * t.scale;
+        const plateauR = TERRAIN_BASE_PLATEAU_RADIUS * t.scale;
+        ctx.globalAlpha = 0.45;
         ctx.beginPath();
         ctx.fillStyle = nodeColor;
-        ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+        ctx.arc(sx, sy, plateauR, 0, 2 * Math.PI);
         ctx.fill();
+        ctx.globalAlpha = 1;
+        // Label
+        ctx.fillStyle = textColor;
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const displayName = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
+        ctx.fillText(displayName, sx, sy + 6);
       }
       return;
     }
@@ -230,18 +231,30 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     if (!heightMapBufRef.current || heightMapBufRef.current.length < gridSize) {
       heightMapBufRef.current = new Float32Array(gridSize);
       tempMapBufRef.current = new Float32Array(gridSize);
+      ownerMapRef.current = new Int32Array(gridSize);
     }
     const heightMap = heightMapBufRef.current;
     const tempMap = tempMapBufRef.current!;
+    const ownerMap = ownerMapRef.current!;
     heightMap.fill(0, 0, gridSize);
+    ownerMap.fill(-1, 0, gridSize);
     
-    // Build height map with MAX merge — sqrt-free using squared-distance interpolation
+    // Per-node peak heights for plateau fill thresholds
+    const nodePeakH: number[] = new Array(visibleNodes.length);
+    
+    // Store grid dims for hit testing
+    plateauGridRef.current.gridW = gridW;
+    plateauGridRef.current.gridH = gridH;
+    
+    // Build height map + ownership map with MAX merge — sqrt-free
+    let nodeIdx = 0;
     for (const node of visibleNodes) {
       let H = terrainHeights.get(node.id) ?? 0;
       const peakSize = terrainPeakRadii.get(node.id) ?? 0;
       
       if (H > 0) H = Math.max(H, TERRAIN_MIN_HEIGHT);
-      if (H <= 0) continue;
+      if (H <= 0) { nodeIdx++; continue; }
+      nodePeakH[nodeIdx] = H;
       
       const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
       const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
@@ -275,9 +288,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const idx = rowOff + gx;
           if (ht > heightMap[idx]) {
             heightMap[idx] = ht;
+            ownerMap[idx] = nodeIdx;
           }
         }
       }
+      nodeIdx++;
     }
     
     // Apply gaussian blur (2 passes)
@@ -300,6 +315,130 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
+    
+    // ==================== Plateau Color Fill (per-node marching squares) ====================
+    const { accentColor, textColor } = cssVarsRef.current;
+    const currentClassColors = classColorsRef.current;
+    
+    // Pre-compute node colors
+    const nodeColors: string[] = [];
+    for (let ni = 0; ni < visibleNodes.length; ni++) {
+      nodeColors.push(getNodeColor(visibleNodes[ni], currentClassColors, accentColor));
+    }
+    
+    const gs = TERRAIN_GRID_RES;
+    
+    // Build one Path2D per owner for batched fill.
+    // Use 85% of each node's peak height as the plateau threshold—this captures
+    // the flat top after gaussian blur without bleeding into the slopes.
+    const ownerPaths = new Map<number, Path2D>();
+    
+    for (let gy = 0; gy < gridH - 1; gy++) {
+      const rowOff = gy * gridW;
+      const nextRowOff = rowOff + gridW;
+      const py = gy * gs;
+      for (let gx = 0; gx < gridW - 1; gx++) {
+        const tlIdx = rowOff + gx;
+        const trIdx = tlIdx + 1;
+        const blIdx = nextRowOff + gx;
+        const brIdx = blIdx + 1;
+        
+        // Determine dominant owner from the corner with highest height
+        const v00 = heightMap[tlIdx];
+        const v10 = heightMap[trIdx];
+        const v01 = heightMap[blIdx];
+        const v11 = heightMap[brIdx];
+        
+        let maxH = v00, owner = ownerMap[tlIdx];
+        if (v10 > maxH) { maxH = v10; owner = ownerMap[trIdx]; }
+        if (v01 > maxH) { maxH = v01; owner = ownerMap[blIdx]; }
+        if (v11 > maxH) { maxH = v11; owner = ownerMap[brIdx]; }
+        if (owner < 0 || !(nodePeakH[owner] > 0)) continue;
+        
+        // Per-node threshold: 85% of that node's peak height
+        const level = nodePeakH[owner] * 0.85;
+        
+        const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
+                     (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
+        
+        if (code === 0) continue;
+        
+        let path = ownerPaths.get(owner);
+        if (!path) { path = new Path2D(); ownerPaths.set(owner, path); }
+        
+        const px = gx * gs;
+        
+        if (code === 15) {
+          path.rect(px, py, gs, gs);
+          continue;
+        }
+        
+        // Edge interpolation
+        const topD = v10 - v00;
+        const topT = topD === 0 ? 0.5 : (level - v00) / topD;
+        const rightD = v11 - v10;
+        const rightT = rightD === 0 ? 0.5 : (level - v10) / rightD;
+        const bottomD = v11 - v01;
+        const bottomT = bottomD === 0 ? 0.5 : (level - v01) / bottomD;
+        const leftD = v01 - v00;
+        const leftT = leftD === 0 ? 0.5 : (level - v00) / leftD;
+        
+        const eT_X = px + topT * gs, eT_Y = py;
+        const eR_X = px + gs, eR_Y = py + rightT * gs;
+        const eB_X = px + bottomT * gs, eB_Y = py + gs;
+        const eL_X = px, eL_Y = py + leftT * gs;
+        
+        // Corner coords
+        const TL_X = px, TL_Y = py;
+        const TR_X = px + gs, TR_Y = py;
+        const BR_X = px + gs, BR_Y = py + gs;
+        const BL_X = px, BL_Y = py + gs;
+        
+        // Fill polygon for the above-threshold region of each marching squares case
+        switch (code) {
+          case 1: // BL
+            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(eB_X, eB_Y); path.closePath(); break;
+          case 2: // BR
+            path.moveTo(eB_X, eB_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 3: // BL+BR
+            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 4: // TR
+            path.moveTo(eT_X, eT_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 5: // BL+TR (ambiguous, two triangles)
+            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(eB_X, eB_Y); path.closePath();
+            path.moveTo(eT_X, eT_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 6: // TR+BR
+            path.moveTo(eT_X, eT_Y); path.lineTo(TR_X, TR_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eB_X, eB_Y); path.closePath(); break;
+          case 7: // BL+TR+BR
+            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(BR_X, BR_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eT_X, eT_Y); path.closePath(); break;
+          case 8: // TL
+            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(eL_X, eL_Y); path.closePath(); break;
+          case 9: // TL+BL
+            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(eB_X, eB_Y); path.closePath(); break;
+          case 10: // TL+BR (ambiguous, two triangles)
+            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(eL_X, eL_Y); path.closePath();
+            path.moveTo(eB_X, eB_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 11: // TL+BL+BR
+            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 12: // TL+TR
+            path.moveTo(eL_X, eL_Y); path.lineTo(TL_X, TL_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
+          case 13: // TL+TR+BL (all except BR)
+            path.moveTo(eR_X, eR_Y); path.lineTo(eB_X, eB_Y); path.lineTo(BL_X, BL_Y); path.lineTo(TL_X, TL_Y); path.lineTo(TR_X, TR_Y); path.closePath(); break;
+          case 14: // TL+TR+BR (all except BL)
+            path.moveTo(eL_X, eL_Y); path.lineTo(eB_X, eB_Y); path.lineTo(BR_X, BR_Y); path.lineTo(TR_X, TR_Y); path.lineTo(TL_X, TL_Y); path.closePath(); break;
+        }
+      }
+    }
+    
+    // Fill each owner's plateau path
+    ctx.globalAlpha = 0.55;
+    for (const [ownerIdx, path] of ownerPaths) {
+      if (ownerIdx >= 0 && ownerIdx < nodeColors.length) {
+        ctx.fillStyle = nodeColors[ownerIdx];
+        ctx.fill(path);
+      }
+    }
+    ctx.globalAlpha = 1;
     
     // Read CSS variables (cached, refreshed on theme change)
     if (cssColorsDirtyRef.current || !cssColorsRef.current) {
@@ -326,8 +465,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     ctx.save();
     ctx.lineCap = 'butt';
     ctx.setLineDash(LINE_DASH_NONE);
-    
-    const gs = TERRAIN_GRID_RES;
     
     for (const level of CONTOUR_LEVELS) {
       const opacity = 0.25 + level * 0.5;
@@ -398,150 +535,41 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     ctx.restore();
     
-    // ==================== Draw Nodes (same as GraphRenderer) ====================
+    // ==================== Draw Labels ====================
     
-    const { accentColor, textColor, dimColor } = cssVarsRef.current;
-    const currentClassColors = classColorsRef.current;
-    const currentHoveredNode = hoveredNodeRef.current;
-    const draggedNodeId = dragNodeRef.current?.id ?? null;
-    const liftProgress = dragLiftProgressRef.current;
     const currentScale = t.scale;
-    
-    // Label opacity based on zoom
     const zoomOpacity = currentScale <= LABEL_FADE_ZOOM_MIN 
       ? 0 
       : currentScale >= LABEL_FADE_ZOOM_MAX 
         ? 1 
         : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
     
-    let draggedNode: GraphNode | null = null;
-    for (const node of visibleNodes) {
-      if (node.id === draggedNodeId) { draggedNode = node; continue; }
-      
-      const sx = node.x * t.scale + t.x;
-      const sy = node.y * t.scale + t.y;
-      
-      // Skip nodes off-screen (with margin)
-      if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) continue;
-      
-      const isHovered = currentHoveredNode?.id === node.id;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection) * t.scale;
-      const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA * t.scale : baseRadius;
-      const nodeColor = getNodeColor(node, currentClassColors, accentColor);
-      
-      // Glare
-      let glareScale = GLARE_SCALE_NORMAL;
-      let glareOpacity = GLARE_OPACITY_NORMAL;
-      switch (node.glare) {
-        case 'bright': glareScale = GLARE_SCALE_BRIGHT; glareOpacity = GLARE_OPACITY_BRIGHT; break;
-        case 'dim': glareOpacity = GLARE_OPACITY_DIM; break;
-        case 'path': break;
-        case 'current': glareScale = GLARE_SCALE_CURRENT; glareOpacity = 0.5; break;
-      }
-      const glareRadius = baseRadius * glareScale;
-      ctx.beginPath();
-      ctx.fillStyle = node.glare === 'current'
-        ? `rgba(255, 215, 0, ${glareOpacity})`
-        : hexToRgba(nodeColor, glareOpacity);
-      ctx.arc(sx, sy, glareRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Node circle
-      ctx.beginPath();
-      ctx.fillStyle = node.glare === 'dim' ? dimColor : nodeColor;
-      ctx.arc(sx, sy, circleRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Pin indicator
-      if (node.pinned) {
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-        ctx.shadowBlur = 3;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
-        ctx.beginPath();
-        ctx.fillStyle = textColor;
-        ctx.arc(sx, sy, circleRadius * 0.3, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.restore();
-      }
-      
-      // Label
-      const dimOpacity = node.glare === 'dim' ? 0.4 : 1;
-      const labelOpacity = zoomOpacity * dimOpacity;
-      ctx.fillStyle = textColor;
-      ctx.globalAlpha = labelOpacity;
+    if (zoomOpacity > 0) {
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      const displayName = node.displayName.length > 35 
-        ? node.displayName.slice(0, 35) + '...' 
-        : node.displayName;
-      ctx.fillText(displayName, sx, sy + baseRadius + 10 * t.scale);
-      ctx.globalAlpha = 1;
-    }
-    
-    // Second pass: draw dragged node on top
-    if (draggedNode) {
-      const node = draggedNode;
-      const sx = node.x * t.scale + t.x;
-      const sy = node.y * t.scale + t.y;
-      const isHovered = currentHoveredNode?.id === node.id;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection) * t.scale;
-      const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA * t.scale : baseRadius;
-      const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       
-      // Shadow
-      if (liftProgress > 0) {
-        const shadowOffset = 4 * liftProgress;
-        const shadowBlur = 12 * liftProgress;
-        const shadowOpacity = 0.3 * liftProgress;
-        ctx.save();
-        ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`;
-        ctx.shadowBlur = shadowBlur;
-        ctx.shadowOffsetX = shadowOffset;
-        ctx.shadowOffsetY = shadowOffset;
-        ctx.beginPath();
-        ctx.fillStyle = nodeColor;
-        ctx.arc(sx, sy, circleRadius, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.restore();
+      for (const node of visibleNodes) {
+        const sx = node.x * t.scale + t.x;
+        const sy = node.y * t.scale + t.y;
+        
+        // Skip off-screen
+        if (sx < -60 || sx > w + 60 || sy < -20 || sy > h + 20) continue;
+        
+        const dimOpacity = node.glare === 'dim' ? 0.4 : 1;
+        ctx.globalAlpha = zoomOpacity * dimOpacity;
+        
+        // Text halo for readability on colored plateaus
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        const displayName = node.displayName.length > 35 
+          ? node.displayName.slice(0, 35) + '...' 
+          : node.displayName;
+        ctx.strokeText(displayName, sx, sy + 6);
+        ctx.fillStyle = textColor;
+        ctx.fillText(displayName, sx, sy + 6);
       }
-      
-      let glareScale = GLARE_SCALE_NORMAL;
-      let glareOpacity = GLARE_OPACITY_NORMAL;
-      switch (node.glare) {
-        case 'bright': glareScale = GLARE_SCALE_BRIGHT; glareOpacity = GLARE_OPACITY_BRIGHT; break;
-        case 'dim': glareOpacity = GLARE_OPACITY_DIM; break;
-        case 'path': break;
-        case 'current': glareScale = GLARE_SCALE_CURRENT; glareOpacity = 0.5; break;
-      }
-      const glareRadius = baseRadius * glareScale;
-      ctx.beginPath();
-      ctx.fillStyle = node.glare === 'current'
-        ? `rgba(255, 215, 0, ${glareOpacity})`
-        : hexToRgba(nodeColor, glareOpacity);
-      ctx.arc(sx, sy, glareRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      ctx.beginPath();
-      ctx.fillStyle = node.glare === 'dim' ? dimColor : nodeColor;
-      ctx.arc(sx, sy, circleRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      if (node.pinned) {
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; ctx.shadowBlur = 3; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
-        ctx.beginPath(); ctx.fillStyle = textColor;
-        ctx.arc(sx, sy, circleRadius * 0.3, 0, 2 * Math.PI); ctx.fill();
-        ctx.restore();
-      }
-      
-      const dimOp = node.glare === 'dim' ? 0.4 : 1;
-      ctx.fillStyle = textColor; ctx.globalAlpha = zoomOpacity * dimOp;
-      ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      const dn = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
-      ctx.fillText(dn, sx, sy + baseRadius + 10 * t.scale);
       ctx.globalAlpha = 1;
     }
   }, [dimensions]);
@@ -576,6 +604,28 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     };
   }, []);
   
+  /** Look up the ownership map to find which node owns the plateau at this screen position */
+  const getNodeInPlateau = useCallback((screenX: number, screenY: number): GraphNode | null => {
+    const ownerMap = ownerMapRef.current;
+    const heightMap = heightMapBufRef.current;
+    const { gridW, gridH } = plateauGridRef.current;
+    if (!ownerMap || !heightMap || gridW === 0) return null;
+    
+    const gx = Math.floor(screenX / TERRAIN_GRID_RES);
+    const gy = Math.floor(screenY / TERRAIN_GRID_RES);
+    if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return null;
+    
+    const idx = gy * gridW + gx;
+    const owner = ownerMap[idx];
+    if (owner < 0) return null;
+    
+    // Only count as hit if height is visible (above lowest contour)
+    if (heightMap[idx] < 0.06) return null;
+    
+    const { visibleNodes } = frameDataRef.current;
+    return owner < visibleNodes.length ? visibleNodes[owner] : null;
+  }, []);
+  
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
     const canvas = canvasRef.current;
@@ -608,7 +658,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       wakeSimulation();
       if (canvas) canvas.style.cursor = 'grabbing';
     } else {
-      const node = getNodeAtPosition(screenX, screenY);
+      const node = getNodeAtPosition(screenX, screenY) || getNodeInPlateau(screenX, screenY);
       
       if (canvas) {
         canvas.style.cursor = node ? 'pointer' : 'grab';
@@ -623,11 +673,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
-    const node = getNodeAtPosition(screenX, screenY);
+    const node = getNodeAtPosition(screenX, screenY) || getNodeInPlateau(screenX, screenY);
     
     if (node) {
       dragNodeRef.current = node;
@@ -636,7 +686,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       isPanningRef.current = true;
       panStartRef.current = { x: screenX, y: screenY };
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, dragNodeRef, dragStartTimeRef]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, dragNodeRef, dragStartTimeRef]);
   
   const handleMouseUp = useCallback(() => {
     const didMove = didDragMoveRef.current;
@@ -667,7 +717,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
     const now = Date.now();
     
-    const node = getNodeAtPosition(screenX, screenY);
+    const node = getNodeAtPosition(screenX, screenY) || getNodeInPlateau(screenX, screenY);
     
     if (!node) {
       onSelectionChange?.([]);
@@ -686,17 +736,17 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     } else {
       onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, onNodeClick, onNodeDoubleClick, onSelectionChange]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, onNodeClick, onNodeDoubleClick, onSelectionChange]);
   
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
-    const node = getNodeAtPosition(screenX, screenY);
+    const node = getNodeAtPosition(screenX, screenY) || getNodeInPlateau(screenX, screenY);
     
     if (node) {
       onNodeRightClick?.(node);
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, onNodeRightClick]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, onNodeRightClick]);
   
   // Wheel handler
   const handleWheelRef = useRef<(e: WheelEvent) => void>(() => {});

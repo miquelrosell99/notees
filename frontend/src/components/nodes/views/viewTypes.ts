@@ -258,8 +258,8 @@ export const CONTOUR_LEVELS = [0.06, 0.15, 0.28, 0.42, 0.58, 0.75, 0.92];
 
 // Terrain height map parameters
 export const TERRAIN_GRID_RES = 6;
-export const TERRAIN_BASE_PLATEAU_RADIUS = 25;
-export const TERRAIN_PEAK_PLATEAU_BONUS = 35;
+export const TERRAIN_BASE_PLATEAU_RADIUS = 20;
+export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
 export const TERRAIN_BASE_SLOPE_RADIUS = 100;
 export const TERRAIN_PEAK_SLOPE_BONUS = 140;
 export const TERRAIN_MIN_HEIGHT = 0.15;
