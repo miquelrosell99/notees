@@ -17,7 +17,7 @@
  * 
  * Usage:
  * ```tsx
- * function NoteesEditor() {
+ * function BlockEditor() {
  *   useStructureSync();
  *   // ... rest of editor
  * }

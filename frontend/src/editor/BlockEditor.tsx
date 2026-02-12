@@ -1,5 +1,5 @@
 /**
- * NoteesEditor — Single Lexical editor for List Mode and Document Mode.
+ * BlockEditor — Single Lexical editor for List Mode and Document Mode.
  *
  * This component renders ONE Lexical editor instance that projects
  * the entire block hierarchy from NodeGraphRuntime as a flat list
@@ -46,7 +46,7 @@ import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 
-import './NoteesEditor.css';
+import './BlockEditor.css';
 
 // ─── Lexical node registry (shared between List and Card editors) ─
 
@@ -62,7 +62,7 @@ export const EDITOR_NODES = [
 
 export type EditorMode = 'list' | 'document';
 
-export interface NoteesEditorProps {
+export interface BlockEditorProps {
   /** Unique editor instance ID */
   editorId?: string;
   /** 
@@ -133,7 +133,7 @@ export function serializeContentAST(contentAST: ContentAST): string {
 
 // ─── Component ────────────────────────────────────────────────────
 
-export function NoteesEditor({
+export function BlockEditor({
   editorId: externalEditorId,
   nodes,
   rootBlockId: externalRootBlockId,
@@ -157,7 +157,7 @@ export function NoteesEditor({
   canOutdent,
   canMerge,
   canDelete,
-}: NoteesEditorProps): JSX.Element {
+}: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
 
@@ -217,13 +217,13 @@ export function NoteesEditor({
   // ─── Lexical config ────────────────────────────────────────
 
   const initialConfig = useMemo(() => ({
-    namespace: `NoteesEditor-${editorId}`,
+    namespace: `BlockEditor-${editorId}`,
     theme: notesEditorTheme,
     nodes: EDITOR_NODES,
     editable: !readOnly,
     editorState: null,
     onError: (error: Error) => {
-      console.error(`[NoteesEditor ${editorId}]`, error);
+      console.error(`[BlockEditor ${editorId}]`, error);
     },
   }), [editorId, readOnly]);
 

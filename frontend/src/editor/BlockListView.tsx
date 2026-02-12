@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useId, useEffect } from 'react';
 import type { JSX } from 'react';
 import type { Node } from '@/types';
-import { NoteesEditor } from './NoteesEditor';
+import { BlockEditor } from './BlockEditor';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { getDragCoordinator } from '../runtime/DragCoordinator';
 import { apiNodeToGraphNode } from '../hooks/useRuntimeSync';
@@ -210,7 +210,7 @@ export function BlockListView({
 
   return (
     <div className={`block-list-view ${editable ? 'block-list-view--editable' : 'block-list-view--readonly'} ${className}`}>
-      <NoteesEditor
+      <BlockEditor
         editorId={`block-list-${viewId}`}
         mode="list"
         readOnly={!editable}

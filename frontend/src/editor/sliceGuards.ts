@@ -2,7 +2,7 @@
  * sliceGuards — Structural guard functions for slice-based block views.
  *
  * These guard functions enforce page-boundary and projection-root
- * constraints for BlockListView. They are passed to NoteesEditor
+ * constraints for BlockListView. They are passed to BlockEditor
  * as canIndent / canOutdent / canMerge / canDelete callbacks.
  */
 
