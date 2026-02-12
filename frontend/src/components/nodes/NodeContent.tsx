@@ -71,16 +71,19 @@ export function NodeContent({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const handleAddBlock = useCallback(async () => {
-    // Add child block at the top
+    // Add child block at the end
+    const maxSequence = children.reduce((max, child) => 
+      Math.max(max, child.sequence ?? 0), -1);
+    
     const newNode = await createNode.mutateAsync({
       name: '',
       parent_id: node.id,
-      sequence: 0, // Add at top
+      sequence: maxSequence + 1,
     });
     // Request focus on the newly created block so the editor focuses it after sync
     const runtime = getNodeGraphRuntime();
     runtime.requestFocus(newNode.uuid);
-  }, [createNode, node.id, node.children]);
+  }, [createNode, node.id, children]);
 
   // Handle successful asset upload
   // Strategy:
