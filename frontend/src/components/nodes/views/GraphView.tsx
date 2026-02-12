@@ -23,17 +23,17 @@ import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
-import { 
-  NodeGraphRenderer, 
-  type NodeGraphRendererRef,
-  type GraphNode,
-  type GraphLink,
-  type GraphSettings,
-  type GraphViewMode,
-  type VisibilityFilters,
-  type ConstraintMode,
-  type LinkDirection,
-} from './NodeGraphRenderer';
+import { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
+import type {
+  GraphNode,
+  GraphLink,
+  GraphSettings,
+  GraphViewMode,
+  GraphLayoutMode,
+  VisibilityFilters,
+  ConstraintMode,
+  LinkDirection,
+} from './viewTypes';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
@@ -89,7 +89,7 @@ export function GraphView({
   showViewModes = true,
   onNodeClick: customNodeClick,
 }: GraphViewProps) {
-  const rendererRef = useRef<NodeGraphRendererRef>(null);
+  const rendererRef = useRef<GraphRendererRef>(null);
   
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
@@ -782,11 +782,11 @@ export function GraphView({
       )}
       
       {/* Canvas */}
-      <NodeGraphRenderer
+      <GraphRenderer
         ref={rendererRef}
         nodes={nodes}
         links={links}
-        viewMode={viewMode}
+        viewMode={viewMode as GraphLayoutMode}
         settings={graphSettings}
         classColors={classColors}
         visibilityFilters={visibilityFilters}

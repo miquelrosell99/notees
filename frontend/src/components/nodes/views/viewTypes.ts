@@ -22,6 +22,16 @@ export type LinkDirection = 'in' | 'out' | 'all';
 export type GraphLayoutMode = 'normal' | 'circle' | 'tree';
 
 /**
+ * All view modes including terrain (used by facade)
+ */
+export type GraphViewMode = 'normal' | 'circle' | 'tree' | 'terrain';
+
+/**
+ * Available graph view modes for UI selection
+ */
+export const GRAPH_VIEW_MODES: GraphViewMode[] = ['normal', 'circle', 'tree', 'terrain'];
+
+/**
  * Graph node representation for physics simulation
  */
 export interface GraphNode {
@@ -164,4 +174,267 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showMonthPages: true,
   showYearPages: true,
   showSystemPages: true,
+};
+
+// ==================== Physics Constants ====================
+
+// Linked pair attraction
+export const LINKED_ATTRACTION_DISTANCE = 120;
+export const ATTRACTION_STRENGTH = 0.015;
+export const ATTRACTION_STRENGTH_LINK_COUNT = 0.005;
+export const LINK_DAMPING = 0.08;
+
+// Unlinked repulsion
+export const REPULSION_STRENGTH = 4000;
+export const UNLINKED_REPULSION_DISTANCE = 500;
+export const MIN_REPULSION_DISTANCE = 20;
+
+// Return-to-target force (constrained modes)
+export const RETURN_FORCE = 0.05;
+
+// Centering gravity (initial warmup)
+export const CENTER_GRAVITY = 0.001;
+
+// Velocity constraints
+export const MAX_VELOCITY = 15;
+export const VELOCITY_DAMPING = 0.92;
+export const VELOCITY_DEADZONE = 0.01;
+export const TERRAIN_VELOCITY_DAMPING = 0.85;
+export const TERRAIN_VELOCITY_DEADZONE = 0.05;
+
+// Drag pull
+export const DRAG_PULL_STRENGTH = 0.03;
+
+// Mass accumulation
+export const PARENT_MASS_PER_CHILD = 0.3;
+
+// Reference link force multiplier (weaker than parent/class)
+export const REFERENCE_LINK_FORCE_MULTIPLIER = 0.3;
+
+// Simulation warmup & limits
+export const WARMUP_DURATION_FRAMES = 45;
+export const MAX_SIMULATION_TIME_MS = 0; // 0 = unlimited
+
+// ==================== Terrain Physics Constants ====================
+
+export const TERRAIN_BASE_FOOTPRINT = 60;
+export const TERRAIN_PEAK_FOOTPRINT = 120;
+export const TERRAIN_SEPARATION_STRENGTH = 0.15;
+export const TERRAIN_MIN_SEPARATION = 5;
+
+// ==================== Rendering Constants ====================
+
+// Node radii
+export const NODE_RADIUS_BASE = 6;
+export const NODE_RADIUS_MIN = 4;
+export const NODE_RADIUS_MAX = 18;
+export const NODE_RADIUS_MASS_SCALE = 0.8;
+export const NODE_RADIUS_CONN_SCALE = 0.7;
+export const NODE_HOVER_RADIUS_EXTRA = 2;
+
+// Glare
+export const GLARE_SCALE_NORMAL = 2.5;
+export const GLARE_SCALE_BRIGHT = 3.0;
+export const GLARE_SCALE_CURRENT = 3.5;
+export const GLARE_OPACITY_NORMAL = 0.15;
+export const GLARE_OPACITY_BRIGHT = 0.25;
+export const GLARE_OPACITY_DIM = 0.05;
+
+// Label fade based on zoom
+export const LABEL_FADE_ZOOM_MIN = 0.3;
+export const LABEL_FADE_ZOOM_MAX = 0.6;
+
+// Link type priority
+export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
+  parent: 3,
+  extends: 3,
+  class: 2,
+  'property-reference': 1,
+  reference: 0,
+};
+
+// Terrain contour levels
+export const CONTOUR_LEVELS = [0.05, 0.10, 0.16, 0.22, 0.30, 0.38, 0.47, 0.56, 0.65, 0.75, 0.85, 0.95];
+
+// Terrain height map parameters
+export const TERRAIN_GRID_RES = 3;
+export const TERRAIN_BASE_PLATEAU_RADIUS = 25;
+export const TERRAIN_PEAK_PLATEAU_BONUS = 35;
+export const TERRAIN_BASE_SLOPE_RADIUS = 100;
+export const TERRAIN_PEAK_SLOPE_BONUS = 140;
+export const TERRAIN_MIN_HEIGHT = 0.15;
+
+// Line dash patterns (allocated once)
+export const LINE_DASH_NONE: number[] = [];
+export const LINE_DASH_DOTTED = [3, 3];
+
+// ==================== Helper Functions ====================
+
+/**
+ * Get max simulation frames based on node count to prevent runaway
+ */
+export const getMaxSimulationFrames = (nodeCount: number): number => {
+  if (nodeCount < 50) return 0; // No limit for small graphs
+  if (nodeCount < 200) return 3000;
+  if (nodeCount < 500) return 2000;
+  return 1500;
+};
+
+/**
+ * Get render skip interval based on node count
+ */
+export const getRenderSkip = (nodeCount: number): number => {
+  if (nodeCount < 200) return 1;
+  if (nodeCount < 500) return 2;
+  if (nodeCount < 1000) return 3;
+  return 4;
+};
+
+/**
+ * Generate numeric pair key (order-independent) for link deduplication
+ */
+export const pairKey = (a: number, b: number): number => {
+  const lo = a < b ? a : b;
+  const hi = a < b ? b : a;
+  return lo * 1000000 + hi;
+};
+
+/**
+ * Convert link type to numeric id for cache keys
+ */
+export const linkTypeId = (type: GraphLink['type']): number => {
+  switch (type) {
+    case 'parent': return 0;
+    case 'reference': return 1;
+    case 'class': return 2;
+    case 'property-reference': return 3;
+    case 'extends': return 4;
+    default: return 9;
+  }
+};
+
+/**
+ * Get node radius based on size mode
+ */
+export const getNodeRadius = (
+  node: GraphNode,
+  nodeSizeMode: NodeSizeMode,
+  maxConnections: number,
+  maxMass: number,
+  linkDirection: LinkDirection = 'all'
+): number => {
+  if (nodeSizeMode === 'uniform') return NODE_RADIUS_BASE;
+  
+  if (nodeSizeMode === 'connections') {
+    const mass = (node as GraphNode & { _mass?: number })._mass ?? 1;
+    const count = linkDirection === 'in' ? node.inLinkCount 
+      : linkDirection === 'out' ? node.outLinkCount 
+      : node.connectionCount;
+    const ratio = maxConnections > 0 ? count / maxConnections : 0;
+    return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_CONN_SCALE);
+  }
+  
+  if (nodeSizeMode === 'mass') {
+    const mass = (node as GraphNode & { _mass?: number })._mass ?? 1;
+    const ratio = maxMass > 1 ? (mass - 1) / (maxMass - 1) : 0;
+    return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_MASS_SCALE);
+  }
+  
+  return NODE_RADIUS_BASE;
+};
+
+/**
+ * Get glare radius for a node
+ */
+export const getGlareRadius = (
+  node: GraphNode,
+  nodeSizeMode: NodeSizeMode,
+  maxConnections: number,
+  maxMass: number,
+  linkDirection: LinkDirection = 'all'
+): number => {
+  const baseRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass, linkDirection);
+  return baseRadius * GLARE_SCALE_NORMAL;
+};
+
+/**
+ * Get node color based on class or default
+ */
+export const getNodeColor = (
+  node: GraphNode,
+  classColors: ClassColor[],
+  defaultColor: string
+): string => {
+  // Check if node has a color override
+  if (node.color) return node.color;
+  
+  // Check class colors by type ID (node.types array)
+  for (const typeId of node.types || []) {
+    const classColor = classColors.find(cc => cc.typeId === typeId);
+    if (classColor) return classColor.color;
+  }
+  
+  return defaultColor;
+};
+
+/**
+ * Convert hex color to rgba
+ */
+export const hexToRgba = (hex: string, alpha: number): string => {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+/**
+ * Find path between two nodes using BFS
+ */
+export const findPathBetweenNodes = (
+  startId: number,
+  endId: number,
+  nodes: GraphNode[],
+  links: GraphLink[]
+): number[] => {
+  if (startId === endId) return [startId];
+  
+  const adjacency = new Map<number, number[]>();
+  for (const node of nodes) {
+    adjacency.set(node.id, []);
+  }
+  for (const link of links) {
+    adjacency.get(link.source)?.push(link.target);
+    adjacency.get(link.target)?.push(link.source);
+  }
+  
+  const visited = new Set<number>();
+  const parent = new Map<number, number>();
+  const queue: number[] = [startId];
+  visited.add(startId);
+  
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === endId) {
+      const path: number[] = [];
+      let nodeId = endId;
+      while (nodeId !== startId) {
+        path.unshift(nodeId);
+        nodeId = parent.get(nodeId)!;
+      }
+      path.unshift(startId);
+      return path;
+    }
+    
+    for (const neighbor of adjacency.get(current) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        parent.set(neighbor, current);
+        queue.push(neighbor);
+      }
+    }
+  }
+  
+  return [];
 };

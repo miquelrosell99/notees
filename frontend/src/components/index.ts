@@ -74,15 +74,12 @@ export { QuickAddPanel } from './quickadd/QuickAddPanel';
 export { SidebarCard } from './sidebar/SidebarCard';
 
 // Node graph visualization components (force-directed graph)
-export { NodeGraphRenderer } from './nodes/views/NodeGraphRenderer';
+export { GraphRenderer, type GraphRendererRef } from './nodes/views/GraphRenderer';
+export { TerrainRenderer, type TerrainRendererRef } from './nodes/views/TerrainRenderer';
 export { GraphView } from './nodes/views/GraphView';
 export { GraphMinimap } from './layout/GraphMinimap';
 export { SidebarLocalGraph } from './sidebar/SidebarLocalGraph';
-export type { 
-  NodeGraphRendererRef,
-  GraphNode,
-  GraphLink,
-} from './nodes/views/NodeGraphRenderer';
+export type { GraphNode, GraphLink } from './nodes/views/viewTypes';
 export type { GraphViewProps } from './nodes/views/GraphView';
 export type { GraphMinimapProps } from './layout/GraphMinimap';
 export type { SidebarLocalGraphProps } from './sidebar/SidebarLocalGraph';
