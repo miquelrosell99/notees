@@ -201,5 +201,5 @@ export interface SliceProjectionQuery {
 /** Editor modes for BlockEditor (single-editor projections) */
 export type EditorMode = 'list' | 'document';
 
-/** Display modes including card (which uses separate CardModeView) */
+/** Display modes including card (which uses separate CardView) */
 export type ViewMode = 'list' | 'document' | 'table' | 'card' | 'graph';

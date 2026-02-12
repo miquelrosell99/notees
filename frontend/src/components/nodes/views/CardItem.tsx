@@ -20,21 +20,21 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
-import { notesEditorTheme } from './theme';
-import { EDITOR_NODES, serializeContentAST } from './BlockEditor';
-import { BlockPlugin } from './plugins/BlockPlugin';
-import { PillPlugin } from './plugins/PillPlugin';
-import { DragDropPlugin } from './plugins/DragDropPlugin';
-import { CollapsePlugin } from './plugins/CollapsePlugin';
-import { FormattingPlugin } from './plugins/FormattingPlugin';
-import { TriggerPlugin } from './plugins/TriggerPlugin';
-import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
-import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
-import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
+import { notesEditorTheme } from '@/editor/theme';
+import { EDITOR_NODES, serializeContentAST } from '@/editor/BlockEditor';
+import { BlockPlugin } from '@/editor/plugins/BlockPlugin';
+import { PillPlugin } from '@/editor/plugins/PillPlugin';
+import { DragDropPlugin } from '@/editor/plugins/DragDropPlugin';
+import { CollapsePlugin } from '@/editor/plugins/CollapsePlugin';
+import { FormattingPlugin } from '@/editor/plugins/FormattingPlugin';
+import { TriggerPlugin } from '@/editor/plugins/TriggerPlugin';
+import { FloatingToolbarPlugin } from '@/editor/plugins/FloatingToolbarPlugin';
+import { ContextMenuPlugin } from '@/editor/plugins/ContextMenuPlugin';
+import { BlurOnClickOutsidePlugin } from '@/editor/plugins/BlurOnClickOutsidePlugin';
 
-import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
-import { queueContentSave } from '../hooks/useBlockPersist';
-import type { ContentAST } from '../runtime/types';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { queueContentSave } from '@/hooks/useBlockPersist';
+import type { ContentAST } from '@/runtime/types';
 
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
@@ -51,14 +51,14 @@ import {
 import { useContentSave } from '@/hooks/useContentSave';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useAppStore } from '@/stores';
-import { Button } from '../components/core/Button';
-import { Card } from '../components/core/Card';
-import { Checkbox } from '../components/core/Checkbox';
-import { NodePill } from '../components/nodes/NodePill';
-import { ImageNode } from '../components/nodes/ImageNode';
-import { AddCoverButton } from '../components/core/AddCoverButton';
-import { AssetUploadModal } from '../components/assets/AssetUploadModal';
-import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
+import { Button } from '@/components/core/Button';
+import { Card } from '@/components/core/Card';
+import { Checkbox } from '@/components/core/Checkbox';
+import { NodePill } from '@/components/nodes/NodePill';
+import { ImageNode } from '@/components/nodes/ImageNode';
+import { AddCoverButton } from '@/components/core/AddCoverButton';
+import { AssetUploadModal } from '@/components/assets/AssetUploadModal';
+import { PageContextMenu, BlockContextMenu } from '@/components/nodes/NodeContextMenu';
 import { SYSTEM_PROPERTY_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -72,7 +72,7 @@ import './CardItem.css';
 
 // ─── Card Title Editor (BlockEditor wrapper) ────────────────────
 
-import { BlockEditor } from './BlockEditor';
+import { BlockEditor } from '@/editor/BlockEditor';
 
 interface CardTitleEditorProps {
   blockId: string;

@@ -5,11 +5,10 @@
  * All views now use Lexical BlockEditor internally.
  */
 
-// Lexical-based views (primary)
 export { ListView } from './ListView';
 export { DocumentView } from './DocumentView';
 export { CardView } from './CardView';
+export { NodeCard } from './CardItem';
+export type { NodeCardProps } from './CardItem';
 export { TableView } from './TableView';
-
-// Gantt view (not yet migrated to Lexical)
 export { GanttView } from './GanttView';

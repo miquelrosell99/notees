@@ -1,27 +1,141 @@
 /**
- * CardView styles — wrapper around the single-editor card view.
- * Card grid layout and individual card styling are in NoteesEditor.css
- * (via .notees-editor--card selectors).
+ * CardView CSS
+ *
+ * Grid container layout for the card view — CSS column-based masonry.
  */
 
-.node-block-card-view {
+.node-card-view {
+  column-gap: 1rem;
   width: 100%;
 }
 
-.node-block-card-view--empty {
+/* Card size variants — column-based masonry layout */
+.node-card-view--size-1 {
+  column-count: 1;
+}
+
+.node-card-view--size-2 {
+  column-count: 2;
+}
+
+.node-card-view--size-3 {
+  column-count: 3;
+}
+
+.node-card-view--size-4 {
+  column-count: 4;
+}
+
+.node-card-view--size-5 {
+  column-count: 5;
+}
+
+/* Horizontal layout overrides: max 2 columns */
+.node-card-view--size-1.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
+  column-count: 1;
+}
+
+.node-card-view--size-2.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-3.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-4.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-5.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
+  column-count: 2;
+}
+
+/* Individual cards in masonry layout */
+.node-card-view .node-card {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Vertical layouts with natural cover heights */
+.node-card-view--vertical-layout {
+  /* Cards use natural heights based on content */
+}
+
+/* Set cover height to natural aspect ratio */
+.node-card-view--vertical-layout .node-card__cover {
+  height: auto;
+}
+
+.node-card-view--sortable {
+  user-select: none;
+}
+
+/* ==================== Kanban View (Grouped by Page) ==================== */
+
+.node-card-view--kanban {
+  display: flex;
+  gap: var(--spacing-4);
+  overflow-x: auto;
+  padding: var(--spacing-2) 0;
+  column-count: unset; /* Override masonry */
+}
+
+.node-card-view__kanban-column {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-3);
+  max-height: calc(100vh - 200px);
+}
+
+.node-card-view__kanban-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.node-card-view__kanban-icon {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.node-card-view__kanban-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-card-view__kanban-count {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 120px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--spacing-2);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
 }
 
-.node-block-card-view__empty-message {
-  color: var(--color-on-surface-variant);
-  opacity: 0.6;
-  font-size: 0.95em;
+.node-card-view__kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  overflow-y: auto;
+  flex: 1;
+  padding: var(--spacing-1);
 }
 
-/* Let the editor fill available space */
-.node-block-card-view__editor {
+/* Cards in kanban columns don't use masonry */
+.node-card-view--kanban .node-card {
+  break-inside: auto;
   width: 100%;
+  margin-bottom: 0;
 }
