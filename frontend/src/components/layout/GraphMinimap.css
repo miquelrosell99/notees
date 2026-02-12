@@ -3,12 +3,22 @@
  */
 
 .graph-minimap {
-  width: 280px;
+  position: fixed;
+  bottom: var(--spacing-4);
+  right: var(--spacing-4);
+  width: 300px;
   height: 220px;
-  position: relative;
+  z-index: 1000;
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--color-surface-container);
+}
+
+.graph-minimap__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
 }
 
 .graph-minimap__graph {
