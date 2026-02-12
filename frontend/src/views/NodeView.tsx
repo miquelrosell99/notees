@@ -117,8 +117,6 @@ interface FocusedBlockContentProps {
 
 function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProps) {
   const createNode = useCreateNode();
-  const addTag = useAddTag();
-  const addClass = useAddClass();
   const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -156,9 +154,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
-        showEmpty={false}
         showClasses={true}
-        suppressRootColor={true}
         pageId={node.id}
         pageUuid={node.uuid}
       />
@@ -1187,7 +1183,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
  * Renders header as fixed bar and content in scrollable area
  */
 export function NodeViewWrapper(props: NodeViewProps) {
-  const { header, content } = NodeView(props);
+  const { header } = NodeView(props);
   return header;
 }
 
