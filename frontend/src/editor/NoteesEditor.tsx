@@ -34,7 +34,7 @@ import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
 import { SelectionPlugin } from './plugins/SelectionPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
-import { SlashCommandPlugin, type TriggerType } from './plugins/SlashCommandPlugin';
+import { TriggerPlugin, type TriggerType } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
@@ -379,8 +379,8 @@ export function NoteesEditor({
           onSelectionChange={onSelectionChange}
         />
 
-        {/* Slash commands and triggers */}
-        <SlashCommandPlugin
+        {/* Triggers (/, [[, @, #) */}
+        <TriggerPlugin
           renderPopup={renderTriggerPopup}
           onLinkSelect={handlePillClick}
         />

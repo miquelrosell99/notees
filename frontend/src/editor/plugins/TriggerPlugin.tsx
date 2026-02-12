@@ -1,8 +1,8 @@
 /**
- * SlashCommandPlugin — Trigger-based commands (/, [[, @, #).
+ * TriggerPlugin — Detects trigger patterns (/, [[, @, #) and shows popups.
  *
- * Detects trigger patterns in text and shows popup menus
- * for inserting links, types, tags, and slash commands.
+ * Monitors text input for trigger characters and displays the appropriate
+ * popup menu for inserting links, types, tags, or slash commands.
  */
 
 import { useEffect, useState, useCallback, useRef, type JSX } from 'react';
@@ -15,6 +15,7 @@ import {
   type LexicalEditor,
 } from 'lexical';
 import { $createNodePillNode } from '../nodes/NodePillNode';
+import { TriggerPopup } from './TriggerPopup';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ interface TriggerState {
   position: { top: number; left: number };
 }
 
-export interface SlashCommandPluginProps {
+export interface TriggerPluginProps {
   /** Render the trigger popup UI */
   renderPopup?: (state: {
     type: TriggerType;
@@ -41,10 +42,10 @@ export interface SlashCommandPluginProps {
   onLinkSelect?: (linkId: string) => void;
 }
 
-export function SlashCommandPlugin({
+export function TriggerPlugin({
   renderPopup,
   onLinkSelect,
-}: SlashCommandPluginProps): JSX.Element | null {
+}: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [trigger, setTrigger] = useState<TriggerState>({
     isOpen: false,
@@ -156,15 +157,28 @@ export function SlashCommandPlugin({
 
   // ─── Render popup ──────────────────────────────────────────
 
-  if (!trigger.isOpen || !renderPopup) return null;
+  if (!trigger.isOpen) return null;
 
-  return renderPopup({
-    type: trigger.type,
-    query: trigger.query,
-    position: trigger.position,
-    onSelect: handleSelect,
-    onClose: handleClose,
-  });
+  // Use provided renderPopup or fall back to TriggerPopup
+  if (renderPopup) {
+    return renderPopup({
+      type: trigger.type,
+      query: trigger.query,
+      position: trigger.position,
+      onSelect: handleSelect,
+      onClose: handleClose,
+    });
+  }
+
+  return (
+    <TriggerPopup
+      type={trigger.type}
+      query={trigger.query}
+      position={trigger.position}
+      onSelect={handleSelect}
+      onClose={handleClose}
+    />
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────

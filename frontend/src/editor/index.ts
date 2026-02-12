@@ -37,7 +37,7 @@ export {
   SelectionPlugin,
   CollapsePlugin,
   FormattingPlugin,
-  SlashCommandPlugin,
+  TriggerPlugin,
   FloatingToolbarPlugin,
   ContextMenuPlugin,
 } from './plugins';
