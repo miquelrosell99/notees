@@ -361,6 +361,14 @@ export function useCreateNode() {
         graph: newNode.is_page,
       });
       
+      // BUGFIX: Also invalidate graphNodes query (separate from graph query)
+      if (newNode.is_page) {
+        queryClient.invalidateQueries({ 
+          queryKey: nodeKeys.graphNodes(),
+          refetchType: 'active',
+        });
+      }
+      
       // GLOBAL: If the new node is a page with a parent, invalidate parent and query results
       if (newNode.is_page && newNode.parent_id) {
         invalidateNodeCaches(queryClient, {
@@ -512,6 +520,11 @@ export function useUpdateNode() {
           lists: true,
           pages: true,
           refetch: false, // Let queries refetch on next mount
+        });
+        // BUGFIX: Also invalidate graphNodes since display fields (icon, color, name) changed
+        queryClient.invalidateQueries({ 
+          queryKey: nodeKeys.graphNodes(),
+          refetchType: 'none',
         });
       }
       
@@ -817,6 +830,11 @@ export function useDeleteNode() {
       // Invalidate graph data since nodes/links changed
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.graph(),
+        refetchType: 'none',
+      });
+      // BUGFIX: Also invalidate graphNodes query (separate from graph query)
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.graphNodes(),
         refetchType: 'none',
       });
     },
