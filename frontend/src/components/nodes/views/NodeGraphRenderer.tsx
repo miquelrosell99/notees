@@ -2438,7 +2438,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       };
       
       // Draw contour lines at multiple height levels using marching squares
-      const CONTOUR_LEVELS = [0.08, 0.18, 0.32, 0.48, 0.65, 0.82];
+      const CONTOUR_LEVELS = [0.05, 0.10, 0.16, 0.22, 0.30, 0.38, 0.47, 0.56, 0.65, 0.75, 0.85, 0.95];
       
       ctx.save();
       ctx.resetTransform(); // Draw contours in screen space
