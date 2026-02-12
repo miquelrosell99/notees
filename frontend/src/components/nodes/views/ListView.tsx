@@ -126,9 +126,12 @@ export function ListView({
         }
         
         groups.set(pageKey, { page: pageNode, nodes: [] });
-     Grouped view (by page)
-  if (groupedNodes) {
-    return (
+      }
+    }
+
+    // Grouped view (by page)
+    if (groupedNodes) {
+      return (
       <div className={`node-list-view node-list-view--grouped ${className}`}>
         {groupedNodes.map((group, groupIndex) => {
           // Collect all nodes in this group (including children)
