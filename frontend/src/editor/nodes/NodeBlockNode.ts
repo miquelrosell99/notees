@@ -27,6 +27,7 @@ import {
 } from 'lexical';
 
 import type { GraphNodeType } from '../../runtime/types';
+import { parseColorToRgb } from '@/utils/color';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
@@ -201,6 +202,10 @@ export class NodeBlockNode extends ElementNode {
     }
     if (this.__color) {
       dom.style.setProperty('--node-block-color', this.__color);
+      const rgb = parseColorToRgb(this.__color);
+      if (rgb) {
+        dom.style.setProperty('--node-color-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+      }
     }
     if (this.__hasChildren) {
       dom.classList.add('node-block--has-children');
@@ -320,8 +325,13 @@ export class NodeBlockNode extends ElementNode {
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
         dom.style.setProperty('--node-block-color', this.__color);
+        const rgb = parseColorToRgb(this.__color);
+        if (rgb) {
+          dom.style.setProperty('--node-color-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+        }
       } else {
         dom.style.removeProperty('--node-block-color');
+        dom.style.removeProperty('--node-color-rgb');
       }
     }
 
