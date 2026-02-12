@@ -273,6 +273,9 @@ export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   
   /** Called when selection changes */
   onSelectionChange?: (selectedIds: Set<number>) => void;
+  
+  /** Group by option - when 'page', displays as kanban columns */
+  groupBy?: NodeCollectionGroupBy;
 }
 
 /**
