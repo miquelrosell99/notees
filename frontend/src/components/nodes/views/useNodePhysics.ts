@@ -582,6 +582,7 @@ export function useNodePhysics({
   const rebuildTopologyCache = useCallback(() => {
     const nodes = nodesRef.current;
     const links = linksRef.current;
+    const allLinks = allLinksRef.current; // All links including those to hidden nodes
     
     const connectedPairs = new Map<number, GraphLink['type']>();
     const adjacency = new Map<number, Set<number>>();
@@ -619,7 +620,12 @@ export function useNodePhysics({
         allReferenceLinkCounts.set(link.source, (allReferenceLinkCounts.get(link.source) || 0) + 1);
         allReferenceLinkCounts.set(link.target, (allReferenceLinkCounts.get(link.target) || 0) + 1);
       }
-      
+    }
+    
+    // Build childrenOf map from ALL links (including hidden nodes) for correct mass accumulation
+    // This ensures parent nodes (like years) accumulate mass from all their children (months)
+    // even when the parent is hidden by visibility filters
+    for (const link of allLinks) {
       if (link.type === 'parent') {
         const children = childrenOf.get(link.source) || [];
         children.push(link.target);
@@ -635,7 +641,8 @@ export function useNodePhysics({
       }
     }
     
-    // Compute mass cache
+    // Compute mass cache - compute for ALL nodes seen in hierarchy, not just visible ones
+    // This allows hidden parent nodes to accumulate mass correctly
     const massCache = new Map<number, number>();
     const computing = new Set<number>();
     const computeMass = (nodeId: number): number => {
@@ -653,8 +660,16 @@ export function useNodePhysics({
       massCache.set(nodeId, mass);
       return mass;
     };
+    
+    // Compute mass for all visible nodes
     for (const node of nodes) {
       computeMass(node.id);
+    }
+    
+    // Also compute mass for all parent nodes referenced in the hierarchy
+    // (in case they're hidden but have visible children)
+    for (const [parentId] of childrenOf) {
+      computeMass(parentId);
     }
     
     for (const node of nodes) {
