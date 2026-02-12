@@ -11,7 +11,7 @@
  * - Shows outer ring when collapsed with children (like graph nodes)
  */
 import { useCallback, useRef, useState, useMemo } from 'react';
-import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '../icons';
+import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '../core/icons';
 import './Bullet.css';
 
 export type BulletSize = 'xs' | 'sm' | 'md';

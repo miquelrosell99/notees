@@ -5,7 +5,7 @@
  * Uses the base Modal component for consistent styling.
  */
 import { Modal } from './Modal';
-import { AlertIcon } from '../icons';
+import { AlertIcon } from './icons';
 import { Button } from './Button';
 import './ConfirmationModal.css';
 

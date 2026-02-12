@@ -23,7 +23,7 @@ import * as nodesApi from '@/api/nodes';
 import { useProperties, useClasses, useAddClass, useRemoveClass } from '@/hooks';
 import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from '../../core/Table';
 import { Table } from '../../core/Table';
-import { DragHandleIcon } from '../../icons';
+import { DragHandleIcon } from '../../core/icons';
 import { PropertyCell } from '../../properties/PropertyCell';
 import { NodeSelector } from '../../NodeSelector';
 import { Button } from '../../core/Button';

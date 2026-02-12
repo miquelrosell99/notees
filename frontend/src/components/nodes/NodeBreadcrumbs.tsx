@@ -15,7 +15,7 @@ import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
-import { ChevronRightIcon } from '../icons';
+import { ChevronRightIcon } from '../core/icons';
 import { NodeInline } from '../blocks/NodeInline';
 import './NodeBreadcrumbs.css';
 

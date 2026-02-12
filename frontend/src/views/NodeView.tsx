@@ -29,9 +29,9 @@ import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
-import { PageHeader } from '../components/PageHeader';
+import { PageHeader } from '../components/nodes/PageHeader';
 import { NodeSelector } from '../components/NodeSelector';
-import { ImageNode } from '../components/ImageNode';
+import { ImageNode } from '../components/nodes/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
