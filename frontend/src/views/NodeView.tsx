@@ -201,7 +201,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const { data: allNodes } = useNodes({ pages_only: true });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
-  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useAppStore();
+  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter, cardLayout } = useAppStore();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
@@ -732,7 +732,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 variant="ghost"
                 size="sm"
                 icon={mdiCardOutline}
-                className={`card-layout-option ${useAppStore.getState().cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
+                className={`card-layout-option ${cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('no-cover')}
                 title="No cover"
               />
@@ -740,7 +740,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 variant="ghost"
                 size="sm"
                 icon={mdiDockLeft}
-                className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
+                className={`card-layout-option ${cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('cover-left')}
                 title="Cover left"
               />
@@ -748,7 +748,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 variant="ghost"
                 size="sm"
                 icon={mdiDockRight}
-                className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
+                className={`card-layout-option ${cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('cover-right')}
                 title="Cover right"
               />
@@ -756,7 +756,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 variant="ghost"
                 size="sm"
                 icon={mdiDockTop}
-                className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
+                className={`card-layout-option ${cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('cover-top')}
                 title="Cover top"
               />
