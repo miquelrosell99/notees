@@ -1,0 +1,114 @@
+/**
+ * TriggerPopup styles — Slash command menu styling.
+ * Uses variables.css design tokens.
+ */
+
+.slash-command-menu {
+  min-width: 220px;
+  max-width: 300px;
+  max-height: 320px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  box-shadow: var(--elevation-3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.slash-command-menu__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.slash-command-menu__icon {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.slash-command-menu__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-1);
+}
+
+.slash-command-menu__empty {
+  padding: var(--spacing-4);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.slash-command-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.slash-command-menu__item:hover,
+.slash-command-menu__item--selected {
+  background: var(--color-surface-variant);
+}
+
+.slash-command-menu__item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-surface-variant);
+}
+
+.slash-command-menu__item-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.slash-command-menu__item-label {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+}
+
+.slash-command-menu__item-description {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-command-menu__footer {
+  display: flex;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.slash-command-menu__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.slash-command-menu__hint kbd {
+  padding: 2px 6px;
+  background: var(--color-surface-variant);
+  border-radius: var(--shape-extra-small);
+  font-family: inherit;
+  font-size: 0.75rem;
+}
