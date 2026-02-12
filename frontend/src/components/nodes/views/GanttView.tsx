@@ -14,7 +14,7 @@
 import { useMemo, useCallback } from 'react';
 import type { Node } from '@/types';
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
-import { NodeIcon } from '../../icons';
+import { NodeIcon } from '../../core/icons';
 import './GanttView.css';
 
 interface TimelineNode {

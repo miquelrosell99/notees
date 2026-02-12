@@ -5,8 +5,8 @@
  */
 import { useCallback } from 'react';
 import { QuerySection } from '../components/nodes/QuerySection';
-import { SearchBox } from '../components/SearchBox';
-import { PageIcon } from '../components/icons';
+import { SearchBox } from '../components/core/SearchBox';
+import { PageIcon } from '../components/core/icons';
 import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import './AllPagesView.css';

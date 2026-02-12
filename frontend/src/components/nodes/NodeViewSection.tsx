@@ -13,7 +13,7 @@
  * - Controlled: Use expanded + onExpandedChange for external control
  */
 import { useState, useCallback, type ReactNode } from 'react';
-import { ChevronRightIcon, ChevronDownIcon } from '../icons';
+import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import './NodeViewSection.css';
 

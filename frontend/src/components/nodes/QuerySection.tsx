@@ -6,7 +6,7 @@
  */
 import { useState, useCallback } from 'react';
 import { QueryNodeCollection } from './QueryNodeCollection';
-import { ChevronRightIcon, ChevronDownIcon } from '../icons';
+import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import type { NodeViewType } from '@/types/nodeView';
 import './NodeViewSection.css';

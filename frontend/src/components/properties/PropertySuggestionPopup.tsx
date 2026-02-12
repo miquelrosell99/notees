@@ -14,7 +14,7 @@ import { useProperties } from '@/hooks';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { AddIcon } from '../icons';
+import { AddIcon } from '../core/icons';
 import { PropertyCreateModal } from './PropertyCreateModal';
 import './PropertySuggestionPopup.css';
 

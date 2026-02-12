@@ -18,7 +18,7 @@ import { useSetNodeProperty, useClasses, useNode, nodeKeys } from '@/hooks';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import * as nodesApi from '@/api/nodes';
 import { NodeInline } from '../blocks/NodeInline';
-import { ImageNode } from '../ImageNode';
+import { ImageNode } from '../nodes/ImageNode';
 import { NodePill } from '../NodePill';
 import { NodeSelector } from '../NodeSelector';
 import { Pill } from '../core/Pill';

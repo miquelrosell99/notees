@@ -34,7 +34,7 @@ import { TextField } from '../core/TextField';
 import { ViewBuilder } from '../queries';
 import { QuerySQLPreview } from '../queries/QuerySQLPreview';
 import { ProseScopeSelector } from '../queries/ProseScopeSelector';
-import { DeleteIcon } from '../icons';
+import { DeleteIcon } from '../core/icons';
 import { validateQueryAST, canSaveQuery } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
