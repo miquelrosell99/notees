@@ -316,11 +316,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
     
-    // ==================== Plateau Color Fill (per-node marching squares) ====================
+    // ==================== Plateau Color Fill with Smooth Splines ====================
     const { accentColor, textColor } = cssVarsRef.current;
     const currentClassColors = classColorsRef.current;
     
-    // Pre-compute node colors
+    // Get muted fill color from CSS variables
+    const style = getComputedStyle(document.documentElement);
+    const plateauFillColor = style.getPropertyValue('--color-surface-container-high').trim() || '#e5e5e5';
+    
+    // Pre-compute node colors for reference (not used for fill anymore)
     const nodeColors: string[] = [];
     for (let ni = 0; ni < visibleNodes.length; ni++) {
       nodeColors.push(getNodeColor(visibleNodes[ni], currentClassColors, accentColor));
@@ -328,14 +332,44 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     const gs = TERRAIN_GRID_RES;
     
+    // Helper: Draw smooth cardinal spline through points
+    const drawCardinalSpline = (path: Path2D, points: Array<{x: number, y: number}>, tension = 0.5, closed = true) => {
+      if (points.length < 2) return;
+      if (points.length === 2) {
+        path.moveTo(points[0].x, points[0].y);
+        path.lineTo(points[1].x, points[1].y);
+        return;
+      }
+      
+      const pts = closed ? [...points, points[0], points[1]] : points;
+      path.moveTo(pts[0].x, pts[0].y);
+      
+      for (let i = 0; i < pts.length - 2; i++) {
+        const p0 = i > 0 ? pts[i - 1] : pts[0];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = i < pts.length - 3 ? pts[i + 2] : pts[pts.length - 1];
+        
+        const cp1x = p1.x + (p2.x - p0.x) / 6 * tension;
+        const cp1y = p1.y + (p2.y - p0.y) / 6 * tension;
+        const cp2x = p2.x - (p3.x - p1.x) / 6 * tension;
+        const cp2y = p2.y - (p3.y - p1.y) / 6 * tension;
+        
+        path.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
+      
+      if (closed) path.closePath();
+    };
+    
     // Build one Path2D per owner for batched fill.
-    // Use 85% of each node's peak height as the plateau threshold—this captures
-    // the flat top after gaussian blur without bleeding into the slopes.
-    // 
-    // IMPROVEMENT: Create "inset" plateaus by only filling cells where the owner
-    // has clear dominance (majority of corners), cutting out overlapping regions.
+    // Use 85% of each node's peak height as the plateau threshold.
+    // Resample contours from marching squares edge points for smooth curves.
     const ownerPaths = new Map<number, Path2D>();
     
+    // First pass: Collect edge points from marching squares for each owner's contour
+    const ownerEdgePoints = new Map<number, Array<{x: number, y: number}>>();
+    
+    // Collect marching squares edge crossings for each owner
     for (let gy = 0; gy < gridH - 1; gy++) {
       const rowOff = gy * gridW;
       const nextRowOff = rowOff + gridW;
@@ -346,7 +380,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const blIdx = nextRowOff + gx;
         const brIdx = blIdx + 1;
         
-        // Determine dominant owner from the corner with highest height
+        // Determine dominant owner
         const v00 = heightMap[tlIdx];
         const v10 = heightMap[trIdx];
         const v01 = heightMap[blIdx];
@@ -358,16 +392,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         if (v11 > maxH) { maxH = v11; owner = ownerMap[brIdx]; }
         if (owner < 0 || !(nodePeakH[owner] > 0)) continue;
         
-        // Per-node threshold: 85% of that node's peak height
+        // Per-node threshold: 85% of peak height
         const level = nodePeakH[owner] * 0.85;
         
         const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
                      (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
         
-        if (code === 0) continue;
+        if (code === 0 || code === 15) continue;
         
-        // INSET FILTER: Only fill if this owner has clear dominance
-        // Count how many corners belong to the dominant owner
+        // Check ownership dominance (inset filter)
         const o00 = ownerMap[tlIdx];
         const o10 = ownerMap[trIdx];
         const o01 = ownerMap[blIdx];
@@ -379,84 +412,90 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         if (o01 === owner) ownerCornerCount++;
         if (o11 === owner) ownerCornerCount++;
         
-        // Require at least 3 out of 4 corners to belong to this owner
-        // This creates an "inset" effect, cutting out contested boundaries
         if (ownerCornerCount < 3) continue;
-        
-        let path = ownerPaths.get(owner);
-        if (!path) { path = new Path2D(); ownerPaths.set(owner, path); }
         
         const px = gx * gs;
         
-        if (code === 15) {
-          path.rect(px, py, gs, gs);
-          continue;
-        }
-        
-        // Edge interpolation
+        // Edge interpolation for smooth contours
         const topD = v10 - v00;
-        const topT = topD === 0 ? 0.5 : (level - v00) / topD;
+        const topT = topD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v00) / topD));
         const rightD = v11 - v10;
-        const rightT = rightD === 0 ? 0.5 : (level - v10) / rightD;
+        const rightT = rightD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v10) / rightD));
         const bottomD = v11 - v01;
-        const bottomT = bottomD === 0 ? 0.5 : (level - v01) / bottomD;
+        const bottomT = bottomD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v01) / bottomD));
         const leftD = v01 - v00;
-        const leftT = leftD === 0 ? 0.5 : (level - v00) / leftD;
+        const leftT = leftD === 0 ? 0.5 : Math.max(0, Math.min(1, (level - v00) / leftD));
         
-        const eT_X = px + topT * gs, eT_Y = py;
-        const eR_X = px + gs, eR_Y = py + rightT * gs;
-        const eB_X = px + bottomT * gs, eB_Y = py + gs;
-        const eL_X = px, eL_Y = py + leftT * gs;
+        // Collect edge crossing points based on marching squares code
+        if (!ownerEdgePoints.has(owner)) ownerEdgePoints.set(owner, []);
+        const points = ownerEdgePoints.get(owner)!;
         
-        // Corner coords
-        const TL_X = px, TL_Y = py;
-        const TR_X = px + gs, TR_Y = py;
-        const BR_X = px + gs, BR_Y = py + gs;
-        const BL_X = px, BL_Y = py + gs;
-        
-        // Fill polygon for the above-threshold region of each marching squares case
+        // Add edge midpoints based on which edges are crossed
         switch (code) {
-          case 1: // BL
-            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(eB_X, eB_Y); path.closePath(); break;
-          case 2: // BR
-            path.moveTo(eB_X, eB_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 3: // BL+BR
-            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 4: // TR
-            path.moveTo(eT_X, eT_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 5: // BL+TR (ambiguous, two triangles)
-            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(eB_X, eB_Y); path.closePath();
-            path.moveTo(eT_X, eT_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 6: // TR+BR
-            path.moveTo(eT_X, eT_Y); path.lineTo(TR_X, TR_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eB_X, eB_Y); path.closePath(); break;
-          case 7: // BL+TR+BR
-            path.moveTo(eL_X, eL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(BR_X, BR_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eT_X, eT_Y); path.closePath(); break;
-          case 8: // TL
-            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(eL_X, eL_Y); path.closePath(); break;
-          case 9: // TL+BL
-            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(eB_X, eB_Y); path.closePath(); break;
-          case 10: // TL+BR (ambiguous, two triangles)
-            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(eL_X, eL_Y); path.closePath();
-            path.moveTo(eB_X, eB_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 11: // TL+BL+BR
-            path.moveTo(eT_X, eT_Y); path.lineTo(TL_X, TL_Y); path.lineTo(BL_X, BL_Y); path.lineTo(BR_X, BR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 12: // TL+TR
-            path.moveTo(eL_X, eL_Y); path.lineTo(TL_X, TL_Y); path.lineTo(TR_X, TR_Y); path.lineTo(eR_X, eR_Y); path.closePath(); break;
-          case 13: // TL+TR+BL (all except BR)
-            path.moveTo(eR_X, eR_Y); path.lineTo(eB_X, eB_Y); path.lineTo(BL_X, BL_Y); path.lineTo(TL_X, TL_Y); path.lineTo(TR_X, TR_Y); path.closePath(); break;
-          case 14: // TL+TR+BR (all except BL)
-            path.moveTo(eL_X, eL_Y); path.lineTo(eB_X, eB_Y); path.lineTo(BR_X, BR_Y); path.lineTo(TR_X, TR_Y); path.lineTo(TL_X, TL_Y); path.closePath(); break;
+          case 1: case 14:
+            points.push({x: px, y: py + leftT * gs}, {x: px + bottomT * gs, y: py + gs});
+            break;
+          case 2: case 13:
+            points.push({x: px + bottomT * gs, y: py + gs}, {x: px + gs, y: py + rightT * gs});
+            break;
+          case 3: case 12:
+            points.push({x: px, y: py + leftT * gs}, {x: px + gs, y: py + rightT * gs});
+            break;
+          case 4: case 11:
+            points.push({x: px + topT * gs, y: py}, {x: px + gs, y: py + rightT * gs});
+            break;
+          case 5: case 10:
+            points.push({x: px, y: py + leftT * gs}, {x: px + topT * gs, y: py});
+            points.push({x: px + bottomT * gs, y: py + gs}, {x: px + gs, y: py + rightT * gs});
+            break;
+          case 6: case 9:
+            points.push({x: px + topT * gs, y: py}, {x: px + bottomT * gs, y: py + gs});
+            break;
+          case 7: case 8:
+            points.push({x: px, y: py + leftT * gs}, {x: px + topT * gs, y: py});
+            break;
         }
       }
     }
     
-    // Fill each owner's plateau path
-    ctx.globalAlpha = 0.55;
-    for (const [ownerIdx, path] of ownerPaths) {
-      if (ownerIdx >= 0 && ownerIdx < nodeColors.length) {
-        ctx.fillStyle = nodeColors[ownerIdx];
-        ctx.fill(path);
+    // Second pass: Build smooth spline paths from collected edge points
+    for (const [owner, edgePoints] of ownerEdgePoints) {
+      if (edgePoints.length < 6) continue;
+      
+      // Calculate centroid
+      let cx = 0, cy = 0;
+      for (const p of edgePoints) {
+        cx += p.x;
+        cy += p.y;
       }
+      cx /= edgePoints.length;
+      cy /= edgePoints.length;
+      
+      // Sort by angle from centroid to form closed contour
+      edgePoints.sort((a, b) => {
+        const angleA = Math.atan2(a.y - cy, a.x - cx);
+        const angleB = Math.atan2(b.y - cy, b.x - cx);
+        return angleA - angleB;
+      });
+      
+      // Apply geometric inset (scale toward centroid)
+      const insetFactor = 0.88;
+      const insetPoints = edgePoints.map(p => ({
+        x: cx + (p.x - cx) * insetFactor,
+        y: cy + (p.y - cy) * insetFactor
+      }));
+      
+      // Create smooth spline path
+      const path = new Path2D();
+      drawCardinalSpline(path, insetPoints, 0.4, true);
+      ownerPaths.set(owner, path);
+    }
+    
+    // Fill each owner's plateau path with muted color
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = plateauFillColor;
+    for (const [, path] of ownerPaths) {
+      ctx.fill(path);
     }
     ctx.globalAlpha = 1;
     
