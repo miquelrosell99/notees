@@ -117,6 +117,13 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
           onPersisted?.(blockId, createdNode.id);
 
+          // Invalidate parent node's cache to show the new child
+          if (parentServerId != null) {
+            queryClient.invalidateQueries({
+              queryKey: nodeKeys.detailBase(parentServerId),
+            });
+          }
+
           // Flush any queued content save for this block
           const queuedContent = pendingContentSaves.get(blockId);
           if (queuedContent != null) {
