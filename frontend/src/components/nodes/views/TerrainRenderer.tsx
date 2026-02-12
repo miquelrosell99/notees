@@ -369,9 +369,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         if (second > 0 && best > 0) {
           // Competition ratio: 0 when second is tiny, 1 when second equals best
           const ratio = second / best;
-          // Smooth ramp: only dip when ratio > 0.3 (peaks are close in height)
-          if (ratio > 0.3) {
-            const ramp = (ratio - 0.3) / 0.7; // 0 at ratio=0.3, 1 at ratio=1.0
+          // Smooth ramp: dip when ratio > 0.15 (even modest overlap creates valleys)
+          if (ratio > 0.15) {
+            const ramp = (ratio - 0.15) / 0.85; // 0 at ratio=0.15, 1 at ratio=1.0
             const dip = TERRAIN_SADDLE_STRENGTH * ramp * ramp;
             heightMap[i] = best * (1 - dip);
           }
