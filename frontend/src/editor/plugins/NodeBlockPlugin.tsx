@@ -108,6 +108,24 @@ export function NodeBlockPlugin({
     const runtime = getNodeGraphRuntime();
     const pendingFocusBlockId = runtime.getPendingFocus();
     
+    // Preserve current selection to restore after sync if no focus request pending
+    let savedSelection: { blockId: string; offset: number } | null = null;
+    if (!pendingFocusBlockId) {
+      editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        if ($isRangeSelection(selection) && selection.isCollapsed()) {
+          const anchorNode = selection.anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (blockNode) {
+            savedSelection = {
+              blockId: blockNode.getBlockId(),
+              offset: selection.anchor.offset,
+            };
+          }
+        }
+      });
+    }
+    
     editor.update(() => {
       const root = $getRoot();
       const existingNodes = root.getChildren();
@@ -183,6 +201,26 @@ export function NodeBlockPlugin({
                 }
               });
             });
+          }
+        }
+      }
+      
+      // Restore saved selection if no focus request was pending
+      if (savedSelection && !pendingFocusBlockId) {
+        const blockKey = blockIdToKeyMap.current.get(savedSelection.blockId);
+        if (blockKey) {
+          const blockNode = $getRoot().getChildren().find(
+            (child) => $isNodeBlockNode(child) && child.getKey() === blockKey
+          );
+          if (blockNode && $isNodeBlockNode(blockNode)) {
+            const firstChild = blockNode.getFirstChild();
+            if (firstChild) {
+              try {
+                firstChild.select(savedSelection.offset, savedSelection.offset);
+              } catch (e) {
+                // Selection restoration failed, ignore
+              }
+            }
           }
         }
       }
