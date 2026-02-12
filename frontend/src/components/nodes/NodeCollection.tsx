@@ -7,17 +7,17 @@
  * Features:
  * - Multiple view modes: list, document, card, table, gantt, graph
  * - Built-in view mode switcher (hidden when only one mode available)
- * - All views use NoteesEditor internally (Lexical-based)
+ * - All views use BlockEditor internally (Lexical-based)
  * - Recursive children handling
  * - Consistent prop propagation to all view modes
  * 
  * Component Hierarchy:
  * NodeCollection
  * ├─ NodeCollectionToolbar
- * ├─ ListView (list) → NoteesEditor
- * ├─ DocumentView (document) → NoteesEditor
- * ├─ CardView (card) → NoteesEditor per card
- * ├─ TableView (table) → NoteesEditor per cell
+ * ├─ ListView (list) → BlockEditor
+ * ├─ DocumentView (document) → BlockEditor
+ * ├─ CardView (card) → BlockEditor per card
+ * ├─ TableView (table) → BlockEditor per cell
  * ├─ GanttView (gantt)
  * ├─ NodeTimelineRenderer (timeline)
  * └─ NodeGraphView (graph)

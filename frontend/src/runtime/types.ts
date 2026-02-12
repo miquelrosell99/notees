@@ -198,7 +198,7 @@ export interface SliceProjectionQuery {
 
 // ─── View modes ───────────────────────────────────────────────────
 
-/** Editor modes for NoteesEditor (single-editor projections) */
+/** Editor modes for BlockEditor (single-editor projections) */
 export type EditorMode = 'list' | 'document';
 
 /** Display modes including card (which uses separate CardModeView) */

@@ -1,7 +1,7 @@
 /**
  * TextPropertyBlock - Component for text-type properties that behave as block nodes
  * 
- * Text properties are stored as node references (blocks), displayed using the NoteesEditor.
+ * Text properties are stored as node references (blocks), displayed using the BlockEditor.
  * - Single block with child block support (via Lexical)
  * - Draggable to other locations (clears property on drag)
  * - Shift-click opens in sidebar
@@ -18,7 +18,7 @@ import {
 } from '@/hooks';
 import { mdiPlus } from '@mdi/js';
 import type { Property } from '@/types/api';
-import { NoteesEditor } from '@/editor/NoteesEditor';
+import { BlockEditor } from '@/editor/BlockEditor';
 import { Button } from '../core/Button';
 
 interface TextPropertyBlockProps {
@@ -90,12 +90,12 @@ export function TextPropertyBlock({
   
   // Handle content change
   const handleContentChange = useCallback((_content: string) => {
-    // Content changes are handled by NoteesEditor → NodeGraphRuntime
+    // Content changes are handled by BlockEditor → NodeGraphRuntime
   }, []);
   
   // Handle shift-click to open in sidebar
   const handleShiftClick = useCallback((_blockId: number) => {
-    // Will be wired through NoteesEditor navigation
+    // Will be wired through BlockEditor navigation
   }, []);
   
   // Handle drop on this property (to receive a block)
@@ -167,7 +167,7 @@ export function TextPropertyBlock({
     );
   }
   
-  // Show the block with Lexical-based NoteesEditor
+  // Show the block with Lexical-based BlockEditor
   return (
     <div 
       ref={containerRef}
@@ -177,7 +177,7 @@ export function TextPropertyBlock({
     >
       <div className="text-property-block__row">
         <div className="text-property-block__content">
-          <NoteesEditor
+          <BlockEditor
             editorId={`text-prop-${blockNode.id}`}
             rootBlockId={String(blockNode.uuid || blockNode.id)}
             mode="list"

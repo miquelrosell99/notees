@@ -10,7 +10,7 @@
  *   Row 2: Header (title + sidebar/open buttons)
  *   Row 3: Classes row (NodePill chips)
  *   Row 4: Tags row (NodePill chips)
- *   Row 5: Body — hover-reveal children (NoteesEditor instances)
+ *   Row 5: Body — hover-reveal children (BlockEditor instances)
  */
 
 import { useCallback, useState, useMemo, memo, type JSX } from 'react';
@@ -21,7 +21,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import { notesEditorTheme } from './theme';
-import { EDITOR_NODES, serializeContentAST } from './NoteesEditor';
+import { EDITOR_NODES, serializeContentAST } from './BlockEditor';
 import { NodeBlockPlugin } from './plugins/NodeBlockPlugin';
 import { NodePillPlugin } from './plugins/NodePillPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
@@ -70,9 +70,9 @@ import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/
 
 import './CardItem.css';
 
-// ─── Card Title Editor (NoteesEditor wrapper) ────────────────────
+// ─── Card Title Editor (BlockEditor wrapper) ────────────────────
 
-import { NoteesEditor } from './NoteesEditor';
+import { BlockEditor } from './BlockEditor';
 
 interface CardTitleEditorProps {
   blockId: string;
@@ -82,7 +82,7 @@ interface CardTitleEditorProps {
 }
 
 /**
- * Full NoteesEditor for the card title.
+ * Full BlockEditor for the card title.
  * Projects only the root block (includeRoot=true, maxDepth=0).
  */
 const CardTitleEditor = memo(function CardTitleEditor({
@@ -93,7 +93,7 @@ const CardTitleEditor = memo(function CardTitleEditor({
 }: CardTitleEditorProps): JSX.Element {
   return (
     <div className="node-card__title-block">
-      <NoteesEditor
+      <BlockEditor
         editorId={`card-title-${blockId}`}
         rootBlockId={blockId}
         mode="document"

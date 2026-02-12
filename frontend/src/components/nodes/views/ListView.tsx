@@ -1,8 +1,8 @@
 /**
- * ListView — List/outline view using Lexical NoteesEditor.
+ * ListView — List/outline view using Lexical BlockEditor.
  *
- * Uses a SINGLE NoteesEditor instance for performance.
- * Passes nodes directly - NoteesEditor handles runtime sync internally.
+ * Uses a SINGLE BlockEditor instance for performance.
+ * Passes nodes directly - BlockEditor handles runtime sync internally.
  * 
  * Supports groupBy='page' to organize nodes under page headers.
  */
@@ -11,7 +11,7 @@ import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
 import { NodeInline } from '../../blocks/NodeInline';
-import { NoteesEditor } from '@/editor/NoteesEditor';
+import { BlockEditor } from '@/editor/BlockEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
@@ -21,8 +21,8 @@ import './ListView.css';
 /**
  * ListView - List/outline view using Lexical editor
  *
- * Simply passes nodes to NoteesEditor - no manual runtime sync needed.
- * The readOnly prop on NoteesEditor controls edit vs preview mode.
+ * Simply passes nodes to BlockEditor - no manual runtime sync needed.
+ * The readOnly prop on BlockEditor controls edit vs preview mode.
  */
 export function ListView({
   nodes,
@@ -179,7 +179,7 @@ export function ListView({
                 </div>
               )}
               <div className="node-list-view__group-content">
-                <NoteesEditor
+                <BlockEditor
                   editorId={`list-view-${viewId}-${groupKey}`}
                   nodes={sortedGroupNodes}
                   mode="list"
@@ -239,10 +239,10 @@ export function ListView({
     );
   }
 
-  // NoteesEditor handles runtime sync internally
+  // BlockEditor handles runtime sync internally
   return (
     <div className={`node-list-view ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
-      <NoteesEditor
+      <BlockEditor
         editorId={`list-view-${viewId}`}
         nodes={allNodes}
         mode="list"

@@ -2,7 +2,7 @@
  * NodeCollection Views Index
  *
  * Exports all view mode components for NodeCollection.
- * All views now use Lexical NoteesEditor internally.
+ * All views now use Lexical BlockEditor internally.
  */
 
 // Lexical-based views (primary)
