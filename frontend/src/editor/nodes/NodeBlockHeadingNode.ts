@@ -13,6 +13,7 @@ import {
 } from 'lexical';
 import { NodeBlockNode, type SerializedNodeBlockNode } from './NodeBlockNode';
 import type { GraphNodeType } from '../../runtime/types';
+import { parseColorToRgb } from '@/utils/color';
 
 export interface SerializedNodeBlockHeadingNode extends Omit<SerializedNodeBlockNode, 'type'> {
   type: 'node-block-heading';
@@ -65,6 +66,10 @@ export class NodeBlockHeadingNode extends NodeBlockNode {
     dom.dataset.blockId = this.__blockId;
     if (this.__color) {
       dom.style.setProperty('--node-block-color', this.__color);
+      const rgb = parseColorToRgb(this.__color);
+      if (rgb) {
+        dom.style.setProperty('--node-color-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+      }
     }
     return dom;
   }
@@ -75,8 +80,13 @@ export class NodeBlockHeadingNode extends NodeBlockNode {
     if ((prevNode as NodeBlockHeadingNode).__color !== this.__color) {
       if (this.__color) {
         dom.style.setProperty('--node-block-color', this.__color);
+        const rgb = parseColorToRgb(this.__color);
+        if (rgb) {
+          dom.style.setProperty('--node-color-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+        }
       } else {
         dom.style.removeProperty('--node-block-color');
+        dom.style.removeProperty('--node-color-rgb');
       }
     }
     return false;

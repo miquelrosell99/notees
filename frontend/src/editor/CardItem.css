@@ -468,10 +468,15 @@
 }
 
 /* Remove per-block color accents inside cards — the card itself is already colored */
-.node-card .node-block[style*="--node-block-color"] {
-  border-left: none;
-  padding-left: calc(var(--node-block-depth, 0) * var(--indent-width));
+.node-card .node-block[style*="--node-block-color"]::before {
+  display: none;
+}
+
+.node-card .node-block[style*="--node-block-color"] > p,
+.node-card .node-block[style*="--node-block-color"] > span,
+.node-card .node-block[style*="--node-block-color"] > .notees-editor-paragraph {
   background: transparent;
+  padding: 0;
 }
 
 /* ─── Card states ──────────────────────────────────────────────── */
