@@ -263,6 +263,7 @@ export function NodeBlockPlugin({
       KEY_ENTER_COMMAND,
       (event) => {
         let blockId: string | null = null;
+        let cursorOffset = 0;
 
         editor.read(() => {
           const selection = $getSelection();
@@ -273,6 +274,26 @@ export function NodeBlockPlugin({
           if (!blockNode) return;
 
           blockId = blockNode.getBlockId();
+
+          // Calculate cursor offset by walking through block children
+          let offset = 0;
+          const children = blockNode.getChildren();
+          for (const child of children) {
+            if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
+              // Found the node with the cursor
+              offset += selection.anchor.offset;
+              break;
+            }
+            // Add this child's text length
+            if ($isTextNode(child)) {
+              offset += child.getTextContent().length;
+            } else if ($isNodePillNode(child)) {
+              offset += 1; // Pills count as 1 character
+            } else {
+              offset += child.getTextContent().length;
+            }
+          }
+          cursorOffset = offset;
         });
 
         if (!blockId) return false;
@@ -282,7 +303,13 @@ export function NodeBlockPlugin({
         const runtime = getNodeGraphRuntime();
         const newBlockId = crypto.randomUUID();
         runtime.requestFocus(newBlockId);
-        onBlockCreate?.(blockId, blockId, newBlockId);
+        // Use split_block intent to split content at cursor position
+        runtime.applyIntent({
+          type: 'split_block',
+          blockId,
+          atOffset: cursorOffset,
+          newBlockId,
+        });
         // Flush runtime events immediately so the new block is synced
         // and focused in the same frame as the Enter keypress
         runtime.flushEvents();

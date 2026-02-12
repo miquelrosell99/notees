@@ -142,6 +142,8 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     // Request focus on the newly created block so the editor focuses it after sync
     const runtime = getNodeGraphRuntime();
     runtime.requestFocus(newNode.uuid);
+    // Flush immediately so focus happens in this frame
+    runtime.flushEvents();
   }, [createNode, node.id, node.children]);
 
   return (
