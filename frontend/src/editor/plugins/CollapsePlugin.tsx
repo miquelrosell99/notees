@@ -14,7 +14,7 @@ import {
   $getSelection,
   $isRangeSelection,
 } from 'lexical';
-import { $isNodeBlockNode } from '../nodes/NodeBlockNode';
+import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 
 export function CollapsePlugin(): null {
@@ -40,11 +40,11 @@ export function CollapsePlugin(): null {
 
           const anchorNode = selection.anchor.getNode();
           let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
-          while (blockNode && !$isNodeBlockNode(blockNode)) {
+          while (blockNode && !$isBlockNode(blockNode)) {
             blockNode = blockNode.getParent();
           }
 
-          if (!blockNode || !$isNodeBlockNode(blockNode)) return;
+          if (!blockNode || !$isBlockNode(blockNode)) return;
           if (!blockNode.getHasChildren()) return;
 
           if (key === 'ArrowLeft' && !blockNode.getCollapsed()) {

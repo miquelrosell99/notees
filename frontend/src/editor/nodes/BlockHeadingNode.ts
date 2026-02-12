@@ -1,5 +1,5 @@
 /**
- * NodeBlockHeadingNode — Variant of NodeBlockNode for page/card headers.
+ * BlockHeadingNode — Variant of BlockNode for page/card headers.
  *
  * Renders as an h1/h2 element depending on context.
  * Used at the top of page views and card views.
@@ -11,24 +11,24 @@ import {
   type EditorConfig,
   $applyNodeReplacement,
 } from 'lexical';
-import { NodeBlockNode, type SerializedNodeBlockNode } from './NodeBlockNode';
+import { BlockNode, type SerializedBlockNode } from './BlockNode';
 import type { GraphNodeType } from '../../runtime/types';
 import { parseColorToRgb } from '@/utils/color';
 
-export interface SerializedNodeBlockHeadingNode extends Omit<SerializedNodeBlockNode, 'type'> {
+export interface SerializedBlockHeadingNode extends Omit<SerializedBlockNode, 'type'> {
   type: 'node-block-heading';
   level: 1 | 2 | 3;
 }
 
-export class NodeBlockHeadingNode extends NodeBlockNode {
+export class BlockHeadingNode extends BlockNode {
   __level: 1 | 2 | 3;
 
   static getType(): string {
     return 'node-block-heading';
   }
 
-  static clone(node: NodeBlockHeadingNode): NodeBlockHeadingNode {
-    return new NodeBlockHeadingNode(
+  static clone(node: BlockHeadingNode): BlockHeadingNode {
+    return new BlockHeadingNode(
       node.__blockId,
       node.__level,
       node.__depth,
@@ -74,10 +74,10 @@ export class NodeBlockHeadingNode extends NodeBlockNode {
     return dom;
   }
 
-  updateDOM(prevNode: NodeBlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
-    if (!(prevNode instanceof NodeBlockHeadingNode)) return true;
-    if ((prevNode as NodeBlockHeadingNode).__level !== this.__level) return true; // Recreate DOM for tag change
-    if ((prevNode as NodeBlockHeadingNode).__color !== this.__color) {
+  updateDOM(prevNode: BlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
+    if (!(prevNode instanceof BlockHeadingNode)) return true;
+    if ((prevNode as BlockHeadingNode).__level !== this.__level) return true; // Recreate DOM for tag change
+    if ((prevNode as BlockHeadingNode).__color !== this.__color) {
       if (this.__color) {
         dom.style.setProperty('--node-block-color', this.__color);
         const rgb = parseColorToRgb(this.__color);
@@ -93,7 +93,7 @@ export class NodeBlockHeadingNode extends NodeBlockNode {
   }
 
   // @ts-expect-error - subclass uses different 'type' discriminant
-  exportJSON(): SerializedNodeBlockHeadingNode {
+  exportJSON(): SerializedBlockHeadingNode {
     return {
       ...super.exportJSON(),
       type: 'node-block-heading',
@@ -101,26 +101,26 @@ export class NodeBlockHeadingNode extends NodeBlockNode {
     };
   }
 
-  static importJSON(json: SerializedNodeBlockHeadingNode): NodeBlockHeadingNode {
-    return new NodeBlockHeadingNode(json.blockId, json.level);
+  static importJSON(json: SerializedBlockHeadingNode): BlockHeadingNode {
+    return new BlockHeadingNode(json.blockId, json.level);
   }
 }
 
-export function $createNodeBlockHeadingNode(
+export function $createBlockHeadingNode(
   blockId: string,
   level: 1 | 2 | 3 = 1,
   nodeType: GraphNodeType = 'page',
   icon: string | null = null,
   color: string | null = null,
   blockName: string = '',
-): NodeBlockHeadingNode {
+): BlockHeadingNode {
   return $applyNodeReplacement(
-    new NodeBlockHeadingNode(blockId, level, 0, nodeType, icon, color, blockName),
+    new BlockHeadingNode(blockId, level, 0, nodeType, icon, color, blockName),
   );
 }
 
-export function $isNodeBlockHeadingNode(
+export function $isBlockHeadingNode(
   node: LexicalNode | null | undefined,
-): node is NodeBlockHeadingNode {
-  return node instanceof NodeBlockHeadingNode;
+): node is BlockHeadingNode {
+  return node instanceof BlockHeadingNode;
 }

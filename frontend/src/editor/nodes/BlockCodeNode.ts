@@ -1,5 +1,5 @@
 /**
- * NodeBlockCodeNode — Variant for code blocks.
+ * BlockCodeNode — Variant for code blocks.
  *
  * Renders as a <pre><code> element with optional language.
  */
@@ -10,18 +10,18 @@ import {
   type EditorConfig,
   $applyNodeReplacement,
 } from 'lexical';
-import { NodeBlockNode, type SerializedNodeBlockNode } from './NodeBlockNode';
+import { BlockNode, type SerializedBlockNode } from './BlockNode';
 import type { GraphNodeType } from '../../runtime/types';
 
-export class NodeBlockCodeNode extends NodeBlockNode {
+export class BlockCodeNode extends BlockNode {
   __language: string;
 
   static getType(): string {
     return 'node-block-code';
   }
 
-  static clone(node: NodeBlockCodeNode): NodeBlockCodeNode {
-    return new NodeBlockCodeNode(
+  static clone(node: BlockCodeNode): BlockCodeNode {
+    return new BlockCodeNode(
       node.__blockId,
       node.__language,
       node.__depth,
@@ -60,10 +60,10 @@ export class NodeBlockCodeNode extends NodeBlockNode {
     return pre;
   }
 
-  updateDOM(prevNode: NodeBlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
-    if (!(prevNode instanceof NodeBlockCodeNode)) return true;
-    if ((prevNode as NodeBlockCodeNode).__language !== this.__language) {
-      if ((prevNode as NodeBlockCodeNode).__language) dom.classList.remove(`language-${(prevNode as NodeBlockCodeNode).__language}`);
+  updateDOM(prevNode: BlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
+    if (!(prevNode instanceof BlockCodeNode)) return true;
+    if ((prevNode as BlockCodeNode).__language !== this.__language) {
+      if ((prevNode as BlockCodeNode).__language) dom.classList.remove(`language-${(prevNode as BlockCodeNode).__language}`);
       if (this.__language) {
         dom.dataset.language = this.__language;
         dom.classList.add(`language-${this.__language}`);
@@ -72,16 +72,16 @@ export class NodeBlockCodeNode extends NodeBlockNode {
     return false;
   }
 
-  exportJSON(): SerializedNodeBlockNode & { type: 'node-block-code'; language: string } {
+  exportJSON(): SerializedBlockNode & { type: 'node-block-code'; language: string } {
     return {
       ...super.exportJSON(),
       type: 'node-block-code' as unknown as 'node-block',
       language: this.__language,
-    } as SerializedNodeBlockNode & { type: 'node-block-code'; language: string };
+    } as SerializedBlockNode & { type: 'node-block-code'; language: string };
   }
 
-  static importJSON(json: SerializedNodeBlockNode & { language?: string }): NodeBlockCodeNode {
-    return $createNodeBlockCodeNode(
+  static importJSON(json: SerializedBlockNode & { language?: string }): BlockCodeNode {
+    return $createBlockCodeNode(
       json.blockId,
       json.language ?? '',
       json.depth,
@@ -89,16 +89,16 @@ export class NodeBlockCodeNode extends NodeBlockNode {
   }
 }
 
-export function $createNodeBlockCodeNode(
+export function $createBlockCodeNode(
   blockId: string,
   language: string = '',
   depth: number = 0,
-): NodeBlockCodeNode {
-  return $applyNodeReplacement(new NodeBlockCodeNode(blockId, language, depth));
+): BlockCodeNode {
+  return $applyNodeReplacement(new BlockCodeNode(blockId, language, depth));
 }
 
-export function $isNodeBlockCodeNode(
+export function $isBlockCodeNode(
   node: LexicalNode | null | undefined,
-): node is NodeBlockCodeNode {
-  return node instanceof NodeBlockCodeNode;
+): node is BlockCodeNode {
+  return node instanceof BlockCodeNode;
 }

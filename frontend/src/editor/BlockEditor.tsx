@@ -3,7 +3,7 @@
  *
  * This component renders ONE Lexical editor instance that projects
  * the entire block hierarchy from NodeGraphRuntime as a flat list
- * of NodeBlockNodes with depth metadata for indentation.
+ * of BlockNodes with depth metadata for indentation.
  *
  * Used by:
  * - List Mode: full hierarchy with bullets, indent, collapse
@@ -20,14 +20,14 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import { notesEditorTheme } from './theme';
-import { NodeBlockNode } from './nodes/NodeBlockNode';
-import { NodePillNode } from './nodes/NodePillNode';
-import { NodeBlockHeadingNode } from './nodes/NodeBlockHeadingNode';
-import { NodeBlockCodeNode } from './nodes/NodeBlockCodeNode';
-import { NodeBlockTableCellNode } from './nodes/NodeBlockTableCellNode';
+import { BlockNode } from './nodes/BlockNode';
+import { PillNode } from './nodes/PillNode';
+import { BlockHeadingNode } from './nodes/BlockHeadingNode';
+import { BlockCodeNode } from './nodes/BlockCodeNode';
+import { BlockTableCellNode } from './nodes/BlockTableCellNode';
 
-import { NodeBlockPlugin } from './plugins/NodeBlockPlugin';
-import { NodePillPlugin } from './plugins/NodePillPlugin';
+import { BlockPlugin } from './plugins/BlockPlugin';
+import { PillPlugin } from './plugins/PillPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
 import { BlockDragSelectionPlugin } from './plugins/BlockDragSelectionPlugin';
 import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
@@ -51,11 +51,11 @@ import './BlockEditor.css';
 // ─── Lexical node registry (shared between List and Card editors) ─
 
 export const EDITOR_NODES = [
-  NodeBlockNode,
-  NodePillNode,
-  NodeBlockHeadingNode,
-  NodeBlockCodeNode,
-  NodeBlockTableCellNode,
+  BlockNode,
+  PillNode,
+  BlockHeadingNode,
+  BlockCodeNode,
+  BlockTableCellNode,
 ];
 
 // ─── Props ────────────────────────────────────────────────────────
@@ -307,8 +307,8 @@ export function BlockEditor({
         <FormattingPlugin />
         <CollapsePlugin />
 
-        {/* NodeBlock projection plugin */}
-        <NodeBlockPlugin
+        {/* Block projection plugin */}
+        <BlockPlugin
           editorId={editorId}
           rootBlockId={resolvedRootBlockId}
           onContentChange={handleContentChange}
@@ -325,8 +325,8 @@ export function BlockEditor({
           sliceShowParent={sliceShowParent}
         />
 
-        {/* NodePill plugin */}
-        <NodePillPlugin
+        {/* Pill plugin */}
+        <PillPlugin
           onPillClick={handlePillClick}
           onPillRemove={handlePillRemove}
         />

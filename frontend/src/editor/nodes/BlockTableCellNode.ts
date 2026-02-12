@@ -1,5 +1,5 @@
 /**
- * NodeBlockTableCellNode — Lexical node for individual table cells.
+ * BlockTableCellNode — Lexical node for individual table cells.
  *
  * Each cell is a mini-editor that can contain inline content.
  * The table view uses one Lexical instance per editable cell.
@@ -11,9 +11,9 @@ import {
   type EditorConfig,
   $applyNodeReplacement,
 } from 'lexical';
-import { NodeBlockNode, type SerializedNodeBlockNode } from './NodeBlockNode';
+import { BlockNode, type SerializedBlockNode } from './BlockNode';
 
-export class NodeBlockTableCellNode extends NodeBlockNode {
+export class BlockTableCellNode extends BlockNode {
   __rowIndex: number;
   __colIndex: number;
   __isHeader: boolean;
@@ -22,8 +22,8 @@ export class NodeBlockTableCellNode extends NodeBlockNode {
     return 'node-block-table-cell';
   }
 
-  static clone(node: NodeBlockTableCellNode): NodeBlockTableCellNode {
-    return new NodeBlockTableCellNode(
+  static clone(node: BlockTableCellNode): BlockTableCellNode {
+    return new BlockTableCellNode(
       node.__blockId,
       node.__rowIndex,
       node.__colIndex,
@@ -67,23 +67,23 @@ export class NodeBlockTableCellNode extends NodeBlockNode {
     return dom;
   }
 
-  updateDOM(prevNode: NodeBlockNode, _dom: HTMLElement, _config: EditorConfig): boolean {
-    if (!(prevNode instanceof NodeBlockTableCellNode)) return true;
-    return (prevNode as NodeBlockTableCellNode).__isHeader !== this.__isHeader; // Recreate on th↔td change
+  updateDOM(prevNode: BlockNode, _dom: HTMLElement, _config: EditorConfig): boolean {
+    if (!(prevNode instanceof BlockTableCellNode)) return true;
+    return (prevNode as BlockTableCellNode).__isHeader !== this.__isHeader; // Recreate on th↔td change
   }
 
-  exportJSON(): SerializedNodeBlockNode & { type: 'node-block-table-cell'; rowIndex: number; colIndex: number; isHeader: boolean } {
+  exportJSON(): SerializedBlockNode & { type: 'node-block-table-cell'; rowIndex: number; colIndex: number; isHeader: boolean } {
     return {
       ...super.exportJSON(),
       type: 'node-block-table-cell' as unknown as 'node-block',
       rowIndex: this.__rowIndex,
       colIndex: this.__colIndex,
       isHeader: this.__isHeader,
-    } as SerializedNodeBlockNode & { type: 'node-block-table-cell'; rowIndex: number; colIndex: number; isHeader: boolean };
+    } as SerializedBlockNode & { type: 'node-block-table-cell'; rowIndex: number; colIndex: number; isHeader: boolean };
   }
 
-  static importJSON(json: SerializedNodeBlockNode & { rowIndex?: number; colIndex?: number; isHeader?: boolean }): NodeBlockTableCellNode {
-    return $createNodeBlockTableCellNode(
+  static importJSON(json: SerializedBlockNode & { rowIndex?: number; colIndex?: number; isHeader?: boolean }): BlockTableCellNode {
+    return $createBlockTableCellNode(
       json.blockId,
       json.rowIndex ?? 0,
       json.colIndex ?? 0,
@@ -92,19 +92,19 @@ export class NodeBlockTableCellNode extends NodeBlockNode {
   }
 }
 
-export function $createNodeBlockTableCellNode(
+export function $createBlockTableCellNode(
   blockId: string,
   rowIndex: number,
   colIndex: number,
   isHeader: boolean = false,
-): NodeBlockTableCellNode {
+): BlockTableCellNode {
   return $applyNodeReplacement(
-    new NodeBlockTableCellNode(blockId, rowIndex, colIndex, isHeader),
+    new BlockTableCellNode(blockId, rowIndex, colIndex, isHeader),
   );
 }
 
-export function $isNodeBlockTableCellNode(
+export function $isBlockTableCellNode(
   node: LexicalNode | null | undefined,
-): node is NodeBlockTableCellNode {
-  return node instanceof NodeBlockTableCellNode;
+): node is BlockTableCellNode {
+  return node instanceof BlockTableCellNode;
 }
