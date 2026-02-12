@@ -206,7 +206,7 @@ export const TERRAIN_VELOCITY_DEADZONE = 0.05;
 export const DRAG_PULL_STRENGTH = 0.03;
 
 // Mass accumulation
-export const PARENT_MASS_PER_CHILD = 0.3;
+export const PARENT_MASS_PER_CHILD = 1.0;
 
 // Reference link force multiplier (weaker than parent/class)
 export const REFERENCE_LINK_FORCE_MULTIPLIER = 0.3;
