@@ -127,8 +127,11 @@ export function NodeBlockPlugin({
         }
       }
 
-      // Insert/update nodes
+      // Two-pass approach: update existing nodes first, then create new ones
+      // This ensures focus-setting on new blocks happens after all content updates
       const visibleNodes = projectedNodes.filter(n => n.visible);
+      
+      // PASS 1: Update all existing nodes
       for (let i = 0; i < visibleNodes.length; i++) {
         const projected = visibleNodes[i];
         const existing = existingBlockMap.get(projected.blockId);
@@ -162,7 +165,16 @@ export function NodeBlockPlugin({
             // Repopulate with new content
             populateBlockContent(existing, projected.contentAST);
           }
-        } else {
+        }
+      }
+      
+      // PASS 2: Create new nodes and set focus
+      // Do this after all content updates to avoid selection disruption
+      for (let i = 0; i < visibleNodes.length; i++) {
+        const projected = visibleNodes[i];
+        const existing = existingBlockMap.get(projected.blockId);
+        
+        if (!existing) {
           // Create new node
           const newBlock = $createNodeBlockNode(
             projected.blockId,
@@ -196,11 +208,13 @@ export function NodeBlockPlugin({
             if (firstChild) {
               if (pendingFocus.offset != null && $isTextNode(firstChild)) {
                 firstChild.select(pendingFocus.offset, pendingFocus.offset);
+              } else if ($isTextNode(firstChild)) {
+                firstChild.selectStart();
               } else {
-                firstChild.selectNext(0, 0);
+                newBlock.selectStart();
               }
             } else {
-              newBlock.selectEnd();
+              newBlock.selectStart();
             }
           }
         }
