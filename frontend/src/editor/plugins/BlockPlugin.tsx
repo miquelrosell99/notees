@@ -1,5 +1,5 @@
 /**
- * NodeBlockPlugin — Lexical plugin that manages NodeBlockNode lifecycle.
+ * BlockPlugin — Lexical plugin that manages BlockNode lifecycle.
  *
  * Connects the Lexical editor to the NodeGraphRuntime projection.
  * Handles:
@@ -31,11 +31,11 @@ import {
 } from 'lexical';
 
 import {
-  $createNodeBlockNode,
-  $isNodeBlockNode,
-  NodeBlockNode,
-} from '../nodes/NodeBlockNode';
-import { $createNodePillNode, $isNodePillNode } from '../nodes/NodePillNode';
+  $createBlockNode,
+  $isBlockNode,
+  BlockNode,
+} from '../nodes/BlockNode';
+import { $createPillNode, $isPillNode } from '../nodes/PillNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
@@ -43,7 +43,7 @@ import type { ASTInlineNode } from '@/types/ast';
 
 // ─── Props ────────────────────────────────────────────────────────
 
-export interface NodeBlockPluginProps {
+export interface BlockPluginProps {
   /** The editor instance ID */
   editorId: string;
   /** The root blockId to project from */
@@ -75,7 +75,7 @@ export interface NodeBlockPluginProps {
 
 // ─── Plugin component ─────────────────────────────────────────────
 
-export function NodeBlockPlugin({
+export function BlockPlugin({
   editorId,
   rootBlockId,
   onContentChange,
@@ -90,7 +90,7 @@ export function NodeBlockPlugin({
   sliceBlockIds,
   sliceRecursiveLevel,
   sliceShowParent,
-}: NodeBlockPluginProps): null {
+}: BlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
   // Flag to suppress content change callbacks during external sync
@@ -112,10 +112,10 @@ export function NodeBlockPlugin({
     editor.update(() => {
       const root = $getRoot();
       const existingNodes = root.getChildren();
-      const existingBlockMap = new Map<string, NodeBlockNode>();
+      const existingBlockMap = new Map<string, BlockNode>();
 
       for (const child of existingNodes) {
-        if ($isNodeBlockNode(child)) {
+        if ($isBlockNode(child)) {
           existingBlockMap.set(child.getBlockId(), child);
         }
       }
@@ -179,7 +179,7 @@ export function NodeBlockPlugin({
         
         if (!existing) {
           // Create new node
-          const newBlock = $createNodeBlockNode(
+          const newBlock = $createBlockNode(
             projected.blockId,
             projected.depth,
             projected.collapsed,
@@ -282,7 +282,7 @@ export function NodeBlockPlugin({
       editorState.read(() => {
         const root = $getRoot();
         for (const child of root.getChildren()) {
-          if ($isNodeBlockNode(child) && dirtyElements.has(child.getKey())) {
+          if ($isBlockNode(child) && dirtyElements.has(child.getKey())) {
             const blockId = child.getBlockId();
             const contentAST = extractBlockContent(child);
             onContentChange?.(blockId, contentAST);
@@ -325,7 +325,7 @@ export function NodeBlockPlugin({
             // Add this child's text length
             if ($isTextNode(child)) {
               offset += child.getTextContent().length;
-            } else if ($isNodePillNode(child)) {
+            } else if ($isPillNode(child)) {
               offset += 1; // Pills count as 1 character
             } else {
               offset += child.getTextContent().length;
@@ -423,7 +423,7 @@ export function NodeBlockPlugin({
           if (blockIndex < 0) return;
 
           const prevBlock = children[blockIndex - 1];
-          if ($isNodeBlockNode(prevBlock)) {
+          if ($isBlockNode(prevBlock)) {
             currentBlockId = blockNode.getBlockId();
             prevBlockId = prevBlock.getBlockId();
           }
@@ -476,7 +476,7 @@ export function NodeBlockPlugin({
           if (blockIndex >= children.length - 1) return;
 
           const nextBlock = children[blockIndex + 1];
-          if ($isNodeBlockNode(nextBlock)) {
+          if ($isBlockNode(nextBlock)) {
             currentBlockId = blockNode.getBlockId();
             nextBlockId = nextBlock.getBlockId();
           }
@@ -537,7 +537,7 @@ export function NodeBlockPlugin({
     if (readOnly) return;
 
     const handleArrowLeft = (event: KeyboardEvent | null) => {
-      let prevBlockNode: NodeBlockNode | null = null;
+      let prevBlockNode: BlockNode | null = null;
 
       editor.read(() => {
         const selection = $getSelection();
@@ -557,7 +557,7 @@ export function NodeBlockPlugin({
         if (blockIndex <= 0) return;
 
         const prevBlock = children[blockIndex - 1];
-        if ($isNodeBlockNode(prevBlock)) {
+        if ($isBlockNode(prevBlock)) {
           prevBlockNode = prevBlock;
         }
       });
@@ -576,7 +576,7 @@ export function NodeBlockPlugin({
     };
 
     const handleArrowRight = (event: KeyboardEvent | null) => {
-      let nextBlockNode: NodeBlockNode | null = null;
+      let nextBlockNode: BlockNode | null = null;
 
       editor.read(() => {
         const selection = $getSelection();
@@ -597,7 +597,7 @@ export function NodeBlockPlugin({
         if (blockIndex >= children.length - 1) return;
 
         const nextBlock = children[blockIndex + 1];
-        if ($isNodeBlockNode(nextBlock)) {
+        if ($isBlockNode(nextBlock)) {
           nextBlockNode = nextBlock;
         }
       });
@@ -628,7 +628,7 @@ export function NodeBlockPlugin({
 
   useEffect(() => {
     const handleArrowUp = () => {
-      let prevBlockNode: NodeBlockNode | null = null;
+      let prevBlockNode: BlockNode | null = null;
       let isFirstBlock = false;
 
       editor.read(() => {
@@ -650,7 +650,7 @@ export function NodeBlockPlugin({
         }
 
         const prevBlock = children[blockIndex - 1];
-        if ($isNodeBlockNode(prevBlock)) {
+        if ($isBlockNode(prevBlock)) {
           prevBlockNode = prevBlock;
         }
       });
@@ -666,7 +666,7 @@ export function NodeBlockPlugin({
     };
 
     const handleArrowDown = () => {
-      let nextBlockNode: NodeBlockNode | null = null;
+      let nextBlockNode: BlockNode | null = null;
       let isLastBlock = false;
 
       editor.read(() => {
@@ -688,7 +688,7 @@ export function NodeBlockPlugin({
         }
 
         const nextBlock = children[blockIndex + 1];
-        if ($isNodeBlockNode(nextBlock)) {
+        if ($isBlockNode(nextBlock)) {
           nextBlockNode = nextBlock;
         }
       });
@@ -731,9 +731,9 @@ export function NodeBlockPlugin({
 // ─── Helpers ──────────────────────────────────────────────────────
 
 /**
- * Populate a NodeBlockNode's children from a ContentAST.
+ * Populate a BlockNode's children from a ContentAST.
  */
-function populateBlockContent(block: NodeBlockNode, contentAST: ContentAST): void {
+function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
   if (!contentAST || contentAST.length === 0) {
     // Use zero-width space so empty blocks have a focusable cursor position
     block.append($createTextNode('\u200B'));
@@ -750,7 +750,7 @@ function populateBlockContent(block: NodeBlockNode, contentAST: ContentAST): voi
 /**
  * Recursively append inline nodes to a block, tracking format flags for nested marks.
  */
-function appendInlineNode(parent: NodeBlockNode, inline: ASTInlineNode, format: number): void {
+function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: number): void {
   switch (inline.type) {
     case 'text': {
       const textNode = $createTextNode(inline.text);
@@ -766,7 +766,7 @@ function appendInlineNode(parent: NodeBlockNode, inline: ASTInlineNode, format: 
       break;
     }
     case 'node_link': {
-      const pill = $createNodePillNode(inline.link_id, inline.ref_type);
+      const pill = $createPillNode(inline.link_id, inline.ref_type);
       parent.append(pill);
       break;
     }
@@ -819,14 +819,14 @@ function appendInlineNode(parent: NodeBlockNode, inline: ASTInlineNode, format: 
 }
 
 /**
- * Extract content from a NodeBlockNode back into ContentAST.
+ * Extract content from a BlockNode back into ContentAST.
  */
-function extractBlockContent(block: NodeBlockNode): ContentAST {
+function extractBlockContent(block: BlockNode): ContentAST {
   const children = block.getChildren();
   const inlines: ASTInlineNode[] = [];
 
   for (const child of children) {
-    if ($isNodePillNode(child)) {
+    if ($isPillNode(child)) {
       inlines.push({
         type: 'node_link',
         link_id: child.getLinkId(),

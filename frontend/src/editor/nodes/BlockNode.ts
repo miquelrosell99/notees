@@ -1,17 +1,17 @@
 /**
- * NodeBlockNode — Custom Lexical ElementNode representing a single node/block
+ * BlockNode — Custom Lexical ElementNode representing a single node/block
  * in the Notees graph.
  *
  * This is NOT an editor-level block. It's a projection of a GraphNode from
- * the NodeGraphRuntime into the Lexical tree. Each NodeBlockNode contains:
+ * the NodeGraphRuntime into the Lexical tree. Each BlockNode contains:
  * - blockId: links back to the runtime's GraphNode
  * - depth: indentation level from the projection
  * - collapsed: whether children are hidden
  * - nodeType: page, block, card, etc.
  *
  * The inline content is rendered as standard Lexical text/inline nodes
- * WITHIN this NodeBlockNode. The NodeBlockNode itself is an ElementNode
- * so it can contain children (TextNode, NodePillNode, etc.)
+ * WITHIN this BlockNode. The BlockNode itself is an ElementNode
+ * so it can contain children (TextNode, PillNode, etc.)
  */
 
 import {
@@ -31,7 +31,7 @@ import { parseColorToRgb } from '@/utils/color';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
-export interface SerializedNodeBlockNode extends SerializedElementNode {
+export interface SerializedBlockNode extends SerializedElementNode {
   type: 'node-block';
   version: 1;
   blockId: string;
@@ -47,7 +47,7 @@ export interface SerializedNodeBlockNode extends SerializedElementNode {
 
 // ─── Node class ───────────────────────────────────────────────────
 
-export class NodeBlockNode extends ElementNode {
+export class BlockNode extends ElementNode {
   __blockId: string;
   __depth: number;
   __collapsed: boolean;
@@ -62,8 +62,8 @@ export class NodeBlockNode extends ElementNode {
     return 'node-block';
   }
 
-  static clone(node: NodeBlockNode): NodeBlockNode {
-    return new NodeBlockNode(
+  static clone(node: BlockNode): BlockNode {
+    return new BlockNode(
       node.__blockId,
       node.__depth,
       node.__collapsed,
@@ -263,7 +263,7 @@ export class NodeBlockNode extends ElementNode {
     return dom;
   }
 
-  updateDOM(prevNode: NodeBlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
+  updateDOM(prevNode: BlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
     // Update depth
     if (prevNode.__depth !== this.__depth) {
       dom.dataset.depth = String(this.__depth);
@@ -375,7 +375,7 @@ export class NodeBlockNode extends ElementNode {
 
   // ─── Serialization ───────────────────────────────────────────
 
-  exportJSON(): SerializedNodeBlockNode {
+  exportJSON(): SerializedBlockNode {
     return {
       ...super.exportJSON(),
       type: 'node-block',
@@ -392,8 +392,8 @@ export class NodeBlockNode extends ElementNode {
     };
   }
 
-  static importJSON(json: SerializedNodeBlockNode): NodeBlockNode {
-    return $createNodeBlockNode(
+  static importJSON(json: SerializedBlockNode): BlockNode {
+    return $createBlockNode(
       json.blockId,
       json.depth,
       json.collapsed,
@@ -408,7 +408,7 @@ export class NodeBlockNode extends ElementNode {
 
   // ─── Behavior ─────────────────────────────────────────────────
 
-  /** NodeBlockNodes can contain inline content */
+  /** BlockNodes can contain inline content */
   canIndent(): boolean {
     return false; // Indent is handled by NodeGraphRuntime, not Lexical
   }
@@ -430,7 +430,7 @@ export class NodeBlockNode extends ElementNode {
 
 // ─── Factory functions ────────────────────────────────────────────
 
-export function $createNodeBlockNode(
+export function $createBlockNode(
   blockId: string,
   depth: number = 0,
   collapsed: boolean = false,
@@ -440,14 +440,14 @@ export function $createNodeBlockNode(
   color: string | null = null,
   blockName: string = '',
   isProjectionRoot: boolean = false,
-): NodeBlockNode {
+): BlockNode {
   return $applyNodeReplacement(
-    new NodeBlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot),
+    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot),
   );
 }
 
-export function $isNodeBlockNode(
+export function $isBlockNode(
   node: LexicalNode | null | undefined,
-): node is NodeBlockNode {
-  return node instanceof NodeBlockNode;
+): node is BlockNode {
+  return node instanceof BlockNode;
 }

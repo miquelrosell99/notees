@@ -5,7 +5,7 @@
  * to avoid code duplication.
  */
 
-import { $isNodeBlockNode, type NodeBlockNode } from '../nodes/NodeBlockNode';
+import { $isBlockNode, type BlockNode } from '../nodes/BlockNode';
 
 /**
  * Select a block and all its children (card-style selection).
@@ -71,12 +71,12 @@ export function clearBlockSelection(rootEl: HTMLElement): void {
 }
 
 /**
- * Walk up the Lexical node tree to find the parent NodeBlockNode.
+ * Walk up the Lexical node tree to find the parent BlockNode.
  */
-export function findParentNodeBlock(node: any): NodeBlockNode | null {
+export function findParentNodeBlock(node: any): BlockNode | null {
   let current = node;
   while (current != null) {
-    if ($isNodeBlockNode(current)) return current;
+    if ($isBlockNode(current)) return current;
     current = current.getParent?.();
   }
   return null;

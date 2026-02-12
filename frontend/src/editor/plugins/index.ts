@@ -2,11 +2,11 @@
  * Editor plugins barrel export.
  */
 
-export { NodeBlockPlugin } from './NodeBlockPlugin';
-export type { NodeBlockPluginProps } from './NodeBlockPlugin';
+export { BlockPlugin } from './BlockPlugin';
+export type { BlockPluginProps } from './BlockPlugin';
 
-export { NodePillPlugin } from './NodePillPlugin';
-export type { NodePillPluginProps } from './NodePillPlugin';
+export { PillPlugin } from './PillPlugin';
+export type { PillPluginProps } from './PillPlugin';
 
 export { DragDropPlugin } from './DragDropPlugin';
 export type { DragDropPluginProps } from './DragDropPlugin';

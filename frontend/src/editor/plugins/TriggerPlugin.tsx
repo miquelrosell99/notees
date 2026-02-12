@@ -14,7 +14,7 @@ import {
   $isRangeSelection,
   type LexicalEditor,
 } from 'lexical';
-import { $createNodePillNode } from '../nodes/NodePillNode';
+import { $createPillNode } from '../nodes/PillNode';
 import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
@@ -118,10 +118,10 @@ export function TriggerPlugin({
       const afterCursor = text.slice(selection.anchor.offset);
 
       if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
-        // Replace with a NodePill
+        // Replace with a Pill
         (anchorNode as any).setTextContent(beforeTrigger);
 
-        const pill = $createNodePillNode(
+        const pill = $createPillNode(
           value,
           trigger.type === 'type' ? 'class' : 'node',
         );

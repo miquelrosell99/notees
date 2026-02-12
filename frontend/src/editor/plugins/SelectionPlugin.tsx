@@ -15,7 +15,7 @@ import {
   $getSelection,
   $isRangeSelection,
 } from 'lexical';
-import { $isNodeBlockNode } from '../nodes/NodeBlockNode';
+import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 
@@ -63,7 +63,7 @@ export function SelectionPlugin({
             const children = root.getChildren();
             let inRange = false;
             for (const child of children) {
-              if ($isNodeBlockNode(child)) {
+              if ($isBlockNode(child)) {
                 if (child === anchorBlock || child === focusBlock) {
                   newSelectedIds.add(child.getBlockId());
                   if (inRange) break;

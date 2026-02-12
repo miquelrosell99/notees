@@ -22,8 +22,8 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import { notesEditorTheme } from './theme';
 import { EDITOR_NODES, serializeContentAST } from './BlockEditor';
-import { NodeBlockPlugin } from './plugins/NodeBlockPlugin';
-import { NodePillPlugin } from './plugins/NodePillPlugin';
+import { BlockPlugin } from './plugins/BlockPlugin';
+import { PillPlugin } from './plugins/PillPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
@@ -189,7 +189,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
         <HistoryPlugin />
         <FormattingPlugin />
         <CollapsePlugin />
-        <NodeBlockPlugin
+        <BlockPlugin
           editorId={editorId}
           rootBlockId={rootBlockId}
           onContentChange={handleContentChange}
@@ -199,7 +199,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onOutdent={handleOutdent}
           readOnly={readOnly}
         />
-        <NodePillPlugin
+        <PillPlugin
           onPillClick={handlePillClick}
           onPillRemove={() => {}}
         />

@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 
-import { $isNodeBlockNode } from '../nodes/NodeBlockNode';
+import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import type { Node } from '../../types/api';
@@ -37,7 +37,7 @@ export function ContextMenuPlugin({
   const [editor] = useLexicalComposerContext();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  // Find NodeBlockNode from a DOM element
+  // Find BlockNode from a DOM element
   const findBlockNodeFromElement = useCallback((element: HTMLElement): { blockId: string; nodeType: string } | null => {
     // Walk up to find .node-block
     let current: HTMLElement | null = element;
@@ -66,7 +66,7 @@ export function ContextMenuPlugin({
       const children = root.getChildren();
       
       for (const child of children) {
-        if ($isNodeBlockNode(child) && child.getBlockId() === blockId) {
+        if ($isBlockNode(child) && child.getBlockId() === blockId) {
           const runtime = getNodeGraphRuntime();
           const currentCollapsed = child.getCollapsed();
           runtime.applyIntent({
