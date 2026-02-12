@@ -117,14 +117,11 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
           onPersisted?.(blockId, createdNode.id);
 
-          // Invalidate parent node's cache to show the new child
-          // Delay slightly to allow focus to settle before refetch
+          // Invalidate parent node's cache so it includes the new child
           if (parentServerId != null) {
-            setTimeout(() => {
-              queryClient.invalidateQueries({
-                queryKey: nodeKeys.detailBase(parentServerId),
-              });
-            }, 100);
+            queryClient.invalidateQueries({
+              queryKey: nodeKeys.detailBase(parentServerId),
+            });
           }
 
           // Flush any queued content save for this block
