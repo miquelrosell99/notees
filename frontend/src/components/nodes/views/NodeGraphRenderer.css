@@ -33,38 +33,9 @@
 
 .terrain-node {
   transition: opacity 0.15s ease;
-  white-space: nowrap;
+  cursor: pointer;
 }
 
-.terrain-node__card {
-  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small, 4px);
-  padding: 2px 6px 2px 4px;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  line-height: 1.3;
-  max-width: 160px;
-  overflow: hidden;
-  opacity: 0.7;
-  backdrop-filter: blur(2px);
-}
-
-.terrain-node__card:hover {
-  opacity: 1;
-  background: var(--color-surface);
-  border-color: var(--color-outline);
-  box-shadow: var(--color-shadow) 0px 2px 6px;
-}
-
-.terrain-node__inline {
-  font-size: 11px;
-}
-
-.terrain-node__inline .node-inline__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.terrain-node .bullet {
+  /* Bullet is centered at node position, no additional transform needed */
 }

@@ -64,13 +64,13 @@
 }
 
 /* Exception: bullets should still be draggable in readonly mode */
-.notees-editor--readonly .node-block-bullet {
+.notees-editor--readonly .bullet-wrapper {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.notees-editor--readonly .node-block-bullet:active {
+.notees-editor--readonly .bullet-wrapper:active {
   cursor: grabbing;
 }
 
@@ -92,108 +92,29 @@
   pointer-events: auto;
 }
 
-/* ─── Bullet wrapper ───────────────────────────────────────────── */
+/* ─── Bullet wrapper ─────────────────────────────────────────────
+   Base styles are in Bullet.css. Block-specific overrides below.
+   ──────────────────────────────────────────────────────────────── */
 
-.node-block-bullet {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+/* Block bullet specific: right margin for spacing from content */
+.node-block > .bullet-wrapper {
   margin-right: 6px;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
-  /* Prevent text selection when clicking/dragging */
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+  /* In editor, reset top margin since blocks handle vertical alignment */
+  margin-top: 0;
 }
 
-.node-block-bullet:active {
-  cursor: grabbing;
-}
-
-.node-block-bullet:hover {
-  background-color: var(--color-hover-overlay);
-}
-
-/* Bullet container - holds dot */
-.node-block-bullet-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  pointer-events: none;
-}
-
-/* Bullet dot */
-.node-block-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--color-on-surface-variant);
-  opacity: 0.5;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-  pointer-events: none;
-}
-
-.node-block:hover .node-block-dot {
-  opacity: 1;
-}
-
-/* Bullet icon (when node has icon) */
-.node-block-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85em;
-}
-
-/* Collapse arrow - shows on hover when has children */
-.node-block-collapse-arrow {
-  position: absolute;
-  left: -18px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 50%;
-  color: var(--color-bullet);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard),
-              background-color var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-tactile);
-  z-index: 5;
-  /* Prevent text selection */
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.node-block--has-children .node-block-bullet:hover .node-block-collapse-arrow,
-.node-block--collapsed .node-block-collapse-arrow {
+/* Show collapse arrow when hovering bullet (if has children) or collapsed */
+.node-block--has-children .bullet-wrapper:hover .bullet-collapse-arrow,
+.node-block--collapsed .bullet-collapse-arrow {
   opacity: 0.6;
 }
 
-.node-block-collapse-arrow:hover {
+.bullet-collapse-arrow:hover {
   opacity: 1 !important;
   color: var(--color-bullet-hover);
 }
 
-.node-block-collapse-arrow:active {
+.bullet-collapse-arrow:active {
   transform: translateY(-50%) scale(var(--tactile-press-scale));
 }
 
@@ -224,7 +145,7 @@
 
 /* Text content shows text cursor in editable mode */
 .notees-editor:not(.notees-editor--readonly) .node-block > p,
-.notees-editor:not(.notees-editor--readonly) .node-block > span:not(.node-block-bullet),
+.notees-editor:not(.notees-editor--readonly) .node-block > span:not(.bullet-wrapper),
 .notees-editor:not(.notees-editor--readonly) .node-block > .notees-editor-paragraph {
   cursor: text;
   caret-color: var(--color-on-surface);
@@ -282,13 +203,13 @@
 }
 
 /* Selected block bullets are highlighted */
-.node-block--selected .node-block-bullet,
-.node-block--selected-child .node-block-bullet {
+.node-block--selected .bullet-wrapper,
+.node-block--selected-child .bullet-wrapper {
   opacity: 1;
 }
 
-.node-block--selected .node-block-dot,
-.node-block--selected-child .node-block-dot {
+.node-block--selected .bullet-dot,
+.node-block--selected-child .bullet-dot {
   opacity: 0.9;
   background-color: var(--color-accent, #3b82f6);
 }
@@ -580,7 +501,7 @@ th.node-block-table-cell {
 }
 
 /* Hide bullet in document mode */
-.notees-editor--document .node-block-bullet {
+.notees-editor--document .bullet-wrapper {
   display: none;
 }
 

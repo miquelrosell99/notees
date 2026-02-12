@@ -27,6 +27,7 @@
  */
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { NodeInline } from '@/components/blocks/NodeInline';
+import { Bullet } from '@/components/blocks/Bullet';
 import type { 
   GraphNode, 
   GraphLink, 
@@ -94,7 +95,7 @@ const TERRAIN_VELOCITY_DEADZONE = 0.05; // Larger deadzone to freeze sooner
 // Terrain footprint collision avoidance (prevents nodes inside other nodes' cones)
 const TERRAIN_BASE_FOOTPRINT = 50;    // Base terrain radius for collision
 const TERRAIN_PEAK_FOOTPRINT = 100;   // Additional radius per unit peak size
-const TERRAIN_SEPARATION_STRENGTH = 0.12; // How strongly to push nodes apart
+const TERRAIN_SEPARATION_STRENGTH = 0.25; // How strongly to push nodes apart
 const TERRAIN_MIN_SEPARATION = 30;    // Minimum distance between node centers
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
@@ -3248,33 +3249,32 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
                   position: 'absolute',
                   left: screenX,
                   top: screenY,
-                  transform: 'translate(-6px, -6px)', // align bullet dot to node position
+                  transform: 'translate(-50%, -50%)', // center bullet exactly at node position
                   pointerEvents: 'auto',
                   opacity: node.glare === 'dim' ? 0.3 : 1,
                 }}
                 data-height={height.toFixed(2)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
-                }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   onNodeDoubleClick?.(node);
                 }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onNodeRightClick?.(node);
-                }}
               >
-                <div className="terrain-node__card">
-                  <NodeInline
-                    name={node.name}
-                    nodeId={node.id}
-                    showBullet={true}
-                    className="terrain-node__inline"
-                  />
-                </div>
+                <Bullet 
+                  nodeId={node.id} 
+                  isPage={node.type === 'page'}
+                  hasChildren={false}
+                  interactive={true}
+                  title={node.name}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
+                  }}
+                  onContextMenu={(nodeId, e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNodeRightClick?.(node);
+                  }}
+                />
               </div>
             );
           })}

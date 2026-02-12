@@ -344,7 +344,7 @@
 }
 
 /* Hide bullets in title editor */
-.node-card__title-block .node-block-bullet {
+.node-card__title-block .bullet-wrapper {
   display: none;
 }
 

@@ -35,7 +35,7 @@ export function EmptyClickPlugin({ mode: _mode = 'list' }: EmptyClickPluginProps
       if (!rootElement.contains(target) && target !== rootElement) return;
 
       // Click on bullet → let bullet handler deal with it
-      if (target.closest('.node-block-bullet')) {
+      if (target.closest('.bullet-wrapper')) {
         return;
       }
 
