@@ -675,9 +675,6 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
     }
   }, [node, bannerProperty, setPropertyMutation]);
   
-  // Note: Color styling for both pages and focused blocks is now handled 
-  // at the main-content level in MainContent.tsx for consistency
-
   // Loading state
   if (isLoading) {
     return {
