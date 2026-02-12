@@ -4,7 +4,7 @@
  * Pseudo-page that fetches all graph data and passes it to GraphView.
  * Similar to AllPagesView but for graph visualization.
  */
-import { useGraphData } from '@/hooks';
+import { useGraphNodes } from '@/hooks';
 import { GraphView } from '@/components/nodes/views/GraphView';
 import './AllPagesGraphView.css';
 
@@ -13,7 +13,7 @@ export interface AllPagesGraphViewProps {
 }
 
 export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
-  const { data: graphData, isLoading } = useGraphData();
+  const { data: graphNodes, isLoading } = useGraphNodes();
 
   if (isLoading) {
     return (
@@ -23,7 +23,7 @@ export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
     );
   }
 
-  if (!graphData || graphData.nodes.length === 0) {
+  if (!graphNodes || graphNodes.length === 0) {
     return (
       <div className={`all-pages-graph-view all-pages-graph-view--empty ${className}`}>
         <div className="all-pages-graph-view__empty">
@@ -38,7 +38,7 @@ export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
     <div className={`all-pages-graph-view ${className}`}>
       <GraphView
         viewId="global"
-        nodes={graphData.nodes}
+        nodes={graphNodes}
         className="all-pages-graph-view__graph"
       />
     </div>

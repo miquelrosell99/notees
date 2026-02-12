@@ -350,6 +350,7 @@ export interface GraphLink {
 
 /**
  * Graph data response
+ * @deprecated Use getGraphNodes + getLinksForNodes separately instead
  */
 export interface GraphData {
   nodes: GraphNode[];
@@ -358,6 +359,7 @@ export interface GraphData {
 
 /**
  * Get workspace data for visualization
+ * @deprecated Use getGraphNodes + getLinksForNodes separately instead
  */
 export async function getWorkspaceData(): Promise<GraphData> {
   const response = await api.get<GraphData>(`${BASE}/workspace`);
@@ -365,13 +367,29 @@ export async function getWorkspaceData(): Promise<GraphData> {
 }
 
 /**
- * Get links between a specific set of node IDs
- * Returns all link types (reference, parent, class, extends, property-reference)
- * where both source and target are in the provided set.
+ * Get workspace nodes for visualization (without links).
+ * Lighter than getWorkspaceData — use when links are fetched separately.
  */
-export async function getLinksForNodes(nodeIds: number[]): Promise<GraphLink[]> {
+export async function getGraphNodes(): Promise<GraphNode[]> {
+  const response = await api.get<{ nodes: GraphNode[] }>(`${BASE}/workspace/nodes`);
+  return response.data.nodes;
+}
+
+/**
+ * Get links between a specific set of node IDs
+ * Returns all link types (reference, parent, class, extends, property-reference).
+ * 
+ * @param scope - "between" (default): both ends in set. "touching": at least one end in set.
+ */
+export async function getLinksForNodes(
+  nodeIds: number[],
+  scope: 'between' | 'touching' = 'between'
+): Promise<GraphLink[]> {
   if (nodeIds.length === 0) return [];
-  const response = await api.post<{ links: GraphLink[] }>(`${BASE}/links`, { node_ids: nodeIds });
+  const response = await api.post<{ links: GraphLink[] }>(`${BASE}/links`, {
+    node_ids: nodeIds,
+    scope,
+  });
   return response.data.links;
 }
 

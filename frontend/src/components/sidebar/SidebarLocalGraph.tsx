@@ -10,7 +10,7 @@
  * Extracts a subgraph and passes it to GraphView in controlled mode.
  */
 import { useMemo } from 'react';
-import { useGraphData, useNode } from '@/hooks';
+import { useGraphNodes, useGraphLinks, useNode } from '@/hooks';
 import { GraphView } from '@/components/nodes/views/GraphView';
 import './SidebarLocalGraph.css';
 
@@ -25,59 +25,33 @@ export function SidebarLocalGraph({
   nodeId,
   className = '' 
 }: SidebarLocalGraphProps) {
-  const { data: graphData, isLoading } = useGraphData();
+  const { data: allNodes, isLoading: nodesLoading } = useGraphNodes();
   const { data: centerNode } = useNode(nodeId);
+  
+  // Fetch links touching this node (neighborhood discovery)
+  const { data: touchingLinks = [], isLoading: linksLoading } = useGraphLinks(
+    [nodeId],
+    { scope: 'touching' }
+  );
   
   // Extract local subgraph nodes centered on nodeId
   const nodes = useMemo(() => {
-    if (!graphData) return [];
+    if (!allNodes || touchingLinks.length === 0) return [];
     
-    // Build parent map from links
-    const parentMap = new Map<number, number>();
-    for (const link of graphData.links) {
-      if (link.type === 'parent') {
-        parentMap.set(link.target, link.source);
-      }
-    }
-    
-    // Helper to get all ancestors of a node
-    const getAncestors = (nodeId: number): Set<number> => {
-      const ancestors = new Set<number>();
-      let currentId: number | null = nodeId;
-      const visited = new Set<number>();
-      
-      while (currentId !== null && !visited.has(currentId)) {
-        visited.add(currentId);
-        ancestors.add(currentId);
-        currentId = parentMap.get(currentId) ?? null;
-      }
-      
-      return ancestors;
-    };
-    
-    // Find all directly connected node IDs
+    // Find all directly connected node IDs from touching links
     const connectedIds = new Set<number>();
     connectedIds.add(nodeId);
     
-    for (const link of graphData.links) {
-      if (link.source === nodeId) {
-        connectedIds.add(link.target);
-      } else if (link.target === nodeId) {
-        connectedIds.add(link.source);
-      }
+    for (const link of touchingLinks) {
+      connectedIds.add(link.source);
+      connectedIds.add(link.target);
     }
     
-    // For each connected node, include all its ancestors (for full path display)
-    const allIds = new Set<number>(connectedIds);
-    for (const id of connectedIds) {
-      const ancestors = getAncestors(id);
-      ancestors.forEach(ancestorId => allIds.add(ancestorId));
-    }
-    
-    // Filter nodes to include connected ones AND their ancestors
-    return graphData.nodes.filter(n => allIds.has(n.id));
-  }, [graphData, nodeId]);
+    // Filter nodes to just the connected ones
+    return allNodes.filter(n => connectedIds.has(n.id));
+  }, [allNodes, touchingLinks, nodeId]);
   
+  const isLoading = nodesLoading || linksLoading;
   if (isLoading) {
     return (
       <div className={`graph-view-local loading ${className}`}>
