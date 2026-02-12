@@ -253,44 +253,31 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // Precompute per-node anisotropy direction from parent links
     // Each node accumulates a stretch direction toward its parent/child connections
     const visibleLinks = frameDataRef.current.visibleLinks;
-    const anisoX = new Float32Array(visibleNodes.length); // unit direction X
-    const anisoY = new Float32Array(visibleNodes.length); // unit direction Y
-    const anisoStr = new Float32Array(visibleNodes.length); // strength 0-1
-    // Build id → index lookup (reused by ridge generation)
+    // Build id → index lookup
     const idToIdx = new Map<number, number>();
     for (let i = 0; i < visibleNodes.length; i++) {
       idToIdx.set(visibleNodes[i].id, i);
     }
-    {
-      // Accumulate parent link directions per node
-      const accX = new Float32Array(visibleNodes.length);
-      const accY = new Float32Array(visibleNodes.length);
-      for (const link of visibleLinks) {
-        if (link.type !== 'parent') continue;
-        const si = idToIdx.get(link.source);
-        const ti = idToIdx.get(link.target);
-        if (si === undefined || ti === undefined) continue;
-        const sn = visibleNodes[si];
-        const tn = visibleNodes[ti];
-        const ldx = tn.x - sn.x;
-        const ldy = tn.y - sn.y;
-        const llen = Math.sqrt(ldx * ldx + ldy * ldy);
-        if (llen < 1) continue;
-        const nx = ldx / llen;
-        const ny = ldy / llen;
-        // Both nodes stretch toward each other
-        accX[si] += nx; accY[si] += ny;
-        accX[ti] += nx; accY[ti] += ny; // same direction to keep axis consistent
-      }
-      for (let i = 0; i < visibleNodes.length; i++) {
-        const ax = accX[i], ay = accY[i];
-        const alen = Math.sqrt(ax * ax + ay * ay);
-        if (alen > 0.01) {
-          anisoX[i] = ax / alen;
-          anisoY[i] = ay / alen;
-          anisoStr[i] = Math.min(1, alen) * TERRAIN_ANISOTROPY;
-        }
-      }
+    
+    // Build per-node child direction list for star-shaped plateau distortion
+    // Each node stores normalized directions toward its children (in world space)
+    const nodeChildDirs: Array<Array<{nx: number, ny: number}>> = new Array(visibleNodes.length);
+    for (let i = 0; i < visibleNodes.length; i++) nodeChildDirs[i] = [];
+    for (const link of visibleLinks) {
+      if (link.type !== 'parent') continue;
+      // link.source = parent, link.target = child
+      const pi = idToIdx.get(link.source);
+      const ci = idToIdx.get(link.target);
+      if (pi === undefined || ci === undefined) continue;
+      const pn = visibleNodes[pi];
+      const cn = visibleNodes[ci];
+      const ldx = cn.x - pn.x;
+      const ldy = cn.y - pn.y;
+      const llen = Math.sqrt(ldx * ldx + ldy * ldy);
+      if (llen < 1) continue;
+      nodeChildDirs[pi].push({ nx: ldx / llen, ny: ldy / llen });
+      // Also stretch child toward parent
+      nodeChildDirs[ci].push({ nx: -ldx / llen, ny: -ldy / llen });
     }
     
     // Build height map + ownership map with MAX merge — sqrt-free
@@ -312,13 +299,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const centerX = (node.x * t.scale + t.x) / gs;
       const centerY = (node.y * t.scale + t.y) / gs;
       
-      // Anisotropy: stretch along parent-link axis
-      const aStr = anisoStr[nodeIdx];
-      const aDx = anisoX[nodeIdx];
-      const aDy = anisoY[nodeIdx];
+      // Star-shaped distortion: child directions for this node
+      const dirs = nodeChildDirs[nodeIdx];
+      const hasDirs = dirs.length > 0;
       
       // Expand bounding box to account for stretch
-      const rsInt = Math.ceil(Rs * (1 + aStr));
+      const rsInt = Math.ceil(Rs * (hasDirs ? (1 + TERRAIN_ANISOTROPY) : 1));
       const minGx = Math.max(0, Math.floor(centerX - rsInt));
       const maxGx = Math.min(gridW - 1, Math.ceil(centerX + rsInt));
       const minGy = Math.max(0, Math.floor(centerY - rsInt));
@@ -329,20 +315,26 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const rowOff = gy * gridW;
         for (let gx = minGx; gx <= maxGx; gx++) {
           const dx = gx - centerX;
+          let distSq = dx * dx + dy * dy;
           
-          // Anisotropic distance: shrink distance along the stretch axis
-          // so the plateau extends further in that direction
-          let distSq;
-          if (aStr > 0) {
-            // Project onto anisotropy axis
-            const dot = dx * aDx + dy * aDy;
-            // Shrink the along-axis component (makes shape elongated)
-            const shrink = 1 / (1 + aStr);
-            const adx = dx - dot * aDx * (1 - shrink);
-            const ady = dy - dot * aDy * (1 - shrink);
-            distSq = adx * adx + ady * ady;
-          } else {
-            distSq = dx * dx + dy * dy;
+          // Star-shaped: reduce effective distance when aligned with any child direction
+          // Each child creates a "finger" extending the plateau toward it
+          if (hasDirs && distSq > 0.01) {
+            const invDist = 1 / Math.sqrt(distSq);
+            const udx = dx * invDist;
+            const udy = dy * invDist;
+            // Find max alignment with any child direction
+            let maxAlign = 0;
+            for (let d = 0; d < dirs.length; d++) {
+              const dot = udx * dirs[d].nx + udy * dirs[d].ny;
+              if (dot > maxAlign) maxAlign = dot;
+            }
+            // Smooth ramp: only stretch when well-aligned (dot > 0.5)
+            if (maxAlign > 0.5) {
+              const ramp = (maxAlign - 0.5) * 2; // 0 at dot=0.5, 1 at dot=1.0
+              const shrink = 1 / (1 + TERRAIN_ANISOTROPY * ramp * ramp);
+              distSq *= shrink * shrink;
+            }
           }
           
           if (distSq > RsSq) continue;
