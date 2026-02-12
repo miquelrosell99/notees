@@ -341,13 +341,26 @@ export function NodeBlockPlugin({
         const runtime = getNodeGraphRuntime();
         const newBlockId = crypto.randomUUID();
         runtime.requestFocus(newBlockId);
-        // Use split_block intent to split content at cursor position
-        runtime.applyIntent({
-          type: 'split_block',
-          blockId,
-          atOffset: cursorOffset,
-          newBlockId,
-        });
+
+        if (includeRoot && blockId === rootBlockId) {
+          // Projection root: create a new first child instead of splitting
+          // (splitting would create a sibling outside the projection)
+          runtime.applyIntent({
+            type: 'create_block',
+            parentId: blockId,
+            afterBlockId: null, // first child
+            blockId: newBlockId,
+            contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+          });
+        } else {
+          // Normal block: split content at cursor position
+          runtime.applyIntent({
+            type: 'split_block',
+            blockId,
+            atOffset: cursorOffset,
+            newBlockId,
+          });
+        }
         // Flush runtime events immediately so the new block is synced
         // and focused in the same frame as the Enter keypress
         runtime.flushEvents();
@@ -355,7 +368,7 @@ export function NodeBlockPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly]);
+  }, [editor, readOnly, includeRoot, rootBlockId]);
 
   // ─── Backspace at start: merge with previous ──────────────
 
