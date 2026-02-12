@@ -343,9 +343,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           
           if (distSq > RsSq) continue;
           
-          // Squared-distance interpolation: avoids Math.sqrt entirely
-          // Produces a smooth cosine-like falloff instead of linear
-          const ht = distSq <= RpSq ? H : H * (1 - (distSq - RpSq) * invSlopeRangeSq);
+          // Quartic falloff (1 - t²): height stays high at mid-range, drops steeply at edge
+          // Creates wider overlap zones between peaks for natural saddle formation
+          const ndSq = distSq <= RpSq ? 0 : (distSq - RpSq) * invSlopeRangeSq; // 0..1
+          const ht = H * (1 - ndSq * ndSq);
           
           const idx = rowOff + gx;
           if (ht > heightMap[idx]) {
@@ -361,7 +362,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     
     // Saddle contrast: depress height where two peaks compete
-    // The closer secondBest is to heightMap, the more we dip
+    // Linear ramp — even modest overlap creates wide, visible valleys
     if (TERRAIN_SADDLE_STRENGTH > 0) {
       for (let i = 0; i < gridSize; i++) {
         const best = heightMap[i];
@@ -369,12 +370,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         if (second > 0 && best > 0) {
           // Competition ratio: 0 when second is tiny, 1 when second equals best
           const ratio = second / best;
-          // Smooth ramp: dip when ratio > 0.15 (even modest overlap creates valleys)
-          if (ratio > 0.15) {
-            const ramp = (ratio - 0.15) / 0.85; // 0 at ratio=0.15, 1 at ratio=1.0
-            const dip = TERRAIN_SADDLE_STRENGTH * ramp * ramp;
-            heightMap[i] = best * (1 - dip);
-          }
+          // Linear dip — spreads valley effect broadly across the overlap zone
+          const dip = TERRAIN_SADDLE_STRENGTH * ratio;
+          heightMap[i] = best * (1 - dip);
         }
       }
     }
