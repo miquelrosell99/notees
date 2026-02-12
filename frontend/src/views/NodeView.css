@@ -335,6 +335,12 @@
   margin-top: 0;
 }
 
+/* Suppress color border for the root block in focused view (MainContent already has colored border) */
+.focused-block-content > .node-list-view > .node-block:first-child[style*="--node-block-color"] {
+  border-left: none;
+  padding-left: 0;
+}
+
 /* Add block button for focused block view */
 .focused-block-content-add {
   padding: var(--spacing-2) 0;
