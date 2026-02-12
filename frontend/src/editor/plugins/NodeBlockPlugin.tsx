@@ -50,8 +50,6 @@ export interface NodeBlockPluginProps {
   rootBlockId: string;
   /** Called when a block's content changes */
   onContentChange?: (blockId: string, contentAST: ContentAST) => void;
-  /** Called when a new block should be created */
-  onBlockCreate?: (parentId: string, afterBlockId: string, newBlockId: string) => void;
   /** Called when blocks should be merged */
   onBlockMerge?: (sourceBlockId: string, targetBlockId: string) => void;
   /** Called when a block should be deleted */
@@ -81,7 +79,6 @@ export function NodeBlockPlugin({
   editorId,
   rootBlockId,
   onContentChange,
-  onBlockCreate,
   onBlockMerge,
   onBlockDelete,
   onIndent,
@@ -147,6 +144,24 @@ export function NodeBlockPlugin({
           if (existing.getColor() !== (projected.color ?? null)) existing.setColor(projected.color ?? null);
           if (existing.getBlockName() !== (projected.name ?? '')) existing.setBlockName(projected.name ?? '');
           if (existing.getIsProjectionRoot() !== projected.isProjectionRoot) existing.setIsProjectionRoot(projected.isProjectionRoot);
+          
+          // Check if content has changed (e.g., from split_block operation)
+          // Compare serialized content to detect changes
+          const currentContent = extractBlockContent(existing);
+          const currentSerialized = JSON.stringify(currentContent);
+          const projectedSerialized = JSON.stringify(projected.contentAST);
+          
+          if (currentSerialized !== projectedSerialized) {
+            // Content changed - clear and repopulate
+            // Clear existing children
+            const children = existing.getChildren();
+            for (const child of children) {
+              child.remove();
+            }
+            
+            // Repopulate with new content
+            populateBlockContent(existing, projected.contentAST);
+          }
         } else {
           // Create new node
           const newBlock = $createNodeBlockNode(
