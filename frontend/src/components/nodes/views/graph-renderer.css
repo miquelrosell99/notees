@@ -1,7 +1,7 @@
 /**
- * NodeGraphRenderer Styles
+ * Graph Renderer Styles
  * 
- * Styles for the core graph rendering component.
+ * Shared styles for GraphRenderer and TerrainRenderer components.
  */
 
 .node-graph-renderer {
