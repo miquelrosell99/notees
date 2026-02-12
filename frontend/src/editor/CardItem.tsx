@@ -157,32 +157,6 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
     onContentChange?.(blockId, serializeContentAST(contentAST));
   }, [onContentChange]);
 
-  const handleBlockCreate = useCallback((_parentId: string, afterBlockId: string, newBlockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const node = runtime.getNode(afterBlockId);
-    
-    // If the node has no parent (it's a root/page-level block), 
-    // create a child at the TOP of its children
-    if (!node?.parentId) {
-      runtime.applyIntent({
-        type: 'create_block',
-        parentId: afterBlockId, // current block becomes parent
-        afterBlockId: null, // null = place at top
-        blockId: newBlockId,
-        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-      });
-    } else {
-      // Node has a parent, create a sibling after it
-      runtime.applyIntent({
-        type: 'create_block',
-        parentId: node.parentId,
-        afterBlockId,
-        blockId: newBlockId,
-        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-      });
-    }
-  }, []);
-
   const handleBlockMerge = useCallback((sourceBlockId: string, targetBlockId: string) => {
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({ type: 'merge_blocks', sourceBlockId, targetBlockId });
@@ -227,7 +201,6 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           editorId={editorId}
           rootBlockId={rootBlockId}
           onContentChange={handleContentChange}
-          onBlockCreate={handleBlockCreate}
           onBlockMerge={handleBlockMerge}
           onBlockDelete={handleBlockDelete}
           onIndent={handleIndent}
