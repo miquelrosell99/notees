@@ -244,8 +244,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const linkDirCacheRef = useRef(new Map<number, number>()); // pairKey → bitfield (1=fwd, 2=rev)
   const drawnLinksCacheRef = useRef(new Set<number>());
   
-  // Terrain mode: offscreen canvas for contour line generation
-  const terrainCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // Terrain mode: node positions for DOM overlay (updated each frame)
   const [terrainNodePositions, setTerrainNodePositions] = useState<Map<number, { x: number; y: number; height: number }>>(new Map());
   const terrainUpdateRafRef = useRef<number>(0);
@@ -2246,328 +2244,355 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const terrainHeights = frameDataRef.current.terrainHeights;
       const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
       
-      // Generate height field on offscreen canvas, then extract contour lines
-      // Use a low-res grid for performance, then gaussian blur for smoothness
-      const GRID_RES = 4; // pixels per grid cell (lower = higher quality but slower)
+      // Generate height field using overlapping terrain with preserved plateaus
+      // Each node has: H (height from mass), Rp (plateau radius), Rs (slope radius)
+      // Height at cell = MAX of all node contributions — preserves peaks and plateaus
+      const GRID_RES = 3; // pixels per grid cell (lower = higher quality)
       const gridW = Math.ceil(w / GRID_RES);
       const gridH = Math.ceil(h / GRID_RES);
       
-      // Create or reuse offscreen canvas
-      if (!terrainCanvasRef.current) {
-        terrainCanvasRef.current = document.createElement('canvas');
+      // Allocate height map (reuse if same size)
+      const heightMap = new Float32Array(gridW * gridH);
+      
+      // Terrain parameters
+      const BASE_PLATEAU_RADIUS = 15;  // base plateau radius in world coords
+      const PEAK_PLATEAU_BONUS = 25;   // additional plateau per unit peak size
+      const BASE_SLOPE_RADIUS = 80;    // base slope radius in world coords  
+      const PEAK_SLOPE_BONUS = 120;    // additional slope per unit peak size
+      
+      // Build height map with MAX merge
+      for (const node of visibleNodes) {
+        const H = terrainHeights.get(node.id) ?? 0;
+        const peakSize = terrainPeakRadii.get(node.id) ?? 0;
+        if (H <= 0) continue;
+        
+        // Calculate plateau and slope radii based on peak size (link count)
+        const Rp = (BASE_PLATEAU_RADIUS + PEAK_PLATEAU_BONUS * peakSize) * t.scale / GRID_RES;
+        const Rs = (BASE_SLOPE_RADIUS + PEAK_SLOPE_BONUS * peakSize) * t.scale / GRID_RES;
+        
+        // Convert world coords to grid coords
+        const centerX = (node.x * t.scale + t.x) / GRID_RES;
+        const centerY = (node.y * t.scale + t.y) / GRID_RES;
+        
+        // Only iterate over cells within Rs radius
+        const rsInt = Math.ceil(Rs);
+        const minGx = Math.max(0, Math.floor(centerX - rsInt));
+        const maxGx = Math.min(gridW - 1, Math.ceil(centerX + rsInt));
+        const minGy = Math.max(0, Math.floor(centerY - rsInt));
+        const maxGy = Math.min(gridH - 1, Math.ceil(centerY + rsInt));
+        
+        for (let gy = minGy; gy <= maxGy; gy++) {
+          for (let gx = minGx; gx <= maxGx; gx++) {
+            const dx = gx - centerX;
+            const dy = gy - centerY;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            
+            if (d > Rs) continue;
+            
+            let h: number;
+            if (d <= Rp) {
+              // Flat plateau
+              h = H;
+            } else {
+              // Linear falloff from plateau edge to zero
+              h = H * (1 - (d - Rp) / (Rs - Rp));
+            }
+            
+            // MAX merge preserves higher terrain and plateau integrity
+            const idx = gy * gridW + gx;
+            if (h > heightMap[idx]) {
+              heightMap[idx] = h;
+            }
+          }
+        }
       }
-      const offCanvas = terrainCanvasRef.current;
-      offCanvas.width = gridW;
-      offCanvas.height = gridH;
-      const offCtx = offCanvas.getContext('2d');
-      if (offCtx) {
-        // Clear
-        offCtx.clearRect(0, 0, gridW, gridH);
-        
-        // Height field: each node draws a radial gradient hill
-        // - Intensity (color value) = terrainHeights (mass-based)
-        // - Radius of influence = terrainPeakRadii (link-count-based)
-        const BASE_RADIUS = 60;  // base radius in world coords
-        const PEAK_RADIUS = 160; // additional radius per unit peak size
-        
-        // Simple hash-based noise for peak distortion
-        const noise2d = (x: number, y: number, seed: number): number => {
-          let n = Math.sin(x * 127.1 + y * 311.7 + seed * 113.5) * 43758.5453;
-          n = n - Math.floor(n);
-          return n * 2 - 1; // [-1, 1]
-        };
-        
-        // Number of angular samples for noise-distorted peaks
-        const NOISE_ANGULAR_STEPS = 24;
-        const NOISE_AMPLITUDE = 0.15; // how much the radius varies (fraction of base)
-        
-        for (const node of visibleNodes) {
-          const h_val = terrainHeights.get(node.id) ?? 0;
-          const r_val = terrainPeakRadii.get(node.id) ?? 0;
-          if (h_val <= 0) continue;
-          
-          // Convert world coords to offscreen grid coords
-          const sx = (node.x * t.scale + t.x) / GRID_RES;
-          const sy = (node.y * t.scale + t.y) / GRID_RES;
-          const baseR = (BASE_RADIUS + PEAK_RADIUS * r_val) * t.scale / GRID_RES;
-          
-          if (baseR < 1) continue;
-          
-          // Intensity proportional to height (mass)
-          const intensity = Math.floor(h_val * 255);
-          
-          // Draw a noise-distorted radial gradient using a custom shape path
-          // The noise distorts the outer radius to create irregular peak shapes
-          // The inner gradient is smooth (CSS blur will further smooth everything)
-          const noiseSeed = node.id;
-          
-          // Build a distorted circular path
-          offCtx.save();
-          offCtx.globalCompositeOperation = 'lighter';
-          
-          // Draw the peak as overlapping radial gradients with angular noise
-          // Use a path-clipped radial gradient for each angular wedge
-          const angStep = (2 * Math.PI) / NOISE_ANGULAR_STEPS;
-          
-          // Pre-compute distorted radii for each angular step
-          const distortedRadii: number[] = [];
-          for (let i = 0; i <= NOISE_ANGULAR_STEPS; i++) {
-            const angle = i * angStep;
-            const n = noise2d(Math.cos(angle) * 3, Math.sin(angle) * 3, noiseSeed);
-            distortedRadii.push(baseR * (1 + n * NOISE_AMPLITUDE));
+      
+      // Apply gaussian blur for smoother contours
+      // Simple 3x3 blur kernel, applied twice for stronger smoothing
+      const blurKernel = (src: Float32Array, dst: Float32Array, w: number, h: number) => {
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            dst[i] = (
+              src[i - w - 1] + src[i - w] * 2 + src[i - w + 1] +
+              src[i - 1] * 2 + src[i] * 4 + src[i + 1] * 2 +
+              src[i + w - 1] + src[i + w] * 2 + src[i + w + 1]
+            ) / 16;
           }
-          
-          // Draw the distorted shape and fill with radial gradient
-          // Use the maximum distorted radius for the gradient extent
-          const maxDistortedR = Math.max(...distortedRadii);
-          
-          offCtx.beginPath();
-          for (let i = 0; i <= NOISE_ANGULAR_STEPS; i++) {
-            const angle = i * angStep;
-            const r = distortedRadii[i];
-            const px = sx + Math.cos(angle) * r;
-            const py = sy + Math.sin(angle) * r;
-            if (i === 0) offCtx.moveTo(px, py);
-            else offCtx.lineTo(px, py);
+        }
+        // Copy edges
+        for (let x = 0; x < w; x++) { dst[x] = src[x]; dst[(h - 1) * w + x] = src[(h - 1) * w + x]; }
+        for (let y = 0; y < h; y++) { dst[y * w] = src[y * w]; dst[y * w + w - 1] = src[y * w + w - 1]; }
+      };
+      
+      const tempMap = new Float32Array(gridW * gridH);
+      blurKernel(heightMap, tempMap, gridW, gridH);
+      blurKernel(tempMap, heightMap, gridW, gridH);
+      blurKernel(heightMap, tempMap, gridW, gridH);
+      blurKernel(tempMap, heightMap, gridW, gridH);
+      
+      // Height getter
+      const getHeight = (gx: number, gy: number): number => {
+        if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return 0;
+        return heightMap[gy * gridW + gx];
+      };
+      
+      // Read CSS variables for contour color gradient (low → high elevation)
+      const style = getComputedStyle(document.documentElement);
+      const colorLow = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
+      const colorHigh = style.getPropertyValue('--color-accent').trim() || '#404040';
+      
+      // Parse colors for interpolation
+      const parseHex = (hex: string): [number, number, number] => {
+        let h = hex.replace('#', '');
+        if (h.length === 3) h = h.split('').map(c => c + c).join('');
+        return [
+          parseInt(h.substring(0, 2), 16),
+          parseInt(h.substring(2, 4), 16),
+          parseInt(h.substring(4, 6), 16),
+        ];
+      };
+      const [lowR, lowG, lowB] = parseHex(colorLow);
+      const [highR, highG, highB] = parseHex(colorHigh);
+      
+      // Interpolate color based on level
+      const getContourColor = (level: number, opacity: number): string => {
+        const t = level; // level is already 0-1
+        const r = Math.round(lowR + (highR - lowR) * t);
+        const g = Math.round(lowG + (highG - lowG) * t);
+        const b = Math.round(lowB + (highB - lowB) * t);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      };
+      
+      // Draw contour lines at multiple height levels using marching squares
+      const CONTOUR_LEVELS = [0.08, 0.18, 0.32, 0.48, 0.65, 0.82];
+      
+      ctx.save();
+      ctx.resetTransform(); // Draw contours in screen space
+      
+      for (const level of CONTOUR_LEVELS) {
+        const opacity = 0.25 + level * 0.5;
+        ctx.strokeStyle = getContourColor(level, opacity);
+        ctx.lineWidth = 0.6 + level * 0.8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash(LINE_DASH_NONE);
+        
+        // Marching squares: find contour segments
+        const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+        
+        for (let gy = 0; gy < gridH - 1; gy++) {
+          for (let gx = 0; gx < gridW - 1; gx++) {
+            const v00 = getHeight(gx, gy);
+            const v10 = getHeight(gx + 1, gy);
+            const v01 = getHeight(gx, gy + 1);
+            const v11 = getHeight(gx + 1, gy + 1);
+            
+            // Classify corners
+            const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
+                         (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
+            
+            if (code === 0 || code === 15) continue;
+            
+            // Interpolate edge crossings
+            const lerp = (va: number, vb: number): number => {
+              const d = vb - va;
+              return d === 0 ? 0.5 : (level - va) / d;
+            };
+            
+            const top = lerp(v00, v10);
+            const right = lerp(v10, v11);
+            const bottom = lerp(v01, v11);
+            const left = lerp(v00, v01);
+            
+            const px = gx * GRID_RES;
+            const py = gy * GRID_RES;
+            const gs = GRID_RES;
+            
+            const edgePoints: Record<string, [number, number]> = {
+              top: [px + top * gs, py],
+              right: [px + gs, py + right * gs],
+              bottom: [px + bottom * gs, py + gs],
+              left: [px, py + left * gs],
+            };
+            
+            // Marching squares lookup — add segments for each case
+            const addSegment = (e1: string, e2: string) => {
+              const [x1, y1] = edgePoints[e1];
+              const [x2, y2] = edgePoints[e2];
+              segments.push({ x1, y1, x2, y2 });
+            };
+            
+            switch (code) {
+              case 1: addSegment('left', 'bottom'); break;
+              case 2: addSegment('bottom', 'right'); break;
+              case 3: addSegment('left', 'right'); break;
+              case 4: addSegment('top', 'right'); break;
+              case 5: addSegment('left', 'top'); addSegment('bottom', 'right'); break;
+              case 6: addSegment('top', 'bottom'); break;
+              case 7: addSegment('left', 'top'); break;
+              case 8: addSegment('top', 'left'); break;
+              case 9: addSegment('top', 'bottom'); break;
+              case 10: addSegment('top', 'right'); addSegment('left', 'bottom'); break;
+              case 11: addSegment('top', 'right'); break;
+              case 12: addSegment('left', 'right'); break;
+              case 13: addSegment('bottom', 'right'); break;
+              case 14: addSegment('left', 'bottom'); break;
+            }
           }
-          offCtx.closePath();
-          offCtx.clip();
-          
-          // Draw radial gradient within the clipped distorted shape
-          const grad = offCtx.createRadialGradient(sx, sy, 0, sx, sy, maxDistortedR);
-          grad.addColorStop(0, `rgba(${intensity}, ${intensity}, ${intensity}, 1)`);
-          grad.addColorStop(0.5, `rgba(${intensity}, ${intensity}, ${intensity}, 0.4)`);
-          grad.addColorStop(1, `rgba(${intensity}, ${intensity}, ${intensity}, 0)`);
-          
-          offCtx.fillStyle = grad;
-          offCtx.fillRect(sx - maxDistortedR, sy - maxDistortedR, maxDistortedR * 2, maxDistortedR * 2);
-          offCtx.restore();
         }
         
-        // Apply gaussian blur via CSS filter on the offscreen canvas
-        offCtx.filter = 'blur(8px)';
-        offCtx.globalCompositeOperation = 'source-over';
-        offCtx.drawImage(offCanvas, 0, 0);
-        offCtx.filter = 'none';
-        
-        // Read back pixel data for marching squares contour extraction
-        const imageData = offCtx.getImageData(0, 0, gridW, gridH);
-        const pixels = imageData.data;
-        
-        // Extract height value at grid position (use red channel)
-        const getHeight = (gx: number, gy: number): number => {
-          if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return 0;
-          return pixels[(gy * gridW + gx) * 4] / 255;
-        };
-        
-        // Read CSS variables for contour colors
-        const style = getComputedStyle(document.documentElement);
-        const contourColor = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
-        
-        // Draw contour lines at multiple height levels using marching squares
-        const CONTOUR_LEVELS = [0.1, 0.2, 0.35, 0.5, 0.7, 0.85];
-        
-        // We need to convert grid coords back to screen coords (not world coords)
-        // Since we drew the height field in screen space, contours are in screen space too
-        // But the canvas transform is applied, so we need to undo it for drawing
-        ctx.save();
-        ctx.resetTransform(); // Draw contours in screen space
-        
-        for (const level of CONTOUR_LEVELS) {
-          const opacity = 0.15 + level * 0.3;
-          ctx.strokeStyle = hexToRgba(contourColor, opacity);
-          ctx.lineWidth = 0.8 + level * 0.6;
-          ctx.setLineDash(LINE_DASH_NONE);
+        // Chain segments into polylines and draw as smooth splines
+        if (segments.length > 0) {
+          const EPS = 0.5;
+          const ptKey = (x: number, y: number) => `${Math.round(x / EPS)},${Math.round(y / EPS)}`;
+          const chains: Array<Array<[number, number]>> = [];
+          const used = new Uint8Array(segments.length);
           
-          // Marching squares: find contour segments
-          const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+          // Index segments by endpoints
+          const endpointIndex = new Map<string, number[]>();
+          for (let i = 0; i < segments.length; i++) {
+            const s = segments[i];
+            const k1 = ptKey(s.x1, s.y1);
+            const k2 = ptKey(s.x2, s.y2);
+            if (!endpointIndex.has(k1)) endpointIndex.set(k1, []);
+            if (!endpointIndex.has(k2)) endpointIndex.set(k2, []);
+            endpointIndex.get(k1)!.push(i);
+            endpointIndex.get(k2)!.push(i);
+          }
           
-          for (let gy = 0; gy < gridH - 1; gy++) {
-            for (let gx = 0; gx < gridW - 1; gx++) {
-              const v00 = getHeight(gx, gy);
-              const v10 = getHeight(gx + 1, gy);
-              const v01 = getHeight(gx, gy + 1);
-              const v11 = getHeight(gx + 1, gy + 1);
-              
-              // Classify corners
-              const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
-                           (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
-              
-              if (code === 0 || code === 15) continue;
-              
-              // Interpolate edge crossings
-              const lerp = (va: number, vb: number): number => {
-                const d = vb - va;
-                return d === 0 ? 0.5 : (level - va) / d;
-              };
-              
-              const top = lerp(v00, v10);
-              const right = lerp(v10, v11);
-              const bottom = lerp(v01, v11);
-              const left = lerp(v00, v01);
-              
-              const px = gx * GRID_RES;
-              const py = gy * GRID_RES;
-              const gs = GRID_RES;
-              
-              const edgePoints: Record<string, [number, number]> = {
-                top: [px + top * gs, py],
-                right: [px + gs, py + right * gs],
-                bottom: [px + bottom * gs, py + gs],
-                left: [px, py + left * gs],
-              };
-              
-              // Marching squares lookup — add segments for each case
-              const addSegment = (e1: string, e2: string) => {
-                const [x1, y1] = edgePoints[e1];
-                const [x2, y2] = edgePoints[e2];
-                segments.push({ x1, y1, x2, y2 });
-              };
-              
-              switch (code) {
-                case 1: addSegment('left', 'bottom'); break;
-                case 2: addSegment('bottom', 'right'); break;
-                case 3: addSegment('left', 'right'); break;
-                case 4: addSegment('top', 'right'); break;
-                case 5: addSegment('left', 'top'); addSegment('bottom', 'right'); break;
-                case 6: addSegment('top', 'bottom'); break;
-                case 7: addSegment('left', 'top'); break;
-                case 8: addSegment('top', 'left'); break;
-                case 9: addSegment('top', 'bottom'); break;
-                case 10: addSegment('top', 'right'); addSegment('left', 'bottom'); break;
-                case 11: addSegment('top', 'right'); break;
-                case 12: addSegment('left', 'right'); break;
-                case 13: addSegment('bottom', 'right'); break;
-                case 14: addSegment('left', 'bottom'); break;
+          // Chain segments together
+          for (let i = 0; i < segments.length; i++) {
+            if (used[i]) continue;
+            used[i] = 1;
+            const s = segments[i];
+            const chain: Array<[number, number]> = [[s.x1, s.y1], [s.x2, s.y2]];
+            
+            // Extend forward
+            let currentEnd = ptKey(s.x2, s.y2);
+            let extended = true;
+            while (extended) {
+              extended = false;
+              const candidates = endpointIndex.get(currentEnd);
+              if (candidates) {
+                for (const ci of candidates) {
+                  if (used[ci]) continue;
+                  const cs = segments[ci];
+                  const k1 = ptKey(cs.x1, cs.y1);
+                  const k2 = ptKey(cs.x2, cs.y2);
+                  if (k1 === currentEnd) {
+                    used[ci] = 1;
+                    chain.push([cs.x2, cs.y2]);
+                    currentEnd = k2;
+                    extended = true;
+                    break;
+                  } else if (k2 === currentEnd) {
+                    used[ci] = 1;
+                    chain.push([cs.x1, cs.y1]);
+                    currentEnd = k1;
+                    extended = true;
+                    break;
+                  }
+                }
               }
+            }
+            
+            // Extend backward
+            let currentStart = ptKey(chain[0][0], chain[0][1]);
+            extended = true;
+            while (extended) {
+              extended = false;
+              const candidates = endpointIndex.get(currentStart);
+              if (candidates) {
+                for (const ci of candidates) {
+                  if (used[ci]) continue;
+                  const cs = segments[ci];
+                  const k1 = ptKey(cs.x1, cs.y1);
+                  const k2 = ptKey(cs.x2, cs.y2);
+                  if (k1 === currentStart) {
+                    used[ci] = 1;
+                    chain.unshift([cs.x2, cs.y2]);
+                    currentStart = k2;
+                    extended = true;
+                    break;
+                  } else if (k2 === currentStart) {
+                    used[ci] = 1;
+                    chain.unshift([cs.x1, cs.y1]);
+                    currentStart = k1;
+                    extended = true;
+                    break;
+                  }
+                }
+              }
+            }
+            
+            if (chain.length >= 2) {
+              chains.push(chain);
             }
           }
           
-          // Chain segments into polylines and draw as smooth splines
-          if (segments.length > 0) {
-            // Build adjacency for segment chaining
-            const EPS = 0.5;
-            const ptKey = (x: number, y: number) => `${Math.round(x / EPS)},${Math.round(y / EPS)}`;
-            const chains: Array<Array<[number, number]>> = [];
-            const used = new Uint8Array(segments.length);
+          // Smooth chain points with a simple moving average filter
+          const smoothChain = (pts: Array<[number, number]>): Array<[number, number]> => {
+            if (pts.length < 5) return pts;
+            const smoothed: Array<[number, number]> = [[pts[0][0], pts[0][1]]];
+            // Apply 3-point weighted average (1-2-1 kernel)
+            for (let i = 1; i < pts.length - 1; i++) {
+              const x = (pts[i - 1][0] + pts[i][0] * 2 + pts[i + 1][0]) / 4;
+              const y = (pts[i - 1][1] + pts[i][1] * 2 + pts[i + 1][1]) / 4;
+              smoothed.push([x, y]);
+            }
+            smoothed.push([pts[pts.length - 1][0], pts[pts.length - 1][1]]);
+            return smoothed;
+          };
+          
+          // Draw chains as Catmull-Rom splines for smoothness
+          for (let chain of chains) {
+            if (chain.length < 2) continue;
             
-            // Index segments by endpoints
-            const endpointIndex = new Map<string, number[]>();
-            for (let i = 0; i < segments.length; i++) {
-              const s = segments[i];
-              const k1 = ptKey(s.x1, s.y1);
-              const k2 = ptKey(s.x2, s.y2);
-              if (!endpointIndex.has(k1)) endpointIndex.set(k1, []);
-              if (!endpointIndex.has(k2)) endpointIndex.set(k2, []);
-              endpointIndex.get(k1)!.push(i);
-              endpointIndex.get(k2)!.push(i);
+            // Apply smoothing passes to longer chains
+            if (chain.length >= 5) {
+              chain = smoothChain(chain);
+              chain = smoothChain(chain);
             }
             
-            // Chain segments together
-            for (let i = 0; i < segments.length; i++) {
-              if (used[i]) continue;
-              used[i] = 1;
-              const s = segments[i];
-              const chain: Array<[number, number]> = [[s.x1, s.y1], [s.x2, s.y2]];
-              
-              // Extend forward
-              let currentEnd = ptKey(s.x2, s.y2);
-              let extended = true;
-              while (extended) {
-                extended = false;
-                const candidates = endpointIndex.get(currentEnd);
-                if (candidates) {
-                  for (const ci of candidates) {
-                    if (used[ci]) continue;
-                    const cs = segments[ci];
-                    const k1 = ptKey(cs.x1, cs.y1);
-                    const k2 = ptKey(cs.x2, cs.y2);
-                    if (k1 === currentEnd) {
-                      used[ci] = 1;
-                      chain.push([cs.x2, cs.y2]);
-                      currentEnd = k2;
-                      extended = true;
-                      break;
-                    } else if (k2 === currentEnd) {
-                      used[ci] = 1;
-                      chain.push([cs.x1, cs.y1]);
-                      currentEnd = k1;
-                      extended = true;
-                      break;
-                    }
-                  }
-                }
-              }
-              
-              // Extend backward
-              let currentStart = ptKey(chain[0][0], chain[0][1]);
-              extended = true;
-              while (extended) {
-                extended = false;
-                const candidates = endpointIndex.get(currentStart);
-                if (candidates) {
-                  for (const ci of candidates) {
-                    if (used[ci]) continue;
-                    const cs = segments[ci];
-                    const k1 = ptKey(cs.x1, cs.y1);
-                    const k2 = ptKey(cs.x2, cs.y2);
-                    if (k1 === currentStart) {
-                      used[ci] = 1;
-                      chain.unshift([cs.x2, cs.y2]);
-                      currentStart = k2;
-                      extended = true;
-                      break;
-                    } else if (k2 === currentStart) {
-                      used[ci] = 1;
-                      chain.unshift([cs.x1, cs.y1]);
-                      currentStart = k1;
-                      extended = true;
-                      break;
-                    }
-                  }
-                }
-              }
-              
-              if (chain.length >= 2) {
-                chains.push(chain);
-              }
-            }
+            ctx.beginPath();
             
-            // Draw chains as Catmull-Rom splines for smoothness
-            for (const chain of chains) {
-              if (chain.length < 2) continue;
+            if (chain.length === 2) {
+              ctx.moveTo(chain[0][0], chain[0][1]);
+              ctx.lineTo(chain[1][0], chain[1][1]);
+            } else if (chain.length === 3) {
+              // Quadratic bezier for 3 points
+              ctx.moveTo(chain[0][0], chain[0][1]);
+              ctx.quadraticCurveTo(chain[1][0], chain[1][1], chain[2][0], chain[2][1]);
+            } else {
+              // Catmull-Rom spline with tension parameter for smoothness
+              // Lower tension = smoother curves
+              const tension = 4; // Lower = smoother (was 6)
               
-              ctx.beginPath();
               ctx.moveTo(chain[0][0], chain[0][1]);
               
-              if (chain.length === 2) {
-                ctx.lineTo(chain[1][0], chain[1][1]);
-              } else {
-                // Catmull-Rom spline: for each segment, use surrounding points as control
-                for (let j = 0; j < chain.length - 1; j++) {
-                  const p0 = chain[Math.max(0, j - 1)];
-                  const p1 = chain[j];
-                  const p2 = chain[j + 1];
-                  const p3 = chain[Math.min(chain.length - 1, j + 2)];
-                  
-                  // Catmull-Rom to cubic bezier conversion (tension = 0.5)
-                  const tension = 6;
-                  const cp1x = p1[0] + (p2[0] - p0[0]) / tension;
-                  const cp1y = p1[1] + (p2[1] - p0[1]) / tension;
-                  const cp2x = p2[0] - (p3[0] - p1[0]) / tension;
-                  const cp2y = p2[1] - (p3[1] - p1[1]) / tension;
-                  
-                  ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1]);
-                }
+              for (let j = 0; j < chain.length - 1; j++) {
+                const p0 = chain[Math.max(0, j - 1)];
+                const p1 = chain[j];
+                const p2 = chain[j + 1];
+                const p3 = chain[Math.min(chain.length - 1, j + 2)];
+                
+                // Catmull-Rom to cubic bezier conversion
+                const cp1x = p1[0] + (p2[0] - p0[0]) / tension;
+                const cp1y = p1[1] + (p2[1] - p0[1]) / tension;
+                const cp2x = p2[0] - (p3[0] - p1[0]) / tension;
+                const cp2y = p2[1] - (p3[1] - p1[1]) / tension;
+                
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1]);
               }
-              
-              ctx.stroke();
             }
+            
+            ctx.stroke();
           }
         }
-        
-        ctx.restore(); // Restore from resetTransform
       }
+      
+      ctx.restore(); // Restore from resetTransform
     }
     
     // ==================== Node Rendering ====================
