@@ -16,6 +16,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $createTextNode,
+  $isTextNode,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_NORMAL,
   KEY_ENTER_COMMAND,
@@ -106,7 +107,7 @@ export function NodeBlockPlugin({
     
     // Check if runtime is requesting focus on a specific block
     const runtime = getNodeGraphRuntime();
-    const pendingFocusBlockId = runtime.getPendingFocus();
+    const pendingFocus = runtime.getPendingFocus();
     
     editor.update(() => {
       const root = $getRoot();
@@ -136,14 +137,16 @@ export function NodeBlockPlugin({
         const existing = existingBlockMap.get(projected.blockId);
 
         if (existing) {
-          // Update existing node
-          existing.setDepth(projected.depth);
-          existing.setCollapsed(projected.collapsed);
-          existing.setHasChildren(projected.hasChildren);
-          existing.setIcon(projected.icon ?? null);
-          existing.setColor(projected.color ?? null);
-          existing.setBlockName(projected.name ?? '');
-          existing.setIsProjectionRoot(projected.isProjectionRoot);
+          // Update existing node — only call setters when values actually
+          // changed to avoid dirtying nodes unnecessarily, which causes
+          // Lexical to reconcile and reset the cursor/selection.
+          if (existing.getDepth() !== projected.depth) existing.setDepth(projected.depth);
+          if (existing.getCollapsed() !== projected.collapsed) existing.setCollapsed(projected.collapsed);
+          if (existing.getHasChildren() !== projected.hasChildren) existing.setHasChildren(projected.hasChildren);
+          if (existing.getIcon() !== (projected.icon ?? null)) existing.setIcon(projected.icon ?? null);
+          if (existing.getColor() !== (projected.color ?? null)) existing.setColor(projected.color ?? null);
+          if (existing.getBlockName() !== (projected.name ?? '')) existing.setBlockName(projected.name ?? '');
+          if (existing.getIsProjectionRoot() !== projected.isProjectionRoot) existing.setIsProjectionRoot(projected.isProjectionRoot);
         } else {
           // Create new node
           const newBlock = $createNodeBlockNode(
@@ -172,11 +175,15 @@ export function NodeBlockPlugin({
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
           
           // If this is the block runtime requested to focus, focus it directly
-          if (projected.blockId === pendingFocusBlockId) {
+          if (pendingFocus && projected.blockId === pendingFocus.blockId) {
             runtime.clearPendingFocus();
             const firstChild = newBlock.getFirstChild();
             if (firstChild) {
-              firstChild.selectStart();
+              if (pendingFocus.offset != null && $isTextNode(firstChild)) {
+                firstChild.select(pendingFocus.offset, pendingFocus.offset);
+              } else {
+                firstChild.selectNext(0, 0);
+              }
             } else {
               newBlock.selectEnd();
             }
