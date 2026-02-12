@@ -32,8 +32,9 @@ import {
   type GraphViewMode,
   type VisibilityFilters,
   type ConstraintMode,
+  type LinkDirection,
 } from './NodeGraphRenderer';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTerrain, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -109,6 +110,7 @@ export function GraphView({
     nodeSizeMode: 'uniform',
     massAccumulation: true,
     constraintMode: 'physics',
+    linkDirection: 'all',
   });
   const settingsLoadedRef = useRef(false);
   
@@ -304,7 +306,8 @@ export function GraphView({
         vy: 0,
         targetX: 0,
         targetY: 0,
-        name: nodeName,
+        name: apiNode.name, // Keep raw AST name for NodeInline
+        displayName: nodeName, // Cache parsed name for canvas rendering
         type: apiNode.type || 'page',
         isDaily: apiNode.is_daily || false,
         isMonthly: apiNode.is_monthly || false,
@@ -317,6 +320,8 @@ export function GraphView({
         pinned: pinnedNodes.has(apiNode.id),
         color: (apiNode.properties?.color as string) || undefined,
         connectionCount: 0, // computed by renderer from visible links
+        inLinkCount: 0,
+        outLinkCount: 0,
         createdAt: apiNode.created_at,
         visible: true,
         isClassNode: apiNode.is_class || classIds.has(apiNode.id),
@@ -436,12 +441,11 @@ export function GraphView({
     setSearchOpen(false);
   }, []);
   
-  // View mode options
+  // View mode options (terrain is now its own view mode at NodeCollection level)
   const modeOptions = [
     { value: 'normal', icon: mdiVectorPolygon, label: 'Force-directed layout' },
     { value: 'circle', icon: mdiCircleOutline, label: 'Circle layout' },
     { value: 'tree', icon: mdiFileTreeOutline, label: 'Tree layout' },
-    { value: 'terrain', icon: mdiTerrain, label: 'Terrain layout' },
   ];
   
   if (!sourceNodes || sourceNodes.length === 0) {
@@ -518,6 +522,27 @@ export function GraphView({
                 }))}
               />
             </div>
+
+            {graphSettings.nodeSizeMode === 'connections' && (
+              <div className="visibility-option">
+                <SelectionButton
+                  size="sm"
+                  label="Link direction"
+                  description="Count incoming, outgoing, or all links"
+                  labelPosition="left"
+                  options={[
+                    { value: 'in', icon: mdiCallReceived, label: 'Incoming links' },
+                    { value: 'out', icon: mdiCallMade, label: 'Outgoing links' },
+                    { value: 'all', icon: mdiSwapHorizontal, label: 'All links' }
+                  ]}
+                  value={graphSettings.linkDirection}
+                  onChange={(value) => setGraphSettings(prev => ({
+                    ...prev,
+                    linkDirection: value as LinkDirection
+                  }))}
+                />
+              </div>
+            )}
 
             {(viewMode === 'circle' || viewMode === 'tree') && (
               <div className="visibility-option">

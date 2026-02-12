@@ -25,7 +25,46 @@
  * - Creation date animation where nodes appear sequentially
  * - Dynamic arrow generation based on current node/link state
  */
-import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef, useMemo } from 'react';
+import { NodeInline } from '@/components/blocks/NodeInline';
+import type { 
+  GraphNode, 
+  GraphLink, 
+  ClassColor, 
+  GraphSettings, 
+  VisibilityFilters,
+  GlareState,
+  NodeSizeMode,
+  ConstraintMode,
+  LinkDirection,
+  QuadNode,
+  FrameData,
+} from './viewTypes';
+import { DEFAULT_VISIBILITY_FILTERS } from './viewTypes';
+import { 
+  hexToRgba,
+  getNodeRadius,
+  getNodeColor,
+  getGlareRadius,
+  linkTypeId,
+  pairKey,
+  findPathBetweenNodes,
+  NODE_RADIUS_BASE,
+  NODE_RADIUS_MIN,
+  NODE_RADIUS_MAX,
+  NODE_HOVER_RADIUS_EXTRA,
+  GLARE_SCALE_NORMAL,
+  GLARE_SCALE_BRIGHT,
+  GLARE_SCALE_CURRENT,
+  GLARE_OPACITY_NORMAL,
+  GLARE_OPACITY_BRIGHT,
+  GLARE_OPACITY_DIM,
+  LABEL_FADE_ZOOM_MIN,
+  LABEL_FADE_ZOOM_MAX,
+  LINE_DASH_NONE,
+  LINE_DASH_DOTTED,
+  LINK_TYPE_PRIORITY,
+} from './viewHelpers';
 import './NodeGraphRenderer.css';
 
 // ==================== Configuration ====================
@@ -47,6 +86,10 @@ const WARMUP_DURATION_FRAMES = 60; // Frames over which simulation ramps to full
 const CENTER_GRAVITY = 0.003; // Gentle pull toward center to prevent drift
 const VELOCITY_DEADZONE = 0.01; // Zero out velocity below this to prevent jitter near equilibrium
 const LINK_DAMPING = 0.4; // Dashpot: damp relative velocity along spring axis to prevent oscillation
+
+// Terrain mode: aggressive damping so nodes freeze sooner
+const TERRAIN_VELOCITY_DAMPING = 0.4; // Much more aggressive than normal 0.7
+const TERRAIN_VELOCITY_DEADZONE = 0.05; // Larger deadzone to freeze sooner
 
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
@@ -73,90 +116,12 @@ function getRenderSkip(nodeCount: number): number {
   return 1;
 }
 
-// Pre-allocated arrays for setLineDash (avoids per-frame array creation)
-const LINE_DASH_NONE: number[] = [];
-const LINE_DASH_DOTTED: number[] = [2, 3];
-
-// Visual constants
-const NODE_RADIUS_BASE = 10;
-const NODE_RADIUS_MIN = 10;
-const NODE_RADIUS_MAX = 20;
-const NODE_HOVER_RADIUS_EXTRA = 4;
-const GLARE_SCALE_NORMAL = 1.8;
-const GLARE_SCALE_BRIGHT = 2.0;
-const GLARE_SCALE_CURRENT = 2.4;
-const GLARE_OPACITY_NORMAL = 0.2;
-const GLARE_OPACITY_BRIGHT = 0.4;
-const GLARE_OPACITY_DIM = 0.05;
-
-// Label fade settings
-const LABEL_FADE_ZOOM_MIN = 0.4;
-const LABEL_FADE_ZOOM_MAX = 0.7;
-
 // ==================== Types ====================
 
-export type GraphViewMode = 'normal' | 'circle' | 'tree';
-export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
-export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
-export type ConstraintMode = 'physics' | 'equidistant';
+export type GraphViewMode = 'normal' | 'circle' | 'tree' | 'terrain';
 
-export interface GraphNode {
-  id: number;
-  uuid: string;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  targetX: number;
-  targetY: number;
-  name: string;
-  type: 'page' | 'block';
-  isDaily: boolean;
-  isMonthly: boolean;
-  isYearly: boolean;
-  isSystemPage: boolean;
-  tags: string[];
-  types: number[];
-  parentId: number | null;
-  glare: GlareState;
-  pinned: boolean;
-  color?: string;
-  connectionCount: number;
-  createdAt?: string;
-  visible: boolean;
-  isClassNode: boolean;
-}
-
-export interface GraphLink {
-  source: number;
-  target: number;
-  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends';
-}
-
-export interface ClassColor {
-  typeId: number;
-  typeName: string;
-  color: string;
-  order: number;
-}
-
-export interface GraphSettings {
-  linkCountAttraction: boolean;
-  nodeSizeMode: NodeSizeMode;
-  massAccumulation: boolean;
-  constraintMode: ConstraintMode;
-}
-
-export interface VisibilityFilters {
-  showClassNodes: boolean;
-  showClassLinks: boolean;
-  showParentLinks: boolean;
-  showReferenceLinks: boolean;
-  showDayPages: boolean;
-  showMonthPages: boolean;
-  showYearPages: boolean;
-  showSystemPages: boolean;
-}
+// Re-export shared types for consumers
+export type { GraphNode, GraphLink, ClassColor, GraphSettings, VisibilityFilters, GlareState, NodeSizeMode, ConstraintMode, LinkDirection };
 
 export interface NodeGraphRendererProps {
   /** Nodes to display */
@@ -197,194 +162,7 @@ export interface NodeGraphRendererRef {
   updateLinks: (links: GraphLink[]) => void;
 }
 
-// ==================== Helper Functions ====================
-
-function findPathBetweenNodes(
-  startId: number,
-  endId: number,
-  nodes: GraphNode[],
-  links: GraphLink[]
-): number[] {
-  const adjacency = new Map<number, number[]>();
-  
-  for (const node of nodes) {
-    adjacency.set(node.id, []);
-  }
-  
-  for (const link of links) {
-    adjacency.get(link.source)?.push(link.target);
-    adjacency.get(link.target)?.push(link.source);
-  }
-  
-  const visited = new Set<number>();
-  const parent = new Map<number, number>();
-  const queue: number[] = [startId];
-  visited.add(startId);
-  
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    
-    if (current === endId) {
-      const path: number[] = [];
-      let node: number | undefined = endId;
-      while (node !== undefined) {
-        path.unshift(node);
-        node = parent.get(node);
-      }
-      return path;
-    }
-    
-    for (const neighbor of adjacency.get(current) || []) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        parent.set(neighbor, current);
-        queue.push(neighbor);
-      }
-    }
-  }
-  
-  return [];
-}
-
-// NOTE: classColors must be pre-sorted by order before passing in.
-// Do NOT sort inside this hot-path function — it runs per-node per-frame.
-function getNodeColor(node: GraphNode, classColors: ClassColor[], accentColor: string): string {
-  if (node.color) return node.color;
-  
-  if (node.types && node.types.length > 0 && classColors.length > 0) {
-    for (const classColor of classColors) {
-      if (node.types.includes(classColor.typeId)) {
-        return classColor.color;
-      }
-    }
-  }
-  
-  return accentColor;
-}
-
-// Link type to numeric id for dedup key (moved out of render to avoid per-frame closure)
-function linkTypeId(t: string): number {
-  switch (t) { case 'parent': return 0; case 'class': return 1; case 'extends': return 2; case 'reference': return 3; default: return 4; }
-}
-
-// Glare radius helper — moved out of render loop to avoid per-frame closure creation
-function getGlareRadius(node: GraphNode, nodeSizeMode: NodeSizeMode, maxConnections: number, maxMass: number): number {
-  const nodeRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass);
-  switch (node.glare) {
-    case 'bright': return nodeRadius * GLARE_SCALE_BRIGHT;
-    case 'current': return nodeRadius * GLARE_SCALE_CURRENT;
-    default: return nodeRadius * GLARE_SCALE_NORMAL;
-  }
-}
-
-// Cache for hexToRgba results — avoids repeated string creation in hot render loop
-const hexToRgbaCache = new Map<string, string>();
-
-function hexToRgba(hex: string, opacity: number): string {
-  // Key: combine hex and opacity (opacity is typically a small set of fixed values)
-  const key = hex + opacity;
-  const cached = hexToRgbaCache.get(key);
-  if (cached) return cached;
-  
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) {
-    cleanHex = cleanHex.split('').map(c => c + c).join('');
-  }
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-  const result = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  hexToRgbaCache.set(key, result);
-  return result;
-}
-
-function getNodeRadius(
-  node: GraphNode, 
-  nodeSizeMode: NodeSizeMode,
-  maxConnections: number,
-  maxMass: number,
-): number {
-  if (nodeSizeMode === 'uniform') {
-    return NODE_RADIUS_BASE;
-  }
-  
-  let value = 0;
-  let max = 1;
-  
-  switch (nodeSizeMode) {
-    case 'connections':
-      value = node.connectionCount;
-      max = maxConnections || 1;
-      break;
-    case 'mass':
-      // mass is stored on the node by the simulation
-      value = (node as GraphNode & { _mass?: number })._mass ?? 1;
-      max = maxMass || 1;
-      break;
-  }
-  
-  const ratio = Math.sqrt(value / max);
-  return NODE_RADIUS_MIN + ratio * (NODE_RADIUS_MAX - NODE_RADIUS_MIN);
-}
-
-// Unused - kept for future reference
-// function buildFullPath(
-//   node: GraphNode,
-//   nodes: GraphNode[]
-// ): string {
-//   if (node.parentId === null) {
-//     // Root page, just return name
-//     return node.name;
-//   }
-//   
-//   // Build path from root to current node
-//   const path: string[] = [];
-//   let currentId: number | null = node.id;
-//   const visited = new Set<number>(); // Prevent infinite loops
-//   const nodeMap = new Map(nodes.map(n => [n.id, n]));
-//   
-//   while (currentId !== null && !visited.has(currentId)) {
-//     visited.add(currentId);
-//     const currentNode = nodeMap.get(currentId);
-//     if (!currentNode) break;
-//     
-//     path.unshift(currentNode.name);
-//     currentId = currentNode.parentId;
-//   }
-//   
-//   return path.join(' / ');
-// }
-
-// ==================== Topology Helpers (module-level, not re-created per render) ====================
-
-// Link type priority: higher number wins when multiple links connect same pair
-const LINK_TYPE_PRIORITY: Record<string, number> = {
-  'reference': 0,
-  'property-reference': 1,
-  'extends': 2,
-  'class': 3,
-  'parent': 4,
-};
-
-// Numeric pair key — avoids string interpolation in hot loop
-function pairKey(a: number, b: number): number {
-  const lo = a < b ? a : b;
-  const hi = a < b ? b : a;
-  return lo * 100000 + hi;
-}
-
 // ==================== Component ====================
-
-const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
-  showClassNodes: true,
-  showClassLinks: true,
-  showParentLinks: true,
-  showReferenceLinks: true,
-  showDayPages: true,
-  showMonthPages: true,
-  showYearPages: true,
-  showSystemPages: true,
-};
 
 export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRendererProps>(function NodeGraphRenderer({
   nodes: inputNodes,
@@ -439,6 +217,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   const childrenOfRef = useRef(new Map<number, number[]>());
   const massCacheRef = useRef(new Map<number, number>());
   const connectionCountsRef = useRef(new Map<number, number>());
+  const inLinkCountsRef = useRef(new Map<number, number>());
+  const outLinkCountsRef = useRef(new Map<number, number>());
   
   // Shared data between simulate and render (written by simulate, read by render)
   const frameDataRef = useRef<{
@@ -447,7 +227,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     nodeMap: Map<number, GraphNode>;
     maxConnections: number;
     maxMass: number;
-  }>({ visibleNodes: [], visibleLinks: [], nodeMap: new Map(), maxConnections: 0, maxMass: 0 });
+    terrainHeights: Map<number, number>; // nodeId → normalized height [0,1]
+    terrainPeakRadii: Map<number, number>; // nodeId → normalized peak radius [0,1]
+  }>({ visibleNodes: [], visibleLinks: [], nodeMap: new Map(), maxConnections: 0, maxMass: 0, terrainHeights: new Map(), terrainPeakRadii: new Map() });
   
   // Reusable per-frame collections (avoid GC pressure)
   const frameNodeMapRef = useRef(new Map<number, GraphNode>());
@@ -461,6 +243,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   // Render-phase reusable collections
   const linkDirCacheRef = useRef(new Map<number, number>()); // pairKey → bitfield (1=fwd, 2=rev)
   const drawnLinksCacheRef = useRef(new Set<number>());
+  
+  // Terrain mode: offscreen canvas for contour line generation
+  const terrainCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Terrain mode: node positions for DOM overlay (updated each frame)
+  const [terrainNodePositions, setTerrainNodePositions] = useState<Map<number, { x: number; y: number; height: number }>>(new Map());
+  const terrainUpdateRafRef = useRef<number>(0);
   
   // Convergence-based simulation sleep
   const simulationSleepingRef = useRef(false);
@@ -900,18 +688,89 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
   useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
   useEffect(() => { hoveredNodeRef.current = hoveredNode; }, [hoveredNode]);
   
+  // Store original input nodes for filter comparison
+  const inputNodesMapRef = useRef<Map<number, GraphNode>>(new Map());
+  const allLinksRef = useRef<GraphLink[]>([]);
+  
+  // Helper to check if a node should be visible based on filters
+  const shouldNodeBeVisible = useCallback((node: GraphNode, filters: VisibilityFilters): boolean => {
+    // Terrain mode: always hide class nodes (they are destroyed from the simulation)
+    if (viewModeRef.current === 'terrain' && node.isClassNode) return false;
+    if (node.isClassNode && !filters.showClassNodes) return false;
+    if (node.isDaily && !filters.showDayPages) return false;
+    if (node.isMonthly && !filters.showMonthPages) return false;
+    if (node.isYearly && !filters.showYearPages) return false;
+    if (node.isSystemPage && !filters.showSystemPages) return false;
+    return true;
+  }, []);
+  
+  // Helper to check if a link should be active based on filters
+  const shouldLinkBeActive = useCallback((link: GraphLink, filters: VisibilityFilters): boolean => {
+    if (link.type === 'class' && !filters.showClassLinks) return false;
+    if ((link.type === 'parent' || link.type === 'extends') && !filters.showParentLinks) return false;
+    if ((link.type === 'reference' || link.type === 'property-reference') && !filters.showReferenceLinks) return false;
+    return true;
+  }, []);
+  
   // Handle view mode changes separately — only update targets, don't reset warmup
   const prevViewModeRef = useRef(viewMode);
   useEffect(() => {
     if (prevViewModeRef.current === viewMode) return;
+    const prevMode = prevViewModeRef.current;
     prevViewModeRef.current = viewMode;
+    
+    // Terrain mode transitions: destroy/create class nodes
+    const enteringTerrain = viewMode === 'terrain' && prevMode !== 'terrain';
+    const leavingTerrain = viewMode !== 'terrain' && prevMode === 'terrain';
+    
+    if (enteringTerrain) {
+      // Destroy class nodes from simulation
+      const classNodeIds = nodesRef.current.filter(n => n.isClassNode).map(n => n.id);
+      for (const id of classNodeIds) {
+        const index = nodesRef.current.findIndex(n => n.id === id);
+        if (index !== -1) nodesRef.current.splice(index, 1);
+      }
+      // Remove links involving class nodes
+      const classIdSet = new Set(classNodeIds);
+      linksRef.current = linksRef.current.filter(
+        l => !classIdSet.has(l.source) && !classIdSet.has(l.target)
+      );
+      topologyDirtyRef.current = true;
+    }
+    
+    if (leavingTerrain) {
+      // Re-create class nodes that should be visible
+      const currentFilters = visibilityFiltersRef.current;
+      inputNodesMapRef.current.forEach((node) => {
+        if (node.isClassNode && shouldNodeBeVisible(node, currentFilters)) {
+          const exists = nodesRef.current.find(n => n.id === node.id);
+          if (!exists) {
+            const centerX = dimensionsRef.current.width / 2;
+            const centerY = dimensionsRef.current.height / 2;
+            nodesRef.current.push({
+              ...node,
+              x: centerX + (Math.random() - 0.5) * 200,
+              y: centerY + (Math.random() - 0.5) * 200,
+              vx: 0, vy: 0,
+            });
+          }
+        }
+      });
+      // Rebuild links
+      const visibleIds = new Set(nodesRef.current.map(n => n.id));
+      linksRef.current = allLinksRef.current.filter(
+        l => visibleIds.has(l.source) && visibleIds.has(l.target) && shouldLinkBeActive(l, currentFilters)
+      );
+      topologyDirtyRef.current = true;
+    }
+    
     // Recalculate target positions and radii for the new mode
     if (nodesRef.current.length > 0) {
       calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode, settingsRef.current.nodeSizeMode);
       topologyDirtyRef.current = true;
       wakeSimulationRef.current();
     }
-  }, [viewMode, calculatePositions]);
+  }, [viewMode, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
   
   // Cache CSS variables on mount and observe theme changes
   useEffect(() => {
@@ -928,28 +787,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const observer = new MutationObserver(updateCssVars);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
     return () => observer.disconnect();
-  }, []);
-  
-  // Store original input nodes for filter comparison
-  const inputNodesMapRef = useRef<Map<number, GraphNode>>(new Map());
-  const allLinksRef = useRef<GraphLink[]>([]);
-  
-  // Helper to check if a node should be visible based on filters
-  const shouldNodeBeVisible = useCallback((node: GraphNode, filters: VisibilityFilters): boolean => {
-    if (node.isClassNode && !filters.showClassNodes) return false;
-    if (node.isDaily && !filters.showDayPages) return false;
-    if (node.isMonthly && !filters.showMonthPages) return false;
-    if (node.isYearly && !filters.showYearPages) return false;
-    if (node.isSystemPage && !filters.showSystemPages) return false;
-    return true;
-  }, []);
-  
-  // Helper to check if a link should be active based on filters
-  const shouldLinkBeActive = useCallback((link: GraphLink, filters: VisibilityFilters): boolean => {
-    if (link.type === 'class' && !filters.showClassLinks) return false;
-    if ((link.type === 'parent' || link.type === 'extends') && !filters.showParentLinks) return false;
-    if ((link.type === 'reference' || link.type === 'property-reference') && !filters.showReferenceLinks) return false;
-    return true;
   }, []);
   
   // Visibility filter changes - use destroyNode/createNode for proper physics updates
@@ -1357,6 +1194,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const adjacency = new Map<number, Set<number>>();
     const childrenOf = new Map<number, number[]>();
     const connectionCounts = new Map<number, number>();
+    const inLinkCounts = new Map<number, number>();
+    const outLinkCounts = new Map<number, number>();
     
     // Initialize adjacency for all nodes
     for (const node of nodes) {
@@ -1375,9 +1214,11 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         connectedPairs.set(key, link.type);
       }
       
-      // Connection counts
+      // Connection counts (total, in, out)
       connectionCounts.set(link.source, (connectionCounts.get(link.source) || 0) + 1);
       connectionCounts.set(link.target, (connectionCounts.get(link.target) || 0) + 1);
+      outLinkCounts.set(link.source, (outLinkCounts.get(link.source) || 0) + 1);
+      inLinkCounts.set(link.target, (inLinkCounts.get(link.target) || 0) + 1);
       
       // Children map for mass computation
       if (link.type === 'parent') {
@@ -1420,6 +1261,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Update node properties from cache
     for (const node of nodes) {
       node.connectionCount = connectionCounts.get(node.id) || 0;
+      node.inLinkCount = inLinkCounts.get(node.id) || 0;
+      node.outLinkCount = outLinkCounts.get(node.id) || 0;
     }
     
     connectedPairsRef.current = connectedPairs;
@@ -1427,19 +1270,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     childrenOfRef.current = childrenOf;
     massCacheRef.current = massCache;
     connectionCountsRef.current = connectionCounts;
+    inLinkCountsRef.current = inLinkCounts;
+    outLinkCountsRef.current = outLinkCounts;
     topologyDirtyRef.current = false;
   }, []);
 
   // ==================== Barnes-Hut Quadtree (pooled) ====================
-  interface QuadNode {
-    cx: number; cy: number; // center of mass
-    mass: number;           // total mass in this cell
-    x0: number; y0: number; // bounds
-    x1: number; y1: number;
-    c0: QuadNode | null; c1: QuadNode | null; // NW, NE (flat fields instead of array)
-    c2: QuadNode | null; c3: QuadNode | null; // SW, SE
-    nodeIdx: number;        // -1 if internal, otherwise index into visibleNodes
-  }
   
   const allocQuadNode = (x0: number, y0: number, x1: number, y1: number): QuadNode => {
     const pool = quadPoolRef.current;
@@ -1600,10 +1436,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Update mass on nodes for rendering
       let maxConnections = 0, maxMass = 0;
+      const linkDir = currentSettings.linkDirection ?? 'all';
       for (const node of nodes) {
         const mass = useMass ? (massCache.get(node.id) ?? 1) : 1;
         (node as GraphNode & { _mass?: number })._mass = mass;
-        if (node.connectionCount > maxConnections) maxConnections = node.connectionCount;
+        const dirCount = linkDir === 'in' ? node.inLinkCount : linkDir === 'out' ? node.outLinkCount : node.connectionCount;
+        if (dirCount > maxConnections) maxConnections = dirCount;
         if (mass > maxMass) maxMass = mass;
       }
       
@@ -1807,6 +1645,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       
       // Shared across tangential and collision phases
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
+      const currentLinkDirection = currentSettings.linkDirection ?? 'all';
       
       // Tangential overlap prevention for constrained modes (tree/circle).
       // Uses direct position correction (not velocity) for stability.
@@ -1820,14 +1659,14 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           if (dragNodeRef.current?.id === a.id || a.pinned) continue;
           const aRadius = (a as GraphNode & { _treeRadius?: number })._treeRadius;
           if (aRadius === undefined) continue;
-          const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass);
+          const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
           
           for (let j = i + 1; j < nodes.length; j++) {
             const b = nodes[j];
             if (dragNodeRef.current?.id === b.id || b.pinned) continue;
             const bRadius = (b as GraphNode & { _treeRadius?: number })._treeRadius;
             if (bRadius === undefined) continue;
-            const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass);
+            const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
             
             // Only check nodes on the same or nearby rings
             const minGlareDist = (aGlare + bGlare) * 1.05;
@@ -1933,7 +1772,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           const a = nodes[i];
           if (!a.visible) continue;
           const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
-          const radiusA = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+          const radiusA = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection) * COLLISION_PADDING;
           
           for (let j = i + 1; j < nodes.length; j++) {
             const b = nodes[j];
@@ -1944,7 +1783,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
             const dx = b.x - a.x;
             const dy = b.y - a.y;
             const distSq = dx * dx + dy * dy;
-            const radiusB = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass) * COLLISION_PADDING;
+            const radiusB = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection) * COLLISION_PADDING;
             const minDist = radiusA + radiusB;
             
             // Quick squared-distance check to skip most pairs
@@ -1978,6 +1817,9 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Update positions and track kinetic energy for convergence sleep
+      const isTerrainMode = currentViewMode === 'terrain';
+      const velDamping = isTerrainMode ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
+      const velDeadzone = isTerrainMode ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
       let kineticEnergy = 0;
       for (const node of nodes) {
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
@@ -1989,15 +1831,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
           }
           node.x += node.vx;
           node.y += node.vy;
-          node.vx *= VELOCITY_DAMPING;
-          node.vy *= VELOCITY_DAMPING;
+          node.vx *= velDamping;
+          node.vy *= velDamping;
           
           // Measure KE before deadzone so active forces aren't masked
           kineticEnergy += node.vx * node.vx + node.vy * node.vy;
           
           // Kill tiny velocities to prevent jitter near equilibrium
-          if (Math.abs(node.vx) < VELOCITY_DEADZONE) node.vx = 0;
-          if (Math.abs(node.vy) < VELOCITY_DEADZONE) node.vy = 0;
+          if (Math.abs(node.vx) < velDeadzone) node.vx = 0;
+          if (Math.abs(node.vy) < velDeadzone) node.vy = 0;
           
           // Radial constraint: keep nodes on their assigned circle in constrained modes
           if (isConstrainedMode) {
@@ -2047,6 +1889,63 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         frameDataRef.current.nodeMap = nodeMap;
         frameDataRef.current.maxConnections = maxConnections;
         frameDataRef.current.maxMass = maxMass;
+        
+        // Terrain mode: compute normalized heights (mass) and peak radii (link count)
+        if (isTerrainMode) {
+          const terrainHeights = frameDataRef.current.terrainHeights;
+          const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+          terrainHeights.clear();
+          terrainPeakRadii.clear();
+          
+          // Height = mass (always), normalized to [0,1]
+          let maxHeightRaw = 0;
+          const rawHeights = new Map<number, number>();
+          for (const node of nodes) {
+            const h = useMass ? (massCache.get(node.id) ?? 1) : 1;
+            rawHeights.set(node.id, h);
+            if (h > maxHeightRaw) maxHeightRaw = h;
+          }
+          for (const [id, h] of rawHeights) {
+            terrainHeights.set(id, maxHeightRaw > 0 ? h / maxHeightRaw : 0);
+          }
+          
+          // Peak radius = link count (in/out/all based on linkDirection setting), normalized to [0,1]
+          const linkDir = currentSettings.linkDirection ?? 'all';
+          const inCounts = inLinkCountsRef.current;
+          const outCounts = outLinkCountsRef.current;
+          const allCounts = connectionCountsRef.current;
+          let maxLinkCount = 0;
+          const rawRadii = new Map<number, number>();
+          for (const node of nodes) {
+            let count: number;
+            if (linkDir === 'in') {
+              count = inCounts.get(node.id) || 0;
+            } else if (linkDir === 'out') {
+              count = outCounts.get(node.id) || 0;
+            } else {
+              count = allCounts.get(node.id) || 0;
+            }
+            rawRadii.set(node.id, count);
+            if (count > maxLinkCount) maxLinkCount = count;
+          }
+          for (const [id, c] of rawRadii) {
+            terrainPeakRadii.set(id, maxLinkCount > 0 ? c / maxLinkCount : 0);
+          }
+          
+          // Throttle DOM state updates to avoid React overhead every physics frame
+          if (!terrainUpdateRafRef.current) {
+            terrainUpdateRafRef.current = requestAnimationFrame(() => {
+              terrainUpdateRafRef.current = 0;
+              const positions = new Map<number, { x: number; y: number; height: number }>();
+              const fd = frameDataRef.current;
+              for (const node of fd.visibleNodes) {
+                const ht = fd.terrainHeights.get(node.id) ?? 0;
+                positions.set(node.id, { x: node.x, y: node.y, height: ht });
+              }
+              setTerrainNodePositions(positions);
+            });
+          }
+        }
         
         renderRef.current?.(ctx);
       }
@@ -2137,6 +2036,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Use shared frame data from simulate (avoids re-filtering)
     const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass } = frameDataRef.current;
     
+    // In terrain mode, skip link and node rendering — only draw contour lines
+    if (currentViewMode !== 'terrain') {
     // Build link direction map using numeric keys (reuse map to avoid GC)
     // Bitfield: 1 = forward (source < target), 2 = reverse (source > target)
     const linkDirections = linkDirCacheRef.current;
@@ -2192,8 +2093,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Dot is positioned at glareRadius + 2, so line should end at glareRadius + 2 + dotSize to avoid overlap
       const arrowGap = 2;
       
-      const sourceLineGlare = getGlareRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass);
-      const targetLineGlare = getGlareRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass);
+      const sourceLineGlare = getGlareRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+      const targetLineGlare = getGlareRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
       
       // Determine if there are dots at each end
       const dotSize = 4;
@@ -2338,7 +2239,340 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         ctx.stroke();
       }
     }
+    } // end: if (currentViewMode !== 'terrain') — links, level guides
     
+    // ==================== Terrain Contour Lines ====================
+    if (currentViewMode === 'terrain' && visibleNodes.length > 1) {
+      const terrainHeights = frameDataRef.current.terrainHeights;
+      const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+      
+      // Generate height field on offscreen canvas, then extract contour lines
+      // Use a low-res grid for performance, then gaussian blur for smoothness
+      const GRID_RES = 4; // pixels per grid cell (lower = higher quality but slower)
+      const gridW = Math.ceil(w / GRID_RES);
+      const gridH = Math.ceil(h / GRID_RES);
+      
+      // Create or reuse offscreen canvas
+      if (!terrainCanvasRef.current) {
+        terrainCanvasRef.current = document.createElement('canvas');
+      }
+      const offCanvas = terrainCanvasRef.current;
+      offCanvas.width = gridW;
+      offCanvas.height = gridH;
+      const offCtx = offCanvas.getContext('2d');
+      if (offCtx) {
+        // Clear
+        offCtx.clearRect(0, 0, gridW, gridH);
+        
+        // Height field: each node draws a radial gradient hill
+        // - Intensity (color value) = terrainHeights (mass-based)
+        // - Radius of influence = terrainPeakRadii (link-count-based)
+        const BASE_RADIUS = 60;  // base radius in world coords
+        const PEAK_RADIUS = 160; // additional radius per unit peak size
+        
+        // Simple hash-based noise for peak distortion
+        const noise2d = (x: number, y: number, seed: number): number => {
+          let n = Math.sin(x * 127.1 + y * 311.7 + seed * 113.5) * 43758.5453;
+          n = n - Math.floor(n);
+          return n * 2 - 1; // [-1, 1]
+        };
+        
+        // Number of angular samples for noise-distorted peaks
+        const NOISE_ANGULAR_STEPS = 24;
+        const NOISE_AMPLITUDE = 0.15; // how much the radius varies (fraction of base)
+        
+        for (const node of visibleNodes) {
+          const h_val = terrainHeights.get(node.id) ?? 0;
+          const r_val = terrainPeakRadii.get(node.id) ?? 0;
+          if (h_val <= 0) continue;
+          
+          // Convert world coords to offscreen grid coords
+          const sx = (node.x * t.scale + t.x) / GRID_RES;
+          const sy = (node.y * t.scale + t.y) / GRID_RES;
+          const baseR = (BASE_RADIUS + PEAK_RADIUS * r_val) * t.scale / GRID_RES;
+          
+          if (baseR < 1) continue;
+          
+          // Intensity proportional to height (mass)
+          const intensity = Math.floor(h_val * 255);
+          
+          // Draw a noise-distorted radial gradient using a custom shape path
+          // The noise distorts the outer radius to create irregular peak shapes
+          // The inner gradient is smooth (CSS blur will further smooth everything)
+          const noiseSeed = node.id;
+          
+          // Build a distorted circular path
+          offCtx.save();
+          offCtx.globalCompositeOperation = 'lighter';
+          
+          // Draw the peak as overlapping radial gradients with angular noise
+          // Use a path-clipped radial gradient for each angular wedge
+          const angStep = (2 * Math.PI) / NOISE_ANGULAR_STEPS;
+          
+          // Pre-compute distorted radii for each angular step
+          const distortedRadii: number[] = [];
+          for (let i = 0; i <= NOISE_ANGULAR_STEPS; i++) {
+            const angle = i * angStep;
+            const n = noise2d(Math.cos(angle) * 3, Math.sin(angle) * 3, noiseSeed);
+            distortedRadii.push(baseR * (1 + n * NOISE_AMPLITUDE));
+          }
+          
+          // Draw the distorted shape and fill with radial gradient
+          // Use the maximum distorted radius for the gradient extent
+          const maxDistortedR = Math.max(...distortedRadii);
+          
+          offCtx.beginPath();
+          for (let i = 0; i <= NOISE_ANGULAR_STEPS; i++) {
+            const angle = i * angStep;
+            const r = distortedRadii[i];
+            const px = sx + Math.cos(angle) * r;
+            const py = sy + Math.sin(angle) * r;
+            if (i === 0) offCtx.moveTo(px, py);
+            else offCtx.lineTo(px, py);
+          }
+          offCtx.closePath();
+          offCtx.clip();
+          
+          // Draw radial gradient within the clipped distorted shape
+          const grad = offCtx.createRadialGradient(sx, sy, 0, sx, sy, maxDistortedR);
+          grad.addColorStop(0, `rgba(${intensity}, ${intensity}, ${intensity}, 1)`);
+          grad.addColorStop(0.5, `rgba(${intensity}, ${intensity}, ${intensity}, 0.4)`);
+          grad.addColorStop(1, `rgba(${intensity}, ${intensity}, ${intensity}, 0)`);
+          
+          offCtx.fillStyle = grad;
+          offCtx.fillRect(sx - maxDistortedR, sy - maxDistortedR, maxDistortedR * 2, maxDistortedR * 2);
+          offCtx.restore();
+        }
+        
+        // Apply gaussian blur via CSS filter on the offscreen canvas
+        offCtx.filter = 'blur(8px)';
+        offCtx.globalCompositeOperation = 'source-over';
+        offCtx.drawImage(offCanvas, 0, 0);
+        offCtx.filter = 'none';
+        
+        // Read back pixel data for marching squares contour extraction
+        const imageData = offCtx.getImageData(0, 0, gridW, gridH);
+        const pixels = imageData.data;
+        
+        // Extract height value at grid position (use red channel)
+        const getHeight = (gx: number, gy: number): number => {
+          if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return 0;
+          return pixels[(gy * gridW + gx) * 4] / 255;
+        };
+        
+        // Read CSS variables for contour colors
+        const style = getComputedStyle(document.documentElement);
+        const contourColor = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
+        
+        // Draw contour lines at multiple height levels using marching squares
+        const CONTOUR_LEVELS = [0.1, 0.2, 0.35, 0.5, 0.7, 0.85];
+        
+        // We need to convert grid coords back to screen coords (not world coords)
+        // Since we drew the height field in screen space, contours are in screen space too
+        // But the canvas transform is applied, so we need to undo it for drawing
+        ctx.save();
+        ctx.resetTransform(); // Draw contours in screen space
+        
+        for (const level of CONTOUR_LEVELS) {
+          const opacity = 0.15 + level * 0.3;
+          ctx.strokeStyle = hexToRgba(contourColor, opacity);
+          ctx.lineWidth = 0.8 + level * 0.6;
+          ctx.setLineDash(LINE_DASH_NONE);
+          
+          // Marching squares: find contour segments
+          const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+          
+          for (let gy = 0; gy < gridH - 1; gy++) {
+            for (let gx = 0; gx < gridW - 1; gx++) {
+              const v00 = getHeight(gx, gy);
+              const v10 = getHeight(gx + 1, gy);
+              const v01 = getHeight(gx, gy + 1);
+              const v11 = getHeight(gx + 1, gy + 1);
+              
+              // Classify corners
+              const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
+                           (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
+              
+              if (code === 0 || code === 15) continue;
+              
+              // Interpolate edge crossings
+              const lerp = (va: number, vb: number): number => {
+                const d = vb - va;
+                return d === 0 ? 0.5 : (level - va) / d;
+              };
+              
+              const top = lerp(v00, v10);
+              const right = lerp(v10, v11);
+              const bottom = lerp(v01, v11);
+              const left = lerp(v00, v01);
+              
+              const px = gx * GRID_RES;
+              const py = gy * GRID_RES;
+              const gs = GRID_RES;
+              
+              const edgePoints: Record<string, [number, number]> = {
+                top: [px + top * gs, py],
+                right: [px + gs, py + right * gs],
+                bottom: [px + bottom * gs, py + gs],
+                left: [px, py + left * gs],
+              };
+              
+              // Marching squares lookup — add segments for each case
+              const addSegment = (e1: string, e2: string) => {
+                const [x1, y1] = edgePoints[e1];
+                const [x2, y2] = edgePoints[e2];
+                segments.push({ x1, y1, x2, y2 });
+              };
+              
+              switch (code) {
+                case 1: addSegment('left', 'bottom'); break;
+                case 2: addSegment('bottom', 'right'); break;
+                case 3: addSegment('left', 'right'); break;
+                case 4: addSegment('top', 'right'); break;
+                case 5: addSegment('left', 'top'); addSegment('bottom', 'right'); break;
+                case 6: addSegment('top', 'bottom'); break;
+                case 7: addSegment('left', 'top'); break;
+                case 8: addSegment('top', 'left'); break;
+                case 9: addSegment('top', 'bottom'); break;
+                case 10: addSegment('top', 'right'); addSegment('left', 'bottom'); break;
+                case 11: addSegment('top', 'right'); break;
+                case 12: addSegment('left', 'right'); break;
+                case 13: addSegment('bottom', 'right'); break;
+                case 14: addSegment('left', 'bottom'); break;
+              }
+            }
+          }
+          
+          // Chain segments into polylines and draw as smooth splines
+          if (segments.length > 0) {
+            // Build adjacency for segment chaining
+            const EPS = 0.5;
+            const ptKey = (x: number, y: number) => `${Math.round(x / EPS)},${Math.round(y / EPS)}`;
+            const chains: Array<Array<[number, number]>> = [];
+            const used = new Uint8Array(segments.length);
+            
+            // Index segments by endpoints
+            const endpointIndex = new Map<string, number[]>();
+            for (let i = 0; i < segments.length; i++) {
+              const s = segments[i];
+              const k1 = ptKey(s.x1, s.y1);
+              const k2 = ptKey(s.x2, s.y2);
+              if (!endpointIndex.has(k1)) endpointIndex.set(k1, []);
+              if (!endpointIndex.has(k2)) endpointIndex.set(k2, []);
+              endpointIndex.get(k1)!.push(i);
+              endpointIndex.get(k2)!.push(i);
+            }
+            
+            // Chain segments together
+            for (let i = 0; i < segments.length; i++) {
+              if (used[i]) continue;
+              used[i] = 1;
+              const s = segments[i];
+              const chain: Array<[number, number]> = [[s.x1, s.y1], [s.x2, s.y2]];
+              
+              // Extend forward
+              let currentEnd = ptKey(s.x2, s.y2);
+              let extended = true;
+              while (extended) {
+                extended = false;
+                const candidates = endpointIndex.get(currentEnd);
+                if (candidates) {
+                  for (const ci of candidates) {
+                    if (used[ci]) continue;
+                    const cs = segments[ci];
+                    const k1 = ptKey(cs.x1, cs.y1);
+                    const k2 = ptKey(cs.x2, cs.y2);
+                    if (k1 === currentEnd) {
+                      used[ci] = 1;
+                      chain.push([cs.x2, cs.y2]);
+                      currentEnd = k2;
+                      extended = true;
+                      break;
+                    } else if (k2 === currentEnd) {
+                      used[ci] = 1;
+                      chain.push([cs.x1, cs.y1]);
+                      currentEnd = k1;
+                      extended = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              
+              // Extend backward
+              let currentStart = ptKey(chain[0][0], chain[0][1]);
+              extended = true;
+              while (extended) {
+                extended = false;
+                const candidates = endpointIndex.get(currentStart);
+                if (candidates) {
+                  for (const ci of candidates) {
+                    if (used[ci]) continue;
+                    const cs = segments[ci];
+                    const k1 = ptKey(cs.x1, cs.y1);
+                    const k2 = ptKey(cs.x2, cs.y2);
+                    if (k1 === currentStart) {
+                      used[ci] = 1;
+                      chain.unshift([cs.x2, cs.y2]);
+                      currentStart = k2;
+                      extended = true;
+                      break;
+                    } else if (k2 === currentStart) {
+                      used[ci] = 1;
+                      chain.unshift([cs.x1, cs.y1]);
+                      currentStart = k1;
+                      extended = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              
+              if (chain.length >= 2) {
+                chains.push(chain);
+              }
+            }
+            
+            // Draw chains as Catmull-Rom splines for smoothness
+            for (const chain of chains) {
+              if (chain.length < 2) continue;
+              
+              ctx.beginPath();
+              ctx.moveTo(chain[0][0], chain[0][1]);
+              
+              if (chain.length === 2) {
+                ctx.lineTo(chain[1][0], chain[1][1]);
+              } else {
+                // Catmull-Rom spline: for each segment, use surrounding points as control
+                for (let j = 0; j < chain.length - 1; j++) {
+                  const p0 = chain[Math.max(0, j - 1)];
+                  const p1 = chain[j];
+                  const p2 = chain[j + 1];
+                  const p3 = chain[Math.min(chain.length - 1, j + 2)];
+                  
+                  // Catmull-Rom to cubic bezier conversion (tension = 0.5)
+                  const tension = 6;
+                  const cp1x = p1[0] + (p2[0] - p0[0]) / tension;
+                  const cp1y = p1[1] + (p2[1] - p0[1]) / tension;
+                  const cp2x = p2[0] - (p3[0] - p1[0]) / tension;
+                  const cp2y = p2[1] - (p3[1] - p1[1]) / tension;
+                  
+                  ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1]);
+                }
+              }
+              
+              ctx.stroke();
+            }
+          }
+        }
+        
+        ctx.restore(); // Restore from resetTransform
+      }
+    }
+    
+    // ==================== Node Rendering ====================
+    // In terrain mode, skip canvas node rendering — DOM overlay handles it
+    if (currentViewMode !== 'terrain') {
     // Get dragged node info for shadow rendering
     const draggedNodeId = dragNodeRef.current?.id ?? null;
     const liftProgress = dragLiftProgressRef.current;
@@ -2350,7 +2584,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (node.id === draggedNodeId) { draggedNode = node; continue; }
       const isHovered = currentHoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
       const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       
@@ -2454,10 +2688,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       
-      // Display just the node name
-      const displayName = node.name.length > 35 
-        ? node.name.slice(0, 35) + '...' 
-        : node.name;
+      // Display just the node name (use cached displayName to avoid re-parsing AST each frame)
+      const displayName = node.displayName.length > 35 
+        ? node.displayName.slice(0, 35) + '...' 
+        : node.displayName;
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
@@ -2466,7 +2700,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     if (draggedNode) {
       const node = draggedNode;
       const isHovered = currentHoveredNode?.id === node.id;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
       const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       
@@ -2522,6 +2756,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       ctx.globalAlpha = 1;
     }
     
+    } // end: if (currentViewMode !== 'terrain')
+    
     ctx.restore();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- dimensions accessed via dimensionsRef
   }, []);
@@ -2547,8 +2783,10 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     const currentSettings = settingsRef.current;
     
     let maxConnections = 0, maxMass = 0;
+    const hitLinkDir = currentSettings.linkDirection ?? 'all';
     for (const node of nodesRef.current) {
-      maxConnections = Math.max(maxConnections, node.connectionCount);
+      const dirCount = hitLinkDir === 'in' ? node.inLinkCount : hitLinkDir === 'out' ? node.outLinkCount : node.connectionCount;
+      maxConnections = Math.max(maxConnections, dirCount);
       maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
     }
     
@@ -2556,7 +2794,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const node = nodesRef.current[i];
       if (!node.visible) continue;
       
-      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass);
+      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
       const hitRadius = (nodeRadius + NODE_HOVER_RADIUS_EXTRA + 4) / t.scale;
       const dx = x - node.x;
       const dy = y - node.y;
@@ -2579,10 +2817,12 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     // Build node map for quick lookup
     const nodeMap = new Map<number, GraphNode>();
     let maxConnections = 0, maxMass = 0;
+    const linkHitDir = currentSettings.linkDirection ?? 'all';
     for (const node of nodesRef.current) {
       if (node.visible) {
         nodeMap.set(node.id, node);
-        maxConnections = Math.max(maxConnections, node.connectionCount);
+        const dirCount = linkHitDir === 'in' ? node.inLinkCount : linkHitDir === 'out' ? node.outLinkCount : node.connectionCount;
+        maxConnections = Math.max(maxConnections, dirCount);
         maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
       }
     }
@@ -2618,8 +2858,8 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       if (distance < hitThreshold) {
         // Make sure we're not too close to the nodes themselves
         // (to avoid selecting link when user intended to click node)
-        const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass);
-        const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass);
+        const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+        const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
         
         const distToSource = Math.sqrt((x - source.x) ** 2 + (y - source.y) ** 2);
         const distToTarget = Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2);
@@ -2863,6 +3103,15 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
     return () => canvas.removeEventListener('wheel', handler);
   }, []);
 
+  // Terrain overlay: memoize the node list to avoid creating new arrays each render
+  const terrainNodes = useMemo(() => {
+    if (viewMode !== 'terrain') return [];
+    return Array.from(terrainNodePositions.entries()).map(([id, pos]) => {
+      const node = frameDataRef.current.nodeMap.get(id);
+      return node ? { id, node, ...pos } : null;
+    }).filter(Boolean) as Array<{ id: number; node: GraphNode; x: number; y: number; height: number }>;
+  }, [viewMode, terrainNodePositions]);
+
   return (
     <div className={`node-graph-renderer ${className}`} ref={containerRef}>
       <canvas
@@ -2878,6 +3127,51 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         onContextMenu={handleContextMenu}
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
       />
+      {viewMode === 'terrain' && (
+        <div className="node-graph-renderer__terrain-overlay" style={{ pointerEvents: 'none' }}>
+          {terrainNodes.map(({ id, node, x, y, height }) => {
+            const screenX = x * transform.scale + transform.x;
+            const screenY = y * transform.scale + transform.y;
+            return (
+              <div
+                key={id}
+                className="terrain-node"
+                style={{
+                  position: 'absolute',
+                  left: screenX,
+                  top: screenY,
+                  transform: 'translate(-6px, -6px)', // align bullet dot to node position
+                  pointerEvents: 'auto',
+                  opacity: node.glare === 'dim' ? 0.3 : 1,
+                }}
+                data-height={height.toFixed(2)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onNodeDoubleClick?.(node);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onNodeRightClick?.(node);
+                }}
+              >
+                <div className="terrain-node__card">
+                  <NodeInline
+                    name={node.name}
+                    nodeId={node.id}
+                    showBullet={true}
+                    className="terrain-node__inline"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 });

@@ -14,14 +14,15 @@ export { TableView } from './TableView';
 export { GanttView } from './GanttView';
 export { GraphView } from './GraphView';
 export type { GraphViewProps } from './GraphView';
+export { TerrainView } from './TerrainView';
+export type { TerrainViewProps } from './TerrainView';
 export { TimelineView } from './TimelineView';
 export { NodeGraphRenderer } from './NodeGraphRenderer';
 export type { 
   NodeGraphRendererRef,
-  GraphNode,
-  GraphLink,
-  GraphSettings,
   GraphViewMode,
-  VisibilityFilters,
-  ConstraintMode,
 } from './NodeGraphRenderer';
+
+// Shared view types and helpers
+export * from './viewTypes';
+export * from './viewHelpers';

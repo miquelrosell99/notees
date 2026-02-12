@@ -63,6 +63,7 @@ import {
   TableView, 
   GanttView,
   GraphView,
+  TerrainView,
   TimelineView,
 } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
@@ -359,6 +360,22 @@ export function NodeCollection({
             is_daily: n.is_daily || false,
           }));
         return <GraphView nodes={graphNodes} className="node-collection__graph" />;
+      
+      case 'terrain':
+        // Terrain mode - similar to graph but uses contour visualization
+        const terrainNodes = nodes
+          .filter(n => n.is_page)
+          .map(n => ({
+            id: n.id,
+            uuid: n.uuid || '',
+            name: n.name || 'Untitled',
+            type: 'page' as const,
+            tags: [],
+            class_ids: [],
+            properties: {},
+            is_daily: n.is_daily || false,
+          }));
+        return <TerrainView nodes={terrainNodes} className="node-collection__terrain" />;
       
       default:
         // Fallback to list view

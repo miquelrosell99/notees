@@ -44,6 +44,7 @@ export type NodeCollectionViewMode =
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
   | 'graph'     // Graph visualization
+  | 'terrain'   // Terrain contour visualization
   | 'timeline'; // Timeline with date-based circular nodes
 
 /**
