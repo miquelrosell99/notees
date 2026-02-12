@@ -331,6 +331,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // Build one Path2D per owner for batched fill.
     // Use 85% of each node's peak height as the plateau threshold—this captures
     // the flat top after gaussian blur without bleeding into the slopes.
+    // 
+    // IMPROVEMENT: Create "inset" plateaus by only filling cells where the owner
+    // has clear dominance (majority of corners), cutting out overlapping regions.
     const ownerPaths = new Map<number, Path2D>();
     
     for (let gy = 0; gy < gridH - 1; gy++) {
@@ -362,6 +365,23 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
                      (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
         
         if (code === 0) continue;
+        
+        // INSET FILTER: Only fill if this owner has clear dominance
+        // Count how many corners belong to the dominant owner
+        const o00 = ownerMap[tlIdx];
+        const o10 = ownerMap[trIdx];
+        const o01 = ownerMap[blIdx];
+        const o11 = ownerMap[brIdx];
+        
+        let ownerCornerCount = 0;
+        if (o00 === owner) ownerCornerCount++;
+        if (o10 === owner) ownerCornerCount++;
+        if (o01 === owner) ownerCornerCount++;
+        if (o11 === owner) ownerCornerCount++;
+        
+        // Require at least 3 out of 4 corners to belong to this owner
+        // This creates an "inset" effect, cutting out contested boundaries
+        if (ownerCornerCount < 3) continue;
         
         let path = ownerPaths.get(owner);
         if (!path) { path = new Path2D(); ownerPaths.set(owner, path); }
