@@ -267,10 +267,10 @@ export const CONTOUR_LEVELS: number[] = Array.from(
 export const TERRAIN_GRID_RES = 4;
 export const TERRAIN_BASE_PLATEAU_RADIUS = 20;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
-export const TERRAIN_BASE_SLOPE_RADIUS = 100;
-export const TERRAIN_PEAK_SLOPE_BONUS = 140;
+export const TERRAIN_BASE_SLOPE_RADIUS = 160;
+export const TERRAIN_PEAK_SLOPE_BONUS = 200;
 export const TERRAIN_ANISOTROPY = 0.25; // 0 = perfect circle, 1 = fully stretched toward parent links
-export const TERRAIN_SADDLE_STRENGTH = 0.35; // 0 = no saddle dip, 1 = full dip between competing peaks
+export const TERRAIN_SADDLE_STRENGTH = 0.5; // 0 = no saddle dip, 1 = full dip between competing peaks
 
 // Terrain ridge parameters (parent-child connections)
 export const TERRAIN_RIDGE_PLATEAU_RADIUS = 5;
