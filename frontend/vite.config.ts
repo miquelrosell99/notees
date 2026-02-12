@@ -20,6 +20,11 @@ export default defineConfig({
   server: {
     port: 5173,
     allowedHosts: ['atlas'],
+    // Enable polling for Docker on Windows
+    watch: {
+      usePolling: true,
+      interval: 1000,
+    },
     proxy: {
       // Proxy API requests to the FastAPI backend
       '/api': {
