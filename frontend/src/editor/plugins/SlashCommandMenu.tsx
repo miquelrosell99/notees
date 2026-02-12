@@ -1,21 +1,13 @@
 /**
- * TriggerPopup — Popup UI for editor triggers.
+ * SlashCommandMenu — Popup menu for / slash commands in the editor.
  *
- * Renders the appropriate popup based on trigger type:
- * - [[  → Link search (SuggestionPopup type='link')
- * - @   → Type/class search (SuggestionPopup type='type')
- * - #   → Tag search (SuggestionPopup type='tag')
- * - /   → Slash commands (link, type, tag, query, table, comment, image, etc.)
+ * Shows available commands (link, type, tag, query, table, comment, image, etc.)
+ * filtered by the user's query after the / trigger.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
-import type { TriggerType } from './TriggerPlugin';
-import { SuggestionPopup, type SuggestionType } from '../../components/nodes/SuggestionPopup';
-import type { Node } from '../../types/api';
-import { useCreateNode } from '../../hooks/useNodes';
-import { usePageClass, useClassClass } from '../../hooks/usePageClass';
+import { useState, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
 import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, PropertiesIcon } from '../../components/core/icons';
-import './TriggerPopup.css';
+import './SlashCommandMenu.css';
 
 // ─── Slash Command Definitions ───────────────────────────────────
 
@@ -97,8 +89,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
 
 // ─── Props ────────────────────────────────────────────────────────
 
-export interface TriggerPopupProps {
-  type: TriggerType;
+export interface SlashCommandMenuProps {
   query: string;
   position: { top: number; left: number };
   onSelect: (value: string, metadata?: unknown) => void;
@@ -107,116 +98,7 @@ export interface TriggerPopupProps {
 
 // ─── Component ────────────────────────────────────────────────────
 
-export function TriggerPopup({
-  type,
-  query,
-  position,
-  onSelect,
-  onClose,
-}: TriggerPopupProps): JSX.Element | null {
-  // For link/type/tag triggers, use SuggestionPopup
-  if (type === 'link' || type === 'type' || type === 'tag') {
-    const suggestionType: SuggestionType = type === 'type' ? 'class' : type;
-
-    const handleSelect = useCallback((node: Node, _keepInline: boolean) => {
-      onSelect(node.uuid, { node, type: suggestionType });
-    }, [onSelect, suggestionType]);
-
-    const handleSelectDatePage = useCallback((pageId: string, _pageName: string) => {
-      onSelect(pageId, { type: 'date' });
-    }, [onSelect]);
-
-    return (
-      <TriggerSuggestionPopup
-        suggestionType={suggestionType}
-        triggerType={type}
-        query={query}
-        position={position}
-        onSelect={handleSelect}
-        onClose={onClose}
-        onSelectDatePage={type === 'link' ? handleSelectDatePage : undefined}
-      />
-    );
-  }
-
-  // For slash commands, render our own menu
-  return (
-    <SlashCommandMenu
-      query={query}
-      position={position}
-      onSelect={onSelect}
-      onClose={onClose}
-    />
-  );
-}
-
-// ─── Trigger Suggestion Popup (with create support) ──────────────
-
-/**
- * Wrapper around SuggestionPopup that provides onCreate for creating
- * new pages, classes, or tags directly from the trigger menu.
- */
-function TriggerSuggestionPopup({
-  suggestionType,
-  triggerType,
-  query,
-  position,
-  onSelect,
-  onClose,
-  onSelectDatePage,
-}: {
-  suggestionType: SuggestionType;
-  triggerType: TriggerType;
-  query: string;
-  position: { top: number; left: number };
-  onSelect: (node: Node, keepInline: boolean) => void;
-  onClose: () => void;
-  onSelectDatePage?: (pageId: string, pageName: string) => void;
-}): JSX.Element {
-  const createNode = useCreateNode();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
-
-  const handleCreate = useCallback((name: string, keepInline: boolean) => {
-    if (!pageClassId) return;
-
-    // Determine classes based on trigger type
-    const classes: number[] = [pageClassId];
-    if (triggerType === 'type' && classClassId) {
-      classes.push(classClassId);
-    }
-
-    createNode.mutate({ name, classes }, {
-      onSuccess: (newNode) => {
-        onSelect(newNode, keepInline);
-      },
-    });
-  }, [createNode, pageClassId, classClassId, triggerType, onSelect]);
-
-  return (
-    <SuggestionPopup
-      isOpen={true}
-      query={query}
-      type={suggestionType}
-      position={position}
-      onSelect={onSelect}
-      onClose={onClose}
-      onCreate={handleCreate}
-      onSelectDatePage={onSelectDatePage}
-    />
-  );
-}
-
-// ─── Slash Command Menu ───────────────────────────────────────────
-
-interface SlashCommandMenuProps {
-  query: string;
-  position: { top: number; left: number };
-  onSelect: (value: string, metadata?: unknown) => void;
-  onClose: () => void;
-}
-
-function SlashCommandMenu({
+export function SlashCommandMenu({
   query,
   position,
   onSelect,

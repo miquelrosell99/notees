@@ -34,7 +34,7 @@ import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
 import { SelectionPlugin } from './plugins/SelectionPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
-import { TriggerPlugin, type TriggerType } from './plugins/TriggerPlugin';
+import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
@@ -92,14 +92,7 @@ export interface NoteesEditorProps {
   onEscape?: () => void;
   /** Called when selection changes (block IDs) */
   onSelectionChange?: (blockIds: string[]) => void;
-  /** Custom trigger popup renderer */
-  renderTriggerPopup?: (state: {
-    type: TriggerType;
-    query: string;
-    position: { top: number; left: number };
-    onSelect: (value: string, metadata?: any) => void;
-    onClose: () => void;
-  }) => JSX.Element | null;
+
   /** Called when any block's content changes (for API persistence) */
   onContentChange?: (blockId: string, content: string) => void;
   /** Custom class name */
@@ -153,7 +146,6 @@ export function NoteesEditor({
   onEscape,
   onSelectionChange,
   onContentChange: onContentChangeCallback,
-  renderTriggerPopup,
   className,
   placeholder = 'Type / for commands…',
   includeRoot,
@@ -368,7 +360,6 @@ export function NoteesEditor({
 
         {/* Triggers (/, [[, @, #) */}
         <TriggerPlugin
-          renderPopup={renderTriggerPopup}
           onLinkSelect={handlePillClick}
         />
 
