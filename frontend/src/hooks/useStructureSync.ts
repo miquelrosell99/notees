@@ -11,6 +11,7 @@
  * - Debounced saves (200ms default for responsive UX)
  * - Batches multiple changes together
  * - Extracts affected nodes from runtime and syncs to API
+ * - Updates query cache optimistically so subsequent mutations see correct structure
  * - No query invalidation to preserve runtime state
  * - Singleton pattern - only one active sync per app
  * 
@@ -23,10 +24,12 @@
  * ```
  */
 import { useEffect, useRef, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { updateNode as updateNodeApi } from '@/api/nodes';
-import type { NodeUpdate } from '@/types/api';
+import { updateNodeInTreeImmutable } from '@/utils/nodeTree';
+import { nodeKeys } from './queryKeys';
+import type { Node, NodeUpdate } from '@/types/api';
 
 interface UseStructureSyncOptions {
   /** Debounce delay in ms (default: 200) */
@@ -52,11 +55,15 @@ const SYNC_COOLDOWN = 1000; // Don't sync same node within 1 second
  * this hook extracts the affected nodes and persists their parent_id and sequence
  * to the backend API WITHOUT triggering query invalidation (to prevent loops).
  * 
+ * Also updates the query cache optimistically to ensure subsequent mutations
+ * (like delete) see the correct structure before the backend responds.
+ * 
  * Uses a singleton pattern - only the first mounted instance is active.
  */
 export function useStructureSync(options: UseStructureSyncOptions = {}) {
   const { delay = 200, onSynced, onError } = options;
   const instanceIdRef = useRef<string>(Math.random().toString(36));
+  const queryClient = useQueryClient();
   
   // Use a custom mutation that DOES NOT invalidate queries
   const updateNodeMutation = useMutation({
@@ -71,6 +78,9 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
     
     // Track which nodes we've already queued to avoid duplicates
     const syncedInBatch = new Set<number>();
+    
+    // Collect all cache updates to apply in a batch
+    const cacheUpdates: Array<{ serverId: number; parent_id: number | null; sequence: number }> = [];
     
     // Sync each affected node's parent_id and sequence
     blockIds.forEach(blockId => {
@@ -96,6 +106,13 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
         parentServerId = parentNode?.serverId ?? null;
       }
 
+      // Collect cache update data
+      cacheUpdates.push({
+        serverId: graphNode.serverId,
+        parent_id: parentServerId,
+        sequence: graphNode.orderIndex,
+      });
+
       // Update via API (without query invalidation)
       updateNodeMutation.mutate(
         { 
@@ -116,6 +133,54 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
       );
     });
 
+    // Update query cache optimistically for all affected nodes
+    // This ensures subsequent mutations (like delete) see the correct structure
+    if (cacheUpdates.length > 0) {
+      // Update all detail queries that might contain these nodes
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.details() },
+        (oldNode) => {
+          if (!oldNode || !oldNode.children) return oldNode;
+          
+          let updated = oldNode;
+          for (const update of cacheUpdates) {
+            const newChildren = updateNodeInTreeImmutable(
+              updated.children || [],
+              update.serverId,
+              { parent_id: update.parent_id, sequence: update.sequence }
+            );
+            if (newChildren !== updated.children) {
+              updated = { ...updated, children: newChildren };
+            }
+          }
+          
+          return updated;
+        }
+      );
+      
+      // Also update page-content queries
+      queryClient.setQueriesData<Node>(
+        { queryKey: ['nodes', 'page-content'] },
+        (oldNode) => {
+          if (!oldNode || !oldNode.children) return oldNode;
+          
+          let updated = oldNode;
+          for (const update of cacheUpdates) {
+            const newChildren = updateNodeInTreeImmutable(
+              updated.children || [],
+              update.serverId,
+              { parent_id: update.parent_id, sequence: update.sequence }
+            );
+            if (newChildren !== updated.children) {
+              updated = { ...updated, children: newChildren };
+            }
+          }
+          
+          return updated;
+        }
+      );
+    }
+
     // Clean up old entries from recentlySynced (older than 2x cooldown)
     for (const [serverId, timestamp] of recentlySynced.entries()) {
       if (now - timestamp > SYNC_COOLDOWN * 2) {
@@ -124,7 +189,7 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
     }
 
     onSynced?.(blockIds);
-  }, [updateNodeMutation, onSynced, onError]);
+  }, [updateNodeMutation, queryClient, onSynced, onError]);
 
   // Flush pending changes
   const flush = useCallback(() => {
