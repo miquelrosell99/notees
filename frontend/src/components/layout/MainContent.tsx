@@ -16,6 +16,7 @@ import { ArchivedPagesView } from '../../views/ArchivedPagesView';
 import { TrashView } from '../../views/TrashView';
 import { JournalsView } from '../../views/JournalsView';
 import { AllPagesGraphView } from '../../views/AllPagesGraphView';
+import { AllPagesTerrainView } from '../../views/AllPagesTerrainView';
 import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
 import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyView';
 
@@ -89,6 +90,14 @@ export function MainContent() {
     return (
       <main className="main-content graph-content">
         <AllPagesGraphView className="main-graph-view" />
+      </main>
+    );
+  }
+  
+  if (mainViewType === 'terrain') {
+    return (
+      <main className="main-content graph-content">
+        <AllPagesTerrainView className="main-graph-view" />
       </main>
     );
   }
