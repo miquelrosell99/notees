@@ -1,16 +1,16 @@
 /**
  * TerrainRenderer Component
  * 
- * Renders the terrain visualization with contour lines and DOM bullet overlay.
+ * Renders the terrain visualization with contour lines and canvas-drawn node dots.
  * Uses useNodePhysics hook for simulation.
  * Handles:
- * - Canvas rendering of contour lines (marching squares + Catmull-Rom splines)
+ * - Canvas rendering of contour lines (marching squares)
  * - Height map generation from node mass/positions
- * - DOM overlay with Bullet components for each node
+ * - Canvas-drawn node dots (no DOM overlay)
  * - Mouse interactions (pan, zoom, click)
  */
 
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo, memo } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import type {
   GraphNode,
   GraphLink,
@@ -29,9 +29,21 @@ import {
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_MIN_HEIGHT,
+  NODE_HOVER_RADIUS_EXTRA,
+  GLARE_SCALE_NORMAL,
+  GLARE_SCALE_BRIGHT,
+  GLARE_SCALE_CURRENT,
+  GLARE_OPACITY_NORMAL,
+  GLARE_OPACITY_BRIGHT,
+  GLARE_OPACITY_DIM,
+  LABEL_FADE_ZOOM_MIN,
+  LABEL_FADE_ZOOM_MAX,
+  // Helpers
+  getNodeRadius,
+  getNodeColor,
+  hexToRgba,
 } from './viewTypes';
 import { useNodePhysics } from './useNodePhysics';
-import Bullet from '../../blocks/Bullet';
 import './graph-renderer.css';
 
 // ==================== Types ====================
@@ -86,11 +98,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
   
-  // Terrain node positions for DOM overlay (world-space coordinates)
-  const [terrainNodePositions, setTerrainNodePositions] = useState<Map<number, { x: number; y: number; height: number }>>(new Map());
-  const terrainUpdateRafRef = useRef<number>(0);
-  const overlayRef = useRef<HTMLDivElement>(null);
-  
   // Pan state
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
@@ -118,11 +125,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Destructure physics
   const {
     frameDataRef,
-    transform,
     transformRef,
     setTransformDirect,
     dragNodeRef,
     dragStartTimeRef,
+    dragLiftProgressRef,
     wakeSimulation,
     simulationSleepingRef,
     ctxRef,
@@ -134,6 +141,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     triggerCreationAnimation,
     screenToWorld,
     getNodeAtPosition,
+    classColorsRef,
+    cssVarsRef,
+    settingsRef,
   } = physics;
   
   // Expose methods via ref
@@ -188,30 +198,28 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     ctx.clearRect(0, 0, w, h);
     
-    const { visibleNodes } = frameDataRef.current;
+    const { visibleNodes, maxConnections, maxMass } = frameDataRef.current;
     const terrainHeights = frameDataRef.current.terrainHeights;
     const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-    
-    // Sync overlay CSS transform with canvas transform (bypasses React for zero-lag)
-    if (overlayRef.current) {
-      overlayRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
-    }
-    
-    // Update DOM overlay world-space positions (throttled — only when nodes move)
-    if (!terrainUpdateRafRef.current) {
-      terrainUpdateRafRef.current = requestAnimationFrame(() => {
-        terrainUpdateRafRef.current = 0;
-        const positions = new Map<number, { x: number; y: number; height: number }>();
-        for (const node of visibleNodes) {
-          const ht = terrainHeights.get(node.id) ?? 0;
-          positions.set(node.id, { x: node.x, y: node.y, height: ht });
-        }
-        setTerrainNodePositions(positions);
-      });
-    }
+    const currentSettings = settingsRef.current;
     
     // Skip contour rendering if not enough nodes
-    if (visibleNodes.length < 2) return;
+    if (visibleNodes.length < 2) {
+      // Still draw dots for 1 node
+      if (visibleNodes.length === 1) {
+        const node = visibleNodes[0];
+        const sx = node.x * t.scale + t.x;
+        const sy = node.y * t.scale + t.y;
+        const { accentColor } = cssVarsRef.current;
+        const nodeColor = getNodeColor(node, classColorsRef.current, accentColor);
+        const r = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection) * t.scale;
+        ctx.beginPath();
+        ctx.fillStyle = nodeColor;
+        ctx.arc(sx, sy, r, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+      return;
+    }
     
     // Generate height field
     const gridW = Math.ceil(w / TERRAIN_GRID_RES);
@@ -389,6 +397,153 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     
     ctx.restore();
+    
+    // ==================== Draw Nodes (same as GraphRenderer) ====================
+    
+    const { accentColor, textColor, dimColor } = cssVarsRef.current;
+    const currentClassColors = classColorsRef.current;
+    const currentHoveredNode = hoveredNodeRef.current;
+    const draggedNodeId = dragNodeRef.current?.id ?? null;
+    const liftProgress = dragLiftProgressRef.current;
+    const currentScale = t.scale;
+    
+    // Label opacity based on zoom
+    const zoomOpacity = currentScale <= LABEL_FADE_ZOOM_MIN 
+      ? 0 
+      : currentScale >= LABEL_FADE_ZOOM_MAX 
+        ? 1 
+        : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
+    
+    let draggedNode: GraphNode | null = null;
+    for (const node of visibleNodes) {
+      if (node.id === draggedNodeId) { draggedNode = node; continue; }
+      
+      const sx = node.x * t.scale + t.x;
+      const sy = node.y * t.scale + t.y;
+      
+      // Skip nodes off-screen (with margin)
+      if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) continue;
+      
+      const isHovered = currentHoveredNode?.id === node.id;
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection) * t.scale;
+      const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA * t.scale : baseRadius;
+      const nodeColor = getNodeColor(node, currentClassColors, accentColor);
+      
+      // Glare
+      let glareScale = GLARE_SCALE_NORMAL;
+      let glareOpacity = GLARE_OPACITY_NORMAL;
+      switch (node.glare) {
+        case 'bright': glareScale = GLARE_SCALE_BRIGHT; glareOpacity = GLARE_OPACITY_BRIGHT; break;
+        case 'dim': glareOpacity = GLARE_OPACITY_DIM; break;
+        case 'path': break;
+        case 'current': glareScale = GLARE_SCALE_CURRENT; glareOpacity = 0.5; break;
+      }
+      const glareRadius = baseRadius * glareScale;
+      ctx.beginPath();
+      ctx.fillStyle = node.glare === 'current'
+        ? `rgba(255, 215, 0, ${glareOpacity})`
+        : hexToRgba(nodeColor, glareOpacity);
+      ctx.arc(sx, sy, glareRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Node circle
+      ctx.beginPath();
+      ctx.fillStyle = node.glare === 'dim' ? dimColor : nodeColor;
+      ctx.arc(sx, sy, circleRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // Pin indicator
+      if (node.pinned) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.beginPath();
+        ctx.fillStyle = textColor;
+        ctx.arc(sx, sy, circleRadius * 0.3, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+      }
+      
+      // Label
+      const dimOpacity = node.glare === 'dim' ? 0.4 : 1;
+      const labelOpacity = zoomOpacity * dimOpacity;
+      ctx.fillStyle = textColor;
+      ctx.globalAlpha = labelOpacity;
+      ctx.font = '10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const displayName = node.displayName.length > 35 
+        ? node.displayName.slice(0, 35) + '...' 
+        : node.displayName;
+      ctx.fillText(displayName, sx, sy + baseRadius + 10 * t.scale);
+      ctx.globalAlpha = 1;
+    }
+    
+    // Second pass: draw dragged node on top
+    if (draggedNode) {
+      const node = draggedNode;
+      const sx = node.x * t.scale + t.x;
+      const sy = node.y * t.scale + t.y;
+      const isHovered = currentHoveredNode?.id === node.id;
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection) * t.scale;
+      const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA * t.scale : baseRadius;
+      const nodeColor = getNodeColor(node, currentClassColors, accentColor);
+      
+      // Shadow
+      if (liftProgress > 0) {
+        const shadowOffset = 4 * liftProgress;
+        const shadowBlur = 12 * liftProgress;
+        const shadowOpacity = 0.3 * liftProgress;
+        ctx.save();
+        ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`;
+        ctx.shadowBlur = shadowBlur;
+        ctx.shadowOffsetX = shadowOffset;
+        ctx.shadowOffsetY = shadowOffset;
+        ctx.beginPath();
+        ctx.fillStyle = nodeColor;
+        ctx.arc(sx, sy, circleRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+      }
+      
+      let glareScale = GLARE_SCALE_NORMAL;
+      let glareOpacity = GLARE_OPACITY_NORMAL;
+      switch (node.glare) {
+        case 'bright': glareScale = GLARE_SCALE_BRIGHT; glareOpacity = GLARE_OPACITY_BRIGHT; break;
+        case 'dim': glareOpacity = GLARE_OPACITY_DIM; break;
+        case 'path': break;
+        case 'current': glareScale = GLARE_SCALE_CURRENT; glareOpacity = 0.5; break;
+      }
+      const glareRadius = baseRadius * glareScale;
+      ctx.beginPath();
+      ctx.fillStyle = node.glare === 'current'
+        ? `rgba(255, 215, 0, ${glareOpacity})`
+        : hexToRgba(nodeColor, glareOpacity);
+      ctx.arc(sx, sy, glareRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.fillStyle = node.glare === 'dim' ? dimColor : nodeColor;
+      ctx.arc(sx, sy, circleRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      if (node.pinned) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; ctx.shadowBlur = 3; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+        ctx.beginPath(); ctx.fillStyle = textColor;
+        ctx.arc(sx, sy, circleRadius * 0.3, 0, 2 * Math.PI); ctx.fill();
+        ctx.restore();
+      }
+      
+      const dimOp = node.glare === 'dim' ? 0.4 : 1;
+      ctx.fillStyle = textColor; ctx.globalAlpha = zoomOpacity * dimOp;
+      ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const dn = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
+      ctx.fillText(dn, sx, sy + baseRadius + 10 * t.scale);
+      ctx.globalAlpha = 1;
+    }
   }, [dimensions]);
   
   // Set up render function and context
@@ -581,15 +736,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     return () => canvas.removeEventListener('wheel', handler);
   }, []);
   
-  // ==================== Terrain Nodes ====================
-  
-  const terrainNodes = useMemo(() => {
-    return Array.from(terrainNodePositions.entries()).map(([id, pos]) => {
-      const node = frameDataRef.current.nodeMap.get(id);
-      return node ? { id, node, ...pos } : null;
-    }).filter(Boolean) as Array<{ id: number; node: GraphNode; x: number; y: number; height: number }>;
-  }, [terrainNodePositions]);
-  
   // ==================== Render ====================
   
   return (
@@ -607,97 +753,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         onContextMenu={handleContextMenu}
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
       />
-      <div
-        ref={overlayRef}
-        className="node-graph-renderer__terrain-overlay"
-        style={{ pointerEvents: 'none', transformOrigin: '0 0', willChange: 'transform' }}
-      >
-        {terrainNodes.map(({ id, node, x, y, height }) => (
-          <TerrainNodeOverlay
-            key={id}
-            node={node}
-            screenX={x}
-            screenY={y}
-            height={height}
-            onNodeClick={onNodeClick}
-            onNodeDoubleClick={onNodeDoubleClick}
-            onNodeRightClick={onNodeRightClick}
-          />
-        ))}
-      </div>
     </div>
   );
 });
 
 TerrainRenderer.displayName = 'TerrainRenderer';
-
-// Memoized terrain node overlay to prevent re-rendering unchanged nodes
-interface TerrainNodeOverlayProps {
-  node: GraphNode;
-  screenX: number;
-  screenY: number;
-  height: number;
-  onNodeClick?: (node: GraphNode, modifiers: { shiftKey: boolean; ctrlKey: boolean }) => void;
-  onNodeDoubleClick?: (node: GraphNode) => void;
-  onNodeRightClick?: (node: GraphNode) => void;
-}
-
-const TerrainNodeOverlay = memo(function TerrainNodeOverlay({
-  node,
-  screenX,
-  screenY,
-  height,
-  onNodeClick,
-  onNodeDoubleClick,
-  onNodeRightClick,
-}: TerrainNodeOverlayProps) {
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
-  }, [node, onNodeClick]);
-  
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onNodeDoubleClick?.(node);
-  }, [node, onNodeDoubleClick]);
-  
-  const handleContextMenu = useCallback((_nodeId: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onNodeRightClick?.(node);
-  }, [node, onNodeRightClick]);
-  
-  return (
-    <div
-      className="terrain-node"
-      style={{
-        position: 'absolute',
-        left: screenX,
-        top: screenY,
-        transform: 'translate(-50%, -50%)',
-        pointerEvents: 'auto',
-        opacity: node.glare === 'dim' ? 0.3 : 1,
-      }}
-      data-height={height.toFixed(2)}
-      onDoubleClick={handleDoubleClick}
-    >
-      <Bullet 
-        nodeId={node.id} 
-        isPage={node.type === 'page'}
-        hasChildren={false}
-        interactive={true}
-        title={node.name}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-      />
-    </div>
-  );
-}, (prev, next) => {
-  // Custom comparison: skip re-render if position barely changed
-  return prev.node.id === next.node.id &&
-    prev.node.glare === next.node.glare &&
-    Math.abs(prev.screenX - next.screenX) < 0.5 &&
-    Math.abs(prev.screenY - next.screenY) < 0.5;
-});
 
 export default TerrainRenderer;
