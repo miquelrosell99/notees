@@ -43,7 +43,7 @@ class PostgresNodeRepository(NodeRepository):
     """PostgreSQL implementation of the NodeRepository.
     
     Supports:
-    - Multi-tenant graphs (replaces workspaces)
+    - Multi-tenant workspaces
     - Permission checking via ownership and shares
     - Optimistic locking via version column
     - Full-text search
@@ -53,20 +53,20 @@ class PostgresNodeRepository(NodeRepository):
     def __init__(
         self, 
         pool: asyncpg.Pool,
-        graph_id: int,
+        workspace_id: int,
         page_type_id: int,
         user_id: Optional[int] = None
     ):
-        """Initialize with connection pool and graph context.
+        """Initialize with connection pool and workspace context.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: Current graph ID for multi-tenant queries
+            workspace_id: Current workspace ID for multi-tenant queries
             page_type_id: ID of the 'page' type node
             user_id: Current user ID for permission checks and audit
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._page_class_id = page_type_id
         self._user_id = user_id
         self._permissions: Optional[PermissionChecker] = None
@@ -123,7 +123,7 @@ class PostgresNodeRepository(NodeRepository):
         return Node(
             id=row['id'],
             uuid=str(row['uuid']),
-            graph_id=row.get('graph_id'),
+            workspace_id=row.get('workspace_id'),
             name=row['name'],
             icon=row.get('icon'),
             color=row.get('color'),
@@ -166,19 +166,19 @@ class PostgresNodeRepository(NodeRepository):
                 JOIN node n ON n.id = np.ancestor_id
                 WHERE np.descendant_id = $1 
                   AND n.is_page = TRUE 
-                  AND n.graph_id = $2
+                  AND n.workspace_id = $2
                   AND n.active = TRUE
                 ORDER BY np.depth ASC
                 LIMIT 1
-            """, parent_id, self._graph_id)
+            """, parent_id, self._workspace_id)
             return row['id'] if row else None
     
     async def _is_page(self, node_id: int) -> bool:
         """Check if a node is a page."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
-                node_id, self._graph_id
+                "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
             )
             return row['is_page'] if row else False
     
@@ -186,15 +186,15 @@ class PostgresNodeRepository(NodeRepository):
         """Shift siblings at or after the given sequence to make room for insertion."""
         await conn.execute("""
             UPDATE node SET sequence = sequence + 1 
-            WHERE parent_id = $1 AND sequence >= $2 AND graph_id = $3
-        """, parent_id, sequence, self._graph_id)
+            WHERE parent_id = $1 AND sequence >= $2 AND workspace_id = $3
+        """, parent_id, sequence, self._workspace_id)
     
     async def _close_sequence_gap(self, conn: ConnectionType, parent_id: int, old_sequence: int) -> None:
         """Close the gap left by a node that moved away."""
         await conn.execute("""
             UPDATE node SET sequence = sequence - 1 
-            WHERE parent_id = $1 AND sequence > $2 AND graph_id = $3
-        """, parent_id, old_sequence, self._graph_id)
+            WHERE parent_id = $1 AND sequence > $2 AND workspace_id = $3
+        """, parent_id, old_sequence, self._workspace_id)
     
     async def move(
         self,
@@ -238,14 +238,14 @@ class PostgresNodeRepository(NodeRepository):
                         await conn.execute("""
                             UPDATE node SET sequence = sequence - 1 
                             WHERE parent_id = $1 AND sequence > $2 AND sequence <= $3 
-                            AND id != $4 AND graph_id = $5
-                        """, effective_parent_id, old_sequence, effective_sequence, node_id, self._graph_id)
+                            AND id != $4 AND workspace_id = $5
+                        """, effective_parent_id, old_sequence, effective_sequence, node_id, self._workspace_id)
                     else:
                         await conn.execute("""
                             UPDATE node SET sequence = sequence + 1 
                             WHERE parent_id = $1 AND sequence >= $2 AND sequence < $3 
-                            AND id != $4 AND graph_id = $5
-                        """, effective_parent_id, effective_sequence, old_sequence, node_id, self._graph_id)
+                            AND id != $4 AND workspace_id = $5
+                        """, effective_parent_id, effective_sequence, old_sequence, node_id, self._workspace_id)
                 else:
                     if old_parent_id is not None:
                         await self._close_sequence_gap(conn, old_parent_id, old_sequence)
@@ -257,8 +257,8 @@ class PostgresNodeRepository(NodeRepository):
                     UPDATE node 
                     SET parent_id = $1, page_id = $2, sequence = $3, 
                         write_date = $4, write_uid = $5, version = version + 1
-                    WHERE id = $6 AND graph_id = $7
-                """, effective_parent_id, new_page_id, effective_sequence, now, uid, node_id, self._graph_id)
+                    WHERE id = $6 AND workspace_id = $7
+                """, effective_parent_id, new_page_id, effective_sequence, now, uid, node_id, self._workspace_id)
                 
                 return await self.get_by_id(node_id)
     
@@ -275,9 +275,9 @@ class PostgresNodeRepository(NodeRepository):
             user_id: Optional user ID override
             uuid: Optional UUID override (for date nodes, assets, etc.)
         """
-        # Permission check - need create permission on graph
+        # Permission check - need create permission on workspace
         if self._user_id:
-            await self.permissions.require_graph_create(self._graph_id)
+            await self.permissions.require_workspace_create(self._workspace_id)
         
         now = utc_now()
         uuid = uuid or data.uuid or generate_uuid()  # Use provided UUID or generate
@@ -351,7 +351,7 @@ class PostgresNodeRepository(NodeRepository):
                 # Insert node with class_ids
                 row = await conn.fetchrow("""
                     INSERT INTO node (
-                        uuid, graph_id, name, icon, color, parent_id, page_id,
+                        uuid, workspace_id, name, icon, color, parent_id, page_id,
                         sequence, collapsed,
                         is_class, is_page, is_day, is_month, is_year,
                         is_asset, is_template, is_comment,
@@ -360,7 +360,7 @@ class PostgresNodeRepository(NodeRepository):
                     )
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
                     RETURNING id
-                """, uuid, self._graph_id, normalized_name, data.icon, data.color,
+                """, uuid, self._workspace_id, normalized_name, data.icon, data.color,
                     data.parent_id, page_id, data.sequence, data.collapsed,
                     is_class, is_page, is_day,
                     is_month, is_year, is_asset,
@@ -375,7 +375,7 @@ class PostgresNodeRepository(NodeRepository):
         return Node(
             id=node_id,
             uuid=uuid,
-            graph_id=self._graph_id,
+            workspace_id=self._workspace_id,
             name=normalized_name,
             icon=data.icon,
             color=data.color,
@@ -404,8 +404,8 @@ class PostgresNodeRepository(NodeRepository):
         """Get node by internal ID."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE id = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE",
-                node_id, self._graph_id
+                "SELECT * FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                node_id, self._workspace_id
             )
             if not row:
                 return None
@@ -421,8 +421,8 @@ class PostgresNodeRepository(NodeRepository):
         """Get node by UUID."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE uuid = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE",
-                uuid, self._graph_id
+                "SELECT * FROM node WHERE uuid = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                uuid, self._workspace_id
             )
             if not row:
                 return None
@@ -550,9 +550,9 @@ class PostgresNodeRepository(NodeRepository):
                 param_idx += 1
         
         # Build WHERE clause
-        where_clause = f"id = ${param_idx} AND graph_id = ${param_idx + 1}"
+        where_clause = f"id = ${param_idx} AND workspace_id = ${param_idx + 1}"
         params.append(node_id)
-        params.append(self._graph_id)
+        params.append(self._workspace_id)
         param_idx += 2
         
         if expected_version is not None:
@@ -572,8 +572,8 @@ class PostgresNodeRepository(NodeRepository):
             if row is None and expected_version is not None:
                 # Check if node exists with different version
                 check_row = await conn.fetchrow(
-                    "SELECT version FROM node WHERE id = $1 AND graph_id = $2",
-                    node_id, self._graph_id
+                    "SELECT version FROM node WHERE id = $1 AND workspace_id = $2",
+                    node_id, self._workspace_id
                 )
                 if check_row:
                     raise OptimisticLockError(
@@ -596,8 +596,8 @@ class PostgresNodeRepository(NodeRepository):
                 SELECT np.descendant_id as id
                 FROM node_path np
                 JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND n.graph_id = $2
-            """, node_id, self._graph_id)
+                WHERE np.ancestor_id = $1 AND n.workspace_id = $2
+            """, node_id, self._workspace_id)
             
             if not rows:
                 return False
@@ -608,8 +608,8 @@ class PostgresNodeRepository(NodeRepository):
             now = utc_now()
             await conn.execute("""
                 UPDATE node SET active = FALSE, write_date = $1, write_uid = $2
-                WHERE id = ANY($3) AND graph_id = $4
-            """, now, self._user_id, ids_to_delete, self._graph_id)
+                WHERE id = ANY($3) AND workspace_id = $4
+            """, now, self._user_id, ids_to_delete, self._workspace_id)
             
             return True
     
@@ -628,17 +628,17 @@ class PostgresNodeRepository(NodeRepository):
                 SELECT np.descendant_id as id
                 FROM node_path np
                 JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND n.graph_id = $2
-            """, node_id, self._graph_id)
+                WHERE np.ancestor_id = $1 AND n.workspace_id = $2
+            """, node_id, self._workspace_id)
             
-            logger.info(f"[HARD_DELETE] node_id={node_id}, graph_id={self._graph_id}, found {len(rows)} descendants in node_path")
+            logger.info(f"[HARD_DELETE] node_id={node_id}, workspace_id={self._workspace_id}, found {len(rows)} descendants in node_path")
             
             if not rows:
                 # Try direct delete if node_path has no entries
                 logger.info(f"[HARD_DELETE] No node_path entries, trying direct delete")
                 result = await conn.execute(
-                    "DELETE FROM node WHERE id = $1 AND graph_id = $2",
-                    node_id, self._graph_id
+                    "DELETE FROM node WHERE id = $1 AND workspace_id = $2",
+                    node_id, self._workspace_id
                 )
                 logger.info(f"[HARD_DELETE] Direct delete result: {result}")
                 return "DELETE 1" in result
@@ -648,8 +648,8 @@ class PostgresNodeRepository(NodeRepository):
             
             # Hard delete all nodes (cascades to property values, links)
             result = await conn.execute(
-                "DELETE FROM node WHERE id = ANY($1) AND graph_id = $2",
-                ids_to_delete, self._graph_id
+                "DELETE FROM node WHERE id = ANY($1) AND workspace_id = $2",
+                ids_to_delete, self._workspace_id
             )
             logger.info(f"[HARD_DELETE] Delete result: {result}")
             
@@ -659,8 +659,8 @@ class PostgresNodeRepository(NodeRepository):
         """Get direct children of a node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE parent_id = $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
-                parent_id, self._graph_id
+                "SELECT * FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
+                parent_id, self._workspace_id
             )
             return [self._row_to_node(row) for row in rows]
     
@@ -674,10 +674,10 @@ class PostgresNodeRepository(NodeRepository):
         async with acquire_connection(self._pool) as conn:
             query = """
                 SELECT * FROM node
-                WHERE is_page = true AND active = true AND is_deleted = false AND graph_id = $1
+                WHERE is_page = true AND active = true AND is_deleted = false AND workspace_id = $1
                 ORDER BY write_date DESC NULLS LAST
             """
-            params = [self._graph_id]
+            params = [self._workspace_id]
             
             if limit is not None:
                 query += " LIMIT $2 OFFSET $3"
@@ -691,9 +691,9 @@ class PostgresNodeRepository(NodeRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT * FROM node
-                WHERE (page_id = $1 OR id = $1) AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE
+                WHERE (page_id = $1 OR id = $1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                 ORDER BY sequence
-            """, page_id, self._graph_id)
+            """, page_id, self._workspace_id)
             return [self._row_to_node(row) for row in rows]
     
     async def search(self, query: str, limit: int = 50) -> List[Node]:
@@ -704,15 +704,15 @@ class PostgresNodeRepository(NodeRepository):
                 rows = await conn.fetch("""
                     SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node
-                    WHERE graph_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                     AND (search_vector @@ plainto_tsquery('english', $1) OR name ILIKE $3)
                     ORDER BY rank DESC, write_date DESC
                     LIMIT $4
-                """, query, self._graph_id, f'%{query}%', limit)
+                """, query, self._workspace_id, f'%{query}%', limit)
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM node WHERE name ILIKE $1 AND graph_id = $2 AND active = TRUE AND is_deleted = FALSE LIMIT $3",
-                    f'%{query}%', self._graph_id, limit
+                    "SELECT * FROM node WHERE name ILIKE $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE LIMIT $3",
+                    f'%{query}%', self._workspace_id, limit
                 )
             return [self._row_to_node(row) for row in rows]
     
@@ -721,8 +721,8 @@ class PostgresNodeRepository(NodeRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT n.* FROM node n
-                WHERE $1 = ANY(n.class_ids) AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
-            """, type_node_id, self._graph_id)
+                WHERE $1 = ANY(n.class_ids) AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+            """, type_node_id, self._workspace_id)
             return [self._row_to_node(row) for row in rows]
     
     async def set_active(self, node_id: int, active: bool, user_id: Optional[int] = None) -> Optional[Node]:
@@ -737,9 +737,9 @@ class PostgresNodeRepository(NodeRepository):
             row = await conn.fetchrow("""
                 UPDATE node 
                 SET active = $1, write_date = $2, write_uid = $3, version = version + 1
-                WHERE id = $4 AND graph_id = $5
+                WHERE id = $4 AND workspace_id = $5
                 RETURNING *
-            """, active, now, uid, node_id, self._graph_id)
+            """, active, now, uid, node_id, self._workspace_id)
             return self._row_to_node(row) if row else None
     
     async def get_archived_pages(self) -> List[Node]:
@@ -749,9 +749,9 @@ class PostgresNodeRepository(NodeRepository):
                 SELECT * FROM node
                 WHERE is_page = true AND active = false 
                       AND (is_deleted = false OR is_deleted IS NULL)
-                      AND graph_id = $1
+                      AND workspace_id = $1
                 ORDER BY write_date DESC NULLS LAST
-            """, self._graph_id)
+            """, self._workspace_id)
             return [self._row_to_node(row) for row in rows]
     
     async def update_open_date(self, node_id: int) -> Optional[Node]:
@@ -761,9 +761,9 @@ class PostgresNodeRepository(NodeRepository):
             row = await conn.fetchrow("""
                 UPDATE node 
                 SET open_date = $1
-                WHERE id = $2 AND graph_id = $3
+                WHERE id = $2 AND workspace_id = $3
                 RETURNING *
-            """, now, node_id, self._graph_id)
+            """, now, node_id, self._workspace_id)
             return self._row_to_node(row) if row else None
 
     # ============================================================
@@ -798,10 +798,10 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT n.* 
                     FROM get_breadcrumbs($1, $2) AS bc
                     JOIN node n ON n.id = bc.id
-                    WHERE n.graph_id = $3
+                    WHERE n.workspace_id = $3
                     ORDER BY bc.depth
                     """,
-                    exit_node_id, enter_node_id, self._graph_id
+                    exit_node_id, enter_node_id, self._workspace_id
                 )
             else:
                 rows = await conn.fetch(
@@ -809,10 +809,10 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT n.* 
                     FROM get_breadcrumbs($1) AS bc
                     JOIN node n ON n.id = bc.id
-                    WHERE n.graph_id = $2
+                    WHERE n.workspace_id = $2
                     ORDER BY bc.depth
                     """,
-                    exit_node_id, self._graph_id
+                    exit_node_id, self._workspace_id
                 )
             
             # Convert to Node entities in a single pass
@@ -840,17 +840,17 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT np.ancestor_id
                     FROM node_path np
                     JOIN node n ON n.id = np.ancestor_id
-                    WHERE np.descendant_id = $1 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE np.descendant_id = $1 AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                     ORDER BY np.depth DESC
-                """, node_id, self._graph_id)
+                """, node_id, self._workspace_id)
             else:
                 rows = await conn.fetch("""
                     SELECT np.ancestor_id
                     FROM node_path np
                     JOIN node n ON n.id = np.ancestor_id
-                    WHERE np.descendant_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE np.descendant_id = $1 AND np.depth > 0 AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                     ORDER BY np.depth DESC
-                """, node_id, self._graph_id)
+                """, node_id, self._workspace_id)
             
             return [row['ancestor_id'] for row in rows]
     
@@ -876,14 +876,14 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT np.descendant_id
                     FROM node_path np
                     JOIN node n ON n.id = np.descendant_id
-                    WHERE np.ancestor_id = $1 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
-                """, node_id, self._graph_id)
+                    WHERE np.ancestor_id = $1 AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                """, node_id, self._workspace_id)
             else:
                 rows = await conn.fetch("""
                     SELECT np.descendant_id
                     FROM node_path np
                     JOIN node n ON n.id = np.descendant_id
-                    WHERE np.ancestor_id = $1 AND np.depth > 0 AND n.graph_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
-                """, node_id, self._graph_id)
+                    WHERE np.ancestor_id = $1 AND np.depth > 0 AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                """, node_id, self._workspace_id)
             
             return [row['descendant_id'] for row in rows]

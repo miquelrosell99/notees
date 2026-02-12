@@ -132,7 +132,7 @@ export type ASTNodeType =
  * Must match backend ScopeType enum exactly
  */
 export type ScopeType =
-  | 'entire_graph'      // All nodes in the graph
+  | 'entire_workspace'      // All nodes in the workspace
   | 'pages'             // All pages only (is_page=true)
   | 'current_page';     // Current page being viewed
 

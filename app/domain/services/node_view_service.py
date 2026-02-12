@@ -41,7 +41,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
     "classed_nodes": {
         "name": "Classed Nodes",
         "query_ast": QueryAST(
-            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
@@ -57,7 +57,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
     "extended_by": {
         "name": "Extended By",
         "query_ast": QueryAST(
-            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
@@ -72,7 +72,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
     "linked_references": {
         "name": "All References",
         "query_ast": QueryAST(
-            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
@@ -85,7 +85,7 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
     "main_content": {
         "name": "Content",
         "query_ast": QueryAST(
-            scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[]
@@ -102,20 +102,20 @@ class NodeViewService:
     def __init__(
         self,
         pool,
-        graph_id: int,
+        workspace_id: int,
         user_id: Optional[str] = None,
     ):
         """Initialize the NodeView service.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: Current graph ID
+            workspace_id: Current workspace ID
             user_id: Current user ID (string) for audit
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._user_id = user_id
-        self._view_repo = PostgresNodeViewRepository(pool, graph_id, user_id)
+        self._view_repo = PostgresNodeViewRepository(pool, workspace_id, user_id)
     
     async def create_default_views(self, node_id: int, view_types: Optional[List[str]] = None) -> List[NodeView]:
         """Create default NodeViews for a node.

@@ -1,4 +1,4 @@
-"""Search, list, and graph endpoints for nodes."""
+"""Search, list, and workspace endpoints for nodes."""
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -19,18 +19,18 @@ from ...db.connection import acquire_connection
 router = APIRouter()
 
 
-@router.get("/graph")
+@router.get("/workspace")
 async def get_graph_data_endpoint(
     user: User = Depends(get_current_user),
 ):
-    """Get graph data for visualization with nodes and links.
+    """Get workspace data for visualization with nodes and links.
     
     Returns all pages as nodes and links between them based on node_link table.
     """
     service = await _get_node_service(user)
     
     async with acquire_connection(service._pool) as conn:
-        # System type UUIDs to exclude from graph view
+        # System type UUIDs to exclude from workspace view
         excluded_uuids = [
             SYSTEM_CLASS_UUIDS["page"],
             SYSTEM_CLASS_UUIDS["class"],
@@ -41,17 +41,17 @@ async def get_graph_data_endpoint(
             """
             SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year
             FROM node 
-            WHERE graph_id = $1 AND is_page = TRUE AND active = TRUE
+            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
               AND uuid::text NOT IN (SELECT unnest($2::text[]))
             ORDER BY name
             """,
-            service._graph_id,
+            service._workspace_id,
             excluded_uuids
         )
         
         # Get types for each page
         page_ids = [row['id'] for row in page_rows]
-        class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, page_ids, conn=conn) if page_ids else {}
+        class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, page_ids, conn=conn) if page_ids else {}
         
         # Build nodes
         nodes = []
@@ -76,13 +76,13 @@ async def get_graph_data_endpoint(
             FROM node_link nl
             JOIN node source ON nl.source_id = source.id
             JOIN node target ON nl.target_id = target.id
-            WHERE source.graph_id = $1 
-              AND target.graph_id = $1
+            WHERE source.workspace_id = $1 
+              AND target.workspace_id = $1
               AND target.is_page = TRUE
               AND source.active = TRUE
               AND target.active = TRUE
             """,
-            service._graph_id
+            service._workspace_id
         )
         
         # Build reference links - source is the page containing the block that links
@@ -124,13 +124,13 @@ async def get_graph_data_endpoint(
             SELECT child.id as child_id, parent.id as parent_id
             FROM node child
             JOIN node parent ON child.parent_id = parent.id
-            WHERE child.graph_id = $1 
+            WHERE child.workspace_id = $1 
               AND child.is_page = TRUE 
               AND parent.is_page = TRUE
               AND child.active = TRUE
               AND parent.active = TRUE
             """,
-            service._graph_id
+            service._workspace_id
         )
         
         for row in parent_rows:
@@ -164,12 +164,12 @@ async def get_graph_data_endpoint(
             FROM class_extend ce
             JOIN node child ON ce.target_id = child.id
             JOIN node parent ON ce.source_id = parent.id
-            WHERE child.graph_id = $1 
-              AND parent.graph_id = $1
+            WHERE child.workspace_id = $1 
+              AND parent.workspace_id = $1
               AND child.active = TRUE
               AND parent.active = TRUE
             """,
-            service._graph_id
+            service._workspace_id
         )
         
         for row in class_extends_rows:
@@ -189,14 +189,14 @@ async def get_graph_data_endpoint(
             FROM property_value_relation pvr
             JOIN node source ON pvr.node_id = source.id
             JOIN node target ON pvr.target_id = target.id
-            WHERE source.graph_id = $1 
-              AND target.graph_id = $1
+            WHERE source.workspace_id = $1 
+              AND target.workspace_id = $1
               AND source.is_page = TRUE
               AND target.is_page = TRUE
               AND source.active = TRUE
               AND target.active = TRUE
             """,
-            service._graph_id
+            service._workspace_id
         )
         
         for row in property_link_rows:
@@ -252,7 +252,7 @@ async def search_nodes(
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch type_ids for all nodes using PostgreSQL
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     # Build response, optionally filtering by classes
     result = []
@@ -318,7 +318,7 @@ async def list_nodes(
     
     # Batch fetch class_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     # Filter to root nodes if requested
     if root_only:

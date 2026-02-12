@@ -20,16 +20,16 @@ logger = get_logger(__name__)
 class QueryExecutor:
     """Executes generated queries and returns results."""
     
-    def __init__(self, pool, graph_id: int, user_id: Optional[str] = None):
+    def __init__(self, pool, workspace_id: int, user_id: Optional[str] = None):
         """Initialize the query executor.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: Current graph ID
+            workspace_id: Current workspace ID
             user_id: Current user ID (string)
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._user_id = user_id
     
     def _substitute_params(self, query_ast: QueryAST, runtime_params: Dict[str, Any]) -> QueryAST:
@@ -159,7 +159,7 @@ class QueryExecutor:
         # Generate SQL using new QueryASTToSQL
         # Pass current_node_uuid from runtime params if available
         current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
-        generator = QueryASTToSQL(self._graph_id, current_node_uuid)
+        generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
         sql, params_dict = generator.generate(query_ast)
         
         # Convert named params to positional for asyncpg
@@ -233,7 +233,7 @@ class QueryExecutor:
         # Generate SQL using new QueryASTToSQL
         # Pass current_node_uuid from runtime params if available
         current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
-        generator = QueryASTToSQL(self._graph_id, current_node_uuid)
+        generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
         sql, params_dict = generator.generate(query_ast)
         
         # Convert named params to positional

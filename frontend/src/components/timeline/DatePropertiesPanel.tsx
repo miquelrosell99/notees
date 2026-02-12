@@ -11,7 +11,7 @@ import type { Property } from '@/types';
 import { useProperties } from '@/hooks';
 import { Button } from '../core/Button';
 import { ColorButton } from '../core/ColorButton';
-import { SearchBox } from '../SearchBox';
+import { SearchBox } from '../core/SearchBox';
 
 export interface DatePropertyConfig {
   property: string;

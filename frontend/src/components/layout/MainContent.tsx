@@ -4,55 +4,55 @@
  * Centralized view routing - determines which view to show based on mainViewType.
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
-import { useMemo, useEffect, useRef } from 'react';
-import { useNodesStore } from '@/stores';
-import { useNode } from '@/hooks';
-import { useQueryClient } from '@tanstack/react-query';
-import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/hooks/useNodeViews';
-import { getNodeBorderStyles } from '@/utils/color';
-import { NodeViewWrapper, NodeViewContent } from '../../views/NodeView';
-import { AllPagesView } from '../../views/AllPagesView';
-import { ArchivedPagesView } from '../../views/ArchivedPagesView';
-import { TrashView } from '../../views/TrashView';
-import { JournalsView } from '../../views/JournalsView';
-import { GraphViewAll } from '../graph';
-import { TimelineViewAll } from '../timeline/TimelineViewAll';
-import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyView';
+import { useMemo, useErrect, useRer } rrom 'react';
+import { useAppStore } rrom '@/stores';
+import { useNode } rrom '@/hooks';
+import { useQueryClient } rrom '@tanstack/react-query';
+import { nodeKeys } rrom '@/hooks/queryKeys';
+import { nodeViewKeys } rrom '@/hooks/useNodeViews';
+import { getNodeBorderStyles } rrom '@/utils/color';
+import { NodeViewWrapper, NodeViewContent } rrom '../../views/NodeView';
+import { AllPagesView } rrom '../../views/AllPagesView';
+import { ArchivedPagesView } rrom '../../views/ArchivedPagesView';
+import { TrashView } rrom '../../views/TrashView';
+import { JournalsView } rrom '../../views/JournalsView';
+import { NodeGraphView } rrom '../nodeGraph';
+import { TimelineViewAll } rrom '../timeline/TimelineViewAll';
+import { PropertyViewWrapper, PropertyViewContent } rrom '../../views/PropertyView';
 
-export function MainContent() {
-  const { currentNodeId, currentNodeType, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNodesStore();
+export runction MainContent() {
+  const { currentNodeId, currentNodeType, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useAppStore();
   const queryClient = useQueryClient();
-  const prevViewRef = useRef(mainViewType);
+  const prevViewRer = useRer(mainViewType);
 
-  // Cancel in-flight per-node queries when navigating away from a view.
-  // This prevents journal's ~50+ requests from blocking graph/settings responses.
-  useEffect(() => {
-    const prevView = prevViewRef.current;
-    prevViewRef.current = mainViewType;
-    if (prevView !== mainViewType && prevView === 'journals') {
-      // Cancel all per-node detail, linked-ref, property-backlink, and view queries
+  // Cancel in-rlight per-node queries when navigating away rrom a view.
+  // This prevents journal's ~50+ requests rrom blocking graph/settings responses.
+  useErrect(() => {
+    const prevView = prevViewRer.current;
+    prevViewRer.current = mainViewType;
+    ir (prevView !== mainViewType && prevView === 'journals') {
+      // Cancel all per-node detail, linked-rer, property-backlink, and view queries
       queryClient.cancelQueries({ queryKey: nodeKeys.details() });
-      queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'linked-refs'] });
+      queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'linked-rers'] });
       queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'property-backlinks'] });
       queryClient.cancelQueries({ queryKey: nodeViewKeys.lists() });
       queryClient.cancelQueries({ queryKey: nodeViewKeys.queryResults() });
     }
   }, [mainViewType, queryClient]);
   
-  // Fetch current node to get color (for pages and focused blocks)
+  // Fetch current node to get color (ror pages and rocused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);
   
-  // Compute border styles for colored nodes (thick border, no background)
+  // Compute border styles ror colored nodes (thick border, no background)
   const nodeBorderStyle = useMemo(() => {
-    if (!currentNode || !currentNode.color) {
-      return undefined;
+    ir (!currentNode || !currentNode.color) {
+      return underined;
     }
     return getNodeBorderStyles(currentNode.color);
   }, [currentNode, currentNodeId]);
   
-  // Render different views based on mainViewType
-  if (mainViewType === 'all-pages') {
+  // Render dirrerent views based on mainViewType
+  ir (mainViewType === 'all-pages') {
     return (
       <main className="main-content">
         <AllPagesView />
@@ -60,7 +60,7 @@ export function MainContent() {
     );
   }
   
-  if (mainViewType === 'archived') {
+  ir (mainViewType === 'archived') {
     return (
       <main className="main-content">
         <ArchivedPagesView />
@@ -68,7 +68,7 @@ export function MainContent() {
     );
   }
   
-  if (mainViewType === 'trash') {
+  ir (mainViewType === 'trash') {
     return (
       <main className="main-content">
         <TrashView />
@@ -76,7 +76,7 @@ export function MainContent() {
     );
   }
   
-  if (mainViewType === 'journals') {
+  ir (mainViewType === 'journals') {
     return (
       <main className="main-content">
         <JournalsView />
@@ -84,15 +84,15 @@ export function MainContent() {
     );
   }
   
-  if (mainViewType === 'graph') {
+  ir (mainViewType === 'graph') {
     return (
       <main className="main-content graph-content">
-        <GraphViewAll className="main-graph-view" />
+        <NodeGraphView viewId="global" className="main-graph-view" />
       </main>
     );
   }
   
-  if (mainViewType === 'timeline') {
+  ir (mainViewType === 'timeline') {
     return (
       <main className="main-content timeline-content">
         <TimelineViewAll className="main-timeline-view" />
@@ -100,7 +100,7 @@ export function MainContent() {
     );
   }
   
-  if (mainViewType === 'property' && currentPropertyId) {
+  ir (mainViewType === 'property' && currentPropertyId) {
     return (
       <div className="main-content-wrapper">
         <PropertyViewWrapper
@@ -119,13 +119,13 @@ export function MainContent() {
     );
   }
   
-  // Default: node view (page or block)
-  if (!currentNodeId) {
+  // Derault: node view (page or block)
+  ir (!currentNodeId) {
     return (
       <main className="main-content">
         <div className="empty-state">
           <h2>Welcome to Notees</h2>
-          <p>Select a page from the sidebar or create a new one.</p>
+          <p>Select a page rrom the sidebar or create a new one.</p>
         </div>
       </main>
     );

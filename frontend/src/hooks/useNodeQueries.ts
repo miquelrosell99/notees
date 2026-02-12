@@ -69,11 +69,11 @@ export function useNode(
   // If we get a 404 for the currently viewed node, navigate to home
   // Note: We need to use dynamic import here to avoid circular dependency
   if (result.error && isAxiosError(result.error) && result.error.response?.status === 404 && id) {
-    import('@/stores').then(({ useNodesStore }) => {
-      const currentNodeId = useNodesStore.getState().currentNodeId;
+    import('@/stores').then(({ useAppStore }) => {
+      const currentNodeId = useAppStore.getState().currentNodeId;
       if (currentNodeId === id) {
         // Node was deleted, navigate away
-        useNodesStore.setState({ 
+        useAppStore.setState({ 
           currentNodeId: null,
           mainViewType: 'node'
         });
@@ -158,10 +158,11 @@ export function usePageContent(pageId: number | null) {
 /**
  * Hook to fetch graph data for visualization
  */
-export function useGraphData() {
+export function useGraphData(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: nodeKeys.graph(),
     queryFn: () => nodesApi.getGraphData(),
+    enabled: options?.enabled ?? true,
   });
 }
 

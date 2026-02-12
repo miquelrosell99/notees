@@ -11,13 +11,13 @@
 import { useMemo, useCallback, useState, useRef } from 'react';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useNodesStore, useFavoritesStore } from '@/stores';
+import { useAppStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ASTViewerModal } from './ASTViewerModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
-import { SearchBox } from '../SearchBox';
+import { SearchBox } from '../core/SearchBox';
 import type { Node, NodeUpdate } from '@/types';
 import './NodeContextMenu.css';
 
@@ -98,7 +98,7 @@ function useCommonMenuItems(
   onViewAST?: () => void
 ): ContextMenuItem[] {
   const unarchiveNode = useUnarchiveNode();
-  const { addSidebarCard, openLocalGraph } = useNodesStore();
+  const { addSidebarCard, openLocalGraph } = useAppStore();
   
   return useMemo(() => {
     const items: ContextMenuItem[] = [

@@ -7,7 +7,7 @@ import { useCallback } from 'react';
 import { QuerySection } from '../components/nodes/QuerySection';
 import { SearchBox } from '../components/SearchBox';
 import { PageIcon } from '../components/icons';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import './AllPagesView.css';
 
@@ -16,7 +16,7 @@ interface AllPagesViewProps {
 }
 
 export function AllPagesView({ className = '' }: AllPagesViewProps) {
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
   
   // Special pseudo-node ID and UUID for all_pages view
   const PSEUDO_NODE_ID = 0;

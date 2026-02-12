@@ -11,7 +11,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { setSetting } from '@/api/databases';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import * as nodesApi from '@/api/nodes';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
@@ -67,7 +67,7 @@ export function NodeTimelineRenderer({
   const manualZoomRef = useRef(false);
   const markersRef = useRef<Array<{ x: number; date: Date; interval: number }>>([]);
   
-  const { openNode, addSidebarCard } = useNodesStore();
+  const { openNode, addSidebarCard } = useAppStore();
   
   const { data: serverSettings } = useSettingsQuery();
   

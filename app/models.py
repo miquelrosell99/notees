@@ -202,7 +202,7 @@ class NodeWithContext(Node):
 # ==================== DATABASE MODELS ====================
 
 class DatabaseInfo(BaseModel):
-    """Database/graph information."""
+    """Database/workspace information."""
     name: str
     filename: str
     created_at: datetime

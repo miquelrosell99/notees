@@ -11,7 +11,7 @@ from ..errors import SystemClassConstraintError, DatePageDeletionError, Duplicat
 from ..validation import validate_node_create, validate_node_update
 from ..stringify_ast import parse_ast, serialize_ast, ParseMode
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from ...db.connection import acquire_connection, get_graph_uuid
+from ...db.connection import acquire_connection, get_workspace_uuid
 from ...logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -61,9 +61,9 @@ CLASS_UUID_TO_FLAG = {
 class NodeService:
     """Domain service for node operations."""
     
-    # Optional attributes set by routers for direct pool/graph access
+    # Optional attributes set by routers for direct pool/workspace access
     _pool: Any = None
-    _graph_id: Optional[int] = None
+    _workspace_id: Optional[int] = None
     _user_id: Optional[int] = None
     
     def __init__(
@@ -73,14 +73,14 @@ class NodeService:
         link_service: LinkParsingService,
         page_class_id: int,
         pool: asyncpg.Pool = None,
-        graph_id: int = None,
+        workspace_id: int = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
         self._link_service = link_service
         self._page_class_id = page_class_id
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
     
     async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
         """Compute is_* flags based on the classes assigned to a node.
@@ -120,7 +120,7 @@ class NodeService:
     ) -> None:
         """Validate that a page name is unique per class within the same parent.
         
-        A page name is unique within (graph, parent) for each class it has.
+        A page name is unique within (workspace, parent) for each class it has.
         Example:
         - "EXAMPLE PAGE" with classes [task, meeting] exists
         - Cannot create "EXAMPLE PAGE" with [task] → conflicts on "task"
@@ -141,20 +141,20 @@ class NodeService:
             # Unclassed pages can't conflict with anything
             return
         
-        # Query all pages with same name and parent in this graph
+        # Query all pages with same name and parent in this workspace
         pool = self._node_repo.get_connection()
         query = """
             SELECT n.id, n.name, nl.target_id as class_id, class_node.name as class_name
             FROM node n
             LEFT JOIN node_link nl ON nl.source_id = n.id AND nl.is_inline_class = TRUE
             LEFT JOIN node class_node ON class_node.id = nl.target_id
-            WHERE n.graph_id = $1 
+            WHERE n.workspace_id = $1 
                 AND n.name = $2 
                 AND n.is_page = TRUE 
                 AND n.active = TRUE
                 AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
         """
-        params = [self._graph_id, name, parent_id]
+        params = [self._workspace_id, name, parent_id]
         
         if exclude_node_id:
             query += " AND n.id != $4"
@@ -224,14 +224,14 @@ class NodeService:
             query = """
                 SELECT n.id
                 FROM node n
-                WHERE n.graph_id = $1 
+                WHERE n.workspace_id = $1 
                     AND n.name = $2 
                     AND n.is_page = TRUE 
                     AND n.active = TRUE
                     AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
                 LIMIT 1
             """
-            row = await pool.fetchrow(query, self._graph_id, segment, current_parent_id)
+            row = await pool.fetchrow(query, self._workspace_id, segment, current_parent_id)
             
             if row:
                 # Page exists, use it as parent for next iteration
@@ -612,8 +612,8 @@ class NodeService:
         # Get node including archived ones (bypassing active=TRUE filter)
         pool = self._node_repo.get_connection()
         row = await pool.fetchrow(
-            "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
-            node_id, self._graph_id
+            "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, self._workspace_id
         )
         if not row:
             return False
@@ -688,8 +688,8 @@ class NodeService:
                 await conn.execute("""
                     UPDATE node 
                     SET is_deleted = TRUE, deleted_at = $1, write_date = $1, write_uid = $2
-                    WHERE id = ANY($3::integer[]) AND graph_id = $4
-                """, now, uid, all_node_ids, self._graph_id)
+                    WHERE id = ANY($3::integer[]) AND workspace_id = $4
+                """, now, uid, all_node_ids, self._workspace_id)
                 
                 logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
         
@@ -697,14 +697,14 @@ class NodeService:
         if node.is_asset and node.uuid:
             try:
                 from ...domain.services.asset_service import AssetService
-                # Get graph UUID for asset storage
-                graph_uuid = await get_graph_uuid(self._graph_id)
-                if graph_uuid:
-                    asset_service = AssetService(graph_uuid)
+                # Get workspace UUID for asset storage
+                workspace_uuid = await get_workspace_uuid(self._workspace_id)
+                if workspace_uuid:
+                    asset_service = AssetService(workspace_uuid)
                     asset_service.delete_asset(node.uuid)
                     logger.info(f"[DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
                 else:
-                    logger.error(f"[DELETE] Could not get graph UUID for graph_id {self._graph_id}")
+                    logger.error(f"[DELETE] Could not get workspace UUID for workspace_id {self._workspace_id}")
             except Exception as e:
                 logger.error(f"[DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
                 # Continue with soft-delete even if asset deletion fails
@@ -731,8 +731,8 @@ class NodeService:
                 # Check if node exists and is deleted
                 row = await conn.fetchrow("""
                     SELECT * FROM node 
-                    WHERE id = $1 AND graph_id = $2 AND is_deleted = TRUE
-                """, node_id, self._graph_id)
+                    WHERE id = $1 AND workspace_id = $2 AND is_deleted = TRUE
+                """, node_id, self._workspace_id)
                 
                 if not row:
                     return None
@@ -741,15 +741,15 @@ class NodeService:
                 await conn.execute("""
                     UPDATE node 
                     SET is_deleted = FALSE, deleted_at = NULL, write_date = $1, write_uid = $2
-                    WHERE id = $3 AND graph_id = $4
-                """, now, uid, node_id, self._graph_id)
+                    WHERE id = $3 AND workspace_id = $4
+                """, now, uid, node_id, self._workspace_id)
                 
                 logger.info(f"[RESTORE] Restored node {node_id}")
         
         return await self._node_repo.get_by_id(node_id)
     
     async def get_deleted_nodes(self) -> List[Node]:
-        """Get all soft-deleted nodes (trash) for the current graph.
+        """Get all soft-deleted nodes (trash) for the current workspace.
         
         Returns:
             List of deleted nodes
@@ -757,9 +757,9 @@ class NodeService:
         pool = self._node_repo.get_connection()
         rows = await pool.fetch("""
             SELECT * FROM node 
-            WHERE graph_id = $1 AND is_deleted = true
+            WHERE workspace_id = $1 AND is_deleted = true
             ORDER BY deleted_at DESC NULLS LAST
-        """, self._graph_id)
+        """, self._workspace_id)
         
         return [self._node_repo.row_to_node(row) for row in rows]
     
@@ -777,8 +777,8 @@ class NodeService:
         pool = self._node_repo.get_connection()
         row = await pool.fetchrow("""
             SELECT * FROM node 
-            WHERE id = $1 AND graph_id = $2 AND is_deleted = true
-        """, node_id, self._graph_id)
+            WHERE id = $1 AND workspace_id = $2 AND is_deleted = true
+        """, node_id, self._workspace_id)
         
         if not row:
             return False
@@ -800,16 +800,16 @@ class NodeService:
         pool = self._node_repo.get_connection()
         rows = await pool.fetch("""
             SELECT id FROM node 
-            WHERE graph_id = $1 AND is_deleted = true
-        """, self._graph_id)
+            WHERE workspace_id = $1 AND is_deleted = true
+        """, self._workspace_id)
         
-        logger.info(f"[EMPTY_TRASH] Found {len(rows)} nodes in trash for graph {self._graph_id}")
+        logger.info(f"[EMPTY_TRASH] Found {len(rows)} nodes in trash for workspace {self._workspace_id}")
         
         deleted_count = 0
         for row in rows:
             node_id = row['id']
             # Check if node still exists (it may have been deleted as a descendant of another node)
-            exists = await pool.fetchrow("SELECT id FROM node WHERE id = $1 AND graph_id = $2", node_id, self._graph_id)
+            exists = await pool.fetchrow("SELECT id FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id)
             if not exists:
                 logger.info(f"[EMPTY_TRASH] Node {node_id} already deleted (was descendant of another trash node)")
                 continue
@@ -924,7 +924,7 @@ class NodeService:
         Returns:
             Number of active day pages that are descendants of this node
         """
-        if self._pool is None or self._graph_id is None:
+        if self._pool is None or self._workspace_id is None:
             return 0
         
         async with acquire_connection(self._pool) as conn:
@@ -935,10 +935,10 @@ class NodeService:
                 JOIN node n ON n.id = np.descendant_id
                 WHERE np.ancestor_id = $1 
                   AND np.depth > 0
-                  AND n.graph_id = $2 
+                  AND n.workspace_id = $2 
                   AND n.active = TRUE
                   AND n.is_day = TRUE
-            """, node_id, self._graph_id)
+            """, node_id, self._workspace_id)
             
             return row['day_count'] if row else 0
     
@@ -1017,8 +1017,8 @@ class NodeService:
         # Get current node and class_ids
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT id, name, is_page, parent_id, class_ids FROM node WHERE id = $1 AND graph_id = $2",
-                node_id, self._graph_id
+                "SELECT id, name, is_page, parent_id, class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
             )
             if not row:
                 return False
@@ -1143,8 +1143,8 @@ class NodeService:
         # Remove class from class_ids array
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND graph_id = $2",
-                node_id, self._graph_id
+                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
             )
             if not row:
                 return False
@@ -1169,16 +1169,16 @@ class NodeService:
         """Get all classes applied to a node from class_ids array."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND graph_id = $2",
-                node_id, self._graph_id
+                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
             )
             if not row or not row['class_ids']:
                 return []
             
             # Fetch all class nodes
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE id = ANY($1) AND graph_id = $2",
-                row['class_ids'], self._graph_id
+                "SELECT * FROM node WHERE id = ANY($1) AND workspace_id = $2",
+                row['class_ids'], self._workspace_id
             )
             return [self._node_repo.row_to_node(r) for r in rows]
     
@@ -1204,15 +1204,15 @@ class NodeService:
                 await conn.execute("""
                     UPDATE node 
                     SET active = FALSE, write_date = $1, write_uid = $2, version = version + 1
-                    WHERE id = ANY($3::integer[]) AND graph_id = $4
-                """, now, uid, all_node_ids, self._graph_id)
+                    WHERE id = ANY($3::integer[]) AND workspace_id = $4
+                """, now, uid, all_node_ids, self._workspace_id)
                 
                 logger.info(f"[ARCHIVE] Archived node {node_id} and {len(descendant_ids)} descendants")
                 
                 # Return the archived parent node
                 row = await conn.fetchrow(
-                    "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
-                    node_id, self._graph_id
+                    "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
+                    node_id, self._workspace_id
                 )
                 return self._node_repo.row_to_node(row) if row else None
 
@@ -1238,15 +1238,15 @@ class NodeService:
                 await conn.execute("""
                     UPDATE node 
                     SET active = TRUE, write_date = $1, write_uid = $2, version = version + 1
-                    WHERE id = ANY($3::integer[]) AND graph_id = $4
-                """, now, uid, all_node_ids, self._graph_id)
+                    WHERE id = ANY($3::integer[]) AND workspace_id = $4
+                """, now, uid, all_node_ids, self._workspace_id)
                 
                 logger.info(f"[UNARCHIVE] Unarchived node {node_id} and {len(descendant_ids)} descendants")
                 
                 # Return the unarchived parent node
                 row = await conn.fetchrow(
-                    "SELECT * FROM node WHERE id = $1 AND graph_id = $2",
-                    node_id, self._graph_id
+                    "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
+                    node_id, self._workspace_id
                 )
                 return self._node_repo.row_to_node(row) if row else None
 

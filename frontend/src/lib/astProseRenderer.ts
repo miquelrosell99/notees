@@ -83,8 +83,8 @@ export function getQueryIntent(ast: QueryAST, nodesMap?: Map<string, Node>): str
  */
 export function renderScopeProse(scope: ScopeNode): string {
   switch (scope.scope_type) {
-    case 'entire_graph':
-      return 'in the entire graph';
+    case 'entire_workspace':
+      return 'in the entire workspace';
 
     case 'pages':
       return 'in all pages';
@@ -105,8 +105,8 @@ export function renderScopeProse(scope: ScopeNode): string {
  */
 export function getScopeLabel(scope: ScopeNode): string {
   switch (scope.scope_type) {
-    case 'entire_graph':
-      return 'Entire graph';
+    case 'entire_workspace':
+      return 'Entire workspace';
     case 'pages':
       return 'All pages';
     case 'current_page':

@@ -1,8 +1,8 @@
 """Helper functions for the Properties API.
 
-Updated for graph-based schema:
-- workspace_id -> graph_id
-- Uses get_or_create_user_graph
+Updated for workspace-based schema:
+- workspace_id -> workspace_id
+- Uses get_or_create_user_workspace
 - Repositories now take user_id for audit trails
 """
 from typing import cast
@@ -13,7 +13,7 @@ from ...domain.entities import (
 )
 from ...domain.repositories import PostgresPropertyRepository
 from ...db.connection import acquire_connection, get_pool
-from ...db.schema import get_or_create_user_graph
+from ...db.schema import get_or_create_user_workspace
 from ...models import User
 from .models import (
     PropertyResponse,
@@ -25,12 +25,12 @@ from .models import (
 
 
 async def _get_property_repo(user: User) -> PostgresPropertyRepository:
-    """Get PropertyRepository for user's graph."""
+    """Get PropertyRepository for user's workspace."""
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
-    return PostgresPropertyRepository(pool, graph_id, user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
+    return PostgresPropertyRepository(pool, workspace_id, user_id)
 
 
 def _property_to_response(prop: Property) -> PropertyResponse:

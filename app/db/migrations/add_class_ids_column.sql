@@ -16,7 +16,7 @@ UPDATE node n SET class_ids = COALESCE((
     JOIN property p ON pvr.property_id = p.id
     WHERE pvr.node_id = n.id 
       AND p.name = 'classes'
-      AND p.graph_id = n.graph_id
+      AND p.workspace_id = n.workspace_id
       AND pvr.target_id IS NOT NULL
 ), '{}');
 

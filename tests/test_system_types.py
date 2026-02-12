@@ -20,26 +20,26 @@ async def node_service(db_pool, test_user):
     )
     from app.domain.services import NodeService, LinkParsingService
     
-    graph_id = test_user["graph_id"]
+    workspace_id = test_user["workspace_id"]
     
     # Get system type IDs from workspace
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-            SYSTEM_CLASS_UUIDS['page'], graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+            SYSTEM_CLASS_UUIDS['page'], workspace_id
         )
         page_type_id = row['id']
     
     # Create repositories (classes now in class_ids column, no property)
-    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id)
-    property_repo = PostgresPropertyRepository(db_pool, graph_id)
-    link_repo = PostgresLinkRepository(db_pool, graph_id)
+    node_repo = PostgresNodeRepository(db_pool, workspace_id, page_type_id)
+    property_repo = PostgresPropertyRepository(db_pool, workspace_id)
+    link_repo = PostgresLinkRepository(db_pool, workspace_id)
     
     # Create services
     link_service = LinkParsingService(node_repo, link_repo)
     service = NodeService(
         node_repo, property_repo, link_service, page_type_id,
-        pool=db_pool, graph_id=graph_id
+        pool=db_pool, workspace_id=workspace_id
     )
     
     return service
@@ -48,14 +48,14 @@ async def node_service(db_pool, test_user):
 @pytest.fixture
 async def system_type_ids(db_pool, test_user):
     """Get system type IDs for the test workspace."""
-    graph_id = test_user["graph_id"]
+    workspace_id = test_user["workspace_id"]
     
     async with db_pool.acquire() as conn:
         ids = {}
         for name in ['day', 'month', 'year', 'class', 'task', 'page']:
             row = await conn.fetchrow(
-                "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-                SYSTEM_CLASS_UUIDS[name], graph_id
+                "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+                SYSTEM_CLASS_UUIDS[name], workspace_id
             )
             ids[name] = row['id'] if row else None
     

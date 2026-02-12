@@ -39,25 +39,25 @@ class BasePostgresRepository:
     
     Attributes:
         _pool: asyncpg connection pool
-        _graph_id: The graph/tenant ID for multi-tenant queries
+        _workspace_id: The workspace/tenant ID for multi-tenant queries
         _user_id: Optional user ID for audit trails and permissions
     """
     
     def __init__(
         self, 
         pool: "asyncpg.Pool", 
-        graph_id: int, 
+        workspace_id: int, 
         user_id: Optional[int] = None
     ):
         """Initialize repository with connection pool and context.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: The graph this repository operates on
+            workspace_id: The workspace this repository operates on
             user_id: Optional current user ID for audit trails
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._user_id = user_id
     
     def get_connection(self) -> "asyncpg.Pool":
@@ -65,9 +65,9 @@ class BasePostgresRepository:
         return self._pool
     
     @property
-    def graph_id(self) -> int:
-        """Get the current graph ID."""
-        return self._graph_id
+    def workspace_id(self) -> int:
+        """Get the current workspace ID."""
+        return self._workspace_id
     
     @property
     def user_id(self) -> Optional[int]:

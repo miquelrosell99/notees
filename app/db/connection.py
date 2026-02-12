@@ -191,57 +191,57 @@ def get_pool_stats() -> dict:
 
 
 # ============== Asset Directory Management ==============
-# Assets are stored as files, organized by graph
+# Assets are stored as files, organized by workspace
 
-async def get_graph_uuid(graph_id: int) -> Optional[str]:
-    """Get the graph UUID from the graph ID.
+async def get_workspace_uuid(workspace_id: int) -> Optional[str]:
+    """Get the workspace UUID from the workspace ID.
     
     Args:
-        graph_id: The integer graph ID
+        workspace_id: The integer workspace ID
         
     Returns:
-        The graph UUID as a string, or None if graph not found
+        The workspace UUID as a string, or None if workspace not found
     """
     async with get_connection() as conn:
         row = await conn.fetchrow(
-            "SELECT uuid FROM graph WHERE id = $1",
-            graph_id
+            "SELECT uuid FROM workspace WHERE id = $1",
+            workspace_id
         )
         return str(row['uuid']) if row else None
 
 
-def get_graph_assets_dir(graph_uuid: str) -> Path:
-    """Get the assets directory for a graph.
+def get_workspace_assets_dir(workspace_uuid: str) -> Path:
+    """Get the assets directory for a workspace.
     
     Args:
-        graph_uuid: The graph UUID (not the integer ID)
+        workspace_uuid: The workspace UUID (not the integer ID)
     
     Assets are stored as files named with their node UUID.
-    Structure: data/graphs/{graph_uuid}/assets/
+    Structure: data/workspaces/{workspace_uuid}/assets/
     """
-    assets_dir = DATA_DIR / "graphs" / graph_uuid / "assets"
+    assets_dir = DATA_DIR / "workspaces" / workspace_uuid / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
     return assets_dir
 
 
-def get_export_dir(graph_uuid: str) -> Path:
-    """Get the export directory for a graph.
+def get_export_dir(workspace_uuid: str) -> Path:
+    """Get the export directory for a workspace.
     
     Args:
-        graph_uuid: The graph UUID (not the integer ID)
+        workspace_uuid: The workspace UUID (not the integer ID)
     """
-    export_dir = DATA_DIR / "graphs" / graph_uuid / "export"
+    export_dir = DATA_DIR / "workspaces" / workspace_uuid / "export"
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir
 
 
-def get_graph_dir(graph_uuid: str) -> Path:
-    """Get the main directory for a graph.
+def get_workspace_dir(workspace_uuid: str) -> Path:
+    """Get the main directory for a workspace.
     
     Args:
-        graph_uuid: The graph UUID (not the integer ID)
+        workspace_uuid: The workspace UUID (not the integer ID)
         
     Returns:
-        Path to the graph directory (data/graphs/{graph_uuid})
+        Path to the workspace directory (data/workspaces/{workspace_uuid})
     """
-    return DATA_DIR / "graphs" / graph_uuid
+    return DATA_DIR / "workspaces" / workspace_uuid

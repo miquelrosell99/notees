@@ -1,8 +1,8 @@
-"""Permission checking for graph and node access.
+"""Permission checking for workspace and node access.
 
 This module provides permission checking logic based on:
 1. Ownership (create_uid field)
-2. Graph-level sharing (graph_share table)
+2. Workspace-level sharing (workspace_share table)
 3. Node-level sharing (node_share table)
 
 Permission Flags:
@@ -63,12 +63,12 @@ class Permissions:
 
 
 class PermissionChecker:
-    """Checks permissions for graphs and nodes.
+    """Checks permissions for workspaces and nodes.
     
     Permission resolution order:
     1. If user is the owner (create_uid), they have full permissions
-    2. Check graph_share for graph-level permissions
-    3. Check node_share for node-level permissions (can override graph)
+    2. Check workspace_share for workspace-level permissions
+    3. Check node_share for node-level permissions (can override workspace)
     """
     
     def __init__(self, pool: asyncpg.Pool, user_id: int):
@@ -80,45 +80,45 @@ class PermissionChecker:
         """
         self._pool = pool
         self._user_id = user_id
-        # Cache for graph permissions
-        self._graph_cache: dict[int, Permissions] = {}
+        # Cache for workspace permissions
+        self._workspace_cache: dict[int, Permissions] = {}
         # Cache for node permissions
         self._node_cache: dict[int, Permissions] = {}
     
     def clear_cache(self) -> None:
         """Clear permission caches."""
-        self._graph_cache.clear()
+        self._workspace_cache.clear()
         self._node_cache.clear()
     
-    async def get_graph_permissions(self, graph_id: int) -> Permissions:
-        """Get permissions for a graph.
+    async def get_workspace_permissions(self, workspace_id: int) -> Permissions:
+        """Get permissions for a workspace.
         
-        Returns full permissions if user is owner, otherwise checks graph_share.
+        Returns full permissions if user is owner, otherwise checks workspace_share.
         """
         # Check cache
-        if graph_id in self._graph_cache:
-            return self._graph_cache[graph_id]
+        if workspace_id in self._workspace_cache:
+            return self._workspace_cache[workspace_id]
         
         async with acquire_connection(self._pool) as conn:
             # Check if user is owner
             row = await conn.fetchrow("""
-                SELECT create_uid FROM graph 
+                SELECT create_uid FROM workspace 
                 WHERE id = $1 AND active = TRUE
-            """, graph_id)
+            """, workspace_id)
             
             if not row:
-                # Graph doesn't exist or is inactive
+                # Workspace doesn't exist or is inactive
                 perms = Permissions.none()
             elif row['create_uid'] == self._user_id:
                 # User is owner
                 perms = Permissions.owner()
             else:
-                # Check graph_share
+                # Check workspace_share
                 share_row = await conn.fetchrow("""
                     SELECT can_read, can_write, can_create, can_delete
-                    FROM graph_share
-                    WHERE graph_id = $1 AND user_id = $2 AND active = TRUE
-                """, graph_id, self._user_id)
+                    FROM workspace_share
+                    WHERE workspace_id = $1 AND user_id = $2 AND active = TRUE
+                """, workspace_id, self._user_id)
                 
                 if share_row:
                     perms = Permissions(
@@ -130,7 +130,7 @@ class PermissionChecker:
                 else:
                     perms = Permissions.none()
         
-        self._graph_cache[graph_id] = perms
+        self._workspace_cache[workspace_id] = perms
         return perms
     
     async def get_node_permissions(self, node_id: int) -> Permissions:
@@ -139,7 +139,7 @@ class PermissionChecker:
         Resolution order:
         1. If user is node owner (create_uid), full permissions
         2. Check node_share for explicit permissions
-        3. Fall back to graph permissions
+        3. Fall back to workspace permissions
         """
         return await self._get_node_permissions_impl(node_id, active_only=True)
     
@@ -159,15 +159,15 @@ class PermissionChecker:
             return self._node_cache[node_id]
         
         async with acquire_connection(self._pool) as conn:
-            # Get node info including graph_id and create_uid
+            # Get node info including workspace_id and create_uid
             if active_only:
                 row = await conn.fetchrow("""
-                    SELECT graph_id, create_uid, is_shared FROM node 
+                    SELECT workspace_id, create_uid, is_shared FROM node 
                     WHERE id = $1 AND active = TRUE
                 """, node_id)
             else:
                 row = await conn.fetchrow("""
-                    SELECT graph_id, create_uid, is_shared FROM node 
+                    SELECT workspace_id, create_uid, is_shared FROM node 
                     WHERE id = $1
                 """, node_id)
             
@@ -178,7 +178,7 @@ class PermissionChecker:
                     self._node_cache[node_id] = perms
                 return perms
             
-            graph_id = row['graph_id']
+            workspace_id = row['workspace_id']
             
             # Check if user is node owner
             if row['create_uid'] == self._user_id:
@@ -204,31 +204,31 @@ class PermissionChecker:
                 self._node_cache[node_id] = perms
                 return perms
             
-            # Fall back to graph permissions
-            perms = await self.get_graph_permissions(graph_id)
+            # Fall back to workspace permissions
+            perms = await self.get_workspace_permissions(workspace_id)
         
         if active_only:
             self._node_cache[node_id] = perms
         return perms
     
-    async def can_read_graph(self, graph_id: int) -> bool:
-        """Check if user can read a graph."""
-        perms = await self.get_graph_permissions(graph_id)
+    async def can_read_workspace(self, workspace_id: int) -> bool:
+        """Check if user can read a workspace."""
+        perms = await self.get_workspace_permissions(workspace_id)
         return perms.can_read
     
-    async def can_write_graph(self, graph_id: int) -> bool:
-        """Check if user can write to a graph."""
-        perms = await self.get_graph_permissions(graph_id)
+    async def can_write_workspace(self, workspace_id: int) -> bool:
+        """Check if user can write to a workspace."""
+        perms = await self.get_workspace_permissions(workspace_id)
         return perms.can_write
     
-    async def can_create_in_graph(self, graph_id: int) -> bool:
-        """Check if user can create in a graph."""
-        perms = await self.get_graph_permissions(graph_id)
+    async def can_create_in_workspace(self, workspace_id: int) -> bool:
+        """Check if user can create in a workspace."""
+        perms = await self.get_workspace_permissions(workspace_id)
         return perms.can_create
     
-    async def can_delete_graph(self, graph_id: int) -> bool:
-        """Check if user can delete a graph."""
-        perms = await self.get_graph_permissions(graph_id)
+    async def can_delete_workspace(self, workspace_id: int) -> bool:
+        """Check if user can delete a workspace."""
+        perms = await self.get_workspace_permissions(workspace_id)
         return perms.can_delete
     
     async def can_read_node(self, node_id: int) -> bool:
@@ -256,45 +256,45 @@ class PermissionChecker:
         perms = await self.get_node_permissions_for_delete(node_id)
         return perms.can_delete
     
-    async def get_accessible_graph_ids(self) -> List[int]:
-        """Get all graph IDs the user can access (read).
+    async def get_accessible_workspace_ids(self) -> List[int]:
+        """Get all workspace IDs the user can access (read).
         
-        Returns graphs owned by the user plus graphs shared with them.
+        Returns workspaces owned by the user plus workspaces shared with them.
         """
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT DISTINCT id FROM (
-                    -- Graphs owned by user
-                    SELECT id FROM graph WHERE create_uid = $1 AND active = TRUE
+                    -- Workspaces owned by user
+                    SELECT id FROM workspace WHERE create_uid = $1 AND active = TRUE
                     UNION
-                    -- Graphs shared with user (with read permission)
-                    SELECT g.id FROM graph g
-                    JOIN graph_share gs ON g.id = gs.graph_id
+                    -- Workspaces shared with user (with read permission)
+                    SELECT g.id FROM workspace g
+                    JOIN workspace_share gs ON g.id = gs.workspace_id
                     WHERE gs.user_id = $1 AND gs.can_read = TRUE AND gs.active = TRUE AND g.active = TRUE
-                ) AS accessible_graphs
+                ) AS accessible_workspaces
                 ORDER BY id
             """, self._user_id)
             return [row['id'] for row in rows]
     
-    async def require_graph_read(self, graph_id: int) -> None:
-        """Require read permission on a graph, raise if not allowed."""
-        if not await self.can_read_graph(graph_id):
-            raise PermissionError(f"User {self._user_id} cannot read graph {graph_id}")
+    async def require_workspace_read(self, workspace_id: int) -> None:
+        """Require read permission on a workspace, raise if not allowed."""
+        if not await self.can_read_workspace(workspace_id):
+            raise PermissionError(f"User {self._user_id} cannot read workspace {workspace_id}")
     
-    async def require_graph_write(self, graph_id: int) -> None:
-        """Require write permission on a graph, raise if not allowed."""
-        if not await self.can_write_graph(graph_id):
-            raise PermissionError(f"User {self._user_id} cannot write to graph {graph_id}")
+    async def require_workspace_write(self, workspace_id: int) -> None:
+        """Require write permission on a workspace, raise if not allowed."""
+        if not await self.can_write_workspace(workspace_id):
+            raise PermissionError(f"User {self._user_id} cannot write to workspace {workspace_id}")
     
-    async def require_graph_create(self, graph_id: int) -> None:
-        """Require create permission on a graph, raise if not allowed."""
-        if not await self.can_create_in_graph(graph_id):
-            raise PermissionError(f"User {self._user_id} cannot create in graph {graph_id}")
+    async def require_workspace_create(self, workspace_id: int) -> None:
+        """Require create permission on a workspace, raise if not allowed."""
+        if not await self.can_create_in_workspace(workspace_id):
+            raise PermissionError(f"User {self._user_id} cannot create in workspace {workspace_id}")
     
-    async def require_graph_delete(self, graph_id: int) -> None:
-        """Require delete permission on a graph, raise if not allowed."""
-        if not await self.can_delete_graph(graph_id):
-            raise PermissionError(f"User {self._user_id} cannot delete graph {graph_id}")
+    async def require_workspace_delete(self, workspace_id: int) -> None:
+        """Require delete permission on a workspace, raise if not allowed."""
+        if not await self.can_delete_workspace(workspace_id):
+            raise PermissionError(f"User {self._user_id} cannot delete workspace {workspace_id}")
     
     async def require_node_read(self, node_id: int) -> None:
         """Require read permission on a node, raise if not allowed."""

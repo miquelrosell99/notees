@@ -24,7 +24,7 @@ import { NodeSelector } from '../NodeSelector';
 import { Pill } from '../core/Pill';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -310,7 +310,7 @@ function MultiNodePropertyCell({
   editable: boolean;
 }) {
   const setPropertyMutation = useSetNodeProperty();
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
 
   // Fetch all nodes in parallel
   const nodeQueries = useQueries({
@@ -390,7 +390,7 @@ function NodePropertyCell({
   isAssetProperty: boolean;
 }) {
   const setPropertyMutation = useSetNodeProperty();
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
 
   // Parse node IDs from value
   const isMultiValue = property.is_multi || Array.isArray(value);

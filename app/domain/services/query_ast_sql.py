@@ -32,17 +32,17 @@ from app.domain.entities.query_ast import (
 class QueryASTToSQL:
     """Converts QueryAST to PostgreSQL queries."""
     
-    def __init__(self, graph_id: int, current_node_uuid: Optional[str] = None):
+    def __init__(self, workspace_id: int, current_node_uuid: Optional[str] = None):
         """
         Initialize the SQL generator.
         
         Args:
-            graph_id: The graph ID to query within
+            workspace_id: The workspace ID to query within
             current_node_uuid: UUID of the current node (for placeholder substitution)
         """
-        self.graph_id = graph_id
+        self.workspace_id = workspace_id
         self.current_node_uuid = current_node_uuid
-        self.params: Dict[str, Any] = {'graph_id': graph_id}
+        self.params: Dict[str, Any] = {'workspace_id': workspace_id}
         # Note: current_uuid is added to params only when actually used in SQL
         self.param_counter = 0
     
@@ -65,8 +65,8 @@ class QueryASTToSQL:
         # Generate WHERE clause from scope and conditions
         where_clauses = []
         
-        # Always filter by graph_id, active, and not deleted
-        where_clauses.append("n.graph_id = %(graph_id)s")
+        # Always filter by workspace_id, active, and not deleted
+        where_clauses.append("n.workspace_id = %(workspace_id)s")
         where_clauses.append("n.active = TRUE")
         where_clauses.append("(n.is_deleted = FALSE OR n.is_deleted IS NULL)")
         
@@ -95,7 +95,7 @@ class QueryASTToSQL:
     
     def _generate_scope_sql(self, scope: ScopeNode) -> Optional[str]:
         """Generate SQL for scope filtering."""
-        if scope.scope_type == ScopeType.ENTIRE_GRAPH:
+        if scope.scope_type == ScopeType.ENTIRE_WORKSPACE:
             # No additional filtering needed
             return None
         
@@ -113,7 +113,7 @@ class QueryASTToSQL:
             # Filter to current page or its descendants
             if scope.include_descendants:
                 # Get all nodes under current page
-                return f"(n.page_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s::uuid AND graph_id = %(graph_id)s))"
+                return f"(n.page_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s::uuid AND workspace_id = %(workspace_id)s))"
             else:
                 # Only the current page itself
                 return f"(n.uuid = %(current_uuid)s::uuid)"
@@ -127,7 +127,7 @@ class QueryASTToSQL:
             
             if scope.include_descendants:
                 # Pages and their descendants
-                return f"(n.page_id IN (SELECT id FROM node WHERE uuid = ANY(%({param_name})s) AND graph_id = %(graph_id)s))"
+                return f"(n.page_id IN (SELECT id FROM node WHERE uuid = ANY(%({param_name})s) AND workspace_id = %(workspace_id)s))"
             else:
                 # Only the pages themselves
                 return f"(n.uuid = ANY(%({param_name})s))"
@@ -142,8 +142,8 @@ class QueryASTToSQL:
             # Nodes that link to current node
             return """(n.id IN (
                 SELECT source_id FROM node_link
-                WHERE target_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s::uuid AND graph_id = %(graph_id)s)
-                AND graph_id = %(graph_id)s
+                WHERE target_id = (SELECT id FROM node WHERE uuid = %(current_uuid)s::uuid AND workspace_id = %(workspace_id)s)
+                AND workspace_id = %(workspace_id)s
             ))"""
         
         return None
@@ -249,7 +249,7 @@ class QueryASTToSQL:
                     -- Get the target class ID
                     WITH RECURSIVE class_hierarchy AS (
                         -- Base case: the target class itself
-                        SELECT id FROM node WHERE uuid = %({param_name})s::uuid AND graph_id = %(graph_id)s
+                        SELECT id FROM node WHERE uuid = %({param_name})s::uuid AND workspace_id = %(workspace_id)s
                         UNION
                         -- Recursive case: classes that extend any class in the hierarchy
                         SELECT ce.target_id
@@ -295,7 +295,7 @@ class QueryASTToSQL:
                 FROM class_extend ce
                 INNER JOIN node parent_class ON parent_class.id = ce.source_id
                 WHERE parent_class.uuid = %({param_name})s::uuid
-                  AND parent_class.graph_id = %(graph_id)s
+                  AND parent_class.workspace_id = %(workspace_id)s
             )
         )"""
     
@@ -551,12 +551,12 @@ class QueryASTToSQL:
         return f"""(EXISTS (
             SELECT 1 FROM node_link
             WHERE source_id = n.id
-            AND target_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
-            AND graph_id = %(graph_id)s
+            AND target_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+            AND workspace_id = %(workspace_id)s
         ) OR EXISTS (
             SELECT 1 FROM property_value_relation pvr
             WHERE pvr.node_id = n.id
-            AND pvr.target_id = (SELECT id FROM node WHERE uuid = %({param_name2})s AND graph_id = %(graph_id)s)
+            AND pvr.target_id = (SELECT id FROM node WHERE uuid = %({param_name2})s AND workspace_id = %(workspace_id)s)
         ))"""
     
     def _generate_reference_path_condition(self, condition: ReferencePathCondition) -> Optional[str]:
@@ -611,14 +611,14 @@ class QueryASTToSQL:
                 return f"""(NOT EXISTS (
                     SELECT 1 FROM node_path np
                     WHERE np.descendant_id = n.id
-                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
                     {depth_condition}
                 ))"""
             else:  # has_ancestor (default)
                 return f"""(EXISTS (
                     SELECT 1 FROM node_path np
                     WHERE np.descendant_id = n.id
-                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
                     {depth_condition}
                 ))"""
         
@@ -683,7 +683,7 @@ class QueryASTToSQL:
             
             if operator == 'not_has_parent':
                 # Parent is NOT one of the specified nodes
-                return f"n.parent_id NOT IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND graph_id = %(graph_id)s)"
+                return f"n.parent_id NOT IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s)"
             elif operator == 'has_no_parent':
                 # Ignore the specified parents and just check for NULL
                 return "n.parent_id IS NULL"
@@ -692,7 +692,7 @@ class QueryASTToSQL:
                 return "n.parent_id IS NOT NULL"
             else:  # has_parent (default)
                 # Parent is one of the specified nodes
-                return f"n.parent_id IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND graph_id = %(graph_id)s)"
+                return f"n.parent_id IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s)"
         
         # Dynamic mode: nested group filters
         if not condition.nested_group:
@@ -718,7 +718,7 @@ class QueryASTToSQL:
             # Negate: node's parent must NOT match the criteria
             return f"""n.parent_id NOT IN (
                 SELECT parent_n.id FROM node parent_n
-                WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
+                WHERE parent_n.workspace_id = %(workspace_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
             )"""
         elif operator == 'has_no_parent':
@@ -730,7 +730,7 @@ class QueryASTToSQL:
         else:  # has_parent (default)
             return f"""n.parent_id IN (
                 SELECT parent_n.id FROM node parent_n
-                WHERE parent_n.graph_id = %(graph_id)s AND parent_n.active = TRUE
+                WHERE parent_n.workspace_id = %(workspace_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
             )"""
     
@@ -748,10 +748,10 @@ class QueryASTToSQL:
         # Handle no-value operators
         if operator == 'has_no_child':
             # Node has no children
-            return "NOT EXISTS (SELECT 1 FROM node child_n WHERE child_n.parent_id = n.id AND child_n.graph_id = %(graph_id)s AND child_n.active = TRUE)"
+            return "NOT EXISTS (SELECT 1 FROM node child_n WHERE child_n.parent_id = n.id AND child_n.workspace_id = %(workspace_id)s AND child_n.active = TRUE)"
         elif operator == 'has_any_child':
             # Node has at least one child
-            return "EXISTS (SELECT 1 FROM node child_n WHERE child_n.parent_id = n.id AND child_n.graph_id = %(graph_id)s AND child_n.active = TRUE)"
+            return "EXISTS (SELECT 1 FROM node child_n WHERE child_n.parent_id = n.id AND child_n.workspace_id = %(workspace_id)s AND child_n.active = TRUE)"
         
         # Static mode: specific child UUID(s)
         if condition.child_uuids:
@@ -767,7 +767,7 @@ class QueryASTToSQL:
                     SELECT 1 FROM node child_n
                     WHERE child_n.parent_id = n.id
                     AND child_n.uuid IN ({param_refs})
-                    AND child_n.graph_id = %(graph_id)s
+                    AND child_n.workspace_id = %(workspace_id)s
                     AND child_n.active = TRUE
                 )"""
             else:  # has_child (default)
@@ -776,7 +776,7 @@ class QueryASTToSQL:
                     SELECT 1 FROM node child_n
                     WHERE child_n.parent_id = n.id
                     AND child_n.uuid IN ({param_refs})
-                    AND child_n.graph_id = %(graph_id)s
+                    AND child_n.workspace_id = %(workspace_id)s
                     AND child_n.active = TRUE
                 )"""
         
@@ -798,7 +798,7 @@ class QueryASTToSQL:
             return f"""NOT EXISTS (
                 SELECT 1 FROM node child_n
                 WHERE child_n.parent_id = n.id
-                AND child_n.graph_id = %(graph_id)s
+                AND child_n.workspace_id = %(workspace_id)s
                 AND child_n.active = TRUE
                 AND ({child_sql})
             )"""
@@ -806,7 +806,7 @@ class QueryASTToSQL:
             return f"""EXISTS (
                 SELECT 1 FROM node child_n
                 WHERE child_n.parent_id = n.id
-                AND child_n.graph_id = %(graph_id)s
+                AND child_n.workspace_id = %(workspace_id)s
                 AND child_n.active = TRUE
                 AND ({child_sql})
             )"""
@@ -851,14 +851,14 @@ class QueryASTToSQL:
                 return f"""NOT EXISTS (
                     SELECT 1 FROM node_path np
                     WHERE np.ancestor_id = n.id
-                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
                     {depth_condition}
                 )"""
             else:  # has_descendant (default)
                 return f"""EXISTS (
                     SELECT 1 FROM node_path np
                     WHERE np.ancestor_id = n.id
-                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND graph_id = %(graph_id)s)
+                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
                     {depth_condition}
                 )"""
         
@@ -874,7 +874,7 @@ class QueryASTToSQL:
 
 def generate_sql_from_ast(
     ast: QueryAST,
-    graph_id: int,
+    workspace_id: int,
     current_node_uuid: Optional[str] = None
 ) -> Tuple[str, Dict[str, Any]]:
     """
@@ -882,11 +882,11 @@ def generate_sql_from_ast(
     
     Args:
         ast: The QueryAST to convert
-        graph_id: The graph ID to query within
+        workspace_id: The workspace ID to query within
         current_node_uuid: UUID of current node for placeholder substitution
     
     Returns:
         (sql, params) tuple
     """
-    generator = QueryASTToSQL(graph_id, current_node_uuid)
+    generator = QueryASTToSQL(workspace_id, current_node_uuid)
     return generator.generate(ast)

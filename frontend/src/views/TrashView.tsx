@@ -9,7 +9,7 @@ import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { TrashIcon } from '../components/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { getTrash, restoreNode, permanentDeleteNode, emptyTrash } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
 import type { Node } from '@/types';
@@ -25,7 +25,7 @@ interface TrashViewProps {
 }
 
 export function TrashView({ className = '' }: TrashViewProps) {
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const queryClient = useQueryClient();

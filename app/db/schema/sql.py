@@ -20,7 +20,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- CORE IDENTITY & ACCESS
 -- ============================================================
 
--- User table (global, not per graph)
+-- User table (global, not per workspace)
 CREATE TABLE IF NOT EXISTS "user" (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
@@ -32,11 +32,11 @@ CREATE TABLE IF NOT EXISTS "user" (
 );
 
 -- ============================================================
--- GRAPHS
+-- WORKSPACES
 -- ============================================================
 
--- Graph table (replaces workspace)
-CREATE TABLE IF NOT EXISTS graph (
+-- Workspace table
+CREATE TABLE IF NOT EXISTS workspace (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
@@ -48,15 +48,15 @@ CREATE TABLE IF NOT EXISTS graph (
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_graph_create_uid ON graph(create_uid);
-CREATE INDEX IF NOT EXISTS idx_graph_write_uid ON graph(write_uid);
--- Unique graph name per user
-CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_name_per_user ON graph(name, create_uid) WHERE active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_workspace_create_uid ON workspace(create_uid);
+CREATE INDEX IF NOT EXISTS idx_workspace_write_uid ON workspace(write_uid);
+-- Unique workspace name per user
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_name_per_user ON workspace(name, create_uid) WHERE active = TRUE;
 
--- Graph sharing with granular permissions
-CREATE TABLE IF NOT EXISTS graph_share (
+-- Workspace sharing with granular permissions
+CREATE TABLE IF NOT EXISTS workspace_share (
     id SERIAL PRIMARY KEY,
-    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     can_read BOOLEAN DEFAULT TRUE,
     can_write BOOLEAN DEFAULT FALSE,
@@ -67,11 +67,11 @@ CREATE TABLE IF NOT EXISTS graph_share (
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-    UNIQUE(graph_id, user_id)
+    UNIQUE(workspace_id, user_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_graph_share_graph_id ON graph_share(graph_id);
-CREATE INDEX IF NOT EXISTS idx_graph_share_user_id ON graph_share(user_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_share_workspace_id ON workspace_share(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_share_user_id ON workspace_share(user_id);
 
 -- ============================================================
 -- NODES
@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_graph_share_user_id ON graph_share(user_id);
 CREATE TABLE IF NOT EXISTS node (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
-    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT '',
     icon VARCHAR(100),
     color VARCHAR(50),
@@ -119,9 +119,9 @@ CREATE TABLE IF NOT EXISTS node (
 );
 
 -- Node indexes
-CREATE INDEX IF NOT EXISTS idx_node_graph_id ON node(graph_id);
+CREATE INDEX IF NOT EXISTS idx_node_workspace_id ON node(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_node_uuid ON node(uuid);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_node_uuid_per_graph ON node(graph_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_uuid_per_workspace ON node(workspace_id, uuid);
 CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 CREATE INDEX IF NOT EXISTS idx_node_name ON node(name);
@@ -168,7 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
 CREATE TABLE IF NOT EXISTS property (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
-    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     icon VARCHAR(100),
     type VARCHAR(50) NOT NULL DEFAULT 'text',
@@ -186,14 +186,14 @@ CREATE TABLE IF NOT EXISTS property (
     CHECK (type NOT IN ('text', 'image') OR is_multi = FALSE)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_graph_uuid ON property(graph_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_workspace_uuid ON property(workspace_id, uuid);
 CREATE INDEX IF NOT EXISTS idx_property_name ON property(name);
-CREATE INDEX IF NOT EXISTS idx_property_graph_id ON property(graph_id);
+CREATE INDEX IF NOT EXISTS idx_property_workspace_id ON property(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_property_node_id ON property(node_id) WHERE node_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_property_create_uid ON property(create_uid);
 CREATE INDEX IF NOT EXISTS idx_property_write_uid ON property(write_uid);
--- Unique constraint for graph properties (name unique per graph, non-local)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_graph ON property(name, graph_id) 
+-- Unique constraint for workspace properties (name unique per workspace, non-local)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_workspace ON property(name, workspace_id) 
     WHERE is_local = FALSE AND active = TRUE;
 -- Unique constraint for local properties (unique name per node_id)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_local ON property(name, node_id) 
@@ -350,7 +350,7 @@ CREATE TABLE IF NOT EXISTS node_link (
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     source_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
-    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     property_id INTEGER REFERENCES property(id) ON DELETE CASCADE,
     position INTEGER DEFAULT 0,
     is_tag BOOLEAN DEFAULT FALSE,
@@ -362,7 +362,7 @@ CREATE TABLE IF NOT EXISTS node_link (
 
 CREATE INDEX IF NOT EXISTS idx_node_link_source_id ON node_link(source_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_target_id ON node_link(target_id);
-CREATE INDEX IF NOT EXISTS idx_node_link_graph_id ON node_link(graph_id);
+CREATE INDEX IF NOT EXISTS idx_node_link_workspace_id ON node_link(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_property_id ON node_link(property_id) WHERE property_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link(source_id, target_id);
 -- idx_node_link_inline_class is created in the migration block below (safe for existing DBs)
@@ -409,19 +409,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_node_view_default_unique
 -- SETTINGS & ACTIVITY
 -- ============================================================
 
--- Graph settings (key-value store per graph)
-CREATE TABLE IF NOT EXISTS setting_graph (
-    graph_id INTEGER NOT NULL REFERENCES graph(id) ON DELETE CASCADE,
+-- Workspace settings (key-value store per workspace)
+CREATE TABLE IF NOT EXISTS setting_workspace (
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     key VARCHAR(255) NOT NULL,
     value JSONB,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-    PRIMARY KEY (graph_id, key)
+    PRIMARY KEY (workspace_id, key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_setting_graph_graph_id ON setting_graph(graph_id);
+CREATE INDEX IF NOT EXISTS idx_setting_workspace_workspace_id ON setting_workspace(workspace_id);
 
 -- User settings (key-value store per user)
 CREATE TABLE IF NOT EXISTS setting_user (
@@ -545,8 +545,8 @@ BEGIN
     
     -- Migrate data from class_inline into node_link (if class_inline still exists)
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_inline') THEN
-        INSERT INTO node_link (source_id, target_id, graph_id, position, is_inline_class, create_date, create_uid)
-        SELECT node_id, class_id, graph_id, position, TRUE, create_date, create_uid
+        INSERT INTO node_link (source_id, target_id, workspace_id, position, is_inline_class, create_date, create_uid)
+        SELECT node_id, class_id, workspace_id, position, TRUE, create_date, create_uid
         FROM class_inline;
         
         -- Drop the old table
@@ -875,9 +875,9 @@ CREATE TRIGGER user_write_date
     FOR EACH ROW
     EXECUTE FUNCTION update_write_date();
 
-DROP TRIGGER IF EXISTS graph_write_date ON graph;
-CREATE TRIGGER graph_write_date
-    BEFORE UPDATE ON graph
+DROP TRIGGER IF EXISTS workspace_write_date ON workspace;
+CREATE TRIGGER workspace_write_date
+    BEFORE UPDATE ON workspace
     FOR EACH ROW
     EXECUTE FUNCTION update_write_date();
 
@@ -893,28 +893,28 @@ CREATE TRIGGER property_write_date
     FOR EACH ROW
     EXECUTE FUNCTION update_write_date();
 
--- Function to update graph's write_date when nodes are modified
-CREATE OR REPLACE FUNCTION update_graph_write_date()
+-- Function to update workspace's write_date when nodes are modified
+CREATE OR REPLACE FUNCTION update_workspace_write_date()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- For INSERT and UPDATE, use NEW.graph_id
-    -- For DELETE, use OLD.graph_id
+    -- For INSERT and UPDATE, use NEW.workspace_id
+    -- For DELETE, use OLD.workspace_id
     IF (TG_OP = 'DELETE') THEN
-        UPDATE graph SET write_date = NOW() WHERE id = OLD.graph_id;
+        UPDATE workspace SET write_date = NOW() WHERE id = OLD.workspace_id;
         RETURN OLD;
     ELSE
-        UPDATE graph SET write_date = NOW() WHERE id = NEW.graph_id;
+        UPDATE workspace SET write_date = NOW() WHERE id = NEW.workspace_id;
         RETURN NEW;
     END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger to update graph write_date on node changes
-DROP TRIGGER IF EXISTS node_update_graph_write_date ON node;
-CREATE TRIGGER node_update_graph_write_date
+-- Trigger to update workspace write_date on node changes
+DROP TRIGGER IF EXISTS node_update_workspace_write_date ON node;
+CREATE TRIGGER node_update_workspace_write_date
     AFTER INSERT OR UPDATE OR DELETE ON node
     FOR EACH ROW
-    EXECUTE FUNCTION update_graph_write_date();
+    EXECUTE FUNCTION update_workspace_write_date();
 
 -- ============================================================
 -- EXAMPLE USAGE: BREADCRUMBS

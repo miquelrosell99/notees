@@ -1,9 +1,9 @@
 """Database initialization and seeding functions for Notees.
 
 This module contains functions for initializing the database schema
-and seeding graphs with system data.
+and seeding workspaces with system data.
 
-SCHEMA VERSION: 2 - Graph-based architecture.
+SCHEMA VERSION: 2 - Workspace-based architecture.
 """
 from __future__ import annotations
 
@@ -44,14 +44,14 @@ async def init_database(conn: asyncpg.Connection) -> None:
     """, str(SCHEMA_VERSION))
 
 
-async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> None:
-    """Seed a graph with system types, properties, and default pages.
+async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:
+    """Seed a workspace with system types, properties, and default pages.
     
-    This should be called when creating a new graph.
+    This should be called when creating a new workspace.
     
     Args:
         conn: Database connection
-        graph_id: The ID of the graph to seed
+        workspace_id: The ID of the workspace to seed
         user_id: The user ID for create_uid/write_uid fields
     """
     now = datetime.now(timezone.utc)
@@ -78,10 +78,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     class_uuid = SYSTEM_CLASS_UUIDS["class"]
     class_icon = SYSTEM_CLASS_ICONS.get("class")
     class_row = await conn.fetchrow("""
-        INSERT INTO node (uuid, graph_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
+        INSERT INTO node (uuid, workspace_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5, $6, $6)
         RETURNING id
-    """, class_uuid, graph_id, serialize_ast(parse_ast('class', ParseMode.PLAIN)), class_icon, now, user_id)
+    """, class_uuid, workspace_id, serialize_ast(parse_ast('class', ParseMode.PLAIN)), class_icon, now, user_id)
     if class_row is None:
         raise RuntimeError("Failed to create 'class' node")
     class_node_id = class_row['id']
@@ -89,10 +89,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create 'page' class node
     page_uuid = SYSTEM_CLASS_UUIDS["page"]
     page_row = await conn.fetchrow("""
-        INSERT INTO node (uuid, graph_id, name, is_class, is_page, create_date, write_date, create_uid, write_uid)
+        INSERT INTO node (uuid, workspace_id, name, is_class, is_page, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, $3, TRUE, TRUE, $4, $4, $5, $5)
         RETURNING id
-    """, page_uuid, graph_id, serialize_ast(parse_ast('page', ParseMode.PLAIN)), now, user_id)
+    """, page_uuid, workspace_id, serialize_ast(parse_ast('page', ParseMode.PLAIN)), now, user_id)
     if page_row is None:
         raise RuntimeError("Failed to create 'page' node")
     page_class_id = page_row['id']
@@ -112,19 +112,19 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create other system properties
     show_hier_uuid = SYSTEM_PROPERTY_UUIDS["show_hierarchy"]
     await conn.execute("""
-        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        INSERT INTO property (uuid, workspace_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, 'Show hierarchy', 'boolean', FALSE, TRUE, $3, $3, $4, $4)
-        ON CONFLICT (graph_id, uuid) DO NOTHING
-    """, show_hier_uuid, graph_id, now, user_id)
+        ON CONFLICT (workspace_id, uuid) DO NOTHING
+    """, show_hier_uuid, workspace_id, now, user_id)
     
     # Create 'Cover' property
     cover_uuid = SYSTEM_PROPERTY_UUIDS["cover"]
     cover_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        INSERT INTO property (uuid, workspace_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, 'Cover', 'image', FALSE, TRUE, $3, $3, $4, $4)
-        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, cover_uuid, graph_id, now, user_id)
+    """, cover_uuid, workspace_id, now, user_id)
     if cover_row is None:
         raise RuntimeError("Failed to create 'Cover' property")
     cover_property_id = cover_row['id']
@@ -132,11 +132,11 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create 'Banner' property
     banner_uuid = SYSTEM_PROPERTY_UUIDS["banner"]
     banner_row = await conn.fetchrow("""
-        INSERT INTO property (uuid, graph_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        INSERT INTO property (uuid, workspace_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
         VALUES ($1, $2, 'Banner', 'image', FALSE, TRUE, $3, $3, $4, $4)
-        ON CONFLICT (graph_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+        ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
         RETURNING id
-    """, banner_uuid, graph_id, now, user_id)
+    """, banner_uuid, workspace_id, now, user_id)
     if banner_row is None:
         raise RuntimeError("Failed to create 'Banner' property")
     banner_property_id = banner_row['id']
@@ -154,10 +154,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         class_icon = SYSTEM_CLASS_ICONS.get(class_name)
         
         row = await conn.fetchrow("""
-            INSERT INTO node (uuid, graph_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
+            INSERT INTO node (uuid, workspace_id, name, icon, is_class, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, $4, TRUE, TRUE, $5, $5, $6, $6)
             RETURNING id
-        """, class_uuid, graph_id, serialize_ast(parse_ast(class_name, ParseMode.PLAIN)), class_icon, now, user_id)
+        """, class_uuid, workspace_id, serialize_ast(parse_ast(class_name, ParseMode.PLAIN)), class_icon, now, user_id)
         if row is None:
             raise RuntimeError(f"Failed to create '{class_name}' class node")
         new_class_id = row['id']
@@ -186,10 +186,10 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
     # Create default pages
     for page_name in DEFAULT_PAGES:
         row = await conn.fetchrow("""
-            INSERT INTO node (uuid, graph_id, name, is_page, create_date, write_date, create_uid, write_uid)
+            INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
             RETURNING id
-        """, generate_uuid(), graph_id, serialize_ast(parse_ast(page_name, ParseMode.PLAIN)), now, user_id)
+        """, generate_uuid(), workspace_id, serialize_ast(parse_ast(page_name, ParseMode.PLAIN)), now, user_id)
         if row is None:
             raise RuntimeError(f"Failed to create '{page_name}' page")
         new_page_id = row['id']
@@ -200,61 +200,61 @@ async def seed_graph(conn: asyncpg.Connection, graph_id: int, user_id: int) -> N
         """, [page_class_id], new_page_id)
 
 
-async def create_graph_for_user(
+async def create_workspace_for_user(
     conn: asyncpg.Connection,
     user_id: int,
     name: str = "Default"
 ) -> int:
-    """Create a new graph for a user and seed it with system data.
+    """Create a new workspace for a user and seed it with system data.
     
     Args:
         conn: Database connection
-        user_id: The user ID (owner of the graph)
-        name: Name for the new graph (defaults to "Default")
+        user_id: The user ID (owner of the workspace)
+        name: Name for the new workspace (defaults to "Default")
         
     Returns:
-        The graph ID
+        The workspace ID
     """
     now = datetime.now(timezone.utc)
     
-    # Create graph
+    # Create workspace
     row = await conn.fetchrow("""
-        INSERT INTO graph (name, create_uid, write_uid, create_date, write_date)
+        INSERT INTO workspace (name, create_uid, write_uid, create_date, write_date)
         VALUES ($1, $2, $2, $3, $3)
         RETURNING id
     """, name, user_id, now)
     if row is None:
-        raise RuntimeError("Failed to create graph")
-    graph_id = row['id']
+        raise RuntimeError("Failed to create workspace")
+    workspace_id = row['id']
     
-    # Seed graph with system data
-    await seed_graph(conn, graph_id, user_id)
+    # Seed workspace with system data
+    await seed_workspace(conn, workspace_id, user_id)
     
-    return graph_id
+    return workspace_id
 
 
-async def get_or_create_user_graph(
+async def get_or_create_user_workspace(
     conn: asyncpg.Connection,
     user_id: int
 ) -> int:
-    """Get the user's default graph or create one if it doesn't exist.
+    """Get the user's default workspace or create one if it doesn't exist.
     
     Checks for:
-    1. Graphs owned by the user (create_uid)
-    2. Graphs shared with the user (graph_share)
+    1. Workspaces owned by the user (create_uid)
+    2. Workspaces shared with the user (workspace_share)
     
-    If none found, creates a new graph.
+    If none found, creates a new workspace.
     
     Args:
         conn: Database connection
         user_id: The user ID
         
     Returns:
-        The graph ID
+        The workspace ID
     """
-    # Check for existing graph owned by user
+    # Check for existing workspace owned by user
     row = await conn.fetchrow("""
-        SELECT id FROM graph
+        SELECT id FROM workspace
         WHERE create_uid = $1 AND active = TRUE
         ORDER BY create_date ASC
         LIMIT 1
@@ -263,10 +263,10 @@ async def get_or_create_user_graph(
     if row:
         return row['id']
     
-    # Check for graphs shared with user
+    # Check for workspaces shared with user
     row = await conn.fetchrow("""
-        SELECT g.id FROM graph g
-        JOIN graph_share gs ON g.id = gs.graph_id
+        SELECT g.id FROM workspace g
+        JOIN workspace_share gs ON g.id = gs.workspace_id
         WHERE gs.user_id = $1 AND gs.active = TRUE AND gs.can_read = TRUE AND g.active = TRUE
         ORDER BY g.create_date ASC
         LIMIT 1
@@ -275,5 +275,5 @@ async def get_or_create_user_graph(
     if row:
         return row['id']
     
-    # Create new graph
-    return await create_graph_for_user(conn, user_id)
+    # Create new workspace
+    return await create_workspace_for_user(conn, user_id)

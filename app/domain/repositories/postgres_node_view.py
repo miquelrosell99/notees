@@ -32,18 +32,18 @@ class PostgresNodeViewRepository:
     def __init__(
         self, 
         pool: asyncpg.Pool,
-        graph_id: int,
+        workspace_id: int,
         user_id: Optional[str] = None
     ):
-        """Initialize with connection pool and graph context.
+        """Initialize with connection pool and workspace context.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: Current graph ID for multi-tenant queries
+            workspace_id: Current workspace ID for multi-tenant queries
             user_id: Current user ID (string) for audit fields
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         # Convert user_id to int for database columns
         self._user_id = int(user_id) if user_id is not None else None
     
@@ -126,7 +126,7 @@ class PostgresNodeViewRepository:
             # Use ON CONFLICT to handle the unique constraint on default views
             # If a default view already exists for this node+view_type, update it fully
             # (including reactivating it if it was soft-deleted)
-            logger.info(f"[create] Creating view: node_id={node_id}, view_type={view_type}, is_default={is_default}, graph_id={self._graph_id}")
+            logger.info(f"[create] Creating view: node_id={node_id}, view_type={view_type}, is_default={is_default}, workspace_id={self._workspace_id}")
             
             if is_default:
                 row = await conn.fetchrow("""
@@ -174,8 +174,8 @@ class PostgresNodeViewRepository:
                 SELECT nv.* FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
                 WHERE nv.id = $1 AND nv.active = TRUE
-                  AND n.graph_id = $2
-            """, view_id, self._graph_id)
+                  AND n.workspace_id = $2
+            """, view_id, self._workspace_id)
             
             if not row:
                 return None
@@ -188,8 +188,8 @@ class PostgresNodeViewRepository:
                 SELECT nv.* FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
                 WHERE nv.uuid = $1 AND nv.active = TRUE
-                  AND n.graph_id = $2
-            """, uuid, self._graph_id)
+                  AND n.workspace_id = $2
+            """, uuid, self._workspace_id)
             
             if not row:
                 return None
@@ -212,8 +212,8 @@ class PostgresNodeViewRepository:
             List of NodeViews sorted by order_index
         """
         async with acquire_connection(self._pool) as conn:
-            params: list[Any] = [node_id, self._graph_id]
-            where_clauses = ["nv.node_id = $1", "n.graph_id = $2"]
+            params: list[Any] = [node_id, self._workspace_id]
+            where_clauses = ["nv.node_id = $1", "n.workspace_id = $2"]
             
             if not include_inactive:
                 where_clauses.append("nv.active = TRUE")
@@ -275,8 +275,8 @@ class PostgresNodeViewRepository:
                 SELECT COUNT(*) FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
                 WHERE nv.node_id = $1 AND nv.view_type = $2
-                  AND nv.active = TRUE AND n.graph_id = $3
-            """, node_id, view_type, self._graph_id)
+                  AND nv.active = TRUE AND n.workspace_id = $3
+            """, node_id, view_type, self._workspace_id)
             return count or 0
     
     async def get_default_view(
@@ -302,10 +302,10 @@ class PostgresNodeViewRepository:
                 JOIN node n ON n.id = nv.node_id
                 WHERE nv.node_id = $1 AND nv.view_type = $2
                   AND nv.is_default = TRUE AND nv.active = TRUE
-                  AND n.graph_id = $3
+                  AND n.workspace_id = $3
                 ORDER BY nv.order_index
                 LIMIT 1
-            """, node_id, view_type, self._graph_id)
+            """, node_id, view_type, self._workspace_id)
             
             if row:
                 return self._row_to_node_view(row)
@@ -316,10 +316,10 @@ class PostgresNodeViewRepository:
                 JOIN node n ON n.id = nv.node_id
                 WHERE nv.node_id = $1 AND nv.view_type = $2
                   AND nv.active = TRUE
-                  AND n.graph_id = $3
+                  AND n.workspace_id = $3
                 ORDER BY nv.order_index
                 LIMIT 1
-            """, node_id, view_type, self._graph_id)
+            """, node_id, view_type, self._workspace_id)
             
             if row:
                 return self._row_to_node_view(row)
@@ -349,7 +349,7 @@ class PostgresNodeViewRepository:
             Updated NodeView or None if not found
         """
         updates = []
-        params: list[Any] = [view_id, self._graph_id]
+        params: list[Any] = [view_id, self._workspace_id]
         param_idx = len(params)
         
         if name is not None:
@@ -400,14 +400,14 @@ class PostgresNodeViewRepository:
                       AND nv.view_type = nv2.view_type
                       AND nv2.id = $1
                       AND nv.id != $1
-                      AND n.graph_id = $2
-                """, view_id, self._graph_id, self._user_id)
+                      AND n.workspace_id = $2
+                """, view_id, self._workspace_id, self._user_id)
             
             row = await conn.fetchrow(f"""
                 UPDATE node_view nv
                 SET {updates_sql}, write_date = NOW()
                 FROM node n
-                WHERE nv.id = $1 AND n.id = nv.node_id AND n.graph_id = $2
+                WHERE nv.id = $1 AND n.id = nv.node_id AND n.workspace_id = $2
                 RETURNING nv.*
             """, *params)
             
@@ -434,9 +434,9 @@ class PostgresNodeViewRepository:
                 UPDATE node_view nv
                 SET query_json = $3::jsonb, write_date = NOW(), write_uid = $4
                 FROM node n
-                WHERE nv.id = $1 AND n.id = nv.node_id AND n.graph_id = $2
+                WHERE nv.id = $1 AND n.id = nv.node_id AND n.workspace_id = $2
                 RETURNING nv.*
-            """, view_id, self._graph_id, json.dumps(query_json), self._user_id)
+            """, view_id, self._workspace_id, json.dumps(query_json), self._user_id)
             
             if not row:
                 return None
@@ -456,8 +456,8 @@ class PostgresNodeViewRepository:
                 UPDATE node_view nv
                 SET active = FALSE, write_date = NOW(), write_uid = $3
                 FROM node n
-                WHERE nv.id = $1 AND n.id = nv.node_id AND n.graph_id = $2
-            """, view_id, self._graph_id, self._user_id)
+                WHERE nv.id = $1 AND n.id = nv.node_id AND n.workspace_id = $2
+            """, view_id, self._workspace_id, self._user_id)
             
             return "UPDATE 1" in result
     
@@ -471,13 +471,13 @@ class PostgresNodeViewRepository:
             True if deleted, False if not found
         """
         async with acquire_connection(self._pool) as conn:
-            logger.info(f"[hard_delete] Deleting view id={view_id}, graph_id={self._graph_id}")
+            logger.info(f"[hard_delete] Deleting view id={view_id}, workspace_id={self._workspace_id}")
             
             result = await conn.execute("""
                 DELETE FROM node_view nv
                 USING node n
-                WHERE nv.id = $1 AND n.id = nv.node_id AND n.graph_id = $2
-            """, view_id, self._graph_id)
+                WHERE nv.id = $1 AND n.id = nv.node_id AND n.workspace_id = $2
+            """, view_id, self._workspace_id)
             
             success = "DELETE 1" in result
             logger.info(f"[hard_delete] Result: {result}, success={success}")
@@ -507,8 +507,8 @@ class PostgresNodeViewRepository:
                     SET order_index = $1, write_date = NOW(), write_uid = $5
                     FROM node n
                     WHERE nv.id = $2 AND nv.node_id = $3 AND nv.view_type = $4
-                      AND n.id = nv.node_id AND n.graph_id = $6
-                """, idx, view_id, node_id, view_type, self._user_id, self._graph_id)
+                      AND n.id = nv.node_id AND n.workspace_id = $6
+                """, idx, view_id, node_id, view_type, self._user_id, self._workspace_id)
         
         return await self.list_by_view_type(node_id, view_type)
     
@@ -525,7 +525,7 @@ class PostgresNodeViewRepository:
             row = await conn.fetchrow("""
                 SELECT COUNT(*) as count FROM node_view nv
                 JOIN node n ON n.id = nv.node_id
-                WHERE nv.node_id = $1 AND nv.active = TRUE AND n.graph_id = $2
-            """, node_id, self._graph_id)
+                WHERE nv.node_id = $1 AND nv.active = TRUE AND n.workspace_id = $2
+            """, node_id, self._workspace_id)
             
             return row['count'] if row else 0

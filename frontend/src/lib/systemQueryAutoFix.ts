@@ -12,7 +12,7 @@
 
 import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
-import type { NodeViewType } from '@/types/query';
+import type { NodeViewType } from '@/types/nodeView';
 
 // ==================== Type Guards ====================
 
@@ -181,16 +181,16 @@ export function autoFixSystemQuery(
   }
   
   // Auto-fix scope for system views
-  const defaultScopes: Record<string, 'entire_graph' | 'pages' | 'current_page'> = {
-    'linked_references': 'entire_graph',
+  const defaultScopes: Record<string, 'entire_workspace' | 'pages' | 'current_page'> = {
+    'linked_references': 'entire_workspace',
     'child_pages': 'pages',
-    'classed_nodes': 'entire_graph',
+    'classed_nodes': 'entire_workspace',
     'extended_by': 'pages',
   };
   
   const correctScope: ScopeNode = {
     type: 'scope',
-    scope_type: defaultScopes[viewType] || 'entire_graph',
+    scope_type: defaultScopes[viewType] || 'entire_workspace',
   };
   
   // Check if required condition already exists

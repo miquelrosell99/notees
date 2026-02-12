@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation } from '@/hooks';
-import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
+import { useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node, Property, PropertyCreate } from '@/types';
@@ -203,7 +203,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const { data: allNodes } = useNodes({ pages_only: true });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
-  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useNodesStore();
+  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useAppStore();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
@@ -725,7 +725,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
               ]}
               value={contentDisplayMode}
-              onChange={(val) => useNodesStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
+              onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
               size="sm"
             />
           )}
@@ -737,32 +737,32 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
                 variant="ghost"
                 size="sm"
                 icon={mdiCardOutline}
-                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
-                onClick={() => useNodesStore.getState().setCardLayout('no-cover')}
+                className={`card-layout-option ${useAppStore.getState().cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useAppStore.getState().setCardLayout('no-cover')}
                 title="No cover"
               />
               <Button 
                 variant="ghost"
                 size="sm"
                 icon={mdiDockLeft}
-                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
-                onClick={() => useNodesStore.getState().setCardLayout('cover-left')}
+                className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useAppStore.getState().setCardLayout('cover-left')}
                 title="Cover left"
               />
               <Button 
                 variant="ghost"
                 size="sm"
                 icon={mdiDockRight}
-                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
-                onClick={() => useNodesStore.getState().setCardLayout('cover-right')}
+                className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useAppStore.getState().setCardLayout('cover-right')}
                 title="Cover right"
               />
               <Button 
                 variant="ghost"
                 size="sm"
                 icon={mdiDockTop}
-                className={`card-layout-option ${useNodesStore.getState().cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
-                onClick={() => useNodesStore.getState().setCardLayout('cover-top')}
+                className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
+                onClick={() => useAppStore.getState().setCardLayout('cover-top')}
                 title="Cover top"
               />
             </div>
@@ -773,7 +773,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             icon={mdiWeatherNight}
             variant="ghost"
             size="sm"
-            onClick={useNodesStore.getState().toggleLateNightThoughts}
+            onClick={useAppStore.getState().toggleLateNightThoughts}
             active={lateNightThoughtsFilter}
             aria-label="Toggle late night thoughts"
             title="Show only late night thoughts (created 10PM-4AM)"
@@ -785,8 +785,8 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             icon={mdiGraphOutline}
             variant="ghost"
             size="sm"
-            active={useNodesStore.getState().rightSidebarContent === 'localGraph'}
-            onClick={() => useNodesStore.getState().openLocalGraph(nodeId)}
+            active={useAppStore.getState().rightSidebarContent === 'localGraph'}
+            onClick={() => useAppStore.getState().openLocalGraph(nodeId)}
             aria-label="Local graph"
             title="Show local graph for this node"
             className="toolbar-btn"

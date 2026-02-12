@@ -35,8 +35,8 @@ class ASTNodeType(str, Enum):
 
 class ScopeType(str, Enum):
     """Scope types define the universe of nodes to query."""
-    ENTIRE_GRAPH = "entire_graph"      # All nodes in the graph
-    PAGES = "pages"                    # All pages in the graph (is_page=true)
+    ENTIRE_WORKSPACE = "entire_workspace"      # All nodes in the workspace
+    PAGES = "pages"                    # All pages in the workspace (is_page=true)
     CURRENT_PAGE = "current_page"      # Current page being viewed
 
 
@@ -44,7 +44,7 @@ class ScopeType(str, Enum):
 class ScopeNode:
     """Scope node - defines the starting point for query execution."""
     type: Literal["scope"] = "scope"
-    scope_type: ScopeType = ScopeType.ENTIRE_GRAPH
+    scope_type: ScopeType = ScopeType.ENTIRE_WORKSPACE
     # For parent_path filtering (nodes inside specific pages)
     include_descendants: Optional[bool] = None
     # For negated scope filters
@@ -65,11 +65,11 @@ class ScopeNode:
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> ScopeNode:
         """Create from dictionary."""
-        scope_type_value = data.get("scope_type", "entire_graph")
+        scope_type_value = data.get("scope_type", "entire_workspace")
         
         # Handle legacy 'all' value (backwards compatibility)
         if scope_type_value == "all":
-            scope_type_value = "entire_graph"
+            scope_type_value = "entire_workspace"
         
         return ScopeNode(
             scope_type=ScopeType(scope_type_value),

@@ -14,7 +14,7 @@
  */
 import { useRef, useCallback, useState } from 'react';
 import { useCreateNode, useContentSave, useNodeNavigation } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -56,7 +56,7 @@ export function NodeContent({
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const createNode = useCreateNode();
-  const { addSidebarCard } = useNodesStore();
+  const { addSidebarCard } = useAppStore();
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
   // Debounced content save - batches rapid edits to reduce API calls

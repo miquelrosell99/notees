@@ -9,7 +9,7 @@
  * - Selectable checkboxes
  * - "Add card" button
  *
- * Each card is rendered by NodeCard (from CardEditor.tsx).
+ * Each card is rendered by NodeCard (from CardItem.tsx).
  */
 
 import {
@@ -22,7 +22,7 @@ import {
   type JSX,
 } from 'react';
 
-import { NodeCard } from './CardEditor';
+import { NodeCard } from './CardItem';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
@@ -30,7 +30,7 @@ import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import { mdiPlus } from '@mdi/js';
@@ -88,7 +88,7 @@ export function CardModeView({
   }, [nodes, viewId]);
 
   // Card size from store
-  const cardSize = useNodesStore(state => state.cardSize);
+  const cardSize = useAppStore(state => state.cardSize);
 
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);

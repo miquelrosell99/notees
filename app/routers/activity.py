@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from .auth import get_current_user
 from ..models import User
 from ..db.connection import acquire_connection, get_pool
-from ..db.schema import get_or_create_user_graph
+from ..db.schema import get_or_create_user_workspace
 from ..logging_config import get_logger
 from ..utils import utc_now
 
@@ -78,11 +78,11 @@ async def get_node_activity(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user.id))
-        # First verify the node belongs to this graph
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
+        # First verify the node belongs to this workspace
         node_check = await conn.fetchrow(
-            "SELECT id FROM node WHERE id = $1 AND graph_id = $2",
-            node_id, graph_id
+            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, workspace_id
         )
         if not node_check:
             raise HTTPException(404, "Node not found")
@@ -98,12 +98,12 @@ async def get_node_activity(
                 t.name as target_node_name,
                 a.create_date
             FROM node_activity a
-            LEFT JOIN node t ON a.target_node_id = t.id AND t.graph_id = $2
+            LEFT JOIN node t ON a.target_node_id = t.id AND t.workspace_id = $2
             WHERE a.node_id = $1
             ORDER BY a.create_date DESC
             LIMIT $3
             """,
-            node_id, graph_id, limit
+            node_id, workspace_id, limit
         )
     
     return [
@@ -133,11 +133,11 @@ async def create_node_activity(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user.id))
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
         # Check if the node is a page
         row = await conn.fetchrow(
-            "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
-            node_id, graph_id
+            "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, workspace_id
         )
         if not row:
             raise HTTPException(404, "Node not found")
@@ -159,8 +159,8 @@ async def create_node_activity(
         target_name = None
         if data.target_node_id:
             row = await conn.fetchrow(
-                "SELECT name FROM node WHERE id = $1 AND graph_id = $2",
-                data.target_node_id, graph_id
+                "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+                data.target_node_id, workspace_id
             )
             if row:
                 target_name = row['name']
@@ -186,11 +186,11 @@ async def delete_node_activity(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user.id))
-        # Verify node belongs to graph before deleting activity
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user.id))
+        # Verify node belongs to workspace before deleting activity
         node_check = await conn.fetchrow(
-            "SELECT id FROM node WHERE id = $1 AND graph_id = $2",
-            node_id, graph_id
+            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, workspace_id
         )
         if not node_check:
             raise HTTPException(404, "Node not found")

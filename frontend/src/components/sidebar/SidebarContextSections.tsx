@@ -15,7 +15,7 @@
  * - Expansion state is stored per session (not per node)
  */
 import { useState, useCallback, useMemo } from 'react';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { useComments, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
@@ -104,9 +104,9 @@ function CommentsList({ comments, onClickComment }: CommentsListProps) {
 
 export function SidebarContextSections() {
   // Get the currently active/viewed node ID
-  const currentNodeId = useNodesStore(state => state.currentNodeId);
-  const mainViewType = useNodesStore(state => state.mainViewType);
-  const { openCommentsForNode } = useNodesStore();
+  const currentNodeId = useAppStore(state => state.currentNodeId);
+  const mainViewType = useAppStore(state => state.mainViewType);
+  const { openCommentsForNode } = useAppStore();
   
   // Expansion state - stored per session, not per node
   const [commentsExpanded, setCommentsExpanded] = useState(false);

@@ -21,7 +21,7 @@ import {
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
-import type { NodeView, NodeViewType } from '@/types/query';
+import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
 import { NodeCollection } from './NodeCollection';
@@ -40,7 +40,7 @@ import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
 import './QueryNodeCollection.css';
 
@@ -203,9 +203,9 @@ export function QueryNodeCollection({
   }, []);
   
   // Get persisted view mode from store
-  const getNodeViewMode = useNodesStore(state => state.getNodeViewMode);
-  const setNodeViewMode = useNodesStore(state => state.setNodeViewMode);
-  const openNode = useNodesStore(state => state.openNode);
+  const getNodeViewMode = useAppStore(state => state.getNodeViewMode);
+  const setNodeViewMode = useAppStore(state => state.setNodeViewMode);
+  const openNode = useAppStore(state => state.openNode);
   const persistedViewMode = getNodeViewMode(nodeId);
   
   // Default to 'table' for classed_nodes, 'list' for others

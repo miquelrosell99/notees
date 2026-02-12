@@ -36,7 +36,7 @@ class NodeNotFoundError(NodeError):
 class DuplicateNodeError(NodeError):
     """Raised when attempting to create a duplicate page.
     
-    A page name is unique within (graph, parent) for each class.
+    A page name is unique within (workspace, parent) for each class.
     If a page with classes [A, B] exists, you cannot create another page
     with the same name that has class A or class B (but class C would be OK).
     """

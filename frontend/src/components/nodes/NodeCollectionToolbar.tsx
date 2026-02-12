@@ -9,8 +9,8 @@
  * - In NodeViewSection: Pass as headerActions to move buttons to section header
  */
 import { useMemo } from 'react';
-import { useNodesStore } from '@/stores';
-import type { CardSizeMode } from '@/stores/nodesStore';
+import { useAppStore } from '@/stores';
+import type { CardSizeMode } from '@/stores/appStore';
 import { 
   mdiGroup,
   mdiPlus,
@@ -27,7 +27,7 @@ import {
   mdiRestore,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
+import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
 import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
@@ -113,10 +113,10 @@ export function NodeCollectionToolbar({
   className = '',
 }: NodeCollectionToolbarProps) {
   // Use store for card layout if not controlled
-  const storeCardLayout = useNodesStore(state => state.cardLayout);
-  const storeSetCardLayout = useNodesStore(state => state.setCardLayout);
-  const storeCardSize = useNodesStore(state => state.cardSize);
-  const storeSetCardSize = useNodesStore(state => state.setCardSize);
+  const storeCardLayout = useAppStore(state => state.cardLayout);
+  const storeSetCardLayout = useAppStore(state => state.setCardLayout);
+  const storeCardSize = useAppStore(state => state.cardSize);
+  const storeSetCardSize = useAppStore(state => state.setCardSize);
   
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
   const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => {

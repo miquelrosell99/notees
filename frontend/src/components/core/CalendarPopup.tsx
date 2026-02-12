@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { Button } from './Button';
 import './CalendarPopup.css';
 
@@ -44,7 +44,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     { popupWidth: 280, popupHeight: 350, fixed: true },
   );
   
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
   
   // Fetch list of existing daily pages
   const { data: dailyPages } = useExistingDailyPages();

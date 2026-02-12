@@ -14,13 +14,13 @@ import { settingsKeys } from './hooks/queryKeys';
 import { getSettings } from './api/databases';
 import { Layout } from './components/layout/Layout';
 import { LoginPage } from './views/LoginPage';
-import { GraphManagementView } from './views/GraphManagementView';
+import { WorkspaceManagementView } from './views/WorkspaceManagementView';
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
 import { DndProvider } from './providers/DndProvider';
 import { listDatabases } from './api/databases';
-import { useAuthStore, useNodesStore, useFavoritesStore, useKeyboardStore } from './stores';
+import { useAuthStore, useAppStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
 import './App.css';
@@ -38,7 +38,7 @@ function GlobalKeyboardHandler() {
 
 function AppContent() {
   const { isAuthenticated, isLoading, logout } = useAuthStore();
-  const { toggleQuickAdd, toggleCalendar, showDbManagement, setShowDbManagement } = useNodesStore();
+  const { toggleQuickAdd, toggleCalendar, showDbManagement, setShowDbManagement } = useAppStore();
   
   // Fetch databases when authenticated
   const { data: dbData, isLoading: isLoadingDatabases, refetch: refetchDatabases } = useQuery({
@@ -110,7 +110,7 @@ function AppContent() {
   }, [isAuthenticated]);
   
   // Gate Layout behind settings: fetch settings BEFORE Layout mounts.
-  // This ensures GET /settings completes before journal/graph views
+  // This ensures GET /settings completes before journal/workspace views
   // start their request flood, so settings doesn't compete for browser connections.
   // Also loads favorites and recents after settings to avoid connection contention.
   const [settingsReady, setSettingsReady] = useState(false);
@@ -182,19 +182,19 @@ function AppContent() {
     );
   }
   
-  // Show graph management if no graphs exist or no active graph
-  const hasNoGraphs = !dbData?.databases || dbData.databases.length === 0;
-  const hasNoActiveGraph = !dbData?.active;
+  // Show workspace management if no workspaces exist or no active workspace
+  const hasNoWorkspaces = !dbData?.databases || dbData.databases.length === 0;
+  const hasNoActiveWorkspace = !dbData?.active;
   
-  if (hasNoGraphs || hasNoActiveGraph || showDbManagement) {
-    log.debug('Showing graph management view', { hasNoGraphs, hasNoActiveGraph, showDbManagement });
+  if (hasNoWorkspaces || hasNoActiveWorkspace || showDbManagement) {
+    log.debug('Showing workspace management view', { hasNoWorkspaces, hasNoActiveWorkspace, showDbManagement });
     return (
-      <GraphManagementView 
-        onGraphSelected={() => {
+      <WorkspaceManagementView 
+        onWorkspaceSelected={() => {
           setShowDbManagement(false);
           refetchDatabases();
         }}
-        showClose={!hasNoGraphs && !hasNoActiveGraph}
+        showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
         onClose={() => setShowDbManagement(false)}
       />
     );

@@ -20,7 +20,7 @@
  *   <NodeCollection onNodeClick={handleNodeClick} onNodeShiftClick={handleNodeShiftClick} />
  */
 import { useCallback } from 'react';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import type { SidebarCardType, NodeViewType } from '@/stores';
 
@@ -34,8 +34,8 @@ export function getNodeViewType(node: { is_page?: boolean; parent_id?: number | 
  * Wraps openNode and addSidebarCard from the store with automatic type resolution.
  */
 export function useNodeNavigation() {
-  const openNode = useNodesStore(state => state.openNode);
-  const addSidebarCard = useNodesStore(state => state.addSidebarCard);
+  const openNode = useAppStore(state => state.openNode);
+  const addSidebarCard = useAppStore(state => state.addSidebarCard);
 
   /** Navigate to a node in the main view */
   const navigateToNode = useCallback((node: Node) => {

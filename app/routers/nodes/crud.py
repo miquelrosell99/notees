@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, OptimisticLockError
-from ...db.connection import acquire_connection, get_graph_assets_dir, get_graph_uuid
+from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
 from ..auth import get_current_user
 from ...models import User
 from .models import (
@@ -87,10 +87,10 @@ async def get_recent_pages(
                    create_date, write_date, open_date
             FROM node 
             WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
-                  AND open_date IS NOT NULL AND graph_id = $1
+                  AND open_date IS NOT NULL AND workspace_id = $1
             ORDER BY open_date DESC
             LIMIT $2
-        """, service._graph_id, limit)
+        """, service._workspace_id, limit)
     
     nodes = []
     for row in rows:
@@ -138,7 +138,7 @@ async def get_archived_pages(
 async def get_trash(
     user: User = Depends(get_current_user),
 ):
-    """Get all soft-deleted nodes (trash) for the current graph.
+    """Get all soft-deleted nodes (trash) for the current workspace.
     
     Returns nodes that have been soft-deleted (is_deleted=true) but not
     permanently removed from the database.
@@ -214,7 +214,7 @@ async def get_node(
     class_ids = await _get_class_ids(service, node_id)
     
     # Get tags for the node (from node_link with is_tag=1)
-    tag_ids = await _get_tag_ids(service._pool, service._graph_id or 0, node_id)
+    tag_ids = await _get_tag_ids(service._pool, service._workspace_id or 0, node_id)
     
     response = _node_to_response(node, tags=tag_ids, classes=class_ids)
     
@@ -250,7 +250,7 @@ async def get_node(
                 backlink_counts[row['target_id']] = row['count']
         
         # Get classes for all descendants in one batch using node.class_ids
-        node_class_map = await _get_class_ids_batch(pool, service._graph_id or 0, descendant_ids)
+        node_class_map = await _get_class_ids_batch(pool, service._workspace_id or 0, descendant_ids)
         
         # Get properties for all descendants if include_properties is requested
         node_properties_map: Dict[int, Dict[str, any]] = {}
@@ -413,10 +413,10 @@ async def get_page_content(
     
     # Get classes for all nodes in one batch (from node.class_ids column)
     all_node_ids = [page_id] + block_ids
-    node_class_map = await _get_class_ids_batch(pool, service._graph_id or 0, all_node_ids)
+    node_class_map = await _get_class_ids_batch(pool, service._workspace_id or 0, all_node_ids)
     
     # Get tags for all nodes in one batch (from node_link with is_tag=1)
-    node_tag_map = await _get_tag_ids_batch(pool, service._graph_id or 0, all_node_ids)
+    node_tag_map = await _get_tag_ids_batch(pool, service._workspace_id or 0, all_node_ids)
     
     # Build tree structure from flat list
     block_map = {}
@@ -594,24 +594,24 @@ async def delete_node(
     
     # Get the node including archived ones (for UUID and asset cleanup)
     row = await pool.fetchrow(
-        "SELECT uuid FROM node WHERE id = $1 AND graph_id = $2",
-        node_id, service._graph_id
+        "SELECT uuid FROM node WHERE id = $1 AND workspace_id = $2",
+        node_id, service._workspace_id
     )
     if not row:
         # Debug: check if node exists at all
-        debug_row = await pool.fetchrow("SELECT id, graph_id, active FROM node WHERE id = $1", node_id)
+        debug_row = await pool.fetchrow("SELECT id, workspace_id, active FROM node WHERE id = $1", node_id)
         if debug_row:
-            raise HTTPException(404, f"Node {node_id} exists in graph {debug_row['graph_id']} (active={debug_row['active']}), but current user graph is {service._graph_id}")
-        raise HTTPException(404, f"Node {node_id} not found in any graph")
+            raise HTTPException(404, f"Node {node_id} exists in workspace {debug_row['workspace_id']} (active={debug_row['active']}), but current user workspace is {service._workspace_id}")
+        raise HTTPException(404, f"Node {node_id} not found in any workspace")
     
     node_uuid = row['uuid']
     
     # Try to delete any associated asset file
-    if node_uuid and service._graph_id is not None:
-        # Get graph UUID for asset storage
-        graph_uuid = await get_graph_uuid(service._graph_id)
-        if graph_uuid:
-            assets_dir = get_graph_assets_dir(graph_uuid)
+    if node_uuid and service._workspace_id is not None:
+        # Get workspace UUID for asset storage
+        workspace_uuid = await get_workspace_uuid(service._workspace_id)
+        if workspace_uuid:
+            assets_dir = get_workspace_assets_dir(workspace_uuid)
             # Check for asset files with any extension
             for asset_file in assets_dir.glob(f"{node_uuid}.*"):
                 try:
@@ -682,8 +682,8 @@ async def mark_page_opened(
     async with acquire_connection(service._pool) as conn:
         # Verify it's a page and exists
         row = await conn.fetchrow(
-            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND graph_id = $2",
-            node_id, service._graph_id
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+            node_id, service._workspace_id
         )
         
         if not row:

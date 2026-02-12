@@ -7,7 +7,7 @@
  */
 import { useState, useCallback } from 'react';
 import './CommentsSidebar.css';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { useComments, useCreateComment, useDeleteComment, useUpdateNode, useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { mdiClose } from '@mdi/js';
@@ -112,7 +112,7 @@ export function CommentsSidebar() {
     commentsSidebarOpen, 
     commentsNodeId, 
     closeCommentsSidebar 
-  } = useNodesStore();
+  } = useAppStore();
   
   const [newCommentText, setNewCommentText] = useState('');
   

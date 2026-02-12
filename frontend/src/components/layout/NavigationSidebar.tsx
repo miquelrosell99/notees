@@ -8,12 +8,12 @@
  * - RECENTS section with recently accessed pages
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useNodesStore, useFavoritesStore } from '@/stores';
+import { useAppStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
-import { GraphSwitcher } from '../graphs/GraphSwitcher';
-import { GraphModal } from '../graphs/GraphModal';
-import { SettingsModal } from '../SettingsModal';
+import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
+import { WorkspaceModal } from '../workspace/WorkspaceModal';
+import { SettingsModal } from './SettingsModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { NodeInline } from '../blocks/NodeInline';
@@ -23,7 +23,7 @@ import {
   ClockIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-} from '../icons';
+} from '../core/icons';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
@@ -157,7 +157,7 @@ function SortableFavoriteItem({
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
-  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false);
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [favoritesExpanded, setFavoritesExpanded] = useState(true);
   const [recentsExpanded, setRecentsExpanded] = useState(true);
@@ -182,7 +182,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setMainViewType,
     openNode,
     currentNodeId,
-  } = useNodesStore();
+  } = useAppStore();
   
   // Use individual selectors for data to ensure proper reactivity
   const favorites = useFavoritesStore((state) => state.favorites);
@@ -404,7 +404,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
       <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
         {/* Graph Switcher at Top */}
         <div className="sidebar-header">
-          <GraphSwitcher onAddGraph={() => setIsGraphModalOpen(true)} />
+          <WorkspaceSwitcher onAddWorkspace={() => setIsWorkspaceModalOpen(true)} />
         </div>
 
         {/* Main Navigation */}
@@ -572,9 +572,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
       </Card>
 
       {/* Modals */}
-      <GraphModal
-        isOpen={isGraphModalOpen}
-        onClose={() => setIsGraphModalOpen(false)}
+      <WorkspaceModal
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => setIsWorkspaceModalOpen(false)}
       />
       <SettingsModal
         isOpen={isSettingsModalOpen}

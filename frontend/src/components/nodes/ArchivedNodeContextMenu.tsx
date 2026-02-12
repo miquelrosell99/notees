@@ -8,7 +8,7 @@ import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/hoo
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import './NodeContextMenu.css';
 
@@ -29,7 +29,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
   const unarchiveNode = useUnarchiveNode();
   const deleteNode = useDeleteNode();
-  const { addSidebarCard, openLocalGraph } = useNodesStore();
+  const { addSidebarCard, openLocalGraph } = useAppStore();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
   const handleUnarchiveClick = useCallback(() => {

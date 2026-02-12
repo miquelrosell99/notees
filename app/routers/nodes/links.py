@@ -82,16 +82,16 @@ async def add_tag_link(
     async with acquire_connection(service._pool) as conn:
         # Verify source node exists
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE id = $1 AND graph_id = $2",
-            node_id, service._graph_id
+            "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, service._workspace_id
         )
         if not row:
             raise HTTPException(404, "Source node not found")
         
         # Verify target node exists and is a page
         target_row = await conn.fetchrow(
-            "SELECT id, is_page, parent_id FROM node WHERE id = $1 AND graph_id = $2",
-            request.target_node_id, service._graph_id
+            "SELECT id, is_page, parent_id FROM node WHERE id = $1 AND workspace_id = $2",
+            request.target_node_id, service._workspace_id
         )
         if not target_row:
             raise HTTPException(404, "Target node not found")
@@ -101,8 +101,8 @@ async def add_tag_link(
         # Check if link already exists
         row = await conn.fetchrow("""
             SELECT id, uuid FROM node_link 
-            WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND graph_id = $3
-        """, node_id, request.target_node_id, service._graph_id)
+            WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND workspace_id = $3
+        """, node_id, request.target_node_id, service._workspace_id)
         
         now = datetime.now(timezone.utc)
         
@@ -123,10 +123,10 @@ async def add_tag_link(
         else:
             # Create new tag link
             new_row = await conn.fetchrow("""
-                INSERT INTO node_link (source_id, target_id, position, property_id, is_tag, create_date, graph_id)
+                INSERT INTO node_link (source_id, target_id, position, property_id, is_tag, create_date, workspace_id)
                 VALUES ($1, $2, 0, NULL, TRUE, $3, $4)
                 RETURNING id, uuid
-            """, node_id, request.target_node_id, now, service._graph_id)
+            """, node_id, request.target_node_id, now, service._workspace_id)
             return NodeLinkResponse(
                 id=new_row['id'],
                 uuid=str(new_row['uuid']),
@@ -148,8 +148,8 @@ async def remove_tag_link(
     async with acquire_connection(service._pool) as conn:
         result = await conn.execute("""
             UPDATE node_link SET is_tag = FALSE 
-            WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND graph_id = $3
-        """, node_id, target_id, service._graph_id)
+            WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $3
+        """, node_id, target_id, service._workspace_id)
     
     return {"removed": result == "UPDATE 1"}
 
@@ -271,7 +271,7 @@ async def get_linked_references(
         sources_data.append((source, children, source_page, link))
     
     # Batch fetch class_ids for all source nodes
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, source_node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, source_node_ids)
     
     # Batch fetch properties for all source nodes
     node_properties_map = {}
@@ -479,9 +479,9 @@ async def update_link_name(
         row = await conn.fetchrow("""
             UPDATE node_link 
             SET name = $1
-            WHERE uuid::text = $2 AND graph_id = $3
+            WHERE uuid::text = $2 AND workspace_id = $3
             RETURNING id, uuid, source_id, target_id, is_tag, position, name
-        """, name_value, request.link_uuid, service._graph_id)
+        """, name_value, request.link_uuid, service._workspace_id)
         
         if not row:
             raise HTTPException(404, "Link not found")

@@ -7,7 +7,7 @@
 import { useState, useMemo } from 'react';
 import { useExistingDailyPages, useNode } from '@/hooks';
 import './JournalsView.css';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
@@ -17,7 +17,7 @@ interface JournalEntryProps {
 }
 
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
-  const { viewMode } = useNodesStore();
+  const { viewMode } = useAppStore();
   const { data: page } = useNode(dailyPageId);
   
   // Get border color if page has a color

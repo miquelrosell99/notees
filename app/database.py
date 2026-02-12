@@ -1,10 +1,10 @@
-"""Graph management operations for Notees.
+"""Workspace management operations for Notees.
 
-This module handles graph management operations:
-- Listing, creating, switching, renaming, deleting graphs
+This module handles workspace management operations:
+- Listing, creating, switching, renaming, deleting workspaces
 - Import/export functionality
 
-A "graph" is a user's personal knowledge graph (formerly called "workspace").
+A "workspace" is a user's personal knowledge workspace (formerly called "workspace").
 
 For node operations, use:
 - app/domain/repositories (PostgreSQL implementations)
@@ -15,16 +15,16 @@ from typing import Optional, Dict, List, Any
 
 from .config import settings
 from .logging_config import get_logger
-from .db.connection import get_connection, DATA_DIR, get_graph_dir
-from .db.schema.init import seed_graph
+from .db.connection import get_connection, DATA_DIR, get_workspace_dir
+from .db.schema.init import seed_workspace
 
 logger = get_logger(__name__)
 
-# Track active graph per user (in-memory, for session)
-_active_graphs: Dict[str, str] = {}
+# Track active workspace per user (in-memory, for session)
+_active_workspaces: Dict[str, str] = {}
 
 
-# ============== Graph Management ==============
+# ============== Workspace Management ==============
 
 async def _get_numeric_user_id(user_id: str) -> Optional[int]:
     """Convert string user_id to numeric PostgreSQL ID.
@@ -43,16 +43,16 @@ async def _get_numeric_user_id(user_id: str) -> Optional[int]:
         return row['id'] if row else None
 
 
-async def list_graphs(user_id: str) -> List[Dict[str, Any]]:
-    """List all graphs accessible to a user.
+async def list_workspaces(user_id: str) -> List[Dict[str, Any]]:
+    """List all workspaces accessible to a user.
     
-    Returns graphs owned by the user and graphs shared with them.
+    Returns workspaces owned by the user and workspaces shared with them.
     
     Args:
         user_id: User ID (string or UUID)
         
     Returns:
-        List of graph info dicts with uuid, name, created_at, updated_at, is_shared
+        List of workspace info dicts with uuid, name, created_at, updated_at, is_shared
     """
     numeric_user_id = await _get_numeric_user_id(user_id)
     if not numeric_user_id:
@@ -62,8 +62,8 @@ async def list_graphs(user_id: str) -> List[Dict[str, Any]]:
         rows = await conn.fetch(
             """
             SELECT DISTINCT g.uuid, g.name, g.create_date, g.write_date, g.is_shared
-            FROM graph g
-            LEFT JOIN graph_share gs ON g.id = gs.graph_id
+            FROM workspace g
+            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
             WHERE g.create_uid = $1 OR gs.user_id = $1
             ORDER BY g.create_date DESC
             """,
@@ -82,30 +82,30 @@ async def list_graphs(user_id: str) -> List[Dict[str, Any]]:
         ]
 
 
-def get_active_graph_name(user_id: str) -> Optional[str]:
-    """Get the active graph name for a user.
+def get_active_workspace_name(user_id: str) -> Optional[str]:
+    """Get the active workspace name for a user.
     
     Args:
         user_id: User ID
         
     Returns:
-        Active graph name or None
+        Active workspace name or None
     """
-    return _active_graphs.get(user_id)
+    return _active_workspaces.get(user_id)
 
 
-async def create_graph(user_id: str, name: str) -> Dict[str, Any]:
-    """Create a new graph for a user.
+async def create_workspace(user_id: str, name: str) -> Dict[str, Any]:
+    """Create a new workspace for a user.
     
     Args:
         user_id: User ID (string or UUID)
-        name: Graph name (must be unique per user)
+        name: Workspace name (must be unique per user)
         
     Returns:
-        Dict with graph info (uuid, name, created_at)
+        Dict with workspace info (uuid, name, created_at)
         
     Raises:
-        ValueError: If user not found or graph name exists
+        ValueError: If user not found or workspace name exists
         RuntimeError: If creation fails
     """
     numeric_user_id = await _get_numeric_user_id(user_id)
@@ -115,29 +115,29 @@ async def create_graph(user_id: str, name: str) -> Dict[str, Any]:
     async with get_connection() as conn:
         # Check if name already exists for this user
         existing = await conn.fetchrow(
-            "SELECT id FROM graph WHERE create_uid = $1 AND name = $2 AND active = TRUE",
+            "SELECT id FROM workspace WHERE create_uid = $1 AND name = $2 AND active = TRUE",
             numeric_user_id, name
         )
         if existing:
-            raise ValueError(f"Graph '{name}' already exists")
+            raise ValueError(f"Workspace '{name}' already exists")
         
-        # Create graph
+        # Create workspace
         row = await conn.fetchrow(
             """
-            INSERT INTO graph (name, create_uid, write_uid, is_shared, active)
+            INSERT INTO workspace (name, create_uid, write_uid, is_shared, active)
             VALUES ($1, $2, $2, FALSE, TRUE)
             RETURNING id, uuid, name, create_date
             """,
             name, numeric_user_id
         )
         if row is None:
-            raise RuntimeError("Failed to create graph")
+            raise RuntimeError("Failed to create workspace")
         
-        graph_id = row['id']
+        workspace_id = row['id']
         
-        # Seed graph with system types, properties, and default pages
-        logger.info(f"Seeding graph {graph_id} with system data")
-        await seed_graph(conn, graph_id, numeric_user_id)
+        # Seed workspace with system types, properties, and default pages
+        logger.info(f"Seeding workspace {workspace_id} with system data")
+        await seed_workspace(conn, workspace_id, numeric_user_id)
         
         result = {
             "uuid": str(row['uuid']),
@@ -145,61 +145,61 @@ async def create_graph(user_id: str, name: str) -> Dict[str, Any]:
             "created_at": row['create_date'].isoformat() if row['create_date'] else None,
         }
         
-        # Set as active if user has no active graph
-        if user_id not in _active_graphs:
-            _active_graphs[user_id] = name
+        # Set as active if user has no active workspace
+        if user_id not in _active_workspaces:
+            _active_workspaces[user_id] = name
         
         return result
 
 
-async def switch_graph(user_id: str, name: str) -> bool:
-    """Switch to a different graph.
+async def switch_workspace(user_id: str, name: str) -> bool:
+    """Switch to a different workspace.
     
     Args:
         user_id: User ID
-        name: Graph name to switch to
+        name: Workspace name to switch to
         
     Returns:
-        True if switch successful, False if graph not found/accessible
+        True if switch successful, False if workspace not found/accessible
     """
     numeric_user_id = await _get_numeric_user_id(user_id)
     if not numeric_user_id:
         return False
     
     async with get_connection() as conn:
-        # Check user owns or has access to the graph
-        graph = await conn.fetchrow(
+        # Check user owns or has access to the workspace
+        workspace = await conn.fetchrow(
             """
-            SELECT g.id FROM graph g
-            LEFT JOIN graph_share gs ON g.id = gs.graph_id
+            SELECT g.id FROM workspace g
+            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
             WHERE g.name = $1 AND g.active = TRUE 
               AND (g.create_uid = $2 OR gs.user_id = $2)
             """,
             name, numeric_user_id
         )
         
-        if not graph:
+        if not workspace:
             return False
         
-        _active_graphs[user_id] = name
+        _active_workspaces[user_id] = name
         return True
 
 
-async def rename_graph(user_id: str, old_name: str, new_name: str) -> Dict[str, Any]:
-    """Rename a graph.
+async def rename_workspace(user_id: str, old_name: str, new_name: str) -> Dict[str, Any]:
+    """Rename a workspace.
     
-    Only the graph owner can rename it.
+    Only the workspace owner can rename it.
     
     Args:
         user_id: User ID (must be owner)
-        old_name: Current graph name
-        new_name: New graph name
+        old_name: Current workspace name
+        new_name: New workspace name
         
     Returns:
-        Dict with updated graph info
+        Dict with updated workspace info
         
     Raises:
-        ValueError: If user not found, graph not found, or new name exists
+        ValueError: If user not found, workspace not found, or new name exists
         RuntimeError: If rename fails
     """
     numeric_user_id = await _get_numeric_user_id(user_id)
@@ -207,37 +207,37 @@ async def rename_graph(user_id: str, old_name: str, new_name: str) -> Dict[str, 
         raise ValueError(f"User not found: {user_id}")
     
     async with get_connection() as conn:
-        # Find graph owned by user
-        old_graph = await conn.fetchrow(
-            "SELECT id, uuid FROM graph WHERE create_uid = $1 AND name = $2 AND active = TRUE",
+        # Find workspace owned by user
+        old_workspace = await conn.fetchrow(
+            "SELECT id, uuid FROM workspace WHERE create_uid = $1 AND name = $2 AND active = TRUE",
             numeric_user_id, old_name
         )
-        if not old_graph:
-            raise ValueError(f"Graph '{old_name}' not found")
+        if not old_workspace:
+            raise ValueError(f"Workspace '{old_name}' not found")
         
         # Check new name doesn't exist
         existing = await conn.fetchrow(
-            "SELECT id FROM graph WHERE create_uid = $1 AND name = $2 AND active = TRUE",
+            "SELECT id FROM workspace WHERE create_uid = $1 AND name = $2 AND active = TRUE",
             numeric_user_id, new_name
         )
         if existing:
-            raise ValueError(f"Graph '{new_name}' already exists")
+            raise ValueError(f"Workspace '{new_name}' already exists")
         
-        # Update graph name
+        # Update workspace name
         row = await conn.fetchrow(
             """
-            UPDATE graph SET name = $1, write_date = NOW(), write_uid = $3
+            UPDATE workspace SET name = $1, write_date = NOW(), write_uid = $3
             WHERE id = $2
             RETURNING uuid, name, create_date
             """,
-            new_name, old_graph['id'], numeric_user_id
+            new_name, old_workspace['id'], numeric_user_id
         )
         if row is None:
-            raise RuntimeError("Failed to rename graph")
+            raise RuntimeError("Failed to rename workspace")
         
-        # Update active graph tracking
-        if _active_graphs.get(user_id) == old_name:
-            _active_graphs[user_id] = new_name
+        # Update active workspace tracking
+        if _active_workspaces.get(user_id) == old_name:
+            _active_workspaces[user_id] = new_name
         
         return {
             "uuid": str(row['uuid']),
@@ -246,15 +246,15 @@ async def rename_graph(user_id: str, old_name: str, new_name: str) -> Dict[str, 
         }
 
 
-async def delete_graph(user_id: str, name: str) -> bool:
-    """Delete a graph.
+async def delete_workspace(user_id: str, name: str) -> bool:
+    """Delete a workspace.
     
-    Only the graph owner can delete it. This is a hard delete.
+    Only the workspace owner can delete it. This is a hard delete.
     Deletes both the database record and the associated assets folder.
     
     Args:
         user_id: User ID (must be owner)
-        name: Graph name to delete
+        name: Workspace name to delete
         
     Returns:
         True if deleted, False if not found
@@ -264,57 +264,57 @@ async def delete_graph(user_id: str, name: str) -> bool:
         return False
     
     async with get_connection() as conn:
-        # First, get the graph UUID before deletion
-        graph_row = await conn.fetchrow(
-            "SELECT uuid FROM graph WHERE create_uid = $1 AND name = $2",
+        # First, get the workspace UUID before deletion
+        workspace_row = await conn.fetchrow(
+            "SELECT uuid FROM workspace WHERE create_uid = $1 AND name = $2",
             numeric_user_id, name
         )
         
-        if not graph_row:
+        if not workspace_row:
             return False
         
-        graph_uuid = str(graph_row['uuid'])
+        workspace_uuid = str(workspace_row['uuid'])
         
-        # Delete the graph from database (CASCADE will delete related data)
+        # Delete the workspace from database (CASCADE will delete related data)
         result = await conn.execute(
-            "DELETE FROM graph WHERE create_uid = $1 AND name = $2",
+            "DELETE FROM workspace WHERE create_uid = $1 AND name = $2",
             numeric_user_id, name
         )
         
         deleted = result.split()[-1] != '0'
         
         if deleted:
-            # Delete the graph folder (assets, exports, etc.)
-            graph_dir = get_graph_dir(graph_uuid)
-            if graph_dir.exists():
+            # Delete the workspace folder (assets, exports, etc.)
+            workspace_dir_path = get_workspace_dir(workspace_uuid)
+            if workspace_dir_path.exists():
                 try:
-                    shutil.rmtree(graph_dir)
-                    logger.info(f"Deleted graph folder: {graph_dir}")
+                    shutil.rmtree(workspace_dir_path)
+                    logger.info(f"Deleted workspace folder: {workspace_dir_path}")
                 except Exception as e:
-                    logger.error(f"Failed to delete graph folder {graph_dir}: {e}", exc_info=True)
+                    logger.error(f"Failed to delete workspace folder {workspace_dir_path}: {e}", exc_info=True)
                     # Continue even if folder deletion fails
             
             # Clear from active tracking
-            if _active_graphs.get(user_id) == name:
-                del _active_graphs[user_id]
+            if _active_workspaces.get(user_id) == name:
+                del _active_workspaces[user_id]
         
         return deleted
 
 
-async def export_graph(user_id: str, name: str) -> Path:
-    """Export a graph to a JSON file.
+async def export_workspace(user_id: str, name: str) -> Path:
+    """Export a workspace to a JSON file.
     
-    Exports all nodes, links, and properties in the graph.
+    Exports all nodes, links, and properties in the workspace.
     
     Args:
         user_id: User ID
-        name: Graph name to export
+        name: Workspace name to export
         
     Returns:
         Path to the exported JSON file
         
     Raises:
-        ValueError: If user or graph not found
+        ValueError: If user or workspace not found
     """
     import json
     
@@ -323,21 +323,21 @@ async def export_graph(user_id: str, name: str) -> Path:
         raise ValueError(f"User not found: {user_id}")
     
     async with get_connection() as conn:
-        # Find graph
-        graph = await conn.fetchrow(
+        # Find workspace
+        workspace = await conn.fetchrow(
             """
             SELECT g.id, g.uuid, g.name 
-            FROM graph g
-            LEFT JOIN graph_share gs ON g.id = gs.graph_id
+            FROM workspace g
+            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
             WHERE g.name = $2 AND g.active = TRUE
               AND (g.create_uid = $1 OR gs.user_id = $1)
             """,
             numeric_user_id, name
         )
-        if not graph:
-            raise ValueError(f"Graph '{name}' not found")
+        if not workspace:
+            raise ValueError(f"Workspace '{name}' not found")
         
-        graph_id = graph['id']
+        workspace_id = workspace['id']
         
         # Fetch nodes
         nodes = await conn.fetch(
@@ -346,9 +346,9 @@ async def export_graph(user_id: str, name: str) -> Path:
                    collapsed, active, version, is_class, is_page, is_day,
                    is_month, is_year, is_asset, is_template, is_comment,
                    classes_path, open_date, create_date, write_date
-            FROM node WHERE graph_id = $1
+            FROM node WHERE workspace_id = $1
             """,
-            graph_id
+            workspace_id
         )
         
         # Fetch links
@@ -356,23 +356,23 @@ async def export_graph(user_id: str, name: str) -> Path:
             """
             SELECT nl.uuid, nl.source_id, nl.target_id, nl.is_tag, nl.position
             FROM node_link nl
-            WHERE nl.graph_id = $1
+            WHERE nl.workspace_id = $1
             """,
-            graph_id
+            workspace_id
         )
         
         # Fetch properties
         properties = await conn.fetch(
             """
             SELECT uuid, name, icon, type, is_multi, is_system
-            FROM property WHERE graph_id = $1 OR graph_id IS NULL
+            FROM property WHERE workspace_id = $1 OR workspace_id IS NULL
             """,
-            graph_id
+            workspace_id
         )
         
         export_data = {
             "version": 2,
-            "graph": {"uuid": str(graph['uuid']), "name": graph['name']},
+            "workspace": {"uuid": str(workspace['uuid']), "name": workspace['name']},
             "nodes": [dict(row) for row in nodes],
             "links": [dict(row) for row in links],
             "properties": [dict(row) for row in properties],
@@ -389,21 +389,21 @@ async def export_graph(user_id: str, name: str) -> Path:
         return export_path
 
 
-async def import_graph(user_id: str, file_path: Path, name: str) -> Dict[str, Any]:
-    """Import a graph from a JSON file.
+async def import_workspace(user_id: str, file_path: Path, name: str) -> Dict[str, Any]:
+    """Import a workspace from a JSON file.
     
-    Currently creates an empty graph - full import not implemented.
+    Currently creates an empty workspace - full import not implemented.
     
     Args:
         user_id: User ID
         file_path: Path to import file
-        name: Name for the new graph
+        name: Name for the new workspace
         
     Returns:
-        Dict with new graph info
+        Dict with new workspace info
     """
-    logger.warning(f"Import not fully implemented - creating empty graph '{name}'")
-    return await create_graph(user_id, name)
+    logger.warning(f"Import not fully implemented - creating empty workspace '{name}'")
+    return await create_workspace(user_id, name)
 
 
 async def export_nodes(
@@ -432,34 +432,34 @@ async def export_nodes(
     if not numeric_user_id:
         raise ValueError(f"User not found: {user_id}")
     
-    # Get user's active graph
-    graph_name = _active_graphs.get(user_id)
+    # Get user's active workspace
+    workspace_name = _active_workspaces.get(user_id)
     
     async with get_connection() as conn:
-        # Find graph
-        if graph_name:
-            graph = await conn.fetchrow(
+        # Find workspace
+        if workspace_name:
+            workspace = await conn.fetchrow(
                 """
-                SELECT g.id FROM graph g
+                SELECT g.id FROM workspace g
                 WHERE g.create_uid = $1 AND g.name = $2 AND g.active = TRUE
                 """,
-                numeric_user_id, graph_name
+                numeric_user_id, workspace_name
             )
         else:
-            # Use first available graph
-            graph = await conn.fetchrow(
+            # Use first available workspace
+            workspace = await conn.fetchrow(
                 """
-                SELECT g.id FROM graph g
+                SELECT g.id FROM workspace g
                 WHERE g.create_uid = $1 AND g.active = TRUE
                 ORDER BY g.create_date LIMIT 1
                 """,
                 numeric_user_id
             )
         
-        if not graph:
-            raise ValueError("No graph found")
+        if not workspace:
+            raise ValueError("No workspace found")
         
-        graph_id = graph['id']
+        workspace_id = workspace['id']
         
         # Fetch nodes
         nodes_data = []
@@ -471,20 +471,20 @@ async def export_nodes(
                     SELECT n.id, n.uuid, n.name, n.parent_id, np.depth
                     FROM node n
                     JOIN node_path np ON np.descendant_id = n.id
-                    WHERE n.graph_id = $1 
-                      AND np.ancestor_id = (SELECT id FROM node WHERE graph_id = $1 AND uuid::text = $2)
+                    WHERE n.workspace_id = $1 
+                      AND np.ancestor_id = (SELECT id FROM node WHERE workspace_id = $1 AND uuid::text = $2)
                     ORDER BY np.depth, n.id
                     """,
-                    graph_id, node_uuid
+                    workspace_id, node_uuid
                 )
             else:
                 rows = await conn.fetch(
                     """
                     SELECT id, uuid, name, parent_id 
                     FROM node 
-                    WHERE graph_id = $1 AND uuid::text = $2
+                    WHERE workspace_id = $1 AND uuid::text = $2
                     """,
-                    graph_id, node_uuid
+                    workspace_id, node_uuid
                 )
             
             for row in rows:
@@ -557,17 +557,17 @@ def _export_to_html(nodes: List[Dict]) -> str:
 </html>"""
 
 
-def get_export_dir(user_id: str, graph_name: str = "default") -> Path:
-    """Get the export directory for a user's graph.
+def get_export_dir(user_id: str, workspace_name: str = "default") -> Path:
+    """Get the export directory for a user's workspace.
     
     Args:
         user_id: User ID
-        graph_name: Graph name (defaults to "default")
+        workspace_name: Workspace name (defaults to "default")
         
     Returns:
         Path to export directory (creates if needed)
     """
-    export_dir = DATA_DIR / "users" / user_id / "export" / graph_name
+    export_dir = DATA_DIR / "users" / user_id / "export" / workspace_name
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir
 
@@ -575,13 +575,13 @@ def get_export_dir(user_id: str, graph_name: str = "default") -> Path:
 # ============== Backward Compatibility Aliases ==============
 
 # Keep old function names for backward compatibility
-list_databases = list_graphs
-get_active_db_name = get_active_graph_name
-create_database = create_graph
-switch_database = switch_graph
-rename_database = rename_graph
-delete_database = delete_graph
-export_database = export_graph
-import_database = import_graph
+list_databases = list_workspaces
+get_active_db_name = get_active_workspace_name
+create_database = create_workspace
+switch_database = switch_workspace
+rename_database = rename_workspace
+delete_database = delete_workspace
+export_database = export_workspace
+import_database = import_workspace
 
 
