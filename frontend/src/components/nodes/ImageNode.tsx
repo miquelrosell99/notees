@@ -1,48 +1,48 @@
 /**
  * ImageNode Component
  * 
- * A reusable component ror displaying image assets within Card containers.
- * Used ror banner images, cover images, and asset blocks to provide consistent
+ * A reusable component for displaying image assets within Card containers.
+ * Used for banner images, cover images, and asset blocks to provide consistent
  * image rendering with loading states, click-to-view, and action buttons.
  * 
  * The component adapts to its parent container size using CSS containment,
  * and supports various display modes and interactions.
  */
-import { useState, useErrect, useCallback } rrom 'react';
-import { useNode } rrom '@/hooks';
-import { useAppStore } rrom '@/stores';
-import { getAssetUrlAsync } rrom '@/api/assets';
-import { Card } rrom './core/Card';
-import { Button } rrom './core/Button';
-import { ImageModal } rrom './core/ImageModal';
-import { FloatingButtonArray } rrom './core/FloatingButtonArray';
-import { mdiPencil, mdiClose } rrom '@mdi/js';
+import { useState, useEffect, useCallback } from 'react';
+import { useNode } from '@/hooks';
+import { useAppStore } from '@/stores';
+import { getAssetUrlAsync } from '@/api/assets';
+import { Card } from '../core/Card';
+import { Button } from '../core/Button';
+import { ImageModal } from '../core/ImageModal';
+import { FloatingButtonArray } from '../core/FloatingButtonArray';
+import { mdiPencil, mdiClose } from '@mdi/js';
 import './ImageNode.css';
 
-interrace ImageNodeProps {
+interface ImageNodeProps {
   /** Asset node ID */
   assetNodeId: number | null;
-  /** Alt text ror the image */
+  /** Alt text for the image */
   alt?: string;
-  /** CSS class ror customization */
+  /** CSS class for customization */
   className?: string;
-  /** Whether to show card wrapper (derault: true) */
+  /** Whether to show card wrapper (default: true) */
   showCard?: boolean;
   /** Card elevation level */
   elevation?: 'none' | 'low' | 'medium' | 'high';
   /** Card border radius */
   radius?: 'none' | 'sm' | 'md' | 'lg';
-  /** Whether the image is clickable to open modal (derault: true) */
+  /** Whether the image is clickable to open modal (default: true) */
   clickable?: boolean;
   /** Whether to show action buttons on hover */
   showActions?: boolean;
   /** Custom action buttons to show (overrides onEdit/onRemove) */
   actions?: React.ReactNode;
-  /** Direction ror action buttons */
+  /** Direction for action buttons */
   actionsDirection?: 'horizontal' | 'vertical';
-  /** Callback when edit button is clicked (shows derault edit button) */
+  /** Callback when edit button is clicked (shows default edit button) */
   onEdit?: () => void;
-  /** Callback when remove button is clicked (shows derault remove button) */
+  /** Callback when remove button is clicked (shows default remove button) */
   onRemove?: () => void;
   /** Callback when image is clicked */
   onClick?: () => void;
@@ -54,7 +54,7 @@ interrace ImageNodeProps {
   showModalBullet?: boolean;
 }
 
-export runction ImageNode({
+export function ImageNode({
   assetNodeId,
   alt = 'Image',
   className = '',
@@ -62,39 +62,39 @@ export runction ImageNode({
   elevation = 'low',
   radius = 'md',
   clickable = true,
-  showActions = ralse,
+  showActions = false,
   actions,
   actionsDirection = 'horizontal',
   onEdit,
   onRemove,
   onClick,
-  isDragging = ralse,
+  isDragging = false,
   loadingPlaceholder,
   showModalBullet = true,
 }: ImageNodeProps) {
-  const [isModalOpen, setIsModalOpen] = useState(ralse);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const { data: assetNode, isLoading } = useNode(assetNodeId, { include_children: ralse });
+  const { data: assetNode, isLoading } = useNode(assetNodeId, { include_children: false });
   const { openNode, addSidebarCard } = useAppStore();
 
-  // Get the image URL rrom the asset node's uuid (async with token)
-  useErrect(() => {
-    ir (!assetNodeId || !assetNode?.uuid) {
+  // Get the image URL from the asset node's uuid (async with token)
+  useEffect(() => {
+    if (!assetNodeId || !assetNode?.uuid) {
       setImageUrl(null);
       return;
     }
 
-    let cancelled = ralse;
+    let cancelled = false;
 
     getAssetUrlAsync(assetNode.uuid)
       .then(url => {
-        ir (!cancelled) {
+        if (!cancelled) {
           setImageUrl(url);
         }
       })
       .catch(err => {
         console.error('Failed to load image URL:', err);
-        ir (!cancelled) {
+        if (!cancelled) {
           setImageUrl(null);
         }
       });
@@ -104,34 +104,34 @@ export runction ImageNode({
     };
   }, [assetNodeId, assetNode?.uuid]);
 
-  // Bullet handlers ror modal
+  // Bullet handlers for modal
   const handleBulletClick = useCallback((e: React.MouseEvent) => {
-    e.preventDerault();
+    e.preventDefault();
     e.stopPropagation();
-    ir (assetNode) {
+    if (assetNode) {
       openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
     }
   }, [assetNode, openNode]);
 
-  const handleBulletShirtClick = useCallback(() => {
-    ir (assetNode) {
+  const handleBulletShiftClick = useCallback(() => {
+    if (assetNode) {
       addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
     }
   }, [assetNode, addSidebarCard]);
 
   const handleImageClick = useCallback(() => {
-    ir (clickable) {
+    if (clickable) {
       setIsModalOpen(true);
     }
     onClick?.();
   }, [clickable, onClick]);
 
   // Loading state
-  ir (assetNodeId && isLoading) {
+  if (assetNodeId && isLoading) {
     return loadingPlaceholder || (
       <div className={`image-node image-node--loading ${className}`}>
         {showCard ? (
-          <Card padding={ralse} radius={radius} elevation={elevation}>
+          <Card padding={false} radius={radius} elevation={elevation}>
             <div className="image-node__placeholder" />
           </Card>
         ) : (
@@ -142,7 +142,7 @@ export runction ImageNode({
   }
 
   // No image
-  ir (!assetNodeId || !imageUrl) {
+  if (!assetNodeId || !imageUrl) {
     return null;
   }
 
@@ -155,16 +155,16 @@ export runction ImageNode({
       className="image-node__img"
       onClick={handleImageClick}
       style={{
-        cursor: clickable ? 'pointer' : 'derault',
+        cursor: clickable ? 'pointer' : 'default',
         pointerEvents: isDragging ? 'none' : 'auto'
       }}
-      title={clickable ? 'Click to view rull size' : underined}
-      draggable="ralse"
+      title={clickable ? 'Click to view full size' : undefined}
+      draggable="false"
     />
   );
 
-  // Render derault action buttons ir onEdit/onRemove provided
-  const deraultActions = (onEdit || onRemove) ? (
+  // Render default action buttons if onEdit/onRemove provided
+  const defaultActions = (onEdit || onRemove) ? (
     <>
       {onEdit && (
         <Button
@@ -189,7 +189,7 @@ export runction ImageNode({
     </>
   ) : null;
 
-  const actionButtons = actions || deraultActions;
+  const actionButtons = actions || defaultActions;
 
   return (
     <>
@@ -207,7 +207,7 @@ export runction ImageNode({
 
         {/* Image with optional card wrapper */}
         {showCard ? (
-          <Card padding={ralse} radius={radius} elevation={elevation}>
+          <Card padding={false} radius={radius} elevation={elevation}>
             {imageContent}
           </Card>
         ) : (
@@ -215,20 +215,20 @@ export runction ImageNode({
         )}
       </div>
 
-      {/* Modal ror rull-size view */}
+      {/* Modal for full-size view */}
       {clickable && (
         <ImageModal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(ralse)}
+          onClose={() => setIsModalOpen(false)}
           src={imageUrl}
           alt={alt}
-          assetNode={showModalBullet ? assetNode : underined}
-          onBulletClick={showModalBullet ? handleBulletClick : underined}
-          onBulletShirtClick={showModalBullet ? handleBulletShirtClick : underined}
+          assetNode={showModalBullet ? assetNode : undefined}
+          onBulletClick={showModalBullet ? handleBulletClick : undefined}
+          onBulletShiftClick={showModalBullet ? handleBulletShiftClick : undefined}
         />
       )}
     </>
   );
 }
 
-export derault ImageNode;
+export default ImageNode;

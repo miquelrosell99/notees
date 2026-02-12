@@ -1,84 +1,84 @@
 /**
  * SettingsModal Component
  * 
- * Modal ror app settings, user inro, and account management.
+ * Modal for app settings, user info, and account management.
  */
-import { useState } rrom 'react';
-import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } rrom '@/stores';
-import type { ThemePrererence, DateFormat, QuickAddDestination } rrom '@/stores';
-import { updateDateFormat } rrom '@/api/nodes';
-import { useQueryClient } rrom '@tanstack/react-query';
-import { ConrirmationModal } rrom './core/ConrirmationModal';
-import { Modal } rrom './core/Modal';
-import { Button } rrom './core/Button';
-import { Separator } rrom './core/Separator';
-import { BooleanToggle } rrom './core/BooleanToggle';
+import { useState } from 'react';
+import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
+import type { ThemePreference, DateFormat, QuickAddDestination } from '@/stores';
+import { updateDateFormat } from '@/api/nodes';
+import { useQueryClient } from '@tanstack/react-query';
+import { ConfirmationModal } from '../core/ConfirmationModal';
+import { Modal } from '../core/Modal';
+import { Button } from '../core/Button';
+import { Separator } from '../core/Separator';
+import { BooleanToggle } from '../core/BooleanToggle';
 import './SettingsModal.css';
 
-interrace SettingsModalProps {
+interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 type SettingsTab = 'general' | 'account' | 'appearance' | 'about';
 
-export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, deraultView, quickAddDestination, linkedRersCollapseLevel, setTheme, setDateFormat, setDeraultView, setQuickAddDestination, setLinkedRersCollapseLevel } = useSettingsStore();
-  const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(ralse);
-  const [showDateFormatConrirm, setShowDateFormatConrirm] = useState(ralse);
+  const { theme, dateFormat, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
+  const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
   const queryClient = useQueryClient();
 
-  ir (!isOpen) return null;
+  if (!isOpen) return null;
 
   const handleLogout = () => {
     logout();
     onClose();
   };
 
-  const handleThemeChange = (newTheme: ThemePrererence) => {
+  const handleThemeChange = (newTheme: ThemePreference) => {
     setTheme(newTheme);
     applyTheme(newTheme);
   };
 
   const handleDateFormatChange = async (newFormat: DateFormat) => {
-    ir (newFormat === dateFormat) return;
+    if (newFormat === dateFormat) return;
     
-    // Show conrirmation modal
+    // Show confirmation modal
     setPendingDateFormat(newFormat);
-    setShowDateFormatConrirm(true);
+    setShowDateFormatConfirm(true);
   };
 
-  const handleDateFormatConrirm = async () => {
-    ir (!pendingDateFormat) return;
+  const handleDateFormatConfirm = async () => {
+    if (!pendingDateFormat) return;
     
-    setShowDateFormatConrirm(ralse);
+    setShowDateFormatConfirm(false);
     setIsUpdatingDateFormat(true);
     
     try {
       const result = await updateDateFormat(pendingDateFormat);
-      ir (result.status === 'success') {
+      if (result.status === 'success') {
         setDateFormat(pendingDateFormat);
-        // Invalidate queries to rerresh node names
+        // Invalidate queries to refresh node names
         queryClient.invalidateQueries({ queryKey: ['nodes'] });
         queryClient.invalidateQueries({ queryKey: ['page'] });
       }
-      ir (result.errors.length > 0) {
-        console.error('Some date rormat updates railed:', result.errors);
+      if (result.errors.length > 0) {
+        console.error('Some date format updates failed:', result.errors);
       }
     } catch (error) {
-      console.error('Failed to update date rormat:', error);
-      alert('Failed to update date rormat. Please try again.');
-    } rinally {
-      setIsUpdatingDateFormat(ralse);
+      console.error('Failed to update date format:', error);
+      alert('Failed to update date format. Please try again.');
+    } finally {
+      setIsUpdatingDateFormat(false);
       setPendingDateFormat(null);
     }
   };
 
   const handleDateFormatCancel = () => {
-    setShowDateFormatConrirm(ralse);
+    setShowDateFormatConfirm(false);
     setPendingDateFormat(null);
   };
 
@@ -122,10 +122,10 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <h3 className="settings-section__title">General Settings</h3>
                 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
-                    <label className="settings-item__label">Date rormat</label>
+                  <div className="settings-item__info">
+                    <label className="settings-item__label">Date format</label>
                     <p className="settings-item__description">
-                      Format used ror daily and monthly notes
+                      Format used for daily and monthly notes
                     </p>
                   </div>
                   <select 
@@ -146,16 +146,16 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
-                    <label className="settings-item__label">Derault view</label>
+                  <div className="settings-item__info">
+                    <label className="settings-item__label">Default view</label>
                     <p className="settings-item__description">
                       Choose what to show when opening the app
                     </p>
                   </div>
                   <select 
                     className="settings-item__select"
-                    value={deraultView}
-                    onChange={(e) => setDeraultView(e.target.value as 'journal' | 'all-pages' | 'graph' | 'today')}
+                    value={defaultView}
+                    onChange={(e) => setDefaultView(e.target.value as 'journal' | 'all-pages' | 'graph' | 'today')}
                   >
                     <option value="today">Today's Page</option>
                     <option value="journal">Journal</option>
@@ -165,7 +165,7 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
+                  <div className="settings-item__info">
                     <label className="settings-item__label">Quick add destination</label>
                     <p className="settings-item__description">
                       Where to send quick add notes
@@ -182,16 +182,16 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
-                    <label className="settings-item__label">Linked rers collapse level</label>
+                  <div className="settings-item__info">
+                    <label className="settings-item__label">Linked refs collapse level</label>
                     <p className="settings-item__description">
-                      Auto-collapse nodes at this depth in linked rererences (0 = disabled)
+                      Auto-collapse nodes at this depth in linked references (0 = disabled)
                     </p>
                   </div>
                   <select 
                     className="settings-item__select"
-                    value={linkedRersCollapseLevel}
-                    onChange={(e) => setLinkedRersCollapseLevel(parseInt(e.target.value, 10))}
+                    value={linkedRefsCollapseLevel}
+                    onChange={(e) => setLinkedRefsCollapseLevel(parseInt(e.target.value, 10))}
                   >
                     <option value="0">Disabled</option>
                     <option value="1">Level 1</option>
@@ -201,7 +201,7 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
+                  <div className="settings-item__info">
                     <label className="settings-item__label">Show daily notes</label>
                     <p className="settings-item__description">
                       Automatically create daily notes
@@ -221,16 +221,16 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <h3 className="settings-section__title">Appearance</h3>
                 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
+                  <div className="settings-item__info">
                     <label className="settings-item__label">Theme</label>
                     <p className="settings-item__description">
-                      Choose your prererred color theme
+                      Choose your preferred color theme
                     </p>
                   </div>
                   <div className="settings-theme-buttons">
                     <Button
                       className="settings-theme-btn"
-                      variant={theme === 'light' ? 'derault' : 'ghost'}
+                      variant={theme === 'light' ? 'default' : 'ghost'}
                       size="sm"
                       active={theme === 'light'}
                       onClick={() => handleThemeChange('light')}
@@ -239,7 +239,7 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </Button>
                     <Button
                       className="settings-theme-btn"
-                      variant={theme === 'dark' ? 'derault' : 'ghost'}
+                      variant={theme === 'dark' ? 'default' : 'ghost'}
                       size="sm"
                       active={theme === 'dark'}
                       onClick={() => handleThemeChange('dark')}
@@ -248,7 +248,7 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </Button>
                     <Button
                       className="settings-theme-btn"
-                      variant={theme === 'system' ? 'derault' : 'ghost'}
+                      variant={theme === 'system' ? 'default' : 'ghost'}
                       size="sm"
                       active={theme === 'system'}
                       onClick={() => handleThemeChange('system')}
@@ -259,10 +259,10 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="settings-item">
-                  <div className="settings-item__inro">
+                  <div className="settings-item__info">
                     <label className="settings-item__label">Font size</label>
                     <p className="settings-item__description">
-                      Adjust the base ront size
+                      Adjust the base font size
                     </p>
                   </div>
                   <select className="settings-item__select">
@@ -278,7 +278,7 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div className="settings-section">
                 <h3 className="settings-section__title">Account</h3>
                 
-                <div className="settings-user-inro">
+                <div className="settings-user-info">
                   <div className="settings-user-avatar">
                     {user?.username?.charAt(0).toUpperCase() || '?'}
                   </div>
@@ -306,7 +306,7 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <h4 className="settings-about__name">Notees</h4>
                   <p className="settings-about__version">Version 1.0.0</p>
                   <p className="settings-about__description">
-                    A powerrul note-taking app with graph visualization, 
+                    A powerful note-taking app with graph visualization, 
                     bidirectional linking, and more.
                   </p>
                 </div>
@@ -314,13 +314,13 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <Separator orientation="horizontal" size="lg" spacing="md" />
 
                 <div className="settings-links">
-                  <a hrer="#" className="settings-link">
+                  <a href="#" className="settings-link">
                     Documentation
                   </a>
-                  <a hrer="#" className="settings-link">
+                  <a href="#" className="settings-link">
                     Report a bug
                   </a>
-                  <a hrer="#" className="settings-link">
+                  <a href="#" className="settings-link">
                     Feature request
                   </a>
                 </div>
@@ -329,18 +329,18 @@ export runction SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         </div>
       </Modal>
-      <ConrirmationModal
-        isOpen={showDateFormatConrirm}
+      <ConfirmationModal
+        isOpen={showDateFormatConfirm}
         title="Change Date Format"
-        message={`This will rename all date and month pages to the new rormat (${pendingDateFormat}).\n\nThis action cannot be undone. Continue?`}
-        conrirmLabel="Aceptar"
+        message={`This will rename all date and month pages to the new format (${pendingDateFormat}).\n\nThis action cannot be undone. Continue?`}
+        confirmLabel="Aceptar"
         cancelLabel="Cancelar"
         variant="primary"
-        onConrirm={handleDateFormatConrirm}
+        onConfirm={handleDateFormatConfirm}
         onCancel={handleDateFormatCancel}
       />
     </>
   );
 }
 
-export derault SettingsModal;
+export default SettingsModal;
