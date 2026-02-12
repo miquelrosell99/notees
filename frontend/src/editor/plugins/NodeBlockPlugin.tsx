@@ -317,7 +317,7 @@ export function NodeBlockPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly, onBlockCreate]);
+  }, [editor, readOnly]);
 
   // ─── Backspace at start: merge with previous ──────────────
 
