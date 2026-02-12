@@ -21,7 +21,7 @@ import { useNodesStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
 import { useProperties, useClasses, useAddClass, useRemoveClass } from '@/hooks';
-import type { TableColumn, ExpandableConfig, ReorderableConfig } from '../../core/Table';
+import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from '../../core/Table';
 import { Table } from '../../core/Table';
 import { DragHandleIcon } from '../../icons';
 import { PropertyCell } from '../../properties/PropertyCell';
@@ -29,6 +29,7 @@ import { NodeSelector } from '../../NodeSelector';
 import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
+import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
 import './NodeBlockTableView.css';
 
 // Virtual column UUIDs (match PropertyColumnSelector)
@@ -61,6 +62,7 @@ function getDefaultColumns(): NodeTableColumn[] {
 
 /**
  * Convert NodeTableColumn to TableColumn<Node>
+ * Adds sorting support for known column keys.
  */
 function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
   return nodeColumns.map(col => ({
@@ -75,7 +77,21 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
         : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
     // Enable automatic node cell rendering for name column
     renderNodeCell: col.key === 'name',
+    // Column-specific sort config
+    sortable: col.key === 'name' || col.key === 'write_date' || col.key === 'create_date' || col.key === 'sequence',
+    sortFn: getSortFnForColumn(col.key),
   }));
+}
+
+/** Return the appropriate sort comparator for a known column key. */
+function getSortFnForColumn(key: string): ((a: Node, b: Node) => number) | undefined {
+  switch (key) {
+    case 'name': return compareDateFirstAlpha;
+    case 'write_date': return compareByWriteDateDesc;
+    case 'create_date': return compareByCreateDateDesc;
+    case 'sequence': return compareBySequence;
+    default: return undefined;
+  }
 }
 
 /**
@@ -300,6 +316,13 @@ export function NodeBlockTableView({
   // Convert NodeTableColumn to TableColumn<Node>
   const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
 
+  // Default sort: write_date descending (most recently modified first)
+  const defaultSort = useMemo<SortEntry[]>(() => {
+    // Only apply default if the Modified column is visible
+    const hasModifiedCol = nodeColumns.some(c => c.key === 'write_date');
+    return hasModifiedCol ? [{ key: 'write_date', direction: 'desc' }] : [];
+  }, [nodeColumns]);
+
   // Convert Set<number> to Set<string | number> for Table component
   const selectedKeys = useMemo(() => {
     return selectedIds as Set<string | number>;
@@ -357,6 +380,7 @@ export function NodeBlockTableView({
         getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
         onNodeOpen={openNode}
         onNodeOpenInSidebar={addSidebarCard}
+        defaultSort={defaultSort}
       />
 
       {/* Context menu */}

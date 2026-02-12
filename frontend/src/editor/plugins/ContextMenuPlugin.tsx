@@ -126,8 +126,8 @@ export function ContextMenuPlugin({
         return;
       }
       
-      // Check if clicking on bullet (dot or container)
-      if (target.closest('.node-block-bullet-container') || target.closest('.node-block-dot') || target.closest('.node-block-icon')) {
+      // Check if clicking on bullet (check the whole bullet area)
+      if (target.closest('.node-block-bullet')) {
         event.preventDefault();
         event.stopPropagation();
         

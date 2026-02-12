@@ -50,71 +50,69 @@ export function apiNodeToGraphNode(node: Node, idToUuidMap?: Map<number, string>
 
 /**
  * Convert an array of API Nodes to GraphNodes with proper parent UUID resolution.
+ * Simple version used by sync hooks.
  */
-export function apiNodesToGraphNodes(nodes: Node[]): GraphNode[] {
-  // Build ID -> UUID map from all nodes
+function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
   const idToUuidMap = new Map<number, string>();
   for (const node of nodes) {
     idToUuidMap.set(node.id, node.uuid);
   }
-  
   return nodes.map(n => apiNodeToGraphNode(n, idToUuidMap));
 }
 
 /**
- * Convert nodes for a virtual root scenario.
- * Top-level nodes (those without parents in the set) get assigned to a virtual root.
- * Returns { graphNodes, virtualRootId } where virtualRootId is the ID to pass to NoteesEditor.
+ * Convert API nodes to GraphNodes for the editor.
+ * No virtual root is created. Instead:
+ * - If pageId/pageUuid are provided, they're added to the ID→UUID map so
+ *   children's parent_id resolves correctly. rootBlockId = pageUuid.
+ * - Otherwise, auto-detects the root from the array structure.
+ *
+ * The parent node is NOT added as a GraphNode — only its serverId is registered
+ * via runtime.registerParentServerId() by the caller.
  */
-export function apiNodesToGraphNodesWithVirtualRoot(
+export function apiNodesToGraphNodes(
   nodes: Node[],
-  virtualRootId: string
-): { graphNodes: GraphNode[]; virtualRootId: string } {
-  // First, build ID -> UUID map
+  pageId?: number,
+  pageUuid?: string,
+): { graphNodes: GraphNode[]; rootBlockId: string } {
   const idToUuidMap = new Map<number, string>();
   const nodeIdSet = new Set<number>();
+
+  // Include parent/page in map so children's parent_id resolves to pageUuid
+  if (pageId != null && pageUuid) {
+    idToUuidMap.set(pageId, pageUuid);
+  }
+
   for (const node of nodes) {
     idToUuidMap.set(node.id, node.uuid);
     nodeIdSet.add(node.id);
   }
-  
-  // Convert nodes, but override parentId for top-level nodes
-  const graphNodes: GraphNode[] = nodes.map(n => {
-    const gn = apiNodeToGraphNode(n, idToUuidMap);
-    
-    // If parent is not in our set, assign to virtual root
-    if (!n.parent_id || !nodeIdSet.has(n.parent_id)) {
-      gn.parentId = virtualRootId;
+
+  const graphNodes = nodes.map(n => apiNodeToGraphNode(n, idToUuidMap));
+
+  // Determine rootBlockId — the parent ID used for project() traversal
+  if (pageUuid) {
+    return { graphNodes, rootBlockId: pageUuid };
+  }
+
+  // Auto-detect: find nodes whose parent is not in the set
+  const topLevelNodes = nodes.filter(n => !n.parent_id || !nodeIdSet.has(n.parent_id));
+
+  if (topLevelNodes.length === 1 && nodes.length > 1) {
+    // Single top-level node with children in the array — it's the natural root
+    return { graphNodes, rootBlockId: topLevelNodes[0].uuid };
+  }
+
+  if (topLevelNodes.length > 0 && topLevelNodes[0].parent_id) {
+    // Multiple top-level nodes share a common parent not in the set
+    const parentUuid = idToUuidMap.get(topLevelNodes[0].parent_id);
+    if (parentUuid) {
+      return { graphNodes, rootBlockId: parentUuid };
     }
-    
-    return gn;
-  });
-  
-  // Create the virtual root node itself
-  const virtualRoot: GraphNode = {
-    blockId: virtualRootId,
-    serverId: undefined,
-    parentId: null,
-    orderIndex: 0,
-    nodeType: 'page',
-    contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-    collapsed: false,
-    isDeleted: false,
-    isPage: true,
-    name: '',
-    icon: null,
-    color: null,
-    classIds: [],
-    tagIds: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    version: 1,
-  };
-  
-  return {
-    graphNodes: [virtualRoot, ...graphNodes],
-    virtualRootId,
-  };
+  }
+
+  // Last resort: first node's UUID
+  return { graphNodes, rootBlockId: nodes[0]?.uuid || '' };
 }
 
 function inferNodeType(node: Node): GraphNodeType {
@@ -145,7 +143,7 @@ export function useRuntimeSync(nodes: Node[] | undefined, isLoading: boolean): v
     if (!nodes || isLoading) return;
 
     const runtime = getNodeGraphRuntime();
-    const graphNodes = apiNodesToGraphNodes(nodes);
+    const graphNodes = convertNodesToGraphNodes(nodes);
     runtime.upsertNodes(graphNodes);
   }, [nodes, isLoading]);
 }
@@ -163,7 +161,7 @@ export function useRuntimePageSync(
 
     const runtime = getNodeGraphRuntime();
     const allNodes: Node[] = [page, ...(children || [])];
-    const graphNodes = apiNodesToGraphNodes(allNodes);
+    const graphNodes = convertNodesToGraphNodes(allNodes);
     runtime.upsertNodes(graphNodes);
   }, [page, children, isLoading]);
 }

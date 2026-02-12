@@ -150,6 +150,8 @@ export function NodeCollection({
   customContextMenu,
   customContextMenuItems,
   autoCollapse = false,
+  pageId,
+  pageUuid,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -276,6 +278,8 @@ export function NodeCollection({
             renderItemAction={renderItemAction}
             onNodeClick={onNodeClick}
             onContentChange={onContentChange}
+            pageId={pageId}
+            pageUuid={pageUuid}
             className={viewProps.className}
           />
         );
@@ -288,6 +292,8 @@ export function NodeCollection({
             maxDepth={maxDepth}
             onNodeClick={onNodeClick}
             onContentChange={onContentChange}
+            pageId={pageId}
+            pageUuid={pageUuid}
             className={viewProps.className}
           />
         );

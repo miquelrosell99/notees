@@ -64,6 +64,11 @@ export interface NodeCollectionProps {
   /** Main nodes to display */
   nodes: Node[];
   
+  /** Server ID of the parent page (enables real-root mode in NoteesEditor) */
+  pageId?: number;
+  /** UUID of the parent page (enables real-root mode in NoteesEditor) */
+  pageUuid?: string;
+  
   /** Optional view ID for persisting configuration (property columns, etc.) */
   viewId?: number;
   
@@ -144,6 +149,11 @@ export interface NodeCollectionProps {
 export interface NodeCollectionViewBaseProps {
   /** Nodes to display */
   nodes: Node[];
+  
+  /** Server ID of the parent page */
+  pageId?: number;
+  /** UUID of the parent page */
+  pageUuid?: string;
   
   /** Whether nodes are editable */
   editable: boolean;

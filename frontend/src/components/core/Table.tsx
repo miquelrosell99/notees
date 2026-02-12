@@ -143,6 +143,8 @@ export interface TableProps<T> {
   onNodeOpen?: (nodeId: number, type: 'page' | 'block') => void;
   /** Callback when a node should be opened in sidebar (for Node cell auto-rendering) */
   onNodeOpenInSidebar?: (nodeId: number, type: 'page' | 'block') => void;
+  /** Initial sort state — columns are sorted in this order on first render */
+  defaultSort?: SortEntry[];
 }
 
 /** Default drag handle icon */
@@ -189,9 +191,10 @@ export function Table<T>({
   onExpandedChange: _onExpandedChange,
   onNodeOpen,
   onNodeOpenInSidebar,
+  defaultSort,
 }: TableProps<T>) {
   // Multi-column sort state: array of { key, direction } in sort priority order
-  const [sortColumns, setSortColumns] = useState<SortEntry[]>([]);
+  const [sortColumns, setSortColumns] = useState<SortEntry[]>(defaultSort ?? []);
   
   // Internal expanded state (when uncontrolled) - currently only controlled mode is supported
   // since no internal toggle UI exists

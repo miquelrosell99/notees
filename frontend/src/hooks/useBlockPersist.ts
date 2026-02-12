@@ -89,13 +89,11 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
     // Resolve parent's serverId
     let parentServerId: number | null = null;
     if (graphNode.parentId) {
-      const parentNode = runtime.getNode(graphNode.parentId);
-      if (parentNode) {
-        if (parentNode.serverId == null) {
-          // Parent isn't persisted yet — it will trigger us when it is
-          return;
-        }
-        parentServerId = parentNode.serverId;
+      // Try resolveParentServerId which checks both full nodes and the lightweight mapping
+      parentServerId = runtime.resolveParentServerId(graphNode.parentId);
+      if (parentServerId == null) {
+        // Parent isn't persisted yet — it will trigger us when it is
+        return;
       }
     }
 

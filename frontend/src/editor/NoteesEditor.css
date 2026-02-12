@@ -191,7 +191,6 @@
 .node-block-collapse-arrow:hover {
   opacity: 1 !important;
   color: var(--color-bullet-hover);
-  background-color: var(--color-selection-bg);
 }
 
 .node-block-collapse-arrow:active {

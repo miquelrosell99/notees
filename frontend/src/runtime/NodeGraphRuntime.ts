@@ -22,6 +22,7 @@ import type {
   RuntimeEventHandler,
   ProjectedNode,
   ProjectionQuery,
+  SliceProjectionQuery,
 } from './types';
 
 // ─── Runtime class ────────────────────────────────────────────────
@@ -47,6 +48,16 @@ export class NodeGraphRuntime {
   private pendingFlush: number | null = null;
   private pendingChangedBlockIds = new Set<string>();
   private pendingStructureParentIds = new Set<string>();
+
+  /** Block ID to focus after next sync (used by editors) */
+  private pendingFocusBlockId: string | null = null;
+
+  /**
+   * Parent serverId mapping for nodes that aren't full GraphNodes.
+   * Used when the parent (e.g. a page) isn't loaded into the runtime
+   * but its serverId is needed for persisting child blocks.
+   */
+  private parentServerIds = new Map<string, number>();
 
   // ─── Initialization ───────────────────────────────────────────
 
@@ -182,6 +193,59 @@ export class NodeGraphRuntime {
     const node = this.nodes.get(blockId);
     if (!node) return;
     node.serverId = serverId;
+  }
+
+  /**
+   * Get a node by its server ID (numeric ID from API).
+   * Returns null if not found.
+   */
+  getNodeByServerId(serverId: number): GraphNode | null {
+    for (const node of this.nodes.values()) {
+      if (node.serverId === serverId) return node;
+    }
+    return null;
+  }
+
+  /**
+   * Request that the next projected block (matching blockId) be focused.
+   * Used by editors to focus newly created blocks.
+   */
+  requestFocus(blockId: string): void {
+    this.pendingFocusBlockId = blockId;
+  }
+
+  /**
+   * Get the pending focus block ID (does not clear it).
+   * Editors call this during sync to check if a block should be focused.
+   */
+  getPendingFocus(): string | null {
+    return this.pendingFocusBlockId;
+  }
+
+  /**
+   * Clear the pending focus request. Called after block has been focused.
+   */
+  clearPendingFocus(): void {
+    this.pendingFocusBlockId = null;
+  }
+
+  /**
+   * Register a parent's serverId without creating a full GraphNode.
+   * Used when the parent (e.g. a page) provides context for persistence
+   * but doesn't need to be in the node graph itself.
+   */
+  registerParentServerId(parentBlockId: string, serverId: number): void {
+    this.parentServerIds.set(parentBlockId, serverId);
+  }
+
+  /**
+   * Resolve a parent's serverId - checks both full GraphNodes and
+   * the lightweight parent mapping.
+   */
+  resolveParentServerId(parentBlockId: string): number | null {
+    const node = this.nodes.get(parentBlockId);
+    if (node?.serverId != null) return node.serverId;
+    return this.parentServerIds.get(parentBlockId) ?? null;
   }
 
   /**
@@ -568,13 +632,16 @@ export class NodeGraphRuntime {
   project(query: ProjectionQuery): ProjectedNode[] {
     const result: ProjectedNode[] = [];
     const rootNode = this.nodes.get(query.rootBlockId);
-    if (!rootNode) return result;
 
-    if (query.includeRoot) {
+    if (query.includeRoot && rootNode) {
       result.push(this.toProjectedNode(rootNode, 0));
     }
 
-    this.projectChildren(query.rootBlockId, query.includeRoot ? 1 : 0, query.maxDepth, result, query);
+    // Project children even if rootBlockId is not a full GraphNode.
+    // The childrenIndex is built from children's parentId, so it works
+    // as long as children reference this ID as their parent.
+    const startDepth = (query.includeRoot && rootNode) ? 1 : 0;
+    this.projectChildren(query.rootBlockId, startDepth, query.maxDepth, result, query);
     return result;
   }
 
@@ -622,7 +689,127 @@ export class NodeGraphRuntime {
       hasChildren: (children?.length ?? 0) > 0,
       serverId: node.serverId,
       classIds: node.classIds,
+      isProjectionRoot: false,
     };
+  }
+
+  // ─── Slice Projection ──────────────────────────────────────────
+
+  /**
+   * Generate a flat projected node list from an arbitrary slice of nodes.
+   *
+   * When showParent is true, nodes are grouped by parentId and each parent
+   * is rendered as a locked projection root above its children.
+   * When showParent is false, nodes are rendered in the order provided,
+   * preserving the caller's sort/filter intent.
+   *
+   * Children are recursively expanded according to recursiveLevel.
+   */
+  projectSlice(query: SliceProjectionQuery): ProjectedNode[] {
+    const result: ProjectedNode[] = [];
+    const projected = new Set<string>();
+
+    if (query.showParent) {
+      // ── Grouped mode: group slice nodes by parentId ──────────
+      // Preserves input order within each group (caller controls sort).
+      const groups = new Map<string, string[]>();
+      for (const blockId of query.nodeBlockIds) {
+        const node = this.nodes.get(blockId);
+        if (!node || node.isDeleted) continue;
+        const parentId = node.parentId || '__orphan__';
+        if (!groups.has(parentId)) groups.set(parentId, []);
+        groups.get(parentId)!.push(blockId);
+      }
+
+      for (const [parentId, blockIds] of groups) {
+        let baseDepth = 0;
+
+        // Show parent as a locked projection root
+        if (parentId !== '__orphan__') {
+          const parent = this.nodes.get(parentId);
+          if (parent && !projected.has(parentId)) {
+            const pn = this.toProjectedNode(parent, 0);
+            pn.isProjectionRoot = true;
+            result.push(pn);
+            projected.add(parentId);
+            baseDepth = 1;
+          }
+        }
+
+        for (const blockId of blockIds) {
+          this.projectSliceNode(blockId, baseDepth, query.recursiveLevel, result, projected);
+        }
+      }
+    } else {
+      // ── Ordered mode: render nodes in the order provided ─────
+      for (const blockId of query.nodeBlockIds) {
+        this.projectSliceNode(blockId, 0, query.recursiveLevel, result, projected);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Project a single slice node and optionally its descendants.
+   */
+  private projectSliceNode(
+    blockId: string,
+    depth: number,
+    recursiveLevel: number,
+    result: ProjectedNode[],
+    projected: Set<string>,
+  ): void {
+    if (projected.has(blockId)) return;
+    const node = this.nodes.get(blockId);
+    if (!node || node.isDeleted) return;
+
+    result.push(this.toProjectedNode(node, depth));
+    projected.add(blockId);
+
+    // Recursive expansion of children
+    if (recursiveLevel !== 0) {
+      const maxDepth = recursiveLevel === -1
+        ? -1
+        : depth + recursiveLevel;
+      this.projectSliceDescendants(
+        blockId, depth + 1, maxDepth, result, projected,
+      );
+    }
+  }
+
+  /**
+   * Recursively project descendants for a slice node.
+   * Respects collapsed state and deduplicates with the `projected` set.
+   */
+  private projectSliceDescendants(
+    parentId: string,
+    depth: number,
+    maxDepth: number,
+    result: ProjectedNode[],
+    projected: Set<string>,
+  ): void {
+    if (maxDepth >= 0 && depth > maxDepth) return;
+
+    const children = this.getChildren(parentId);
+    const parentNode = this.nodes.get(parentId);
+    const isCollapsed = parentNode?.collapsed ?? false;
+
+    for (const child of children) {
+      if (child.isDeleted) continue;
+      if (projected.has(child.blockId)) continue;
+
+      const pn = this.toProjectedNode(child, depth);
+      pn.visible = !isCollapsed;
+      result.push(pn);
+      projected.add(child.blockId);
+
+      if (!isCollapsed) {
+        this.projectSliceDescendants(
+          child.blockId, depth + 1, maxDepth, result, projected,
+        );
+      }
+    }
   }
 
   // ─── Event system ─────────────────────────────────────────────

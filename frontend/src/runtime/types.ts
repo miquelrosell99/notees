@@ -91,6 +91,8 @@ export interface ProjectedNode {
   taskState?: string;
   /** Class IDs */
   classIds: string[];
+  /** Whether this node is a locked projection root (slice views) */
+  isProjectionRoot: boolean;
 }
 
 /** Diff operation for reconciliation */
@@ -180,6 +182,18 @@ export interface ProjectionQuery {
   /** Sort order */
   sortBy?: 'orderIndex' | 'createdAt' | 'updatedAt' | 'name';
   sortDirection?: 'asc' | 'desc';
+}
+
+/** Defines a slice-based projection for arbitrary node sets */
+export interface SliceProjectionQuery {
+  /** Unique ID for this projection */
+  projectionId: string;
+  /** Block IDs of the nodes in the slice */
+  nodeBlockIds: string[];
+  /** How many levels of children to expand (-1 = unlimited, 0 = none) */
+  recursiveLevel: number;
+  /** Whether to render parent nodes as locked projection roots */
+  showParent: boolean;
 }
 
 // ─── View modes ───────────────────────────────────────────────────
