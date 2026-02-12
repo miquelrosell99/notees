@@ -127,11 +127,16 @@ export function ListView({
         
         groups.set(pageKey, { page: pageNode, nodes: [] });
       }
+      
+      groups.get(pageKey)!.nodes.push(node);
     }
+    
+    return Array.from(groups.values());
+  }, [nodes, groupBy, enableGrouping]);
 
-    // Grouped view (by page)
-    if (groupedNodes) {
-      return (
+  // Grouped view (by page)
+  if (groupedNodes) {
+    return (
       <div className={`node-list-view node-list-view--grouped ${className}`}>
         {groupedNodes.map((group, groupIndex) => {
           // Collect all nodes in this group (including children)
@@ -192,14 +197,6 @@ export function ListView({
       </div>
     );
   }
-
-  //  }
-      
-      groups.get(pageKey)!.nodes.push(node);
-    }
-    
-    return Array.from(groups.values());
-  }, [nodes, groupBy, enableGrouping]);
 
   // If sortable, use ListSortable wrapper (special mode for reordering)
   if (sortable && onReorder) {
