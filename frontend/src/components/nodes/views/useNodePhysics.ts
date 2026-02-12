@@ -1811,12 +1811,15 @@ export function useNodePhysics({
     warmupFrameRef.current = 0;
     
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
+      // For terrain mode, recenter immediately to ensure bullets spawn centered
+      // For other modes, allow brief stabilization period
+      const delay = viewMode === 'terrain' ? 0 : 500;
       const stabilizationTimer = setTimeout(() => {
         if (!initialFitDoneRef.current) {
           initialFitDoneRef.current = true;
           recenter();
         }
-      }, 500);
+      }, delay);
       return () => clearTimeout(stabilizationTimer);
     }
   }, [inputNodes, inputLinks, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter, settings.constraintMode, settings.nodeSizeMode]);
