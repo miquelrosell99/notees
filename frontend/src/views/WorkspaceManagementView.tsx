@@ -25,7 +25,7 @@ import {
   CloseIcon, 
   DeleteIcon,
   EditIcon,
-} from '../components/icons';
+} from '../components/core/icons';
 import Icon from '@mdi/react';
 import { mdiExport } from '@mdi/js';
 import { Button } from '../components/core/Button';
