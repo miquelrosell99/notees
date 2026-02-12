@@ -138,7 +138,7 @@ export function TerrainView({
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
             const migrated = parsed.map((cc: Record<string, unknown>) => {
-              const rawName = (cc.className ?? cc.typeName ?? '') as string;
+              const rawName = (cc.className ?? '') as string;
               return {
                 ...cc,
                 className: nodeNameToText(rawName) || rawName || 'Untitled',
