@@ -71,7 +71,7 @@ export function CardModeView({
 
   // ─── Sync nodes to runtime ──────────────────────────────────
   // Flatten all nodes (including children) and upsert into the
-  // runtime so that NodeBlockPlugin can project them.
+  // runtime so that BlockPlugin can project them.
   useMemo(() => {
     if (!nodes || nodes.length === 0) return;
     const allNodes: Node[] = [];

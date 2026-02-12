@@ -2,12 +2,12 @@
  * Editor nodes barrel export.
  */
 
-export { NodeBlockNode, $createNodeBlockNode, $isNodeBlockNode } from './NodeBlockNode';
-export type { SerializedNodeBlockNode } from './NodeBlockNode';
+export { BlockNode, $createBlockNode, $isBlockNode } from './BlockNode';
+export type { SerializedBlockNode } from './BlockNode';
 
-export { NodePillNode, $createNodePillNode, $isNodePillNode } from './NodePillNode';
-export type { SerializedNodePillNode } from './NodePillNode';
+export { PillNode, $createPillNode, $isPillNode } from './PillNode';
+export type { SerializedPillNode } from './PillNode';
 
-export { NodeBlockHeadingNode, $createNodeBlockHeadingNode, $isNodeBlockHeadingNode } from './NodeBlockHeadingNode';
-export { NodeBlockCodeNode, $createNodeBlockCodeNode, $isNodeBlockCodeNode } from './NodeBlockCodeNode';
-export { NodeBlockTableCellNode, $createNodeBlockTableCellNode, $isNodeBlockTableCellNode } from './NodeBlockTableCellNode';
+export { BlockHeadingNode, $createBlockHeadingNode, $isBlockHeadingNode } from './BlockHeadingNode';
+export { BlockCodeNode, $createBlockCodeNode, $isBlockCodeNode } from './BlockCodeNode';
+export { BlockTableCellNode, $createBlockTableCellNode, $isBlockTableCellNode } from './BlockTableCellNode';

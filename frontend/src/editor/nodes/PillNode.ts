@@ -1,5 +1,5 @@
 /**
- * NodePillNode — Lexical DecoratorNode for rendering inline node/class references.
+ * PillNode — Lexical DecoratorNode for rendering inline node/class references.
  *
  * Renders as an atomic inline element (pill) that represents a link
  * to another node in the graph. The pill shows the target node's name/icon
@@ -21,7 +21,7 @@ import type { JSX } from 'react';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
-export interface SerializedNodePillNode extends SerializedLexicalNode {
+export interface SerializedPillNode extends SerializedLexicalNode {
   type: 'node-pill';
   version: 1;
   linkId: string;
@@ -30,7 +30,7 @@ export interface SerializedNodePillNode extends SerializedLexicalNode {
 
 // ─── Node class ───────────────────────────────────────────────────
 
-export class NodePillNode extends DecoratorNode<JSX.Element> {
+export class PillNode extends DecoratorNode<JSX.Element> {
   __linkId: string;
   __refType: 'node' | 'class';
 
@@ -38,8 +38,8 @@ export class NodePillNode extends DecoratorNode<JSX.Element> {
     return 'node-pill';
   }
 
-  static clone(node: NodePillNode): NodePillNode {
-    return new NodePillNode(node.__linkId, node.__refType, node.__key);
+  static clone(node: PillNode): PillNode {
+    return new PillNode(node.__linkId, node.__refType, node.__key);
   }
 
   constructor(linkId: string, refType: 'node' | 'class' = 'node', key?: NodeKey) {
@@ -69,7 +69,7 @@ export class NodePillNode extends DecoratorNode<JSX.Element> {
     return span;
   }
 
-  updateDOM(prevNode: NodePillNode, dom: HTMLElement): boolean {
+  updateDOM(prevNode: PillNode, dom: HTMLElement): boolean {
     if (prevNode.__linkId !== this.__linkId) {
       dom.dataset.linkId = this.__linkId;
     }
@@ -93,7 +93,7 @@ export class NodePillNode extends DecoratorNode<JSX.Element> {
 
   // ─── Serialization ───────────────────────────────────────────
 
-  exportJSON(): SerializedNodePillNode {
+  exportJSON(): SerializedPillNode {
     return {
       type: 'node-pill',
       version: 1,
@@ -102,8 +102,8 @@ export class NodePillNode extends DecoratorNode<JSX.Element> {
     };
   }
 
-  static importJSON(json: SerializedNodePillNode): NodePillNode {
-    return $createNodePillNode(json.linkId, json.refType);
+  static importJSON(json: SerializedPillNode): PillNode {
+    return $createPillNode(json.linkId, json.refType);
   }
 
   // ─── Behavior ─────────────────────────────────────────────────
@@ -122,27 +122,27 @@ export class NodePillNode extends DecoratorNode<JSX.Element> {
 
   /**
    * Decorator render — returns a React element.
-   * The actual React component is provided by the NodePillComponent.
+   * The actual React component is provided by the PillComponent.
    */
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
-    // This will be overridden by the NodePillPlugin which registers
+    // This will be overridden by the PillPlugin which registers
     // a decorator component. For now, return a placeholder.
-    // The actual rendering is handled by NodePillPlugin.
+    // The actual rendering is handled by PillPlugin.
     return null as unknown as JSX.Element;
   }
 }
 
 // ─── Factory functions ────────────────────────────────────────────
 
-export function $createNodePillNode(
+export function $createPillNode(
   linkId: string,
   refType: 'node' | 'class' = 'node',
-): NodePillNode {
-  return $applyNodeReplacement(new NodePillNode(linkId, refType));
+): PillNode {
+  return $applyNodeReplacement(new PillNode(linkId, refType));
 }
 
-export function $isNodePillNode(
+export function $isPillNode(
   node: LexicalNode | null | undefined,
-): node is NodePillNode {
-  return node instanceof NodePillNode;
+): node is PillNode {
+  return node instanceof PillNode;
 }

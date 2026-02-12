@@ -1,8 +1,8 @@
 /**
- * NodePillPlugin — Lexical plugin for rendering NodePill decorator nodes.
+ * PillPlugin — Lexical plugin for rendering Pill decorator nodes.
  *
  * Handles:
- * - Rendering NodePillNode as React components
+ * - Rendering PillNode as React components
  * - Click-to-navigate behavior
  * - Context menu for pill editing
  * - Keyboard navigation around pills
@@ -18,19 +18,19 @@ import {
   KEY_DELETE_COMMAND,
   CLICK_COMMAND,
 } from 'lexical';
-import { $isNodePillNode } from '../nodes/NodePillNode';
+import { $isPillNode } from '../nodes/PillNode';
 
-export interface NodePillPluginProps {
+export interface PillPluginProps {
   /** Called when a pill is clicked for navigation */
   onPillClick?: (linkId: string, refType: 'node' | 'class') => void;
   /** Called when a pill is removed */
   onPillRemove?: (linkId: string) => void;
 }
 
-export function NodePillPlugin({
+export function PillPlugin({
   onPillClick,
   onPillRemove,
-}: NodePillPluginProps): null {
+}: PillPluginProps): null {
   const [editor] = useLexicalComposerContext();
 
   // ─── Click handling ────────────────────────────────────────
@@ -63,12 +63,12 @@ export function NodePillPlugin({
 
       const nodes = selection.getNodes();
       for (const node of nodes) {
-        if ($isNodePillNode(node)) {
+        if ($isPillNode(node)) {
           onPillRemove?.(node.getLinkId());
           node.remove();
         }
       }
-      return nodes.some(n => $isNodePillNode(n));
+      return nodes.some(n => $isPillNode(n));
     };
 
     const unsubBack = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleDelete, COMMAND_PRIORITY_HIGH);
