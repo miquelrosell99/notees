@@ -108,24 +108,6 @@ export function NodeBlockPlugin({
     const runtime = getNodeGraphRuntime();
     const pendingFocusBlockId = runtime.getPendingFocus();
     
-    // Preserve current selection to restore after sync if no focus request pending
-    let savedSelection: { blockId: string; offset: number } | null = null;
-    if (!pendingFocusBlockId) {
-      editor.getEditorState().read(() => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection) && selection.isCollapsed()) {
-          const anchorNode = selection.anchor.getNode();
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (blockNode) {
-            savedSelection = {
-              blockId: blockNode.getBlockId(),
-              offset: selection.anchor.offset,
-            };
-          }
-        }
-      });
-    }
-    
     editor.update(() => {
       const root = $getRoot();
       const existingNodes = root.getChildren();
@@ -189,37 +171,14 @@ export function NodeBlockPlugin({
 
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
           
-          // If this is the block runtime requested to focus, schedule focus
+          // If this is the block runtime requested to focus, focus it directly
           if (projected.blockId === pendingFocusBlockId) {
             runtime.clearPendingFocus();
-            const blockToFocus = newBlock;
-            queueMicrotask(() => {
-              editor.update(() => {
-                const firstChild = blockToFocus.getFirstChild();
-                if (firstChild) {
-                  firstChild.selectStart();
-                }
-              });
-            });
-          }
-        }
-      }
-      
-      // Restore saved selection if no focus request was pending
-      if (savedSelection && !pendingFocusBlockId) {
-        const blockKey = blockIdToKeyMap.current.get(savedSelection.blockId);
-        if (blockKey) {
-          const blockNode = $getRoot().getChildren().find(
-            (child) => $isNodeBlockNode(child) && child.getKey() === blockKey
-          );
-          if (blockNode && $isNodeBlockNode(blockNode)) {
-            const firstChild = blockNode.getFirstChild();
+            const firstChild = newBlock.getFirstChild();
             if (firstChild) {
-              try {
-                firstChild.select(savedSelection.offset, savedSelection.offset);
-              } catch (e) {
-                // Selection restoration failed, ignore
-              }
+              firstChild.selectStart();
+            } else {
+              newBlock.selectEnd();
             }
           }
         }
@@ -317,6 +276,9 @@ export function NodeBlockPlugin({
         const newBlockId = crypto.randomUUID();
         runtime.requestFocus(newBlockId);
         onBlockCreate?.(blockId, blockId, newBlockId);
+        // Flush runtime events immediately so the new block is synced
+        // and focused in the same frame as the Enter keypress
+        runtime.flushEvents();
         return true;
       },
       COMMAND_PRIORITY_HIGH,
