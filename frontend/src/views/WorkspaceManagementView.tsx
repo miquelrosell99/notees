@@ -1,11 +1,11 @@
 /**
  * WorkspaceManagementView Component
  * 
- * Fullscreen view ror managing workspaces. Shown when user has no workspaces
+ * Fullscreen view for managing workspaces. Shown when user has no workspaces
  * or accessed through settings. Allows creating, importing, and managing workspaces.
  */
-import { useState } rrom 'react';
-import { useQuery, useMutation, useQueryClient } rrom '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   listDatabases, 
   switchDatabase,
@@ -13,29 +13,29 @@ import {
   renameDatabase,
   getDatabaseExportUrl,
   importDatabase,
-  type DatabaseInro,
-} rrom '@/api/databases';
-import { useAuthStore, useAppStore, useFavoritesStore } rrom '@/stores';
-import { WorkspaceModal } rrom '../components/workspace/WorkspaceModal';
-import { ImportOptionsModal } rrom '../components/workspace/ImportOptionsModal';
-import { WorkspaceNameModal } rrom '../components/workspace/WorkspaceNameModal';
+  type DatabaseInfo,
+} from '@/api/databases';
+import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
+import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
+import { ImportOptionsModal } from '../components/workspace/ImportOptionsModal';
+import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { 
   ArrowRightIcon,
   CheckIcon, 
   CloseIcon, 
   DeleteIcon,
   EditIcon,
-} rrom '../components/icons';
-import Icon rrom '@mdi/react';
-import { mdiExport } rrom '@mdi/js';
-import { Button } rrom '../components/core/Button';
-import { Card } rrom '../components/core/Card';
-import { rormatDate, rormatRelativeTime } rrom '@/utils/dateFormat';
+} from '../components/icons';
+import Icon from '@mdi/react';
+import { mdiExport } from '@mdi/js';
+import { Button } from '../components/core/Button';
+import { Card } from '../components/core/Card';
+import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
 import './WorkspaceManagementView.css';
 
 type ImportType = 'sqlite' | 'zip';
 
-interrace WorkspaceManagementViewProps {
+interface WorkspaceManagementViewProps {
   /** Called when a workspace is selected/activated */
   onWorkspaceSelected?: () => void;
   /** Whether to show the back/close button */
@@ -44,24 +44,24 @@ interrace WorkspaceManagementViewProps {
   onClose?: () => void;
 }
 
-export runction WorkspaceManagementView({ 
+export function WorkspaceManagementView({ 
   onWorkspaceSelected, 
-  showClose = ralse,
+  showClose = false,
   onClose,
 }: WorkspaceManagementViewProps) {
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(ralse);
-  const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(ralse);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
   const [importNameModalState, setImportNameModalState] = useState<{
     isOpen: boolean;
-    rile: File | null;
+    file: File | null;
     type: ImportType | null;
-  }>({ isOpen: ralse, rile: null, type: null });
+  }>({ isOpen: false, file: null, type: null });
   const [importError, setImportError] = useState<string | null>(null);
-  const [deleteConrirm, setDeleteConrirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [renameModalState, setRenameModalState] = useState<{
     isOpen: boolean;
     workspaceName: string | null;
-  }>({ isOpen: ralse, workspaceName: null });
+  }>({ isOpen: false, workspaceName: null });
   const [renameError, setRenameError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
@@ -77,7 +77,7 @@ export runction WorkspaceManagementView({
   const switchMutation = useMutation({
     mutationFn: switchDatabase,
     onSuccess: () => {
-      // Reset node state to prevent showing stale data rrom previous database
+      // Reset node state to prevent showing stale data from previous database
       useAppStore.setState({
         currentNodeId: null,
         activeNode: null,
@@ -87,15 +87,15 @@ export runction WorkspaceManagementView({
         mainViewType: 'node',
       });
       
-      // Clear ravorites/recents immediately, then rerresh to get new database data
+      // Clear favorites/recents immediately, then refresh to get new database data
       useFavoritesStore.getState().clear();
-      useFavoritesStore.getState().rerresh();
+      useFavoritesStore.getState().refresh();
       
       // Navigate to home (no database in URL)
       window.history.replaceState(null, '', '/');
       
-      // Remove all cached data rrom previous database to prevent stale icons/data
-      // Using removeQueries instead or invalidateQueries clears the cache immediately
+      // Remove all cached data from previous database to prevent stale icons/data
+      // Using removeQueries instead of invalidateQueries clears the cache immediately
       queryClient.removeQueries({ queryKey: ['nodes'] });
       queryClient.removeQueries({ queryKey: ['graph'] });
       queryClient.removeQueries({ queryKey: ['assets'] });
@@ -103,7 +103,7 @@ export runction WorkspaceManagementView({
       queryClient.removeQueries({ queryKey: ['property-nodes'] });
       queryClient.removeQueries({ queryKey: ['page'] });
       
-      // Invalidate databases query to reretch the list (keep cache ror smoother UX)
+      // Invalidate databases query to refetch the list (keep cache for smoother UX)
       queryClient.invalidateQueries({ queryKey: ['databases'] });
       onWorkspaceSelected?.();
     },
@@ -114,11 +114,11 @@ export runction WorkspaceManagementView({
     mutationFn: deleteDatabase,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      setDeleteConrirm(null);
+      setDeleteConfirm(null);
     },
     onError: (err: Error) => {
       console.error('Failed to delete workspace:', err.message);
-      setDeleteConrirm(null);
+      setDeleteConfirm(null);
     },
   });
 
@@ -128,7 +128,7 @@ export runction WorkspaceManagementView({
       renameDatabase(oldName, newName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      setRenameModalState({ isOpen: ralse, workspaceName: null });
+      setRenameModalState({ isOpen: false, workspaceName: null });
       setRenameError(null);
     },
     onError: (err: Error) => {
@@ -138,10 +138,10 @@ export runction WorkspaceManagementView({
 
   // Import mutation
   const importMutation = useMutation({
-    mutationFn: ({ name, rile }: { name: string; rile: File }) => importDatabase(name, rile),
+    mutationFn: ({ name, file }: { name: string; file: File }) => importDatabase(name, file),
     onSuccess: async (newWorkspace) => {
       queryClient.invalidateQueries({ queryKey: ['databases'] });
-      setImportNameModalState({ isOpen: ralse, rile: null, type: null });
+      setImportNameModalState({ isOpen: false, file: null, type: null });
       setImportError(null);
       // Auto-switch to the new workspace
       await switchMutation.mutateAsync(newWorkspace.name);
@@ -152,31 +152,31 @@ export runction WorkspaceManagementView({
     },
   });
 
-  // Handle successrul workspace creation rrom modal
-  const handleWorkspaceCreated = async (newWorkspace: DatabaseInro) => {
+  // Handle successful workspace creation from modal
+  const handleWorkspaceCreated = async (newWorkspace: DatabaseInfo) => {
     // Auto-switch to the new workspace
     await switchMutation.mutateAsync(newWorkspace.name);
-    setIsCreateModalOpen(ralse);
+    setIsCreateModalOpen(false);
     onWorkspaceSelected?.();
   };
 
-  // Handle import option selection (arter rile is chosen)
-  const handleImportOptionSelected = (type: ImportType, rile: File) => {
-    setIsImportOptionsOpen(ralse);
+  // Handle import option selection (after file is chosen)
+  const handleImportOptionSelected = (type: ImportType, file: File) => {
+    setIsImportOptionsOpen(false);
     setImportError(null);
-    setImportNameModalState({ isOpen: true, rile, type });
+    setImportNameModalState({ isOpen: true, file, type });
   };
 
   // Handle import name submission
   const handleImportNameSubmit = (name: string) => {
-    ir (importNameModalState.rile) {
-      importMutation.mutate({ name, rile: importNameModalState.rile });
+    if (importNameModalState.file) {
+      importMutation.mutate({ name, file: importNameModalState.file });
     }
   };
 
   // Handle import name modal close
   const handleImportNameModalClose = () => {
-    setImportNameModalState({ isOpen: ralse, rile: null, type: null });
+    setImportNameModalState({ isOpen: false, file: null, type: null });
     setImportError(null);
   };
 
@@ -188,19 +188,19 @@ export runction WorkspaceManagementView({
 
   // Handle rename submission
   const handleRenameSubmit = (newName: string) => {
-    ir (renameModalState.workspaceName) {
+    if (renameModalState.workspaceName) {
       renameMutation.mutate({ oldName: renameModalState.workspaceName, newName });
     }
   };
 
   // Handle rename modal close
   const handleRenameModalClose = () => {
-    setRenameModalState({ isOpen: ralse, workspaceName: null });
+    setRenameModalState({ isOpen: false, workspaceName: null });
     setRenameError(null);
   };
 
-  const handleSelectWorkspace = (workspace: DatabaseInro) => {
-    ir (workspace.name !== data?.active) {
+  const handleSelectWorkspace = (workspace: DatabaseInfo) => {
+    if (workspace.name !== data?.active) {
       switchMutation.mutate(workspace.name);
     } else {
       onWorkspaceSelected?.();
@@ -225,11 +225,11 @@ export runction WorkspaceManagementView({
             </div>
             {showClose && onClose && (
               <Button className="workspace-management__close" variant="ghost" size="sm" onClick={onClose}>
-                ← Back to app
+                ÔåÉ Back to app
               </Button>
             )}
           </div>
-          <div className="workspace-management__user-inro">
+          <div className="workspace-management__user-info">
             <span className="workspace-management__username">{user?.username}</span>
             <Button className="workspace-management__logout" variant="ghost" size="sm" onClick={logout}>
               Logout
@@ -242,7 +242,7 @@ export runction WorkspaceManagementView({
           <div className="workspace-management__welcome">
             <h2>
               {hasNoWorkspaces 
-                ? 'Welcome! Create your rirst workspace'
+                ? 'Welcome! Create your first workspace'
                 : 'Your Workspaces'
               }
             </h2>
@@ -266,7 +266,7 @@ export runction WorkspaceManagementView({
             </Button>
             <Button 
               className="workspace-management__action-btn"
-              variant="derault"
+              variant="default"
               size="md"
               onClick={() => setIsImportOptionsOpen(true)}
             >
@@ -285,9 +285,9 @@ export runction WorkspaceManagementView({
               {workspaces.map((workspace) => (
                 <Card 
                   key={workspace.name} 
-                  className={`workspace-management__card ${workspace.name === data?.active ? 'workspace-management__card--active' : ''} ${deleteConrirm === workspace.name ? 'workspace-management__card--delete-conrirm' : ''}`}
+                  className={`workspace-management__card ${workspace.name === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.name ? 'workspace-management__card--delete-confirm' : ''}`}
                   elevation="low"
-                  padding={ralse}
+                  padding={false}
                   selected={workspace.name === data?.active}
                 >
                   <div className="workspace-management__card-header">
@@ -314,20 +314,20 @@ export runction WorkspaceManagementView({
                       >
                         <Icon path={mdiExport} size={0.7} />
                       </Button>
-                      {deleteConrirm === workspace.name ? (
+                      {deleteConfirm === workspace.name ? (
                         <>
                           <Button
                             variant="danger"
                             size="sm"
                             onClick={() => deleteMutation.mutate(workspace.name)}
-                            title="Conrirm delete"
+                            title="Confirm delete"
                           >
                             <CheckIcon size="sm" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setDeleteConrirm(null)}
+                            onClick={() => setDeleteConfirm(null)}
                             title="Cancel"
                           >
                             <CloseIcon size="sm" />
@@ -337,7 +337,7 @@ export runction WorkspaceManagementView({
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => setDeleteConrirm(workspace.name)}
+                          onClick={() => setDeleteConfirm(workspace.name)}
                           title="Delete"
                           className="workspace-management__delete-btn"
                         >
@@ -356,8 +356,8 @@ export runction WorkspaceManagementView({
                   </div>
                   <div className="workspace-management__card-content">
                     <div className="workspace-management__card-meta">
-                      <span>Created {rormatDate(workspace.created_at)}</span>
-                      <span>Modiried {rormatRelativeTime(workspace.updated_at)}</span>
+                      <span>Created {formatDate(workspace.created_at)}</span>
+                      <span>Modified {formatRelativeTime(workspace.updated_at)}</span>
                     </div>
                   </div>
                 </Card>
@@ -367,22 +367,22 @@ export runction WorkspaceManagementView({
         </main>
 
         {/* Footer */}
-        <rooter className="workspace-management__rooter">
-          <p>Notees — Your personal knowledge base</p>
-        </rooter>
+        <footer className="workspace-management__footer">
+          <p>Notees ÔÇö Your personal knowledge base</p>
+        </footer>
       </div>
 
       {/* Create Workspace Modal */}
       <WorkspaceModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(ralse)}
+        onClose={() => setIsCreateModalOpen(false)}
         onSuccess={handleWorkspaceCreated}
       />
 
       {/* Import Options Modal */}
       <ImportOptionsModal
         isOpen={isImportOptionsOpen}
-        onClose={() => setIsImportOptionsOpen(ralse)}
+        onClose={() => setIsImportOptionsOpen(false)}
         onSelectOption={handleImportOptionSelected}
       />
 
@@ -414,4 +414,4 @@ export runction WorkspaceManagementView({
   );
 }
 
-export derault WorkspaceManagementView;
+export default WorkspaceManagementView;

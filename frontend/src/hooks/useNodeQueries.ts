@@ -156,12 +156,12 @@ export function usePageContent(pageId: number | null) {
 }
 
 /**
- * Hook to fetch graph data for visualization
+ * Hook to fetch workspace data for visualization
  */
 export function useGraphData(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: nodeKeys.graph(),
-    queryFn: () => nodesApi.getGraphData(),
+    queryFn: () => nodesApi.getWorkspaceData(),
     enabled: options?.enabled ?? true,
   });
 }

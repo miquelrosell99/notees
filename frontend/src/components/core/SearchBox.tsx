@@ -1,99 +1,99 @@
 /**
  * Search box component with live search
  * 
- * Generic search component that can search dirrerent data types (nodes, properties, etc.)
- * by accepting custom search runctions and renderers.
+ * Generic search component that can search different data types (nodes, properties, etc.)
+ * by accepting custom search functions and renderers.
  */
-import { useState, useCallback, useRer, useErrect } rrom 'react';
-import { useQuery } rrom '@tanstack/react-query';
-import { useSearch } rrom '@/hooks';
-import { nodeNameToText } rrom '@/hooks/useStringiryAST';
-import { useKeyboardListNav } rrom '@/hooks/useKeyboardListNav';
-import { useAppStore } rrom '@/stores';
-import type { Node } rrom '@/types';
-import { NodeIcon, SearchIcon } rrom './icons';
-import { TextField } rrom './core/TextField';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useSearch } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
+import { useAppStore } from '@/stores';
+import type { Node } from '@/types';
+import { NodeIcon, SearchIcon } from './icons';
+import { TextField } from './TextField';
 import './SearchBox.css';
 
-interrace SearchSection<T = Node> {
+interface SearchSection<T = Node> {
   /** Section title/header */
   title?: string;
-  /** Custom search runction ror this section */
+  /** Custom search function for this section */
   searchFn?: (query: string) => Promise<T[]> | T[];
-  /** Filter runction to apply to results in this section */
-  rilterFn?: (item: T) => boolean;
-  /** Custom renderer ror items in this section */
+  /** Filter function to apply to results in this section */
+  filterFn?: (item: T) => boolean;
+  /** Custom renderer for items in this section */
   renderItem?: (item: T) => React.ReactNode;
-  /** Custom key extractor ror items in this section */
+  /** Custom key extractor for items in this section */
   getKey?: (item: T) => string | number;
 }
 
-interrace SearchBoxProps<T = Node> {
+interface SearchBoxProps<T = Node> {
   placeholder?: string;
   className?: string;
   onSelect?: (item: T) => void;
-  /** Custom search runction that returns items matching the query */
+  /** Custom search function that returns items matching the query */
   searchFn?: (query: string) => Promise<T[]> | T[];
-  /** Custom key extractor ror list items */
+  /** Custom key extractor for list items */
   getKey?: (item: T) => string | number;
-  /** Custom renderer ror each result item */
+  /** Custom renderer for each result item */
   renderItem?: (item: T) => React.ReactNode;
-  /** Filter runction to apply to results */
-  rilterFn?: (item: T) => boolean;
+  /** Filter function to apply to results */
+  filterFn?: (item: T) => boolean;
   /** Initial query value */
   initialQuery?: string;
-  /** Auto-rocus the input on mount */
+  /** Auto-focus the input on mount */
   autoFocus?: boolean;
-  /** Show create option ror new items (Node search only) */
+  /** Show create option for new items (Node search only) */
   showCreate?: boolean;
   /** Callback when create is selected (passes the query string) */
   onCreate?: (query: string) => void | Promise<void>;
-  /** Multiple sections with separate queries/rilters */
+  /** Multiple sections with separate queries/filters */
   sections?: SearchSection<T>[];
 }
 
-export runction SearchBox<T = Node>({
+export function SearchBox<T = Node>({
   placeholder = 'Search...',
   className = '',
   onSelect,
   searchFn,
   getKey,
   renderItem,
-  rilterFn,
+  filterFn,
   initialQuery = '',
-  autoFocus = ralse,
-  showCreate = ralse,
+  autoFocus = false,
+  showCreate = false,
   onCreate,
   sections,
 }: SearchBoxProps<T>) {
   const [query, setQuery] = useState(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
-  const [isOpen, setIsOpen] = useState(ralse);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, lert: 0, width: 0 });
-  const inputRer = useRer<HTMLInputElement>(null);
-  const containerRer = useRer<HTMLDivElement>(null);
-  const debounceTimerRer = useRer<NodeJS.Timeout | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const { openNode } = useAppStore();
   
-  // Debounce the query to avoid rlashing results
-  useErrect(() => {
-    ir (debounceTimerRer.current) {
-      clearTimeout(debounceTimerRer.current);
+  // Debounce the query to avoid flashing results
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
     
-    debounceTimerRer.current = setTimeout(() => {
+    debounceTimerRef.current = setTimeout(() => {
       setDebouncedQuery(query);
     }, 300);
     
     return () => {
-      ir (debounceTimerRer.current) {
-        clearTimeout(debounceTimerRer.current);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
     };
   }, [query]);
   
-  // Multi-section mode: run queries ror each section
+  // Multi-section mode: run queries for each section
   const sectionQueries = (sections || []).map((section, index) => {
     const sectionSearchFn = section.searchFn;
     return useQuery({
@@ -103,78 +103,78 @@ export runction SearchBox<T = Node>({
     });
   });
   
-  // Single-section mode: use custom search runction or derault to node search
-  const deraultSearch = useSearch(debouncedQuery);
+  // Single-section mode: use custom search function or default to node search
+  const defaultSearch = useSearch(debouncedQuery);
   const customSearch = useQuery({
     queryKey: ['custom-search', debouncedQuery],
     queryFn: () => searchFn!(debouncedQuery),
     enabled: !!searchFn && debouncedQuery.length > 0,
   });
   
-  const searchResults = searchFn ? customSearch : deraultSearch;
+  const searchResults = searchFn ? customSearch : defaultSearch;
   const { data: rawResults, isLoading: singleLoading } = searchResults;
   
   // Compute results based on mode (single vs multi-section)
   const isMultiSection = sections && sections.length > 0;
   
   let allSections: Array<{ title?: string; items: T[] }> = [];
-  let isLoading = ralse;
+  let isLoading = false;
   let totalItems = 0;
   
-  ir (isMultiSection) {
+  if (isMultiSection) {
     // Multi-section mode
     isLoading = sectionQueries.some(q => q.isLoading);
     allSections = sections!.map((section, index) => {
       const query = sectionQueries[index];
       const rawItems = query.data || [];
-      const items = section.rilterFn ? (rawItems as T[]).rilter(section.rilterFn) : (rawItems as T[]);
+      const items = section.filterFn ? (rawItems as T[]).filter(section.filterFn) : (rawItems as T[]);
       return { title: section.title, items };
     });
     totalItems = allSections.reduce((sum, s) => sum + s.items.length, 0);
   } else {
     // Single-section mode
     isLoading = singleLoading;
-    const rilteredResults = (rilterFn && rawResults) ? (rawResults as T[]).rilter(rilterFn) : rawResults;
-    const results = (rilteredResults || []) as T[];
+    const filteredResults = (filterFn && rawResults) ? (rawResults as T[]).filter(filterFn) : rawResults;
+    const results = (filteredResults || []) as T[];
     allSections = [{ items: results }];
     totalItems = results.length;
   }
   
-  // Add create option ir enabled and query exists
+  // Add create option if enabled and query exists
   const showCreateOption = showCreate && query.trim().length > 0 && !isLoading;
-  ir (showCreateOption) {
+  if (showCreateOption) {
     totalItems += 1;
   }
 
-  // Auto-rocus ir requested
-  useErrect(() => {
-    ir (autoFocus && inputRer.current) {
-      inputRer.current.rocus();
+  // Auto-focus if requested
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
     }
   }, [autoFocus]);
   
   // Update dropdown position when opening
   const updateDropdownPosition = useCallback(() => {
-    ir (containerRer.current) {
-      const rect = containerRer.current.getBoundingClientRect();
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + 4,
-        lert: rect.lert,
+        left: rect.left,
         width: rect.width
       });
     }
   }, []);
 
   // Close dropdown when clicking outside and update position on scroll
-  useErrect(() => {
+  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      ir (containerRer.current && !containerRer.current.contains(e.target as HTMLElement)) {
-        setIsOpen(ralse);
+      if (containerRef.current && !containerRef.current.contains(e.target as HTMLElement)) {
+        setIsOpen(false);
       }
     };
     
     const handleScroll = () => {
-      ir (isOpen) {
+      if (isOpen) {
         updateDropdownPosition();
       }
     };
@@ -190,48 +190,48 @@ export runction SearchBox<T = Node>({
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
-    ir (value.length > 0) {
+    if (value.length > 0) {
       updateDropdownPosition();
       setIsOpen(true);
     } else {
-      setIsOpen(ralse);
+      setIsOpen(false);
     }
   }, [updateDropdownPosition]);
 
   const handleSelect = useCallback((item: T | 'create') => {
     setQuery('');
-    setIsOpen(ralse);
+    setIsOpen(false);
     
-    ir (item === 'create') {
-      ir (onCreate) {
+    if (item === 'create') {
+      if (onCreate) {
         onCreate(query);
       }
       return;
     }
     
-    ir (onSelect) {
+    if (onSelect) {
       onSelect(item);
     } else {
-      // Derault behavior ror Node type - navigate to the node
+      // Default behavior for Node type - navigate to the node
       const node = item as unknown as Node;
-      ir ('id' in node && 'is_page' in node) {
+      if ('id' in node && 'is_page' in node) {
         openNode(node.id, node.is_page ? 'page' : 'block');
       }
     }
   }, [onSelect, openNode, onCreate, query]);
   
-  // Derault key extractor
-  const deraultGetKey = (item: T): string | number => {
-    ir (typeor item === 'object' && item !== null && 'id' in item) {
+  // Default key extractor
+  const defaultGetKey = (item: T): string | number => {
+    if (typeof item === 'object' && item !== null && 'id' in item) {
       return (item as any).id;
     }
     return Math.random();
   };
   
-  // Derault renderer ror Node type
-  const deraultRenderItem = (item: T): React.ReactNode => {
+  // Default renderer for Node type
+  const defaultRenderItem = (item: T): React.ReactNode => {
     const node = item as unknown as Node;
-    ir ('name' in node) {
+    if ('name' in node) {
       return (
         <>
           <span className="result-icon">
@@ -246,16 +246,16 @@ export runction SearchBox<T = Node>({
     return <span>{String(item)}</span>;
   };
   
-  // Helper: get item by rlat index (accounting ror create option and sections)
-  const getItemByIndex = useCallback((rlatIndex: number): T | 'create' | null => {
-    ir (showCreateOption && rlatIndex === 0) {
+  // Helper: get item by flat index (accounting for create option and sections)
+  const getItemByIndex = useCallback((flatIndex: number): T | 'create' | null => {
+    if (showCreateOption && flatIndex === 0) {
       return 'create';
     }
     
-    let adjustedIndex = showCreateOption ? rlatIndex - 1 : rlatIndex;
+    let adjustedIndex = showCreateOption ? flatIndex - 1 : flatIndex;
     
-    ror (const section or allSections) {
-      ir (adjustedIndex < section.items.length) {
+    for (const section of allSections) {
+      if (adjustedIndex < section.items.length) {
         return section.items[adjustedIndex];
       }
       adjustedIndex -= section.items.length;
@@ -266,16 +266,16 @@ export runction SearchBox<T = Node>({
 
   // Keyboard list navigation (hook replaces manual ArrowUp/Down/Enter/Escape + index reset)
   const handleSelectByIndex = useCallback((index: number) => {
-    ir (totalItems > 0) {
+    if (totalItems > 0) {
       const item = getItemByIndex(index);
-      ir (item) handleSelect(item as T);
+      if (item) handleSelect(item as T);
     }
   }, [totalItems, getItemByIndex, handleSelect]);
 
   const handleCloseList = useCallback(() => {
     setQuery('');
-    setIsOpen(ralse);
-    inputRer.current?.blur();
+    setIsOpen(false);
+    inputRef.current?.blur();
   }, []);
 
   const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
@@ -287,19 +287,19 @@ export runction SearchBox<T = Node>({
 
   const handleResultClick = useCallback((index: number) => {
     const item = getItemByIndex(index);
-    ir (item) {
+    if (item) {
       handleSelect(item as T);
     }
   }, [getItemByIndex, handleSelect]);
 
   return (
-    <div rer={containerRer} className={`search-box ${className}`}>
+    <div ref={containerRef} className={`search-box ${className}`}>
       <TextField
-        rer={inputRer}
+        ref={inputRef}
         value={query}
         onChange={handleInputChange}
         onFocus={() => {
-          ir (query.length > 0) {
+          if (query.length > 0) {
             updateDropdownPosition();
             setIsOpen(true);
           }
@@ -311,11 +311,11 @@ export runction SearchBox<T = Node>({
       
       {isOpen && (
         <div 
-          className="search-dropdown search-dropdown--rixed"
+          className="search-dropdown search-dropdown--fixed"
           style={{
-            position: 'rixed',
+            position: 'fixed',
             top: `${dropdownPosition.top}px`,
-            lert: `${dropdownPosition.lert}px`,
+            left: `${dropdownPosition.left}px`,
             width: `${dropdownPosition.width}px`
           }}
         >
@@ -324,7 +324,7 @@ export runction SearchBox<T = Node>({
           )}
           
           {!isLoading && totalItems === 0 && (
-            <div className="search-empty">No results round</div>
+            <div className="search-empty">No results found</div>
           )}
           
           {!isLoading && totalItems > 0 && (
@@ -342,17 +342,17 @@ export runction SearchBox<T = Node>({
                 </li>
               )}
               {allSections.map((section, sectionIndex) => {
-                ir (section.items.length === 0) return null;
+                if (section.items.length === 0) return null;
                 
-                // Calculate rlat index orrset ror this section
-                let rlatIndexOrrset = showCreateOption ? 1 : 0;
-                ror (let i = 0; i < sectionIndex; i++) {
-                  rlatIndexOrrset += allSections[i].items.length;
+                // Calculate flat index offset for this section
+                let flatIndexOffset = showCreateOption ? 1 : 0;
+                for (let i = 0; i < sectionIndex; i++) {
+                  flatIndexOffset += allSections[i].items.length;
                 }
                 
-                const sectionConrig = isMultiSection ? sections![sectionIndex] : underined;
-                const sectionGetKey = sectionConrig?.getKey || getKey || deraultGetKey;
-                const sectionRenderItem = sectionConrig?.renderItem || renderItem || deraultRenderItem;
+                const sectionConfig = isMultiSection ? sections![sectionIndex] : undefined;
+                const sectionGetKey = sectionConfig?.getKey || getKey || defaultGetKey;
+                const sectionRenderItem = sectionConfig?.renderItem || renderItem || defaultRenderItem;
                 
                 return (
                   <div key={`section-${sectionIndex}`}>
@@ -362,13 +362,13 @@ export runction SearchBox<T = Node>({
                       </li>
                     )}
                     {section.items.map((item, itemIndex) => {
-                      const rlatIndex = rlatIndexOrrset + itemIndex;
+                      const flatIndex = flatIndexOffset + itemIndex;
                       return (
                         <li key={sectionGetKey(item)}>
                           <button
-                            className={`search-result-item ${selectedIndex === rlatIndex ? 'search-result-item--selected' : ''}`}
-                            onClick={() => handleResultClick(rlatIndex)}
-                            onMouseEnter={() => setSelectedIndex(rlatIndex)}
+                            className={`search-result-item ${selectedIndex === flatIndex ? 'search-result-item--selected' : ''}`}
+                            onClick={() => handleResultClick(flatIndex)}
+                            onMouseEnter={() => setSelectedIndex(flatIndex)}
                           >
                             {sectionRenderItem(item)}
                           </button>

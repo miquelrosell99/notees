@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 @router.get("/workspace")
-async def get_graph_data_endpoint(
+async def get_workspace_data_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Get workspace data for visualization with nodes and links.

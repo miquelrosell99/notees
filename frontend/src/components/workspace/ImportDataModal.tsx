@@ -1,28 +1,28 @@
 /**
- * ImportDataModal - Modal ror importing internal block rormat
+ * ImportDataModal - Modal for importing internal block format
  * 
- * Allows users to paste JSON data in the internal block rormat
+ * Allows users to paste JSON data in the internal block format
  * and import it as blocks in the current context.
  */
-import { useState, useCallback, useRer, useErrect } rrom 'react';
-import { mdiImport, mdiCodeJson, mdiAlertCircle } rrom '@mdi/js';
-import { Modal } rrom './core/Modal';
-import { Button } rrom './core/Button';
-import { isValidBlockCopyData, type BlockCopyData, type BlockData } rrom '@/utils/clipboardManager';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { mdiImport, mdiCodeJson, mdiAlertCircle } from '@mdi/js';
+import { Modal } from '../core/Modal';
+import { Button } from '../core/Button';
+import { isValidBlockCopyData, type BlockCopyData, type BlockData } from '@/utils/clipboardManager';
 import './ImportDataModal.css';
 
-interrace ImportDataModalProps {
+interface ImportDataModalProps {
   /** Whether the modal is open */
   isOpen: boolean;
   /** Callback when modal is closed */
   onClose: () => void;
-  /** Callback when data is imported successrully */
+  /** Callback when data is imported successfully */
   onImport: (blocks: BlockData[]) => void;
-  /** Optional title ror the modal */
+  /** Optional title for the modal */
   title?: string;
 }
 
-export runction ImportDataModal({
+export function ImportDataModal({
   isOpen,
   onClose,
   onImport,
@@ -31,21 +31,21 @@ export runction ImportDataModal({
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<BlockCopyData | null>(null);
-  const textareaRer = useRer<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Focus textarea when modal opens
-  useErrect(() => {
-    ir (isOpen) {
+  useEffect(() => {
+    if (isOpen) {
       setContent('');
       setError(null);
       setParsedData(null);
-      setTimeout(() => textareaRer.current?.rocus(), 0);
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isOpen]);
 
   // Validate content as user types
-  useErrect(() => {
-    ir (!content.trim()) {
+  useEffect(() => {
+    if (!content.trim()) {
       setError(null);
       setParsedData(null);
       return;
@@ -53,17 +53,17 @@ export runction ImportDataModal({
 
     try {
       const data = JSON.parse(content);
-      ir (isValidBlockCopyData(data)) {
+      if (isValidBlockCopyData(data)) {
         setParsedData(data);
         setError(null);
       } else {
         setParsedData(null);
-        setError('Invalid rormat. Expected Notees block data rormat.');
+        setError('Invalid format. Expected Notees block data format.');
       }
     } catch (e) {
       setParsedData(null);
-      ir (content.trim().length > 10) {
-        setError('Invalid JSON rormat');
+      if (content.trim().length > 10) {
+        setError('Invalid JSON format');
       } else {
         setError(null);
       }
@@ -71,22 +71,22 @@ export runction ImportDataModal({
   }, [content]);
 
   const handleImport = useCallback(() => {
-    ir (!parsedData) return;
+    if (!parsedData) return;
     
     onImport(parsedData.blocks);
     onClose();
   }, [parsedData, onImport, onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    ir (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDerault();
-      ir (parsedData) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (parsedData) {
         handleImport();
       }
     }
   }, [parsedData, handleImport]);
 
-  ir (!isOpen) return null;
+  if (!isOpen) return null;
 
   const blockCount = parsedData?.blocks?.length ?? 0;
   const totalBlocks = parsedData ? countAllBlocks(parsedData.blocks) : 0;
@@ -99,7 +99,7 @@ export runction ImportDataModal({
       size="md"
       closeOnBackdrop={true}
       closeOnEscape={true}
-      rooter={
+      footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
@@ -118,31 +118,31 @@ export runction ImportDataModal({
       <div className="import-data-modal__instructions">
             <div className="import-data-modal__icon">
               <svg viewBox="0 0 24 24" width={24} height={24}>
-                <path rill="currentColor" d={mdiCodeJson} />
+                <path fill="currentColor" d={mdiCodeJson} />
               </svg>
             </div>
             <p>
-              Paste JSON data in Notees internal rormat. This can be data copied rrom
+              Paste JSON data in Notees internal format. This can be data copied from
               another Notees instance or exported block data.
             </p>
           </div>
 
           <div className="import-data-modal__input-container">
             <textarea
-              rer={textareaRer}
+              ref={textareaRef}
               className={`import-data-modal__textarea ${error ? 'import-data-modal__textarea--error' : ''} ${parsedData ? 'import-data-modal__textarea--valid' : ''}`}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder='{"version": 1, "rormat": "notees-blocks", ...}'
-              spellCheck={ralse}
+              placeholder='{"version": 1, "format": "notees-blocks", ...}'
+              spellCheck={false}
             />
           </div>
 
           {error && (
             <div className="import-data-modal__error">
               <svg viewBox="0 0 24 24" width={16} height={16}>
-                <path rill="currentColor" d={mdiAlertCircle} />
+                <path fill="currentColor" d={mdiAlertCircle} />
               </svg>
               <span>{error}</span>
             </div>
@@ -160,7 +160,7 @@ export runction ImportDataModal({
               <div className="import-data-modal__preview-blocks">
                 {parsedData.blocks.slice(0, 5).map((block, index) => (
                   <div key={index} className="import-data-modal__preview-block">
-                    <span className="import-data-modal__preview-bullet">•</span>
+                    <span className="import-data-modal__preview-bullet">ÔÇó</span>
                     <span className="import-data-modal__preview-content">
                       {block.name || '(empty)'}
                     </span>
@@ -186,14 +186,14 @@ export runction ImportDataModal({
 /**
  * Count total blocks including nested children
  */
-runction countAllBlocks(blocks: BlockData[]): number {
+function countAllBlocks(blocks: BlockData[]): number {
   let count = blocks.length;
-  ror (const block or blocks) {
-    ir (block.children) {
+  for (const block of blocks) {
+    if (block.children) {
       count += countAllBlocks(block.children);
     }
   }
   return count;
 }
 
-export derault ImportDataModal;
+export default ImportDataModal;

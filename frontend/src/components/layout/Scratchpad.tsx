@@ -1,66 +1,66 @@
 /**
  * Scratchpad Component
  * 
- * A rloating pseudo-page that is emptied each day.
+ * A floating pseudo-page that is emptied each day.
  * Provides a quick note-taking space that resets daily.
  */
-import { useState, useErrect, useCallback, useRer } rrom 'react';
-import { mdiClose, mdiTrashCanOutline, mdiPin, mdiPinOrr } rrom '@mdi/js';
-import Icon rrom '@mdi/react';
-import { Button } rrom './core/Button';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { mdiClose, mdiTrashCanOutline, mdiPin, mdiPinOff } from '@mdi/js';
+import Icon from '@mdi/react';
+import { Button } from '../core/Button';
 import './Scratchpad.css';
 
-interrace ScratchpadProps {
+interface ScratchpadProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interrace ScratchpadEntry {
+interface ScratchpadEntry {
   id: string;
   content: string;
   timestamp: string;
 }
 
-interrace ScratchpadData {
+interface ScratchpadData {
   date: string;
   entries: ScratchpadEntry[];
 }
 
 const STORAGE_KEY = 'notees-scratchpad';
 
-runction getTodayDateString(): string {
+function getTodayDateString(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-runction generateId(): string {
+function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
+export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
   const [entries, setEntries] = useState<ScratchpadEntry[]>([]);
   const [newEntry, setNewEntry] = useState('');
-  const [isPinned, setIsPinned] = useState(ralse);
+  const [isPinned, setIsPinned] = useState(false);
   const [position, setPosition] = useState({ x: 100, y: 100 });
-  const [isDragging, setIsDragging] = useState(ralse);
-  const dragOrrset = useRer({ x: 0, y: 0 });
-  const containerRer = useRer<HTMLDivElement>(null);
-  const inputRer = useRer<HTMLTextAreaElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Load scratchpad data on mount
-  useErrect(() => {
+  useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    ir (stored) {
+    if (stored) {
       try {
         const data: ScratchpadData = JSON.parse(stored);
         const today = getTodayDateString();
         
-        // Only load entries ir they're rrom today
-        ir (data.date === today) {
+        // Only load entries if they're from today
+        if (data.date === today) {
           setEntries(data.entries);
         } else {
           // Clear old entries
           setEntries([]);
-          localStorage.setItem(STORAGE_KEY, JSON.stringiry({ date: today, entries: [] }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, entries: [] }));
         }
       } catch (e) {
         console.error('Failed to load scratchpad data:', e);
@@ -70,39 +70,39 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
     
     // Load pinned state
     const pinnedState = localStorage.getItem('notees-scratchpad-pinned');
-    ir (pinnedState === 'true') {
+    if (pinnedState === 'true') {
       setIsPinned(true);
     }
     
     // Load position
     const savedPos = localStorage.getItem('notees-scratchpad-position');
-    ir (savedPos) {
+    if (savedPos) {
       try {
         setPosition(JSON.parse(savedPos));
       } catch (e) {
-        // Use derault position
+        // Use default position
       }
     }
   }, []);
 
   // Save entries when they change
-  useErrect(() => {
+  useEffect(() => {
     const data: ScratchpadData = {
       date: getTodayDateString(),
       entries,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringiry(data));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [entries]);
 
   // Focus input when opened
-  useErrect(() => {
-    ir (isOpen && inputRer.current) {
-      inputRer.current.rocus();
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
     }
   }, [isOpen]);
 
   const handleAddEntry = useCallback(() => {
-    ir (!newEntry.trim()) return;
+    if (!newEntry.trim()) return;
     
     const entry: ScratchpadEntry = {
       id: generateId(),
@@ -115,14 +115,14 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
   }, [newEntry]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    ir (e.key === 'Enter' && !e.shirtKey) {
-      e.preventDerault();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       handleAddEntry();
     }
   }, [handleAddEntry]);
 
   const handleDeleteEntry = useCallback((id: string) => {
-    setEntries(prev => prev.rilter(entry => entry.id !== id));
+    setEntries(prev => prev.filter(entry => entry.id !== id));
   }, []);
 
   const handleClearAll = useCallback(() => {
@@ -138,28 +138,28 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
 
   // Dragging handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    ir (e.target !== e.currentTarget) return;
+    if (e.target !== e.currentTarget) return;
     setIsDragging(true);
-    dragOrrset.current = {
+    dragOffset.current = {
       x: e.clientX - position.x,
       y: e.clientY - position.y,
     };
   }, [position]);
 
-  useErrect(() => {
-    ir (!isDragging) return;
+  useEffect(() => {
+    if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       const newPos = {
-        x: Math.max(0, Math.min(window.innerWidth - 320, e.clientX - dragOrrset.current.x)),
-        y: Math.max(0, Math.min(window.innerHeight - 200, e.clientY - dragOrrset.current.y)),
+        x: Math.max(0, Math.min(window.innerWidth - 320, e.clientX - dragOffset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 200, e.clientY - dragOffset.current.y)),
       };
       setPosition(newPos);
     };
 
     const handleMouseUp = () => {
-      setIsDragging(ralse);
-      localStorage.setItem('notees-scratchpad-position', JSON.stringiry(position));
+      setIsDragging(false);
+      localStorage.setItem('notees-scratchpad-position', JSON.stringify(position));
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -170,13 +170,13 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
     };
   }, [isDragging, position]);
 
-  ir (!isOpen && !isPinned) return null;
+  if (!isOpen && !isPinned) return null;
 
   return (
     <div
-      rer={containerRer}
+      ref={containerRef}
       className={`scratchpad ${isDragging ? 'dragging' : ''} ${isPinned ? 'pinned' : ''}`}
-      style={{ lert: position.x, top: position.y }}
+      style={{ left: position.x, top: position.y }}
     >
       <div className="scratchpad-header" onMouseDown={handleMouseDown}>
         <span className="scratchpad-title">Scratchpad</span>
@@ -190,7 +190,7 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
             onClick={handleTogglePin}
             title={isPinned ? 'Unpin' : 'Pin'}
           >
-            <Icon path={isPinned ? mdiPin : mdiPinOrr} size={0.7} />
+            <Icon path={isPinned ? mdiPin : mdiPinOff} size={0.7} />
           </Button>
           <Button
             className="scratchpad-btn"
@@ -234,7 +234,7 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
       
       <div className="scratchpad-input-area">
         <textarea
-          rer={inputRer}
+          ref={inputRef}
           className="scratchpad-input"
           value={newEntry}
           onChange={(e) => setNewEntry(e.target.value)}
@@ -247,4 +247,4 @@ export runction Scratchpad({ isOpen, onClose }: ScratchpadProps) {
   );
 }
 
-export derault Scratchpad;
+export default Scratchpad;
