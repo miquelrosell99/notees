@@ -19,6 +19,7 @@ export type DragEventHandler = (state: DragState) => void;
 export class DragCoordinator {
   private state: DragState = { status: 'idle' };
   private listeners = new Set<DragEventHandler>();
+  private moveGuard: ((blockId: string, newParentId: string) => boolean) | null = null;
 
   // ─── Drag lifecycle ───────────────────────────────────────────
 
@@ -81,6 +82,12 @@ export class DragCoordinator {
       return;
     }
 
+    // Check move guard (page boundaries, projection root locking, etc.)
+    if (this.moveGuard && !this.moveGuard(payload.blockId, newParentId)) {
+      this.cancelDrag();
+      return;
+    }
+
     const intent: MutationIntent = {
       type: 'move_block',
       blockId: payload.blockId,
@@ -110,6 +117,15 @@ export class DragCoordinator {
 
   getDragPayload(): DragPayload | null {
     return this.state.status === 'dragging' ? this.state.payload : null;
+  }
+
+  /**
+   * Register a move guard function. Called before completing a drag.
+   * Return false to cancel the drag operation.
+   * Only one guard can be active at a time (last caller wins).
+   */
+  setMoveGuard(guard: ((blockId: string, newParentId: string) => boolean) | null): void {
+    this.moveGuard = guard;
   }
 
   // ─── Events ───────────────────────────────────────────────────

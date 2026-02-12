@@ -78,7 +78,8 @@ export function KeyboardSelectionPlugin({
           // Edit mode → select current block
           let blockIdToSelect: string | null = null;
           
-          editor.update(() => {
+          // Read blockId synchronously first (editor.read is always sync)
+          editor.read(() => {
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return;
 
@@ -87,12 +88,12 @@ export function KeyboardSelectionPlugin({
             if (!blockNode) return;
 
             blockIdToSelect = blockNode.getBlockId();
-            $setSelection(null);
           });
-          
-          window.getSelection()?.removeAllRanges();
 
           if (blockIdToSelect) {
+            // Clear text selection in a separate update
+            editor.update(() => { $setSelection(null); });
+            window.getSelection()?.removeAllRanges();
             // Use queueMicrotask to ensure Lexical has finished DOM updates
             queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }

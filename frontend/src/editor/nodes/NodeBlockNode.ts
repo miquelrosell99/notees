@@ -41,6 +41,7 @@ export interface SerializedNodeBlockNode extends SerializedElementNode {
   icon: string | null;
   color: string | null;
   blockName: string;
+  isProjectionRoot: boolean;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export class NodeBlockNode extends ElementNode {
   __icon: string | null;
   __color: string | null;
   __blockName: string;
+  __isProjectionRoot: boolean;
 
   static getType(): string {
     return 'node-block';
@@ -69,6 +71,7 @@ export class NodeBlockNode extends ElementNode {
       node.__icon,
       node.__color,
       node.__blockName,
+      node.__isProjectionRoot,
       node.__key,
     );
   }
@@ -82,6 +85,7 @@ export class NodeBlockNode extends ElementNode {
     icon: string | null = null,
     color: string | null = null,
     blockName: string = '',
+    isProjectionRoot: boolean = false,
     key?: NodeKey,
   ) {
     super(key);
@@ -93,6 +97,7 @@ export class NodeBlockNode extends ElementNode {
     this.__icon = icon;
     this.__color = color;
     this.__blockName = blockName;
+    this.__isProjectionRoot = isProjectionRoot;
   }
 
   // ─── Getters/Setters ─────────────────────────────────────────
@@ -171,6 +176,16 @@ export class NodeBlockNode extends ElementNode {
     return this;
   }
 
+  getIsProjectionRoot(): boolean {
+    return this.getLatest().__isProjectionRoot;
+  }
+
+  setIsProjectionRoot(isProjectionRoot: boolean): this {
+    const writable = this.getWritable();
+    writable.__isProjectionRoot = isProjectionRoot;
+    return this;
+  }
+
   // ─── DOM ──────────────────────────────────────────────────────
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -190,12 +205,15 @@ export class NodeBlockNode extends ElementNode {
     if (this.__hasChildren) {
       dom.classList.add('node-block--has-children');
     }
+    if (this.__isProjectionRoot) {
+      dom.classList.add('node-block--projection-root');
+    }
 
     // Create bullet wrapper
     const bullet = document.createElement('div');
     bullet.className = 'node-block-bullet';
     bullet.dataset.blockId = this.__blockId;
-    bullet.draggable = true;
+    bullet.draggable = !this.__isProjectionRoot;
     
     // Prevent text selection when mousedown on bullet
     bullet.addEventListener('mousedown', (e: MouseEvent) => {
@@ -269,6 +287,13 @@ export class NodeBlockNode extends ElementNode {
       dom.classList.toggle('node-block--has-children', this.__hasChildren);
     }
 
+    // Update isProjectionRoot
+    if (prevNode.__isProjectionRoot !== this.__isProjectionRoot) {
+      dom.classList.toggle('node-block--projection-root', this.__isProjectionRoot);
+      const bullet = dom.querySelector('.node-block-bullet') as HTMLElement | null;
+      if (bullet) bullet.draggable = !this.__isProjectionRoot;
+    }
+
     // Update color
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
@@ -331,6 +356,7 @@ export class NodeBlockNode extends ElementNode {
       icon: this.__icon,
       color: this.__color,
       blockName: this.__blockName,
+      isProjectionRoot: this.__isProjectionRoot,
     };
   }
 
@@ -344,6 +370,7 @@ export class NodeBlockNode extends ElementNode {
       json.icon,
       json.color,
       json.blockName,
+      json.isProjectionRoot,
     );
   }
 
@@ -380,9 +407,10 @@ export function $createNodeBlockNode(
   icon: string | null = null,
   color: string | null = null,
   blockName: string = '',
+  isProjectionRoot: boolean = false,
 ): NodeBlockNode {
   return $applyNodeReplacement(
-    new NodeBlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName),
+    new NodeBlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot),
   );
 }
 

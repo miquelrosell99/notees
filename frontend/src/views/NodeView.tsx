@@ -23,6 +23,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation } from '@/hooks';
 import { useNodesStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -130,7 +131,6 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
 
   // Handle add block (adds child to the focused block)
   const handleAddBlock = useCallback(async () => {
-    // Compute next sequence from node's children
     const maxSequence = node.children?.reduce((max, child) => 
       Math.max(max, child.sequence ?? 0), -1) ?? -1;
     
@@ -139,6 +139,9 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
       parent_id: node.id,
       sequence: maxSequence + 1,
     });
+    // Request focus on the newly created block so the editor focuses it after sync
+    const runtime = getNodeGraphRuntime();
+    runtime.requestFocus(newNode.uuid);
   }, [createNode, node.id, node.children]);
 
   return (
@@ -154,6 +157,8 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
         showEmpty={false}
         showClasses={true}
         suppressRootColor={true}
+        pageId={node.id}
+        pageUuid={node.uuid}
       />
       <div className="focused-block-content-add">
         <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">

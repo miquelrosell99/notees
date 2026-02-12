@@ -40,7 +40,7 @@ import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
-import { apiNodesToGraphNodesWithVirtualRoot } from '../hooks/useRuntimeSync';
+import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
 import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
@@ -67,7 +67,8 @@ export interface NoteesEditorProps {
   editorId?: string;
   /** 
    * Nodes to display - primary input for query-driven views.
-   * Top-level nodes in the array become children of a virtual root.
+   * When pageId/pageUuid are also provided, uses the real page as root.
+   * Otherwise falls back to a virtual root.
    */
   nodes?: Node[];
   /**
@@ -75,6 +76,10 @@ export interface NoteesEditorProps {
    * If both nodes and rootBlockId provided, nodes takes precedence.
    */
   rootBlockId?: string;
+  /** Server ID of the parent page (used with nodes[] to avoid virtual root) */
+  pageId?: number;
+  /** UUID of the parent page (used with nodes[] to avoid virtual root) */
+  pageUuid?: string;
   /** Editor mode: 'list' (bullets + indent) or 'document' (prose) */
   mode?: EditorMode;
   /** Read-only mode */
@@ -105,6 +110,20 @@ export interface NoteesEditorProps {
   includeRoot?: boolean;
   /** Maximum depth to project (-1 = unlimited, default: -1) */
   maxDepth?: number;
+  /** Slice projection: block IDs to project (overrides tree-based projection) */
+  sliceBlockIds?: string[];
+  /** Slice projection: how many levels of children to expand (-1 = unlimited) */
+  sliceRecursiveLevel?: number;
+  /** Slice projection: whether to show parent nodes as locked projection roots */
+  sliceShowParent?: boolean;
+  /** Structural guard — return false to prevent indent */
+  canIndent?: (blockId: string) => boolean;
+  /** Structural guard — return false to prevent outdent */
+  canOutdent?: (blockId: string) => boolean;
+  /** Structural guard — return false to prevent merge */
+  canMerge?: (sourceBlockId: string, targetBlockId: string) => boolean;
+  /** Structural guard — return false to prevent delete */
+  canDelete?: (blockId: string) => boolean;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -125,6 +144,8 @@ export function NoteesEditor({
   editorId: externalEditorId,
   nodes,
   rootBlockId: externalRootBlockId,
+  pageId,
+  pageUuid,
   mode = 'list',
   readOnly = false,
   onNavigateToNode,
@@ -137,12 +158,16 @@ export function NoteesEditor({
   placeholder = 'Type / for commands…',
   includeRoot,
   maxDepth,
+  sliceBlockIds,
+  sliceRecursiveLevel,
+  sliceShowParent,
+  canIndent,
+  canOutdent,
+  canMerge,
+  canDelete,
 }: NoteesEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
-  
-  // Generate stable virtual root ID for this editor instance
-  const virtualRootId = useMemo(() => `__editor_${editorId}__`, [editorId]);
 
   // ─── Sync structural changes to database ───────────────────
   // Listens to runtime structure_changed events (indent, outdent, reorder)
@@ -160,23 +185,42 @@ export function NoteesEditor({
   const resolvedRootBlockId = useMemo(() => {
     if (nodes && nodes.length > 0) {
       const runtime = getNodeGraphRuntime();
-      const { graphNodes, virtualRootId: rootId } = apiNodesToGraphNodesWithVirtualRoot(nodes, virtualRootId);
       
-      // Clean up stale nodes under this virtual root (e.g. optimistic nodes replaced by real ones)
+      // Convert API nodes to GraphNodes, passing pageId/pageUuid for parent resolution
+      const { graphNodes, rootBlockId: derivedRootId } = apiNodesToGraphNodes(
+        nodes, pageId, pageUuid,
+      );
+      
+      // Register parent serverId so useBlockPersist can resolve it for new blocks
+      if (pageId != null && derivedRootId) {
+        runtime.registerParentServerId(derivedRootId, pageId);
+      }
+      
+      // Clean up stale children that are no longer in the API response
+      // but keep optimistic blocks (no serverId) that haven't been persisted yet
       const newBlockIds = new Set(graphNodes.map(n => n.blockId));
-      const currentChildren = runtime.getChildren(rootId);
+      const currentChildren = runtime.getChildren(derivedRootId);
       const staleIds = currentChildren
-        .filter(child => !newBlockIds.has(child.blockId))
+        .filter(child => !newBlockIds.has(child.blockId) && child.serverId != null)
         .map(child => child.blockId);
       if (staleIds.length > 0) {
         runtime.removeNodes(staleIds);
       }
       
       runtime.upsertNodes(graphNodes);
-      return rootId;
+      return derivedRootId;
     }
-    return externalRootBlockId || virtualRootId;
-  }, [nodes, externalRootBlockId, virtualRootId]);
+    return externalRootBlockId || '';
+  }, [nodes, externalRootBlockId, pageId, pageUuid]);
+
+  // Auto-detect includeRoot: if the rootBlockId corresponds to a node
+  // in the nodes array, the root IS a displayed node (e.g. focused block).
+  // If it's NOT in the array, it's a structural parent (e.g. page) that shouldn't render.
+  const effectiveIncludeRoot = useMemo(() => {
+    if (includeRoot !== undefined) return includeRoot;
+    if (!nodes || !resolvedRootBlockId) return false;
+    return nodes.some(n => n.uuid === resolvedRootBlockId);
+  }, [includeRoot, nodes, resolvedRootBlockId]);
 
   // ─── Lexical config ────────────────────────────────────────
 
@@ -218,28 +262,32 @@ export function NoteesEditor({
   }, []);
 
   const handleBlockMerge = useCallback((sourceBlockId: string, targetBlockId: string) => {
+    if (canMerge && !canMerge(sourceBlockId, targetBlockId)) return;
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({
       type: 'merge_blocks',
       sourceBlockId,
       targetBlockId,
     });
-  }, []);
+  }, [canMerge]);
 
   const handleBlockDelete = useCallback((blockId: string) => {
+    if (canDelete && !canDelete(blockId)) return;
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({ type: 'delete_block', blockId });
-  }, []);
+  }, [canDelete]);
 
   const handleIndent = useCallback((blockId: string) => {
+    if (canIndent && !canIndent(blockId)) return;
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({ type: 'indent_block', blockId });
-  }, []);
+  }, [canIndent]);
 
   const handleOutdent = useCallback((blockId: string) => {
+    if (canOutdent && !canOutdent(blockId)) return;
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({ type: 'outdent_block', blockId });
-  }, []);
+  }, [canOutdent]);
 
   const handlePillClick = useCallback((linkId: string) => {
     onNavigateToNode?.(linkId);
@@ -291,8 +339,11 @@ export function NoteesEditor({
           onOutdent={handleOutdent}
           onEscape={onEscape}
           readOnly={readOnly}
-          includeRoot={includeRoot}
+          includeRoot={effectiveIncludeRoot}
           maxDepth={maxDepth}
+          sliceBlockIds={sliceBlockIds}
+          sliceRecursiveLevel={sliceRecursiveLevel}
+          sliceShowParent={sliceShowParent}
         />
 
         {/* NodePill plugin */}
