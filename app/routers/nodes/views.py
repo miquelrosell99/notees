@@ -65,7 +65,7 @@ class QueryExecuteRequest(BaseModel):
     """Request to execute a query."""
     query_ast: Optional[Dict[str, Any]] = None
     runtime_params: Optional[Dict[str, Any]] = None
-    limit: Optional[int] = 100
+    limit: Optional[int] = None
     offset: Optional[int] = None
     order_by: Optional[str] = None
     include_children: Optional[bool] = False
