@@ -36,9 +36,9 @@ export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
 export { TextPropertyBlock } from './blocks/TextPropertyBlock';
 
-// NoteesEditor (Lexical-based editor)
-export { NoteesEditor } from '../editor/NoteesEditor';
-export type { NoteesEditorProps } from '../editor/NoteesEditor';
+// BlockEditor (Lexical-based editor)
+export { BlockEditor } from '../editor/BlockEditor';
+export type { BlockEditorProps } from '../editor/BlockEditor';
 
 // NodeGraphRuntime
 export { getNodeGraphRuntime, resetNodeGraphRuntime } from '../runtime/NodeGraphRuntime';

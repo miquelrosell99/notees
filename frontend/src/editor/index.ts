@@ -2,8 +2,8 @@
  * Editor barrel export.
  */
 
-export { NoteesEditor, EDITOR_NODES, serializeContentAST } from './NoteesEditor';
-export type { NoteesEditorProps, EditorMode } from './NoteesEditor';
+export { BlockEditor, EDITOR_NODES, serializeContentAST } from './BlockEditor';
+export type { BlockEditorProps, EditorMode } from './BlockEditor';
 
 export { NodeCard } from './CardItem';
 export type { NodeCardProps } from './CardItem';

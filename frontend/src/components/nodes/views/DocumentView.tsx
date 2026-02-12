@@ -2,11 +2,11 @@
  * DocumentView — Document view using Lexical editor.
  *
  * Accepts nodes[] from queries and renders as a continuous document.
- * Passes nodes directly to NoteesEditor which handles runtime sync.
+ * Passes nodes directly to BlockEditor which handles runtime sync.
  */
 
 import { useMemo, useCallback, useId, type JSX } from 'react';
-import { NoteesEditor } from '../../../editor/NoteesEditor';
+import { BlockEditor } from '../../../editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
@@ -86,7 +86,7 @@ export function DocumentView({
 
   return (
     <div className={`node-document-view ${className}`}>
-      <NoteesEditor
+      <BlockEditor
         editorId={`document-view-${viewId}`}
         nodes={allNodes}
         mode="document"
