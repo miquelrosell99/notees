@@ -183,6 +183,9 @@ export function useNodePhysics({
   const connectionCountsRef = useRef<Map<number, number>>(new Map());
   const inLinkCountsRef = useRef<Map<number, number>>(new Map());
   const outLinkCountsRef = useRef<Map<number, number>>(new Map());
+  const inReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
+  const outReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
+  const allReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
   
   // Barnes-Hut quadtree pool
   const quadPoolRef = useRef<QuadNode[]>([]);
@@ -586,6 +589,9 @@ export function useNodePhysics({
     const connectionCounts = new Map<number, number>();
     const inLinkCounts = new Map<number, number>();
     const outLinkCounts = new Map<number, number>();
+    const inReferenceLinkCounts = new Map<number, number>();
+    const outReferenceLinkCounts = new Map<number, number>();
+    const allReferenceLinkCounts = new Map<number, number>();
     
     for (const node of nodes) {
       adjacency.set(node.id, new Set());
@@ -605,6 +611,14 @@ export function useNodePhysics({
       connectionCounts.set(link.target, (connectionCounts.get(link.target) || 0) + 1);
       outLinkCounts.set(link.source, (outLinkCounts.get(link.source) || 0) + 1);
       inLinkCounts.set(link.target, (inLinkCounts.get(link.target) || 0) + 1);
+      
+      // Count reference links only for terrain plateau sizing
+      if (link.type === 'reference') {
+        outReferenceLinkCounts.set(link.source, (outReferenceLinkCounts.get(link.source) || 0) + 1);
+        inReferenceLinkCounts.set(link.target, (inReferenceLinkCounts.get(link.target) || 0) + 1);
+        allReferenceLinkCounts.set(link.source, (allReferenceLinkCounts.get(link.source) || 0) + 1);
+        allReferenceLinkCounts.set(link.target, (allReferenceLinkCounts.get(link.target) || 0) + 1);
+      }
       
       if (link.type === 'parent') {
         const children = childrenOf.get(link.source) || [];
@@ -656,6 +670,9 @@ export function useNodePhysics({
     connectionCountsRef.current = connectionCounts;
     inLinkCountsRef.current = inLinkCounts;
     outLinkCountsRef.current = outLinkCounts;
+    inReferenceLinkCountsRef.current = inReferenceLinkCounts;
+    outReferenceLinkCountsRef.current = outReferenceLinkCounts;
+    allReferenceLinkCountsRef.current = allReferenceLinkCounts;
     topologyDirtyRef.current = false;
   }, []);
   
@@ -1498,9 +1515,9 @@ export function useNodePhysics({
           }
           
           const ld = currentSettings.linkDirection;
-          const inCounts = inLinkCountsRef.current;
-          const outCounts = outLinkCountsRef.current;
-          const allCounts = connectionCountsRef.current;
+          const inCounts = inReferenceLinkCountsRef.current;
+          const outCounts = outReferenceLinkCountsRef.current;
+          const allCounts = allReferenceLinkCountsRef.current;
           let maxLinkCount = 0;
           const rawRadii = new Map<number, number>();
           for (const node of nodes) {
