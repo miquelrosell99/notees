@@ -7,6 +7,10 @@ export { Layout } from './layout/Layout';
 export { TopBar } from './layout/TopBar';
 export { Sidebar } from './layout/NavigationSidebar';
 export { MainContent } from './layout/MainContent';
+export { CommandPalette } from './layout/CommandPalette';
+export type { CommandPaletteProps } from './layout/CommandPalette';
+export { SettingsModal } from './layout/SettingsModal';
+export { Scratchpad } from './layout/Scratchpad';
 
 // Auth components
 export { LoginPage } from '../views/LoginPage';
@@ -17,16 +21,19 @@ export { NodeView } from '../views/NodeView';
 // Node components (from nodes/ folder)
 export { NodeBreadcrumbs } from './nodes/NodeBreadcrumbs';
 export type { BreadcrumbItem } from './nodes/NodeBreadcrumbs';
-export { PageHeader } from './PageHeader';
+export { PageHeader } from './nodes/PageHeader';
 export { NodeContent } from './nodes/NodeContent';
 export { NodeContextMenu, PageContextMenu, BlockContextMenu } from './nodes/NodeContextMenu';
+export { SuggestionPopup } from './nodes/SuggestionPopup';
+export type { SuggestionPopupProps, SuggestionType } from './nodes/SuggestionPopup';
+export { NodeViewSection } from './nodes/NodeViewSection';
+export type { NodeViewSectionProps } from './nodes/NodeViewSection';
 
 // Block components
 export { NodeInline } from './blocks/NodeInline';
 export type { NodeInlineProps } from './blocks/NodeInline';
 export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
-
 export { TextPropertyBlock } from './blocks/TextPropertyBlock';
 
 // NoteesEditor (Lexical-based editor)
@@ -36,43 +43,22 @@ export type { NoteesEditorProps } from '../editor/NoteesEditor';
 // NodeGraphRuntime
 export { getNodeGraphRuntime, resetNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 
-// Core UI components
-export { SuggestionPopup } from './SuggestionPopup';
-export type { SuggestionPopupProps, SuggestionType } from './SuggestionPopup';
-
-
-
-
-// Node View Section
-export { NodeViewSection } from './nodes/NodeViewSection';
-export type { NodeViewSectionProps } from './nodes/NodeViewSection';
-
 // Properties (from properties/ folder)
-export { PropertiesSection, InlineProperties } from './PropertiesSection';
-
-export { ClassPropertiesEditor } from './ClassPropertiesEditor';
-
+export { PropertiesSection, InlineProperties } from './properties/PropertiesSection';
+export { ClassPropertiesEditor } from './properties/ClassPropertiesEditor';
 export { PropertyList } from './properties/PropertyList';
 export type { PropertyListProps, PropertyEntry } from './properties/PropertyList';
 export { PropertyView } from '../views/PropertyView';
 
-// UI components
+// Core UI components
 export { Button } from './core/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './core/Button';
 export { ButtonWithPanel } from './core/ButtonWithPanel';
 export type { ButtonWithPanelProps, PanelPosition, PanelAlignment } from './core/ButtonWithPanel';
 export { Card } from './core/Card';
 export type { CardProps, CardElevation, CardVariant } from './core/Card';
-export { SearchBox } from './SearchBox';
+export { SearchBox } from './core/SearchBox';
 export { CalendarPopup } from './core/CalendarPopup';
-
-export { QuickAddPanel } from './quickadd/QuickAddPanel';
-export { SidebarCard } from './sidebar/SidebarCard';
-export { CommandPalette } from './CommandPalette';
-export type { CommandPaletteProps } from './CommandPalette';
-export { ImportDataModal } from './ImportDataModal';
-
-// New core components
 export { Separator } from './core/Separator';
 export type { SeparatorProps, SeparatorOrientation, SeparatorSize } from './core/Separator';
 export { Checkbox } from './core/Checkbox';
@@ -81,48 +67,44 @@ export { BooleanToggle } from './core/BooleanToggle';
 export type { BooleanToggleProps, BooleanToggleSize } from './core/BooleanToggle';
 export { Table } from './core/Table';
 export type { TableProps, TableColumn, TableSize, TableVariant, SortDirection } from './core/Table';
-
 export { Dropdown } from './core/Dropdown';
 export type { DropdownProps, DropdownOption, DropdownSize } from './core/Dropdown';
 
-// Graph components (domain-specific)
+export { QuickAddPanel } from './quickadd/QuickAddPanel';
+export { SidebarCard } from './sidebar/SidebarCard';
+
+// Node graph visualization components (force-directed graph)
 export { 
   NodeGraphRenderer,
   NodeGraphView,
-  NodeGraphViewSimple,
-  GraphViewAll,
   GraphViewAllCard,
   GraphViewLocal,
-} from './graph';
+} from './nodeGraph';
 export type { 
   NodeGraphRendererRef,
   GraphNode,
   GraphLink,
   NodeGraphViewProps,
-  NodeGraphViewSimpleProps,
-  GraphViewAllProps,
   GraphViewAllCardProps,
   GraphViewLocalProps,
-} from './graph';
+} from './nodeGraph';
 
 // View components
 export { AllPagesView } from '../views/AllPagesView';
 export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './sidebar/SidebarNodeView';
 export { CommentsSidebar } from './sidebar/CommentsSidebar';
-// CalendarView, ChartView, GanttView, QueryView - not yet implemented
-
 
 // Modal components
 export { Modal } from './core/Modal';
 export type { ModalProps, ModalSize } from './core/Modal';
-export { SettingsModal } from './SettingsModal';
 export { ConfirmationModal } from './core/ConfirmationModal';
-export { GraphModal } from './graphs/GraphModal';
-export { GraphNameModal } from './graphs/GraphNameModal';
-export { ImportOptionsModal } from './graphs/ImportOptionsModal';
-export { GraphSwitcher } from './graphs/GraphSwitcher';
-export { GraphManagementView } from '../views/GraphManagementView';
+export { WorkspaceModal } from './workspace/WorkspaceModal';
+export { WorkspaceNameModal } from './workspace/WorkspaceNameModal';
+export { ImportOptionsModal } from './workspace/ImportOptionsModal';
+export { ImportDataModal } from './workspace/ImportDataModal';
+export { WorkspaceSwitcher } from './workspace/WorkspaceSwitcher';
+export { WorkspaceManagementView } from '../views/WorkspaceManagementView';
 export { AssetUploadModal } from './assets/AssetUploadModal';
 
 // Emoji/Icon picker
@@ -135,11 +117,6 @@ export { ColorButton } from './core/ColorButton';
 export { ContextMenu } from './core/ContextMenu';
 export type { ContextMenuItem } from './core/ContextMenu';
 
-// Scratchpad
-export { Scratchpad } from './Scratchpad';
-
-
-
 // Activity log
 export { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
 export type { NodeActivity } from './nodes/NodeActivityLogSection';
@@ -149,15 +126,14 @@ export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './
 export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCollection';
 
 // NodeCollection view mode components
-export { NodeBlockListView } from './nodes/views';
-export { NodeDocumentView } from './nodes/views/NodeDocumentView';
-export { NodeCardView } from './nodes/views/NodeCardView';
-export { NodeTableView } from './nodes/views/NodeTableView';
-export { NodeGanttView } from './nodes/views/NodeBlockGanttView';
-
+export { ListView } from './nodes/views/ListView';
+export { DocumentView } from './nodes/views/DocumentView';
+export { CardView } from './nodes/views/CardView';
+export { TableView } from './nodes/views/TableView';
+export { GanttView } from './nodes/views/GanttView';
 
 // Query builder components
 export { ViewBuilder } from './queries';
 
 // Icons
-export * from './icons';
+export * from './core/icons';

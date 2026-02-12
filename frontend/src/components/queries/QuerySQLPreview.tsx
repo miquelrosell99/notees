@@ -60,8 +60,8 @@ function generateScopeSQL(ast: QueryAST): string {
   const scope = ast.scope;
   
   switch (scope.scope_type) {
-    case 'entire_graph':
-      return '-- Scope: Entire graph (no restriction)';
+    case 'entire_workspace':
+      return '-- Scope: Entire workspace (no restriction)';
       
     case 'current_page':
       return 'ancestor_of(nodes.id, {current_page_id})';

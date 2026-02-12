@@ -1,0 +1,27 @@
+/**
+ * CardView styles — wrapper around the single-editor card view.
+ * Card grid layout and individual card styling are in NoteesEditor.css
+ * (via .notees-editor--card selectors).
+ */
+
+.node-block-card-view {
+  width: 100%;
+}
+
+.node-block-card-view--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+
+.node-block-card-view__empty-message {
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  font-size: 0.95em;
+}
+
+/* Let the editor fill available space */
+.node-block-card-view__editor {
+  width: 100%;
+}

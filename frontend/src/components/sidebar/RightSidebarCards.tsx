@@ -8,7 +8,7 @@
  * - local graph button adds a localGraph card
  */
 import { useCallback } from 'react';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { SidebarCardLocalGraph, SidebarCardNode } from '.';
 import { SidebarContextSections } from './SidebarContextSections';
@@ -59,7 +59,7 @@ export function RightSidebarCards() {
     sidebarCards, 
     removeSidebarCard, 
     clearSidebarCards,
-  } = useNodesStore();
+  } = useAppStore();
 
   const handleCardClose = useCallback((cardId: number) => {
     removeSidebarCard(cardId);

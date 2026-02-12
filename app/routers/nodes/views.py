@@ -87,11 +87,11 @@ class NodeViewReorderRequest(BaseModel):
 async def _get_node_view_repo(user: User) -> PostgresNodeViewRepository:
     """Get NodeView repository for the current user."""
     service = await _get_node_service(user)
-    if service._graph_id is None:
-        raise HTTPException(status_code=500, detail="Graph ID not set")
+    if service._workspace_id is None:
+        raise HTTPException(status_code=500, detail="Workspace ID not set")
     return PostgresNodeViewRepository(
         pool=service._pool,
-        graph_id=service._graph_id,
+        workspace_id=service._workspace_id,
         user_id=user.id,
     )
 
@@ -99,11 +99,11 @@ async def _get_node_view_repo(user: User) -> PostgresNodeViewRepository:
 async def _get_query_executor(user: User) -> QueryExecutor:
     """Get query executor for the current user."""
     service = await _get_node_service(user)
-    if service._graph_id is None:
-        raise HTTPException(status_code=500, detail="Graph ID not set")
+    if service._workspace_id is None:
+        raise HTTPException(status_code=500, detail="Workspace ID not set")
     return QueryExecutor(
         pool=service._pool,
-        graph_id=service._graph_id,
+        workspace_id=service._workspace_id,
         user_id=user.id,
     )
 
@@ -136,7 +136,7 @@ async def _include_classes_for_results(user: User, results: List[Dict[str, Any]]
         from app.routers.nodes.helpers import _get_class_ids_batch
         classes_map = await _get_class_ids_batch(
             service._pool,
-            service._graph_id,
+            service._workspace_id,
             node_ids
         )
         
@@ -608,7 +608,7 @@ async def execute_node_view_query(
     # Use request query_ast if provided, otherwise use view's query_json
     effective_query = request.query_ast if request.query_ast else view.query_json
     if not effective_query:
-        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
+        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
     logger.info(f"[execute_node_view_query] effective_query scope={effective_query.get('scope')}, root_group={effective_query.get('root_group')}")
     
@@ -651,7 +651,7 @@ async def execute_query(
     
     effective_query = request.query_ast
     if not effective_query:
-        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
+        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
     results = await executor.execute_query(
         query=effective_query,
@@ -692,7 +692,7 @@ async def count_query_results(
     
     effective_query = request.query_ast
     if not effective_query:
-        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_graph"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
+        effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
     count = await executor.count_query_results(
         query=effective_query,
@@ -723,8 +723,8 @@ async def ensure_default_views(
     from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
-    if service._graph_id is None:
-        raise HTTPException(status_code=500, detail="Graph ID not set")
+    if service._workspace_id is None:
+        raise HTTPException(status_code=500, detail="Workspace ID not set")
     
     repo = await _get_node_view_repo(user)
     
@@ -739,7 +739,7 @@ async def ensure_default_views(
     
     # Create missing views
     if types_needed:
-        view_service = NodeViewService(service._pool, service._graph_id, user.id)
+        view_service = NodeViewService(service._pool, service._workspace_id, user.id)
         await view_service.create_default_views(node_id, types_needed)
     
     # Return all views
@@ -771,8 +771,8 @@ async def reset_node_views(
     from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
-    if service._graph_id is None:
-        raise HTTPException(status_code=500, detail="Graph ID not set")
+    if service._workspace_id is None:
+        raise HTTPException(status_code=500, detail="Workspace ID not set")
     
     repo = await _get_node_view_repo(user)
     
@@ -790,8 +790,8 @@ async def reset_node_views(
     
     # Create new default views for all standard view types
     from ...db.schema.constants import DEFAULT_VIEW_CLASSES
-    logger.info(f"service._graph_id={service._graph_id}, user.id={user.id}")
-    view_service = NodeViewService(service._pool, service._graph_id, user.id)
+    logger.info(f"service._workspace_id={service._workspace_id}, user.id={user.id}")
+    view_service = NodeViewService(service._pool, service._workspace_id, user.id)
     logger.info(f"Creating default views for node {node_id}, types: {DEFAULT_VIEW_CLASSES}")
     created_views = await view_service.create_default_views(node_id, DEFAULT_VIEW_CLASSES)
     logger.info(f"create_default_views returned {len(created_views)} views")

@@ -18,7 +18,7 @@
  */
 import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNodesStore, type MainViewType } from '@/stores';
+import { useAppStore, type MainViewType } from '@/stores';
 import { listDatabases, type DatabaseListResponse } from '@/api/databases';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
@@ -195,7 +195,7 @@ export function useRouter() {
   const {
     setMainViewType,
     openNode,
-  } = useNodesStore();
+  } = useAppStore();
   
   // Fetch databases to validate db name in URLs
   const { data: dbData, isLoading: isLoadingDbs } = useQuery<DatabaseListResponse>({
@@ -209,7 +209,7 @@ export function useRouter() {
     if (!dbData?.active) return;
     
     // Subscribe to store changes using Zustand's subscribe
-    const unsubscribe = useNodesStore.subscribe(
+    const unsubscribe = useAppStore.subscribe(
       (state, prevState) => {
         // Skip if we're in the middle of navigation from URL
         if (isNavigatingRef.current) return;
@@ -256,7 +256,7 @@ export function useRouter() {
   const navigateHome = useCallback(() => {
     log.debug('Navigating to home');
     setMainViewType('node');
-    useNodesStore.setState({ currentNodeId: null });
+    useAppStore.setState({ currentNodeId: null });
     window.history.replaceState(null, '', '/');
   }, [setMainViewType]);
   
@@ -270,7 +270,7 @@ export function useRouter() {
       if (route.type === 'home') {
         // Just update state, don't change URL (it's already /)
         setMainViewType('node');
-        useNodesStore.setState({ currentNodeId: null });
+        useAppStore.setState({ currentNodeId: null });
         return;
       }
       
@@ -371,7 +371,7 @@ export function useRouter() {
  * Get the current node UUID (if known) for URL building
  */
 export function useCurrentNodeUuid(): string | null {
-  const { currentNodeId } = useNodesStore();
+  const { currentNodeId } = useAppStore();
   const [uuid, setUuid] = useState<string | null>(null);
   
   // Using useLayoutEffect to sync state before paint

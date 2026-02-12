@@ -19,7 +19,7 @@ def test_system_query_validation_blocks_modification():
     
     # Create a system query
     ast = QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
@@ -51,7 +51,7 @@ def test_system_query_validation_allows_with_flag():
     """System queries should pass validation when allow_system_modification=True"""
     
     ast = QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
@@ -98,7 +98,7 @@ def test_can_save_query_blocks_system():
     """can_save_query should prevent saving system queries"""
     
     ast = QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
@@ -126,7 +126,7 @@ def test_can_save_query_allows_system_with_flag():
     """can_save_query should allow system queries with flag"""
     
     ast = QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
@@ -149,7 +149,7 @@ def test_serialization_preserves_is_system():
     """Serialization should preserve the is_system flag"""
     
     ast = QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(logic=LogicType.AND, children=[]),
         is_system=True,
         description="Test System Query"
@@ -186,7 +186,7 @@ def test_empty_system_query_warning():
     """Empty system queries should still get empty query warning"""
     
     ast = QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(logic=LogicType.AND, children=[]),  # Empty
         is_system=True
     )
@@ -212,7 +212,7 @@ def test_empty_system_query_warning():
 
 @pytest.mark.parametrize("description,query_factory", [
     ("Linked References", lambda: QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
@@ -225,7 +225,7 @@ def test_empty_system_query_warning():
         description="Linked References"
     )),
     ("Child Pages", lambda: QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[
@@ -241,7 +241,7 @@ def test_empty_system_query_warning():
         description="Child Pages"
     )),
     ("Classed Nodes", lambda: QueryAST(
-        scope=ScopeNode(scope_type=ScopeType.ENTIRE_GRAPH),
+        scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
         root_group=GroupNode(
             logic=LogicType.AND,
             children=[

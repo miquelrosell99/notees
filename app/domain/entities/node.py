@@ -52,8 +52,8 @@ class Node:
     id: Optional[int] = None
     uuid: str = field(default_factory=generate_uuid)
     
-    # Graph context (replaces workspace)
-    graph_id: Optional[int] = None
+    # Workspace context (replaces workspace)
+    workspace_id: Optional[int] = None
     
     # Content
     name: str = ""  # The main content, contains [[page links]] and ((block refs))

@@ -17,14 +17,14 @@ import {
   mdiDockRight,
   mdiNoteEditOutline
 } from '@mdi/js';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { useDailyNote } from '@/hooks';
 import { Button } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { CalendarPopup } from '../core/CalendarPopup';
 import { QuickAddPanel } from '../quickadd/QuickAddPanel';
 import { Card } from '../core/Card';
-import { Scratchpad } from '../Scratchpad';
+import { Scratchpad } from './Scratchpad';
 import './TopBar.css';
 
 export function TopBar() {
@@ -43,7 +43,7 @@ export function TopBar() {
     isScratchpadOpen,
     toggleScratchpad,
     setScratchpadOpen,
-  } = useNodesStore();
+  } = useAppStore();
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
   
   // Pre-fetch today's note (this will create it if needed when accessed)

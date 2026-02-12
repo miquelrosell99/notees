@@ -42,10 +42,10 @@ async def get_favorites(
             for node_id in favorites:
                 exists = await conn.fetchval("""
                     SELECT 1 FROM node 
-                    WHERE id = $1 AND graph_id = $2 
+                    WHERE id = $1 AND workspace_id = $2 
                           AND active = true 
                           AND (is_deleted = false OR is_deleted IS NULL)
-                """, node_id, service._graph_id)
+                """, node_id, service._workspace_id)
                 if exists:
                     valid_favorites.append(node_id)
         
@@ -147,8 +147,8 @@ async def add_favorite(
     async with acquire_connection(service._pool) as conn:
         # Verify the node exists and is a page
         row = await conn.fetchrow(
-            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND graph_id = $2",
-            node_id, service._graph_id
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+            node_id, service._workspace_id
         )
         
         if not row:

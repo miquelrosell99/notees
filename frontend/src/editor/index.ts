@@ -5,8 +5,8 @@
 export { NoteesEditor, EDITOR_NODES, serializeContentAST } from './NoteesEditor';
 export type { NoteesEditorProps, EditorMode } from './NoteesEditor';
 
-export { NodeCard } from './CardEditor';
-export type { NodeCardProps } from './CardEditor';
+export { NodeCard } from './CardItem';
+export type { NodeCardProps } from './CardItem';
 
 export { CardModeView } from './CardModeView';
 

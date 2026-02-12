@@ -13,7 +13,7 @@ from app.domain.repositories.postgres_property import PostgresPropertyRepository
 
 
 @pytest.mark.asyncio
-async def test_circular_reference_prevention(authenticated_client, test_graph_id):
+async def test_circular_reference_prevention(authenticated_client, test_workspace_id):
     """Test that circular references are prevented in move_node."""
     # Create a hierarchy: A -> B -> C
     service = authenticated_client["node_service"]
@@ -197,13 +197,13 @@ async def test_asset_folder_deletion(authenticated_client, tmp_path):
     
     # Get dependencies from client
     service = authenticated_client["node_service"]
-    graph_id = authenticated_client["graph_id"]
+    workspace_id = authenticated_client["workspace_id"]
     
     # Create asset service with a temporary assets directory
     test_assets_dir = tmp_path / "test_assets"
     test_assets_dir.mkdir(parents=True, exist_ok=True)
     
-    asset_service = AssetService(graph_uuid=str(graph_id))
+    asset_service = AssetService(workspace_uuid=str(workspace_id))
     
     # Override the assets directory to use our temp path
     original_assets_dir = asset_service.assets_dir

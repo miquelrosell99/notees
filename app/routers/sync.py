@@ -2,12 +2,12 @@
 
 Handles client-server synchronization and user settings.
 
-Updated for graph-based schema:
+Updated for workspace-based schema:
 - Uses setting_user table (keyed by user_id) instead of settings (keyed by workspace_id)
-- Settings are now per-user, not per-graph
+- Settings are now per-user, not per-workspace
 
 NOTE: Sync functionality is currently a stub and needs to be redesigned
-for the shared graph model.
+for the shared workspace model.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
 

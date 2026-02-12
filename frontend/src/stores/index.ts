@@ -3,7 +3,7 @@
  * 
  * Store Categories:
  * - Auth: useAuthStore
- * - UI State: useNodesStore, useSettingsStore, useFavoritesStore
+ * - UI State: useAppStore, useSettingsStore, useFavoritesStore
  * - Notifications: useNotificationStore
  * - Feature Flags: useFeatureFlagStore
  * - Keyboard: useKeyboardStore
@@ -13,7 +13,7 @@
  * Use selectors from './selectors' only. Direct subscriptions cause render cascades.
  */
 export { useAuthStore } from './authStore';
-export { useNodesStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard, type SidebarCardType } from './nodesStore';
+export { useAppStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard, type SidebarCardType } from './appStore';
 export { 
   useSettingsStore, 
   applyTheme,

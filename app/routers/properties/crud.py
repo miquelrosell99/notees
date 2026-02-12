@@ -92,8 +92,8 @@ async def create_property(
             pool = await get_pool()
             async with acquire_connection(pool) as conn:
                 page_class_row = await conn.fetchrow(
-                    "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-                    SYSTEM_CLASS_UUIDS["page"], user.graph_id
+                    "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+                    SYSTEM_CLASS_UUIDS["page"], user.workspace_id
                 )
                 if page_class_row:
                     class_filters = [page_class_row['id']]
@@ -333,15 +333,15 @@ async def get_nodes_with_property(
     from typing import cast
     import asyncpg
     from ...db.connection import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     from ...domain.repositories import PostgresPropertyRepository
     from ..nodes.helpers import extract_properties_dict
     
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
-    repo = PostgresPropertyRepository(pool, graph_id, user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
+    repo = PostgresPropertyRepository(pool, workspace_id, user_id)
     
     # Check property exists
     prop = await repo.get_by_id(property_id)
@@ -353,7 +353,7 @@ async def get_nodes_with_property(
     
     # Get class_ids for all nodes in one batch
     from ..nodes.helpers import _get_class_ids_batch
-    node_class_map = await _get_class_ids_batch(pool, graph_id, node_ids)
+    node_class_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
     
     # Build response with node details and property values
     result = []
@@ -363,8 +363,8 @@ async def get_nodes_with_property(
             node_row = await conn.fetchrow(
                 """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_class,
                    create_date, write_date FROM node 
-                   WHERE id = $1 AND graph_id = $2 AND active = TRUE""",
-                node_id, graph_id
+                   WHERE id = $1 AND workspace_id = $2 AND active = TRUE""",
+                node_id, workspace_id
             )
             if not node_row:
                 continue

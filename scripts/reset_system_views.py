@@ -42,7 +42,7 @@ async def reset_system_views():
             'version': '1.0',
             'scope': {
                 'type': 'scope',
-                'scope_type': 'entire_graph'
+                'scope_type': 'entire_workspace'
             },
             'root_group': {
                 'type': 'group',
@@ -85,7 +85,7 @@ async def reset_system_views():
             'version': '1.0',
             'scope': {
                 'type': 'scope',
-                'scope_type': 'entire_graph'
+                'scope_type': 'entire_workspace'
             },
             'root_group': {
                 'type': 'group',

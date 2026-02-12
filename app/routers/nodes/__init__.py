@@ -7,7 +7,7 @@ The monolithic nodes.py has been split into:
 - crud.py: Basic CRUD operations (create, get, update, delete, move, archive)
 - daily.py: Daily/monthly/yearly date page endpoints
 - classes.py: Class-related endpoints
-- search.py: Search, list, and graph endpoints
+- search.py: Search, list, and workspace endpoints
 - favorites.py: Favorites management
 - links.py: Backlinks, linked references, tag links, properties
 - comments.py: Comments endpoints
@@ -64,9 +64,9 @@ router = APIRouter(prefix="/api/nodes", tags=["Nodes"])
 
 # Include all sub-routers
 # Order matters! More specific routes must come before parameterized routes.
-# Routes with fixed paths like /graph, /search, /classes must come before /{node_id}
+# Routes with fixed paths like /workspace, /search, /classes must come before /{node_id}
 
-# Search and graph endpoints (GET /graph, GET /search, GET "")
+# Search and workspace endpoints (GET /workspace, GET /search, GET "")
 router.include_router(search_router)
 
 # Class endpoints (GET /classes, GET /classes/search, GET /classes/{class_id}/nodes)

@@ -1,7 +1,7 @@
 """PostgreSQL implementation of Property repository.
 
-Updated for graph-based schema:
-- workspace_id -> graph_id
+Updated for workspace-based schema:
+- workspace_id -> workspace_id
 - target_node_id -> target_id in property_value_relation
 - Removed: order fields from property_value_scalar, property_value_relation, property_value_selection
 - Removed: property_selection_line.order
@@ -39,21 +39,21 @@ class PostgresPropertyRepository(PropertyRepository):
     """PostgreSQL implementation of the PropertyRepository.
     
     Updated for new schema:
-    - workspace_id -> graph_id
+    - workspace_id -> workspace_id
     - target_node_id -> target_id
     - Removed order fields from value tables
     """
     
-    def __init__(self, pool: asyncpg.Pool, graph_id: int, user_id: Optional[int] = None):
-        """Initialize with connection pool and graph context.
+    def __init__(self, pool: asyncpg.Pool, workspace_id: int, user_id: Optional[int] = None):
+        """Initialize with connection pool and workspace context.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: The graph this repository operates on
+            workspace_id: The workspace this repository operates on
             user_id: Optional current user ID for audit trails
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._user_id = user_id
     
     def _row_to_property(self, row: asyncpg.Record) -> Property:
@@ -222,18 +222,18 @@ class PostgresPropertyRepository(PropertyRepository):
                 raise ValueError("Local properties must have a node_id")
             async with acquire_connection(self._pool) as conn:
                 row = await conn.fetchrow(
-                    "SELECT is_page FROM node WHERE id = $1 AND graph_id = $2",
-                    property.node_id, self._graph_id
+                    "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
+                    property.node_id, self._workspace_id
                 )
                 if not row or not row['is_page']:
                     raise ValueError("Local property node_id must reference a page node")
         
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property (uuid, graph_id, name, icon, type, is_multi, is_system, is_local, node_id, create_date, write_date, create_uid, write_uid)
+                INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, is_local, node_id, create_date, write_date, create_uid, write_uid)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $11)
                 RETURNING id
-            """, uuid, self._graph_id if not property.is_system else None,
+            """, uuid, self._workspace_id if not property.is_system else None,
                 property.name, property.icon, property.type.value,
                 is_multi, property.is_system, property.is_local,
                 property.node_id, now, self._user_id)
@@ -351,13 +351,13 @@ class PostgresPropertyRepository(PropertyRepository):
         async with acquire_connection(self._pool) as conn:
             if include_local:
                 rows = await conn.fetch(
-                    "SELECT * FROM property WHERE (graph_id = $1 OR graph_id IS NULL) AND active = TRUE ORDER BY name",
-                    self._graph_id
+                    "SELECT * FROM property WHERE (workspace_id = $1 OR workspace_id IS NULL) AND active = TRUE ORDER BY name",
+                    self._workspace_id
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM property WHERE (graph_id = $1 OR graph_id IS NULL) AND is_local = FALSE AND active = TRUE ORDER BY name",
-                    self._graph_id
+                    "SELECT * FROM property WHERE (workspace_id = $1 OR workspace_id IS NULL) AND is_local = FALSE AND active = TRUE ORDER BY name",
+                    self._workspace_id
                 )
             properties = [self._row_to_property(row) for row in rows]
             await self._load_property_extras(conn, properties)

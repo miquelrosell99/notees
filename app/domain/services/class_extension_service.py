@@ -63,11 +63,11 @@ class ClassExtensionService:
     def __init__(
         self,
         pool: asyncpg.Pool,
-        graph_id: int,
+        workspace_id: int,
         property_repository: PropertyRepository,
     ):
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._property_repo = property_repository
     
     async def get_extended_classes(self, class_node_id: int) -> List[int]:
@@ -81,10 +81,10 @@ class ClassExtensionService:
                 FROM class_extend ce
                 JOIN node n ON n.id = ce.source_id
                 WHERE ce.target_id = $1
-                  AND n.graph_id = $2
+                  AND n.workspace_id = $2
                   AND n.active = TRUE
                 ORDER BY ce.sequence, ce.id
-            """, class_node_id, self._graph_id)
+            """, class_node_id, self._workspace_id)
             
             return [row['source_id'] for row in rows]
     
@@ -99,10 +99,10 @@ class ClassExtensionService:
                 FROM class_extend ce
                 JOIN node n ON n.id = ce.source_id
                 WHERE ce.target_id = $1
-                  AND n.graph_id = $2
+                  AND n.workspace_id = $2
                   AND n.active = TRUE
                 ORDER BY ce.sequence, ce.id
-            """, class_node_id, self._graph_id)
+            """, class_node_id, self._workspace_id)
             
             return [
                 ClassExtend(
@@ -146,8 +146,8 @@ class ClassExtensionService:
             
             # Get the source class details
             source = await conn.fetchrow("""
-                SELECT name, icon FROM node WHERE id = $1 AND graph_id = $2
-            """, extends_class_id, self._graph_id)
+                SELECT name, icon FROM node WHERE id = $1 AND workspace_id = $2
+            """, extends_class_id, self._workspace_id)
             
             if not source:
                 raise ValueError(f"Class {extends_class_id} not found")
@@ -259,8 +259,8 @@ class ClassExtensionService:
             # Get class name
             async with acquire_connection(self._pool) as conn:
                 class_row = await conn.fetchrow(
-                    "SELECT name FROM node WHERE id = $1 AND graph_id = $2",
-                    extended_class_id, self._graph_id
+                    "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+                    extended_class_id, self._workspace_id
                 )
                 class_name = class_row['name'] if class_row else f"Class {extended_class_id}"
             
@@ -338,11 +338,11 @@ class ClassExtensionService:
                 FROM node n
                 JOIN class_extend ce ON ce.target_id = n.id
                 WHERE ce.source_id = $1
-                  AND n.graph_id = $2
+                  AND n.workspace_id = $2
                   AND n.active = TRUE
                   AND n.is_class = TRUE
                 ORDER BY n.name
-            """, class_node_id, self._graph_id)
+            """, class_node_id, self._workspace_id)
             
             return [
                 {
@@ -369,10 +369,10 @@ class ClassExtensionService:
                 FROM node n
                 JOIN class_extend ce ON ce.target_id = n.id
                 WHERE ce.source_id = $1
-                  AND n.graph_id = $2
+                  AND n.workspace_id = $2
                   AND n.active = TRUE
                   AND n.is_class = TRUE
-            """, class_node_id, self._graph_id)
+            """, class_node_id, self._workspace_id)
             
             direct_subclasses = [row['id'] for row in rows]
         

@@ -24,20 +24,20 @@ async def link_service_fixtures(db_pool, test_user):
     )
     from app.domain.services import LinkParsingService
     
-    graph_id = test_user["graph_id"]
+    workspace_id = test_user["workspace_id"]
     
     # Get system IDs
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-            SYSTEM_CLASS_UUIDS['page'], graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+            SYSTEM_CLASS_UUIDS['page'], workspace_id
         )
         page_type_id = row['id']
     
     # Create repositories (classes now in class_ids column, no property)
-    node_repo = PostgresNodeRepository(db_pool, graph_id, page_type_id)
-    property_repo = PostgresPropertyRepository(db_pool, graph_id)
-    link_repo = PostgresLinkRepository(db_pool, graph_id)
+    node_repo = PostgresNodeRepository(db_pool, workspace_id, page_type_id)
+    property_repo = PostgresPropertyRepository(db_pool, workspace_id)
+    link_repo = PostgresLinkRepository(db_pool, workspace_id)
     
     # Create link service
     link_service = LinkParsingService(
@@ -50,7 +50,7 @@ async def link_service_fixtures(db_pool, test_user):
         'link_repo': link_repo,
         'link_service': link_service,
         'page_type_id': page_type_id,
-        'graph_id': graph_id,
+        'workspace_id': workspace_id,
     }
 
 
@@ -149,7 +149,7 @@ async def test_classes_path_inheritance(db_pool, link_service_fixtures):
     
     node_repo = link_service_fixtures['node_repo']
     link_service = link_service_fixtures['link_service']
-    graph_id = link_service_fixtures['graph_id']
+    workspace_id = link_service_fixtures['workspace_id']
     
     # Create two class nodes
     class_task = await node_repo.create(NodeCreateData(name='Task', is_class=True))

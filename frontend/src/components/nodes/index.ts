@@ -29,9 +29,9 @@ export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './
 export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';
 
 // NodeCollection view mode components
-export { NodeBlockListView } from './views';
-export { NodeBlockDocumentView } from './views/NodeBlockDocumentView';
-export { NodeBlockCardView } from './views/NodeBlockCardView';
-export { NodeBlockTableView } from './views/NodeBlockTableView';
-export { NodeBlockGanttView } from './views/NodeBlockGanttView';
+export { ListView } from './views';
+export { DocumentView } from './views/DocumentView';
+export { CardView } from './views/CardView';
+export { TableView } from './views/TableView';
+export { GanttView } from './views/GanttView';
 

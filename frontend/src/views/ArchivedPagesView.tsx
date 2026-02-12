@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import api from '@/api/client';
 import { unarchiveNode, deleteNode } from '@/api/nodes';
 import type { Node } from '@/types/api';
@@ -22,7 +22,7 @@ interface ArchivedPagesViewProps {
 }
 
 export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const queryClient = useQueryClient();
   

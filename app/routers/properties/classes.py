@@ -120,15 +120,15 @@ async def get_class_extends(
     """
     from ...domain.services.class_extension_service import ClassExtensionService
     from ...dependencies import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
-    extension_service = ClassExtensionService(pool, graph_id, repo)
+    extension_service = ClassExtensionService(pool, workspace_id, repo)
     
     try:
         extends = await extension_service.get_extended_classes_with_details(class_node_id)
@@ -165,7 +165,7 @@ async def add_class_extends(
     """
     from ...domain.services.class_extension_service import ClassExtensionService, CircularInheritanceError
     from ...dependencies import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     
     extends_class_id = request.get("extends_class_node_id")
     if not extends_class_id:
@@ -176,10 +176,10 @@ async def add_class_extends(
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
-    extension_service = ClassExtensionService(pool, graph_id, repo)
+    extension_service = ClassExtensionService(pool, workspace_id, repo)
     
     try:
         ext = await extension_service.add_extends(class_node_id, extends_class_id, sequence)
@@ -210,15 +210,15 @@ async def remove_class_extends(
     """Remove a class extension (inheritance) relationship."""
     from ...domain.services.class_extension_service import ClassExtensionService
     from ...dependencies import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
-    extension_service = ClassExtensionService(pool, graph_id, repo)
+    extension_service = ClassExtensionService(pool, workspace_id, repo)
     
     try:
         success = await extension_service.remove_extends(class_node_id, extends_class_node_id)
@@ -244,15 +244,15 @@ async def get_inherited_properties_endpoint(
     """
     from ...domain.services.class_extension_service import ClassExtensionService
     from ...dependencies import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
-    extension_service = ClassExtensionService(pool, graph_id, repo)
+    extension_service = ClassExtensionService(pool, workspace_id, repo)
     
     try:
         inherited_props = await extension_service.get_inherited_properties(class_node_id)
@@ -287,15 +287,15 @@ async def get_extended_by_classes_endpoint(
     """
     from ...domain.services.class_extension_service import ClassExtensionService
     from ...dependencies import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
-    extension_service = ClassExtensionService(pool, graph_id, repo)
+    extension_service = ClassExtensionService(pool, workspace_id, repo)
     
     try:
         classes = await extension_service.get_classes_extended_by(class_node_id)
@@ -317,15 +317,15 @@ async def validate_class_extends_endpoint(
     """
     from ...domain.services.class_extension_service import ClassExtensionService, CircularInheritanceError
     from ...dependencies import get_pool
-    from ...db.schema import get_or_create_user_graph
+    from ...db.schema import get_or_create_user_workspace
     
     pool = await get_pool()
     user_id = int(user.id)
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     repo = await _get_property_repo(user)
     
-    extension_service = ClassExtensionService(pool, graph_id, repo)
+    extension_service = ClassExtensionService(pool, workspace_id, repo)
     
     try:
         await extension_service.validate_extends_acyclic(class_node_id, extends_ids)

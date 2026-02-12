@@ -20,7 +20,7 @@ import uuid as uuid_module
 from PIL import Image
 import asyncio
 
-from app.db.connection import get_graph_assets_dir
+from app.db.connection import get_workspace_assets_dir
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -61,9 +61,9 @@ class AssetService:
     Enforces atomic operations and maintains asset invariants.
     """
     
-    def __init__(self, graph_uuid: str):
-        self.graph_uuid = graph_uuid
-        self.assets_dir = get_graph_assets_dir(graph_uuid)
+    def __init__(self, workspace_uuid: str):
+        self.workspace_uuid = workspace_uuid
+        self.assets_dir = get_workspace_assets_dir(workspace_uuid)
         self.assets_dir.mkdir(parents=True, exist_ok=True)
     
     def get_asset_folder(self, asset_uuid: str) -> Path:

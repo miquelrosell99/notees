@@ -5,7 +5,7 @@
  * NodeCollection is the universal interface for displaying collections of nodes.
  */
 import type { Node } from './api';
-import type { NodeView } from './query';
+import type { NodeView } from './nodeView';
 import type { ReactNode } from 'react';
 import type { ContextMenuItem } from '../components/core/ContextMenu';
 

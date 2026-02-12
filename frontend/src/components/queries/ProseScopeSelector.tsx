@@ -1,7 +1,7 @@
 /**
  * ProseScopeSelector Component
  * 
- * SelectionButton for choosing between entire graph (global) or this page (local).
+ * SelectionButton for choosing between entire workspace (global) or this page (local).
  * Uses mdi icons to signal scope.
  */
 
@@ -42,7 +42,7 @@ export function ProseScopeSelector({
         onChange={handleScopeTypeChange}
         disabled={readOnly}
         options={[
-          { value: 'entire_graph', icon: mdiWeb, label: 'All nodes' },
+          { value: 'entire_workspace', icon: mdiWeb, label: 'All nodes' },
           { value: 'pages', icon: mdiFileMultiple, label: 'All pages' },
           { value: 'current_page', icon: mdiFileDocumentOutline, label: 'Current page' },
         ]}

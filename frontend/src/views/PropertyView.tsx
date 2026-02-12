@@ -16,7 +16,7 @@ import { mdiDelete } from '@mdi/js';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { useProperty, useNodesWithProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
@@ -83,7 +83,7 @@ export function PropertyView({
   }, []);
   
   // Get navigation function
-  const { openNode } = useNodesStore();
+  const { openNode } = useAppStore();
   const deletePropertyMutation = useDeleteProperty();
   const updatePropertyMutation = useUpdateProperty();
   
