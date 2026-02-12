@@ -187,7 +187,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const ownerMapRef = useRef<Int32Array | null>(null);
   
   // Store grid dims + owner map for plateau hit testing
-  const plateauGridRef = useRef({ gridW: 0, gridH: 0 });
+  const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES });
   
   // ==================== Render Function ====================
   
@@ -228,9 +228,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       return;
     }
     
-    // Generate height field
-    const gridW = Math.ceil(w / TERRAIN_GRID_RES);
-    const gridH = Math.ceil(h / TERRAIN_GRID_RES);
+    // Generate height field — adaptive grid: finer when zoomed out, coarser when zoomed in
+    const gs = Math.max(2, Math.min(8, Math.round(TERRAIN_GRID_RES * Math.sqrt(t.scale))));
+    const gridW = Math.ceil(w / gs);
+    const gridH = Math.ceil(h / gs);
     const gridSize = gridW * gridH;
     
     // Reuse typed-array buffers across frames
@@ -251,6 +252,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // Store grid dims for hit testing
     plateauGridRef.current.gridW = gridW;
     plateauGridRef.current.gridH = gridH;
+    plateauGridRef.current.gs = gs;
     
     // Build height map + ownership map with MAX merge — sqrt-free
     let nodeIdx = 0;
@@ -262,14 +264,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       if (H <= 0) { nodeIdx++; continue; }
       nodePeakH[nodeIdx] = H;
       
-      const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
-      const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
+      const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale / gs;
+      const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) * t.scale / gs;
       const RpSq = Rp * Rp;
       const RsSq = Rs * Rs;
       const invSlopeRangeSq = 1 / (RsSq - RpSq);
       
-      const centerX = (node.x * t.scale + t.x) / TERRAIN_GRID_RES;
-      const centerY = (node.y * t.scale + t.y) / TERRAIN_GRID_RES;
+      const centerX = (node.x * t.scale + t.x) / gs;
+      const centerY = (node.y * t.scale + t.y) / gs;
       
       const rsInt = Math.ceil(Rs);
       const minGx = Math.max(0, Math.floor(centerX - rsInt));
@@ -323,10 +325,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       if (!(srcH > 0) || !(tgtH > 0)) continue;
       
       // World → grid coordinates
-      const sx = (srcNode.x * t.scale + t.x) / TERRAIN_GRID_RES;
-      const sy = (srcNode.y * t.scale + t.y) / TERRAIN_GRID_RES;
-      const tx = (tgtNode.x * t.scale + t.x) / TERRAIN_GRID_RES;
-      const ty = (tgtNode.y * t.scale + t.y) / TERRAIN_GRID_RES;
+      const sx = (srcNode.x * t.scale + t.x) / gs;
+      const sy = (srcNode.y * t.scale + t.y) / gs;
+      const tx = (tgtNode.x * t.scale + t.x) / gs;
+      const ty = (tgtNode.y * t.scale + t.y) / gs;
       
       const rdx = tx - sx;
       const rdy = ty - sy;
@@ -339,8 +341,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         (terrainPeakRadii.get(srcNode.id) ?? 0) +
         (terrainPeakRadii.get(tgtNode.id) ?? 0)
       ) / 2;
-      const rRp = (TERRAIN_RIDGE_PLATEAU_RADIUS + TERRAIN_RIDGE_PLATEAU_BONUS * avgPeakSize) * t.scale / TERRAIN_GRID_RES;
-      const rRs = (TERRAIN_RIDGE_SLOPE_RADIUS + TERRAIN_RIDGE_SLOPE_BONUS * avgPeakSize) * t.scale / TERRAIN_GRID_RES;
+      const rRp = (TERRAIN_RIDGE_PLATEAU_RADIUS + TERRAIN_RIDGE_PLATEAU_BONUS * avgPeakSize) * t.scale / gs;
+      const rRs = (TERRAIN_RIDGE_SLOPE_RADIUS + TERRAIN_RIDGE_SLOPE_BONUS * avgPeakSize) * t.scale / gs;
       const rRpSq = rRp * rRp;
       const rRsSq = rRs * rRs;
       const rInvSlopeRangeSq = rRsSq > rRpSq ? 1 / (rRsSq - rRpSq) : 0;
@@ -408,8 +410,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
-    
-    const gs = TERRAIN_GRID_RES;
     
     // Read CSS variables (cached, refreshed on theme change)
     if (cssColorsDirtyRef.current || !cssColorsRef.current) {
@@ -582,8 +582,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const { gridW, gridH } = plateauGridRef.current;
     if (!ownerMap || !heightMap || gridW === 0) return null;
     
-    const gx = Math.floor(screenX / TERRAIN_GRID_RES);
-    const gy = Math.floor(screenY / TERRAIN_GRID_RES);
+    const { gs: hitGs } = plateauGridRef.current;
+    const gx = Math.floor(screenX / hitGs);
+    const gy = Math.floor(screenY / hitGs);
     if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return null;
     
     const idx = gy * gridW + gx;
