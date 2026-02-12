@@ -295,7 +295,7 @@ export function Layout() {
               size="xs"
               variant="ghost"
             />
-            <GraphMinimap currentNodeId={currentNodeId} />
+            <GraphMinimap />
           </div>
         )}
       </div>
