@@ -10,7 +10,7 @@
  * - Mouse interactions (pan, zoom, click)
  */
 
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo, memo } from 'react';
 import type {
   GraphNode,
   GraphLink,
@@ -161,6 +161,26 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     return () => resizeObserver.disconnect();
   }, []);
   
+  // ==================== Cached CSS Colors ====================
+  
+  // Cache CSS variables to avoid getComputedStyle every frame
+  const cssColorsRef = useRef<{ lowR: number; lowG: number; lowB: number; highR: number; highG: number; highB: number } | null>(null);
+  const cssColorsDirtyRef = useRef(true);
+  
+  // Invalidate CSS cache on theme changes
+  useEffect(() => {
+    cssColorsDirtyRef.current = true;
+    const observer = new MutationObserver(() => { cssColorsDirtyRef.current = true; });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme', 'style'] });
+    return () => observer.disconnect();
+  }, []);
+  
+  // Reusable typed-array buffers to avoid per-frame allocation
+  const heightMapBufRef = useRef<Float32Array | null>(null);
+  const tempMapBufRef = useRef<Float32Array | null>(null);
+  // Flat segment buffer: stored as [x1, y1, x2, y2, x1, y1, x2, y2, ...]
+  const segBufRef = useRef<Float32Array>(new Float32Array(4096));
+  
   // ==================== Render Function ====================
   
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -192,8 +212,16 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // Generate height field using overlapping terrain with preserved plateaus
     const gridW = Math.ceil(w / TERRAIN_GRID_RES);
     const gridH = Math.ceil(h / TERRAIN_GRID_RES);
+    const gridSize = gridW * gridH;
     
-    const heightMap = new Float32Array(gridW * gridH);
+    // Reuse typed-array buffers across frames
+    if (!heightMapBufRef.current || heightMapBufRef.current.length < gridSize) {
+      heightMapBufRef.current = new Float32Array(gridSize);
+      tempMapBufRef.current = new Float32Array(gridSize);
+    }
+    const heightMap = heightMapBufRef.current;
+    const tempMap = tempMapBufRef.current!;
+    heightMap.fill(0, 0, gridSize);
     
     // Build height map with MAX merge
     for (const node of visibleNodes) {
@@ -205,6 +233,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
       const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
+      const invSlopeWidth = 1 / (Rs - Rp);
       
       const centerX = (node.x * t.scale + t.x) / TERRAIN_GRID_RES;
       const centerY = (node.y * t.scale + t.y) / TERRAIN_GRID_RES;
@@ -214,23 +243,22 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const maxGx = Math.min(gridW - 1, Math.ceil(centerX + rsInt));
       const minGy = Math.max(0, Math.floor(centerY - rsInt));
       const maxGy = Math.min(gridH - 1, Math.ceil(centerY + rsInt));
+      const RsSq = Rs * Rs;
       
       for (let gy = minGy; gy <= maxGy; gy++) {
+        const dy = gy - centerY;
+        const dySq = dy * dy;
+        const rowOff = gy * gridW;
         for (let gx = minGx; gx <= maxGx; gx++) {
           const dx = gx - centerX;
-          const dy = gy - centerY;
-          const d = Math.sqrt(dx * dx + dy * dy);
+          const distSq = dx * dx + dySq;
           
-          if (d > Rs) continue;
+          if (distSq > RsSq) continue;
           
-          let ht: number;
-          if (d <= Rp) {
-            ht = H;
-          } else {
-            ht = H * (1 - (d - Rp) / (Rs - Rp));
-          }
+          const d = Math.sqrt(distSq);
+          const ht = d <= Rp ? H : H * (1 - (d - Rp) * invSlopeWidth);
           
-          const idx = gy * gridW + gx;
+          const idx = rowOff + gx;
           if (ht > heightMap[idx]) {
             heightMap[idx] = ht;
           }
@@ -238,157 +266,166 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
     }
     
-    // Apply gaussian blur
+    // Apply gaussian blur (2 passes instead of 4 — sufficient with larger grid)
     const blurKernel = (src: Float32Array, dst: Float32Array, bw: number, bh: number) => {
       for (let y = 1; y < bh - 1; y++) {
+        const row = y * bw;
+        const rowAbove = row - bw;
+        const rowBelow = row + bw;
         for (let x = 1; x < bw - 1; x++) {
-          const i = y * bw + x;
-          dst[i] = (
-            src[i - bw - 1] + src[i - bw] * 2 + src[i - bw + 1] +
-            src[i - 1] * 2 + src[i] * 4 + src[i + 1] * 2 +
-            src[i + bw - 1] + src[i + bw] * 2 + src[i + bw + 1]
+          dst[row + x] = (
+            src[rowAbove + x - 1] + src[rowAbove + x] * 2 + src[rowAbove + x + 1] +
+            src[row + x - 1] * 2 + src[row + x] * 4 + src[row + x + 1] * 2 +
+            src[rowBelow + x - 1] + src[rowBelow + x] * 2 + src[rowBelow + x + 1]
           ) / 16;
         }
       }
+      // Copy edges
       for (let x = 0; x < bw; x++) { dst[x] = src[x]; dst[(bh - 1) * bw + x] = src[(bh - 1) * bw + x]; }
       for (let y = 0; y < bh; y++) { dst[y * bw] = src[y * bw]; dst[y * bw + bw - 1] = src[y * bw + bw - 1]; }
     };
     
-    const tempMap = new Float32Array(gridW * gridH);
-    blurKernel(heightMap, tempMap, gridW, gridH);
-    blurKernel(tempMap, heightMap, gridW, gridH);
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
     
-    const getHeight = (gx: number, gy: number): number => {
-      if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return 0;
-      return heightMap[gy * gridW + gx];
-    };
-    
-    // Read CSS variables for contour color gradient
-    const style = getComputedStyle(document.documentElement);
-    const colorLow = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
-    const colorHigh = style.getPropertyValue('--color-accent').trim() || '#404040';
-    
-    const parseHex = (hex: string): [number, number, number] => {
-      let hx = hex.replace('#', '');
-      if (hx.length === 3) hx = hx.split('').map(c => c + c).join('');
-      return [
-        parseInt(hx.substring(0, 2), 16),
-        parseInt(hx.substring(2, 4), 16),
-        parseInt(hx.substring(4, 6), 16),
-      ];
-    };
-    const [lowR, lowG, lowB] = parseHex(colorLow);
-    const [highR, highG, highB] = parseHex(colorHigh);
-    
-    const getContourColor = (level: number, opacity: number): string => {
-      const tVal = level;
-      const r = Math.round(lowR + (highR - lowR) * tVal);
-      const g = Math.round(lowG + (highG - lowG) * tVal);
-      const b = Math.round(lowB + (highB - lowB) * tVal);
-      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    };
+    // Read CSS variables (cached, refreshed on theme change)
+    if (cssColorsDirtyRef.current || !cssColorsRef.current) {
+      const style = getComputedStyle(document.documentElement);
+      const colorLow = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
+      const colorHigh = style.getPropertyValue('--color-accent').trim() || '#404040';
+      const parseHex = (hex: string): [number, number, number] => {
+        let hx = hex.replace('#', '');
+        if (hx.length === 3) hx = hx.split('').map(c => c + c).join('');
+        return [
+          parseInt(hx.substring(0, 2), 16),
+          parseInt(hx.substring(2, 4), 16),
+          parseInt(hx.substring(4, 6), 16),
+        ];
+      };
+      const [lR, lG, lB] = parseHex(colorLow);
+      const [hR, hG, hB] = parseHex(colorHigh);
+      cssColorsRef.current = { lowR: lR, lowG: lG, lowB: lB, highR: hR, highG: hG, highB: hB };
+      cssColorsDirtyRef.current = false;
+    }
+    const { lowR, lowG, lowB, highR, highG, highB } = cssColorsRef.current;
     
     // Draw contour lines
     ctx.save();
-    // Draw in screen space (no transform needed, heightMap is already transformed)
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash(LINE_DASH_NONE);
+    
+    // Pre-compute grid height lookups inline (avoid function call overhead)
+    const gs = TERRAIN_GRID_RES;
     
     for (const level of CONTOUR_LEVELS) {
       const opacity = 0.25 + level * 0.5;
-      ctx.strokeStyle = getContourColor(level, opacity);
+      const r = Math.round(lowR + (highR - lowR) * level);
+      const g = Math.round(lowG + (highG - lowG) * level);
+      const b = Math.round(lowB + (highB - lowB) * level);
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
       ctx.lineWidth = 0.6 + level * 0.8;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.setLineDash(LINE_DASH_NONE);
       
-      // Marching squares
-      const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+      // Marching squares with flat segment buffer
+      let segCount = 0;
+      let segBuf = segBufRef.current;
+      
+      const pushSeg = (x1: number, y1: number, x2: number, y2: number) => {
+        const off = segCount * 4;
+        if (off + 3 >= segBuf.length) {
+          const newBuf = new Float32Array(segBuf.length * 2);
+          newBuf.set(segBuf);
+          segBuf = newBuf;
+          segBufRef.current = newBuf;
+        }
+        segBuf[off] = x1; segBuf[off + 1] = y1;
+        segBuf[off + 2] = x2; segBuf[off + 3] = y2;
+        segCount++;
+      };
       
       for (let gy = 0; gy < gridH - 1; gy++) {
+        const rowOff = gy * gridW;
+        const nextRowOff = rowOff + gridW;
         for (let gx = 0; gx < gridW - 1; gx++) {
-          const v00 = getHeight(gx, gy);
-          const v10 = getHeight(gx + 1, gy);
-          const v01 = getHeight(gx, gy + 1);
-          const v11 = getHeight(gx + 1, gy + 1);
+          const v00 = heightMap[rowOff + gx];
+          const v10 = heightMap[rowOff + gx + 1];
+          const v01 = heightMap[nextRowOff + gx];
+          const v11 = heightMap[nextRowOff + gx + 1];
           
           const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
                        (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
           
           if (code === 0 || code === 15) continue;
           
-          const lerp = (va: number, vb: number): number => {
-            const d = vb - va;
-            return d === 0 ? 0.5 : (level - va) / d;
-          };
+          // Compute edge interpolations inline
+          const px = gx * gs;
+          const py = gy * gs;
           
-          const top = lerp(v00, v10);
-          const right = lerp(v10, v11);
-          const bottom = lerp(v01, v11);
-          const left = lerp(v00, v01);
+          const topD = v10 - v00;
+          const topT = topD === 0 ? 0.5 : (level - v00) / topD;
+          const rightD = v11 - v10;
+          const rightT = rightD === 0 ? 0.5 : (level - v10) / rightD;
+          const bottomD = v11 - v01;
+          const bottomT = bottomD === 0 ? 0.5 : (level - v01) / bottomD;
+          const leftD = v01 - v00;
+          const leftT = leftD === 0 ? 0.5 : (level - v00) / leftD;
           
-          const px = gx * TERRAIN_GRID_RES;
-          const py = gy * TERRAIN_GRID_RES;
-          const gs = TERRAIN_GRID_RES;
-          
-          const edgePoints: Record<string, [number, number]> = {
-            top: [px + top * gs, py],
-            right: [px + gs, py + right * gs],
-            bottom: [px + bottom * gs, py + gs],
-            left: [px, py + left * gs],
-          };
-          
-          const addSegment = (e1: string, e2: string) => {
-            const [x1, y1] = edgePoints[e1];
-            const [x2, y2] = edgePoints[e2];
-            segments.push({ x1, y1, x2, y2 });
-          };
+          // Edge midpoints
+          const topX = px + topT * gs, topY = py;
+          const rightX = px + gs, rightY = py + rightT * gs;
+          const bottomX = px + bottomT * gs, bottomY = py + gs;
+          const leftX = px, leftY = py + leftT * gs;
           
           switch (code) {
-            case 1: addSegment('left', 'bottom'); break;
-            case 2: addSegment('bottom', 'right'); break;
-            case 3: addSegment('left', 'right'); break;
-            case 4: addSegment('top', 'right'); break;
-            case 5: addSegment('left', 'top'); addSegment('bottom', 'right'); break;
-            case 6: addSegment('top', 'bottom'); break;
-            case 7: addSegment('left', 'top'); break;
-            case 8: addSegment('top', 'left'); break;
-            case 9: addSegment('top', 'bottom'); break;
-            case 10: addSegment('top', 'right'); addSegment('left', 'bottom'); break;
-            case 11: addSegment('top', 'right'); break;
-            case 12: addSegment('left', 'right'); break;
-            case 13: addSegment('bottom', 'right'); break;
-            case 14: addSegment('left', 'bottom'); break;
+            case 1: pushSeg(leftX, leftY, bottomX, bottomY); break;
+            case 2: pushSeg(bottomX, bottomY, rightX, rightY); break;
+            case 3: pushSeg(leftX, leftY, rightX, rightY); break;
+            case 4: pushSeg(topX, topY, rightX, rightY); break;
+            case 5: pushSeg(leftX, leftY, topX, topY); pushSeg(bottomX, bottomY, rightX, rightY); break;
+            case 6: pushSeg(topX, topY, bottomX, bottomY); break;
+            case 7: pushSeg(leftX, leftY, topX, topY); break;
+            case 8: pushSeg(topX, topY, leftX, leftY); break;
+            case 9: pushSeg(topX, topY, bottomX, bottomY); break;
+            case 10: pushSeg(topX, topY, rightX, rightY); pushSeg(leftX, leftY, bottomX, bottomY); break;
+            case 11: pushSeg(topX, topY, rightX, rightY); break;
+            case 12: pushSeg(leftX, leftY, rightX, rightY); break;
+            case 13: pushSeg(bottomX, bottomY, rightX, rightY); break;
+            case 14: pushSeg(leftX, leftY, bottomX, bottomY); break;
           }
         }
       }
       
-      // Chain segments into polylines
-      if (segments.length > 0) {
-        const EPS = 0.5;
-        const ptKey = (x: number, y: number) => `${Math.round(x / EPS)},${Math.round(y / EPS)}`;
+      // Chain segments into polylines using integer key hashing
+      if (segCount > 0) {
+        const EPS_INV = 2; // 1/0.5
+        const intKey = (x: number, y: number) => (Math.round(x * EPS_INV) + 100000) * 200001 + (Math.round(y * EPS_INV) + 100000);
         const chains: Array<Array<[number, number]>> = [];
-        const used = new Uint8Array(segments.length);
+        const used = new Uint8Array(segCount);
         
-        const endpointIndex = new Map<string, number[]>();
-        for (let i = 0; i < segments.length; i++) {
-          const s = segments[i];
-          const k1 = ptKey(s.x1, s.y1);
-          const k2 = ptKey(s.x2, s.y2);
-          if (!endpointIndex.has(k1)) endpointIndex.set(k1, []);
-          if (!endpointIndex.has(k2)) endpointIndex.set(k2, []);
-          endpointIndex.get(k1)!.push(i);
-          endpointIndex.get(k2)!.push(i);
+        const endpointIndex = new Map<number, number[]>();
+        for (let i = 0; i < segCount; i++) {
+          const off = i * 4;
+          const k1 = intKey(segBuf[off], segBuf[off + 1]);
+          const k2 = intKey(segBuf[off + 2], segBuf[off + 3]);
+          let arr1 = endpointIndex.get(k1);
+          if (!arr1) { arr1 = []; endpointIndex.set(k1, arr1); }
+          arr1.push(i);
+          let arr2 = endpointIndex.get(k2);
+          if (!arr2) { arr2 = []; endpointIndex.set(k2, arr2); }
+          arr2.push(i);
         }
         
-        for (let i = 0; i < segments.length; i++) {
+        for (let i = 0; i < segCount; i++) {
           if (used[i]) continue;
           used[i] = 1;
-          const s = segments[i];
-          const chain: Array<[number, number]> = [[s.x1, s.y1], [s.x2, s.y2]];
+          const off = i * 4;
+          const chain: Array<[number, number]> = [
+            [segBuf[off], segBuf[off + 1]],
+            [segBuf[off + 2], segBuf[off + 3]]
+          ];
           
           // Extend forward
-          let currentEnd = ptKey(s.x2, s.y2);
+          let currentEnd = intKey(segBuf[off + 2], segBuf[off + 3]);
           let extended = true;
           while (extended) {
             extended = false;
@@ -396,18 +433,18 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             if (candidates) {
               for (const ci of candidates) {
                 if (used[ci]) continue;
-                const cs = segments[ci];
-                const k1 = ptKey(cs.x1, cs.y1);
-                const k2 = ptKey(cs.x2, cs.y2);
+                const co = ci * 4;
+                const k1 = intKey(segBuf[co], segBuf[co + 1]);
+                const k2 = intKey(segBuf[co + 2], segBuf[co + 3]);
                 if (k1 === currentEnd) {
                   used[ci] = 1;
-                  chain.push([cs.x2, cs.y2]);
+                  chain.push([segBuf[co + 2], segBuf[co + 3]]);
                   currentEnd = k2;
                   extended = true;
                   break;
                 } else if (k2 === currentEnd) {
                   used[ci] = 1;
-                  chain.push([cs.x1, cs.y1]);
+                  chain.push([segBuf[co], segBuf[co + 1]]);
                   currentEnd = k1;
                   extended = true;
                   break;
@@ -417,7 +454,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           }
           
           // Extend backward
-          let currentStart = ptKey(chain[0][0], chain[0][1]);
+          let currentStart = intKey(chain[0][0], chain[0][1]);
           extended = true;
           while (extended) {
             extended = false;
@@ -425,18 +462,18 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             if (candidates) {
               for (const ci of candidates) {
                 if (used[ci]) continue;
-                const cs = segments[ci];
-                const k1 = ptKey(cs.x1, cs.y1);
-                const k2 = ptKey(cs.x2, cs.y2);
+                const co = ci * 4;
+                const k1 = intKey(segBuf[co], segBuf[co + 1]);
+                const k2 = intKey(segBuf[co + 2], segBuf[co + 3]);
                 if (k1 === currentStart) {
                   used[ci] = 1;
-                  chain.unshift([cs.x2, cs.y2]);
+                  chain.unshift([segBuf[co + 2], segBuf[co + 3]]);
                   currentStart = k2;
                   extended = true;
                   break;
                 } else if (k2 === currentStart) {
                   used[ci] = 1;
-                  chain.unshift([cs.x1, cs.y1]);
+                  chain.unshift([segBuf[co], segBuf[co + 1]]);
                   currentStart = k1;
                   extended = true;
                   break;
@@ -450,26 +487,21 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           }
         }
         
-        // Smooth chain points
-        const smoothChain = (pts: Array<[number, number]>): Array<[number, number]> => {
-          if (pts.length < 5) return pts;
-          const smoothed: Array<[number, number]> = [[pts[0][0], pts[0][1]]];
-          for (let i = 1; i < pts.length - 1; i++) {
-            const x = (pts[i - 1][0] + pts[i][0] * 2 + pts[i + 1][0]) / 4;
-            const y = (pts[i - 1][1] + pts[i][1] * 2 + pts[i + 1][1]) / 4;
-            smoothed.push([x, y]);
-          }
-          smoothed.push([pts[pts.length - 1][0], pts[pts.length - 1][1]]);
-          return smoothed;
-        };
-        
-        // Draw chains as Catmull-Rom splines
+        // Draw chains as Catmull-Rom splines (single smoothing pass)
         for (let chain of chains) {
           if (chain.length < 2) continue;
           
+          // Single smooth pass for chains long enough
           if (chain.length >= 5) {
-            chain = smoothChain(chain);
-            chain = smoothChain(chain);
+            const smoothed: Array<[number, number]> = [[chain[0][0], chain[0][1]]];
+            for (let i = 1; i < chain.length - 1; i++) {
+              smoothed.push([
+                (chain[i - 1][0] + chain[i][0] * 2 + chain[i + 1][0]) / 4,
+                (chain[i - 1][1] + chain[i][1] * 2 + chain[i + 1][1]) / 4
+              ]);
+            }
+            smoothed.push([chain[chain.length - 1][0], chain[chain.length - 1][1]]);
+            chain = smoothed;
           }
           
           ctx.beginPath();
@@ -482,7 +514,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             ctx.quadraticCurveTo(chain[1][0], chain[1][1], chain[2][0], chain[2][1]);
           } else {
             const tension = 4;
-            
             ctx.moveTo(chain[0][0], chain[0][1]);
             
             for (let j = 0; j < chain.length - 1; j++) {
@@ -491,12 +522,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
               const p2 = chain[j + 1];
               const p3 = chain[Math.min(chain.length - 1, j + 2)];
               
-              const cp1x = p1[0] + (p2[0] - p0[0]) / tension;
-              const cp1y = p1[1] + (p2[1] - p0[1]) / tension;
-              const cp2x = p2[0] - (p3[0] - p1[0]) / tension;
-              const cp2y = p2[1] - (p3[1] - p1[1]) / tension;
-              
-              ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1]);
+              ctx.bezierCurveTo(
+                p1[0] + (p2[0] - p0[0]) / tension,
+                p1[1] + (p2[1] - p0[1]) / tension,
+                p2[0] - (p3[0] - p1[0]) / tension,
+                p2[1] - (p3[1] - p1[1]) / tension,
+                p2[0], p2[1]
+              );
             }
           }
           
@@ -725,51 +757,92 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
       />
       <div className="node-graph-renderer__terrain-overlay" style={{ pointerEvents: 'none' }}>
-        {terrainNodes.map(({ id, node, x, y, height }) => {
-          const screenX = x * transform.scale + transform.x;
-          const screenY = y * transform.scale + transform.y;
-          return (
-            <div
-              key={id}
-              className="terrain-node"
-              style={{
-                position: 'absolute',
-                left: screenX,
-                top: screenY,
-                transform: 'translate(-50%, -50%)',
-                pointerEvents: 'auto',
-                opacity: node.glare === 'dim' ? 0.3 : 1,
-              }}
-              data-height={height.toFixed(2)}
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                onNodeDoubleClick?.(node);
-              }}
-            >
-              <Bullet 
-                nodeId={node.id} 
-                isPage={node.type === 'page'}
-                hasChildren={false}
-                interactive={true}
-                title={node.name}
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
-                }}
-                onContextMenu={(_nodeId: number, e: React.MouseEvent) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onNodeRightClick?.(node);
-                }}
-              />
-            </div>
-          );
-        })}
+        {terrainNodes.map(({ id, node, x, y, height }) => (
+          <TerrainNodeOverlay
+            key={id}
+            node={node}
+            screenX={x * transform.scale + transform.x}
+            screenY={y * transform.scale + transform.y}
+            height={height}
+            onNodeClick={onNodeClick}
+            onNodeDoubleClick={onNodeDoubleClick}
+            onNodeRightClick={onNodeRightClick}
+          />
+        ))}
       </div>
     </div>
   );
 });
 
 TerrainRenderer.displayName = 'TerrainRenderer';
+
+// Memoized terrain node overlay to prevent re-rendering unchanged nodes
+interface TerrainNodeOverlayProps {
+  node: GraphNode;
+  screenX: number;
+  screenY: number;
+  height: number;
+  onNodeClick?: (node: GraphNode, modifiers: { shiftKey: boolean; ctrlKey: boolean }) => void;
+  onNodeDoubleClick?: (node: GraphNode) => void;
+  onNodeRightClick?: (node: GraphNode) => void;
+}
+
+const TerrainNodeOverlay = memo(function TerrainNodeOverlay({
+  node,
+  screenX,
+  screenY,
+  height,
+  onNodeClick,
+  onNodeDoubleClick,
+  onNodeRightClick,
+}: TerrainNodeOverlayProps) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onNodeClick?.(node, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey || e.metaKey });
+  }, [node, onNodeClick]);
+  
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onNodeDoubleClick?.(node);
+  }, [node, onNodeDoubleClick]);
+  
+  const handleContextMenu = useCallback((_nodeId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onNodeRightClick?.(node);
+  }, [node, onNodeRightClick]);
+  
+  return (
+    <div
+      className="terrain-node"
+      style={{
+        position: 'absolute',
+        left: screenX,
+        top: screenY,
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'auto',
+        opacity: node.glare === 'dim' ? 0.3 : 1,
+      }}
+      data-height={height.toFixed(2)}
+      onDoubleClick={handleDoubleClick}
+    >
+      <Bullet 
+        nodeId={node.id} 
+        isPage={node.type === 'page'}
+        hasChildren={false}
+        interactive={true}
+        title={node.name}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      />
+    </div>
+  );
+}, (prev, next) => {
+  // Custom comparison: skip re-render if position barely changed
+  return prev.node.id === next.node.id &&
+    prev.node.glare === next.node.glare &&
+    Math.abs(prev.screenX - next.screenX) < 0.5 &&
+    Math.abs(prev.screenY - next.screenY) < 0.5;
+});
 
 export default TerrainRenderer;

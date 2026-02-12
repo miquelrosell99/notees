@@ -254,10 +254,10 @@ export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
 };
 
 // Terrain contour levels
-export const CONTOUR_LEVELS = [0.05, 0.10, 0.16, 0.22, 0.30, 0.38, 0.47, 0.56, 0.65, 0.75, 0.85, 0.95];
+export const CONTOUR_LEVELS = [0.06, 0.15, 0.28, 0.42, 0.58, 0.75, 0.92];
 
 // Terrain height map parameters
-export const TERRAIN_GRID_RES = 3;
+export const TERRAIN_GRID_RES = 6;
 export const TERRAIN_BASE_PLATEAU_RADIUS = 25;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 35;
 export const TERRAIN_BASE_SLOPE_RADIUS = 100;
