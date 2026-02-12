@@ -331,10 +331,13 @@
   animation: slideExpand var(--motion-duration-long) var(--motion-easing-collapse) forwards;
 }
 
-/* Color accent */
-.node-block[style*="--node-block-color"] {
-  border-left: 3px solid var(--node-block-color);
-  padding-left: 4px;
+/* Faint background for colored blocks (not for headings) */
+.node-block[style*="--node-block-color"]:not(.node-block-heading) > p,
+.node-block[style*="--node-block-color"]:not(.node-block-heading) > span,
+.node-block[style*="--node-block-color"]:not(.node-block-heading) > .notees-editor-paragraph {
+  background-color: rgba(var(--node-color-rgb, 128, 128, 128), 0.08);
+  padding: 2px 8px;
+  border-radius: var(--shape-small);
 }
 
 /* ─── Selection state ──────────────────────────────────────────── */
