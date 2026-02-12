@@ -1,25 +1,30 @@
 /**
- * GraphViewAllCard Component
+ * GraphMinimap Component
  * 
  * Minimap card showing all pages in a compact view.
  * Displayed in the bottom-right corner of the interface.
- * Uses NodeGraphView in self-fetching mode with chrome disabled.
+ * Fetches graph data and passes it to GraphView with toolbar disabled.
  */
-import { Card } from '../core/Card';
-import { NodeGraphView } from './NodeGraphView';
-import './GraphViewAllCard.css';
+import { Card } from '@/components/core/Card';
+import { useGraphData } from '@/hooks';
+import { GraphView } from '@/components/nodes/views/GraphView';
+import './GraphMinimap.css';
 
-export interface GraphViewAllCardProps {
+export interface GraphMinimapProps {
   /** Currently highlighted node ID */
   currentNodeId?: number | null;
   /** CSS class */
   className?: string;
 }
 
-export function GraphViewAllCard({ 
+export function GraphMinimap({ 
   currentNodeId = null,
   className = '' 
-}: GraphViewAllCardProps) {
+}: GraphMinimapProps) {
+  const { data: graphData } = useGraphData();
+
+  if (!graphData || graphData.nodes.length === 0) return null;
+
   return (
     <Card className={`graph-view-all-card ${className}`} elevation="medium" padding={false}>
       <div className="graph-view-all-card__header">
@@ -27,10 +32,14 @@ export function GraphViewAllCard({
         <span className="graph-view-all-card__hint">Click to navigate</span>
       </div>
       <div className="graph-view-all-card__content">
-        <NodeGraphView
+        <GraphView
           viewId="minimap"
+          nodes={graphData.nodes}
+          links={graphData.links}
           currentNodeId={currentNodeId}
-          chrome={false}
+          showSettings={false}
+          showSearch={false}
+          showViewModes={false}
           className="graph-view-all-card__graph"
         />
       </div>
@@ -38,4 +47,4 @@ export function GraphViewAllCard({
   );
 }
 
-export default GraphViewAllCard;
+export default GraphMinimap;

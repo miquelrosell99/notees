@@ -1,5 +1,5 @@
 /**
- * NodeTimelineRenderer Component
+ * TimelineView Component
  * 
  * Displays timeline with time events (date property occurrences).
  * Each event is rendered as a NodeCircle, stacked if multiple events at same time.
@@ -13,17 +13,17 @@ import { useSettingsQuery } from '@/hooks/useSettings';
 import * as nodesApi from '@/api/nodes';
 import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
-import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './types';
+import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './timelineTypes';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
-import { Card } from '../core/Card';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
-import { SelectionButton } from '../core/SelectionButton';
+import { Card } from '../../core/Card';
+import { ButtonWithPanel } from '../../core/ButtonWithPanel';
+import { SelectionButton } from '../../core/SelectionButton';
 import { DatePropertiesPanel } from './DatePropertiesPanel';
-import { NodeCollection } from '../nodes/NodeCollection';
-import { getDateRange } from './utils/dateUtils';
-import { generateTimeEvents } from './utils/timeEvents';
-import { getZoomLevelFromScale } from './utils/zoomLevels';
-import './NodeTimelineRenderer.css';
+import { NodeCollection } from '../../nodes/NodeCollection';
+import { getDateRange } from './timelineUtils/dateUtils';
+import { generateTimeEvents } from './timelineUtils/timeEvents';
+import { getZoomLevelFromScale } from './timelineUtils/zoomLevels';
+import './TimelineView.css';
 import './DatePropertiesPanel.css';
 
 const EVENT_RADIUS_MIN = 4;
@@ -37,7 +37,7 @@ const MAX_SCALE = 10;
 const ZOOM_SPEED_WHEEL = 0.002;
 const ZOOM_SPEED_PINCH = 0.01;
 
-export function NodeTimelineRenderer({
+export function TimelineView({
   nodes,
   className = '',
 }: NodeTimelineRendererProps) {
