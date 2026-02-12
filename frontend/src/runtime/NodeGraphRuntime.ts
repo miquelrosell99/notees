@@ -371,6 +371,12 @@ export class NodeGraphRuntime {
     const myIndex = siblings.indexOf(blockId);
     const orderIndex = myIndex >= 0 ? myIndex + 1 : siblings.length;
 
+    // Shift subsequent siblings
+    for (let i = orderIndex; i < siblings.length; i++) {
+      const sib = this.nodes.get(siblings[i]);
+      if (sib) sib.orderIndex = i + 1;
+    }
+
     const newNode: GraphNode = {
       blockId: newBlockId,
       parentId,
