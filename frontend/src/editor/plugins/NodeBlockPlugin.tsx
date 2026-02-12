@@ -106,7 +106,7 @@ export function NodeBlockPlugin({
     
     // Check if runtime is requesting focus on a specific block
     const runtime = getNodeGraphRuntime();
-    const pendingFocus = runtime.getPendingFocus();
+    const pendingFocusBlockId = runtime.getPendingFocus();
     
     editor.update(() => {
       const root = $getRoot();
@@ -144,12 +144,6 @@ export function NodeBlockPlugin({
           existing.setColor(projected.color ?? null);
           existing.setBlockName(projected.name ?? '');
           existing.setIsProjectionRoot(projected.isProjectionRoot);
-          
-          // If this existing block should be focused (e.g., after merge), focus it
-          if (pendingFocus && projected.blockId === pendingFocus.blockId) {
-            runtime.clearPendingFocus();
-            focusBlockAtOffset(existing, pendingFocus.offset ?? 0);
-          }
         } else {
           // Create new node
           const newBlock = $createNodeBlockNode(
@@ -177,10 +171,15 @@ export function NodeBlockPlugin({
 
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
           
-          // If this is the block runtime requested to focus, focus it
-          if (pendingFocus && projected.blockId === pendingFocus.blockId) {
+          // If this is the block runtime requested to focus, focus it directly
+          if (projected.blockId === pendingFocusBlockId) {
             runtime.clearPendingFocus();
-            focusBlockAtOffset(newBlock, pendingFocus.offset ?? 0);
+            const firstChild = newBlock.getFirstChild();
+            if (firstChild) {
+              firstChild.selectStart();
+            } else {
+              newBlock.selectEnd();
+            }
           }
         }
       }
@@ -770,47 +769,3 @@ function extractBlockContent(block: NodeBlockNode): ContentAST {
 
   return [{ type: 'paragraph', children: inlines.length > 0 ? inlines : [{ type: 'text', text: '' }] }];
 }
-
-/**
- * Focus a block at a specific character offset.
- * @param block - The NodeBlockNode to focus
- * @param offset - Character offset (0 = start, max = end)
- */
-function focusBlockAtOffset(block: NodeBlockNode, offset: number): void {
-  if (offset === 0) {
-    // Focus at start
-    const firstChild = block.getFirstChild();
-    if (firstChild) {
-      firstChild.selectStart();
-    } else {
-      block.selectEnd();
-    }
-    return;
-  }
-
-  // Find the text node and offset to position cursor
-  const children = block.getChildren();
-  let remainingOffset = offset;
-
-  for (const child of children) {
-    if ($isNodePillNode(child)) {
-      // Pills count as 1 character
-      if (remainingOffset <= 1) {
-        child.selectEnd();
-        return;
-      }
-      remainingOffset -= 1;
-    } else {
-      const textLength = child.getTextContent().length;
-      if (remainingOffset <= textLength) {
-        child.select(remainingOffset, remainingOffset);
-        return;
-      }
-      remainingOffset -= textLength;
-    }
-  }
-
-  // If offset is beyond content, position at end
-  block.selectEnd();
-}
-
