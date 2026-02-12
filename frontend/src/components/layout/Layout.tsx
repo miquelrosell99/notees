@@ -36,7 +36,6 @@ export function Layout() {
     isSidebarCollapsed, 
     rightSidebarOpen,
     currentNodeId,
-    currentNodeType,
     mainViewType,
     isCommandPaletteOpen,
     setCommandPaletteOpen,
@@ -71,19 +70,18 @@ export function Layout() {
   // Do NOT duplicate them here — it causes 3x duplicate requests competing for browser connections.
   
   // Track page opens by calling the API and refreshing recents
+  // markPageOpened is a no-op for blocks on the backend, so always call it
   useEffect(() => {
-    if (currentNodeId && currentNodeType === 'page' && mainViewType === 'node') {
-      // Mark the page as opened in the database
+    if (currentNodeId && mainViewType === 'node') {
       markPageOpened(currentNodeId)
         .then(() => {
-          // Refresh recents list after marking page opened
           useFavoritesStore.getState().loadRecents();
         })
         .catch((error) => {
           console.error('Failed to mark page as opened:', error);
         });
     }
-  }, [currentNodeId, currentNodeType, mainViewType]);
+  }, [currentNodeId, mainViewType]);
   
   // Apply default view ONLY on initial load when URL is "/" (home)
   // This ensures URL-based navigation takes precedence
@@ -104,7 +102,7 @@ export function Layout() {
     if (defaultView === 'today') {
       // Wait for today's note to load, then set as current page
       if (todayNote) {
-        openNode(todayNote.id, 'page');
+        openNode(todayNote.id);
         hasAppliedDefaultView.current = true;
       }
     } else if (defaultView === 'journal') {
@@ -285,18 +283,7 @@ export function Layout() {
         
         {/* Floating Graph Minimap */}
         {isMinimapOpen && (
-          <div className="floating-minimap">
-            <Button 
-              icon={mdiClose}
-              iconOnly
-              className="floating-minimap__close"
-              onClick={() => setMinimapOpen(false)}
-              title="Close minimap"
-              size="xs"
-              variant="ghost"
-            />
-            <GraphMinimap />
-          </div>
+          <GraphMinimap onClose={() => setMinimapOpen(false)} />
         )}
       </div>
     </RouterSync>
