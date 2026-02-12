@@ -214,9 +214,11 @@ export class BlockNode extends ElementNode {
       dom.classList.add('node-block--projection-root');
     }
 
-    // Create bullet wrapper
+    // Create bullet wrapper - uses shared bullet-* classes from Bullet component
     const bullet = document.createElement('div');
-    bullet.className = 'node-block-bullet';
+    bullet.className = 'bullet-wrapper bullet-sm bullet-interactive';
+    if (this.__hasChildren) bullet.classList.add('bullet-has-children');
+    if (this.__collapsed) bullet.classList.add('bullet-collapsed');
     bullet.dataset.blockId = this.__blockId;
     bullet.draggable = !this.__isProjectionRoot;
     
@@ -228,7 +230,7 @@ export class BlockNode extends ElementNode {
     // Collapse arrow (only create if has children)
     if (this.__hasChildren) {
       const collapseArrow = document.createElement('button');
-      collapseArrow.className = 'node-block-collapse-arrow';
+      collapseArrow.className = 'bullet-collapse-arrow';
       collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
       collapseArrow.innerHTML = this.__collapsed
         ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
@@ -238,22 +240,22 @@ export class BlockNode extends ElementNode {
 
     // Bullet container
     const bulletContainer = document.createElement('span');
-    bulletContainer.className = 'node-block-bullet-container';
+    bulletContainer.className = 'bullet-container';
     
     // Outer ring (for collapsed state or hover)
     const outerRing = document.createElement('span');
-    outerRing.className = 'node-block-outer-ring';
+    outerRing.className = 'bullet-outer-ring';
     bulletContainer.appendChild(outerRing);
     
     // Bullet dot or icon
     if (this.__icon) {
       const iconSpan = document.createElement('span');
-      iconSpan.className = 'node-block-icon';
+      iconSpan.className = 'bullet-icon';
       iconSpan.textContent = this.__icon;
       bulletContainer.appendChild(iconSpan);
     } else {
       const dot = document.createElement('span');
-      dot.className = 'node-block-dot';
+      dot.className = 'bullet-dot';
       bulletContainer.appendChild(dot);
     }
     
@@ -273,8 +275,11 @@ export class BlockNode extends ElementNode {
     // Update collapsed
     if (prevNode.__collapsed !== this.__collapsed) {
       dom.classList.toggle('node-block--collapsed', this.__collapsed);
+      // Update bullet collapsed class
+      const bullet = dom.querySelector('.bullet-wrapper');
+      if (bullet) bullet.classList.toggle('bullet-collapsed', this.__collapsed);
       // Update collapse arrow icon
-      const collapseArrow = dom.querySelector('.node-block-collapse-arrow');
+      const collapseArrow = dom.querySelector('.bullet-collapse-arrow');
       if (collapseArrow) {
         collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
         collapseArrow.innerHTML = this.__collapsed
@@ -294,14 +299,15 @@ export class BlockNode extends ElementNode {
       dom.classList.toggle('node-block--has-children', this.__hasChildren);
       
       // Add or remove collapse arrow
-      const bullet = dom.querySelector('.node-block-bullet');
+      const bullet = dom.querySelector('.bullet-wrapper');
       if (bullet) {
-        const existingArrow = bullet.querySelector('.node-block-collapse-arrow');
+        bullet.classList.toggle('bullet-has-children', this.__hasChildren);
+        const existingArrow = bullet.querySelector('.bullet-collapse-arrow');
         
         if (this.__hasChildren && !existingArrow) {
           // Add collapse arrow
           const collapseArrow = document.createElement('button');
-          collapseArrow.className = 'node-block-collapse-arrow';
+          collapseArrow.className = 'bullet-collapse-arrow';
           collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
           collapseArrow.innerHTML = this.__collapsed
             ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
@@ -317,7 +323,7 @@ export class BlockNode extends ElementNode {
     // Update isProjectionRoot
     if (prevNode.__isProjectionRoot !== this.__isProjectionRoot) {
       dom.classList.toggle('node-block--projection-root', this.__isProjectionRoot);
-      const bullet = dom.querySelector('.node-block-bullet') as HTMLElement | null;
+      const bullet = dom.querySelector('.bullet-wrapper') as HTMLElement | null;
       if (bullet) bullet.draggable = !this.__isProjectionRoot;
     }
 
@@ -337,23 +343,23 @@ export class BlockNode extends ElementNode {
 
     // Update icon
     if (prevNode.__icon !== this.__icon) {
-      const bulletContainer = dom.querySelector('.node-block-bullet-container');
+      const bulletContainer = dom.querySelector('.bullet-container');
       if (bulletContainer) {
         // Remove old dot/icon
-        const oldDot = bulletContainer.querySelector('.node-block-dot');
-        const oldIcon = bulletContainer.querySelector('.node-block-icon');
+        const oldDot = bulletContainer.querySelector('.bullet-dot');
+        const oldIcon = bulletContainer.querySelector('.bullet-icon');
         if (oldDot) oldDot.remove();
         if (oldIcon) oldIcon.remove();
         
         // Add new dot/icon
         if (this.__icon) {
           const iconSpan = document.createElement('span');
-          iconSpan.className = 'node-block-icon';
+          iconSpan.className = 'bullet-icon';
           iconSpan.textContent = this.__icon;
           bulletContainer.appendChild(iconSpan);
         } else {
           const dot = document.createElement('span');
-          dot.className = 'node-block-dot';
+          dot.className = 'bullet-dot';
           bulletContainer.appendChild(dot);
         }
       }
