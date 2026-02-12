@@ -27,7 +27,7 @@ import { NodePillPlugin } from './plugins/NodePillPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
-import { TriggerPlugin, type TriggerType } from './plugins/TriggerPlugin';
+import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
@@ -117,13 +117,6 @@ interface CardChildrenEditorProps {
   onContentChange?: (blockId: string, content: string) => void;
   onNavigateToNode?: (linkId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
-  renderTriggerPopup?: (state: {
-    type: TriggerType;
-    query: string;
-    position: { top: number; left: number };
-    onSelect: (value: string, metadata?: any) => void;
-    onClose: () => void;
-  }) => JSX.Element | null;
 }
 
 /**
@@ -136,7 +129,6 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
   onContentChange,
   onNavigateToNode,
   onOpenInSidebar,
-  renderTriggerPopup,
 }: CardChildrenEditorProps): JSX.Element {
   const editorId = `card-children-${rootBlockId}`;
 
@@ -213,7 +205,6 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
         />
         <DragDropPlugin editorId={editorId} readOnly={readOnly} />
         <TriggerPlugin
-          renderPopup={renderTriggerPopup}
           onLinkSelect={handlePillClick}
         />
         <FloatingToolbarPlugin />
@@ -249,13 +240,6 @@ export interface NodeCardProps {
     position: { x: number; y: number };
     onClose: () => void;
   }>;
-  renderTriggerPopup?: (state: {
-    type: TriggerType;
-    query: string;
-    position: { top: number; left: number };
-    onSelect: (value: string, metadata?: any) => void;
-    onClose: () => void;
-  }) => JSX.Element | null;
 }
 
 /**
@@ -278,7 +262,6 @@ export const NodeCard = memo(function NodeCard({
   onDragStart,
   onSelectionChange,
   customContextMenu,
-  renderTriggerPopup,
 }: NodeCardProps): JSX.Element {
   const children = useMemo(() => node.children ?? [], [node.children]);
   const hasChildren = children.length > 0;
@@ -717,7 +700,6 @@ export const NodeCard = memo(function NodeCard({
                 onContentChange={handleLexicalContentChange}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenBlockInSidebar}
-                renderTriggerPopup={renderTriggerPopup}
               />
             )}
             {editable && (

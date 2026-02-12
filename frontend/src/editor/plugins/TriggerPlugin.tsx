@@ -15,7 +15,10 @@ import {
   type LexicalEditor,
 } from 'lexical';
 import { $createNodePillNode } from '../nodes/NodePillNode';
-import { TriggerPopup } from './TriggerPopup';
+import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
+import { SlashCommandMenu } from './SlashCommandMenu';
+import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
+import type { Node } from '../../types/api';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -30,20 +33,11 @@ interface TriggerState {
 }
 
 export interface TriggerPluginProps {
-  /** Render the trigger popup UI */
-  renderPopup?: (state: {
-    type: TriggerType;
-    query: string;
-    position: { top: number; left: number };
-    onSelect: (value: string, metadata?: any) => void;
-    onClose: () => void;
-  }) => JSX.Element | null;
   /** Called when a link node is selected */
   onLinkSelect?: (linkId: string) => void;
 }
 
 export function TriggerPlugin({
-  renderPopup,
   onLinkSelect,
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
@@ -159,20 +153,32 @@ export function TriggerPlugin({
 
   if (!trigger.isOpen) return null;
 
-  // Use provided renderPopup or fall back to TriggerPopup
-  if (renderPopup) {
-    return renderPopup({
-      type: trigger.type,
-      query: trigger.query,
-      position: trigger.position,
-      onSelect: handleSelect,
-      onClose: handleClose,
-    });
+  if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
+    const suggestionType: SuggestionType = trigger.type === 'type' ? 'class' : trigger.type;
+
+    const handleSuggestionSelect = (node: Node, _keepInline: boolean) => {
+      handleSelect(node.uuid, { node, type: suggestionType });
+    };
+
+    const handleSelectDatePage = (pageId: string, _pageName: string) => {
+      handleSelect(pageId, { type: 'date' });
+    };
+
+    return (
+      <TriggerSuggestionPopup
+        suggestionType={suggestionType}
+        triggerType={trigger.type}
+        query={trigger.query}
+        position={trigger.position}
+        onSelect={handleSuggestionSelect}
+        onClose={handleClose}
+        onSelectDatePage={trigger.type === 'link' ? handleSelectDatePage : undefined}
+      />
+    );
   }
 
   return (
-    <TriggerPopup
-      type={trigger.type}
+    <SlashCommandMenu
       query={trigger.query}
       position={trigger.position}
       onSelect={handleSelect}
