@@ -66,7 +66,7 @@ function validateScope(scope: ScopeNode, errors: ValidationError[]): void {
   const path = ['scope'];
 
   // Validate scope_type is valid
-  const validScopeTypes: ScopeType[] = ['entire_graph', 'pages', 'current_page'];
+  const validScopeTypes: ScopeType[] = ['entire_workspace', 'pages', 'current_page'];
   if (!validScopeTypes.includes(scope.scope_type)) {
     errors.push({
       severity: 'error',

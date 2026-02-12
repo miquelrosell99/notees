@@ -7,7 +7,7 @@ This package contains:
 
 All public symbols are re-exported here for backward compatibility.
 
-Note: "workspace" terminology has been replaced with "graph" in v2.
+Note: "workspace" terminology has been replaced with "workspace" in v2.
 Legacy aliases are provided for backward compatibility.
 """
 from .constants import (
@@ -29,9 +29,9 @@ from .sql import SCHEMA_SQL
 
 from .init import (
     init_database,
-    seed_graph,
-    create_graph_for_user,
-    get_or_create_user_graph,
+    seed_workspace,
+    create_workspace_for_user,
+    get_or_create_user_workspace,
 )
 
 __all__ = [
@@ -53,7 +53,7 @@ __all__ = [
     "SCHEMA_SQL",
     # Init functions
     "init_database",
-    "seed_graph",
-    "create_graph_for_user",
-    "get_or_create_user_graph",
+    "seed_workspace",
+    "create_workspace_for_user",
+    "get_or_create_user_workspace",
 ]

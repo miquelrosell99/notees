@@ -14,17 +14,17 @@
  * Component Hierarchy:
  * NodeCollection
  * ├─ NodeCollectionToolbar
- * ├─ NodeBlockListView (list) → NoteesEditor
- * ├─ NodeBlockDocumentView (document) → NoteesEditor
- * ├─ NodeBlockCardView (card) → NoteesEditor per card
- * ├─ NodeBlockTableView (table) → NoteesEditor per cell
- * ├─ NodeBlockGanttView (gantt)
+ * ├─ ListView (list) → NoteesEditor
+ * ├─ DocumentView (document) → NoteesEditor
+ * ├─ CardView (card) → NoteesEditor per card
+ * ├─ TableView (table) → NoteesEditor per cell
+ * ├─ GanttView (gantt)
  * ├─ NodeTimelineRenderer (timeline)
- * └─ NodeGraphViewSimple (graph)
+ * └─ NodeGraphView (graph)
  */
 import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
-import { useNodesStore } from '@/stores';
-import type { CardSizeMode } from '@/stores/nodesStore';
+import { useAppStore } from '@/stores';
+import type { CardSizeMode } from '@/stores/appStore';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { 
   mdiFormatListBulleted, 
@@ -54,16 +54,16 @@ import type {
   NodeCollectionContextValue,
   NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
-import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/types/viewModes';
+import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
 import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { 
-  NodeBlockListView, 
-  NodeBlockDocumentView, 
-  NodeBlockCardView, 
-  NodeBlockTableView, 
-  NodeBlockGanttView,
+  ListView, 
+  DocumentView, 
+  CardView, 
+  TableView, 
+  GanttView,
 } from './views';
-import { NodeGraphViewSimple } from '@/components/graph';
+import { NodeGraphView } from '@/components/nodeGraph';
 import { NodeTimelineRenderer } from '@/components/timeline';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import './NodeCollection.css';
@@ -155,7 +155,7 @@ export function NodeCollection({
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
-  const storeCardLayout = useNodesStore(state => state.cardLayout);
+  const storeCardLayout = useAppStore(state => state.cardLayout);
   const rawCardLayout = cardLayout ?? storeCardLayout;
   // Filter out invalid 'cover-bottom' from old persisted state
   const effectiveCardLayout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right' = 
@@ -269,7 +269,7 @@ export function NodeCollection({
     switch (viewMode) {
       case 'list':
         return (
-          <NodeBlockListView 
+          <ListView 
             nodes={nodes}
             editable={editable}
             pagesOnly={pagesOnly}
@@ -286,7 +286,7 @@ export function NodeCollection({
       
       case 'document':
         return (
-          <NodeBlockDocumentView
+          <DocumentView
             nodes={nodes}
             editable={editable}
             maxDepth={maxDepth}
@@ -300,7 +300,7 @@ export function NodeCollection({
       
       case 'card':
         return (
-          <NodeBlockCardView 
+          <CardView 
             nodes={nodes}
             editable={editable}
             layout={effectiveCardLayout}
@@ -317,7 +317,7 @@ export function NodeCollection({
       
       case 'table':
         return (
-          <NodeBlockTableView 
+          <TableView 
             nodes={nodes}
             editable={editable}
             columns={tableColumns}
@@ -333,31 +333,31 @@ export function NodeCollection({
         );
       
       case 'gantt':
-        return <NodeBlockGanttView {...viewProps} />;
+        return <GanttView {...viewProps} />;
       
       case 'timeline':
         return <NodeTimelineRenderer nodes={nodes} />;
       
       case 'graph':
-        // Graph only shows pages - convert Node to GraphNode format
+        // Graph only shows pages - convert Node to API GraphNode format
         const graphNodes = nodes
           .filter(n => n.is_page)
           .map(n => ({
             id: n.id,
-            title: n.name || 'Untitled',
-            type: 'page' as const,
+            uuid: n.uuid || '',
             name: n.name || 'Untitled',
+            type: 'page' as const,
             tags: [],
-            types: [],
+            class_ids: [],
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        return <NodeGraphViewSimple nodes={graphNodes} links={[]} className="node-collection__graph" />;
+        return <NodeGraphView nodes={graphNodes} links={[]} chrome={false} className="node-collection__graph" />;
       
       default:
         // Fallback to list view
         return (
-          <NodeBlockListView 
+          <ListView 
             nodes={nodes}
             editable={editable}
             pagesOnly={pagesOnly}

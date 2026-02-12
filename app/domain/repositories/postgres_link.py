@@ -1,6 +1,6 @@
 """PostgreSQL implementation of Link repository.
 
-Updated for graph-based schema:
+Updated for workspace-based schema:
 - node_link table: source_id, target_id, is_tag, is_inline_class
 - Inline class references are now stored in node_link with is_inline_class=TRUE
 - All timestamps use create_date
@@ -27,16 +27,16 @@ class PostgresLinkRepository(LinkRepository):
     (distinguished by is_inline_class flag on node_link table).
     """
     
-    def __init__(self, pool: asyncpg.Pool, graph_id: int, user_id: Optional[int] = None):
-        """Initialize with connection pool and graph context.
+    def __init__(self, pool: asyncpg.Pool, workspace_id: int, user_id: Optional[int] = None):
+        """Initialize with connection pool and workspace context.
         
         Args:
             pool: asyncpg connection pool
-            graph_id: The graph this repository operates on
+            workspace_id: The workspace this repository operates on
             user_id: Optional current user ID for audit trails
         """
         self._pool = pool
-        self._graph_id = graph_id
+        self._workspace_id = workspace_id
         self._user_id = user_id
     
     def _row_to_link(self, row: asyncpg.Record) -> NodeLink:
@@ -61,18 +61,18 @@ class PostgresLinkRepository(LinkRepository):
         async with acquire_connection(self._pool) as conn:
             if link.uuid:
                 row = await conn.fetchrow("""
-                    INSERT INTO node_link (uuid, source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, graph_id)
+                    INSERT INTO node_link (uuid, source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, workspace_id)
                     VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
                     RETURNING id, uuid
                 """, link.uuid, link.source_id, link.target_id, link.is_tag, link.is_inline_class,
-                    link.name, link.create_date, link.create_uid or self._user_id, self._graph_id)
+                    link.name, link.create_date, link.create_uid or self._user_id, self._workspace_id)
             else:
                 row = await conn.fetchrow("""
-                    INSERT INTO node_link (source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, graph_id)
+                    INSERT INTO node_link (source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, workspace_id)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     RETURNING id, uuid
                 """, link.source_id, link.target_id, link.is_tag, link.is_inline_class,
-                    link.name, link.create_date, link.create_uid or self._user_id, self._graph_id)
+                    link.name, link.create_date, link.create_uid or self._user_id, self._workspace_id)
             
             if row is None:
                 raise RuntimeError("Failed to create link - no row returned")
@@ -109,14 +109,14 @@ class PostgresLinkRepository(LinkRepository):
             return [self._row_to_link(row) for row in rows]
     
     async def get_page_backlinks(self, page_id: int) -> List[NodeLink]:
-        """Get backlinks with inheritance (links from nodes in this graph)."""
+        """Get backlinks with inheritance (links from nodes in this workspace)."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT nl.*, n.page_id as source_page_id
                 FROM node_link nl
                 JOIN node n ON nl.source_id = n.id
-                WHERE nl.target_id = $1 AND n.graph_id = $2
-            """, page_id, self._graph_id)
+                WHERE nl.target_id = $1 AND n.workspace_id = $2
+            """, page_id, self._workspace_id)
             return [self._row_to_link(row) for row in rows]
     
     async def get_outgoing_links(self, source_node_id: int) -> List[NodeLink]:
@@ -174,15 +174,15 @@ class PostgresLinkRepository(LinkRepository):
             )
             return int(result.split()[-1]) if result else 0
     
-    async def get_backlinks_for_graph(self, target_node_id: int) -> List[NodeLink]:
-        """Get backlinks from nodes within the current graph only."""
+    async def get_backlinks_for_workspace(self, target_node_id: int) -> List[NodeLink]:
+        """Get backlinks from nodes within the current workspace only."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT nl.*
                 FROM node_link nl
                 JOIN node n ON nl.source_id = n.id
-                WHERE nl.target_id = $1 AND n.graph_id = $2
-            """, target_node_id, self._graph_id)
+                WHERE nl.target_id = $1 AND n.workspace_id = $2
+            """, target_node_id, self._workspace_id)
             return [self._row_to_link(row) for row in rows]
     
     # ============== Inline Class Methods ==============
@@ -214,13 +214,13 @@ class PostgresLinkRepository(LinkRepository):
             )
             return [self._row_to_link(row) for row in rows]
     
-    async def get_inline_classes_for_graph(self, target_node_id: int) -> List[NodeLink]:
-        """Get inline class references from nodes within the current graph only."""
+    async def get_inline_classes_for_workspace(self, target_node_id: int) -> List[NodeLink]:
+        """Get inline class references from nodes within the current workspace only."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT nl.*
                 FROM node_link nl
                 JOIN node n ON nl.source_id = n.id
-                WHERE nl.target_id = $1 AND nl.is_inline_class = TRUE AND n.graph_id = $2
-            """, target_node_id, self._graph_id)
+                WHERE nl.target_id = $1 AND nl.is_inline_class = TRUE AND n.workspace_id = $2
+            """, target_node_id, self._workspace_id)
             return [self._row_to_link(row) for row in rows]

@@ -6,7 +6,7 @@
  */
 import { useNode } from '@/hooks';
 import { SidebarCard } from './SidebarCard';
-import { GraphViewLocal } from '../graph';
+import { GraphViewLocal } from '../nodeGraph';
 import './SidebarCardLocalGraph.css';
 
 interface SidebarCardLocalGraphProps {

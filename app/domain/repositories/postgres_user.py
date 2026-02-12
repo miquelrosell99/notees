@@ -1,6 +1,6 @@
 """PostgreSQL implementation of User repository.
 
-Updated for graph-based schema:
+Updated for workspace-based schema:
 - is_active -> active
 """
 from __future__ import annotations

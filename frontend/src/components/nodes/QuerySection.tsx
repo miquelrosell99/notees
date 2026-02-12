@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import { QueryNodeCollection } from './QueryNodeCollection';
 import { ChevronRightIcon, ChevronDownIcon } from '../icons';
 import { Button } from '../core/Button';
-import type { NodeViewType } from '@/types/query';
+import type { NodeViewType } from '@/types/nodeView';
 import './NodeViewSection.css';
 
 export interface QuerySectionProps {

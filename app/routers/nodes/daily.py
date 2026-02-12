@@ -40,17 +40,17 @@ async def list_daily_pages(
     async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch("""
             SELECT * FROM node 
-            WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND graph_id = $1
+            WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
               AND (is_deleted = FALSE OR is_deleted IS NULL)
             ORDER BY uuid DESC
-        """, service._graph_id)
+        """, service._workspace_id)
     
     # Get node IDs for batch type lookup
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     node_ids = [n.id for n in nodes if n.id is not None]
     
     # Batch fetch types for all nodes
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     result = []
     for node in nodes:

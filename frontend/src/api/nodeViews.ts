@@ -10,7 +10,7 @@ import type {
   NodeViewCreate, 
   NodeViewUpdate, 
   QueryExecuteRequest,
-} from '@/types/query';
+} from '@/types/nodeView';
 
 const BASE = '/nodes/views';
 

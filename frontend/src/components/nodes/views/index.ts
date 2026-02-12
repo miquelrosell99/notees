@@ -6,10 +6,10 @@
  */
 
 // Lexical-based views (primary)
-export { NodeBlockListView } from './NodeBlockListView';
-export { NodeBlockDocumentView } from './NodeBlockDocumentView';
-export { NodeBlockCardView } from './NodeBlockCardView';
-export { NodeBlockTableView } from './NodeBlockTableView';
+export { ListView } from './ListView';
+export { DocumentView } from './DocumentView';
+export { CardView } from './CardView';
+export { TableView } from './TableView';
 
 // Gantt view (not yet migrated to Lexical)
-export { NodeBlockGanttView } from './NodeBlockGanttView';
+export { GanttView } from './GanttView';

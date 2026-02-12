@@ -748,13 +748,13 @@ export function useDeleteNode() {
     onSuccess: async ({ deletedNode: _deletedNode, tableCellInfo }, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
       // Use dynamic import to avoid circular dependency issues
-      const { useNodesStore } = await import('@/stores');
-      const currentNodeId = useNodesStore.getState().currentNodeId;
+      const { useAppStore } = await import('@/stores');
+      const currentNodeId = useAppStore.getState().currentNodeId;
       
       // If we deleted the node we're currently viewing, navigate to home
       if (currentNodeId === deletedId) {
         // Navigate to home and clear the current node
-        useNodesStore.setState({ 
+        useAppStore.setState({ 
           currentNodeId: null,
           mainViewType: 'node'
         });

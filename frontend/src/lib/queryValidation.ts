@@ -41,7 +41,7 @@ export function validateQueryAST(ast: QueryAST): ValidationResult {
  */
 function validateScope(_ast: QueryAST, _issues: ValidationIssue[]): void {
   // Note: excluded_page_uuids validation could be added here if needed in the future
-  // Currently, scope types are simple (entire_graph, pages, current_page) with no complex validation
+  // Currently, scope types are simple (entire_workspace, pages, current_page) with no complex validation
 }
 
 /**

@@ -1,14 +1,14 @@
 """Assets router - handles file uploads and downloads.
 
-Updated for graph-based schema with per-asset folder structure:
-- workspace_id -> graph_id
-- Uses get_or_create_user_graph
+Updated for workspace-based schema with per-asset folder structure:
+- workspace_id -> workspace_id
+- Uses get_or_create_user_workspace
 - Repositories now take user_id for audit trails
 - target_node_id -> target_id in property_value_relation
 
 Assets are stored in per-asset folders for future thumbnail support:
-  graphs/{graph_id}/assets/{node_uuid}/{node_uuid}.{extension}
-  graphs/{graph_id}/assets/{node_uuid}/thumbnail.webp  (future)
+  workspaces/{workspace_id}/assets/{node_uuid}/{node_uuid}.{extension}
+  workspaces/{workspace_id}/assets/{node_uuid}/thumbnail.webp  (future)
 
 Each asset is associated with a node that has the 'asset' type tag.
 Supported file types: Images (JPEG, PNG), Audio (MP3, WAV, OGG, OPUS, WebM)
@@ -24,8 +24,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from jose import jwt
 
-from ..db.connection import acquire_connection, get_pool, get_graph_assets_dir, get_graph_uuid
-from ..db.schema import get_or_create_user_graph, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
+from ..db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
+from ..db.schema import get_or_create_user_workspace, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from ..domain.entities import NodeCreateData, generate_uuid
 from ..domain.stringify_ast import parse_ast, serialize_ast, ParseMode
 from ..domain.repositories import PostgresNodeRepository, PostgresLinkRepository, PostgresPropertyRepository
@@ -148,12 +148,12 @@ async def get_user_from_asset_token(asset_token: str, asset_uuid: str) -> Option
     return User(**user_data)
 
 
-def get_asset_path(graph_uuid: str, asset_uuid: str, extension: str) -> Path:
+def get_asset_path(workspace_uuid: str, asset_uuid: str, extension: str) -> Path:
     """Get the file path for an asset in per-asset folder structure.
     
-    Structure: graphs/{graph_uuid}/assets/{asset_uuid}/{asset_uuid}.{extension}
+    Structure: workspaces/{workspace_uuid}/assets/{asset_uuid}/{asset_uuid}.{extension}
     """
-    assets_dir = get_graph_assets_dir(graph_uuid)
+    assets_dir = get_workspace_assets_dir(workspace_uuid)
     asset_folder = assets_dir / asset_uuid
     asset_folder.mkdir(parents=True, exist_ok=True)
     return asset_folder / f"{asset_uuid}{extension}"
@@ -164,13 +164,13 @@ def get_extension_from_content_type(content_type: str) -> str:
     return ALLOWED_CONTENT_TYPES.get(content_type, "")
 
 
-async def _get_system_ids(pool, graph_id: int, user_id: int):
+async def _get_system_ids(pool, workspace_id: int, user_id: int):
     """Get system type IDs from the database."""
     async with acquire_connection(pool) as conn:
         # Get page type ID
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-            SYSTEM_CLASS_UUIDS['page'], graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+            SYSTEM_CLASS_UUIDS['page'], workspace_id
         )
         page_type_id = row['id'] if row else 1
         
@@ -178,8 +178,8 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
         
         # Get or create asset class ID
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND is_class = TRUE AND graph_id = $2",
-            SYSTEM_CLASS_UUIDS['asset'], graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND is_class = TRUE AND workspace_id = $2",
+            SYSTEM_CLASS_UUIDS['asset'], workspace_id
         )
         if row:
             asset_type_id = row['id']
@@ -187,15 +187,15 @@ async def _get_system_ids(pool, graph_id: int, user_id: int):
             # Create the asset class using proper AST name format
             uuid = generate_uuid()
             asset_type_id = await conn.fetchval("""
-                INSERT INTO node (graph_id, uuid, name, icon, is_class, is_asset, create_date, write_date, create_uid, write_uid)
+                INSERT INTO node (workspace_id, uuid, name, icon, is_class, is_asset, create_date, write_date, create_uid, write_uid)
                 VALUES ($1, $2, $3, NULL, TRUE, TRUE, $4, $4, $5, $5)
                 RETURNING id
-            """, graph_id, uuid, serialize_ast(parse_ast('asset', ParseMode.PLAIN)), now, user_id)
+            """, workspace_id, uuid, serialize_ast(parse_ast('asset', ParseMode.PLAIN)), now, user_id)
             
             # Give it the 'class' class itself
             type_row = await conn.fetchrow(
-                "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2",
-                SYSTEM_CLASS_UUIDS['class'], graph_id
+                "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+                SYSTEM_CLASS_UUIDS['class'], workspace_id
             )
             if type_row:
                 # Update class_ids directly
@@ -217,7 +217,7 @@ async def upload_asset(
     """Upload a new asset file using AssetService.
     
     Creates a node with the 'asset' type and stores the file
-    in the graph's assets folder using atomic operations.
+    in the workspace's assets folder using atomic operations.
     
     If existing_node_id is provided, converts that node to an asset
     instead of creating a new one (useful for empty blocks).
@@ -248,18 +248,18 @@ async def upload_asset(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     
-    # Get graph UUID for asset storage
-    graph_uuid = await get_graph_uuid(graph_id)
-    if not graph_uuid:
-        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    # Get workspace UUID for asset storage
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=500, detail="Workspace UUID not found")
     
     try:
-        page_type_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
+        page_type_id, asset_type_id = await _get_system_ids(pool, workspace_id, user_id)
         
         # Initialize AssetService
-        asset_service = AssetService(graph_uuid)
+        asset_service = AssetService(workspace_uuid)
         
         # Create asset using service (ATOMIC OPERATION)
         # This creates folder + writes file before we create node
@@ -273,7 +273,7 @@ async def upload_asset(
         filename_without_ext = Path(file.filename).stem if file.filename else "asset"
         
         # Create repository
-        node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
+        node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, user_id)
         
         # If existing_node_id is provided, convert that node to an asset
         if existing_node_id:
@@ -287,8 +287,8 @@ async def upload_asset(
                 await conn.execute("""
                     UPDATE node 
                     SET name = $1, uuid = $2, is_asset = TRUE, write_date = $3, write_uid = $4
-                    WHERE id = $5 AND graph_id = $6
-                """, filename_without_ext, asset_uuid, now, user_id, existing_node_id, graph_id)
+                    WHERE id = $5 AND workspace_id = $6
+                """, filename_without_ext, asset_uuid, now, user_id, existing_node_id, workspace_id)
                 
                 # Add asset class to the node
                 if asset_type_id:
@@ -355,13 +355,13 @@ async def generate_asset_token(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), int(user_id))
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), int(user_id))
     
-    # Verify the asset exists and belongs to this user's graph
+    # Verify the asset exists and belongs to this user's workspace
     async with acquire_connection(pool) as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid = $1 AND graph_id = $2 AND is_asset = TRUE",
-            asset_uuid, graph_id
+            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2 AND is_asset = TRUE",
+            asset_uuid, workspace_id
         )
         if not row:
             raise HTTPException(status_code=404, detail="Asset not found")
@@ -412,14 +412,14 @@ async def get_asset(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     
-    # Get graph UUID for asset storage
-    graph_uuid = await get_graph_uuid(graph_id)
-    if not graph_uuid:
-        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    # Get workspace UUID for asset storage
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=500, detail="Workspace UUID not found")
     
-    assets_dir = get_graph_assets_dir(graph_uuid)
+    assets_dir = get_workspace_assets_dir(workspace_uuid)
     asset_folder = assets_dir / asset_uuid
     
     # Check if asset folder exists
@@ -479,14 +479,14 @@ async def get_asset_thumbnail(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     
-    # Get graph UUID for asset storage
-    graph_uuid = await get_graph_uuid(graph_id)
-    if not graph_uuid:
-        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    # Get workspace UUID for asset storage
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=500, detail="Workspace UUID not found")
     
-    asset_service = AssetService(graph_uuid)
+    asset_service = AssetService(workspace_uuid)
     thumbnail_path = asset_service.get_thumbnail_path(asset_uuid)
     
     if not thumbnail_path.exists():
@@ -509,17 +509,17 @@ async def get_asset_info(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, _ = await _get_system_ids(pool, graph_id, user_id)
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
+    page_type_id, _ = await _get_system_ids(pool, workspace_id, user_id)
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, user_id)
     
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
     # Find the asset file in per-asset folder
-    assets_dir = get_graph_assets_dir(graph_id)
+    assets_dir = get_workspace_assets_dir(workspace_id)
     asset_folder = assets_dir / asset_uuid
     
     if not asset_folder.exists() or not asset_folder.is_dir():
@@ -561,27 +561,27 @@ async def delete_asset(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, _ = await _get_system_ids(pool, graph_id, user_id)
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
+    page_type_id, _ = await _get_system_ids(pool, workspace_id, user_id)
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, user_id)
     
     # Get the node
     node = await node_repo.get_by_uuid(asset_uuid)
     if not node:
         raise HTTPException(status_code=404, detail="Asset node not found")
     
-    # Get graph UUID for asset storage
-    graph_uuid = await get_graph_uuid(graph_id)
-    if not graph_uuid:
-        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    # Get workspace UUID for asset storage
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=500, detail="Workspace UUID not found")
     
     # Delete the node first (references must be cleaned up)
     if node.id:
         await node_repo.delete(node.id)
     
     # Then delete the asset folder (failures logged, not raised)
-    asset_service = AssetService(graph_uuid)
+    asset_service = AssetService(workspace_uuid)
     asset_service.delete_asset(asset_uuid)
     
     logger.info(f"Deleted asset {asset_uuid} for user {user_id}")
@@ -600,10 +600,10 @@ async def list_assets(
     pool = await get_pool()
     
     async with acquire_connection(pool) as conn:
-        graph_id = await get_or_create_user_graph(cast(asyncpg.Connection, conn), user_id)
+        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
     
-    page_type_id, asset_type_id = await _get_system_ids(pool, graph_id, user_id)
-    node_repo = PostgresNodeRepository(pool, graph_id, page_type_id, user_id)
+    page_type_id, asset_type_id = await _get_system_ids(pool, workspace_id, user_id)
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_type_id, user_id)
     
     # Get nodes that have the 'asset' type
     if asset_type_id is None:
@@ -615,13 +615,13 @@ async def list_assets(
     end = start + page_size
     paged_nodes = nodes[start:end]
     
-    # Get graph UUID for asset storage
-    graph_uuid = await get_graph_uuid(graph_id)
-    if not graph_uuid:
-        raise HTTPException(status_code=500, detail="Graph UUID not found")
+    # Get workspace UUID for asset storage
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=500, detail="Workspace UUID not found")
     
     assets = []
-    assets_dir = get_graph_assets_dir(graph_uuid)
+    assets_dir = get_workspace_assets_dir(workspace_uuid)
     
     for node in paged_nodes:
         # Find the file for this asset in its folder

@@ -13,7 +13,7 @@
  * - Drag the left edge of right sidebar to resize
  */
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { useNodesStore, useSettingsStore, useFavoritesStore } from '@/stores';
+import { useAppStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync, useCreateNode } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened } from '@/api/nodes';
@@ -22,10 +22,10 @@ import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { RightSidebarCards } from '../sidebar/RightSidebarCards';
-import { GraphViewAllCard } from '../graph';
-import { CommandPalette } from '../CommandPalette';
+import { GraphViewAllCard } from '../nodeGraph';
+import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from '../sidebar/CommentsSidebar';
-import { ImportDataModal } from '../ImportDataModal';
+import { ImportDataModal } from '../workspace/ImportDataModal';
 import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -47,7 +47,7 @@ export function Layout() {
     commentsSidebarOpen,
     setMainViewType,
     openNode,
-  } = useNodesStore();
+  } = useAppStore();
   
   const { defaultView } = useSettingsStore();
   const createNodeMutation = useCreateNode();

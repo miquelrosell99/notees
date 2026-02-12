@@ -32,15 +32,15 @@ async def list_classes(
     # Get all nodes where is_class=1 using PostgreSQL
     async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch(
-            """SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND graph_id = $1 ORDER BY name""",
-            service._graph_id
+            """SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name""",
+            service._workspace_id
         )
     
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     
     # Batch fetch class_ids for all class nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) 
@@ -67,7 +67,7 @@ async def search_classes(
     
     # Batch fetch class_ids
     node_ids = [n.id for n in pages if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
@@ -93,8 +93,8 @@ async def get_nodes_with_class(
     
     async with acquire_connection(service._pool) as conn:
         # Get all subclasses (classes that extend this class)
-        property_repo = PostgresPropertyRepository(service._pool, service._graph_id or 0, int(user.id))
-        extension_service = ClassExtensionService(service._pool, service._graph_id or 0, property_repo)
+        property_repo = PostgresPropertyRepository(service._pool, service._workspace_id or 0, int(user.id))
+        extension_service = ClassExtensionService(service._pool, service._workspace_id or 0, property_repo)
         
         subclass_ids = await extension_service.get_all_subclasses(class_id)
         all_class_ids = [class_id] + subclass_ids
@@ -103,16 +103,16 @@ async def get_nodes_with_class(
         rows = await conn.fetch("""
             SELECT * FROM node
             WHERE class_ids && $1::integer[]
-              AND graph_id = $2
+              AND workspace_id = $2
               AND active = TRUE
             ORDER BY write_date DESC
-        """, all_class_ids, service._graph_id)
+        """, all_class_ids, service._workspace_id)
     
     nodes = [service._node_repo.row_to_node(row) for row in rows]
     
     # Batch fetch class_ids for all nodes (already included in row_to_node, but fetch for consistency)
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._graph_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
     
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
@@ -144,9 +144,9 @@ async def add_node_class(
     # Special handling for query class: create a main_content NodeView
     added_class_node = await service.get_node(request.class_node_id)
     if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
-        if service._graph_id:
+        if service._workspace_id:
             view_repo = PostgresNodeViewRepository(
-                service._pool, service._graph_id, str(user.id)
+                service._pool, service._workspace_id, str(user.id)
             )
             # Check if main_content view already exists for this node
             existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
@@ -184,9 +184,9 @@ async def remove_node_class_endpoint(
     # Special handling for query class: delete the main_content NodeView before removing the class
     removed_class_node = await service.get_node(class_id)
     if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
-        if service._graph_id:
+        if service._workspace_id:
             view_repo = PostgresNodeViewRepository(
-                service._pool, service._graph_id, str(user.id)
+                service._pool, service._workspace_id, str(user.id)
             )
             # Delete all main_content views for this node
             existing_views = await view_repo.list_by_node(node_id, view_type="main_content")

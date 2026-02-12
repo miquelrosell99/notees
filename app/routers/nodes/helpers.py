@@ -189,7 +189,7 @@ async def _get_class_ids(service: NodeService, node_id: int) -> List[int]:
     return [c.id for c in classes if c.id]
 
 
-async def _get_tag_ids(pool, graph_id: int, node_id: int) -> List[int]:
+async def _get_tag_ids(pool, workspace_id: int, node_id: int) -> List[int]:
     """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
     async with acquire_connection(pool) as conn:
         rows = await conn.fetch("""
@@ -200,7 +200,7 @@ async def _get_tag_ids(pool, graph_id: int, node_id: int) -> List[int]:
         return [row['target_id'] for row in rows]
 
 
-async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
     """Efficiently fetch tag_ids for multiple nodes in a single query.
     
     Returns a dict mapping node_id -> list of tag_ids.
@@ -228,7 +228,7 @@ async def _get_tag_ids_batch(pool, graph_id: int, node_ids: List[int]) -> Dict[i
     return result
 
 
-async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int], *, conn=None) -> Dict[int, List[int]]:
+async def _get_class_ids_batch(pool, workspace_id: int, node_ids: List[int], *, conn=None) -> Dict[int, List[int]]:
     """Efficiently fetch class_ids directly from node table.
     
     Returns a dict mapping node_id -> list of class_ids.
@@ -241,8 +241,8 @@ async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int], *, conn
         rows = await c.fetch("""
             SELECT id, class_ids
             FROM node
-            WHERE id = ANY($1) AND graph_id = $2
-        """, node_ids, graph_id)
+            WHERE id = ANY($1) AND workspace_id = $2
+        """, node_ids, workspace_id)
         return {row['id']: list(row['class_ids'] or []) for row in rows}
     
     if conn is not None:
@@ -252,7 +252,7 @@ async def _get_class_ids_batch(pool, graph_id: int, node_ids: List[int], *, conn
         return await _fetch(c)
 
 
-async def _get_effective_class_ids_batch(pool, graph_id: int, node_ids: List[int], user_id: int) -> Dict[int, List[int]]:
+async def _get_effective_class_ids_batch(pool, workspace_id: int, node_ids: List[int], user_id: int) -> Dict[int, List[int]]:
     """Fetch class_ids for multiple nodes including inherited classes from extends.
     
     For each node:
@@ -266,7 +266,7 @@ async def _get_effective_class_ids_batch(pool, graph_id: int, node_ids: List[int
     from ...domain.repositories import PostgresPropertyRepository
     
     # First get explicit classes
-    explicit_classes = await _get_class_ids_batch(pool, graph_id, node_ids)
+    explicit_classes = await _get_class_ids_batch(pool, workspace_id, node_ids)
     
     if not explicit_classes:
         return {nid: [] for nid in node_ids}
@@ -279,8 +279,8 @@ async def _get_effective_class_ids_batch(pool, graph_id: int, node_ids: List[int
     if not all_explicit_class_ids:
         return explicit_classes
     
-    property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
-    extension_service = ClassExtensionService(pool, graph_id, property_repo)
+    property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
+    extension_service = ClassExtensionService(pool, workspace_id, property_repo)
     
     # Cache for class -> extended classes
     extends_cache: Dict[int, List[int]] = {}
@@ -345,7 +345,7 @@ async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[in
         # Build class_ids for descendants
         desc_ids = [d.id for d in all_descendants if d.id]
         if desc_ids:
-            desc_class_ids = await _get_class_ids_batch(service._pool, service._graph_id or 0, desc_ids)
+            desc_class_ids = await _get_class_ids_batch(service._pool, service._workspace_id or 0, desc_ids)
             class_ids_map.update(desc_class_ids)
         
         # Build children response with hierarchy (pass class_ids_map for classes)
@@ -367,17 +367,17 @@ async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[in
 
 
 async def _get_node_service(user: User) -> NodeService:
-    from ...dependencies import _get_graph_context_cached
+    from ...dependencies import _get_workspace_context_cached
     
     pool = await get_pool()
     user_id = int(user.id)
     
-    graph_id, page_class_id = await _get_graph_context_cached(pool, user_id)
+    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
     
-    # Create repositories with graph context
-    node_repo = PostgresNodeRepository(pool, graph_id, page_class_id, user_id)
-    property_repo = PostgresPropertyRepository(pool, graph_id, user_id)
-    link_repo = PostgresLinkRepository(pool, graph_id, user_id)
+    # Create repositories with workspace context
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_class_id, user_id)
+    property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
+    link_repo = PostgresLinkRepository(pool, workspace_id, user_id)
     
     # Create services
     link_service = LinkParsingService(node_repo, link_repo)
@@ -385,7 +385,7 @@ async def _get_node_service(user: User) -> NodeService:
         node_repo, property_repo, link_service,
         page_class_id,
         pool=pool,
-        graph_id=graph_id
+        workspace_id=workspace_id
     )
     
     # Store user_id for use in helper functions

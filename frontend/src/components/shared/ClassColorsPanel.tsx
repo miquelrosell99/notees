@@ -16,7 +16,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { Button } from '../core/Button';
 import { ColorButton } from '../core/ColorButton';
 import { ListSortable } from '../core/ListSortable';
-import { SearchBox } from '../SearchBox';
+import { SearchBox } from '../core/SearchBox';
 import './ClassColorsPanel.css';
 
 export interface ClassColor {

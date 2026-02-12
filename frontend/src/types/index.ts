@@ -5,7 +5,7 @@
 export * from './api';
 export * from './ast';
 export * from './nodeCollection';
-export * from './viewModes';
+export * from '../constants/viewModes';
 
 // Export QueryAST types (primary)
 export type {
@@ -32,5 +32,5 @@ export {
   type NodeViewCreate,
   type NodeViewUpdate,
   type QueryExecuteRequest,
-} from './query';
+} from './nodeView';
 

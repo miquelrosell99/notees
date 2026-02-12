@@ -15,7 +15,7 @@
  */
 import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { Property, PropertyType, Node } from '@/types/api';
-import { useNodesStore } from '@/stores';
+import { useAppStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { NodeInline } from '../blocks/NodeInline';
 import { Bullet } from '../blocks/Bullet';
@@ -101,8 +101,8 @@ export function PropertyList({
   const [showHidden, setShowHidden] = useState(defaultShowHidden);
   
   // Default handlers using store if not provided
-  const openNode = useNodesStore(state => state.openNode);
-  const addSidebarCard = useNodesStore(state => state.addSidebarCard);
+  const openNode = useAppStore(state => state.openNode);
+  const addSidebarCard = useAppStore(state => state.addSidebarCard);
   
   const handleNodeValueClick = useCallback((nodeId: number) => {
     if (onNodeValueClick) {
@@ -221,8 +221,8 @@ function PropertyRow({
   const { data: nodeValueData } = useNode(nodeValueId);
   
   // Get navigation functions from store
-  const openPropertyView = useNodesStore(state => state.openPropertyView);
-  const addSidebarCard = useNodesStore(state => state.addSidebarCard);
+  const openPropertyView = useAppStore(state => state.openPropertyView);
+  const addSidebarCard = useAppStore(state => state.addSidebarCard);
 
   const handleNameClick = useCallback((e: React.MouseEvent) => {
     if (!readOnly && onNameClick) {
