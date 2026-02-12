@@ -21,7 +21,7 @@ import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon } from '../core/icons';
 import { EmojiPicker } from '../core/EmojiPicker';
 import { SuggestionPopup } from './SuggestionPopup';
-import { isSystemPage } from '../utils/systemPages';
+import { isSystemPage } from '@/utils/systemPages';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import './PageHeader.css';
 
