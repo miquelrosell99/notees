@@ -21,7 +21,7 @@ import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
-import { PageHeader } from '../components/PageHeader';
+import { PageHeader } from '../components/nodes/PageHeader';
 import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { ContextMenu, type ContextMenuItem } from '../components/core/ContextMenu';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
