@@ -89,7 +89,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   // Navigate to monthly page when loaded
   useEffect(() => {
     if (monthlyNote && navigateToMonth) {
-      openNode(monthlyNote.id, 'page');
+      openNode(monthlyNote.id);
       onClose();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
       setNavigateToMonth(null);
@@ -99,7 +99,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   // Navigate to yearly page when loaded
   useEffect(() => {
     if (yearlyNote && navigateToYear) {
-      openNode(yearlyNote.id, 'page');
+      openNode(yearlyNote.id);
       onClose();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
       setNavigateToYear(null);
@@ -109,7 +109,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   // Navigate to daily page when loaded
   useEffect(() => {
     if (dailyNote && selectedDate) {
-      openNode(dailyNote.id, 'page');
+      openNode(dailyNote.id);
       onClose();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
       setSelectedDate(null);

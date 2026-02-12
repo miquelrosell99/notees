@@ -20,7 +20,7 @@ import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
 import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyView';
 
 export function MainContent() {
-  const { currentNodeId, currentNodeType, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useAppStore();
+  const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useAppStore();
   const queryClient = useQueryClient();
   const prevViewRef = useRef(mainViewType);
 
@@ -106,13 +106,13 @@ export function MainContent() {
       <div className="main-content-wrapper">
         <PropertyViewWrapper
           propertyId={currentPropertyId}
-          onNavigateToNode={(nodeId) => openNode(nodeId, 'page')}
+          onNavigateToNode={(nodeId) => openNode(nodeId)}
           onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
         />
         <main className="main-content">
           <PropertyViewContent
             propertyId={currentPropertyId}
-            onNavigateToNode={(nodeId) => openNode(nodeId, 'page')}
+            onNavigateToNode={(nodeId) => openNode(nodeId)}
             onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
           />
         </main>
@@ -137,7 +137,6 @@ export function MainContent() {
       {/* Fixed header */}
       <NodeViewWrapper
         nodeId={currentNodeId}
-        nodeType={currentNodeType}
         viewMode={viewMode}
       />
       
@@ -149,7 +148,6 @@ export function MainContent() {
       >
         <NodeViewContent
           nodeId={currentNodeId}
-          nodeType={currentNodeType}
           viewMode={viewMode}
         />
       </main>

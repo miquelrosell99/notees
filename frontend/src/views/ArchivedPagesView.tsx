@@ -116,7 +116,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             hideToolbar={true}
             customContextMenu={ArchivedNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
-            onNodeClick={(node) => openNode(node.id, 'page')}
+            onNodeClick={(node) => openNode(node.id)}
           />
         )}
       </div>

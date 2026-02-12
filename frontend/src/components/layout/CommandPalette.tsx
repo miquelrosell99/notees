@@ -434,7 +434,7 @@ export function CommandPalette({
           if (onSelect) {
             onSelect(dateNode);
           } else {
-            openNode(dateNode.id, 'page');
+            openNode(dateNode.id);
           }
         } catch (error) {
           console.error('Failed to navigate to date page:', error);
@@ -449,7 +449,7 @@ export function CommandPalette({
           if (onSelect) {
             onSelect(item.result.node);
           } else {
-            openNode(item.result.node.id, item.type === 'page' ? 'page' : 'block');
+            openNode(item.result.node.id);
           }
         }
         onClose();
@@ -501,7 +501,7 @@ export function CommandPalette({
             classes,
           });
           onClose();
-          openNode(newNode.id, 'page');
+          openNode(newNode.id);
         } catch (error) {
           console.error('Failed to create page:', error);
         }

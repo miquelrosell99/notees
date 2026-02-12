@@ -142,7 +142,7 @@ export function NodePill({
       if (e.shiftKey) {
         addSidebarCard(node.id, isPage ? 'page' : 'block');
       } else {
-        openNode(node.id, isPage ? 'page' : 'block');
+        openNode(node.id);
       }
     } else if (onClick) {
       onClick();
@@ -191,7 +191,7 @@ export function NodePill({
         id: 'open',
         label: isPage ? 'Open page' : 'Open block',
         onClick: () => {
-          openNode(node.id, isPage ? 'page' : 'block');
+          openNode(node.id);
           handleCloseContextMenu();
         },
       },

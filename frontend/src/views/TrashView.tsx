@@ -149,7 +149,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             hideToolbar={true}
             customContextMenu={TrashNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
-            onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
+            onNodeClick={(node) => openNode(node.id)}
           />
         )}
       </div>
