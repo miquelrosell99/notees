@@ -3,11 +3,14 @@
  *
  * Uses a SINGLE NoteesEditor instance for performance.
  * Passes nodes directly - NoteesEditor handles runtime sync internally.
+ * 
+ * Supports groupBy='page' to organize nodes under page headers.
  */
 import { useCallback, useMemo, useId } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
+import { NodeInline } from '../../blocks/NodeInline';
 import { NoteesEditor } from '@/editor/NoteesEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -33,6 +36,8 @@ export function ListView({
   pageId,
   pageUuid,
   className = '',
+  groupBy = 'none',
+  enableGrouping = false,
 }: NodeListViewProps) {
   const viewId = useId();
 
@@ -88,6 +93,110 @@ export function ListView({
       queueContentSave(blockId, content);
     }
   }, [onContentChange]);
+
+  // Group nodes by page when groupBy='page' and enableGrouping=true
+  const groupedNodes = useMemo(() => {
+    if (!enableGrouping || groupBy !== 'page') {
+      return null; // No grouping
+    }
+
+    // Group top-level nodes by their page
+    const groups = new Map<string, { page: Node | null; nodes: Node[] }>();
+    
+    for (const node of nodes) {
+      // Use page info from metadata (for linked refs) or from the node itself
+      const pageKey = (node as any).page_id 
+        ? `page-${(node as any).page_id}` 
+        : node.is_page 
+          ? `self-${node.id}` 
+          : 'no-page';
+      
+      if (!groups.has(pageKey)) {
+        // Extract page node if available
+        let pageNode: Node | null = null;
+        if ((node as any).page_id) {
+          pageNode = {
+            id: (node as any).page_id,
+            name: (node as any).page_name || 'Untitled',
+            uuid: (node as any).page_uuid || '',
+            is_page: true,
+          } as Node;
+        } else if (node.is_page) {
+          pageNode = node;
+        }
+        
+        groups.set(pageKey, { page: pageNode, nodes: [] });
+     Grouped view (by page)
+  if (groupedNodes) {
+    return (
+      <div className={`node-list-view node-list-view--grouped ${className}`}>
+        {groupedNodes.map((group, groupIndex) => {
+          // Collect all nodes in this group (including children)
+          const groupAllNodes: Node[] = [];
+          const collectGroupNodes = (n: Node) => {
+            if (pagesOnly && !n.is_page) return;
+            groupAllNodes.push(n);
+            if (n.children) {
+              for (const child of n.children) {
+                collectGroupNodes(child);
+              }
+            }
+          };
+          
+          for (const n of group.nodes) {
+            collectGroupNodes(n);
+          }
+          
+          const sortedGroupNodes = sortBySequence(groupAllNodes);
+          
+          if (sortedGroupNodes.length === 0) return null;
+          
+          const groupKey = group.page?.id 
+            ? `page-${group.page.id}` 
+            : `group-${groupIndex}`;
+          
+          return (
+            <div key={groupKey} className="node-list-view__group">
+              {group.page && (
+                <div className="node-list-view__group-header">
+                  <NodeInline
+                    name={group.page.name}
+                    icon={group.page.icon}
+                    isPage={group.page.is_page}
+                    nodeId={group.page.id}
+                    showBullet={true}
+                    onClick={() => onNodeClick?.(group.page!)}
+                    onShiftClick={() => onNodeClick?.(group.page!)}
+                  />
+                </div>
+              )}
+              <div className="node-list-view__group-content">
+                <NoteesEditor
+                  editorId={`list-view-${viewId}-${groupKey}`}
+                  nodes={sortedGroupNodes}
+                  mode="list"
+                  readOnly={!editable}
+                  onNavigateToNode={handleNavigateToNode}
+                  onContentChange={handleContentChangeBridge}
+                  pageId={pageId}
+                  pageUuid={pageUuid}
+                  className="node-list-view__editor"
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  //  }
+      
+      groups.get(pageKey)!.nodes.push(node);
+    }
+    
+    return Array.from(groups.values());
+  }, [nodes, groupBy, enableGrouping]);
 
   // If sortable, use ListSortable wrapper (special mode for reordering)
   if (sortable && onReorder) {
