@@ -47,7 +47,6 @@ interface NodesState {
   
   // Current node being viewed (can be page or block)
   currentNodeId: number | null;
-  currentNodeType: NodeViewType;
   
   // Property context for when viewing a block that comes from a text property
   // Used to show property name in breadcrumbs
@@ -99,8 +98,8 @@ interface NodesState {
   // Actions
   setActiveNode: (node: Node | null) => void;
   setActiveNodeId: (id: number | null) => void;
-  /** Navigate to a node (page or block), optionally with property context */
-  openNode: (nodeId: number, nodeType: NodeViewType, propertyContext?: { propertyId: number; propertyName: string }) => void;
+  /** Navigate to a node. The view layer resolves page vs block from is_page. */
+  openNode: (nodeId: number, propertyContext?: { propertyId: number; propertyName: string }) => void;
   toggleSidebar: () => void;
   toggleRightSidebar: () => void;
   setViewMode: (mode: ViewMode) => void;
@@ -152,7 +151,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   activeNode: null,
   activeNodeId: null,
   currentNodeId: null,
-  currentNodeType: 'page' as NodeViewType,
   currentPropertyContext: null,
   sidebarOpen: true,
   rightSidebarOpen: false,
@@ -183,9 +181,8 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   
   setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
   setActiveNodeId: (id) => set({ activeNodeId: id }),
-  openNode: (nodeId, nodeType, propertyContext) => set({ 
+  openNode: (nodeId, propertyContext) => set({ 
     currentNodeId: nodeId, 
-    currentNodeType: nodeType,
     currentPropertyContext: propertyContext ?? null,
     mainViewType: 'node' 
   }),

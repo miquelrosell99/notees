@@ -172,7 +172,7 @@ interface NodeBreadcrumbsProps {
   /** Type of node (affects how breadcrumbs are built) */
   nodeType: 'page' | 'block';
   /** Callback when clicking a breadcrumb item */
-  onNavigate?: (nodeId: number, nodeType: 'page' | 'block') => void;
+  onNavigate?: (nodeId: number) => void;
   /** Callback when clicking a property breadcrumb item */
   onNavigateToProperty?: (propertyId: number) => void;
   /** Property context for when viewing a block from a text property */
@@ -251,7 +251,7 @@ export function NodeBreadcrumbs({
       if (item.isProperty && item.propertyId) {
         onNavigateToProperty?.(item.propertyId);
       } else {
-        onNavigate?.(item.id, item.isPage ? 'page' : 'block');
+        onNavigate?.(item.id);
       }
     },
     [onNavigate, onNavigateToProperty],
@@ -337,7 +337,7 @@ export interface InlineNodeBreadcrumbsProps {
   /** Context string (e.g., "via property_name") */
   context?: string;
   /** Callback when clicking a breadcrumb item */
-  onNavigate?: (nodeId: number, nodeType: 'page' | 'block') => void;
+  onNavigate?: (nodeId: number) => void;
   /** Additional CSS class */
   className?: string;
   /** Whether to show as compact inline */
@@ -387,7 +387,7 @@ export function InlineNodeBreadcrumbs({
         <NodeBreadcrumbsElement
           key={item.id}
           item={item}
-          onClick={() => onNavigate?.(item.id, item.isPage ? 'page' : 'block')}
+          onClick={() => onNavigate?.(item.id)}
           showSeparator={index < breadcrumbs.length - 1 || !!context}
         />
       ))}

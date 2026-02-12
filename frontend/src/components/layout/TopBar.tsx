@@ -53,7 +53,7 @@ export function TopBar() {
     // Refetch to ensure we have the latest (or create if needed)
     const result = await refetchToday();
     if (result.data) {
-      openNode(result.data.id, 'page');
+      openNode(result.data.id);
     }
   }, [refetchToday, openNode]);
 

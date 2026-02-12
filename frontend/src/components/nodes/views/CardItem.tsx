@@ -364,8 +364,8 @@ export const NodeCard = memo(function NodeCard({
 
   const handleOpenInView = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    openNode(node.id, node.is_page ? 'page' : 'block');
-  }, [node.id, node.is_page, openNode]);
+    openNode(node.id);
+  }, [node.id, openNode]);
 
   const handleOpenInSidebar = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

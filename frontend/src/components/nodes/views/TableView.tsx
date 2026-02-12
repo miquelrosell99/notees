@@ -161,7 +161,7 @@ export function TableView({
       if (inSidebar) {
         addSidebarCard(dailyNode.id, 'page');
       } else {
-        openNode(dailyNode.id, 'page');
+        openNode(dailyNode.id);
       }
     } catch (error) {
       console.error('Failed to open daily page:', error);
@@ -234,7 +234,7 @@ export function TableView({
                   emptyText="Add class"
                   searchPlaceholder="Search classes..."
                   onNodeClick={(classNode) => {
-                    openNode(classNode.id, 'page');
+                    openNode(classNode.id);
                   }}
                   onAdd={editable ? (classNode) => {
                     addClass.mutate({ nodeId: node.id, classId: classNode.id });

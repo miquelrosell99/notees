@@ -509,7 +509,7 @@ export function TimelineView({
           if (e.shiftKey) {
             addSidebarCard(dailyNode.id, 'page');
           } else {
-            openNode(dailyNode.id, 'page');
+            openNode(dailyNode.id);
           }
         } else if (interval >= 30 * 24 * 60 * 60 * 1000 && interval <= 90 * 24 * 60 * 60 * 1000) {
           // Monthly marker (30 days or 3 months)
@@ -517,7 +517,7 @@ export function TimelineView({
           if (e.shiftKey) {
             addSidebarCard(monthlyNode.id, 'page');
           } else {
-            openNode(monthlyNode.id, 'page');
+            openNode(monthlyNode.id);
           }
         } else if (interval >= 365 * 24 * 60 * 60 * 1000) {
           // Yearly marker
@@ -525,7 +525,7 @@ export function TimelineView({
           if (e.shiftKey) {
             addSidebarCard(yearlyNode.id, 'page');
           } else {
-            openNode(yearlyNode.id, 'page');
+            openNode(yearlyNode.id);
           }
         }
         return; // Don't check for events if marker was clicked
@@ -890,7 +890,7 @@ export function TimelineView({
               viewMode="list"
               editable={false}
               showClasses={true}
-              onNodeClick={(node) => openNode(node.id, node.is_page ? 'page' : 'block')}
+              onNodeClick={(node) => openNode(node.id)}
               onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
             />
           </div>
