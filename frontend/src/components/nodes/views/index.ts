@@ -17,11 +17,8 @@ export type { GraphViewProps } from './GraphView';
 export { TerrainView } from './TerrainView';
 export type { TerrainViewProps } from './TerrainView';
 export { TimelineView } from './TimelineView';
-export { NodeGraphRenderer } from './NodeGraphRenderer';
-export type { 
-  NodeGraphRendererRef,
-  GraphViewMode,
-} from './NodeGraphRenderer';
+export { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
+export { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 
 // Shared view types and helpers
 export * from './viewTypes';

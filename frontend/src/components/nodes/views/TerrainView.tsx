@@ -12,7 +12,7 @@
  * - Recenter button
  * - Search panel for node selection
  * 
- * Uses NodeGraphRenderer with terrain mode for visualization.
+ * Uses TerrainRenderer for visualization.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useClasses, useGraphLinks } from '@/hooks';
@@ -21,7 +21,7 @@ import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
-import { NodeGraphRenderer, type NodeGraphRendererRef } from './NodeGraphRenderer';
+import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, LinkDirection } from './viewTypes';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
 import { Button } from '@/components/core/Button';
@@ -75,7 +75,7 @@ export function TerrainView({
   showSearch = true,
   onNodeClick: customNodeClick,
 }: TerrainViewProps) {
-  const rendererRef = useRef<NodeGraphRendererRef>(null);
+  const rendererRef = useRef<TerrainRendererRef>(null);
   
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
@@ -636,12 +636,11 @@ export function TerrainView({
         </div>
       )}
       
-      {/* Terrain renderer - always uses 'terrain' view mode */}
-      <NodeGraphRenderer
+      {/* Terrain renderer */}
+      <TerrainRenderer
         ref={rendererRef}
         nodes={nodes}
         links={links}
-        viewMode="terrain"
         settings={graphSettings}
         classColors={classColors}
         visibilityFilters={visibilityFilters}
