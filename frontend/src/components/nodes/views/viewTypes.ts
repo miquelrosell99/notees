@@ -253,16 +253,22 @@ export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
   reference: 0,
 };
 
-// Terrain contour levels
-export const CONTOUR_LEVELS = [0.06, 0.15, 0.28, 0.42, 0.58, 0.75, 0.92];
+// Terrain height map parameters
+export const TERRAIN_MIN_HEIGHT = 0.15;
+
+// Terrain contour levels (evenly spaced between MIN_HEIGHT and 1.0)
+export const TERRAIN_CONTOUR_COUNT = 10;
+export const CONTOUR_LEVELS: number[] = Array.from(
+  { length: TERRAIN_CONTOUR_COUNT },
+  (_, i) => TERRAIN_MIN_HEIGHT + (1 - TERRAIN_MIN_HEIGHT) * (i + 1) / (TERRAIN_CONTOUR_COUNT + 1)
+);
 
 // Terrain height map parameters
-export const TERRAIN_GRID_RES = 6;
+export const TERRAIN_GRID_RES = 4;
 export const TERRAIN_BASE_PLATEAU_RADIUS = 20;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
 export const TERRAIN_BASE_SLOPE_RADIUS = 100;
 export const TERRAIN_PEAK_SLOPE_BONUS = 140;
-export const TERRAIN_MIN_HEIGHT = 0.15;
 
 // Terrain ridge parameters (parent-child connections)
 export const TERRAIN_RIDGE_PLATEAU_RADIUS = 5;
