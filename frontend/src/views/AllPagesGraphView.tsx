@@ -39,7 +39,6 @@ export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
       <GraphView
         viewId="global"
         nodes={graphData.nodes}
-        links={graphData.links}
         className="all-pages-graph-view__graph"
       />
     </div>

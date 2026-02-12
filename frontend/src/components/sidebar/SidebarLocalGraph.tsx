@@ -28,9 +28,9 @@ export function SidebarLocalGraph({
   const { data: graphData, isLoading } = useGraphData();
   const { data: centerNode } = useNode(nodeId);
   
-  // Extract local subgraph centered on nodeId
-  const { nodes, links } = useMemo(() => {
-    if (!graphData) return { nodes: [], links: [] };
+  // Extract local subgraph nodes centered on nodeId
+  const nodes = useMemo(() => {
+    if (!graphData) return [];
     
     // Build parent map from links
     const parentMap = new Map<number, number>();
@@ -75,14 +75,7 @@ export function SidebarLocalGraph({
     }
     
     // Filter nodes to include connected ones AND their ancestors
-    const localNodes = graphData.nodes.filter(n => allIds.has(n.id));
-    
-    // Filter links to only include those between local nodes
-    const localLinks = graphData.links.filter(
-      l => allIds.has(l.source) && allIds.has(l.target)
-    );
-    
-    return { nodes: localNodes, links: localLinks };
+    return graphData.nodes.filter(n => allIds.has(n.id));
   }, [graphData, nodeId]);
   
   if (isLoading) {
@@ -108,14 +101,13 @@ export function SidebarLocalGraph({
           {centerNode?.name || 'Local Graph'}
         </span>
         <span className="graph-view-local__stats">
-          {nodes.length} nodes • {links.length} connections
+          {nodes.length} nodes
         </span>
       </div>
       <div className="graph-view-local__content">
         <GraphView
           viewId={`local-${nodeId}`}
           nodes={nodes}
-          links={links}
           currentNodeId={nodeId}
           showSettings={false}
           showSearch={false}
