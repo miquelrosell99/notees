@@ -30,6 +30,11 @@ import {
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_MIN_HEIGHT,
+  TERRAIN_RIDGE_PLATEAU_RADIUS,
+  TERRAIN_RIDGE_PLATEAU_BONUS,
+  TERRAIN_RIDGE_SLOPE_RADIUS,
+  TERRAIN_RIDGE_SLOPE_BONUS,
+  TERRAIN_RIDGE_SAG,
   LABEL_FADE_ZOOM_MIN,
   LABEL_FADE_ZOOM_MAX,
   // Helpers
@@ -296,6 +301,93 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       nodeIdx++;
     }
     
+    // ==================== Ridge Generation (Parent-Child Links) ====================
+    // Build node.id → nodeIdx lookup
+    const nodeIdToIdx = new Map<number, number>();
+    for (let i = 0; i < visibleNodes.length; i++) {
+      nodeIdToIdx.set(visibleNodes[i].id, i);
+    }
+    
+    const visibleLinks = frameDataRef.current.visibleLinks;
+    for (const link of visibleLinks) {
+      if (link.type !== 'parent') continue;
+      
+      const srcIdx = nodeIdToIdx.get(link.source);
+      const tgtIdx = nodeIdToIdx.get(link.target);
+      if (srcIdx === undefined || tgtIdx === undefined) continue;
+      
+      const srcNode = visibleNodes[srcIdx];
+      const tgtNode = visibleNodes[tgtIdx];
+      const srcH = nodePeakH[srcIdx];
+      const tgtH = nodePeakH[tgtIdx];
+      if (!(srcH > 0) || !(tgtH > 0)) continue;
+      
+      // World → grid coordinates
+      const sx = (srcNode.x * t.scale + t.x) / TERRAIN_GRID_RES;
+      const sy = (srcNode.y * t.scale + t.y) / TERRAIN_GRID_RES;
+      const tx = (tgtNode.x * t.scale + t.x) / TERRAIN_GRID_RES;
+      const ty = (tgtNode.y * t.scale + t.y) / TERRAIN_GRID_RES;
+      
+      const rdx = tx - sx;
+      const rdy = ty - sy;
+      const lenSq = rdx * rdx + rdy * rdy;
+      if (lenSq < 1) continue;
+      const len = Math.sqrt(lenSq);
+      
+      // Ridge width scales with average peak size of connected nodes
+      const avgPeakSize = (
+        (terrainPeakRadii.get(srcNode.id) ?? 0) +
+        (terrainPeakRadii.get(tgtNode.id) ?? 0)
+      ) / 2;
+      const rRp = (TERRAIN_RIDGE_PLATEAU_RADIUS + TERRAIN_RIDGE_PLATEAU_BONUS * avgPeakSize) * t.scale / TERRAIN_GRID_RES;
+      const rRs = (TERRAIN_RIDGE_SLOPE_RADIUS + TERRAIN_RIDGE_SLOPE_BONUS * avgPeakSize) * t.scale / TERRAIN_GRID_RES;
+      const rRpSq = rRp * rRp;
+      const rRsSq = rRs * rRs;
+      const rInvSlopeRangeSq = rRsSq > rRpSq ? 1 / (rRsSq - rRpSq) : 0;
+      
+      // Bounding box for the ridge (expand by Rs perpendicular)
+      const rsInt = Math.ceil(rRs);
+      const minGx = Math.max(0, Math.floor(Math.min(sx, tx) - rsInt));
+      const maxGx = Math.min(gridW - 1, Math.ceil(Math.max(sx, tx) + rsInt));
+      const minGy = Math.max(0, Math.floor(Math.min(sy, ty) - rsInt));
+      const maxGy = Math.min(gridH - 1, Math.ceil(Math.max(sy, ty) + rsInt));
+      
+      for (let gy = minGy; gy <= maxGy; gy++) {
+        const rowOff = gy * gridW;
+        for (let gx = minGx; gx <= maxGx; gx++) {
+          // Project grid point onto ridge line segment
+          const px = gx - sx;
+          const py = gy - sy;
+          const proj = (px * rdx + py * rdy) / lenSq;
+          const tParam = Math.max(0, Math.min(1, proj));
+          
+          // Perpendicular distance to closest point on segment
+          const cx = sx + tParam * rdx;
+          const cy = sy + tParam * rdy;
+          const perpDistSq = (gx - cx) * (gx - cx) + (gy - cy) * (gy - cy);
+          
+          if (perpDistSq > rRsSq) continue;
+          
+          // Height interpolation with natural saddle sag
+          const lerpH = srcH + (tgtH - srcH) * tParam;
+          const sag = 1 - TERRAIN_RIDGE_SAG * 4 * tParam * (1 - tParam);
+          const ridgeH = lerpH * sag;
+          
+          // Same squared-distance falloff perpendicular to ridge
+          const ht = perpDistSq <= rRpSq
+            ? ridgeH
+            : ridgeH * (1 - (perpDistSq - rRpSq) * rInvSlopeRangeSq);
+          
+          const idx = rowOff + gx;
+          if (ht > heightMap[idx]) {
+            heightMap[idx] = ht;
+            // Owner = whichever node is nearer along the ridge
+            ownerMap[idx] = tParam < 0.5 ? srcIdx : tgtIdx;
+          }
+        }
+      }
+    }
+    
     // Apply gaussian blur (2 passes)
     const blurKernel = (src: Float32Array, dst: Float32Array, bw: number, bh: number) => {
       for (let y = 1; y < bh - 1; y++) {
@@ -317,203 +409,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
     
-    // ==================== Plateau Color Fill (Inset from Highest Contour) ====================
-    // Get muted fill color from CSS variables
-    const style = getComputedStyle(document.documentElement);
-    const plateauFillColor = style.getPropertyValue('--color-surface-container-high').trim() || '#e5e5e5';
-    
     const gs = TERRAIN_GRID_RES;
-    
-    // Extract highest contour (0.92) segments for each owner, then inset and fill
-    const ownerPaths = new Map<number, Path2D>();
-    const ownerSegments = new Map<number, Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>>();
-    const highestLevel = 0.92;
-    for (let gy = 0; gy < gridH - 1; gy++) {
-      const rowOff = gy * gridW;
-      const nextRowOff = rowOff + gridW;
-      const py = gy * gs;
-      for (let gx = 0; gx < gridW - 1; gx++) {
-        const tlIdx = rowOff + gx;
-        const trIdx = tlIdx + 1;
-        const blIdx = nextRowOff + gx;
-        const brIdx = blIdx + 1;
-        
-        const v00 = heightMap[tlIdx];
-        const v10 = heightMap[trIdx];
-        const v01 = heightMap[blIdx];
-        const v11 = heightMap[brIdx];
-        
-        // Determine owner at this cell
-        let maxH = v00, owner = ownerMap[tlIdx];
-        if (v10 > maxH) { maxH = v10; owner = ownerMap[trIdx]; }
-        if (v01 > maxH) { maxH = v01; owner = ownerMap[blIdx]; }
-        if (v11 > maxH) { maxH = v11; owner = ownerMap[brIdx]; }
-        if (owner < 0 || !(nodePeakH[owner] > 0)) continue;
-        
-        // Check if this cell crosses the highest contour level
-        const code = (v00 >= highestLevel ? 8 : 0) | (v10 >= highestLevel ? 4 : 0) |
-                     (v11 >= highestLevel ? 2 : 0) | (v01 >= highestLevel ? 1 : 0);
-        
-        if (code === 0 || code === 15) continue;
-        
-        // Check ownership dominance (inset filter)
-        const o00 = ownerMap[tlIdx];
-        const o10 = ownerMap[trIdx];
-        const o01 = ownerMap[blIdx];
-        const o11 = ownerMap[brIdx];
-        
-        let ownerCornerCount = 0;
-        if (o00 === owner) ownerCornerCount++;
-        if (o10 === owner) ownerCornerCount++;
-        if (o01 === owner) ownerCornerCount++;
-        if (o11 === owner) ownerCornerCount++;
-        
-        if (ownerCornerCount < 3) continue;
-        
-        const px = gx * gs;
-        
-        // Edge interpolation
-        const topD = v10 - v00;
-        const topT = topD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v00) / topD));
-        const rightD = v11 - v10;
-        const rightT = rightD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v10) / rightD));
-        const bottomD = v11 - v01;
-        const bottomT = bottomD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v01) / bottomD));
-        const leftD = v01 - v00;
-        const leftT = leftD === 0 ? 0.5 : Math.max(0, Math.min(1, (highestLevel - v00) / leftD));
-        
-        // Edge crossing points
-        const topPt = {x: px + topT * gs, y: py};
-        const rightPt = {x: px + gs, y: py + rightT * gs};
-        const bottomPt = {x: px + bottomT * gs, y: py + gs};
-        const leftPt = {x: px, y: py + leftT * gs};
-        
-        // Collect line segments based on marching squares code
-        if (!ownerSegments.has(owner)) ownerSegments.set(owner, []);
-        const segments = ownerSegments.get(owner)!;
-        
-        switch (code) {
-          case 1: segments.push({p1: leftPt, p2: bottomPt}); break;
-          case 2: segments.push({p1: bottomPt, p2: rightPt}); break;
-          case 3: segments.push({p1: leftPt, p2: rightPt}); break;
-          case 4: segments.push({p1: topPt, p2: rightPt}); break;
-          case 5: 
-            segments.push({p1: leftPt, p2: topPt});
-            segments.push({p1: bottomPt, p2: rightPt});
-            break;
-          case 6: segments.push({p1: topPt, p2: bottomPt}); break;
-          case 7: segments.push({p1: leftPt, p2: topPt}); break;
-          case 8: segments.push({p1: topPt, p2: leftPt}); break;
-          case 9: segments.push({p1: topPt, p2: bottomPt}); break;
-          case 10:
-            segments.push({p1: topPt, p2: rightPt});
-            segments.push({p1: leftPt, p2: bottomPt});
-            break;
-          case 11: segments.push({p1: topPt, p2: rightPt}); break;
-          case 12: segments.push({p1: leftPt, p2: rightPt}); break;
-          case 13: segments.push({p1: bottomPt, p2: rightPt}); break;
-          case 14: segments.push({p1: leftPt, p2: bottomPt}); break;
-        }
-      }
-    }
-    
-    // Helper: Chain segments into continuous contours
-    const chainSegments = (segments: Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>): Array<{x: number, y: number}>[] => {
-      const contours: Array<Array<{x: number, y: number}>> = [];
-      const used = new Set<number>();
-      const eps = 0.5;
-      
-      const pointsMatch = (p1: {x: number, y: number}, p2: {x: number, y: number}) => 
-        Math.abs(p1.x - p2.x) < eps && Math.abs(p1.y - p2.y) < eps;
-      
-      for (let i = 0; i < segments.length; i++) {
-        if (used.has(i)) continue;
-        
-        const contour: Array<{x: number, y: number}> = [segments[i].p1, segments[i].p2];
-        used.add(i);
-        
-        let extended = true;
-        while (extended && contour.length < segments.length) {
-          extended = false;
-          const end = contour[contour.length - 1];
-          
-          for (let j = 0; j < segments.length; j++) {
-            if (used.has(j)) continue;
-            const seg = segments[j];
-            
-            if (pointsMatch(end, seg.p1)) {
-              contour.push(seg.p2);
-              used.add(j);
-              extended = true;
-              break;
-            } else if (pointsMatch(end, seg.p2)) {
-              contour.push(seg.p1);
-              used.add(j);
-              extended = true;
-              break;
-            }
-          }
-        }
-        
-        // Close contour if endpoints match
-        if (contour.length > 2 && pointsMatch(contour[0], contour[contour.length - 1])) {
-          contour.pop();
-        }
-        
-        if (contour.length >= 3) {
-          contours.push(contour);
-        }
-      }
-      
-      return contours;
-    };
-    
-    // Second pass: Chain segments, inset, and fill
-    for (const [owner, segments] of ownerSegments) {
-      if (segments.length < 3) continue;
-      
-      const contours = chainSegments(segments);
-      if (contours.length === 0) continue;
-      
-      // Use the largest contour
-      const mainContour = contours.reduce((max, c) => c.length > max.length ? c : max, contours[0]);
-      
-      if (mainContour.length < 4) continue;
-      
-      // Calculate centroid
-      let cx = 0, cy = 0;
-      for (const p of mainContour) {
-        cx += p.x;
-        cy += p.y;
-      }
-      cx /= mainContour.length;
-      cy /= mainContour.length;
-      
-      // Inset points toward center
-      const insetFactor = 0.85;
-      const insetPoints = mainContour.map(p => ({
-        x: cx + (p.x - cx) * insetFactor,
-        y: cy + (p.y - cy) * insetFactor
-      }));
-      
-      // Create simple polygon fill (anti-aliased by canvas)
-      const path = new Path2D();
-      path.moveTo(insetPoints[0].x, insetPoints[0].y);
-      for (let i = 1; i < insetPoints.length; i++) {
-        path.lineTo(insetPoints[i].x, insetPoints[i].y);
-      }
-      path.closePath();
-      
-      ownerPaths.set(owner, path);
-    }
-    
-    // Fill each owner's plateau path with muted color
-    ctx.globalAlpha = 0.65;
-    ctx.fillStyle = plateauFillColor;
-    for (const [, path] of ownerPaths) {
-      ctx.fill(path);
-    }
-    ctx.globalAlpha = 1;
     
     // Read CSS variables (cached, refreshed on theme change)
     if (cssColorsDirtyRef.current || !cssColorsRef.current) {

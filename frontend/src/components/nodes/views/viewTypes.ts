@@ -264,6 +264,13 @@ export const TERRAIN_BASE_SLOPE_RADIUS = 100;
 export const TERRAIN_PEAK_SLOPE_BONUS = 140;
 export const TERRAIN_MIN_HEIGHT = 0.15;
 
+// Terrain ridge parameters (parent-child connections)
+export const TERRAIN_RIDGE_PLATEAU_RADIUS = 5;
+export const TERRAIN_RIDGE_PLATEAU_BONUS = 8;
+export const TERRAIN_RIDGE_SLOPE_RADIUS = 20;
+export const TERRAIN_RIDGE_SLOPE_BONUS = 40;
+export const TERRAIN_RIDGE_SAG = 0.15; // Height dip at ridge midpoint (0-1)
+
 // Line dash patterns (allocated once)
 export const LINE_DASH_NONE: number[] = [];
 export const LINE_DASH_DOTTED = [3, 3];
