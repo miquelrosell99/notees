@@ -346,6 +346,14 @@
   padding-left: 0 !important;
 }
 
+/* Suppress colored background for the root block in focused view */
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] > p,
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] > span,
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] > .notees-editor-paragraph {
+  background-color: transparent !important;
+  padding: 0 !important;
+}
+
 /* Add block button for focused block view */
 .focused-block-content-add {
   padding: var(--spacing-2) 0;
