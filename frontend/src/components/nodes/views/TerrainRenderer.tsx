@@ -178,8 +178,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Reusable typed-array buffers to avoid per-frame allocation
   const heightMapBufRef = useRef<Float32Array | null>(null);
   const tempMapBufRef = useRef<Float32Array | null>(null);
-  // Flat segment buffer: stored as [x1, y1, x2, y2, x1, y1, x2, y2, ...]
-  const segBufRef = useRef<Float32Array>(new Float32Array(4096));
   
   // ==================== Render Function ====================
   
@@ -209,7 +207,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // Skip contour rendering if not enough nodes
     if (visibleNodes.length < 2) return;
     
-    // Generate height field using overlapping terrain with preserved plateaus
+    // Generate height field
     const gridW = Math.ceil(w / TERRAIN_GRID_RES);
     const gridH = Math.ceil(h / TERRAIN_GRID_RES);
     const gridSize = gridW * gridH;
@@ -223,7 +221,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const tempMap = tempMapBufRef.current!;
     heightMap.fill(0, 0, gridSize);
     
-    // Build height map with MAX merge
+    // Build height map with MAX merge — sqrt-free using squared-distance interpolation
     for (const node of visibleNodes) {
       let H = terrainHeights.get(node.id) ?? 0;
       const peakSize = terrainPeakRadii.get(node.id) ?? 0;
@@ -233,7 +231,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
       const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) * t.scale / TERRAIN_GRID_RES;
-      const invSlopeWidth = 1 / (Rs - Rp);
+      const RpSq = Rp * Rp;
+      const RsSq = Rs * Rs;
+      const invSlopeRangeSq = 1 / (RsSq - RpSq);
       
       const centerX = (node.x * t.scale + t.x) / TERRAIN_GRID_RES;
       const centerY = (node.y * t.scale + t.y) / TERRAIN_GRID_RES;
@@ -243,7 +243,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const maxGx = Math.min(gridW - 1, Math.ceil(centerX + rsInt));
       const minGy = Math.max(0, Math.floor(centerY - rsInt));
       const maxGy = Math.min(gridH - 1, Math.ceil(centerY + rsInt));
-      const RsSq = Rs * Rs;
       
       for (let gy = minGy; gy <= maxGy; gy++) {
         const dy = gy - centerY;
@@ -255,8 +254,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           
           if (distSq > RsSq) continue;
           
-          const d = Math.sqrt(distSq);
-          const ht = d <= Rp ? H : H * (1 - (d - Rp) * invSlopeWidth);
+          // Squared-distance interpolation: avoids Math.sqrt entirely
+          // Produces a smooth cosine-like falloff instead of linear
+          const ht = distSq <= RpSq ? H : H * (1 - (distSq - RpSq) * invSlopeRangeSq);
           
           const idx = rowOff + gx;
           if (ht > heightMap[idx]) {
@@ -266,7 +266,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
     }
     
-    // Apply gaussian blur (2 passes instead of 4 — sufficient with larger grid)
+    // Apply gaussian blur (2 passes)
     const blurKernel = (src: Float32Array, dst: Float32Array, bw: number, bh: number) => {
       for (let y = 1; y < bh - 1; y++) {
         const row = y * bw;
@@ -280,7 +280,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           ) / 16;
         }
       }
-      // Copy edges
       for (let x = 0; x < bw; x++) { dst[x] = src[x]; dst[(bh - 1) * bw + x] = src[(bh - 1) * bw + x]; }
       for (let y = 0; y < bh; y++) { dst[y * bw] = src[y * bw]; dst[y * bw + bw - 1] = src[y * bw + bw - 1]; }
     };
@@ -309,13 +308,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     const { lowR, lowG, lowB, highR, highG, highB } = cssColorsRef.current;
     
-    // Draw contour lines
+    // Draw contour lines — direct segment drawing, no chaining or splines
     ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    ctx.lineCap = 'butt';
     ctx.setLineDash(LINE_DASH_NONE);
     
-    // Pre-compute grid height lookups inline (avoid function call overhead)
     const gs = TERRAIN_GRID_RES;
     
     for (const level of CONTOUR_LEVELS) {
@@ -324,28 +321,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const g = Math.round(lowG + (highG - lowG) * level);
       const b = Math.round(lowB + (highB - lowB) * level);
       ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-      ctx.lineWidth = 0.6 + level * 0.8;
+      ctx.lineWidth = 0.8 + level * 0.8;
       
-      // Marching squares with flat segment buffer
-      let segCount = 0;
-      let segBuf = segBufRef.current;
-      
-      const pushSeg = (x1: number, y1: number, x2: number, y2: number) => {
-        const off = segCount * 4;
-        if (off + 3 >= segBuf.length) {
-          const newBuf = new Float32Array(segBuf.length * 2);
-          newBuf.set(segBuf);
-          segBuf = newBuf;
-          segBufRef.current = newBuf;
-        }
-        segBuf[off] = x1; segBuf[off + 1] = y1;
-        segBuf[off + 2] = x2; segBuf[off + 3] = y2;
-        segCount++;
-      };
+      // Single batched path: marching squares segments drawn directly
+      ctx.beginPath();
       
       for (let gy = 0; gy < gridH - 1; gy++) {
         const rowOff = gy * gridW;
         const nextRowOff = rowOff + gridW;
+        const py = gy * gs;
         for (let gx = 0; gx < gridW - 1; gx++) {
           const v00 = heightMap[rowOff + gx];
           const v10 = heightMap[rowOff + gx + 1];
@@ -357,10 +341,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           
           if (code === 0 || code === 15) continue;
           
-          // Compute edge interpolations inline
           const px = gx * gs;
-          const py = gy * gs;
           
+          // Inline edge interpolation
           const topD = v10 - v00;
           const topT = topD === 0 ? 0.5 : (level - v00) / topD;
           const rightD = v11 - v10;
@@ -376,165 +359,27 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const bottomX = px + bottomT * gs, bottomY = py + gs;
           const leftX = px, leftY = py + leftT * gs;
           
+          // Draw segments directly into the batched path
           switch (code) {
-            case 1: pushSeg(leftX, leftY, bottomX, bottomY); break;
-            case 2: pushSeg(bottomX, bottomY, rightX, rightY); break;
-            case 3: pushSeg(leftX, leftY, rightX, rightY); break;
-            case 4: pushSeg(topX, topY, rightX, rightY); break;
-            case 5: pushSeg(leftX, leftY, topX, topY); pushSeg(bottomX, bottomY, rightX, rightY); break;
-            case 6: pushSeg(topX, topY, bottomX, bottomY); break;
-            case 7: pushSeg(leftX, leftY, topX, topY); break;
-            case 8: pushSeg(topX, topY, leftX, leftY); break;
-            case 9: pushSeg(topX, topY, bottomX, bottomY); break;
-            case 10: pushSeg(topX, topY, rightX, rightY); pushSeg(leftX, leftY, bottomX, bottomY); break;
-            case 11: pushSeg(topX, topY, rightX, rightY); break;
-            case 12: pushSeg(leftX, leftY, rightX, rightY); break;
-            case 13: pushSeg(bottomX, bottomY, rightX, rightY); break;
-            case 14: pushSeg(leftX, leftY, bottomX, bottomY); break;
+            case 1: ctx.moveTo(leftX, leftY); ctx.lineTo(bottomX, bottomY); break;
+            case 2: ctx.moveTo(bottomX, bottomY); ctx.lineTo(rightX, rightY); break;
+            case 3: ctx.moveTo(leftX, leftY); ctx.lineTo(rightX, rightY); break;
+            case 4: ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); break;
+            case 5: ctx.moveTo(leftX, leftY); ctx.lineTo(topX, topY); ctx.moveTo(bottomX, bottomY); ctx.lineTo(rightX, rightY); break;
+            case 6: ctx.moveTo(topX, topY); ctx.lineTo(bottomX, bottomY); break;
+            case 7: ctx.moveTo(leftX, leftY); ctx.lineTo(topX, topY); break;
+            case 8: ctx.moveTo(topX, topY); ctx.lineTo(leftX, leftY); break;
+            case 9: ctx.moveTo(topX, topY); ctx.lineTo(bottomX, bottomY); break;
+            case 10: ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); ctx.moveTo(leftX, leftY); ctx.lineTo(bottomX, bottomY); break;
+            case 11: ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); break;
+            case 12: ctx.moveTo(leftX, leftY); ctx.lineTo(rightX, rightY); break;
+            case 13: ctx.moveTo(bottomX, bottomY); ctx.lineTo(rightX, rightY); break;
+            case 14: ctx.moveTo(leftX, leftY); ctx.lineTo(bottomX, bottomY); break;
           }
         }
       }
       
-      // Chain segments into polylines using integer key hashing
-      if (segCount > 0) {
-        const EPS_INV = 2; // 1/0.5
-        const intKey = (x: number, y: number) => (Math.round(x * EPS_INV) + 100000) * 200001 + (Math.round(y * EPS_INV) + 100000);
-        const chains: Array<Array<[number, number]>> = [];
-        const used = new Uint8Array(segCount);
-        
-        const endpointIndex = new Map<number, number[]>();
-        for (let i = 0; i < segCount; i++) {
-          const off = i * 4;
-          const k1 = intKey(segBuf[off], segBuf[off + 1]);
-          const k2 = intKey(segBuf[off + 2], segBuf[off + 3]);
-          let arr1 = endpointIndex.get(k1);
-          if (!arr1) { arr1 = []; endpointIndex.set(k1, arr1); }
-          arr1.push(i);
-          let arr2 = endpointIndex.get(k2);
-          if (!arr2) { arr2 = []; endpointIndex.set(k2, arr2); }
-          arr2.push(i);
-        }
-        
-        for (let i = 0; i < segCount; i++) {
-          if (used[i]) continue;
-          used[i] = 1;
-          const off = i * 4;
-          const chain: Array<[number, number]> = [
-            [segBuf[off], segBuf[off + 1]],
-            [segBuf[off + 2], segBuf[off + 3]]
-          ];
-          
-          // Extend forward
-          let currentEnd = intKey(segBuf[off + 2], segBuf[off + 3]);
-          let extended = true;
-          while (extended) {
-            extended = false;
-            const candidates = endpointIndex.get(currentEnd);
-            if (candidates) {
-              for (const ci of candidates) {
-                if (used[ci]) continue;
-                const co = ci * 4;
-                const k1 = intKey(segBuf[co], segBuf[co + 1]);
-                const k2 = intKey(segBuf[co + 2], segBuf[co + 3]);
-                if (k1 === currentEnd) {
-                  used[ci] = 1;
-                  chain.push([segBuf[co + 2], segBuf[co + 3]]);
-                  currentEnd = k2;
-                  extended = true;
-                  break;
-                } else if (k2 === currentEnd) {
-                  used[ci] = 1;
-                  chain.push([segBuf[co], segBuf[co + 1]]);
-                  currentEnd = k1;
-                  extended = true;
-                  break;
-                }
-              }
-            }
-          }
-          
-          // Extend backward
-          let currentStart = intKey(chain[0][0], chain[0][1]);
-          extended = true;
-          while (extended) {
-            extended = false;
-            const candidates = endpointIndex.get(currentStart);
-            if (candidates) {
-              for (const ci of candidates) {
-                if (used[ci]) continue;
-                const co = ci * 4;
-                const k1 = intKey(segBuf[co], segBuf[co + 1]);
-                const k2 = intKey(segBuf[co + 2], segBuf[co + 3]);
-                if (k1 === currentStart) {
-                  used[ci] = 1;
-                  chain.unshift([segBuf[co + 2], segBuf[co + 3]]);
-                  currentStart = k2;
-                  extended = true;
-                  break;
-                } else if (k2 === currentStart) {
-                  used[ci] = 1;
-                  chain.unshift([segBuf[co], segBuf[co + 1]]);
-                  currentStart = k1;
-                  extended = true;
-                  break;
-                }
-              }
-            }
-          }
-          
-          if (chain.length >= 2) {
-            chains.push(chain);
-          }
-        }
-        
-        // Draw chains as Catmull-Rom splines (single smoothing pass)
-        for (let chain of chains) {
-          if (chain.length < 2) continue;
-          
-          // Single smooth pass for chains long enough
-          if (chain.length >= 5) {
-            const smoothed: Array<[number, number]> = [[chain[0][0], chain[0][1]]];
-            for (let i = 1; i < chain.length - 1; i++) {
-              smoothed.push([
-                (chain[i - 1][0] + chain[i][0] * 2 + chain[i + 1][0]) / 4,
-                (chain[i - 1][1] + chain[i][1] * 2 + chain[i + 1][1]) / 4
-              ]);
-            }
-            smoothed.push([chain[chain.length - 1][0], chain[chain.length - 1][1]]);
-            chain = smoothed;
-          }
-          
-          ctx.beginPath();
-          
-          if (chain.length === 2) {
-            ctx.moveTo(chain[0][0], chain[0][1]);
-            ctx.lineTo(chain[1][0], chain[1][1]);
-          } else if (chain.length === 3) {
-            ctx.moveTo(chain[0][0], chain[0][1]);
-            ctx.quadraticCurveTo(chain[1][0], chain[1][1], chain[2][0], chain[2][1]);
-          } else {
-            const tension = 4;
-            ctx.moveTo(chain[0][0], chain[0][1]);
-            
-            for (let j = 0; j < chain.length - 1; j++) {
-              const p0 = chain[Math.max(0, j - 1)];
-              const p1 = chain[j];
-              const p2 = chain[j + 1];
-              const p3 = chain[Math.min(chain.length - 1, j + 2)];
-              
-              ctx.bezierCurveTo(
-                p1[0] + (p2[0] - p0[0]) / tension,
-                p1[1] + (p2[1] - p0[1]) / tension,
-                p2[0] - (p3[0] - p1[0]) / tension,
-                p2[1] - (p3[1] - p1[1]) / tension,
-                p2[0], p2[1]
-              );
-            }
-          }
-          
-          ctx.stroke();
-        }
-      }
+      ctx.stroke();
     }
     
     ctx.restore();
