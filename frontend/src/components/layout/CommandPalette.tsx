@@ -217,7 +217,7 @@ function ResultItem({
       </span>
       <span className="command-palette__result-content">
         <span className="command-palette__result-name">
-          {result.node.name || 'Untitled'}
+          {nodeNameToText(result.node.name) || 'Untitled'}
         </span>
         {result.breadcrumb && (
           <span className="command-palette__result-breadcrumb">
@@ -272,7 +272,7 @@ export function CommandPalette({
   // Get destination page for quick add
   const { data: todayNote } = useTodayNote();
   const { data: allPages } = usePages({ includeChildren: true });
-  const inboxPage = allPages?.find(p => p.name === 'Inbox');
+  const inboxPage = allPages?.find(p => nodeNameToText(p.name) === 'Inbox');
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
   
   // Categorize results
@@ -308,7 +308,7 @@ export function CommandPalette({
     if (parsedDate) {
       const dateTypeLabel = parsedDate.type === 'day' ? 'daily' : parsedDate.type === 'month' ? 'monthly' : 'yearly';
       if (existingDateNode) {
-        items.push({ type: 'date', label: `Go to ${dateTypeLabel} page: ${existingDateNode.name || parsedDate.label}`, parsedDate, existingNode: existingDateNode });
+        items.push({ type: 'date', label: `Go to ${dateTypeLabel} page: ${nodeNameToText(existingDateNode.name) || parsedDate.label}`, parsedDate, existingNode: existingDateNode });
       } else {
         items.push({ type: 'date', label: `Create ${dateTypeLabel} page: ${parsedDate.label}`, parsedDate });
       }
@@ -319,9 +319,9 @@ export function CommandPalette({
     
     // Add page option if query exists and no exact match
     const classLabels = selectedClasses.length > 0 
-      ? ` with ${selectedClasses.length === 1 ? `class "${selectedClasses[0].name}"` : `${selectedClasses.length} classes`}`
+      ? ` with ${selectedClasses.length === 1 ? `class "${nodeNameToText(selectedClasses[0].name)}"` : `${selectedClasses.length} classes`}`
       : '';
-    if (pageNameForCreation && !pages.some(p => p.node?.name?.toLowerCase() === pageNameForCreation.toLowerCase())) {
+    if (pageNameForCreation && !pages.some(p => nodeNameToText(p.node?.name)?.toLowerCase() === pageNameForCreation.toLowerCase())) {
       items.push({ type: 'add-page', label: `Create page "${pageNameForCreation}"${classLabels}` });
     }
     
