@@ -400,13 +400,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     ctx.lineCap = 'butt';
     ctx.setLineDash(LINE_DASH_NONE);
     
-    for (const level of CONTOUR_LEVELS) {
+    for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
+      const level = CONTOUR_LEVELS[li];
+      const isMajor = (li + 1) % 5 === 0;
       const opacity = 0.25 + level * 0.5;
       const r = Math.round(lowR + (highR - lowR) * level);
       const g = Math.round(lowG + (highG - lowG) * level);
       const b = Math.round(lowB + (highB - lowB) * level);
       ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-      ctx.lineWidth = 0.8 + level * 0.8;
+      ctx.lineWidth = isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
       
       // Single batched path: marching squares segments drawn directly
       ctx.beginPath();
