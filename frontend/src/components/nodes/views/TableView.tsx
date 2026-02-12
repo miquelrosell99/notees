@@ -25,7 +25,7 @@ import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from
 import { Table } from '../../core/Table';
 import { DragHandleIcon } from '../../core/icons';
 import { PropertyCell } from '../../properties/PropertyCell';
-import { NodeSelector } from '../../NodeSelector';
+import { NodeSelector } from '../NodeSelector';
 import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
