@@ -19,23 +19,3 @@
   display: block;
   cursor: grab;
 }
-
-/* ==================== Terrain Mode Overlay ==================== */
-
-.node-graph-renderer__terrain-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.terrain-node {
-  transition: opacity 0.15s ease;
-  cursor: pointer;
-}
-
-.terrain-node .bullet {
-  /* Bullet is centered at node position, no additional transform needed */
-}
