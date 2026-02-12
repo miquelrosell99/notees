@@ -71,14 +71,11 @@ export function NodeContent({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const handleAddBlock = useCallback(async () => {
-    // Compute next sequence from all node children (not just filtered ones)
-    const maxSequence = node.children?.reduce((max, child) => 
-      Math.max(max, child.sequence ?? 0), -1) ?? -1;
-    
+    // Add child block at the top
     const newNode = await createNode.mutateAsync({
       name: '',
       parent_id: node.id,
-      sequence: maxSequence + 1,
+      sequence: 0, // Add at top
     });
     // Request focus on the newly created block so the editor focuses it after sync
     const runtime = getNodeGraphRuntime();
