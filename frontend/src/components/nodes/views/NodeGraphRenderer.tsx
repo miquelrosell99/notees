@@ -2254,16 +2254,20 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       // Allocate height map (reuse if same size)
       const heightMap = new Float32Array(gridW * gridH);
       
-      // Terrain parameters
-      const BASE_PLATEAU_RADIUS = 15;  // base plateau radius in world coords
-      const PEAK_PLATEAU_BONUS = 25;   // additional plateau per unit peak size
-      const BASE_SLOPE_RADIUS = 80;    // base slope radius in world coords  
-      const PEAK_SLOPE_BONUS = 120;    // additional slope per unit peak size
+      // Terrain parameters - ensure even small nodes create visible terrain
+      const BASE_PLATEAU_RADIUS = 25;  // base plateau radius in world coords
+      const PEAK_PLATEAU_BONUS = 35;   // additional plateau per unit peak size
+      const BASE_SLOPE_RADIUS = 100;   // base slope radius in world coords  
+      const PEAK_SLOPE_BONUS = 140;    // additional slope per unit peak size
+      const MIN_HEIGHT = 0.15;         // minimum height for any node
       
       // Build height map with MAX merge
       for (const node of visibleNodes) {
-        const H = terrainHeights.get(node.id) ?? 0;
+        let H = terrainHeights.get(node.id) ?? 0;
         const peakSize = terrainPeakRadii.get(node.id) ?? 0;
+        
+        // Ensure minimum height so all nodes create visible terrain
+        if (H > 0) H = Math.max(H, MIN_HEIGHT);
         if (H <= 0) continue;
         
         // Calculate plateau and slope radii based on peak size (link count)
