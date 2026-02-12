@@ -2,11 +2,11 @@
  * SidebarCardLocalGraph Component
  * 
  * A sidebar card that displays the local graph for a specific node.
- * Shows the page name as the card title and renders GraphViewLocal in the content.
+ * Shows the page name as the card title and renders SidebarLocalGraph in the content.
  */
 import { useNode } from '@/hooks';
 import { SidebarCard } from './SidebarCard';
-import { GraphViewLocal } from '../nodeGraph';
+import { SidebarLocalGraph } from './SidebarLocalGraph';
 import './SidebarCardLocalGraph.css';
 
 interface SidebarCardLocalGraphProps {
@@ -30,7 +30,7 @@ export function SidebarCardLocalGraph({ nodeId, onClose }: SidebarCardLocalGraph
       loading={isLoading}
       error={error ? 'Failed to load node' : undefined}
     >
-      <GraphViewLocal nodeId={nodeId} className="sidebar-card-local-graph__content" />
+      <SidebarLocalGraph nodeId={nodeId} className="sidebar-card-local-graph__content" />
     </SidebarCard>
   );
 }

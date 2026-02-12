@@ -9,9 +9,9 @@ import { mdiEye, mdiEyeOff, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
 import type { Property } from '@/types';
 import { useProperties } from '@/hooks';
-import { Button } from '../core/Button';
-import { ColorButton } from '../core/ColorButton';
-import { SearchBox } from '../core/SearchBox';
+import { Button } from '../../core/Button';
+import { ColorButton } from '../../core/ColorButton';
+import { SearchBox } from '../../core/SearchBox';
 
 export interface DatePropertyConfig {
   property: string;

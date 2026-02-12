@@ -1,13 +1,13 @@
 /**
- * Login page component
+ * Login view component
  */
 import { useState } from 'react';
-import './LoginPage.css';
+import './LoginView.css';
 import { useAuthStore } from '@/stores';
 import { Button } from '../components/core/Button';
 import { TextField } from '../components/core/TextField';
 
-export function LoginPage() {
+export function LoginView() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);

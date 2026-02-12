@@ -13,7 +13,7 @@ export { SettingsModal } from './layout/SettingsModal';
 export { Scratchpad } from './layout/Scratchpad';
 
 // Auth components
-export { LoginPage } from '../views/LoginPage';
+export { LoginView } from '../views/LoginView';
 
 // Page components
 export { NodeView } from '../views/NodeView';
@@ -74,20 +74,18 @@ export { QuickAddPanel } from './quickadd/QuickAddPanel';
 export { SidebarCard } from './sidebar/SidebarCard';
 
 // Node graph visualization components (force-directed graph)
-export { 
-  NodeGraphRenderer,
-  NodeGraphView,
-  GraphViewAllCard,
-  GraphViewLocal,
-} from './nodeGraph';
+export { NodeGraphRenderer } from './nodes/views/NodeGraphRenderer';
+export { GraphView } from './nodes/views/GraphView';
+export { GraphMinimap } from './layout/GraphMinimap';
+export { SidebarLocalGraph } from './sidebar/SidebarLocalGraph';
 export type { 
   NodeGraphRendererRef,
   GraphNode,
   GraphLink,
-  NodeGraphViewProps,
-  GraphViewAllCardProps,
-  GraphViewLocalProps,
-} from './nodeGraph';
+} from './nodes/views/NodeGraphRenderer';
+export type { GraphViewProps } from './nodes/views/GraphView';
+export type { GraphMinimapProps } from './layout/GraphMinimap';
+export type { SidebarLocalGraphProps } from './sidebar/SidebarLocalGraph';
 
 // View components
 export { AllPagesView } from '../views/AllPagesView';
@@ -131,6 +129,8 @@ export { DocumentView } from './nodes/views/DocumentView';
 export { CardView } from './nodes/views/CardView';
 export { TableView } from './nodes/views/TableView';
 export { GanttView } from './nodes/views/GanttView';
+export { GraphView as GraphViewComponent } from './nodes/views/GraphView';
+export { TimelineView } from './nodes/views/TimelineView';
 
 // Query builder components
 export { ViewBuilder } from './queries';

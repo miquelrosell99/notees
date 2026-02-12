@@ -22,7 +22,7 @@ import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { RightSidebarCards } from '../sidebar/RightSidebarCards';
-import { GraphViewAllCard } from '../nodeGraph';
+import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from '../sidebar/CommentsSidebar';
 import { ImportDataModal } from '../workspace/ImportDataModal';
@@ -295,7 +295,7 @@ export function Layout() {
               size="xs"
               variant="ghost"
             />
-            <GraphViewAllCard currentNodeId={currentNodeId} />
+            <GraphMinimap currentNodeId={currentNodeId} />
           </div>
         )}
       </div>

@@ -13,7 +13,7 @@ import { queryClient } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
 import { getSettings } from './api/databases';
 import { Layout } from './components/layout/Layout';
-import { LoginPage } from './views/LoginPage';
+import { LoginView } from './views/LoginView';
 import { WorkspaceManagementView } from './views/WorkspaceManagementView';
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
@@ -161,7 +161,7 @@ function AppContent() {
       }
       window.history.replaceState(null, '', '/auth');
     }
-    return <LoginPage />;
+    return <LoginView />;
   }
   
   // Redirect away from /auth when authenticated

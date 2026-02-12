@@ -4,7 +4,7 @@
  * Groups pages by time period and date property to create timeline events.
  */
 import type { Node } from '@/types';
-import type { TimeEvent, DatePropertyConfig, ZoomLevel } from '../types';
+import type { TimeEvent, DatePropertyConfig, ZoomLevel } from '../timelineTypes';
 import { formatDateUuid, normalizeDate } from './dateUtils';
 
 export function generateTimeEvents(

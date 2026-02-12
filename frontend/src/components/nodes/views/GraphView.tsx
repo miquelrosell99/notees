@@ -1,15 +1,10 @@
 /**
- * NodeGraphView Component
+ * GraphView Component
  * 
- * Universal graph view component. Can operate in two modes:
+ * NodeCollection view mode for force-directed graph visualization.
+ * Always receives nodes/links as props from the parent.
  * 
- * **Self-fetching mode** (default): Fetches all graph data via useGraphData().
- *   Used for the global graph view in the main content area.
- * 
- * **Controlled mode**: Receives nodes/links as props.
- *   Used for minimap, sidebar local graph, and NodeCollection graph mode.
- * 
- * Features (when chrome=true):
+ * Features:
  * - Settings panel (link count attraction, node size mode)
  * - Type colors panel with drag reorder
  * - Type visibility toggle
@@ -22,7 +17,7 @@
  * Uses NodeGraphRenderer for the actual visualization.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useGraphData, useClasses } from '@/hooks';
+import { useClasses } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -39,15 +34,15 @@ import {
   type ConstraintMode,
 } from './NodeGraphRenderer';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter } from '@mdi/js';
-import { Button } from '../core/Button';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
-import { SelectionButton } from '../core/SelectionButton';
-import { ListSortable } from '../core/ListSortable';
-import { BooleanToggle } from '../core/BooleanToggle';
-import { ClassColorsPanel } from '../shared/ClassColorsPanel';
-import type { ClassColor } from '../shared/ClassColorsPanel';
+import { Button } from '@/components/core/Button';
+import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { ListSortable } from '@/components/core/ListSortable';
+import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { ClassColorsPanel } from '@/components/shared/ClassColorsPanel';
+import type { ClassColor } from '@/components/shared/ClassColorsPanel';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
-import './NodeGraphView.css';
+import './GraphView.css';
 
 // Default class colors
 const DEFAULT_CLASS_COLORS = [
@@ -55,19 +50,23 @@ const DEFAULT_CLASS_COLORS = [
   '#ec4899', '#14b8a6', '#f97316', '#3b82f6', '#84cc16',
 ];
 
-export interface NodeGraphViewProps {
+export interface GraphViewProps {
   /** Unique ID for this view to persist settings separately */
   viewId?: string;
   /** CSS class */
   className?: string;
-  /** External nodes (controlled mode). When provided, skips internal data fetching. */
-  nodes?: ApiGraphNode[];
-  /** External links (controlled mode). When provided, skips internal data fetching. */
+  /** Graph nodes to display */
+  nodes: ApiGraphNode[];
+  /** Graph links between nodes */
   links?: ApiGraphLink[];
   /** Currently highlighted node ID (e.g., current page for minimap) */
   currentNodeId?: number | null;
-  /** Show UI chrome (settings, colors, visibility, search, mode switcher). Default: true */
-  chrome?: boolean;
+  /** Show settings panels (graph settings, class colors, visibility filters, animation). Default: true */
+  showSettings?: boolean;
+  /** Show search box and node selection panel. Default: true */
+  showSearch?: boolean;
+  /** Show view mode switcher (normal, circle, tree). Default: true */
+  showViewModes?: boolean;
   /** Node click handler override */
   onNodeClick?: (nodeId: number) => void;
 }
@@ -81,20 +80,19 @@ interface SelectedNodeItem {
 // Helper to get localStorage key for a view
 const getStorageKey = (viewId: string, key: string) => `graph_${viewId}_${key}`;
 
-export function NodeGraphView({ 
-  viewId = 'global', 
+export function GraphView({ 
+  viewId = 'default', 
   className = '',
-  nodes: externalNodes,
-  links: externalLinks,
+  nodes: apiNodes,
+  links: apiLinks = [],
   currentNodeId = null,
-  chrome = true,
+  showSettings = true,
+  showSearch = true,
+  showViewModes = true,
   onNodeClick: customNodeClick,
-}: NodeGraphViewProps) {
+}: GraphViewProps) {
   const rendererRef = useRef<NodeGraphRendererRef>(null);
-  const isControlled = externalNodes !== undefined;
   
-  // Data hooks — only fetch when not in controlled mode
-  const { data: graphData, isLoading } = useGraphData({ enabled: !isControlled });
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
   const { openNode, addSidebarCard } = useAppStore();
@@ -270,9 +268,9 @@ export function NodeGraphView({
     return set;
   }, [classes]);
   
-  // Resolve data source: external props or fetched data
-  const sourceNodes = isControlled ? externalNodes : graphData?.nodes;
-  const sourceLinks = isControlled ? (externalLinks ?? []) : (graphData?.links ?? []);
+  // Data source: always from props
+  const sourceNodes = apiNodes;
+  const sourceLinks = apiLinks;
   
   // Convert API data to renderer format
   const { nodes, links } = useMemo(() => {
@@ -443,14 +441,6 @@ export function NodeGraphView({
     { value: 'tree', icon: mdiFileTreeOutline, label: 'Tree layout' },
   ];
   
-  if (!isControlled && isLoading) {
-    return (
-      <div className={`node-graph-view loading ${className}`}>
-        <div className="node-graph-view__loading">Loading graph...</div>
-      </div>
-    );
-  }
-  
   if (!sourceNodes || sourceNodes.length === 0) {
     return (
       <div className={`node-graph-view empty ${className}`}>
@@ -464,8 +454,8 @@ export function NodeGraphView({
   
   return (
     <div className={`node-graph-view ${className}`}>
-      {/* Top Left: Settings panels (chrome only) */}
-      {chrome && (
+      {/* Top Left: Settings panels */}
+      {showSettings && (
       <div className="node-graph-view__top-left">
         <ButtonWithPanel
           icon={mdiCog}
@@ -696,8 +686,8 @@ export function NodeGraphView({
       </div>
       )}
       
-      {/* Top Right: Search and selection (chrome only) */}
-      {chrome && (
+      {/* Top Right: Search and selection */}
+      {showSearch && (
       <div className="node-graph-view__top-right">
         <div className="graph-search-panel">
           <div className="graph-search-input-container">
@@ -781,8 +771,8 @@ export function NodeGraphView({
         className="node-graph-view__renderer"
       />
       
-      {/* Bottom Center: Mode switcher (chrome only) */}
-      {chrome && (
+      {/* Bottom Center: Mode switcher */}
+      {showViewModes && (
       <div className="node-graph-view__bottom-center">
         <SelectionButton
           options={modeOptions}
@@ -815,4 +805,4 @@ export function NodeGraphView({
   );
 }
 
-export default NodeGraphView;
+export default GraphView;

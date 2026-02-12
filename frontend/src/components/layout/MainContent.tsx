@@ -15,8 +15,8 @@ import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
 import { TrashView } from '../../views/TrashView';
 import { JournalsView } from '../../views/JournalsView';
-import { NodeGraphView } from '../nodeGraph';
-import { TimelineViewAll } from '../timeline/TimelineViewAll';
+import { AllPagesGraphView } from '../../views/AllPagesGraphView';
+import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
 import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyView';
 
 export function MainContent() {
@@ -88,7 +88,7 @@ export function MainContent() {
   if (mainViewType === 'graph') {
     return (
       <main className="main-content graph-content">
-        <NodeGraphView viewId="global" className="main-graph-view" />
+        <AllPagesGraphView className="main-graph-view" />
       </main>
     );
   }
@@ -96,7 +96,7 @@ export function MainContent() {
   if (mainViewType === 'timeline') {
     return (
       <main className="main-content timeline-content">
-        <TimelineViewAll className="main-timeline-view" />
+        <AllPagesTimelineView className="main-timeline-view" />
       </main>
     );
   }
