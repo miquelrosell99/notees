@@ -156,10 +156,10 @@ export function GraphView({
           // Handle both formats: raw object (new) or JSON string (legacy).
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
-            // Migrate legacy data: typeName → className, convert raw AST to text
+            // Convert raw AST class names to text
             console.log('[GraphView] Loading class colors, raw:', JSON.stringify(parsed));
             const migrated = parsed.map((cc: Record<string, unknown>) => {
-              const rawName = (cc.className ?? cc.typeName ?? '') as string;
+              const rawName = (cc.className ?? '') as string;
               const converted = nodeNameToText(rawName);
               console.log('[GraphView] Migrate class color:', { rawName, converted, type: typeof rawName });
               return {
