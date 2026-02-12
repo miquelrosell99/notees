@@ -357,10 +357,10 @@ export interface GraphData {
 }
 
 /**
- * Get graph data for visualization
+ * Get workspace data for visualization
  */
-export async function getGraphData(): Promise<GraphData> {
-  const response = await api.get<GraphData>(`${BASE}/graph`);
+export async function getWorkspaceData(): Promise<GraphData> {
+  const response = await api.get<GraphData>(`${BASE}/workspace`);
   return response.data;
 }
 
