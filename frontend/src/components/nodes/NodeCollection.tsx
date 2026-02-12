@@ -281,6 +281,8 @@ export function NodeCollection({
             pageId={pageId}
             pageUuid={pageUuid}
             className={viewProps.className}
+            groupBy={groupBy}
+            enableGrouping={enableGrouping}
           />
         );
       
@@ -312,6 +314,7 @@ export function NodeCollection({
             onAdd={onAdd}
             customContextMenu={customContextMenu}
             className={viewProps.className}
+            groupBy={groupBy}
           />
         );
       

@@ -56,6 +56,7 @@ export function CardModeView({
   onAdd,
   customContextMenu,
   className = '',
+  groupBy = 'none',
 }: NodeCardViewProps): JSX.Element {
   const viewId = useId();
 
@@ -92,6 +93,46 @@ export function CardModeView({
 
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
+
+  // Group nodes by page when groupBy='page'
+  const groupedNodes = useMemo(() => {
+    if (groupBy !== 'page') {
+      return null; // No grouping
+    }
+
+    // Group nodes by their page
+    const groups = new Map<string, { page: Node | null; nodes: Node[] }>();
+    
+    for (const node of sortedNodes) {
+      // Use page info from metadata (for linked refs) or from the node itself
+      const pageKey = (node as any).page_id 
+        ? `page-${(node as any).page_id}` 
+        : node.is_page 
+          ? `self-${node.id}` 
+          : 'no-page';
+      
+      if (!groups.has(pageKey)) {
+        // Extract page node if available
+        let pageNode: Node | null = null;
+        if ((node as any).page_id) {
+          pageNode = {
+            id: (node as any).page_id,
+            name: (node as any).page_name || 'Untitled',
+            uuid: (node as any).page_uuid || '',
+            is_page: true,
+          } as Node;
+        } else if (node.is_page) {
+          pageNode = node;
+        }
+        
+        groups.set(pageKey, { page: pageNode, nodes: [] });
+      }
+      
+      groups.get(pageKey)!.nodes.push(node);
+    }
+    
+    return Array.from(groups.values());
+  }, [sortedNodes, groupBy]);
 
   const gridStyle = columns
     ? { gridTemplateColumns: `repeat(${columns}, 1fr)` }
@@ -175,9 +216,62 @@ export function CardModeView({
     selectable && 'node-card-view--selectable',
     layout === 'cover-top' && 'node-card-view--vertical-layout',
     `node-card-view--size-${cardSize}`,
+    groupedNodes && 'node-card-view--kanban',
     className,
   ].filter(Boolean).join(' ');
 
+  // Kanban view (grouped by page)
+  if (groupedNodes) {
+    return (
+      <div className={gridClassName} ref={containerRef}>
+        {groupedNodes.map((group, groupIndex) => {
+          const groupKey = group.page?.id 
+            ? `page-${group.page.id}` 
+            : `group-${groupIndex}`;
+          
+          return (
+            <div key={groupKey} className="node-card-view__kanban-column">
+              <div className="node-card-view__kanban-header">
+                {group.page ? (
+                  <>
+                    {group.page.icon && <span className="node-card-view__kanban-icon">{group.page.icon}</span>}
+                    <span className="node-card-view__kanban-title">{group.page.name || 'Untitled'}</span>
+                    <span className="node-card-view__kanban-count">{group.nodes.length}</span>
+                  </>
+                ) : (
+                  <span className="node-card-view__kanban-title">No Page</span>
+                )}
+              </div>
+              <div className="node-card-view__kanban-cards">
+                {group.nodes.map((node, index) => (
+                  <NodeCard
+                    key={node.id}
+                    node={node}
+                    index={index}
+                    layout={layout}
+                    sortable={false}
+                    isDragging={false}
+                    isDropTarget={false}
+                    editable={editable}
+                    allClasses={allClasses}
+                    isSelected={selectable && selectedIds?.has(node.id)}
+                    onNodeClick={onNodeClick}
+                    onNodeShiftClick={onNodeShiftClick}
+                    onContentChange={onContentChange}
+                    onDragStart={handleDragStart}
+                    onSelectionChange={selectable ? handleCardSelectionChange : undefined}
+                    customContextMenu={customContextMenu}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Normal grid view
   return (
     <div className={gridClassName} style={gridStyle} ref={containerRef}>
       {sortedNodes.map((node, index) => (
