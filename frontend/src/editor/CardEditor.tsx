@@ -27,7 +27,7 @@ import { NodePillPlugin } from './plugins/NodePillPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
-import { SlashCommandPlugin, type TriggerType } from './plugins/SlashCommandPlugin';
+import { TriggerPlugin, type TriggerType } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
@@ -225,7 +225,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onPillRemove={() => {}}
         />
         <DragDropPlugin editorId={editorId} readOnly={readOnly} />
-        <SlashCommandPlugin
+        <TriggerPlugin
           renderPopup={renderTriggerPopup}
           onLinkSelect={handlePillClick}
         />
