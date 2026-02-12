@@ -91,6 +91,12 @@ const LINK_DAMPING = 0.4; // Dashpot: damp relative velocity along spring axis t
 const TERRAIN_VELOCITY_DAMPING = 0.4; // Much more aggressive than normal 0.7
 const TERRAIN_VELOCITY_DEADZONE = 0.05; // Larger deadzone to freeze sooner
 
+// Terrain footprint collision avoidance (prevents nodes inside other nodes' cones)
+const TERRAIN_BASE_FOOTPRINT = 50;    // Base terrain radius for collision
+const TERRAIN_PEAK_FOOTPRINT = 100;   // Additional radius per unit peak size
+const TERRAIN_SEPARATION_STRENGTH = 0.12; // How strongly to push nodes apart
+const TERRAIN_MIN_SEPARATION = 30;    // Minimum distance between node centers
+
 // Adaptive frame cap: large graphs get fewer frames to prevent OOM
 // Base cap for small graphs, inversely scaled for large ones
 function getMaxSimulationFrames(nodeCount: number): number {
@@ -1421,6 +1427,7 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       const currentSettings = settingsRef.current;
       const currentViewMode = viewModeRef.current;
       const isConstrainedMode = currentViewMode === 'circle' || currentViewMode === 'tree';
+      const isTerrainMode = currentViewMode === 'terrain';
       
       // Rebuild topology cache if dirty
       if (topologyDirtyRef.current) {
@@ -1641,6 +1648,79 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
         }
       }
       
+      // Terrain mode: footprint-based collision avoidance
+      // Prevents smaller nodes from being hidden inside larger nodes' terrain cones
+      // Takes height into account: a tall node can be closer because it "pokes through"
+      if (isTerrainMode && usePhysics) {
+        const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+        const terrainHeights = frameDataRef.current.terrainHeights;
+        
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          if (dragNodeRef.current?.id === a.id || a.pinned) continue;
+          
+          const aPeak = terrainPeakRadii.get(a.id) ?? 0;
+          const aHeight = terrainHeights.get(a.id) ?? 0;
+          const aFootprint = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * aPeak;
+          
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            if (dragNodeRef.current?.id === b.id || b.pinned) continue;
+            
+            const bPeak = terrainPeakRadii.get(b.id) ?? 0;
+            const bHeight = terrainHeights.get(b.id) ?? 0;
+            const bFootprint = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * bPeak;
+            
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            
+            // Calculate how much the smaller node "pokes through" the larger's terrain
+            // If smaller node's height > terrain height at that distance, it's visible
+            // Terrain height decreases linearly from H at center to 0 at footprint edge
+            const [larger, smaller] = aHeight >= bHeight 
+              ? [{ h: aHeight, fp: aFootprint }, { h: bHeight }]
+              : [{ h: bHeight, fp: bFootprint }, { h: aHeight }];
+            
+            // At distance d, the larger cone's terrain height ≈ H * (1 - d/footprint)
+            // If smaller.h > that, the smaller node is visible above the terrain
+            const terrainAtDist = larger.h * Math.max(0, 1 - dist / larger.fp);
+            const heightAboveTerrain = smaller.h - terrainAtDist;
+            
+            // If smaller node is above terrain, reduce required separation
+            // Full visibility (heightAboveTerrain >= 0.3) → no separation needed
+            // Partial visibility → proportionally reduced separation
+            const visibilityFactor = Math.min(1, Math.max(0, 1 - heightAboveTerrain / 0.3));
+            
+            // Minimum separation scales with visibility factor
+            const baseMinSep = Math.max(TERRAIN_MIN_SEPARATION, (aFootprint + bFootprint) * 0.4);
+            const minSeparation = baseMinSep * visibilityFactor;
+            
+            if (dist >= minSeparation || minSeparation < 1) continue;
+            
+            // Push nodes apart along the line connecting them
+            const overlap = minSeparation - dist;
+            const correction = overlap * TERRAIN_SEPARATION_STRENGTH * warmupMultiplier;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            
+            // Asymmetric push: larger nodes push harder than smaller ones
+            const totalFootprint = aFootprint + bFootprint;
+            const aRatio = bFootprint / totalFootprint; // a moves more if b is bigger
+            const bRatio = aFootprint / totalFootprint; // b moves more if a is bigger
+            
+            if (!a.pinned) {
+              a.x -= nx * correction * aRatio;
+              a.y -= ny * correction * aRatio;
+            }
+            if (!b.pinned) {
+              b.x += nx * correction * bRatio;
+              b.y += ny * correction * bRatio;
+            }
+          }
+        }
+      }
+      
       // Shared across tangential and collision phases
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
       const currentLinkDirection = currentSettings.linkDirection ?? 'all';
@@ -1815,7 +1895,6 @@ export const NodeGraphRenderer = forwardRef<NodeGraphRendererRef, NodeGraphRende
       }
       
       // Update positions and track kinetic energy for convergence sleep
-      const isTerrainMode = currentViewMode === 'terrain';
       const velDamping = isTerrainMode ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
       const velDeadzone = isTerrainMode ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
       let kineticEnergy = 0;
