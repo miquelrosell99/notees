@@ -2,12 +2,9 @@
  * useNodeNavigation Hook
  * 
  * Provides standardized navigation handlers for nodes.
- * Consolidates the repeated pattern of openNode/addSidebarCard with
- * automatic type resolution (is_page → 'page', else → 'block').
- * 
- * The most common duplication is:
- *   - click → openNode(node.id, node.is_page ? 'page' : 'block')
- *   - shift+click → addSidebarCard(node.id, node.is_page ? 'page' : 'block')
+ * Consolidates the repeated pattern of openNode/addSidebarCard.
+ * openNode no longer needs a type — the view layer resolves page vs block
+ * from node.is_page in the database.
  * 
  * Usage:
  *   const { navigateToNode, openInSidebar, handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
@@ -22,10 +19,10 @@
 import { useCallback } from 'react';
 import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
-import type { SidebarCardType, NodeViewType } from '@/stores';
+import type { SidebarCardType } from '@/stores';
 
 /** Resolve a node's view type: 'page' if is_page, otherwise 'block' */
-export function getNodeViewType(node: { is_page?: boolean; parent_id?: number | null }): NodeViewType {
+export function getNodeViewType(node: { is_page?: boolean; parent_id?: number | null }): 'page' | 'block' {
   return node.is_page ? 'page' : 'block';
 }
 
@@ -39,7 +36,7 @@ export function useNodeNavigation() {
 
   /** Navigate to a node in the main view */
   const navigateToNode = useCallback((node: Node) => {
-    openNode(node.id, getNodeViewType(node));
+    openNode(node.id);
   }, [openNode]);
 
   /** Open a node in the sidebar */
@@ -49,7 +46,7 @@ export function useNodeNavigation() {
 
   /** Click handler: navigates to the node. Pass directly as onNodeClick. */
   const handleNodeClick = useCallback((node: Node) => {
-    openNode(node.id, getNodeViewType(node));
+    openNode(node.id);
   }, [openNode]);
 
   /** Shift+click handler: opens in sidebar. Pass directly as onNodeShiftClick. */

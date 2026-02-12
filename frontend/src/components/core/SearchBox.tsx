@@ -215,7 +215,7 @@ export function SearchBox<T = Node>({
       // Default behavior for Node type - navigate to the node
       const node = item as unknown as Node;
       if ('id' in node && 'is_page' in node) {
-        openNode(node.id, node.is_page ? 'page' : 'block');
+        openNode(node.id);
       }
     }
   }, [onSelect, openNode, onCreate, query]);

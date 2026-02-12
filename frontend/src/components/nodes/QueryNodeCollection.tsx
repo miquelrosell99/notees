@@ -468,7 +468,7 @@ export function QueryNodeCollection({
   const handleNodeLinkClick = useCallback((uuid: string) => {
     const node = nodesMap.get(uuid);
     if (node) {
-      openNode(node.id, node.is_page ? 'page' : 'block');
+      openNode(node.id);
     }
   }, [nodesMap, openNode]);
 

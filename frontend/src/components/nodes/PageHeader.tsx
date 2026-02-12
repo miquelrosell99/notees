@@ -423,7 +423,7 @@ export function PageHeader({
             {compactMode ? (
               <h1
                 className="page-title-input page-title-clickable"
-                onClick={(e) => { e.stopPropagation(); openNode(page.id, 'page'); }}
+                onClick={(e) => { e.stopPropagation(); openNode(page.id); }}
                 title="Click to open page"
               >
                 {nodeNameToText(page.name) || 'Untitled'}

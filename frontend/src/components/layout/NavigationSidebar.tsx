@@ -377,7 +377,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
   
   // Handle navigating to a page
   const handleNavigateToPage = useCallback((nodeId: number) => {
-    openNode(nodeId, 'page');
+    openNode(nodeId);
   }, [openNode]);
   
   // Handle context menu for favorites

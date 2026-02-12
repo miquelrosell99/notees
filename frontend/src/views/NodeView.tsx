@@ -170,8 +170,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
 interface NodeViewProps {
   /** Node ID to display */
   nodeId: number;
-  /** Explicit node type (if not provided, will be inferred from node.is_page) */
-  nodeType?: NodeViewType;
+
   /** View mode (document, etc.) */
   viewMode: ViewMode;
   /** If true, clicking the title navigates to the page instead of editing (for journal compact mode) */
@@ -187,7 +186,7 @@ export interface NodeViewResult {
   content: React.ReactNode;
 }
 
-export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps): NodeViewResult {
+export function NodeView({ nodeId, viewMode, compactMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps): NodeViewResult {
   // Fetch the node — compact mode (journal entries) skips properties & backlinks to reduce requests
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true, 
@@ -416,7 +415,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   const [isCoverHovered, setIsCoverHovered] = useState(false);
   
   // Determine node type from the data if not explicitly provided
-  const resolvedType: NodeViewType = nodeType ?? (node?.is_page ? 'page' : 'block');
+  const resolvedType: NodeViewType = node?.is_page ? 'page' : 'block';
   
   // A node is a "class node" if it's in the classes list OR has nodes using it as their class
   const isClassNode = useMemo(() => {
@@ -635,7 +634,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
   
   // Navigate to type/tag
   const handleNavigateToNode = useCallback((targetId: number) => {
-    openNode(targetId, 'page');
+    openNode(targetId);
   }, [openNode]);
   
   // Cover image handlers
@@ -704,7 +703,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
         <NodeBreadcrumbs
           nodeId={nodeId}
           nodeType={resolvedType}
-          onNavigate={(id, type) => openNode(id, type)}
+          onNavigate={(id) => openNode(id)}
           propertyContext={undefined}
           className="node-view-breadcrumbs"
         />
@@ -1063,7 +1062,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               icon={<TableIcon size="sm" />}
               hideWhenEmpty={true}
               defaultExpanded={true}
-              onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId)}
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               hideViewManagement={true}
               can_create={false}
@@ -1081,7 +1080,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               icon={<TableIcon size="sm" />}
               hideWhenEmpty={false}
               defaultExpanded={true}
-              onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId)}
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
             />
           )}
@@ -1096,7 +1095,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
               icon={<PageIcon size="sm" />}
               hideWhenEmpty={true}
               defaultExpanded={true}
-              onNodeClick={(targetNodeId) => openNode(targetNodeId, 'page')}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId)}
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               hideViewManagement={true}
             />
@@ -1111,7 +1110,7 @@ export function NodeView({ nodeId, nodeType, viewMode, compactMode = false, prop
             icon={<LinkIcon size="sm" />}
             defaultExpanded={!linkedRefsCollapsed}
             hideWhenEmpty={true}
-            onNodeClick={(targetNodeId, isPage) => openNode(targetNodeId, isPage ? 'page' : 'block')}
+            onNodeClick={(targetNodeId) => openNode(targetNodeId)}
             onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
           />
         </>

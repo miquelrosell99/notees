@@ -302,7 +302,7 @@ function PropertyValue({
                 if (dateParts.length === 3) {
                   const uuid = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
                   try {
-                    const dayNode = await getNodeByUuid(uuid);                  const { openNode } = require('@/stores').useOpenNodeAction.getState();                    openNode(dayNode.id, 'page');
+                    const dayNode = await getNodeByUuid(uuid);                  const { openNode } = require('@/stores').useOpenNodeAction.getState();                    openNode(dayNode.id);
                   } catch (error) {
                     console.error('Failed to find day page:', error);
                   }
@@ -514,7 +514,7 @@ export function PropertiesSection({
 
   // Handler for text property bullet click - opens block in focused view with property context
   const handleTextPropertyBulletClick = useCallback((blockId: number, property: Property) => {
-    openNode(blockId, 'block', { propertyId: property.id, propertyName: property.name });
+    openNode(blockId, { propertyId: property.id, propertyName: property.name });
   }, [openNode]);
   
   // Get IDs of properties already applied to this node

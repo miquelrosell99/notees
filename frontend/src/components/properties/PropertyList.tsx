@@ -108,7 +108,7 @@ export function PropertyList({
     if (onNodeValueClick) {
       onNodeValueClick(nodeId);
     } else {
-      openNode(nodeId, 'page');
+      openNode(nodeId);
     }
   }, [onNodeValueClick, openNode]);
   

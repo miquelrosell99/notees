@@ -109,7 +109,7 @@ export function ImageNode({
     e.preventDefault();
     e.stopPropagation();
     if (assetNode) {
-      openNode(assetNode.id, assetNode.is_page ? 'page' : 'block');
+      openNode(assetNode.id);
     }
   }, [assetNode, openNode]);
 

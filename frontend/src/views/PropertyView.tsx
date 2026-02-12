@@ -139,7 +139,7 @@ export function PropertyView({
     try {
       await deletePropertyMutation.mutateAsync(property.id);
       // Navigate to home or a default page after deletion
-      openNode(1, 'page'); // Navigate to a safe page
+      openNode(1); // Navigate to a safe page
     } catch (err) {
       console.error('Failed to delete property:', err);
     }

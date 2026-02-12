@@ -29,9 +29,9 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
 
   const handleOpenFull = useCallback(() => {
     if (!node) return;
-    openNode(node.id, nodeType);
+    openNode(node.id);
     closeSidebarNode();
-  }, [node, nodeType, openNode, closeSidebarNode]);
+  }, [node, openNode, closeSidebarNode]);
 
   // Loading state
   if (isLoading) {

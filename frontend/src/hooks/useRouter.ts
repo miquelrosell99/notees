@@ -218,14 +218,12 @@ export function useRouter() {
         // Check if navigation state changed
         const viewChanged = state.mainViewType !== prevState.mainViewType;
         const nodeChanged = state.currentNodeId !== prevState.currentNodeId;
-        const typeChanged = state.currentNodeType !== prevState.currentNodeType;
         
-        if (!viewChanged && !nodeChanged && !typeChanged) return;
+        if (!viewChanged && !nodeChanged) return;
         
         log.debug('Store state changed, updating URL', {
           viewChanged,
           nodeChanged,
-          typeChanged,
           mainViewType: state.mainViewType,
           currentNodeId: state.currentNodeId,
         });
@@ -286,7 +284,7 @@ export function useRouter() {
           const node = await getNodeByUuid(route.nodeUuid);
           log.debug('Found node from UUID', { uuid: route.nodeUuid, nodeId: node.id, is_page: node.is_page });
           currentNodeUuidRef.current = node.uuid;
-          openNode(node.id, node.is_page ? 'page' : 'block');
+          openNode(node.id);
         } catch (err) {
           log.warn('Node not found for UUID, navigating to home', { uuid: route.nodeUuid });
           navigateHome();

@@ -348,7 +348,7 @@ function MultiNodePropertyCell({
         emptyText="Add"
         searchPlaceholder="Search..."
         onNodeClick={(selectedNode) => {
-          openNode(selectedNode.id, 'page');
+          openNode(selectedNode.id);
         }}
         onAdd={editable ? (selectedNode) => {
           const currentValue = Array.isArray(value) ? value : [];
@@ -461,7 +461,7 @@ function NodePropertyCell({
         emptyText="Add"
         searchPlaceholder="Search..."
         onNodeClick={(selectedNode) => {
-          openNode(selectedNode.id, 'page');
+          openNode(selectedNode.id);
         }}
         onAdd={editable ? (selectedNode) => {
           const currentValue = isMultiValue && Array.isArray(value) ? value : (value ? [value] : []);

@@ -152,7 +152,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
 
       // Navigate if requested
       if (navigateOnSuccess) {
-        openNode(destinationPageId, 'page');
+        openNode(destinationPageId);
       }
 
       // Call success callback
@@ -196,7 +196,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       });
       
       if (navigateOnSuccess) {
-        openNode(newPage.id, 'page');
+        openNode(newPage.id);
       }
       
       onSuccess?.();

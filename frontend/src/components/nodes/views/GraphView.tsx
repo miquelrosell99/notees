@@ -33,7 +33,7 @@ import {
   type VisibilityFilters,
   type ConstraintMode,
 } from './NodeGraphRenderer';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTerrain, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -366,7 +366,8 @@ export function GraphView({
   }, [customNodeClick, addSidebarCard]);
   
   const handleNodeDoubleClick = useCallback((node: GraphNode) => {
-    openNode(node.id, node.parentId === null ? 'page' : 'block');
+    // Graph nodes are always pages (backend only returns is_page=TRUE nodes)
+    openNode(node.id);
     setSelectedNodes([]);
   }, [openNode]);
   
@@ -440,6 +441,7 @@ export function GraphView({
     { value: 'normal', icon: mdiVectorPolygon, label: 'Force-directed layout' },
     { value: 'circle', icon: mdiCircleOutline, label: 'Circle layout' },
     { value: 'tree', icon: mdiFileTreeOutline, label: 'Tree layout' },
+    { value: 'terrain', icon: mdiTerrain, label: 'Terrain layout' },
   ];
   
   if (!sourceNodes || sourceNodes.length === 0) {
