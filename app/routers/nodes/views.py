@@ -160,27 +160,42 @@ async def _include_children_for_results(user: User, results: List[Dict[str, Any]
     """Recursively fetch children for each node in results.
     
     This adds 'children' to each node dict, populated with their child nodes.
+    If results are pages, only fetches child pages (not blocks).
     """
     if not results:
         return results
+    
+    logger.info(f"[_include_children_for_results] Starting with {len(results)} results")
     
     service = await _get_node_service(user)
     
     # Get node IDs from results
     node_ids = [r.get("id") for r in results if r.get("id")]
     
+    logger.info(f"[_include_children_for_results] Fetching children for node_ids: {node_ids}")
+    
     if not node_ids:
         return results
+    
+    # Check if all results are pages - if so, we should only fetch child pages
+    all_are_pages = all(r.get("is_page", False) for r in results if r.get("id"))
+    logger.info(f"[_include_children_for_results] all_are_pages: {all_are_pages}")
     
     # Fetch all children for each node recursively
     # We'll use the repository's get_children method which returns direct children
     children_by_parent: Dict[int, List[Dict[str, Any]]] = {}
     
-    async def fetch_children_recursive(parent_id: int):
+    async def fetch_children_recursive(parent_id: int, depth: int = 0):
         """Recursively fetch children and convert to dict format."""
         children = await service._node_repo.get_children(parent_id)
+        logger.info(f"[_include_children_for_results] Parent {parent_id} (depth {depth}) has {len(children)} direct children")
         child_dicts = []
         for child in children:
+            # If we started with pages, only include child pages throughout the hierarchy
+            if all_are_pages and not child.is_page:
+                logger.info(f"[_include_children_for_results] Skipping non-page child {child.id} of parent {parent_id}")
+                continue
+                
             child_dict = child.to_dict() if hasattr(child, 'to_dict') else {
                 "id": child.id,
                 "uuid": child.uuid,
@@ -195,10 +210,11 @@ async def _include_children_for_results(user: User, results: List[Dict[str, Any]
                 "collapsed": child.collapsed,
             }
             # Recursively fetch this child's children
-            await fetch_children_recursive(child.id)
+            await fetch_children_recursive(child.id, depth + 1)
             child_dict["children"] = children_by_parent.get(child.id, [])
             child_dicts.append(child_dict)
         children_by_parent[parent_id] = child_dicts
+        logger.info(f"[_include_children_for_results] Parent {parent_id} has {len(child_dicts)} filtered children")
     
     # Fetch children for each result node
     for node_id in node_ids:
@@ -620,9 +636,13 @@ async def execute_node_view_query(
         order_by=request.order_by,
     )
     
+    logger.info(f"[execute_node_view_query] Query returned {len(results)} nodes (include_children={request.include_children})")
+    
     # If include_children is requested, fetch children for each node
     if request.include_children:
+        logger.info(f"[execute_node_view_query] Fetching children for {len(results)} nodes")
         results = await _include_children_for_results(user, results)
+        logger.info(f"[execute_node_view_query] After fetching children: {len(results)} nodes")
     
     # Always include classes (needed for card view and other displays)
     results = await _include_classes_for_results(user, results)
