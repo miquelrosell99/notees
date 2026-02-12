@@ -12,6 +12,8 @@ import { useState, useCallback, useRef, useEffect, useMemo, type JSX, type React
 import type { TriggerType } from './TriggerPlugin';
 import { SuggestionPopup, type SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
+import { useCreateNode } from '../../hooks/useNodes';
+import { usePageClass, useClassClass } from '../../hooks/usePageClass';
 import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, PropertiesIcon } from '../../components/core/icons';
 import './TriggerPopup.css';
 
@@ -125,10 +127,10 @@ export function TriggerPopup({
     }, [onSelect]);
 
     return (
-      <SuggestionPopup
-        isOpen={true}
+      <TriggerSuggestionPopup
+        suggestionType={suggestionType}
+        triggerType={type}
         query={query}
-        type={suggestionType}
         position={position}
         onSelect={handleSelect}
         onClose={onClose}
@@ -144,6 +146,63 @@ export function TriggerPopup({
       position={position}
       onSelect={onSelect}
       onClose={onClose}
+    />
+  );
+}
+
+// ─── Trigger Suggestion Popup (with create support) ──────────────
+
+/**
+ * Wrapper around SuggestionPopup that provides onCreate for creating
+ * new pages, classes, or tags directly from the trigger menu.
+ */
+function TriggerSuggestionPopup({
+  suggestionType,
+  triggerType,
+  query,
+  position,
+  onSelect,
+  onClose,
+  onSelectDatePage,
+}: {
+  suggestionType: SuggestionType;
+  triggerType: TriggerType;
+  query: string;
+  position: { top: number; left: number };
+  onSelect: (node: Node, keepInline: boolean) => void;
+  onClose: () => void;
+  onSelectDatePage?: (pageId: string, pageName: string) => void;
+}): JSX.Element {
+  const createNode = useCreateNode();
+  const { pageClassId } = usePageClass();
+  const { classClassId } = useClassClass();
+
+  const handleCreate = useCallback((name: string, keepInline: boolean) => {
+    if (!pageClassId) return;
+
+    // Determine classes based on trigger type
+    const classes: number[] = [pageClassId];
+    if (triggerType === 'type' && classClassId) {
+      classes.push(classClassId);
+    }
+
+    createNode.mutate({ name, classes }, {
+      onSuccess: (newNode) => {
+        onSelect(newNode, keepInline);
+      },
+    });
+  }, [createNode, pageClassId, classClassId, triggerType, onSelect]);
+
+  return (
+    <SuggestionPopup
+      isOpen={true}
+      query={query}
+      type={suggestionType}
+      position={position}
+      onSelect={onSelect}
+      onClose={onClose}
+      onCreate={handleCreate}
+      onSelectDatePage={onSelectDatePage}
     />
   );
 }
