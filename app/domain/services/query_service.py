@@ -188,6 +188,8 @@ class QueryExecutor:
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(sql, *params)
         
+        logger.info(f"[QUERY DEBUG] Query returned {len(rows)} rows")
+        
         # Convert rows to dictionaries
         results = []
         for row in rows:
