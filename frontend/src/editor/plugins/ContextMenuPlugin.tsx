@@ -115,7 +115,7 @@ export function ContextMenuPlugin({
       const target = event.target as HTMLElement;
       
       // Check if clicking on collapse arrow
-      if (target.closest('.node-block-collapse-arrow')) {
+      if (target.closest('.bullet-collapse-arrow')) {
         event.preventDefault();
         event.stopPropagation();
         
@@ -127,7 +127,7 @@ export function ContextMenuPlugin({
       }
       
       // Check if clicking on bullet (check the whole bullet area)
-      if (target.closest('.node-block-bullet')) {
+      if (target.closest('.bullet-wrapper')) {
         event.preventDefault();
         event.stopPropagation();
         
@@ -143,7 +143,7 @@ export function ContextMenuPlugin({
       const target = event.target as HTMLElement;
       
       // Only handle right-click on bullet area
-      if (target.closest('.node-block-bullet')) {
+      if (target.closest('.bullet-wrapper')) {
         event.preventDefault();
         event.stopPropagation();
         

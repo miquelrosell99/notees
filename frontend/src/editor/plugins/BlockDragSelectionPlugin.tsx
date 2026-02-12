@@ -60,7 +60,7 @@ export function BlockDragSelectionPlugin({
       const target = e.target as HTMLElement;
       
       // Ignore clicks on bullets or collapse arrows
-      if (target.closest('.node-block-bullet') || target.closest('.node-block-collapse-arrow')) {
+      if (target.closest('.bullet-wrapper') || target.closest('.bullet-collapse-arrow')) {
         return;
       }
 
