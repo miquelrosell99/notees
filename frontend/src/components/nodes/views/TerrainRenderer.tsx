@@ -324,56 +324,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     const gs = TERRAIN_GRID_RES;
     
-    // Helper: Chain line segments into continuous contours
-    const chainSegments = (segments: Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>): Array<{x: number, y: number}>[] => {
-      const contours: Array<Array<{x: number, y: number}>> = [];
-      const used = new Set<number>();
-      const eps = 0.5;
-      
-      const pointsMatch = (p1: {x: number, y: number}, p2: {x: number, y: number}) => 
-        Math.abs(p1.x - p2.x) < eps && Math.abs(p1.y - p2.y) < eps;
-      
-      for (let i = 0; i < segments.length; i++) {
-        if (used.has(i)) continue;
-        
-        const contour: Array<{x: number, y: number}> = [segments[i].p1, segments[i].p2];
-        used.add(i);
-        
-        let extended = true;
-        while (extended && contour.length < segments.length) {
-          extended = false;
-          const end = contour[contour.length - 1];
-          
-          for (let j = 0; j < segments.length; j++) {
-            if (used.has(j)) continue;
-            const seg = segments[j];
-            
-            if (pointsMatch(end, seg.p1)) {
-              contour.push(seg.p2);
-              used.add(j);
-              extended = true;
-              break;
-            } else if (pointsMatch(end, seg.p2)) {
-              contour.push(seg.p1);
-              used.add(j);
-              extended = true;
-              break;
-            }
-          }
-        }
-        
-        if (contour.length > 2 && pointsMatch(contour[0], contour[contour.length - 1])) {
-          contour.pop();
-        }
-        
-        if (contour.length >= 3) {
-          contours.push(contour);
-        }
-      }
-      
-      return contours;
-    };
-    
     // Extract highest contour (0.92) segments for each owner, then inset and fill
     const ownerPaths = new Map<number, Path2D>();
     const ownerSegments = new Map<number, Array<{p1: {x: number, y: number}, p2: {x: number, y: number}}>>();
