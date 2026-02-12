@@ -20,7 +20,7 @@ import { useComments, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
 import { Button } from '../core/Button';
-import { CommentIcon, ClockIcon, AddIcon } from '../icons';
+import { CommentIcon, ClockIcon, AddIcon } from '../core/icons';
 import { formatRelativeTime } from '@/utils/dateFormat';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
