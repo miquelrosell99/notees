@@ -49,8 +49,8 @@ export class NodeGraphRuntime {
   private pendingChangedBlockIds = new Set<string>();
   private pendingStructureParentIds = new Set<string>();
 
-  /** Block ID to focus after next sync (used by editors) */
-  private pendingFocusBlockId: string | null = null;
+  /** Block ID and optional offset to focus after next sync (used by editors) */
+  private pendingFocus: { blockId: string; offset?: number } | null = null;
 
   /**
    * Parent serverId mapping for nodes that aren't full GraphNodes.
@@ -209,24 +209,26 @@ export class NodeGraphRuntime {
   /**
    * Request that the next projected block (matching blockId) be focused.
    * Used by editors to focus newly created blocks.
+   * @param blockId - Block to focus
+   * @param offset - Optional character offset to position cursor (default: 0 = start)
    */
-  requestFocus(blockId: string): void {
-    this.pendingFocusBlockId = blockId;
+  requestFocus(blockId: string, offset?: number): void {
+    this.pendingFocus = { blockId, offset };
   }
 
   /**
-   * Get the pending focus block ID (does not clear it).
+   * Get the pending focus request (does not clear it).
    * Editors call this during sync to check if a block should be focused.
    */
-  getPendingFocus(): string | null {
-    return this.pendingFocusBlockId;
+  getPendingFocus(): { blockId: string; offset?: number } | null {
+    return this.pendingFocus;
   }
 
   /**
    * Clear the pending focus request. Called after block has been focused.
    */
   clearPendingFocus(): void {
-    this.pendingFocusBlockId = null;
+    this.pendingFocus = null;
   }
 
   /**
@@ -399,6 +401,9 @@ export class NodeGraphRuntime {
     // Capture serverId before removing the node
     const sourceServerId = source.serverId;
 
+    // Calculate merge point offset (end of target's original content)
+    const mergeOffset = getContentASTLength(target.contentAST);
+
     // Append source content to target
     target.contentAST = mergeContentASTs(target.contentAST, source.contentAST);
     target.updatedAt = new Date().toISOString();
@@ -415,6 +420,9 @@ export class NodeGraphRuntime {
     this.rebuildChildrenIndex();
     this.emit({ type: 'block_deleted', blockId: sourceBlockId, serverId: sourceServerId });
     this.scheduleEmit(targetBlockId, parentId);
+
+    // Request focus at the merge point (end of original target content)
+    this.requestFocus(targetBlockId, mergeOffset);
   }
 
   private execCreateBlock(
@@ -1034,6 +1042,26 @@ function getInlineLength(node: ASTInlineNode): number {
     default:
       return 0;
   }
+}
+
+/**
+ * Calculate the total text length of a ContentAST (for cursor positioning).
+ */
+function getContentASTLength(content: ContentAST): number {
+  if (content.length === 0) return 0;
+  
+  let totalLength = 0;
+  for (let i = 0; i < content.length; i++) {
+    const para = content[i];
+    for (const child of para.children) {
+      totalLength += getInlineLength(child);
+    }
+    // Add paragraph break (except after last paragraph)
+    if (i < content.length - 1) {
+      totalLength++;
+    }
+  }
+  return totalLength;
 }
 
 function splitInlinesAtOffset(
