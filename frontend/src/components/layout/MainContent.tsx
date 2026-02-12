@@ -10,7 +10,6 @@ import { useNode } from '@/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
-import { getNodeBorderStyles } from '@/utils/color';
 import { NodeViewWrapper, NodeViewContent } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
@@ -43,13 +42,15 @@ export function MainContent() {
   // Fetch current node to get color (for pages and focused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);
   
-  // Compute border styles for colored nodes (thick border, no background)
-  const nodeBorderStyle = useMemo(() => {
+  // Compute border color for colored nodes (thick border, no background)
+  const nodeColorStyle = useMemo(() => {
     if (!currentNode || !currentNode.color) {
       return undefined;
     }
-    return getNodeBorderStyles(currentNode.color);
-  }, [currentNode, currentNodeId]);
+    return {
+      '--node-border-color': currentNode.color,
+    } as React.CSSProperties;
+  }, [currentNode]);
   
   // Render different views based on mainViewType
   if (mainViewType === 'all-pages') {
@@ -143,8 +144,8 @@ export function MainContent() {
       {/* Scrollable content area */}
       <main 
         id="main-content"
-        className={`main-content${nodeBorderStyle ? ' has-node-border' : ''}`}
-        style={nodeBorderStyle}
+        className={`main-content${nodeColorStyle ? ' has-node-border' : ''}`}
+        style={nodeColorStyle}
       >
         <NodeViewContent
           nodeId={currentNodeId}
