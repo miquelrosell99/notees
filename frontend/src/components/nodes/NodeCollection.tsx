@@ -19,8 +19,8 @@
  * ├─ CardView (card) → BlockEditor per card
  * ├─ TableView (table) → BlockEditor per cell
  * ├─ GanttView (gantt)
- * ├─ NodeTimelineRenderer (timeline)
- * └─ NodeGraphView (graph)
+ * ├─ TimelineView (timeline)
+ * └─ GraphView (graph)
  */
 import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useAppStore } from '@/stores';
@@ -62,9 +62,9 @@ import {
   CardView, 
   TableView, 
   GanttView,
+  GraphView,
+  TimelineView,
 } from './views';
-import { NodeGraphView } from '@/components/nodeGraph';
-import { NodeTimelineRenderer } from '@/components/timeline';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import './NodeCollection.css';
 
@@ -342,7 +342,7 @@ export function NodeCollection({
         return <GanttView {...viewProps} />;
       
       case 'timeline':
-        return <NodeTimelineRenderer nodes={nodes} />;
+        return <TimelineView nodes={nodes} />;
       
       case 'graph':
         // Graph only shows pages - convert Node to API GraphNode format
@@ -358,7 +358,7 @@ export function NodeCollection({
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        return <NodeGraphView nodes={graphNodes} links={[]} chrome={false} className="node-collection__graph" />;
+        return <GraphView nodes={graphNodes} links={[]} className="node-collection__graph" />;
       
       default:
         // Fallback to list view

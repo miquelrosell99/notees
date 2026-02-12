@@ -1,5 +1,5 @@
 /**
- * GraphViewLocal Component
+ * SidebarLocalGraph Component
  * 
  * Local graph showing connections for a specific node:
  * - The current page (center)
@@ -7,24 +7,24 @@
  * - Backlinked pages (incoming references)
  * 
  * Displayed inside a SidebarCard.
- * Extracts a subgraph and passes it to NodeGraphView in controlled mode.
+ * Extracts a subgraph and passes it to GraphView in controlled mode.
  */
 import { useMemo } from 'react';
 import { useGraphData, useNode } from '@/hooks';
-import { NodeGraphView } from './NodeGraphView';
-import './GraphViewLocal.css';
+import { GraphView } from '@/components/nodes/views/GraphView';
+import './SidebarLocalGraph.css';
 
-export interface GraphViewLocalProps {
+export interface SidebarLocalGraphProps {
   /** The node ID to center the local graph on */
   nodeId: number;
   /** CSS class */
   className?: string;
 }
 
-export function GraphViewLocal({ 
+export function SidebarLocalGraph({ 
   nodeId,
   className = '' 
-}: GraphViewLocalProps) {
+}: SidebarLocalGraphProps) {
   const { data: graphData, isLoading } = useGraphData();
   const { data: centerNode } = useNode(nodeId);
   
@@ -112,12 +112,14 @@ export function GraphViewLocal({
         </span>
       </div>
       <div className="graph-view-local__content">
-        <NodeGraphView
+        <GraphView
           viewId={`local-${nodeId}`}
           nodes={nodes}
           links={links}
           currentNodeId={nodeId}
-          chrome={false}
+          showSettings={false}
+          showSearch={false}
+          showViewModes={false}
           className="graph-view-local__graph"
         />
       </div>
@@ -125,4 +127,4 @@ export function GraphViewLocal({
   );
 }
 
-export default GraphViewLocal;
+export default SidebarLocalGraph;
