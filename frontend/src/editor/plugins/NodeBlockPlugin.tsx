@@ -95,6 +95,9 @@ export function NodeBlockPlugin({
   const blockIdToKeyMap = useRef(new Map<string, string>());
   // Flag to suppress content change callbacks during external sync
   const isSyncingRef = useRef(false);
+  // Coalesce multiple runtime events (e.g. nodes_changed + structure_changed)
+  // so syncProjection only runs once per flush cycle
+  const syncCoalesceRef = useRef(false);
 
   // ─── Sync projected nodes into Lexical ──────────────────────
 
@@ -249,7 +252,13 @@ export function NodeBlockPlugin({
 
     const unsubscribe = runtime.subscribe((event) => {
       if (event.type === 'nodes_changed' || event.type === 'structure_changed') {
-        syncProjection(getProjection());
+        // Coalesce: flushEvents() fires nodes_changed + structure_changed
+        // back-to-back. Only sync once per synchronous cycle.
+        if (!syncCoalesceRef.current) {
+          syncCoalesceRef.current = true;
+          syncProjection(getProjection());
+          Promise.resolve().then(() => { syncCoalesceRef.current = false; });
+        }
       }
     });
 
