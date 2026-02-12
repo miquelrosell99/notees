@@ -269,6 +269,7 @@ export const TERRAIN_BASE_PLATEAU_RADIUS = 20;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
 export const TERRAIN_BASE_SLOPE_RADIUS = 100;
 export const TERRAIN_PEAK_SLOPE_BONUS = 140;
+export const TERRAIN_ANISOTROPY = 0.25; // 0 = perfect circle, 1 = fully stretched toward parent links
 
 // Terrain ridge parameters (parent-child connections)
 export const TERRAIN_RIDGE_PLATEAU_RADIUS = 5;

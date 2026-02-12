@@ -30,11 +30,7 @@ import {
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_MIN_HEIGHT,
-  TERRAIN_RIDGE_PLATEAU_RADIUS,
-  TERRAIN_RIDGE_PLATEAU_BONUS,
-  TERRAIN_RIDGE_SLOPE_RADIUS,
-  TERRAIN_RIDGE_SLOPE_BONUS,
-  TERRAIN_RIDGE_SAG,
+  TERRAIN_ANISOTROPY,
   LABEL_FADE_ZOOM_MIN,
   LABEL_FADE_ZOOM_MAX,
   // Helpers
@@ -254,6 +250,49 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     plateauGridRef.current.gridH = gridH;
     plateauGridRef.current.gs = gs;
     
+    // Precompute per-node anisotropy direction from parent links
+    // Each node accumulates a stretch direction toward its parent/child connections
+    const visibleLinks = frameDataRef.current.visibleLinks;
+    const anisoX = new Float32Array(visibleNodes.length); // unit direction X
+    const anisoY = new Float32Array(visibleNodes.length); // unit direction Y
+    const anisoStr = new Float32Array(visibleNodes.length); // strength 0-1
+    // Build id → index lookup (reused by ridge generation)
+    const idToIdx = new Map<number, number>();
+    for (let i = 0; i < visibleNodes.length; i++) {
+      idToIdx.set(visibleNodes[i].id, i);
+    }
+    {
+      // Accumulate parent link directions per node
+      const accX = new Float32Array(visibleNodes.length);
+      const accY = new Float32Array(visibleNodes.length);
+      for (const link of visibleLinks) {
+        if (link.type !== 'parent') continue;
+        const si = idToIdx.get(link.source);
+        const ti = idToIdx.get(link.target);
+        if (si === undefined || ti === undefined) continue;
+        const sn = visibleNodes[si];
+        const tn = visibleNodes[ti];
+        const ldx = tn.x - sn.x;
+        const ldy = tn.y - sn.y;
+        const llen = Math.sqrt(ldx * ldx + ldy * ldy);
+        if (llen < 1) continue;
+        const nx = ldx / llen;
+        const ny = ldy / llen;
+        // Both nodes stretch toward each other
+        accX[si] += nx; accY[si] += ny;
+        accX[ti] += nx; accY[ti] += ny; // same direction to keep axis consistent
+      }
+      for (let i = 0; i < visibleNodes.length; i++) {
+        const ax = accX[i], ay = accY[i];
+        const alen = Math.sqrt(ax * ax + ay * ay);
+        if (alen > 0.01) {
+          anisoX[i] = ax / alen;
+          anisoY[i] = ay / alen;
+          anisoStr[i] = Math.min(1, alen) * TERRAIN_ANISOTROPY;
+        }
+      }
+    }
+    
     // Build height map + ownership map with MAX merge — sqrt-free
     let nodeIdx = 0;
     for (const node of visibleNodes) {
@@ -273,7 +312,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const centerX = (node.x * t.scale + t.x) / gs;
       const centerY = (node.y * t.scale + t.y) / gs;
       
-      const rsInt = Math.ceil(Rs);
+      // Anisotropy: stretch along parent-link axis
+      const aStr = anisoStr[nodeIdx];
+      const aDx = anisoX[nodeIdx];
+      const aDy = anisoY[nodeIdx];
+      
+      // Expand bounding box to account for stretch
+      const rsInt = Math.ceil(Rs * (1 + aStr));
       const minGx = Math.max(0, Math.floor(centerX - rsInt));
       const maxGx = Math.min(gridW - 1, Math.ceil(centerX + rsInt));
       const minGy = Math.max(0, Math.floor(centerY - rsInt));
@@ -281,11 +326,24 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       for (let gy = minGy; gy <= maxGy; gy++) {
         const dy = gy - centerY;
-        const dySq = dy * dy;
         const rowOff = gy * gridW;
         for (let gx = minGx; gx <= maxGx; gx++) {
           const dx = gx - centerX;
-          const distSq = dx * dx + dySq;
+          
+          // Anisotropic distance: shrink distance along the stretch axis
+          // so the plateau extends further in that direction
+          let distSq;
+          if (aStr > 0) {
+            // Project onto anisotropy axis
+            const dot = dx * aDx + dy * aDy;
+            // Shrink the along-axis component (makes shape elongated)
+            const shrink = 1 / (1 + aStr);
+            const adx = dx - dot * aDx * (1 - shrink);
+            const ady = dy - dot * aDy * (1 - shrink);
+            distSq = adx * adx + ady * ady;
+          } else {
+            distSq = dx * dx + dy * dy;
+          }
           
           if (distSq > RsSq) continue;
           
@@ -301,93 +359,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
       nodeIdx++;
-    }
-    
-    // ==================== Ridge Generation (Parent-Child Links) ====================
-    // Build node.id → nodeIdx lookup
-    const nodeIdToIdx = new Map<number, number>();
-    for (let i = 0; i < visibleNodes.length; i++) {
-      nodeIdToIdx.set(visibleNodes[i].id, i);
-    }
-    
-    const visibleLinks = frameDataRef.current.visibleLinks;
-    for (const link of visibleLinks) {
-      if (link.type !== 'parent') continue;
-      
-      const srcIdx = nodeIdToIdx.get(link.source);
-      const tgtIdx = nodeIdToIdx.get(link.target);
-      if (srcIdx === undefined || tgtIdx === undefined) continue;
-      
-      const srcNode = visibleNodes[srcIdx];
-      const tgtNode = visibleNodes[tgtIdx];
-      const srcH = nodePeakH[srcIdx];
-      const tgtH = nodePeakH[tgtIdx];
-      if (!(srcH > 0) || !(tgtH > 0)) continue;
-      
-      // World → grid coordinates
-      const sx = (srcNode.x * t.scale + t.x) / gs;
-      const sy = (srcNode.y * t.scale + t.y) / gs;
-      const tx = (tgtNode.x * t.scale + t.x) / gs;
-      const ty = (tgtNode.y * t.scale + t.y) / gs;
-      
-      const rdx = tx - sx;
-      const rdy = ty - sy;
-      const lenSq = rdx * rdx + rdy * rdy;
-      if (lenSq < 1) continue;
-      const len = Math.sqrt(lenSq);
-      
-      // Ridge width scales with average peak size of connected nodes
-      const avgPeakSize = (
-        (terrainPeakRadii.get(srcNode.id) ?? 0) +
-        (terrainPeakRadii.get(tgtNode.id) ?? 0)
-      ) / 2;
-      const rRp = (TERRAIN_RIDGE_PLATEAU_RADIUS + TERRAIN_RIDGE_PLATEAU_BONUS * avgPeakSize) * t.scale / gs;
-      const rRs = (TERRAIN_RIDGE_SLOPE_RADIUS + TERRAIN_RIDGE_SLOPE_BONUS * avgPeakSize) * t.scale / gs;
-      const rRpSq = rRp * rRp;
-      const rRsSq = rRs * rRs;
-      const rInvSlopeRangeSq = rRsSq > rRpSq ? 1 / (rRsSq - rRpSq) : 0;
-      
-      // Bounding box for the ridge (expand by Rs perpendicular)
-      const rsInt = Math.ceil(rRs);
-      const minGx = Math.max(0, Math.floor(Math.min(sx, tx) - rsInt));
-      const maxGx = Math.min(gridW - 1, Math.ceil(Math.max(sx, tx) + rsInt));
-      const minGy = Math.max(0, Math.floor(Math.min(sy, ty) - rsInt));
-      const maxGy = Math.min(gridH - 1, Math.ceil(Math.max(sy, ty) + rsInt));
-      
-      for (let gy = minGy; gy <= maxGy; gy++) {
-        const rowOff = gy * gridW;
-        for (let gx = minGx; gx <= maxGx; gx++) {
-          // Project grid point onto ridge line segment
-          const px = gx - sx;
-          const py = gy - sy;
-          const proj = (px * rdx + py * rdy) / lenSq;
-          const tParam = Math.max(0, Math.min(1, proj));
-          
-          // Perpendicular distance to closest point on segment
-          const cx = sx + tParam * rdx;
-          const cy = sy + tParam * rdy;
-          const perpDistSq = (gx - cx) * (gx - cx) + (gy - cy) * (gy - cy);
-          
-          if (perpDistSq > rRsSq) continue;
-          
-          // Height interpolation with natural saddle sag
-          const lerpH = srcH + (tgtH - srcH) * tParam;
-          const sag = 1 - TERRAIN_RIDGE_SAG * 4 * tParam * (1 - tParam);
-          const ridgeH = lerpH * sag;
-          
-          // Same squared-distance falloff perpendicular to ridge
-          const ht = perpDistSq <= rRpSq
-            ? ridgeH
-            : ridgeH * (1 - (perpDistSq - rRpSq) * rInvSlopeRangeSq);
-          
-          const idx = rowOff + gx;
-          if (ht > heightMap[idx]) {
-            heightMap[idx] = ht;
-            // Owner = whichever node is nearer along the ridge
-            ownerMap[idx] = tParam < 0.5 ? srcIdx : tgtIdx;
-          }
-        }
-      }
     }
     
     // Apply gaussian blur (2 passes)
