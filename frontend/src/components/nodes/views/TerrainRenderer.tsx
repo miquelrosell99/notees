@@ -86,9 +86,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
   
-  // Terrain node positions for DOM overlay
+  // Terrain node positions for DOM overlay (world-space coordinates)
   const [terrainNodePositions, setTerrainNodePositions] = useState<Map<number, { x: number; y: number; height: number }>>(new Map());
   const terrainUpdateRafRef = useRef<number>(0);
+  const overlayRef = useRef<HTMLDivElement>(null);
   
   // Pan state
   const isPanningRef = useRef(false);
@@ -191,7 +192,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const terrainHeights = frameDataRef.current.terrainHeights;
     const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
     
-    // Update DOM overlay positions (throttled)
+    // Sync overlay CSS transform with canvas transform (bypasses React for zero-lag)
+    if (overlayRef.current) {
+      overlayRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
+    }
+    
+    // Update DOM overlay world-space positions (throttled — only when nodes move)
     if (!terrainUpdateRafRef.current) {
       terrainUpdateRafRef.current = requestAnimationFrame(() => {
         terrainUpdateRafRef.current = 0;
@@ -601,13 +607,17 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         onContextMenu={handleContextMenu}
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
       />
-      <div className="node-graph-renderer__terrain-overlay" style={{ pointerEvents: 'none' }}>
+      <div
+        ref={overlayRef}
+        className="node-graph-renderer__terrain-overlay"
+        style={{ pointerEvents: 'none', transformOrigin: '0 0', willChange: 'transform' }}
+      >
         {terrainNodes.map(({ id, node, x, y, height }) => (
           <TerrainNodeOverlay
             key={id}
             node={node}
-            screenX={x * transform.scale + transform.x}
-            screenY={y * transform.scale + transform.y}
+            screenX={x}
+            screenY={y}
             height={height}
             onNodeClick={onNodeClick}
             onNodeDoubleClick={onNodeDoubleClick}
