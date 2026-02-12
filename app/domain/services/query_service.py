@@ -131,7 +131,7 @@ class QueryExecutor:
         self,
         query: Union[Dict[str, Any], QueryAST],
         runtime_params: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = 100,
+        limit: Optional[int] = None,
         offset: Optional[int] = None,
         order_by: Optional[str] = None,
     ) -> List[Dict[str, Any]]:

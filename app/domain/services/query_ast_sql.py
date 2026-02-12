@@ -85,8 +85,9 @@ class QueryASTToSQL:
         if where_clauses:
             sql_parts.append("WHERE " + " AND ".join(where_clauses))
         
-        # Default ordering
-        sql_parts.append("ORDER BY n.id DESC")
+        # Default ordering - use sequence for proper hierarchical ordering
+        # This ensures children appear in their display order, not creation order
+        sql_parts.append("ORDER BY n.sequence ASC, n.id ASC")
         
         # Combine into final SQL
         sql = "\n".join(sql_parts)
