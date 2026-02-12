@@ -4,17 +4,22 @@
  * Compact graph view displayed in the bottom-right corner.
  * Shows all workspace pages as a force-directed graph.
  */
+import { mdiClose } from '@mdi/js';
 import { useGraphNodes } from '@/hooks';
 import { GraphView } from '@/components/nodes/views/GraphView';
+import { Button } from '@/components/core/Button';
 import './GraphMinimap.css';
 
 export interface GraphMinimapProps {
   /** CSS class */
   className?: string;
+  /** Callback when close button is clicked */
+  onClose?: () => void;
 }
 
 export function GraphMinimap({ 
-  className = '' 
+  className = '',
+  onClose
 }: GraphMinimapProps) {
   const { data: graphNodes } = useGraphNodes();
 
@@ -22,6 +27,17 @@ export function GraphMinimap({
 
   return (
     <div className={`graph-minimap ${className}`}>
+      {onClose && (
+        <Button 
+          icon={mdiClose}
+          iconOnly
+          className="graph-minimap__close"
+          onClick={onClose}
+          title="Close minimap"
+          size="xs"
+          variant="ghost"
+        />
+      )}
       <GraphView
         viewId="minimap"
         nodes={graphNodes}
