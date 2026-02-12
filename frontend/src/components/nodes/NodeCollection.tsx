@@ -358,7 +358,7 @@ export function NodeCollection({
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        return <GraphView nodes={graphNodes} links={[]} className="node-collection__graph" />;
+        return <GraphView nodes={graphNodes} className="node-collection__graph" />;
       
       default:
         // Fallback to list view

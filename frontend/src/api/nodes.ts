@@ -365,6 +365,17 @@ export async function getWorkspaceData(): Promise<GraphData> {
 }
 
 /**
+ * Get links between a specific set of node IDs
+ * Returns all link types (reference, parent, class, extends, property-reference)
+ * where both source and target are in the provided set.
+ */
+export async function getLinksForNodes(nodeIds: number[]): Promise<GraphLink[]> {
+  if (nodeIds.length === 0) return [];
+  const response = await api.post<{ links: GraphLink[] }>(`${BASE}/links`, { node_ids: nodeIds });
+  return response.data.links;
+}
+
+/**
  * Update date format response
  */
 export interface UpdateDateFormatResponse {

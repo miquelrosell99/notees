@@ -167,6 +167,17 @@ export function useGraphData(options?: { enabled?: boolean }) {
 }
 
 /**
+ * Hook to fetch links between a specific set of node IDs
+ */
+export function useGraphLinks(nodeIds: number[], options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: nodeKeys.graphLinks(nodeIds),
+    queryFn: () => nodesApi.getLinksForNodes(nodeIds),
+    enabled: (options?.enabled ?? true) && nodeIds.length > 0,
+  });
+}
+
+/**
  * Hook to fetch backlinks for a node
  */
 export function useBacklinks(nodeId: number | null) {

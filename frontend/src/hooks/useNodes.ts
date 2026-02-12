@@ -31,6 +31,7 @@ export {
   useNodeByUuid,
   usePageContent,
   useGraphData,
+  useGraphLinks,
   useBacklinks,
   useLinkedReferences,
   usePropertyBacklinks,
