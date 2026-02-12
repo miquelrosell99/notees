@@ -6,7 +6,7 @@
  * Fetches graph data and passes it to GraphView with toolbar disabled.
  */
 import { Card } from '@/components/core/Card';
-import { useGraphData } from '@/hooks';
+import { useGraphNodes } from '@/hooks';
 import { GraphView } from '@/components/nodes/views/GraphView';
 import './GraphMinimap.css';
 
@@ -21,9 +21,9 @@ export function GraphMinimap({
   currentNodeId = null,
   className = '' 
 }: GraphMinimapProps) {
-  const { data: graphData } = useGraphData();
+  const { data: graphNodes } = useGraphNodes();
 
-  if (!graphData || graphData.nodes.length === 0) return null;
+  if (!graphNodes || graphNodes.length === 0) return null;
 
   return (
     <Card className={`graph-view-all-card ${className}`} elevation="medium" padding={false}>
@@ -34,7 +34,7 @@ export function GraphMinimap({
       <div className="graph-view-all-card__content">
         <GraphView
           viewId="minimap"
-          nodes={graphData.nodes}
+          nodes={graphNodes}
           currentNodeId={currentNodeId}
           showSettings={false}
           showSearch={false}

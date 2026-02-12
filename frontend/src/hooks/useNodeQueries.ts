@@ -157,6 +157,7 @@ export function usePageContent(pageId: number | null) {
 
 /**
  * Hook to fetch workspace data for visualization
+ * @deprecated Use useGraphNodes + useGraphLinks separately instead
  */
 export function useGraphData(options?: { enabled?: boolean }) {
   return useQuery({
@@ -167,12 +168,30 @@ export function useGraphData(options?: { enabled?: boolean }) {
 }
 
 /**
- * Hook to fetch links between a specific set of node IDs
+ * Hook to fetch workspace nodes only (without links).
+ * Use with useGraphLinks for efficient data loading.
  */
-export function useGraphLinks(nodeIds: number[], options?: { enabled?: boolean }) {
+export function useGraphNodes(options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: nodeKeys.graphLinks(nodeIds),
-    queryFn: () => nodesApi.getLinksForNodes(nodeIds),
+    queryKey: nodeKeys.graphNodes(),
+    queryFn: () => nodesApi.getGraphNodes(),
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * Hook to fetch links between a specific set of node IDs.
+ * @param scope - "between" (default): both ends must be in the set.
+ *               "touching": at least one end in the set (for neighborhood discovery).
+ */
+export function useGraphLinks(
+  nodeIds: number[],
+  options?: { enabled?: boolean; scope?: 'between' | 'touching' }
+) {
+  const scope = options?.scope ?? 'between';
+  return useQuery({
+    queryKey: nodeKeys.graphLinks(nodeIds, scope),
+    queryFn: () => nodesApi.getLinksForNodes(nodeIds, scope),
     enabled: (options?.enabled ?? true) && nodeIds.length > 0,
   });
 }

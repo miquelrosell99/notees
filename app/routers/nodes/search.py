@@ -221,21 +221,79 @@ async def get_workspace_data_endpoint(
         return {"nodes": nodes, "links": unique_links}
 
 
+@router.get("/workspace/nodes")
+async def get_workspace_nodes_endpoint(
+    user: User = Depends(get_current_user),
+):
+    """Get all workspace nodes for visualization (without links).
+    
+    Returns the same nodes as /workspace but omits the links payload,
+    making it significantly lighter for cases where the caller fetches
+    links separately via POST /links.
+    """
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        excluded_uuids = [
+            SYSTEM_CLASS_UUIDS["page"],
+            SYSTEM_CLASS_UUIDS["class"],
+        ]
+        
+        page_rows = await conn.fetch(
+            """
+            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year
+            FROM node 
+            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+              AND uuid::text NOT IN (SELECT unnest($2::text[]))
+            ORDER BY name
+            """,
+            service._workspace_id,
+            excluded_uuids
+        )
+        
+        page_ids = [row['id'] for row in page_rows]
+        class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, page_ids, conn=conn) if page_ids else {}
+        
+        nodes = []
+        for row in page_rows:
+            node_class_ids = class_ids_map.get(row['id'], [])
+            nodes.append({
+                "id": row['id'],
+                "uuid": str(row['uuid']),
+                "name": row['name'],
+                "icon": row['icon'],
+                "is_class": row['is_class'],
+                "is_daily": row['is_day'],
+                "is_monthly": row['is_month'],
+                "is_yearly": row['is_year'],
+                "class_ids": node_class_ids,
+            })
+        
+        return {"nodes": nodes}
+
+
 @router.post("/links")
 async def get_links_for_nodes(
     body: dict,
     user: User = Depends(get_current_user),
 ):
-    """Get all links between a specific set of node IDs.
+    """Get links for a specific set of node IDs.
     
-    Accepts {"node_ids": [1, 2, 3, ...]} and returns all links (reference,
-    parent, class, extends, property-reference) where both source and target
-    are in the provided set. Useful for rendering a graph of a subset of nodes
-    without fetching the entire workspace.
+    Accepts {"node_ids": [1, 2, 3, ...], "scope": "between" | "touching"}
+    and returns links (reference, parent, class, extends, property-reference).
+    
+    Scopes:
+      - "between" (default): only links where BOTH source and target are in the set.
+        Use for rendering a graph of known nodes.
+      - "touching": links where AT LEAST ONE end is in the set.
+        Use for discovering connections from a starting set of nodes.
     """
     node_ids = body.get("node_ids", [])
+    scope = body.get("scope", "between")
     if not node_ids or not isinstance(node_ids, list):
         return {"links": []}
+    if scope not in ("between", "touching"):
+        raise HTTPException(status_code=400, detail="scope must be 'between' or 'touching'")
     
     # Limit to prevent abuse
     if len(node_ids) > 5000:
@@ -245,6 +303,7 @@ async def get_links_for_nodes(
     
     async with acquire_connection(service._pool) as conn:
         node_id_set = set(node_ids)
+        require_both = scope == "between"
         links = []
         
         # 1. Reference links (from node_link table, resolving blocks to pages)
@@ -282,26 +341,48 @@ async def get_links_for_nodes(
             if source_page_id not in node_id_set:
                 source_page_id = block_to_page.get(source_page_id, source_page_id)
             target_id = row['target_id']
-            if source_page_id in node_id_set and target_id in node_id_set:
-                links.append({"source": source_page_id, "target": target_id, "type": "reference"})
+            if require_both:
+                if source_page_id in node_id_set and target_id in node_id_set:
+                    links.append({"source": source_page_id, "target": target_id, "type": "reference"})
+            else:
+                # touching: at least one end is in the set
+                if source_page_id in node_id_set or target_id in node_id_set:
+                    links.append({"source": source_page_id, "target": target_id, "type": "reference"})
         
         # 2. Parent relationships
-        parent_rows = await conn.fetch(
-            """
-            SELECT child.id as child_id, parent.id as parent_id
-            FROM node child
-            JOIN node parent ON child.parent_id = parent.id
-            WHERE child.workspace_id = $1
-              AND child.is_page = TRUE
-              AND parent.is_page = TRUE
-              AND child.active = TRUE
-              AND parent.active = TRUE
-              AND child.id = ANY($2::int[])
-              AND parent.id = ANY($2::int[])
-            """,
-            service._workspace_id,
-            node_ids,
-        )
+        if require_both:
+            parent_rows = await conn.fetch(
+                """
+                SELECT child.id as child_id, parent.id as parent_id
+                FROM node child
+                JOIN node parent ON child.parent_id = parent.id
+                WHERE child.workspace_id = $1
+                  AND child.is_page = TRUE
+                  AND parent.is_page = TRUE
+                  AND child.active = TRUE
+                  AND parent.active = TRUE
+                  AND child.id = ANY($2::int[])
+                  AND parent.id = ANY($2::int[])
+                """,
+                service._workspace_id,
+                node_ids,
+            )
+        else:
+            parent_rows = await conn.fetch(
+                """
+                SELECT child.id as child_id, parent.id as parent_id
+                FROM node child
+                JOIN node parent ON child.parent_id = parent.id
+                WHERE child.workspace_id = $1
+                  AND child.is_page = TRUE
+                  AND parent.is_page = TRUE
+                  AND child.active = TRUE
+                  AND parent.active = TRUE
+                  AND (child.id = ANY($2::int[]) OR parent.id = ANY($2::int[]))
+                """,
+                service._workspace_id,
+                node_ids,
+            )
         for row in parent_rows:
             links.append({"source": row['parent_id'], "target": row['child_id'], "type": "parent"})
         
@@ -309,48 +390,84 @@ async def get_links_for_nodes(
         class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids, conn=conn)
         for nid in node_ids:
             for class_id in class_ids_map.get(nid, []):
-                if class_id in node_id_set:
+                if not require_both or class_id in node_id_set:
                     links.append({"source": nid, "target": class_id, "type": "class"})
         
         # 4. Class extends (inheritance)
-        class_extends_rows = await conn.fetch(
-            """
-            SELECT ce.target_id as child_id, ce.source_id as parent_id
-            FROM class_extend ce
-            JOIN node child ON ce.target_id = child.id
-            JOIN node parent ON ce.source_id = parent.id
-            WHERE child.workspace_id = $1
-              AND parent.workspace_id = $1
-              AND child.active = TRUE
-              AND parent.active = TRUE
-              AND ce.target_id = ANY($2::int[])
-              AND ce.source_id = ANY($2::int[])
-            """,
-            service._workspace_id,
-            node_ids,
-        )
+        if require_both:
+            class_extends_rows = await conn.fetch(
+                """
+                SELECT ce.target_id as child_id, ce.source_id as parent_id
+                FROM class_extend ce
+                JOIN node child ON ce.target_id = child.id
+                JOIN node parent ON ce.source_id = parent.id
+                WHERE child.workspace_id = $1
+                  AND parent.workspace_id = $1
+                  AND child.active = TRUE
+                  AND parent.active = TRUE
+                  AND ce.target_id = ANY($2::int[])
+                  AND ce.source_id = ANY($2::int[])
+                """,
+                service._workspace_id,
+                node_ids,
+            )
+        else:
+            class_extends_rows = await conn.fetch(
+                """
+                SELECT ce.target_id as child_id, ce.source_id as parent_id
+                FROM class_extend ce
+                JOIN node child ON ce.target_id = child.id
+                JOIN node parent ON ce.source_id = parent.id
+                WHERE child.workspace_id = $1
+                  AND parent.workspace_id = $1
+                  AND child.active = TRUE
+                  AND parent.active = TRUE
+                  AND (ce.target_id = ANY($2::int[]) OR ce.source_id = ANY($2::int[]))
+                """,
+                service._workspace_id,
+                node_ids,
+            )
         for row in class_extends_rows:
             links.append({"source": row['child_id'], "target": row['parent_id'], "type": "extends"})
         
         # 5. Property-based links
-        property_link_rows = await conn.fetch(
-            """
-            SELECT DISTINCT pvr.node_id, pvr.target_id
-            FROM property_value_relation pvr
-            JOIN node source ON pvr.node_id = source.id
-            JOIN node target ON pvr.target_id = target.id
-            WHERE source.workspace_id = $1
-              AND target.workspace_id = $1
-              AND source.is_page = TRUE
-              AND target.is_page = TRUE
-              AND source.active = TRUE
-              AND target.active = TRUE
-              AND pvr.node_id = ANY($2::int[])
-              AND pvr.target_id = ANY($2::int[])
-            """,
-            service._workspace_id,
-            node_ids,
-        )
+        if require_both:
+            property_link_rows = await conn.fetch(
+                """
+                SELECT DISTINCT pvr.node_id, pvr.target_id
+                FROM property_value_relation pvr
+                JOIN node source ON pvr.node_id = source.id
+                JOIN node target ON pvr.target_id = target.id
+                WHERE source.workspace_id = $1
+                  AND target.workspace_id = $1
+                  AND source.is_page = TRUE
+                  AND target.is_page = TRUE
+                  AND source.active = TRUE
+                  AND target.active = TRUE
+                  AND pvr.node_id = ANY($2::int[])
+                  AND pvr.target_id = ANY($2::int[])
+                """,
+                service._workspace_id,
+                node_ids,
+            )
+        else:
+            property_link_rows = await conn.fetch(
+                """
+                SELECT DISTINCT pvr.node_id, pvr.target_id
+                FROM property_value_relation pvr
+                JOIN node source ON pvr.node_id = source.id
+                JOIN node target ON pvr.target_id = target.id
+                WHERE source.workspace_id = $1
+                  AND target.workspace_id = $1
+                  AND source.is_page = TRUE
+                  AND target.is_page = TRUE
+                  AND source.active = TRUE
+                  AND target.active = TRUE
+                  AND (pvr.node_id = ANY($2::int[]) OR pvr.target_id = ANY($2::int[]))
+                """,
+                service._workspace_id,
+                node_ids,
+            )
         for row in property_link_rows:
             links.append({"source": row['node_id'], "target": row['target_id'], "type": "property-reference"})
         
