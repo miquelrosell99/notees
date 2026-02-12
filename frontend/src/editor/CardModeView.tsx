@@ -24,7 +24,7 @@ import {
 
 import { NodeCard } from './CardEditor';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
-import { apiNodesToGraphNodesWithVirtualRoot } from '../hooks/useRuntimeSync';
+import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
 import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { Node } from '@/types';
@@ -34,6 +34,7 @@ import { useNodesStore } from '@/stores';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import { mdiPlus } from '@mdi/js';
+import { sortBySequence } from '@/utils/nodeSort';
 
 import './CardModeView.css';
 
@@ -81,14 +82,16 @@ export function CardModeView({
     };
     for (const n of nodes) collect(n);
 
-    const virtualRootId = `__cardmode_${viewId}__`;
     const runtime = getNodeGraphRuntime();
-    const { graphNodes } = apiNodesToGraphNodesWithVirtualRoot(allNodes, virtualRootId);
+    const { graphNodes } = apiNodesToGraphNodes(allNodes);
     runtime.upsertNodes(graphNodes);
   }, [nodes, viewId]);
 
   // Card size from store
   const cardSize = useNodesStore(state => state.cardSize);
+
+  // Sort cards by sequence (order field)
+  const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
 
   const gridStyle = columns
     ? { gridTemplateColumns: `repeat(${columns}, 1fr)` }
@@ -177,7 +180,7 @@ export function CardModeView({
 
   return (
     <div className={gridClassName} style={gridStyle} ref={containerRef}>
-      {nodes.map((node, index) => (
+      {sortedNodes.map((node, index) => (
         <NodeCard
           key={node.id}
           node={node}

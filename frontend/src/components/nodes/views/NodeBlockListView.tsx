@@ -12,6 +12,7 @@ import { NoteesEditor } from '@/editor/NoteesEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
+import { sortBySequence } from '@/utils/nodeSort';
 import './NodeBlockListView.css';
 
 /**
@@ -29,11 +30,15 @@ export function NodeBlockListView({
   renderItemAction,
   onNodeClick,
   onContentChange,
+  pageId,
+  pageUuid,
   className = '',
 }: NodeListViewProps) {
   const viewId = useId();
 
-  // Collect all nodes recursively, filtering by pagesOnly if needed
+  // Collect all nodes recursively, filtering by pagesOnly if needed,
+  // then sort by sequence (order field) so the editor receives them in
+  // the correct display order.
   const allNodes = useMemo(() => {
     const result: Node[] = [];
     const collect = (n: Node) => {
@@ -48,7 +53,7 @@ export function NodeBlockListView({
     for (const n of nodes) {
       collect(n);
     }
-    return result;
+    return sortBySequence(result);
   }, [nodes, pagesOnly]);
 
   // Handler for navigation from editor
@@ -135,6 +140,8 @@ export function NodeBlockListView({
         readOnly={!editable}
         onNavigateToNode={handleNavigateToNode}
         onContentChange={handleContentChangeBridge}
+        pageId={pageId}
+        pageUuid={pageUuid}
         className="node-list-view__editor"
       />
     </div>

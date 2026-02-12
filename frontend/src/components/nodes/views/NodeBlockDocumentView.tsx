@@ -24,6 +24,8 @@ export function NodeBlockDocumentView({
   maxDepth = Infinity,
   onNodeClick,
   onContentChange,
+  pageId,
+  pageUuid,
   className = '',
 }: NodeDocumentViewProps): JSX.Element {
   const viewId = useId();
@@ -91,6 +93,8 @@ export function NodeBlockDocumentView({
         readOnly={!editable}
         onNavigateToNode={handleNavigateToNode}
         onContentChange={handleContentChangeBridge}
+        pageId={pageId}
+        pageUuid={pageUuid}
         placeholder="Start writing…"
       />
     </div>

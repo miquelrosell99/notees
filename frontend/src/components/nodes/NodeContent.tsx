@@ -15,6 +15,7 @@
 import { useRef, useCallback, useState } from 'react';
 import { useCreateNode, useContentSave, useNodeNavigation } from '@/hooks';
 import { useNodesStore } from '@/stores';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { mdiPlus } from '@mdi/js';
@@ -71,7 +72,6 @@ export function NodeContent({
 
   const handleAddBlock = useCallback(async () => {
     // Compute next sequence from all node children (not just filtered ones)
-    // Find the max sequence and add 1, or default to 0 if no children
     const maxSequence = node.children?.reduce((max, child) => 
       Math.max(max, child.sequence ?? 0), -1) ?? -1;
     
@@ -80,7 +80,9 @@ export function NodeContent({
       parent_id: node.id,
       sequence: maxSequence + 1,
     });
-    // New block created — NoteesEditor will pick it up via runtime sync
+    // Request focus on the newly created block so the editor focuses it after sync
+    const runtime = getNodeGraphRuntime();
+    runtime.requestFocus(newNode.uuid);
   }, [createNode, node.id, node.children]);
 
   // Handle successful asset upload
@@ -128,6 +130,8 @@ export function NodeContent({
             onContentChange={handleBlockChange}
             showEmpty={false}
             showClasses={true}
+            pageId={node.id}
+            pageUuid={node.uuid}
           />
         </section>
       )}

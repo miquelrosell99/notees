@@ -66,6 +66,12 @@ export interface NodeBlockPluginProps {
   includeRoot?: boolean;
   /** Maximum depth to project (-1 = unlimited, default: -1) */
   maxDepth?: number;
+  /** Slice projection: block IDs in the slice (overrides rootBlockId-based projection) */
+  sliceBlockIds?: string[];
+  /** Slice projection: how many levels of children to expand (-1 = unlimited) */
+  sliceRecursiveLevel?: number;
+  /** Slice projection: whether to show parent nodes as locked projection roots */
+  sliceShowParent?: boolean;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -83,6 +89,9 @@ export function NodeBlockPlugin({
   readOnly = false,
   includeRoot = false,
   maxDepth = -1,
+  sliceBlockIds,
+  sliceRecursiveLevel,
+  sliceShowParent,
 }: NodeBlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -94,6 +103,11 @@ export function NodeBlockPlugin({
   const syncProjection = useCallback((projectedNodes: ProjectedNode[]) => {
     // Set flag BEFORE the update so the update listener skips content saves
     isSyncingRef.current = true;
+    
+    // Check if runtime is requesting focus on a specific block
+    const runtime = getNodeGraphRuntime();
+    const pendingFocusBlockId = runtime.getPendingFocus();
+    
     editor.update(() => {
       const root = $getRoot();
       const existingNodes = root.getChildren();
@@ -129,6 +143,7 @@ export function NodeBlockPlugin({
           existing.setIcon(projected.icon ?? null);
           existing.setColor(projected.color ?? null);
           existing.setBlockName(projected.name ?? '');
+          existing.setIsProjectionRoot(projected.isProjectionRoot);
         } else {
           // Create new node
           const newBlock = $createNodeBlockNode(
@@ -140,6 +155,7 @@ export function NodeBlockPlugin({
             projected.icon ?? null,
             projected.color ?? null,
             projected.name ?? '',
+            projected.isProjectionRoot,
           );
 
           // Populate inline content from contentAST
@@ -154,6 +170,20 @@ export function NodeBlockPlugin({
           }
 
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
+          
+          // If this is the block runtime requested to focus, schedule focus
+          if (projected.blockId === pendingFocusBlockId) {
+            runtime.clearPendingFocus();
+            const blockToFocus = newBlock;
+            queueMicrotask(() => {
+              editor.update(() => {
+                const firstChild = blockToFocus.getFirstChild();
+                if (firstChild) {
+                  firstChild.selectStart();
+                }
+              });
+            });
+          }
         }
       }
     }, { tag: 'runtime-sync' });
@@ -165,30 +195,36 @@ export function NodeBlockPlugin({
 
   useEffect(() => {
     const runtime = getNodeGraphRuntime();
+    const isSliceMode = sliceBlockIds && sliceBlockIds.length > 0;
+
+    const getProjection = () => {
+      if (isSliceMode) {
+        return runtime.projectSlice({
+          projectionId: editorId,
+          nodeBlockIds: sliceBlockIds!,
+          recursiveLevel: sliceRecursiveLevel ?? -1,
+          showParent: sliceShowParent ?? false,
+        });
+      }
+      return runtime.project({
+        projectionId: editorId,
+        rootBlockId,
+        maxDepth,
+        includeRoot,
+      });
+    };
 
     const unsubscribe = runtime.subscribe((event) => {
       if (event.type === 'nodes_changed' || event.type === 'structure_changed') {
-        const projection = runtime.project({
-          projectionId: editorId,
-          rootBlockId,
-          maxDepth,
-          includeRoot,
-        });
-        syncProjection(projection);
+        syncProjection(getProjection());
       }
     });
 
     // Initial sync
-    const initialProjection = runtime.project({
-      projectionId: editorId,
-      rootBlockId,
-      maxDepth,
-      includeRoot,
-    });
-    syncProjection(initialProjection);
+    syncProjection(getProjection());
 
     return unsubscribe;
-  }, [editor, editorId, rootBlockId, syncProjection]);
+  }, [editor, editorId, rootBlockId, syncProjection, sliceBlockIds, sliceRecursiveLevel, sliceShowParent]);
 
   // ─── Text change listener ──────────────────────────────────
 
@@ -239,7 +275,9 @@ export function NodeBlockPlugin({
 
         event?.preventDefault();
 
+        const runtime = getNodeGraphRuntime();
         const newBlockId = crypto.randomUUID();
+        runtime.requestFocus(newBlockId);
         onBlockCreate?.(blockId, blockId, newBlockId);
         return true;
       },
