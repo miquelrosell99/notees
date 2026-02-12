@@ -220,14 +220,16 @@ export class NodeBlockNode extends ElementNode {
       e.preventDefault();
     });
     
-    // Collapse arrow (hidden by default, shown on hover when has children)
-    const collapseArrow = document.createElement('button');
-    collapseArrow.className = 'node-block-collapse-arrow';
-    collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
-    collapseArrow.innerHTML = this.__collapsed
-      ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
-      : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
-    bullet.appendChild(collapseArrow);
+    // Collapse arrow (only create if has children)
+    if (this.__hasChildren) {
+      const collapseArrow = document.createElement('button');
+      collapseArrow.className = 'node-block-collapse-arrow';
+      collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
+      collapseArrow.innerHTML = this.__collapsed
+        ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
+      bullet.appendChild(collapseArrow);
+    }
 
     // Bullet container
     const bulletContainer = document.createElement('span');
@@ -285,6 +287,26 @@ export class NodeBlockNode extends ElementNode {
     // Update hasChildren
     if (prevNode.__hasChildren !== this.__hasChildren) {
       dom.classList.toggle('node-block--has-children', this.__hasChildren);
+      
+      // Add or remove collapse arrow
+      const bullet = dom.querySelector('.node-block-bullet');
+      if (bullet) {
+        const existingArrow = bullet.querySelector('.node-block-collapse-arrow');
+        
+        if (this.__hasChildren && !existingArrow) {
+          // Add collapse arrow
+          const collapseArrow = document.createElement('button');
+          collapseArrow.className = 'node-block-collapse-arrow';
+          collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
+          collapseArrow.innerHTML = this.__collapsed
+            ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
+            : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
+          bullet.insertBefore(collapseArrow, bullet.firstChild);
+        } else if (!this.__hasChildren && existingArrow) {
+          // Remove collapse arrow
+          existingArrow.remove();
+        }
+      }
     }
 
     // Update isProjectionRoot
