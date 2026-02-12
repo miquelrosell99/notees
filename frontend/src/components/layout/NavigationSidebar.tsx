@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAppStore, useFavoritesStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '../workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
@@ -456,6 +456,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
               onClick={() => setMainViewType('graph')}
             >
               Graph View
+            </Button>
+            
+            <Button 
+              className="sidebar-nav-item"
+              variant="ghost"
+              size="sm"
+              icon={mdiTerrain}
+              fullWidth
+              active={mainViewType === 'terrain'}
+              onClick={() => setMainViewType('terrain')}
+            >
+              Terrain View
             </Button>
             
             <Button 
