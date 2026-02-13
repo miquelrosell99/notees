@@ -1063,7 +1063,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
               const proxSq = prox * prox; // quadratic falloff for subtler fade-in
               const dotR = 1.5 + proxSq * 2; // radius 1.5 → 3.5
               xCtx.globalAlpha = 0.15 + proxSq * 0.65;
-              xCtx.fillStyle = '#ffffff';
+              const cc = classColorsRef.current;
+              xCtx.fillStyle = cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff';
               xCtx.beginPath();
               xCtx.arc(cardNx, ndotY, dotR, 0, Math.PI * 2);
               xCtx.fill();
@@ -1154,7 +1155,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
               const proxSq = prox * prox;
               const dotR = 1.5 + proxSq * 2;
               yCtx.globalAlpha = 0.15 + proxSq * 0.65;
-              yCtx.fillStyle = '#ffffff';
+              const cc = classColorsRef.current;
+              yCtx.fillStyle = cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff';
               yCtx.beginPath();
               yCtx.arc(ndotX, cardNy, dotR, 0, Math.PI * 2);
               yCtx.fill();
