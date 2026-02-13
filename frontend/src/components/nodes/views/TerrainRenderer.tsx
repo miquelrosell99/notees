@@ -11,7 +11,7 @@
  * - Mouse interactions (pan, zoom, click)
  */
 
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { Card } from '../../core/Card';
 import type {
   GraphNode,
@@ -92,9 +92,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   
   // State
   const [dimensions, setDimensions] = useState<Dimensions>({ width: 800, height: 600 });
-  const [, setHoveredNode] = useState<GraphNode | null>(null);
+  const dimensionsRef = useRef<Dimensions>({ width: 800, height: 600 });
   const hoveredNodeRef = useRef<GraphNode | null>(null);
-  const [overlaysVisible, setOverlaysVisible] = useState(false);
+  const overlaysVisibleRef = useRef(false);
   
   // Pan state
   const isPanningRef = useRef(false);
@@ -157,6 +157,23 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     updateLinks,
   }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks]);
   
+  // Overlay canvas for crosshair, hover labels, selected outlines (lightweight layer)
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const renderOverlayRef = useRef<((ctx: CanvasRenderingContext2D) => void) | null>(null);
+  
+  // Profile card refs for direct DOM class toggling (avoids React re-render)
+  const profileYCardRef = useRef<HTMLDivElement>(null);
+  const profileXCardRef = useRef<HTMLDivElement>(null);
+  
+  // Helper: toggle overlay visibility via ref + DOM (no state update)
+  const setOverlaysVisible = useCallback((visible: boolean) => {
+    if (overlaysVisibleRef.current === visible) return;
+    overlaysVisibleRef.current = visible;
+    profileYCardRef.current?.classList.toggle('terrain-overlay--visible', visible);
+    profileXCardRef.current?.classList.toggle('terrain-overlay--visible', visible);
+  }, []);
+  
   // Container resize
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -165,7 +182,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       for (const entry of entries) {
         const { width: w, height: h } = entry.contentRect;
         if (w > 0 && h > 0) {
-          setDimensions({ width: w, height: h });
+          const dims = { width: w, height: h };
+          dimensionsRef.current = dims;
+          setDimensions(dims);
         }
       }
     });
@@ -204,10 +223,45 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Hovered contour level index (-1 = none)
   const hoveredContourLevelRef = useRef(-1);
   
+  // ==================== Terrain Cache ====================
+  // Cache the expensive terrain computation (height map, contour chains, color map)
+  // and only recompute when node positions, transform, or selection actually changed.
+  
+  // Snapshot of node positions + transform used to generate current cache
+  const terrainCacheRef = useRef<{
+    positionHash: number; // cheap hash of node positions + transform
+    selectionHash: number; // hash of selected node IDs
+    classColorsHash: number; // hash of class colors
+    gridW: number;
+    gridH: number;
+    gs: number;
+    allChains: Array<Array<Array<[number, number]>>>; // [level][chain][point]
+    nodeChildDirs: Array<Array<{nx: number, ny: number}>>;
+    idToIdx: Map<number, number>;
+    nodeColors: Array<[number, number, number]>;
+    lowR: number; lowG: number; lowB: number;
+    highR: number; highG: number; highB: number;
+    hasClassColors: boolean;
+    hasSelection: boolean;
+    selectedNodeIndices: Set<number>;
+    valid: boolean;
+  }>({
+    positionHash: 0, selectionHash: 0, classColorsHash: 0,
+    gridW: 0, gridH: 0, gs: 4,
+    allChains: [], nodeChildDirs: [], idToIdx: new Map(), nodeColors: [],
+    lowR: 0, lowG: 0, lowB: 0, highR: 0, highG: 0, highB: 0,
+    hasClassColors: false, hasSelection: false, selectedNodeIndices: new Set(),
+    valid: false,
+  });
+  
+  // Blurred mask canvas (pre-blurred at grid res instead of CSS filter on full canvas)
+  const blurredMaskRef = useRef<HTMLCanvasElement | null>(null);
+  const blurredColorMapRef = useRef<HTMLCanvasElement | null>(null);
+  
   // ==================== Render Function ====================
   
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
-    const { width: w, height: h } = dimensions;
+    const { width: w, height: h } = dimensionsRef.current;
     const dpr = window.devicePixelRatio || 1;
     const t = transformRef.current;
     
@@ -246,6 +300,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           ctx.fillText(displayName, sx, sy + 6);
         }
       }
+      terrainCacheRef.current.valid = false;
       return;
     }
     
@@ -255,15 +310,58 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const gridH = Math.ceil(h / gs);
     const gridSize = gridW * gridH;
     
+    // ==================== Cache Validation ====================
+    // Compute cheap hash of node positions + transform to detect changes.
+    // Use grid-snapped positions so sub-grid-cell motion doesn't force a rebuild
+    // (contours don't visibly change for sub-pixel movements).
+    const posSnap = gs * 0.5; // half a grid cell — invisible contour change
+    let positionHash = (Math.round(t.x / posSnap) * 7
+                      + Math.round(t.y / posSnap) * 13
+                      + Math.round(t.scale * 1000) * 31
+                      + visibleNodes.length * 97) | 0;
+    for (let i = 0; i < visibleNodes.length; i++) {
+      const n = visibleNodes[i];
+      // Snap positions to half-grid-cell precision — finer changes are invisible
+      positionHash = (positionHash * 31 + Math.round(n.x / posSnap)) | 0;
+      positionHash = (positionHash * 31 + Math.round(n.y / posSnap)) | 0;
+    }
+    let selectionHash = 0;
+    const selIdSet = selectedNodeIdsRef.current;
+    const hasSelection = selIdSet.size > 0;
+    if (hasSelection) {
+      for (const id of selIdSet) selectionHash += id * 37;
+    }
+    let classColorsHash = currentClassColors.length;
+    for (let i = 0; i < currentClassColors.length; i++) {
+      classColorsHash += (currentClassColors[i].order ?? 0) * (i + 1);
+    }
+    
+    const cache = terrainCacheRef.current;
+    const cacheValid = cache.valid
+      && cache.positionHash === positionHash
+      && cache.selectionHash === selectionHash
+      && cache.classColorsHash === classColorsHash
+      && cache.gridW === gridW
+      && cache.gridH === gridH;
+    
     // Fast integer hash for deterministic per-cell noise (no Math.random, stable across frames)
-    // Uses node id + angular octave to create organic per-peak shape variation
     const ihash = (a: number, b: number): number => {
       let h = (a * 374761393 + b * 668265263 + 1274126177) | 0;
       h = Math.imul(h ^ (h >>> 13), 1103515245);
       return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff; // 0..1
     };
     
-    // Reuse typed-array buffers across frames
+    // Numeric point key for contour chain building (avoids string allocation)
+    const ptKey = (x: number, y: number): number => {
+      const ix = ((x * 100 + 0.5) | 0) + 500000;
+      const iy = ((y * 100 + 0.5) | 0) + 500000;
+      return ix * 1048576 + iy; // 2^20 should be enough range
+    };
+    
+    if (!cacheValid) {
+      // ==================== Rebuild Terrain Cache ====================
+    
+      // Reuse typed-array buffers across frames
     if (!heightMapBufRef.current || heightMapBufRef.current.length < gridSize) {
       heightMapBufRef.current = new Float32Array(gridSize);
       tempMapBufRef.current = new Float32Array(gridSize);
@@ -472,15 +570,26 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const [cr, cg, cb] = nodeColors[owner];
         cmd[off] = cr; cmd[off + 1] = cg; cmd[off + 2] = cb; cmd[off + 3] = 255;
       } else {
-        // Unowned cells: use lowR/lowG/lowB as fallback
         cmd[off] = lowR; cmd[off + 1] = lowG; cmd[off + 2] = lowB; cmd[off + 3] = 255;
       }
     }
     colorMapCtx.putImageData(colorMapData, 0, 0);
     
+    // Pre-blur the color map at grid resolution (P2: replaces CSS filter blur)
+    if (!blurredColorMapRef.current) blurredColorMapRef.current = document.createElement('canvas');
+    const blurredColorMap = blurredColorMapRef.current;
+    const blurSize = Math.max(gridW * 2, 1);
+    const blurSizeH = Math.max(gridH * 2, 1);
+    if (blurredColorMap.width !== blurSize || blurredColorMap.height !== blurSizeH) {
+      blurredColorMap.width = blurSize; blurredColorMap.height = blurSizeH;
+    }
+    const blurredColorCtx = blurredColorMap.getContext('2d')!;
+    blurredColorCtx.imageSmoothingEnabled = true;
+    blurredColorCtx.imageSmoothingQuality = 'medium';
+    // Upscale color map with bilinear smoothing creates the gradient blur effect
+    blurredColorCtx.drawImage(colorMapCanvas, 0, 0, blurSize, blurSizeH);
+    
     // Build set of selected node indices for dimming
-    const selIdSet = selectedNodeIdsRef.current;
-    const hasSelection = selIdSet.size > 0;
     const selectedNodeIndices = new Set<number>();
     if (hasSelection) {
       for (let i = 0; i < visibleNodes.length; i++) {
@@ -490,24 +599,41 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
     }
     
-    // Draw contour lines — continuous paths with smooth selection dimming
-    // Uses offscreen canvas + ownership mask compositing so contour lines stay
-    // continuous (no per-segment color switching) and the dim↔bright transition
-    // is a smooth spatial gradient created by bilinear scaling of the mask.
-    ctx.save();
-    ctx.lineCap = 'butt';
-    ctx.setLineDash(LINE_DASH_NONE);
+    // Pre-blur the selection mask at grid resolution
+    if (hasSelection) {
+      if (!blurredMaskRef.current) blurredMaskRef.current = document.createElement('canvas');
+      const blurredMask = blurredMaskRef.current;
+      if (!selectionMaskRef.current) selectionMaskRef.current = document.createElement('canvas');
+      const maskCanvas = selectionMaskRef.current;
+      if (maskCanvas.width !== gridW || maskCanvas.height !== gridH) {
+        maskCanvas.width = gridW; maskCanvas.height = gridH;
+      }
+      const maskCtx = maskCanvas.getContext('2d')!;
+      const maskData = maskCtx.createImageData(gridW, gridH);
+      const md = maskData.data;
+      for (let i = 0; i < gridW * gridH; i++) {
+        const owner = ownerMap[i];
+        const off = i * 4;
+        md[off] = md[off + 1] = md[off + 2] = 0;
+        md[off + 3] = (owner >= 0 && selectedNodeIndices.has(owner)) ? 255 : 0;
+      }
+      maskCtx.putImageData(maskData, 0, 0);
+      // Bilinear upscale creates smooth gradient at selection boundaries
+      if (blurredMask.width !== blurSize || blurredMask.height !== blurSizeH) {
+        blurredMask.width = blurSize; blurredMask.height = blurSizeH;
+      }
+      const blurredMaskCtx = blurredMask.getContext('2d')!;
+      blurredMaskCtx.imageSmoothingEnabled = true;
+      blurredMaskCtx.imageSmoothingQuality = 'medium';
+      blurredMaskCtx.clearRect(0, 0, blurSize, blurSizeH);
+      blurredMaskCtx.drawImage(maskCanvas, 0, 0, blurSize, blurSizeH);
+    }
     
-    const DIM_OPACITY_FACTOR = 0.25;
-    const GRADIENT_BLUR = `blur(${gs * 1.5}px)`;
-    const MIN_CHAIN_LEN = gs * 4; // filter contour loops shorter than 4 grid cells
+    const MIN_CHAIN_LEN = gs * 4;
     
     // ---- Pre-compute filtered contour chains for all levels ----
-    // Collect segments, chain by shared endpoints, discard short islands.
     type Pt = [number, number];
     type Chain = Pt[];
-    
-    const ptKey = (x: number, y: number) => ((x * 100 + 0.5) | 0) + ',' + ((y * 100 + 0.5) | 0);
     
     const addSeg = (segs: Array<[number, number, number, number]>, x1: number, y1: number, x2: number, y2: number) => {
       segs.push([x1, y1, x2, y2]);
@@ -563,9 +689,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     const buildChains = (segs: Array<[number, number, number, number]>): Chain[] => {
       if (segs.length === 0) return [];
-      // Adjacency: endpoint key → list of { segIdx, end: 0|1 }
-      const adj = new Map<string, Array<{ si: number; end: number }>>();
-      const addAdj = (key: string, si: number, end: number) => {
+      const adj = new Map<number, Array<{ si: number; end: number }>>();
+      const addAdj = (key: number, si: number, end: number) => {
         let list = adj.get(key);
         if (!list) { list = []; adj.set(key, list); }
         list.push({ si, end });
@@ -582,7 +707,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         visited[si] = 1;
         const [x1, y1, x2, y2] = segs[si];
         const chain: Pt[] = [[x1, y1], [x2, y2]];
-        // Extend forward from x2,y2
         let curKey = ptKey(x2, y2);
         for (;;) {
           const neighbors = adj.get(curKey);
@@ -592,7 +716,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             if (visited[nb.si]) continue;
             visited[nb.si] = 1;
             const s = segs[nb.si];
-            // nb.end is the end that matched curKey; the OTHER end extends the chain
             const nx = nb.end === 0 ? s[2] : s[0];
             const ny = nb.end === 0 ? s[3] : s[1];
             chain.push([nx, ny]);
@@ -602,7 +725,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           }
           if (!found) break;
         }
-        // Extend backward from x1,y1
         curKey = ptKey(x1, y1);
         for (;;) {
           const neighbors = adj.get(curKey);
@@ -636,7 +758,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       return len;
     };
     
-    // Pre-compute chains per level (reused across dim/bright passes)
     const allChains: Chain[][] = new Array(CONTOUR_LEVELS.length);
     for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
       const segs = collectSegments(CONTOUR_LEVELS[li]);
@@ -644,11 +765,42 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       allChains[li] = chains.filter(c => chainLength(c) >= MIN_CHAIN_LEN);
     }
     
+    // Store to cache
+    cache.positionHash = positionHash;
+    cache.selectionHash = selectionHash;
+    cache.classColorsHash = classColorsHash;
+    cache.gridW = gridW;
+    cache.gridH = gridH;
+    cache.gs = gs;
+    cache.allChains = allChains;
+    cache.nodeChildDirs = nodeChildDirs;
+    cache.idToIdx = idToIdx;
+    cache.nodeColors = nodeColors;
+    cache.lowR = lowR; cache.lowG = lowG; cache.lowB = lowB;
+    cache.highR = highR; cache.highG = highG; cache.highB = highB;
+    cache.hasClassColors = hasClassColors;
+    cache.hasSelection = hasSelection;
+    cache.selectedNodeIndices = selectedNodeIndices;
+    cache.valid = true;
+    
+    } // end if (!cacheValid)
+    
+    // ==================== Read from cache for drawing ====================
+    const cachedChains = cache.allChains;
+    const cachedLowR = cache.lowR, cachedLowG = cache.lowG, cachedLowB = cache.lowB;
+    const cachedHighR = cache.highR, cachedHighG = cache.highG, cachedHighB = cache.highB;
+    const cachedHasClassColors = cache.hasClassColors;
+    const cachedHasSelection = cache.hasSelection;
+    const cachedSelectedNodeIndices = cache.selectedNodeIndices;
+    const cachedNodeChildDirs = cache.nodeChildDirs;
+    const cachedIdToIdx = cache.idToIdx;
+    const cachedNodeColors = cache.nodeColors;
+    
     // Draw pre-computed chains for all contour levels onto a target context
     const drawAllContours = (tgt: CanvasRenderingContext2D, styleFn: (level: number, isMajor: boolean, isHovered: boolean) => void) => {
       for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
-        const chains = allChains[li];
-        if (chains.length === 0) continue;
+        const chains = cachedChains[li];
+        if (!chains || chains.length === 0) continue;
         styleFn(CONTOUR_LEVELS[li], (li + 1) % 5 === 0, li === hoveredContourLevelRef.current);
         tgt.beginPath();
         for (const chain of chains) {
@@ -660,35 +812,23 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         tgt.stroke();
       }
     };
+
+    ctx.save();
+    ctx.lineCap = 'butt';
+    ctx.setLineDash(LINE_DASH_NONE);
+    const DIM_OPACITY_FACTOR = 0.25;
     
-    if (hasSelection) {
-      // Offscreen canvas + ownership mask approach:
-      // 1. Build mask at grid resolution (selected=opaque, non-selected=transparent)
-      // 2. Draw dim contours on offscreen → destination-out mask → composite to main
-      // 3. Draw bright contours on offscreen → destination-in mask → composite to main
-      // Bilinear scaling of the small mask creates smooth gradient at boundaries.
-      
-      // --- Prepare offscreen canvas ---
+    const blurredColorMap = blurredColorMapRef.current;
+    
+    if (cachedHasSelection) {
+      // Offscreen canvas + pre-blurred mask approach
       if (!contourOffscreenRef.current) contourOffscreenRef.current = document.createElement('canvas');
       const offCanvas = contourOffscreenRef.current;
       const bw = Math.ceil(w * dpr), bh = Math.ceil(h * dpr);
       if (offCanvas.width !== bw || offCanvas.height !== bh) { offCanvas.width = bw; offCanvas.height = bh; }
       const offCtx = offCanvas.getContext('2d')!;
       
-      // --- Build selection mask at grid resolution ---
-      if (!selectionMaskRef.current) selectionMaskRef.current = document.createElement('canvas');
-      const maskCanvas = selectionMaskRef.current;
-      if (maskCanvas.width !== gridW || maskCanvas.height !== gridH) { maskCanvas.width = gridW; maskCanvas.height = gridH; }
-      const maskCtx = maskCanvas.getContext('2d')!;
-      const maskData = maskCtx.createImageData(gridW, gridH);
-      const md = maskData.data;
-      for (let i = 0; i < gridW * gridH; i++) {
-        const owner = ownerMap[i];
-        const off = i * 4;
-        md[off] = md[off + 1] = md[off + 2] = 0;
-        md[off + 3] = (owner >= 0 && selectedNodeIndices.has(owner)) ? 255 : 0;
-      }
-      maskCtx.putImageData(maskData, 0, 0);
+      const blurredMask = blurredMaskRef.current;
       
       // --- Pass 1: DIM contours (non-selected regions) ---
       offCtx.setTransform(1, 0, 0, 1, 0, 0);
@@ -699,28 +839,25 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       drawAllContours(offCtx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        offCtx.strokeStyle = hasClassColors
+        offCtx.strokeStyle = cachedHasClassColors
           ? `rgba(255, 255, 255, ${baseOp * DIM_OPACITY_FACTOR})`
-          : `rgba(${lowR}, ${lowG}, ${lowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
+          : `rgba(${cachedLowR}, ${cachedLowG}, ${cachedLowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
         offCtx.lineWidth = Math.max(0.5, baseLW * 0.7);
       });
-      // Colorize with class colors (source-in replaces white with class color, keeps alpha)
-      if (hasClassColors) {
+      if (cachedHasClassColors && blurredColorMap) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.filter = GRADIENT_BLUR;
-        offCtx.drawImage(colorMapCanvas, 0, 0, w, h);
+        offCtx.drawImage(blurredColorMap, 0, 0, w, h);
         offCtx.restore();
       }
-      // Remove selected regions (keep only non-selected)
-      offCtx.save();
-      offCtx.globalCompositeOperation = 'destination-out';
-      offCtx.imageSmoothingEnabled = true;
-      offCtx.filter = GRADIENT_BLUR;
-      offCtx.drawImage(maskCanvas, 0, 0, w, h);
-      offCtx.restore();
-      // Composite dim contours to main
+      if (blurredMask) {
+        offCtx.save();
+        offCtx.globalCompositeOperation = 'destination-out';
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.drawImage(blurredMask, 0, 0, w, h);
+        offCtx.restore();
+      }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
       
       // --- Pass 2: BRIGHT contours (selected regions) ---
@@ -732,37 +869,33 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       drawAllContours(offCtx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        if (hasClassColors) {
+        if (cachedHasClassColors) {
           offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
         } else {
-          const r = Math.round(lowR + (highR - lowR) * level);
-          const g = Math.round(lowG + (highG - lowG) * level);
-          const b = Math.round(lowB + (highB - lowB) * level);
+          const r = Math.round(cachedLowR + (cachedHighR - cachedLowR) * level);
+          const g = Math.round(cachedLowG + (cachedHighG - cachedLowG) * level);
+          const b = Math.round(cachedLowB + (cachedHighB - cachedLowB) * level);
           offCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
         }
         offCtx.lineWidth = baseLW;
       });
-      // Colorize with class colors
-      if (hasClassColors) {
+      if (cachedHasClassColors && blurredColorMap) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.filter = GRADIENT_BLUR;
-        offCtx.drawImage(colorMapCanvas, 0, 0, w, h);
+        offCtx.drawImage(blurredColorMap, 0, 0, w, h);
         offCtx.restore();
       }
-      // Keep only selected regions
-      offCtx.save();
-      offCtx.globalCompositeOperation = 'destination-in';
-      offCtx.imageSmoothingEnabled = true;
-      offCtx.filter = GRADIENT_BLUR;
-      offCtx.drawImage(maskCanvas, 0, 0, w, h);
-      offCtx.restore();
-      // Composite bright contours to main
+      if (blurredMask) {
+        offCtx.save();
+        offCtx.globalCompositeOperation = 'destination-in';
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.drawImage(blurredMask, 0, 0, w, h);
+        offCtx.restore();
+      }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
       
-    } else if (hasClassColors) {
-      // No selection, class colors — use offscreen for color compositing
+    } else if (cachedHasClassColors) {
       if (!contourOffscreenRef.current) contourOffscreenRef.current = document.createElement('canvas');
       const offCanvas = contourOffscreenRef.current;
       const bw = Math.ceil(w * dpr), bh = Math.ceil(h * dpr);
@@ -779,22 +912,21 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
         offCtx.lineWidth = baseLW;
       });
-      // Colorize
-      offCtx.save();
-      offCtx.globalCompositeOperation = 'source-in';
-      offCtx.imageSmoothingEnabled = true;
-      offCtx.filter = GRADIENT_BLUR;
-      offCtx.drawImage(colorMapCanvas, 0, 0, w, h);
-      offCtx.restore();
+      if (blurredColorMap) {
+        offCtx.save();
+        offCtx.globalCompositeOperation = 'source-in';
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.drawImage(blurredColorMap, 0, 0, w, h);
+        offCtx.restore();
+      }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
     } else {
-      // No selection, no class colors — single pass, continuous paths, bright style
       drawAllContours(ctx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        const r = Math.round(lowR + (highR - lowR) * level);
-        const g = Math.round(lowG + (highG - lowG) * level);
-        const b = Math.round(lowB + (highB - lowB) * level);
+        const r = Math.round(cachedLowR + (cachedHighR - cachedLowR) * level);
+        const g = Math.round(cachedLowG + (cachedHighG - cachedLowG) * level);
+        const b = Math.round(cachedLowB + (cachedHighB - cachedLowB) * level);
         ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
         ctx.lineWidth = baseLW;
       });
@@ -802,41 +934,65 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     ctx.restore();
     
-    // ==================== Draw Hovered Label ====================
+    // Also repaint the overlay (labels, outlines, crosshair) since node positions may have changed
+    if (overlayCtxRef.current && renderOverlayRef.current) {
+      renderOverlayRef.current(overlayCtxRef.current);
+    }
+  }, []); // stable callback — reads from refs
+  
+  // ==================== Overlay Render Function (lightweight) ====================
+  // Draws crosshair, hover labels, selected outlines on the overlay canvas.
+  // This is called on every mouse move but is very cheap (no height map / contours).
+  
+  const renderOverlay = useCallback((overlayCtx: CanvasRenderingContext2D) => {
+    const { width: w, height: h } = dimensionsRef.current;
+    const dpr = window.devicePixelRatio || 1;
+    const t = transformRef.current;
     
+    overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+    overlayCtx.clearRect(0, 0, w * dpr, h * dpr);
+    overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    
+    const { visibleNodes } = frameDataRef.current;
+    const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+    const { accentColor } = cssVarsRef.current;
+    const currentClassColors = classColorsRef.current;
+    const cache = terrainCacheRef.current;
+    const idToIdx = cache.idToIdx;
+    const nodeChildDirs = cache.nodeChildDirs;
+    
+    // ==================== Draw Hovered Label ====================
     const hovNode = hoveredNodeRef.current;
     if (hovNode) {
       const sx = hovNode.x * t.scale + t.x;
       const sy = hovNode.y * t.scale + t.y;
       
       if (sx >= -60 && sx <= w + 60 && sy >= -20 && sy <= h + 20) {
-        ctx.font = '10px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.globalAlpha = 1;
+        overlayCtx.font = '10px Inter, sans-serif';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'top';
+        overlayCtx.globalAlpha = 1;
         
-        // Text outline for readability on colored plateaus
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        overlayCtx.lineWidth = 3;
+        overlayCtx.lineJoin = 'round';
+        overlayCtx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
         const displayName = hovNode.displayName.length > 35 
           ? hovNode.displayName.slice(0, 35) + '...' 
           : hovNode.displayName;
-        ctx.strokeText(displayName, sx, sy + 6);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(displayName, sx, sy + 6);
+        overlayCtx.strokeText(displayName, sx, sy + 6);
+        overlayCtx.fillStyle = '#ffffff';
+        overlayCtx.fillText(displayName, sx, sy + 6);
       }
     }
     
     // ==================== Draw Selected Peak Outlines ====================
-    
     const selIds = selectedNodeIdsRef.current;
-    if (selIds.size > 0) {
-      ctx.save();
+    if (selIds.size > 0 && idToIdx && nodeChildDirs) {
+      overlayCtx.save();
       
-      const OUTLINE_SAMPLES = 48; // angular samples for shape tracing
-      const OUTLINE_PAD = 8; // px outside plateau edge
-      const MAX_STRETCH = 1.6; // clamp elongation so outline stays near peak
+      const OUTLINE_SAMPLES = 48;
+      const OUTLINE_PAD = 8;
+      const MAX_STRETCH = 1.6;
       
       for (const node of visibleNodes) {
         if (!selIds.has(node.id)) continue;
@@ -851,21 +1007,18 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const peakSize = terrainPeakRadii.get(node.id) ?? 0;
         const baseR = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale;
         const dirs = nodeChildDirs[nIdx];
-        const hasDirs = dirs.length > 0;
+        const hasDirs = dirs && dirs.length > 0;
         
         const nodeColor = getNodeColor(node, currentClassColors, accentColor);
         
-        // Trace outline path by sampling angles
-        ctx.beginPath();
+        overlayCtx.beginPath();
         for (let si = 0; si <= OUTLINE_SAMPLES; si++) {
           const ang = (si / OUTLINE_SAMPLES) * 2 * Math.PI;
           const cosA = Math.cos(ang);
           const sinA = Math.sin(ang);
           
-          // Start with base plateau radius, then apply shape modifiers
           let r = baseR;
           
-          // Star-shaped stretch toward child directions (same logic as height map)
           if (hasDirs) {
             let maxAlign = 0;
             for (let d = 0; d < dirs.length; d++) {
@@ -875,100 +1028,96 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             if (maxAlign > 0.5) {
               const ramp = (maxAlign - 0.5) * 2;
               const stretch = 1 + TERRAIN_ANISOTROPY * ramp * ramp;
-              // Clamp stretch to prevent excessive elongation
               r *= Math.min(Math.sqrt(stretch), MAX_STRETCH);
             }
           }
           
-          // Angular noise (same hash as height map)
           if (TERRAIN_NOISE_STRENGTH > 0) {
             const n1 = ihash(node.id, Math.floor(ang * 3 + 100)) * 2 - 1;
             const n2 = ihash(node.id, Math.floor(ang * 7 + 200)) * 2 - 1;
             const noise = (n1 * 0.7 + n2 * 0.3) * TERRAIN_NOISE_STRENGTH;
-            r *= 1 / (1 + noise); // inverse because height map multiplies distSq
+            r *= 1 / (1 + noise);
           }
           
           const px = sx + cosA * (r + OUTLINE_PAD);
           const py = sy + sinA * (r + OUTLINE_PAD);
           
-          if (si === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
+          if (si === 0) overlayCtx.moveTo(px, py);
+          else overlayCtx.lineTo(px, py);
         }
-        ctx.closePath();
+        overlayCtx.closePath();
         
-        // Outer colored glow
-        ctx.globalAlpha = 0.3;
-        ctx.strokeStyle = nodeColor;
-        ctx.lineWidth = 4;
-        ctx.setLineDash([4, 3]);
-        ctx.stroke();
+        overlayCtx.globalAlpha = 0.3;
+        overlayCtx.strokeStyle = nodeColor;
+        overlayCtx.lineWidth = 4;
+        overlayCtx.setLineDash([4, 3]);
+        overlayCtx.stroke();
         
-        // Inner white ring
-        ctx.globalAlpha = 0.8;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        overlayCtx.globalAlpha = 0.8;
+        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.lineWidth = 1.5;
+        overlayCtx.stroke();
         
-        // Label for selected nodes (always visible)
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-        ctx.font = '10px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        overlayCtx.setLineDash([]);
+        overlayCtx.globalAlpha = 1;
+        overlayCtx.font = '10px Inter, sans-serif';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.textBaseline = 'top';
+        overlayCtx.lineWidth = 3;
+        overlayCtx.lineJoin = 'round';
+        overlayCtx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
         const displayName = node.displayName.length > 35 
           ? node.displayName.slice(0, 35) + '...' 
           : node.displayName;
-        ctx.strokeText(displayName, sx, sy + 6);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(displayName, sx, sy + 6);
+        overlayCtx.strokeText(displayName, sx, sy + 6);
+        overlayCtx.fillStyle = '#ffffff';
+        overlayCtx.fillText(displayName, sx, sy + 6);
       }
       
-      ctx.restore();
+      overlayCtx.restore();
     }
     
     // ==================== Draw Crosshair Lines ====================
     const mx = mouseScreenRef.current.x;
     const my = mouseScreenRef.current.y;
     if (mx >= 0 && my >= 0 && !isPanningRef.current && !dragNodeRef.current) {
-      ctx.save();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1;
-      // Vertical line
-      ctx.beginPath();
-      ctx.moveTo(mx, 0);
-      ctx.lineTo(mx, h);
-      ctx.stroke();
-      // Horizontal line
-      ctx.beginPath();
-      ctx.moveTo(0, my);
-      ctx.lineTo(w, my);
-      ctx.stroke();
+      overlayCtx.save();
+      overlayCtx.setLineDash([6, 4]);
+      overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      overlayCtx.lineWidth = 1;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(mx, 0);
+      overlayCtx.lineTo(mx, h);
+      overlayCtx.stroke();
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(0, my);
+      overlayCtx.lineTo(w, my);
+      overlayCtx.stroke();
       
-      // Center cross marker
       const CROSS_SIZE = 8;
-      ctx.setLineDash([]);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(mx - CROSS_SIZE, my);
-      ctx.lineTo(mx + CROSS_SIZE, my);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(mx, my - CROSS_SIZE);
-      ctx.lineTo(mx, my + CROSS_SIZE);
-      ctx.stroke();
-      ctx.restore();
+      overlayCtx.setLineDash([]);
+      overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      overlayCtx.lineWidth = 1.5;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(mx - CROSS_SIZE, my);
+      overlayCtx.lineTo(mx + CROSS_SIZE, my);
+      overlayCtx.stroke();
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(mx, my - CROSS_SIZE);
+      overlayCtx.lineTo(mx, my + CROSS_SIZE);
+      overlayCtx.stroke();
+      overlayCtx.restore();
     }
-  }, [dimensions]);
+  }, []); // stable — reads from refs
   
   // Set up render function and context
   useEffect(() => {
     renderRef.current = render;
   }, [render, renderRef]);
+  
+  useEffect(() => {
+    renderOverlayRef.current = renderOverlay;
+  }, [renderOverlay]);
   
   // ==================== Profile Drawing ====================
   
@@ -979,7 +1128,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     const mx = mouseScreenRef.current.x;
     const my = mouseScreenRef.current.y;
-    const { width: w, height: h } = dimensions;
+    const { width: w, height: h } = dimensionsRef.current;
     
     // Card inset constants (must match CSS)
     const INSET = 12;
@@ -1166,7 +1315,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
     }
-  }, [dimensions]);
+  }, []); // stable — reads from dimensionsRef
   
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1176,6 +1325,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       ctxRef.current = ctx;
     }
   }, [ctxRef]);
+  
+  // Set up overlay canvas context
+  useEffect(() => {
+    const overlay = overlayCanvasRef.current;
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (ctx) overlayCtxRef.current = ctx;
+  }, []);
   
   // ==================== Event Handlers ====================
   
@@ -1263,8 +1420,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         if (gx >= 0 && gx < gW && gy >= 0 && gy < gH) {
           const h = heightMap[gy * gW + gx];
           if (h > 0) {
-            // Find the outermost (lowest) contour level that the cursor is inside
-            // i.e. the highest contour level still <= current height
             for (let i = CONTOUR_LEVELS.length - 1; i >= 0; i--) {
               if (CONTOUR_LEVELS[i] <= h) { newContourLevel = i; break; }
             }
@@ -1272,6 +1427,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
       
+      // Contour level change requires full terrain redraw (contour styles change)
       if (newContourLevel !== hoveredContourLevelRef.current) {
         hoveredContourLevelRef.current = newContourLevel;
         if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
@@ -1282,9 +1438,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       // Update overlays and redraw profiles
       setOverlaysVisible(true);
       drawProfiles();
-      // Redraw main canvas for crosshair lines
-      if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
-        renderRef.current(ctxRef.current);
+      
+      // Redraw overlay only (crosshair, labels) — NOT the full terrain canvas
+      if (overlayCtxRef.current && renderOverlayRef.current) {
+        renderOverlayRef.current(overlayCtxRef.current);
       }
       
       if (canvas) {
@@ -1293,14 +1450,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       if (node !== hoveredNodeRef.current) {
         hoveredNodeRef.current = node;
-        setHoveredNode(node);
         onHoveredNodeChange?.(node);
-        if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
-          renderRef.current(ctxRef.current);
+        // Overlay already redrawn above — just re-render overlay for label update
+        if (overlayCtxRef.current && renderOverlayRef.current) {
+          renderOverlayRef.current(overlayCtxRef.current);
         }
       }
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation, drawProfiles]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation, drawProfiles, setOverlaysVisible]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
@@ -1341,18 +1498,27 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         wasJustDraggingRef.current = false;
       }, 50);
     }
-  }, [dragNodeRef, dragStartTimeRef]);
+  }, [dragNodeRef, dragStartTimeRef, setOverlaysVisible]);
   
   const handleMouseLeave = useCallback(() => {
     handleMouseUp();
     mouseScreenRef.current = { x: -1, y: -1 };
     hoveredContourLevelRef.current = -1;
+    hoveredNodeRef.current = null;
     setOverlaysVisible(false);
     drawProfiles();
+    // Clear overlay canvas
+    if (overlayCtxRef.current) {
+      const dpr = window.devicePixelRatio || 1;
+      const { width: w, height: h } = dimensionsRef.current;
+      overlayCtxRef.current.setTransform(1, 0, 0, 1, 0, 0);
+      overlayCtxRef.current.clearRect(0, 0, w * dpr, h * dpr);
+    }
+    // Redraw terrain (contour highlight removed)
     if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
       renderRef.current(ctxRef.current);
     }
-  }, [handleMouseUp, drawProfiles]);
+  }, [handleMouseUp, drawProfiles, setOverlaysVisible]);
   
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (wasJustDraggingRef.current) return;
@@ -1445,24 +1611,29 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         onContextMenu={handleContextMenu}
         style={{ cursor: 'none' }}
       />
-      <Card
-        variant="dashed"
-        elevation="none"
-        padding={false}
-        radius="sm"
-        className={`terrain-profile-card terrain-profile-card--right${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
+      <canvas
+        ref={overlayCanvasRef}
+        width={dimensions.width * (window.devicePixelRatio || 1)}
+        height={dimensions.height * (window.devicePixelRatio || 1)}
+        className="node-graph-renderer__overlay"
+        style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', width: '100%', height: '100%' }}
+      />
+      <div
+        ref={profileYCardRef}
+        className="terrain-profile-card terrain-profile-card--right"
       >
-        <canvas ref={profileYCanvasRef} className="terrain-profile-canvas" />
-      </Card>
-      <Card
-        variant="dashed"
-        elevation="none"
-        padding={false}
-        radius="sm"
-        className={`terrain-profile-card terrain-profile-card--bottom${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
+        <Card variant="dashed" elevation="none" padding={false} radius="sm" className="terrain-profile-card__inner">
+          <canvas ref={profileYCanvasRef} className="terrain-profile-canvas" />
+        </Card>
+      </div>
+      <div
+        ref={profileXCardRef}
+        className="terrain-profile-card terrain-profile-card--bottom"
       >
-        <canvas ref={profileXCanvasRef} className="terrain-profile-canvas" />
-      </Card>
+        <Card variant="dashed" elevation="none" padding={false} radius="sm" className="terrain-profile-card__inner">
+          <canvas ref={profileXCanvasRef} className="terrain-profile-canvas" />
+        </Card>
+      </div>
     </div>
   );
 });
