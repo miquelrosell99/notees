@@ -23,8 +23,7 @@
 .terrain-profile-card {
   position: absolute;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.25) !important;
-  backdrop-filter: blur(4px);
+  background: var(--color-surface) !important;
   overflow: hidden;
   z-index: 2;
   opacity: 0;
