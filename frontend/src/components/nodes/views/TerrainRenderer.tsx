@@ -1046,9 +1046,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           radius="sm"
           className={`terrain-profile-card terrain-profile-card--coords${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
         >
-          <span className="terrain-coords-text">
-            {cursorCoords.x}, {cursorCoords.y}
-          </span>
+          <span className="terrain-coords-text">{cursorCoords.x}</span>
+          <span className="terrain-coords-text">{cursorCoords.y}</span>
         </Card>
       )}
     </div>
