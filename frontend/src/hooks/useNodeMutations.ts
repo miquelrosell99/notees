@@ -1235,6 +1235,9 @@ export function useAddClass() {
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
       
+      // Invalidate query results so table views and query views update immediately
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      
       // Invalidate graph data since class links changed
       queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
     },
@@ -1365,6 +1368,9 @@ export function useRemoveClass() {
       // (e.g., query class removal deletes the main_content view)
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
+      
+      // Invalidate query results so table views and query views update immediately
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       
       // Invalidate graph data since class links changed
       queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
