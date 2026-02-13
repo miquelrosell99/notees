@@ -81,8 +81,8 @@ export function FloatingToolbarPlugin({
           const r = sel.getRangeAt(0);
           const rect = r.getBoundingClientRect();
           setPosition({
-            top: rect.top - 40 + window.scrollY,
-            left: rect.left + rect.width / 2 + window.scrollX,
+            top: rect.bottom + 8 + window.scrollY,
+            left: rect.left + window.scrollX,
           });
           setIsVisible(true);
           showTimeoutRef.current = null;
@@ -125,7 +125,6 @@ export function FloatingToolbarPlugin({
         position: 'absolute',
         top: position.top,
         left: position.left,
-        transform: 'translateX(-50%)',
         zIndex: 1000,
         pointerEvents: 'auto',
       }}
