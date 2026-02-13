@@ -99,8 +99,11 @@ export function BlockPlugin({
   // Flag to suppress content change callbacks during external sync
   const isSyncingRef = useRef(false);
   // Coalesce multiple runtime events (e.g. nodes_changed + structure_changed)
-  // so syncProjection only runs once per flush cycle
+  // so syncProjection only runs once per flush cycle.
+  // If a second event fires while the first sync is in progress the
+  // dirty flag ensures we re-sync after the microtask so no state is lost.
   const syncCoalesceRef = useRef(false);
+  const syncDirtyRef = useRef(false);
 
   // ─── Sync projected nodes into Lexical ──────────────────────
 
@@ -295,11 +298,23 @@ export function BlockPlugin({
     const unsubscribe = runtime.subscribe((event) => {
       if (event.type === 'nodes_changed' || event.type === 'structure_changed') {
         // Coalesce: flushEvents() fires nodes_changed + structure_changed
-        // back-to-back. Only sync once per synchronous cycle.
+        // back-to-back.  We sync once immediately and, if more events
+        // arrived during the sync, re-sync after the microtask so the
+        // final state is always reflected in Lexical.
         if (!syncCoalesceRef.current) {
           syncCoalesceRef.current = true;
+          syncDirtyRef.current = false;
           syncProjection(getProjection());
-          Promise.resolve().then(() => { syncCoalesceRef.current = false; });
+          Promise.resolve().then(() => {
+            syncCoalesceRef.current = false;
+            if (syncDirtyRef.current) {
+              syncDirtyRef.current = false;
+              syncProjection(getProjection());
+            }
+          });
+        } else {
+          // Mark dirty so the microtask re-syncs with the final state
+          syncDirtyRef.current = true;
         }
       }
     });
