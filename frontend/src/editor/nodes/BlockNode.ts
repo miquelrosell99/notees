@@ -190,14 +190,14 @@ export class BlockNode extends ElementNode {
   // ─── DOM ──────────────────────────────────────────────────────
 
   /**
-   * Tell Lexical that managed (text) children start AFTER the bullet wrapper.
-   * Without this, Lexical treats the bullet wrapper as its first child, which
-   * corrupts selection offsets, reconciliation, and character deletion.
+   * Tell Lexical to insert managed children into the content wrapper.
+   * This keeps them flowing as inline text rather than becoming
+   * separate flex items of the outer .node-block flex container.
    */
   getDOMSlot(element: HTMLElement) {
-    const bulletWrapper = element.querySelector('.bullet-wrapper');
-    return bulletWrapper
-      ? super.getDOMSlot(element).withAfter(bulletWrapper)
+    const contentSlot = element.querySelector('.node-block-content');
+    return contentSlot
+      ? super.getDOMSlot(contentSlot as HTMLElement)
       : super.getDOMSlot(element);
   }
 
@@ -273,6 +273,12 @@ export class BlockNode extends ElementNode {
     
     bullet.appendChild(bulletContainer);
     dom.appendChild(bullet);
+
+    // Content wrapper — Lexical inserts managed (text) children here
+    // This keeps inline spans flowing as text rather than flex items
+    const content = document.createElement('div');
+    content.className = 'node-block-content';
+    dom.appendChild(content);
 
     return dom;
   }

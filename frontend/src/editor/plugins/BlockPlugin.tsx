@@ -268,6 +268,14 @@ export function BlockPlugin({
         }
       }
     }, { tag: 'runtime-sync' });
+
+    // If we consumed a pending focus, ensure the DOM ContentEditable
+    // actually has focus (it may have been blurred by an external click,
+    // e.g. the "Add block" button).
+    if (pendingFocus && !runtime.getPendingFocus()) {
+      editor.focus();
+    }
+
     // Reset flag after a microtask - Lexical update listeners fire before this
     Promise.resolve().then(() => { isSyncingRef.current = false; });
   }, [editor]);
