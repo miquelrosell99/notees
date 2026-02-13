@@ -15,6 +15,7 @@ import {
   $isRangeSelection,
   type TextFormatType,
 } from 'lexical';
+import { $trimSelectionWhitespace } from '../utils/selectionUtils';
 
 export function FormattingPlugin(): null {
   const [editor] = useLexicalComposerContext();
@@ -58,6 +59,13 @@ export function FormattingPlugin(): null {
 
         if (format) {
           event.preventDefault();
+          // Trim whitespace from selection before applying format
+          editor.update(() => {
+            const selection = $getSelection();
+            if ($isRangeSelection(selection)) {
+              $trimSelectionWhitespace(selection);
+            }
+          });
           editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
           return true;
         }

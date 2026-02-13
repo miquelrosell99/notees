@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 import { mdiFormatBold, mdiFormatItalic, mdiFormatUnderline, mdiFormatStrikethrough, mdiCodeTags } from '@mdi/js';
 import { Card } from '../../components/core/Card';
 import { Button } from '../../components/core/Button';
+import { $trimSelectionWhitespace } from '../utils/selectionUtils';
 import './FloatingToolbarPlugin.css';
 
 export interface FloatingToolbarPluginProps {
@@ -99,6 +100,13 @@ export function FloatingToolbarPlugin({
   }, [editor]);
 
   const handleFormat = useCallback((format: TextFormatType) => {
+    // Trim whitespace from selection before applying format
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        $trimSelectionWhitespace(selection);
+      }
+    });
     editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
   }, [editor]);
 

@@ -24,6 +24,7 @@ import {
   type DOMExportOutput,
   type LexicalEditor,
   $applyNodeReplacement,
+  setDOMUnmanaged,
 } from 'lexical';
 
 import type { GraphNodeType } from '../../runtime/types';
@@ -197,7 +198,7 @@ export class BlockNode extends ElementNode {
   getDOMSlot(element: HTMLElement) {
     const contentSlot = element.querySelector('.node-block-content');
     return contentSlot
-      ? super.getDOMSlot(contentSlot as HTMLElement)
+      ? super.getDOMSlot(element).withElement(contentSlot as HTMLElement)
       : super.getDOMSlot(element);
   }
 
@@ -233,6 +234,10 @@ export class BlockNode extends ElementNode {
     if (this.__collapsed) bullet.classList.add('bullet-collapsed');
     bullet.dataset.blockId = this.__blockId;
     bullet.draggable = !this.__isProjectionRoot;
+    // Mark bullet as non-editable so the browser's contentEditable engine
+    // won't treat it as mutable content during Backspace/Delete operations
+    bullet.contentEditable = 'false';
+    setDOMUnmanaged(bullet);
     
     // Prevent text selection when mousedown on bullet
     bullet.addEventListener('mousedown', (e: MouseEvent) => {
