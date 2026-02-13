@@ -152,6 +152,12 @@
   color: var(--color-on-surface);
 }
 
+/* Ensure text spans have minimum width for caret visibility in empty blocks */
+.node-block-content > span[data-lexical-text="true"] {
+  display: inline-block;
+  min-width: 1px;
+}
+
 /* Pill nodes inside the content wrapper keep pointer cursor */
 .node-block-content .node-pill-wrapper {
   cursor: pointer;
@@ -180,7 +186,7 @@
   background: var(--color-caret);
   opacity: 0.72;
   mix-blend-mode: difference;
-  border-radius: 1px;
+  border-radius: 3px;
   animation: notees-block-caret-blink 1s step-end infinite;
 }
 
