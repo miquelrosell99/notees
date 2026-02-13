@@ -7,7 +7,7 @@
  * - **Pill surround**: When navigating onto a node link, caret smoothly wraps it
  * - **Breathing blink**: Sine-eased opacity pulse
  * - **Active block tracking**: Adds class to focused block for bullet pulse
- * - Theme-aware styling via --color-caret token
+ * - Theme-aware styling via --color-on-surface token
  *
  * The native caret is hidden via CSS (`caret-color: transparent`).
  */
