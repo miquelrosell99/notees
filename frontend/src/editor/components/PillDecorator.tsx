@@ -42,7 +42,7 @@ export function PillDecorator({ linkId, refType }: PillDecoratorProps) {
     <span
       className="node-pill-inner"
       data-ref-type={refType}
-      style={nodeColor ? { backgroundColor: nodeColor } : undefined}
+      style={nodeColor ? { textDecorationColor: nodeColor, color: nodeColor } : undefined}
     >
       {effectiveIcon && (
         <span className="node-pill-icon">
