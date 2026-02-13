@@ -108,8 +108,16 @@
   /* Graph handled by NodeGraphView */
 }
 
-.node-collection--graph .node-collection__content,
-.node-collection--terrain .node-collection__content {
+/* Embedded graph/terrain (query sections): square aspect ratio */
+.node-collection--contained.node-collection--graph .node-collection__content,
+.node-collection--contained.node-collection--terrain .node-collection__content {
   aspect-ratio: 1;
   flex: none;
+}
+
+/* Ensure Card fills the aspect-ratio container */
+.node-collection--contained.node-collection--graph .node-collection__content > .card,
+.node-collection--contained.node-collection--terrain .node-collection__content > .card {
+  height: 100%;
+  box-sizing: border-box;
 }
