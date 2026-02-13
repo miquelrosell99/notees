@@ -108,10 +108,10 @@
   /* Graph handled by NodeGraphView */
 }
 
-/* Embedded graph/terrain (query sections): square aspect ratio */
+/* Embedded graph/terrain (query sections): aspect ratio */
 .node-collection--contained.node-collection--graph .node-collection__content,
 .node-collection--contained.node-collection--terrain .node-collection__content {
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   flex: none;
 }
 
