@@ -562,8 +562,10 @@ export function TerrainView({
             </ButtonWithPanel>
           </>
         )}
-        
-        {/* Recenter button */}
+      </div>
+      
+      {/* Recenter button — bottom right */}
+      <div className="terrain-recenter-btn">
         <Button
           icon={mdiCrosshairsGps}
           size="sm"

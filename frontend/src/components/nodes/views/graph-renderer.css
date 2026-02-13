@@ -48,26 +48,11 @@
   height: 48px;
 }
 
-.terrain-profile-card--coords {
+.terrain-recenter-btn {
+  position: absolute;
   bottom: 12px;
   right: 12px;
-  width: auto;
-  height: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px !important;
-  gap: 1px;
-}
-
-.terrain-coords-text {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
-  white-space: nowrap;
-  letter-spacing: 0.5px;
-  line-height: 1.2;
+  z-index: 10;
 }
 
 .terrain-profile-canvas {
