@@ -76,6 +76,7 @@ export function NodeContent({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const handleAddBlock = useCallback(() => {
+    console.log('[NodeContent] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: children.length });
     // Create via runtime intent so the block appears immediately (no API roundtrip)
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
@@ -86,6 +87,7 @@ export function NodeContent({
       ? children.reduce((a, b) => ((a.sequence ?? 0) >= (b.sequence ?? 0) ? a : b))
       : null;
 
+    console.log('[NodeContent] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
     runtime.requestFocus(newBlockId);
     runtime.applyIntent({
       type: 'create_block',
@@ -95,6 +97,7 @@ export function NodeContent({
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
     runtime.flushEvents();
+    console.log('[NodeContent] Intent flushed');
   }, [node.uuid, children]);
 
   // Handle successful asset upload

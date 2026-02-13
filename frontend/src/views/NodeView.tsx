@@ -128,6 +128,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
 
   // Handle add block (adds child to the focused block)
   const handleAddBlock = useCallback(() => {
+    console.log('[NodeView/FocusedBlock] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: node.children?.length });
     // Create via runtime intent so the block appears immediately (no API roundtrip)
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
@@ -138,6 +139,7 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
       ? nodeChildren.reduce((a, b) => ((a.sequence ?? 0) >= (b.sequence ?? 0) ? a : b))
       : null;
 
+    console.log('[NodeView/FocusedBlock] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
     runtime.requestFocus(newBlockId);
     runtime.applyIntent({
       type: 'create_block',
