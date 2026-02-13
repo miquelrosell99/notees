@@ -32,6 +32,7 @@ export function ListView({
   onReorder,
   renderItemAction,
   onNodeClick,
+  onNodeShiftClick,
   onContentChange,
   pageId,
   pageUuid,
@@ -80,6 +81,26 @@ export function ListView({
       onNodeClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
     }
   }, [allNodes, onNodeClick]);
+
+  // Handler for shift-click (open in sidebar) from editor
+  const handleOpenInSidebar = useCallback((blockId: string) => {
+    // Get runtime to resolve blockId to serverId
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    
+    if (!graphNode) return;
+    
+    const serverId = graphNode.serverId;
+    if (!serverId) return;
+    
+    // Find node in allNodes or create stub
+    const targetNode = allNodes.find(n => n.id === serverId);
+    if (targetNode) {
+      onNodeShiftClick?.(targetNode);
+    } else {
+      onNodeShiftClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
+    }
+  }, [allNodes, onNodeShiftClick]);
 
   // Handler for content changes from editor
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
@@ -174,7 +195,7 @@ export function ListView({
                     nodeId={group.page.id}
                     showBullet={true}
                     onClick={() => onNodeClick?.(group.page!)}
-                    onShiftClick={() => onNodeClick?.(group.page!)}
+                    onShiftClick={() => onNodeShiftClick?.(group.page!)}
                   />
                 </div>
               )}
@@ -185,6 +206,7 @@ export function ListView({
                   mode="list"
                   readOnly={!editable}
                   onNavigateToNode={handleNavigateToNode}
+                  onOpenInSidebar={handleOpenInSidebar}
                   onContentChange={handleContentChangeBridge}
                   pageId={pageId}
                   pageUuid={pageUuid}
@@ -248,6 +270,7 @@ export function ListView({
         mode="list"
         readOnly={!editable}
         onNavigateToNode={handleNavigateToNode}
+        onOpenInSidebar={handleOpenInSidebar}
         onContentChange={handleContentChangeBridge}
         pageId={pageId}
         pageUuid={pageUuid}
