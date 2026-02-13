@@ -206,6 +206,39 @@ export class NodeGraphRuntime {
   }
 
   /**
+   * Remap a runtime block from an old blockId to a new blockId.
+   * Used when an optimistic block (e.g. "optimistic-123") is confirmed
+   * by the server with a real UUID. Updates the node map, children index,
+   * and pending focus in-place WITHOUT emitting events (the caller or
+   * subsequent upsertNodes will handle reconciliation).
+   */
+  remapBlockId(oldBlockId: string, newBlockId: string): void {
+    const node = this.nodes.get(oldBlockId);
+    if (!node) return;
+    if (oldBlockId === newBlockId) return;
+
+    // Move in node map
+    this.nodes.delete(oldBlockId);
+    node.blockId = newBlockId;
+    this.nodes.set(newBlockId, node);
+
+    // Update children whose parentId pointed to old ID
+    for (const child of this.nodes.values()) {
+      if (child.parentId === oldBlockId) {
+        child.parentId = newBlockId;
+      }
+    }
+
+    // Rebuild children index since parentIds changed
+    this.rebuildChildrenIndex();
+
+    // Update pendingFocus if it targeted the old blockId
+    if (this.pendingFocus?.blockId === oldBlockId) {
+      this.pendingFocus.blockId = newBlockId;
+    }
+  }
+
+  /**
    * Get a node by its server ID (numeric ID from API).
    * Returns null if not found.
    */

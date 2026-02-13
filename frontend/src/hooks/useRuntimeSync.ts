@@ -83,12 +83,36 @@ export function apiNodesToGraphNodes(
     idToUuidMap.set(pageId, pageUuid);
   }
 
+  // Build a serverId → existing runtime blockId map so we can reconcile
+  // API nodes with runtime blocks that were created optimistically (e.g. via
+  // Enter split_block or useCreateNode optimistic updates).  Without this,
+  // a refetch after persistence would introduce a duplicate block under the
+  // server-assigned UUID while the runtime still holds the original blockId,
+  // causing a flash (remove old + add new) and cursor loss.
+  const runtime = getNodeGraphRuntime();
+  const serverIdToRuntimeBlockId = new Map<number, string>();
   for (const node of nodes) {
-    idToUuidMap.set(node.id, node.uuid);
+    // Check if runtime already has a block with this serverId under a different blockId
+    const existing = runtime.getNodeByServerId(node.id);
+    if (existing && existing.blockId !== node.uuid) {
+      // Reuse the runtime's blockId so upsertNodes treats it as an update
+      serverIdToRuntimeBlockId.set(node.id, existing.blockId);
+      idToUuidMap.set(node.id, existing.blockId);
+    } else {
+      idToUuidMap.set(node.id, node.uuid);
+    }
     nodeIdSet.add(node.id);
   }
 
-  const graphNodes = nodes.map(n => apiNodeToGraphNode(n, idToUuidMap));
+  const graphNodes = nodes.map(n => {
+    const gn = apiNodeToGraphNode(n, idToUuidMap);
+    // If this node was reconciled, rewrite its blockId to the runtime's blockId
+    const runtimeBlockId = serverIdToRuntimeBlockId.get(n.id);
+    if (runtimeBlockId) {
+      gn.blockId = runtimeBlockId;
+    }
+    return gn;
+  });
 
   // Determine rootBlockId — the parent ID used for project() traversal
   if (pageUuid) {
