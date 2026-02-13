@@ -94,8 +94,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   
   // State
   const [dimensions, setDimensions] = useState<Dimensions>({ width: 800, height: 600 });
-  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const [, setHoveredNode] = useState<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
+  const [overlaysVisible, setOverlaysVisible] = useState(false);
+  const [cursorCoords, setCursorCoords] = useState<{ x: number; y: number } | null>(null);
   
   // Pan state
   const isPanningRef = useRef(false);
@@ -524,15 +526,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const dimOpacity = node.glare === 'dim' ? 0.4 : 1;
         ctx.globalAlpha = zoomOpacity * dimOpacity;
         
-        // Text halo for readability on colored plateaus
-        ctx.lineWidth = 2.5;
+        // Text outline for readability on colored plateaus
+        ctx.lineWidth = 3;
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
         const displayName = node.displayName.length > 35 
           ? node.displayName.slice(0, 35) + '...' 
           : node.displayName;
         ctx.strokeText(displayName, sx, sy + 6);
-        ctx.fillStyle = textColor;
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(displayName, sx, sy + 6);
       }
       ctx.globalAlpha = 1;
@@ -541,7 +543,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // ==================== Draw Crosshair Lines ====================
     const mx = mouseScreenRef.current.x;
     const my = mouseScreenRef.current.y;
-    if (mx >= 0 && my >= 0) {
+    if (mx >= 0 && my >= 0 && !isPanningRef.current && !dragNodeRef.current) {
       ctx.save();
       ctx.setLineDash([6, 4]);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -555,6 +557,20 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       ctx.beginPath();
       ctx.moveTo(0, my);
       ctx.lineTo(w, my);
+      ctx.stroke();
+      
+      // Center cross marker
+      const CROSS_SIZE = 8;
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(mx - CROSS_SIZE, my);
+      ctx.lineTo(mx + CROSS_SIZE, my);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(mx, my - CROSS_SIZE);
+      ctx.lineTo(mx, my + CROSS_SIZE);
       ctx.stroke();
       ctx.restore();
     }
@@ -780,6 +796,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const dy = screenY - panStartRef.current.y;
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
         didDragMoveRef.current = true;
+        setOverlaysVisible(false);
       }
       const prev = transformRef.current;
       setTransformDirect({
@@ -795,6 +812,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const dy = y - dragNodeRef.current.y;
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
         didDragMoveRef.current = true;
+        setOverlaysVisible(false);
       }
       dragNodeRef.current.x = x;
       dragNodeRef.current.y = y;
@@ -833,6 +851,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       // Update mouse position and redraw profiles
       mouseScreenRef.current = { x: screenX, y: screenY };
+      setOverlaysVisible(true);
+      const world = screenToWorld(screenX, screenY);
+      setCursorCoords({ x: Math.round(world.x), y: Math.round(world.y) });
       drawProfiles();
       // Redraw main canvas for crosshair lines
       if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
@@ -840,7 +861,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
       
       if (canvas) {
-        canvas.style.cursor = node ? 'pointer' : 'grab';
+        canvas.style.cursor = 'none';
       }
       
       if (node !== hoveredNodeRef.current) {
@@ -881,6 +902,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     dragStartTimeRef.current = null;
     isPanningRef.current = false;
     didDragMoveRef.current = false;
+    setOverlaysVisible(true);
+    
+    // Restore hidden cursor after drag
+    const canvas = canvasRef.current;
+    if (canvas) canvas.style.cursor = 'none';
     
     if (didMove) {
       wasJustDraggingRef.current = true;
@@ -894,6 +920,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     handleMouseUp();
     mouseScreenRef.current = { x: -1, y: -1 };
     hoveredContourLevelRef.current = -1;
+    setOverlaysVisible(false);
+    setCursorCoords(null);
     drawProfiles();
     if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
       renderRef.current(ctxRef.current);
@@ -990,26 +1018,39 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
+        style={{ cursor: 'none' }}
       />
       <Card
-        variant="outlined"
+        variant="dashed"
         elevation="none"
         padding={false}
         radius="sm"
-        className="terrain-profile-card terrain-profile-card--right"
+        className={`terrain-profile-card terrain-profile-card--right${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
       >
         <canvas ref={profileYCanvasRef} className="terrain-profile-canvas" />
       </Card>
       <Card
-        variant="outlined"
+        variant="dashed"
         elevation="none"
         padding={false}
         radius="sm"
-        className="terrain-profile-card terrain-profile-card--bottom"
+        className={`terrain-profile-card terrain-profile-card--bottom${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
       >
         <canvas ref={profileXCanvasRef} className="terrain-profile-canvas" />
       </Card>
+      {cursorCoords && (
+        <Card
+          variant="dashed"
+          elevation="none"
+          padding={false}
+          radius="sm"
+          className={`terrain-profile-card terrain-profile-card--coords${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
+        >
+          <span className="terrain-coords-text">
+            {cursorCoords.x}, {cursorCoords.y}
+          </span>
+        </Card>
+      )}
     </div>
   );
 });
