@@ -91,24 +91,34 @@ export class NodeGraphRuntime {
         // New node — mark parent as structurally changed
         if (node.parentId) changedParents.add(node.parentId);
         changedBlockIds.push(node.blockId);
-      } else if (existing.parentId !== node.parentId) {
-        // Parent changed — mark both old and new parent
-        if (existing.parentId) changedParents.add(existing.parentId);
-        if (node.parentId) changedParents.add(node.parentId);
-        changedBlockIds.push(node.blockId);
-      } else if (
-        existing.orderIndex !== node.orderIndex ||
-        existing.collapsed !== node.collapsed ||
-        existing.name !== node.name ||
-        existing.icon !== node.icon ||
-        existing.color !== node.color ||
-        existing.isDeleted !== node.isDeleted
-      ) {
-        // Content/metadata changed but structure unchanged
-        changedBlockIds.push(node.blockId);
+        this.nodes.set(node.blockId, node);
+      } else {
+        // Existing node — update structural / metadata fields but
+        // PRESERVE contentAST: the runtime is the source of truth for
+        // content during editing.  API syncs (optimistic cache updates,
+        // refetches) may carry stale / debounced content that would
+        // overwrite the user's latest edits if blindly applied.
+        const merged: GraphNode = {
+          ...node,
+          contentAST: existing.contentAST,
+        };
+
+        if (existing.parentId !== node.parentId) {
+          if (existing.parentId) changedParents.add(existing.parentId);
+          if (node.parentId) changedParents.add(node.parentId);
+          changedBlockIds.push(node.blockId);
+        } else if (
+          existing.orderIndex !== node.orderIndex ||
+          existing.collapsed !== node.collapsed ||
+          existing.name !== node.name ||
+          existing.icon !== node.icon ||
+          existing.color !== node.color ||
+          existing.isDeleted !== node.isDeleted
+        ) {
+          changedBlockIds.push(node.blockId);
+        }
+        this.nodes.set(node.blockId, merged);
       }
-      // Always update the stored node (to keep data fresh)
-      this.nodes.set(node.blockId, node);
     }
 
     // Only rebuild index and emit events if something actually changed
@@ -1012,9 +1022,23 @@ function mergeContentASTs(a: ContentAST, b: ContentAST): ContentAST {
   const firstB = b[0];
 
   // Merge last paragraph of a with first paragraph of b
+  // Then normalize adjacent plain-text nodes so the runtime's AST
+  // matches what Lexical produces after its own text-node merge pass.
+  const merged = [...lastPara.children, ...firstB.children];
+  const normalized: ASTInlineNode[] = [];
+  for (const node of merged) {
+    const prev = normalized.length > 0 ? normalized[normalized.length - 1] : null;
+    if (prev && prev.type === 'text' && node.type === 'text') {
+      // Merge adjacent plain-text nodes
+      normalized[normalized.length - 1] = { type: 'text', text: prev.text + node.text };
+    } else {
+      normalized.push(node);
+    }
+  }
+
   result[result.length - 1] = {
     type: 'paragraph',
-    children: [...lastPara.children, ...firstB.children],
+    children: normalized,
   };
 
   // Add remaining paragraphs from b

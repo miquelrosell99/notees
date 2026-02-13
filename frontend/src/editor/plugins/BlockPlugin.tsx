@@ -17,6 +17,8 @@ import {
   $isRangeSelection,
   $createTextNode,
   $isTextNode,
+  $isLineBreakNode,
+  TextNode,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_NORMAL,
   KEY_ENTER_COMMAND,
@@ -152,7 +154,7 @@ export function BlockPlugin({
           if (existing.getBlockName() !== (projected.name ?? '')) existing.setBlockName(projected.name ?? '');
           if (existing.getIsProjectionRoot() !== projected.isProjectionRoot) existing.setIsProjectionRoot(projected.isProjectionRoot);
           
-          // Check if content has changed (e.g., from split_block operation)
+          // Check if content has changed (e.g., from split_block or merge_blocks operation)
           // Compare serialized content to detect changes
           const currentContent = extractBlockContent(existing);
           const currentSerialized = JSON.stringify(currentContent);
@@ -168,6 +170,45 @@ export function BlockPlugin({
             
             // Repopulate with new content
             populateBlockContent(existing, projected.contentAST);
+          }
+          
+          // Handle pending focus on existing blocks (e.g. after merge_blocks
+          // the target block is existing but needs cursor at merge offset)
+          if (pendingFocus && projected.blockId === pendingFocus.blockId) {
+            runtime.clearPendingFocus();
+            if (pendingFocus.offset != null) {
+              // Walk children to find the right cursor position at the given character offset
+              let remaining = pendingFocus.offset;
+              const blockChildren = existing.getChildren();
+              let focused = false;
+              for (const child of blockChildren) {
+                if ($isTextNode(child)) {
+                  const len = child.getTextContentSize();
+                  if (remaining <= len) {
+                    child.select(remaining, remaining);
+                    focused = true;
+                    break;
+                  }
+                  remaining -= len;
+                } else {
+                  // PillNode or other: counts as 1 character
+                  if (remaining <= 0) {
+                    child.selectPrevious();
+                    focused = true;
+                    break;
+                  }
+                  remaining -= 1;
+                }
+              }
+              if (!focused) {
+                // Offset beyond content — place at end
+                const last = existing.getLastDescendant();
+                if (last) last.selectEnd();
+                else existing.selectEnd();
+              }
+            } else {
+              existing.selectStart();
+            }
           }
         }
       }
@@ -268,6 +309,26 @@ export function BlockPlugin({
 
     return unsubscribe;
   }, [editor, editorId, rootBlockId, syncProjection, sliceBlockIds, sliceRecursiveLevel, sliceShowParent]);
+
+  // ─── ZWS cleanup transform ────────────────────────────────
+  // Empty blocks use a zero-width space (\u200B) so the cursor
+  // has a focusable position.  When the user types real content
+  // into such a node the ZWS must be removed — otherwise it
+  // pollutes stored data AND breaks trigger-pattern detection
+  // (e.g. the "/" slash command regex expects start-of-text or
+  // whitespace before the slash, but ZWS is neither).
+
+  useEffect(() => {
+    return editor.registerNodeTransform(TextNode, (node) => {
+      const raw = node.getTextContent();
+      if (raw.length > 1 && raw.includes('\u200B')) {
+        const clean = raw.replace(/\u200B/g, '');
+        if (clean.length > 0) {
+          node.setTextContent(clean);
+        }
+      }
+    });
+  }, [editor]);
 
   // ─── Text change listener ──────────────────────────────────
 
@@ -757,8 +818,7 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       break;
     }
     case 'hard_break': {
-      // Treat as newline text for now
-      parent.append($createTextNode('\\n'));
+      parent.append($createLineBreakNode());
       break;
     }
     case 'node_link': {
@@ -828,6 +888,8 @@ function extractBlockContent(block: BlockNode): ContentAST {
         link_id: child.getLinkId(),
         ref_type: child.getRefType(),
       });
+    } else if ($isLineBreakNode(child)) {
+      inlines.push({ type: 'hard_break' });
     } else {
       const text = child.getTextContent();
       // Skip zero-width space placeholders from empty blocks

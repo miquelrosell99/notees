@@ -122,14 +122,15 @@ export interface BlockEditorProps {
 
 // ─── Shared content serializer ────────────────────────────────────
 
+/**
+ * Serialize a ContentAST to a JSON string suitable for API persistence.
+ *
+ * The `name` column in the database stores the full AST as JSON —
+ * NOT plain text — so we must preserve every formatting mark,
+ * node-link, and structural node.
+ */
 export function serializeContentAST(contentAST: ContentAST): string {
-  return contentAST
-    .map(node => {
-      if ('text' in node) return node.text;
-      if ('children' in node) return node.children.map((c: any) => c.text ?? '').join('');
-      return '';
-    })
-    .join('\n');
+  return JSON.stringify(contentAST);
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -258,12 +259,16 @@ export function BlockEditor({
       sourceBlockId,
       targetBlockId,
     });
+    // Flush immediately so the merge is reflected in Lexical on the same
+    // frame as the Backspace keypress — avoids a 1-frame stale state.
+    runtime.flushEvents();
   }, [canMerge]);
 
   const handleBlockDelete = useCallback((blockId: string) => {
     if (canDelete && !canDelete(blockId)) return;
     const runtime = getNodeGraphRuntime();
     runtime.applyIntent({ type: 'delete_block', blockId });
+    runtime.flushEvents();
   }, [canDelete]);
 
   const handleIndent = useCallback((blockId: string) => {
