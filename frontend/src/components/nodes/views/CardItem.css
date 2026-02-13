@@ -314,7 +314,7 @@
   word-break: break-word;
   font-size: 0.9375rem;
   line-height: 1.4;
-  caret-color: var(--color-caret);
+  caret-color: var(--color-on-surface);
   flex: 1;
   min-width: 0;
 }
@@ -451,7 +451,7 @@
 .node-card__children-editable {
   outline: none;
   min-height: 1.4em;
-  caret-color: var(--color-caret);
+  caret-color: var(--color-on-surface);
   cursor: default;
   /* Don't catch clicks on empty space - only on actual content */
   pointer-events: none;

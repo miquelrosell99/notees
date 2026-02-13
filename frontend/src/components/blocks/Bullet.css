@@ -102,7 +102,7 @@
   width: var(--bullet-size-md);
   height: var(--bullet-size-md);
   border-radius: 50%;
-  background-color: var(--color-bullet);
+  background-color: var(--color-on-surface-variant);
   opacity: 0.55;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               background-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -142,10 +142,10 @@
 
 .bullet-outer-ring {
   position: absolute;
-  width: var(--bullet-ring-size);
-  height: var(--bullet-ring-size);
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  border: 1.5px solid var(--color-bullet);
+  border: 1.5px solid var(--color-on-surface-variant);
   background-color: transparent;
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
@@ -190,7 +190,7 @@
   border: none;
   background: transparent;
   border-radius: 50%;
-  color: var(--color-bullet);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
@@ -205,7 +205,7 @@
 
 .bullet-collapse-arrow:hover {
   opacity: 1;
-  color: var(--color-bullet-hover);
+  color: var(--color-on-surface);
 }
 
 .bullet-collapse-arrow:active {
