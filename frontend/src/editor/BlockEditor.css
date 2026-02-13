@@ -513,9 +513,9 @@ th.node-block-table-cell {
   font-size: inherit;
   line-height: inherit;
   text-decoration: underline dotted;
-  text-decoration-color: var(--color-outline-variant);
+  text-decoration-color: var(--color-outline);
   text-underline-offset: 3px;
-  text-decoration-thickness: 1.5px;
+  text-decoration-thickness: 2px;
   transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
               text-decoration-style var(--motion-duration-short) var(--motion-easing-standard),
               color var(--motion-duration-short) var(--motion-easing-standard);
