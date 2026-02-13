@@ -27,7 +27,7 @@ import {
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
-  KEY_ESCAPE_COMMAND,
+  $createLineBreakNode,
 } from 'lexical';
 
 import {
@@ -83,7 +83,8 @@ export function BlockPlugin({
   onBlockDelete,
   onIndent,
   onOutdent,
-  onEscape,
+  // onEscape is handled by KeyboardSelectionPlugin (COMMAND_PRIORITY_HIGH)
+  onEscape: _onEscape,
   readOnly = false,
   includeRoot = false,
   maxDepth = -1,
@@ -300,6 +301,17 @@ export function BlockPlugin({
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event) => {
+        // Shift+Enter: insert soft line break within the block
+        if (event?.shiftKey) {
+          event.preventDefault();
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return;
+            selection.insertNodes([$createLineBreakNode()]);
+          });
+          return true;
+        }
+
         let blockId: string | null = null;
         let cursorOffset = 0;
 
@@ -554,10 +566,13 @@ export function BlockPlugin({
         if (!selection.isCollapsed()) return;
 
         const anchor = selection.anchor;
-        if (anchor.offset !== 0) return; // Not at start
-
         const anchorNode = anchor.getNode();
         const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return;
+
+        // Must be at the absolute start of the block
+        if (anchor.offset !== 0) return;
+        if (anchor.type === 'text' && anchorNode !== blockNode.getFirstDescendant()) return;
         if (!blockNode) return;
 
         const root = $getRoot();
@@ -592,13 +607,18 @@ export function BlockPlugin({
         if (!$isRangeSelection(selection)) return;
         if (!selection.isCollapsed()) return;
 
-        const anchorNode = selection.anchor.getNode();
+        const anchor = selection.anchor;
+        const anchorNode = anchor.getNode();
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return;
 
-        const textContent = blockNode.getTextContent();
-        const anchor = selection.anchor;
-        if (anchor.offset < textContent.length) return; // Not at end
+        // Must be at the absolute end of the block
+        if (anchor.type === 'text') {
+          const lastDescendant = blockNode.getLastDescendant();
+          if (anchorNode !== lastDescendant || anchor.offset < anchorNode.getTextContentSize()) return;
+        } else {
+          if (anchorNode !== blockNode || anchor.offset < blockNode.getChildrenSize()) return;
+        }
 
         const root = $getRoot();
         const children = root.getChildren();
@@ -637,7 +657,6 @@ export function BlockPlugin({
 
   useEffect(() => {
     const handleArrowUp = () => {
-      let prevBlockNode: BlockNode | null = null;
       let isFirstBlock = false;
 
       editor.read(() => {
@@ -655,27 +674,17 @@ export function BlockPlugin({
         if (blockIndex <= 0) {
           // On the first block — prevent cursor from escaping into empty space
           isFirstBlock = true;
-          return;
-        }
-
-        const prevBlock = children[blockIndex - 1];
-        if ($isBlockNode(prevBlock)) {
-          prevBlockNode = prevBlock;
         }
       });
 
       // Block arrow up on first block to prevent cursor from entering empty root space
       if (isFirstBlock) return true;
 
-      if (!prevBlockNode) return false;
-
-      // Let default arrow behavior handle vertical movement within the block
-      // Only intervene when we need to jump to previous block
+      // Let default arrow behavior handle vertical movement
       return false;
     };
 
     const handleArrowDown = () => {
-      let nextBlockNode: BlockNode | null = null;
       let isLastBlock = false;
 
       editor.read(() => {
@@ -693,22 +702,13 @@ export function BlockPlugin({
         if (blockIndex >= children.length - 1) {
           // On the last block — prevent cursor from escaping into empty space
           isLastBlock = true;
-          return;
-        }
-
-        const nextBlock = children[blockIndex + 1];
-        if ($isBlockNode(nextBlock)) {
-          nextBlockNode = nextBlock;
         }
       });
 
       // Block arrow down on last block to prevent cursor from entering empty root space
       if (isLastBlock) return true;
 
-      if (!nextBlockNode) return false;
-
-      // Let default arrow behavior handle vertical movement within the block
-      // Only intervene when we need to jump to next block
+      // Let default arrow behavior handle vertical movement
       return false;
     };
 
@@ -720,19 +720,6 @@ export function BlockPlugin({
       unsubDown();
     };
   }, [editor]);
-
-  // ─── Escape ────────────────────────────────────────────────
-
-  useEffect(() => {
-    return editor.registerCommand(
-      KEY_ESCAPE_COMMAND,
-      () => {
-        onEscape?.();
-        return true;
-      },
-      COMMAND_PRIORITY_NORMAL,
-    );
-  }, [editor, onEscape]);
 
   return null;
 }
@@ -843,6 +830,8 @@ function extractBlockContent(block: BlockNode): ContentAST {
       });
     } else {
       const text = child.getTextContent();
+      // Skip zero-width space placeholders from empty blocks
+      if (text === '\u200B') continue;
       const format = (child as any).getFormat?.() ?? 0;
       
       // Build the AST node with nested marks

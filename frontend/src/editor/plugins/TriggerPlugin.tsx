@@ -12,6 +12,7 @@ import {
   KEY_ESCAPE_COMMAND,
   $getSelection,
   $isRangeSelection,
+  $createTextNode,
   type LexicalEditor,
 } from 'lexical';
 import { $createPillNode } from '../nodes/PillNode';
@@ -130,7 +131,6 @@ export function TriggerPlugin({
 
         // Add remaining text after pill
         if (afterCursor) {
-          const { $createTextNode } = require('lexical');
           const afterNode = $createTextNode(afterCursor);
           pill.insertAfter(afterNode);
           afterNode.selectStart();

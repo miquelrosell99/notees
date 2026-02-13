@@ -68,16 +68,21 @@ export function FloatingToolbarPlugin({
           return;
         }
 
-        const range = nativeSel.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        const newPosition = {
-          top: rect.top - 40 + window.scrollY,
-          left: rect.left + rect.width / 2 + window.scrollX,
-        };
-        
         // Delay showing the toolbar to avoid flash during drag-to-select
+        // Position is computed inside the timeout to avoid stale coordinates
         showTimeoutRef.current = window.setTimeout(() => {
-          setPosition(newPosition);
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+            setIsVisible(false);
+            showTimeoutRef.current = null;
+            return;
+          }
+          const r = sel.getRangeAt(0);
+          const rect = r.getBoundingClientRect();
+          setPosition({
+            top: rect.top - 40 + window.scrollY,
+            left: rect.left + rect.width / 2 + window.scrollX,
+          });
           setIsVisible(true);
           showTimeoutRef.current = null;
         }, 150);

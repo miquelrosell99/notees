@@ -35,18 +35,18 @@ export function TriggerPopup({
   onSelect,
   onClose,
 }: TriggerPopupProps): JSX.Element | null {
+  const suggestionType: SuggestionType = type === 'type' ? 'class' : type;
+
+  const handleSelect = useCallback((node: Node, _keepInline: boolean) => {
+    onSelect(node.uuid, { node, type: suggestionType });
+  }, [onSelect, suggestionType]);
+
+  const handleSelectDatePage = useCallback((pageId: string, _pageName: string) => {
+    onSelect(pageId, { type: 'date' });
+  }, [onSelect]);
+
   // For link/type/tag triggers, use TriggerSuggestionPopup
   if (type === 'link' || type === 'type' || type === 'tag') {
-    const suggestionType: SuggestionType = type === 'type' ? 'class' : type;
-
-    const handleSelect = useCallback((node: Node, _keepInline: boolean) => {
-      onSelect(node.uuid, { node, type: suggestionType });
-    }, [onSelect, suggestionType]);
-
-    const handleSelectDatePage = useCallback((pageId: string, _pageName: string) => {
-      onSelect(pageId, { type: 'date' });
-    }, [onSelect]);
-
     return (
       <TriggerSuggestionPopup
         suggestionType={suggestionType}
