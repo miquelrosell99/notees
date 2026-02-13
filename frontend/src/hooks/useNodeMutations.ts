@@ -1202,10 +1202,11 @@ export function useAddClass() {
         queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       }
       
-      // GLOBAL: If is_class flag changed, invalidate classes cache
-      if (oldNode && oldNode.is_class !== updatedNode.is_class) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
-      }
+      // Always invalidate classes cache so newly created classes are picked up
+      // by useResolvedClassDetails (which needs allClasses to resolve class IDs to Node objects).
+      // Previously this was conditional on is_class changing, which missed the case where
+      // a new class was just created and then added to a node in the same flow.
+      queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       
       // Invalidate class properties queries to ensure they're refetched
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
