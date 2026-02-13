@@ -22,7 +22,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
-import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, LinkDirection } from './viewTypes';
+import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, LinkDirection, HeightMode } from './viewTypes';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
@@ -93,7 +93,7 @@ export function TerrainView({
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
     nodeSizeMode: 'mass', // Not used in terrain, but keep for compatibility
-    massAccumulation: true,
+    heightMode: 'outgoing',
     constraintMode: 'physics',
     linkDirection: 'all',
   });
@@ -416,15 +416,19 @@ export function TerrainView({
             >
               <div className="visibility-panel-content">
                 <div className="visibility-option">
-                  <BooleanToggle
+                  <SelectionButton
                     size="sm"
-                    label="Mass accumulation"
-                    description="Higher peaks for pages with more descendants"
+                    label="Height"
+                    description="How terrain peak height is determined"
                     labelPosition="left"
-                    checked={graphSettings.massAccumulation}
-                    onChange={(e) => setGraphSettings(prev => ({
+                    options={[
+                      { value: 'outgoing', icon: mdiCallMade, label: 'Parent (outgoing)' },
+                      { value: 'incoming', icon: mdiCallReceived, label: 'Parent (incoming)' },
+                    ]}
+                    value={graphSettings.heightMode}
+                    onChange={(value) => setGraphSettings(prev => ({
                       ...prev,
-                      massAccumulation: e.target.checked
+                      heightMode: value as HeightMode
                     }))}
                   />
                 </div>

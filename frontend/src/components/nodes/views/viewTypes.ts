@@ -14,6 +14,7 @@ export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
 export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
 export type ConstraintMode = 'physics' | 'equidistant';
 export type LinkDirection = 'in' | 'out' | 'all';
+export type HeightMode = 'outgoing' | 'incoming';
 
 /**
  * Graph layout mode (for NodeGraphRenderer only)
@@ -89,7 +90,7 @@ export interface ClassColor {
 export interface GraphSettings {
   linkCountAttraction: boolean;
   nodeSizeMode: NodeSizeMode;
-  massAccumulation: boolean;
+  heightMode: HeightMode;
   constraintMode: ConstraintMode;
   linkDirection: LinkDirection;
 }
@@ -160,7 +161,7 @@ export interface FrameData {
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   linkCountAttraction: false,
   nodeSizeMode: 'uniform',
-  massAccumulation: true,
+  heightMode: 'outgoing',
   constraintMode: 'physics',
   linkDirection: 'all',
 };

@@ -660,6 +660,34 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             xCtx.beginPath();
             xCtx.arc(cardMx, dotY, 3, 0, Math.PI * 2);
             xCtx.fill();
+            
+            // Node position dots — show dots where nodes project onto X axis
+            const t = transformRef.current;
+            const { visibleNodes } = frameDataRef.current;
+            const NODE_DOT_MAX_DIST = 120; // pixels: max distance for dot to appear
+            for (const node of visibleNodes) {
+              const nsx = node.x * t.scale + t.x;
+              const nsy = node.y * t.scale + t.y;
+              // Distance from cursor's Y line to node's Y position
+              const distY = Math.abs(nsy - my);
+              if (distY > NODE_DOT_MAX_DIST) continue;
+              // Map node screen X to card X
+              if (nsx < tLeft || nsx > tRight) continue;
+              const cardNx = (nsx - tLeft) / tSpan * cw;
+              // Sample height at node's grid position for Y placement
+              const ngx = Math.min(Math.max(Math.floor(nsx / pGs), 0), gW - 1);
+              const nVal = heightMap[gy * gW + ngx];
+              const ndotY = ch - nVal * (ch - 4);
+              // Proximity factor: 1 at dist=0, 0 at dist=NODE_DOT_MAX_DIST
+              const prox = 1 - distY / NODE_DOT_MAX_DIST;
+              const dotR = 1.5 + prox * 2; // radius 1.5 → 3.5
+              xCtx.globalAlpha = 0.2 + prox * 0.5;
+              xCtx.fillStyle = '#ffffff';
+              xCtx.beginPath();
+              xCtx.arc(cardNx, ndotY, dotR, 0, Math.PI * 2);
+              xCtx.fill();
+            }
+            xCtx.globalAlpha = 1;
           }
         }
       }
@@ -732,6 +760,34 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             yCtx.beginPath();
             yCtx.arc(dotX, cardMy, 3, 0, Math.PI * 2);
             yCtx.fill();
+            
+            // Node position dots — show dots where nodes project onto Y axis
+            const t = transformRef.current;
+            const { visibleNodes } = frameDataRef.current;
+            const NODE_DOT_MAX_DIST = 120;
+            for (const node of visibleNodes) {
+              const nsx = node.x * t.scale + t.x;
+              const nsy = node.y * t.scale + t.y;
+              // Distance from cursor's X line to node's X position
+              const distX = Math.abs(nsx - mx);
+              if (distX > NODE_DOT_MAX_DIST) continue;
+              // Map node screen Y to card Y
+              if (nsy < tTop || nsy > tBottom) continue;
+              const cardNy = (nsy - tTop) / tSpan * ch;
+              // Sample height at node's grid position for X placement (inverted)
+              const ngy = Math.min(Math.max(Math.floor(nsy / pGs), 0), gH - 1);
+              const nVal = heightMap[ngy * gW + gx];
+              const ndotX = cw - nVal * (cw - 4);
+              // Proximity factor
+              const prox = 1 - distX / NODE_DOT_MAX_DIST;
+              const dotR = 1.5 + prox * 2;
+              yCtx.globalAlpha = 0.2 + prox * 0.5;
+              yCtx.fillStyle = '#ffffff';
+              yCtx.beginPath();
+              yCtx.arc(ndotX, cardNy, dotR, 0, Math.PI * 2);
+              yCtx.fill();
+            }
+            yCtx.globalAlpha = 1;
           }
         }
       }
