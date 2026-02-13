@@ -146,10 +146,10 @@
   cursor: text;
 }
 
-/* Text selection within blocks */
+/* Text selection — transparent in edit mode, custom caret overlay provides highlight */
 .node-block-content ::selection {
-  background: var(--color-selection-text);
-  color: var(--color-on-surface);
+  background: transparent;
+  color: inherit;
 }
 
 /* Ensure text spans have minimum width for caret visibility in empty blocks */
@@ -178,73 +178,90 @@
   pointer-events: none;
   z-index: 10;
   background: var(--color-caret);
-  display: none; /* Hidden by default, shown when positioned */
-  /* Smooth morph between line/block/pill modes */
-  transition: top 0.12s var(--motion-easing-standard),
-              left 0.12s var(--motion-easing-standard),
-              width 0.15s var(--motion-easing-standard),
-              height 0.12s var(--motion-easing-standard),
-              border-radius 0.15s var(--motion-easing-standard);
+  display: none;
+  transition: top 0.1s var(--motion-easing-standard),
+              left 0.1s var(--motion-easing-standard),
+              width 0.12s var(--motion-easing-standard),
+              height 0.1s var(--motion-easing-standard),
+              border-radius 0.12s var(--motion-easing-standard),
+              opacity 0.12s var(--motion-easing-standard);
 }
 
-/* Line caret (normal typing mode) — thin vertical line with rounded ends */
+/* Line caret (normal typing mode) */
 .notees-custom-caret--line {
   border-radius: 2px;
-  animation: notees-line-breathe 1.2s ease-in-out infinite;
+  animation: notees-line-breathe 0.85s ease-in-out infinite;
 }
 
-/* Block caret (overwrite mode) — covers the character */
+/* Block caret (overwrite mode) */
 .notees-custom-caret--block {
   border-radius: 1px;
   mix-blend-mode: difference;
-  animation: notees-block-breathe 1.2s ease-in-out infinite;
+  animation: notees-block-breathe 0.85s ease-in-out infinite;
 }
 
-/* Pill surround mode — wraps around a node link pill */
+/* Pill surround mode */
 .notees-custom-caret--pill {
   border-radius: 6px;
   background: transparent;
   border: 2px solid var(--color-caret);
-  animation: notees-pill-breathe 1.2s ease-in-out infinite;
+  animation: notees-pill-breathe 0.85s ease-in-out infinite;
 }
 
-/* ─── Breathing animations (sine-eased opacity + subtle width pulse) ── */
+/* Selection mode — transparent container, per-line children provide highlight */
+.notees-custom-caret--selection {
+  background: transparent !important;
+  animation: none !important;
+  opacity: 1 !important;
+  border-radius: 0;
+}
+
+/* Per-line selection highlight */
+.notees-caret-selection-line {
+  position: absolute;
+  background: var(--color-caret);
+  opacity: 0.15;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* ─── Breathing animations (snappy, faded base) ─────────────────── */
 
 @keyframes notees-line-breathe {
-  0%, 100% { opacity: 0.9; transform: scaleX(1); }
-  50%      { opacity: 0.15; transform: scaleX(0.8); }
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 0.06; }
 }
 
 @keyframes notees-block-breathe {
-  0%, 100% { opacity: 0.72; transform: scaleX(1); }
-  50%      { opacity: 0.12; transform: scaleX(0.97); }
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.06; }
 }
 
 @keyframes notees-pill-breathe {
-  0%, 100% { opacity: 0.8; }
-  50%      { opacity: 0.25; }
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.12; }
 }
 
-/* Idle state — after a pause, caret fades to low opacity */
+/* Idle state — caret fades to near-invisible */
 .notees-custom-caret--idle {
   animation: none !important;
-  transition: top 0.12s var(--motion-easing-standard),
-              left 0.12s var(--motion-easing-standard),
-              width 0.15s var(--motion-easing-standard),
-              height 0.12s var(--motion-easing-standard),
-              border-radius 0.15s var(--motion-easing-standard),
-              opacity 1.5s ease-out !important;
-  opacity: 0.15 !important;
+  transition: top 0.1s var(--motion-easing-standard),
+              left 0.1s var(--motion-easing-standard),
+              width 0.12s var(--motion-easing-standard),
+              height 0.1s var(--motion-easing-standard),
+              border-radius 0.12s var(--motion-easing-standard),
+              opacity 1.2s ease-out !important;
+  opacity: 0.06 !important;
 }
 
 /* When user returns from idle — snappy restore */
 .notees-custom-caret--active {
-  transition: top 0.12s var(--motion-easing-standard),
-              left 0.12s var(--motion-easing-standard),
-              width 0.15s var(--motion-easing-standard),
-              height 0.12s var(--motion-easing-standard),
-              border-radius 0.15s var(--motion-easing-standard),
-              opacity 0.1s ease-in !important;
+  transition: top 0.1s var(--motion-easing-standard),
+              left 0.1s var(--motion-easing-standard),
+              width 0.12s var(--motion-easing-standard),
+              height 0.1s var(--motion-easing-standard),
+              border-radius 0.12s var(--motion-easing-standard),
+              opacity 0.06s ease-in !important;
 }
 
 /* Respect reduced-motion */
@@ -495,10 +512,12 @@ th.node-block-table-cell {
   text-underline-offset: 3px;
   text-decoration-thickness: 1.5px;
   transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
+              text-decoration-style var(--motion-duration-short) var(--motion-easing-standard),
               color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-pill-wrapper:hover .node-pill-inner {
+  text-decoration-style: solid;
   text-decoration-color: var(--color-on-surface);
   color: var(--color-primary);
 }
