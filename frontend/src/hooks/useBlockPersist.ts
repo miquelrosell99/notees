@@ -117,35 +117,14 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
           onPersisted?.(blockId, createdNode.id);
 
-          // Update parent's cached data to include the new child node.
-          // Use setQueryData instead of invalidateQueries to avoid a full
-          // refetch that causes the entire block list to flash.
+          // Invalidate parent node's cache so it includes the new child.
+          // The reconciliation in apiNodesToGraphNodes ensures the refetched
+          // data maps the server UUID back to the runtime's blockId, preventing
+          // a visual flash (remove old + add new) in the editor.
           if (parentServerId != null) {
-            const addPersistedChild = (oldNode: Node | undefined): Node | undefined => {
-              if (!oldNode) return oldNode;
-              // Check if the node already has this child (by server ID)
-              if (oldNode.children?.some(c => c.id === createdNode.id)) return oldNode;
-              const currentChildren = oldNode.children || [];
-              return {
-                ...oldNode,
-                children: [...currentChildren, createdNode].sort(
-                  (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-                ),
-              };
-            };
-            // Update detail cache for the parent
-            queryClient.setQueriesData<Node>(
-              { queryKey: nodeKeys.detailBase(parentServerId) },
-              addPersistedChild,
-            );
-            // Also update page-content cache
-            queryClient.setQueriesData<Node>(
-              { queryKey: ['nodes', 'page-content'] },
-              (oldNode) => {
-                if (!oldNode || oldNode.id !== parentServerId) return oldNode;
-                return addPersistedChild(oldNode);
-              },
-            );
+            queryClient.invalidateQueries({
+              queryKey: nodeKeys.detailBase(parentServerId),
+            });
           }
 
           // Flush any queued content save for this block
