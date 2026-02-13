@@ -39,7 +39,7 @@ import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 import { EditablePlugin } from './plugins/EditablePlugin';
-import { InsertModePlugin } from './plugins/InsertModePlugin';
+import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
@@ -395,8 +395,8 @@ export function BlockEditor({
         {/* Blur editor when clicking outside */}
         <BlurOnClickOutsidePlugin readOnly={readOnly} />
 
-        {/* Insert / Overwrite mode toggle (Insert key) */}
-        <InsertModePlugin readOnly={readOnly} />
+        {/* Custom caret (replaces native caret, Insert key toggles block mode) */}
+        <CustomCaretPlugin readOnly={readOnly} />
       </LexicalComposer>
     </div>
   );
