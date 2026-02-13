@@ -426,6 +426,15 @@ th.node-block-table-cell {
   transform: scale(0.97);
 }
 
+/* Selected state (when pill has keyboard/node selection) */
+.node-pill-wrapper.selected .node-pill-inner,
+.node-pill-wrapper--selected .node-pill-inner {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background: var(--color-surface-container-highest);
+}
+
 .node-pill-wrapper .node-pill-icon {
   font-size: 0.9em;
   flex-shrink: 0;
