@@ -2,8 +2,10 @@
  * BlockDragSelectionPlugin — Logseq-style vertical drag selection
  *
  * Behavior:
- * - Click on block content → edit mode, horizontal drag selects text
- * - Drag vertically beyond block bounds → switches to block selection
+ * - Bullet drag → handled by DragDropPlugin (block move/restructure), not here
+ * - Content drag in edit mode, within block → text selection (browser native)
+ * - Content drag in non-edit mode, within block → nothing (text selection suppressed)
+ * - Content drag exiting block boundary (either mode) → block selection
  * - Continue dragging → selects additional blocks (with their children)
  */
 
@@ -27,6 +29,7 @@ export function BlockDragSelectionPlugin({
   
   const isDragging = useRef(false);
   const isBlockSelectionMode = useRef(false);
+  const startedInEditMode = useRef(false);
   const dragStartPoint = useRef<{ x: number; y: number } | null>(null);
   const dragStartBlock = useRef<HTMLElement | null>(null);
   const selectedBlocks = useRef<Set<string>>(new Set());
@@ -78,6 +81,7 @@ export function BlockDragSelectionPlugin({
 
       isDragging.current = true;
       isBlockSelectionMode.current = false;
+      startedInEditMode.current = blockEl.classList.contains('node-block--editing');
       dragStartPoint.current = { x: e.clientX, y: e.clientY };
       dragStartBlock.current = blockEl;
       lastHoveredBlock.current = null;
@@ -86,30 +90,36 @@ export function BlockDragSelectionPlugin({
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging.current || !dragStartPoint.current || !dragStartBlock.current) return;
 
-      const deltaX = Math.abs(e.clientX - dragStartPoint.current.x);
       const deltaY = Math.abs(e.clientY - dragStartPoint.current.y);
-      const blockRect = dragStartBlock.current.getBoundingClientRect();
 
-      // Check if we've exited the block boundaries vertically
-      const hasExitedBlock = e.clientY < blockRect.top || e.clientY > blockRect.bottom;
-
-      // Switch to block selection mode if vertical drag beyond block bounds
-      if (!isBlockSelectionMode.current && deltaY > deltaX && deltaY > 15 && hasExitedBlock) {
-        isBlockSelectionMode.current = true;
-        
-        // Clear text selection
+      // Outside edit mode: suppress any browser text selection while dragging
+      if (!startedInEditMode.current && !isBlockSelectionMode.current) {
         window.getSelection()?.removeAllRanges();
-        editor.update(() => {
-          $setSelection(null);
-        });
-        
-        // Select the starting block with its children
-        const startBlockId = dragStartBlock.current.getAttribute('data-block-id');
-        if (startBlockId) {
-          clearBlockSelection(rootEl);
-          selectedBlocks.current.clear();
-          selectBlockWithChildren(rootEl, startBlockId, selectedBlocks.current);
-          onSelectionChange?.([...selectedBlocks.current]);
+      }
+
+      // Block selection triggers when the cursor exits the starting block's
+      // vertical bounds, regardless of edit mode.
+      if (!isBlockSelectionMode.current) {
+        const blockRect = dragStartBlock.current.getBoundingClientRect();
+        const hasExitedBlock = e.clientY < blockRect.top || e.clientY > blockRect.bottom;
+
+        if (hasExitedBlock && deltaY > 5) {
+          isBlockSelectionMode.current = true;
+
+          // Clear text selection and Lexical selection
+          window.getSelection()?.removeAllRanges();
+          editor.update(() => {
+            $setSelection(null);
+          });
+
+          // Select the starting block with its children
+          const startBlockId = dragStartBlock.current.getAttribute('data-block-id');
+          if (startBlockId) {
+            clearBlockSelection(rootEl);
+            selectedBlocks.current.clear();
+            selectBlockWithChildren(rootEl, startBlockId, selectedBlocks.current);
+            onSelectionChange?.([...selectedBlocks.current]);
+          }
         }
       }
 
