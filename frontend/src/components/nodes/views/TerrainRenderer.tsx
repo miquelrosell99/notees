@@ -196,6 +196,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Offscreen canvases for selection-aware contour compositing
   const contourOffscreenRef = useRef<HTMLCanvasElement | null>(null);
   const selectionMaskRef = useRef<HTMLCanvasElement | null>(null);
+  const colorMapRef = useRef<HTMLCanvasElement | null>(null);
   
   // Store grid dims + owner map for plateau hit testing
   const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES });
@@ -438,6 +439,45 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     const { lowR, lowG, lowB, highR, highG, highB } = cssColorsRef.current;
     
+    // Build per-node color cache (index → [r, g, b])
+    const nodeColors: Array<[number, number, number]> = new Array(visibleNodes.length);
+    const parseHexRGB = (hex: string): [number, number, number] => {
+      let hx = hex.replace('#', '');
+      if (hx.length === 3) hx = hx.split('').map(c => c + c).join('');
+      return [
+        parseInt(hx.substring(0, 2), 16),
+        parseInt(hx.substring(2, 4), 16),
+        parseInt(hx.substring(4, 6), 16),
+      ];
+    };
+    const hasClassColors = currentClassColors.length > 0;
+    for (let i = 0; i < visibleNodes.length; i++) {
+      const color = getNodeColor(visibleNodes[i], currentClassColors, accentColor);
+      nodeColors[i] = parseHexRGB(color);
+    }
+    
+    // Build ownership color map at grid resolution for contour colorizing
+    if (!colorMapRef.current) colorMapRef.current = document.createElement('canvas');
+    const colorMapCanvas = colorMapRef.current;
+    if (colorMapCanvas.width !== gridW || colorMapCanvas.height !== gridH) {
+      colorMapCanvas.width = gridW; colorMapCanvas.height = gridH;
+    }
+    const colorMapCtx = colorMapCanvas.getContext('2d')!;
+    const colorMapData = colorMapCtx.createImageData(gridW, gridH);
+    const cmd = colorMapData.data;
+    for (let i = 0; i < gridW * gridH; i++) {
+      const owner = ownerMap[i];
+      const off = i * 4;
+      if (owner >= 0 && owner < visibleNodes.length) {
+        const [cr, cg, cb] = nodeColors[owner];
+        cmd[off] = cr; cmd[off + 1] = cg; cmd[off + 2] = cb; cmd[off + 3] = 255;
+      } else {
+        // Unowned cells: use lowR/lowG/lowB as fallback
+        cmd[off] = lowR; cmd[off + 1] = lowG; cmd[off + 2] = lowB; cmd[off + 3] = 255;
+      }
+    }
+    colorMapCtx.putImageData(colorMapData, 0, 0);
+    
     // Build set of selected node indices for dimming
     const selIdSet = selectedNodeIdsRef.current;
     const hasSelection = selIdSet.size > 0;
@@ -459,6 +499,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     ctx.setLineDash(LINE_DASH_NONE);
     
     const DIM_OPACITY_FACTOR = 0.25;
+    const GRADIENT_BLUR = `blur(${gs * 1.5}px)`;
     
     // Helper: emit segment into target context's current path
     const emitSeg = (tgt: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) => {
@@ -561,13 +602,25 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       drawAllContours(offCtx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        offCtx.strokeStyle = `rgba(${lowR}, ${lowG}, ${lowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
+        offCtx.strokeStyle = hasClassColors
+          ? `rgba(255, 255, 255, ${baseOp * DIM_OPACITY_FACTOR})`
+          : `rgba(${lowR}, ${lowG}, ${lowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
         offCtx.lineWidth = Math.max(0.5, baseLW * 0.7);
       });
+      // Colorize with class colors (source-in replaces white with class color, keeps alpha)
+      if (hasClassColors) {
+        offCtx.save();
+        offCtx.globalCompositeOperation = 'source-in';
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.filter = GRADIENT_BLUR;
+        offCtx.drawImage(colorMapCanvas, 0, 0, w, h);
+        offCtx.restore();
+      }
       // Remove selected regions (keep only non-selected)
       offCtx.save();
       offCtx.globalCompositeOperation = 'destination-out';
       offCtx.imageSmoothingEnabled = true;
+      offCtx.filter = GRADIENT_BLUR;
       offCtx.drawImage(maskCanvas, 0, 0, w, h);
       offCtx.restore();
       // Composite dim contours to main
@@ -582,23 +635,63 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       drawAllContours(offCtx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        const r = Math.round(lowR + (highR - lowR) * level);
-        const g = Math.round(lowG + (highG - lowG) * level);
-        const b = Math.round(lowB + (highB - lowB) * level);
-        offCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
+        if (hasClassColors) {
+          offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
+        } else {
+          const r = Math.round(lowR + (highR - lowR) * level);
+          const g = Math.round(lowG + (highG - lowG) * level);
+          const b = Math.round(lowB + (highB - lowB) * level);
+          offCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
+        }
         offCtx.lineWidth = baseLW;
       });
+      // Colorize with class colors
+      if (hasClassColors) {
+        offCtx.save();
+        offCtx.globalCompositeOperation = 'source-in';
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.filter = GRADIENT_BLUR;
+        offCtx.drawImage(colorMapCanvas, 0, 0, w, h);
+        offCtx.restore();
+      }
       // Keep only selected regions
       offCtx.save();
       offCtx.globalCompositeOperation = 'destination-in';
       offCtx.imageSmoothingEnabled = true;
+      offCtx.filter = GRADIENT_BLUR;
       offCtx.drawImage(maskCanvas, 0, 0, w, h);
       offCtx.restore();
       // Composite bright contours to main
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
       
+    } else if (hasClassColors) {
+      // No selection, class colors — use offscreen for color compositing
+      if (!contourOffscreenRef.current) contourOffscreenRef.current = document.createElement('canvas');
+      const offCanvas = contourOffscreenRef.current;
+      const bw = Math.ceil(w * dpr), bh = Math.ceil(h * dpr);
+      if (offCanvas.width !== bw || offCanvas.height !== bh) { offCanvas.width = bw; offCanvas.height = bh; }
+      const offCtx = offCanvas.getContext('2d')!;
+      offCtx.setTransform(1, 0, 0, 1, 0, 0);
+      offCtx.clearRect(0, 0, bw, bh);
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      offCtx.lineCap = 'butt';
+      offCtx.setLineDash(LINE_DASH_NONE);
+      drawAllContours(offCtx, (level, isMajor, isHov) => {
+        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
+        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
+        offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
+        offCtx.lineWidth = baseLW;
+      });
+      // Colorize
+      offCtx.save();
+      offCtx.globalCompositeOperation = 'source-in';
+      offCtx.imageSmoothingEnabled = true;
+      offCtx.filter = GRADIENT_BLUR;
+      offCtx.drawImage(colorMapCanvas, 0, 0, w, h);
+      offCtx.restore();
+      ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
     } else {
-      // No selection — single pass, continuous paths, bright style
+      // No selection, no class colors — single pass, continuous paths, bright style
       drawAllContours(ctx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
