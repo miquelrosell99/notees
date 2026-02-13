@@ -85,6 +85,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const profileXCanvasRef = useRef<HTMLCanvasElement>(null); // bottom profile (X axis)
+  const profileYCanvasRef = useRef<HTMLCanvasElement>(null); // right profile (Y axis)
+  
+  // Cursor screen position for crosshair + profiles (-1 = not hovering)
+  const mouseScreenRef = useRef({ x: -1, y: -1 });
   
   // State
   const [dimensions, setDimensions] = useState<Dimensions>({ width: 800, height: 600 });
@@ -531,12 +536,171 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
       ctx.globalAlpha = 1;
     }
+    
+    // ==================== Draw Crosshair Lines ====================
+    const mx = mouseScreenRef.current.x;
+    const my = mouseScreenRef.current.y;
+    if (mx >= 0 && my >= 0) {
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
+      // Vertical line
+      ctx.beginPath();
+      ctx.moveTo(mx, 0);
+      ctx.lineTo(mx, h);
+      ctx.stroke();
+      // Horizontal line
+      ctx.beginPath();
+      ctx.moveTo(0, my);
+      ctx.lineTo(w, my);
+      ctx.stroke();
+      ctx.restore();
+    }
   }, [dimensions]);
   
   // Set up render function and context
   useEffect(() => {
     renderRef.current = render;
   }, [render, renderRef]);
+  
+  // ==================== Profile Drawing ====================
+  
+  const PROFILE_SIZE = 48; // height of bottom card / width of right card
+  
+  const drawProfiles = useCallback(() => {
+    const heightMap = heightMapBufRef.current;
+    const { gridW: gW, gridH: gH, gs: pGs } = plateauGridRef.current;
+    if (!heightMap || gW === 0) return;
+    
+    const mx = mouseScreenRef.current.x;
+    const my = mouseScreenRef.current.y;
+    const { width: w, height: h } = dimensions;
+    
+    // --- Bottom profile (X axis): sample heightMap along row at cursor Y ---
+    const xCanvas = profileXCanvasRef.current;
+    if (xCanvas) {
+      const xCtx = xCanvas.getContext('2d');
+      if (xCtx) {
+        xCanvas.width = w;
+        xCanvas.height = PROFILE_SIZE;
+        xCtx.clearRect(0, 0, w, PROFILE_SIZE);
+        
+        if (mx >= 0 && my >= 0) {
+          const gy = Math.floor(my / pGs);
+          if (gy >= 0 && gy < gH) {
+            xCtx.beginPath();
+            xCtx.moveTo(0, PROFILE_SIZE);
+            for (let sx = 0; sx < w; sx++) {
+              const gx = Math.floor(sx / pGs);
+              const clampedGx = Math.min(gx, gW - 1);
+              const val = heightMap[gy * gW + clampedGx];
+              const py = PROFILE_SIZE - val * (PROFILE_SIZE - 4);
+              if (sx === 0) xCtx.lineTo(0, py);
+              else xCtx.lineTo(sx, py);
+            }
+            xCtx.lineTo(w, PROFILE_SIZE);
+            xCtx.closePath();
+            xCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            xCtx.fill();
+            xCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            xCtx.lineWidth = 1;
+            // Redraw just the top edge
+            xCtx.beginPath();
+            for (let sx = 0; sx < w; sx++) {
+              const gx = Math.floor(sx / pGs);
+              const clampedGx = Math.min(gx, gW - 1);
+              const val = heightMap[gy * gW + clampedGx];
+              const py = PROFILE_SIZE - val * (PROFILE_SIZE - 4);
+              if (sx === 0) xCtx.moveTo(0, py);
+              else xCtx.lineTo(sx, py);
+            }
+            xCtx.stroke();
+            
+            // Cursor marker
+            xCtx.setLineDash([4, 3]);
+            xCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            xCtx.beginPath();
+            xCtx.moveTo(mx, 0);
+            xCtx.lineTo(mx, PROFILE_SIZE);
+            xCtx.stroke();
+            
+            // Dot at cursor position on the profile outline
+            const curGx = Math.min(Math.floor(mx / pGs), gW - 1);
+            const curVal = heightMap[gy * gW + curGx];
+            const dotY = PROFILE_SIZE - curVal * (PROFILE_SIZE - 4);
+            xCtx.setLineDash([]);
+            xCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            xCtx.beginPath();
+            xCtx.arc(mx, dotY, 3, 0, Math.PI * 2);
+            xCtx.fill();
+          }
+        }
+      }
+    }
+    
+    // --- Right profile (Y axis): sample heightMap along column at cursor X ---
+    const yCanvas = profileYCanvasRef.current;
+    if (yCanvas) {
+      const yCtx = yCanvas.getContext('2d');
+      if (yCtx) {
+        yCanvas.width = PROFILE_SIZE;
+        yCanvas.height = h;
+        yCtx.clearRect(0, 0, PROFILE_SIZE, h);
+        
+        if (mx >= 0 && my >= 0) {
+          const gx = Math.floor(mx / pGs);
+          if (gx >= 0 && gx < gW) {
+            yCtx.beginPath();
+            yCtx.moveTo(0, 0);
+            for (let sy = 0; sy < h; sy++) {
+              const gy = Math.floor(sy / pGs);
+              const clampedGy = Math.min(gy, gH - 1);
+              const val = heightMap[clampedGy * gW + gx];
+              const px = val * (PROFILE_SIZE - 4);
+              if (sy === 0) yCtx.lineTo(px, 0);
+              else yCtx.lineTo(px, sy);
+            }
+            yCtx.lineTo(0, h);
+            yCtx.closePath();
+            yCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            yCtx.fill();
+            yCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            yCtx.lineWidth = 1;
+            // Redraw just the profile edge
+            yCtx.beginPath();
+            for (let sy = 0; sy < h; sy++) {
+              const gy = Math.floor(sy / pGs);
+              const clampedGy = Math.min(gy, gH - 1);
+              const val = heightMap[clampedGy * gW + gx];
+              const px = val * (PROFILE_SIZE - 4);
+              if (sy === 0) yCtx.moveTo(px, 0);
+              else yCtx.lineTo(px, sy);
+            }
+            yCtx.stroke();
+            
+            // Cursor marker
+            yCtx.setLineDash([4, 3]);
+            yCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            yCtx.beginPath();
+            yCtx.moveTo(0, my);
+            yCtx.lineTo(PROFILE_SIZE, my);
+            yCtx.stroke();
+            
+            // Dot at cursor position on the profile outline
+            const curGy = Math.min(Math.floor(my / pGs), gH - 1);
+            const curValY = heightMap[curGy * gW + gx];
+            const dotX = curValY * (PROFILE_SIZE - 4);
+            yCtx.setLineDash([]);
+            yCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            yCtx.beginPath();
+            yCtx.arc(dotX, my, 3, 0, Math.PI * 2);
+            yCtx.fill();
+          }
+        }
+      }
+    }
+  }, [dimensions]);
   
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -649,6 +813,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
       
+      // Update mouse position and redraw profiles
+      mouseScreenRef.current = { x: screenX, y: screenY };
+      drawProfiles();
+      // Redraw main canvas for crosshair lines
+      if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
+        renderRef.current(ctxRef.current);
+      }
+      
       if (canvas) {
         canvas.style.cursor = node ? 'pointer' : 'grab';
       }
@@ -662,7 +834,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation, drawProfiles]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
@@ -699,6 +871,16 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }, 50);
     }
   }, [dragNodeRef, dragStartTimeRef]);
+  
+  const handleMouseLeave = useCallback(() => {
+    handleMouseUp();
+    mouseScreenRef.current = { x: -1, y: -1 };
+    hoveredContourLevelRef.current = -1;
+    drawProfiles();
+    if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
+      renderRef.current(ctxRef.current);
+    }
+  }, [handleMouseUp, drawProfiles]);
   
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (wasJustDraggingRef.current) return;
@@ -778,19 +960,27 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // ==================== Render ====================
   
   return (
-    <div className={`node-graph-renderer ${className}`} ref={containerRef}>
+    <div className={`node-graph-renderer terrain-with-profiles ${className}`} ref={containerRef}>
       <canvas
         ref={canvasRef}
         width={dimensions.width}
         height={dimensions.height}
-        className="node-graph-renderer__canvas"
+        className="node-graph-renderer__canvas terrain-main-canvas"
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
+      />
+      <canvas
+        ref={profileYCanvasRef}
+        className="terrain-profile terrain-profile--y"
+      />
+      <canvas
+        ref={profileXCanvasRef}
+        className="terrain-profile terrain-profile--x"
       />
     </div>
   );
