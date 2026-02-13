@@ -102,6 +102,8 @@ export function PillPlugin({
   }, [editor]);
 
   // ─── Arrow key navigation (handle cursor movement around pills) ─
+  // We must handle ALL navigation to prevent Lexical's default handler from
+  // crashing on isolated decorator nodes like PillNode.
 
   useEffect(() => {
     const handleArrowLeft = (event: KeyboardEvent) => {
@@ -124,16 +126,15 @@ export function PillPlugin({
         const anchor = selection.anchor;
         const anchorNode = anchor.getNode();
         
-        // If cursor is at position 0 in a text node (or just has ZWS)
         if ($isTextNode(anchorNode)) {
           const text = anchorNode.getTextContent();
-          // Consider ZWS-only text node as "at start"
+          // Consider ZWS-only text node or position 0 as "at start"
           const isAtStart = anchor.offset === 0 || (text === '\u200B' && anchor.offset <= 1);
           
           if (isAtStart) {
             const prevSibling = anchorNode.getPreviousSibling();
             if ($isPillNode(prevSibling)) {
-              // Select the pill instead of moving past it
+              // Select the pill instead of letting Lexical try to navigate
               event.preventDefault();
               const nodeSelection = $createNodeSelection();
               nodeSelection.add(prevSibling.getKey());
@@ -144,21 +145,18 @@ export function PillPlugin({
         }
       }
 
+      // Let default Lexical behavior handle non-pill cases
       return false;
     };
 
     const handleArrowRight = (event: KeyboardEvent) => {
       const selection = $getSelection();
       
-      // Debug logging
-      console.log('[PillPlugin] ArrowRight - selection type:', selection?.constructor.name);
-      
       // Case 1: A pill is currently selected - move cursor to after it
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         for (const node of nodes) {
           if ($isPillNode(node)) {
-            console.log('[PillPlugin] Pill selected, moving to next');
             event.preventDefault();
             node.selectNext();
             return true;
@@ -171,28 +169,16 @@ export function PillPlugin({
         const anchor = selection.anchor;
         const anchorNode = anchor.getNode();
         
-        console.log('[PillPlugin] RangeSelection - anchorNode type:', anchorNode.getType(), 
-          'offset:', anchor.offset, 
-          'isTextNode:', $isTextNode(anchorNode));
-        
-        // If cursor is at end of a text node
         if ($isTextNode(anchorNode)) {
           const text = anchorNode.getTextContent();
           const textLength = text.length;
-          console.log('[PillPlugin] Text content:', JSON.stringify(text), 'length:', textLength);
-          
-          // Consider being at or past the text length as "at end"
-          // Also consider ZWS-only nodes as being "at end"
+          // Consider at end of text or ZWS-only node as "at end"
           const isAtEnd = anchor.offset >= textLength || text === '\u200B';
-          console.log('[PillPlugin] isAtEnd:', isAtEnd);
           
           if (isAtEnd) {
             const nextSibling = anchorNode.getNextSibling();
-            console.log('[PillPlugin] nextSibling type:', nextSibling?.getType(), 'isPill:', $isPillNode(nextSibling));
-            
             if ($isPillNode(nextSibling)) {
-              // Select the pill instead of moving past it
-              console.log('[PillPlugin] Selecting pill!');
+              // Select the pill instead of letting Lexical try to navigate
               event.preventDefault();
               const nodeSelection = $createNodeSelection();
               nodeSelection.add(nextSibling.getKey());
@@ -201,26 +187,9 @@ export function PillPlugin({
             }
           }
         }
-        
-        // Also check if the anchor is on an element node (parent block)
-        // and we need to check children
-        if (!$isTextNode(anchorNode)) {
-          console.log('[PillPlugin] Anchor is on element node');
-          const parent = anchorNode;
-          const children = parent.getChildren?.() || [];
-          console.log('[PillPlugin] Children count:', children.length, 'offset:', anchor.offset);
-          const childAtOffset = children[anchor.offset];
-          if ($isPillNode(childAtOffset)) {
-            console.log('[PillPlugin] Child at offset is pill, selecting');
-            event.preventDefault();
-            const nodeSelection = $createNodeSelection();
-            nodeSelection.add(childAtOffset.getKey());
-            $setSelection(nodeSelection);
-            return true;
-          }
-        }
       }
 
+      // Let default Lexical behavior handle non-pill cases
       return false;
     };
 
