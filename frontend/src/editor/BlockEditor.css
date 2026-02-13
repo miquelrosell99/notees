@@ -19,7 +19,7 @@
   outline: none;
   min-height: 2.4em;
   padding: 8px 0;
-  caret-color: var(--color-on-surface);
+  caret-color: var(--color-caret);
   cursor: default;
   /* Don't catch clicks on empty space - only on actual content */
   pointer-events: none;
@@ -127,7 +127,7 @@
   outline: none;
   margin: 0;
   line-height: 1.6;
-  caret-color: var(--color-on-surface) !important;
+  caret-color: var(--color-caret) !important;
   /* Re-enable text selection within blocks */
   user-select: text;
   -webkit-user-select: text;
@@ -143,7 +143,13 @@
 /* Text content shows text cursor in editable mode */
 .notees-editor:not(.notees-editor--readonly) .node-block-content {
   cursor: text;
-  caret-color: var(--color-on-surface);
+  caret-color: var(--color-caret);
+}
+
+/* Text selection within blocks */
+.node-block-content ::selection {
+  background: var(--color-selection-text);
+  color: var(--color-on-surface);
 }
 
 /* Pill nodes inside the content wrapper keep pointer cursor */
