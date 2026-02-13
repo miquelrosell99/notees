@@ -15,6 +15,7 @@ import * as nodesApi from '@/api/nodes';
 import type { NodeCreate, NodeUpdate, Node } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import {
   updateNodeByIdImmutable,
   updateNodeInTreeImmutable,
@@ -291,6 +292,14 @@ export function useCreateNode() {
       
       // If we had an optimistic node, replace it with the real one
       if (variables.parent_id && optimisticId) {
+        // Remap the runtime block from optimistic blockId to real UUID
+        // so the next useLayoutEffect sync recognises it as an update
+        // instead of a remove+add (which causes a visual flash).
+        const oldBlockId = `optimistic-${optimisticId}`;
+        const runtime = getNodeGraphRuntime();
+        runtime.remapBlockId(oldBlockId, newNode.uuid);
+        runtime.setServerId(newNode.uuid, newNode.id);
+
         // Helper to replace optimistic node with real node
         const replaceOptimistic = (node: Node): Node => {
           if (node.children && node.children.length > 0) {
