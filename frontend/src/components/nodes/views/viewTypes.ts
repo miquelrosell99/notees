@@ -307,6 +307,12 @@ export const getRenderSkip = (nodeCount: number): number => {
 };
 
 /**
+ * Terrain mode always renders every physics tick to avoid visible jumps.
+ * The terrain render is cached so repeated draws are cheap.
+ */
+export const getTerrainRenderSkip = (_nodeCount: number): number => 1;
+
+/**
  * Generate numeric pair key (order-independent) for link deduplication
  */
 export const pairKey = (a: number, b: number): number => {
