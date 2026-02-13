@@ -31,7 +31,6 @@ import {
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_MIN_HEIGHT,
   TERRAIN_ANISOTROPY,
-  TERRAIN_SADDLE_STRENGTH,
   LABEL_FADE_ZOOM_MIN,
   LABEL_FADE_ZOOM_MAX,
   // Helpers
@@ -243,9 +242,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     heightMap.fill(0, 0, gridSize);
     ownerMap.fill(-1, 0, gridSize);
     
-    // Track second-best height per cell for saddle contrast
-    const secondBest = new Float32Array(gridSize);
-    
     // Per-node peak heights for plateau fill thresholds
     const nodePeakH: number[] = new Array(visibleNodes.length);
     
@@ -350,31 +346,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           
           const idx = rowOff + gx;
           if (ht > heightMap[idx]) {
-            secondBest[idx] = heightMap[idx]; // demote current best to second
             heightMap[idx] = ht;
             ownerMap[idx] = nodeIdx;
-          } else if (ht > secondBest[idx]) {
-            secondBest[idx] = ht; // track second-best from different owner
           }
         }
       }
       nodeIdx++;
-    }
-    
-    // Saddle contrast: depress height where two peaks compete
-    // Linear ramp — even modest overlap creates wide, visible valleys
-    if (TERRAIN_SADDLE_STRENGTH > 0) {
-      for (let i = 0; i < gridSize; i++) {
-        const best = heightMap[i];
-        const second = secondBest[i];
-        if (second > 0 && best > 0) {
-          // Competition ratio: 0 when second is tiny, 1 when second equals best
-          const ratio = second / best;
-          // Linear dip — spreads valley effect broadly across the overlap zone
-          const dip = TERRAIN_SADDLE_STRENGTH * ratio;
-          heightMap[i] = best * (1 - dip);
-        }
-      }
     }
     
     // Apply gaussian blur (2 passes)
