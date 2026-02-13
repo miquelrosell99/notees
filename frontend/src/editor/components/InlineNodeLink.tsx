@@ -1,8 +1,10 @@
 /**
- * PillDecorator — React component rendered inside PillNode (DecoratorNode).
+ * InlineNodeLink — React component rendered inside PillNode (DecoratorNode).
  *
  * Lexical portals this into the PillNode's DOM element (<span class="node-pill-wrapper">).
  * Fetches node data by UUID and renders a lightweight inline pill.
+ *
+ * Also used by BlockClassPillsPlugin to render class pills on blocks.
  */
 
 import { useMemo } from 'react';
@@ -12,12 +14,12 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useClasses } from '@/hooks';
 import { NodeIcon } from '@/components/core/icons';
 
-export interface PillDecoratorProps {
+export interface InlineNodeLinkProps {
   linkId: string;
   refType: 'node' | 'class';
 }
 
-export function PillDecorator({ linkId, refType }: PillDecoratorProps) {
+export function InlineNodeLink({ linkId, refType }: InlineNodeLinkProps) {
   const { data: node } = useNodeByUuid(linkId);
   const { data: allClasses } = useClasses();
 

@@ -145,6 +145,23 @@
   -moz-user-select: text;
 }
 
+/* ─── Block class pills ──────────────────────────────────────── */
+
+.node-block-class-pills {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: 6px;
+  user-select: none;
+}
+
+.node-block-class-pills-inner {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
 /* Ensure empty content wrapper has space for cursor */
 .node-block-content:empty::before {
   content: '\200B';

@@ -113,7 +113,8 @@ export class NodeGraphRuntime {
           existing.name !== node.name ||
           existing.icon !== node.icon ||
           existing.color !== node.color ||
-          existing.isDeleted !== node.isDeleted
+          existing.isDeleted !== node.isDeleted ||
+          existing.classIds.join(',') !== node.classIds.join(',')
         ) {
           changedBlockIds.push(node.blockId);
         }

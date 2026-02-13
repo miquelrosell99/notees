@@ -21,7 +21,9 @@
   border-radius: var(--shape-small);
   background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
   font: inherit;
-  border: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
 }
 
 .pill:hover {
@@ -36,7 +38,9 @@
 
 .node-pill--link .pill:hover {
   filter: none;
-  border: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
 }
 
 .pill__left-icon {

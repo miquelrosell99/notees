@@ -18,7 +18,7 @@ import {
   type DOMConversionMap,
 } from 'lexical';
 import { createElement, type JSX } from 'react';
-import { PillDecorator } from '../components/PillDecorator';
+import { InlineNodeLink } from '../components/InlineNodeLink';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
    * Decorator render — returns a React element portaled into the pill wrapper.
    */
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
-    return createElement(PillDecorator, {
+    return createElement(InlineNodeLink, {
       linkId: this.__linkId,
       refType: this.__refType,
     });
