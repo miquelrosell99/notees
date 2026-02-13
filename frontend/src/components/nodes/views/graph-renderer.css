@@ -19,37 +19,32 @@
   cursor: grab;
 }
 
-/* Terrain profile layout — CSS grid with right + bottom profile strips */
-.terrain-with-profiles {
-  display: grid;
-  grid-template-columns: 1fr 48px;
-  grid-template-rows: 1fr 48px;
-  gap: 0;
-}
-
-.terrain-with-profiles .terrain-main-canvas {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.terrain-profile {
-  display: block;
-  background: transparent;
+/* Terrain profile cards — absolutely positioned over the main canvas */
+.terrain-profile-card {
+  position: absolute;
   pointer-events: none;
+  background: rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  z-index: 2;
 }
 
-.terrain-profile--y {
-  grid-column: 2;
-  grid-row: 1;
+.terrain-profile-card--right {
+  top: 12px;
+  right: 12px;
+  bottom: 68px; /* leave room for bottom card + gap */
   width: 48px;
-  height: 100%;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.terrain-profile--x {
-  grid-column: 1;
-  grid-row: 2;
-  width: 100%;
+.terrain-profile-card--bottom {
+  bottom: 12px;
+  left: 12px;
+  right: 68px; /* leave room for right card + gap */
   height: 48px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.terrain-profile-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
