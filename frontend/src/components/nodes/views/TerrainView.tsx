@@ -399,7 +399,7 @@ export function TerrainView({
   
   return (
     <div className={`node-graph-view ${className}`}>
-      <div className="node-graph-view__toolbar">
+      <div className="node-graph-view__top-left">
         {/* Settings panels */}
         {showSettings && (
           <>
