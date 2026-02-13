@@ -354,7 +354,7 @@ export function GraphView({
         if (exists) {
           return prev.filter(s => s.id !== node.id);
         } else {
-          return [...prev, { id: node.id, name: node.name, order: prev.length }];
+          return [...prev, { id: node.id, name: node.displayName, order: prev.length }];
         }
       });
     } else {
@@ -364,7 +364,7 @@ export function GraphView({
         if (exists) {
           return prev.filter(s => s.id !== node.id);
         }
-        return [...prev, { id: node.id, name: node.name, order: prev.length }];
+        return [...prev, { id: node.id, name: node.displayName, order: prev.length }];
       });
     }
   }, [customNodeClick, addSidebarCard]);
@@ -392,7 +392,7 @@ export function GraphView({
       setSelectedNodes([]);
     } else {
       // Convert node IDs to SelectedNodeItem objects
-      const nodeMap = new Map(nodes.map(n => [n.id, n.name]));
+      const nodeMap = new Map(nodes.map(n => [n.id, n.displayName]));
       const newSelection = nodeIds.map((id, index) => ({
         id,
         name: nodeMap.get(id) || 'Untitled',
