@@ -78,22 +78,20 @@ export function PillPlugin({
         });
 
         // Check if current selection is a NodeSelection on a pill
-        editor.read(() => {
-          const selection = $getSelection();
-          if ($isNodeSelection(selection)) {
-            const nodes = selection.getNodes();
-            for (const node of nodes) {
-              if ($isPillNode(node)) {
-                // Find the DOM element and add selected class
-                const key = node.getKey();
-                const dom = editor.getElementByKey(key);
-                if (dom) {
-                  dom.classList.add('selected', 'node-pill-wrapper--selected');
-                }
+        const selection = $getSelection();
+        if ($isNodeSelection(selection)) {
+          const nodes = selection.getNodes();
+          for (const node of nodes) {
+            if ($isPillNode(node)) {
+              // Find the DOM element and add selected class
+              const key = node.getKey();
+              const dom = editor.getElementByKey(key);
+              if (dom) {
+                dom.classList.add('selected', 'node-pill-wrapper--selected');
               }
             }
           }
-        });
+        }
 
         return false; // Don't prevent other handlers
       },
