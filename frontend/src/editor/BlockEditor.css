@@ -411,8 +411,13 @@ th.node-block-table-cell {
   white-space: nowrap;
 }
 
-.node-pill-wrapper:hover .node-pill-inner {
+.node-pill-wrapper:hover .node-pill-inner:not([style*="background"]) {
   background: var(--color-surface-container-highest);
+  border-color: var(--color-outline-variant);
+}
+
+.node-pill-wrapper:hover .node-pill-inner[style*="background"] {
+  filter: brightness(0.92);
   border-color: var(--color-outline-variant);
 }
 
