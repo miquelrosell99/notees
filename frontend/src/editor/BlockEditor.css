@@ -118,6 +118,16 @@
   transform: translateY(-50%) scale(var(--tactile-press-scale));
 }
 
+/* Bullet glow pulse when block is being edited — hover circle breathes */
+.node-block--editing > .bullet-wrapper {
+  animation: bullet-glow-breathe 2s ease-in-out infinite;
+}
+
+@keyframes bullet-glow-breathe {
+  0%, 100% { background-color: transparent; transform: scale(1); }
+  50%      { background-color: color-mix(in srgb, var(--color-hover-overlay) 50%, transparent); transform: scale(1.05); }
+}
+
 /* Content wrapper — fills the remaining flex space after the bullet.
    Lexical-managed children (text spans, pills, etc.) flow inline inside it. */
 .node-block-content {
@@ -228,40 +238,18 @@
 /* ─── Breathing animations (snappy, faded base) ─────────────────── */
 
 @keyframes notees-line-breathe {
-  0%, 100% { opacity: 0.65; }
+  0%, 100% { opacity: 0.55; }
   50%      { opacity: 0.06; }
 }
 
 @keyframes notees-block-breathe {
-  0%, 100% { opacity: 0.5; }
+  0%, 100% { opacity: 0.45; }
   50%      { opacity: 0.06; }
 }
 
 @keyframes notees-pill-breathe {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 0.12; }
-}
-
-/* Idle state — caret fades to near-invisible */
-.notees-custom-caret--idle {
-  animation: none !important;
-  transition: top 0.1s var(--motion-easing-standard),
-              left 0.1s var(--motion-easing-standard),
-              width 0.12s var(--motion-easing-standard),
-              height 0.1s var(--motion-easing-standard),
-              border-radius 0.12s var(--motion-easing-standard),
-              opacity 1.2s ease-out !important;
-  opacity: 0.06 !important;
-}
-
-/* When user returns from idle — snappy restore */
-.notees-custom-caret--active {
-  transition: top 0.1s var(--motion-easing-standard),
-              left 0.1s var(--motion-easing-standard),
-              width 0.12s var(--motion-easing-standard),
-              height 0.1s var(--motion-easing-standard),
-              border-radius 0.12s var(--motion-easing-standard),
-              opacity 0.06s ease-in !important;
+  0%, 100% { opacity: 0.48; }
+  50%      { opacity: 0.1; }
 }
 
 /* Respect reduced-motion */

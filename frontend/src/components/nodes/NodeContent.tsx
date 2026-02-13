@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState } from 'react';
-import { useContentSave, useNodeNavigation } from '@/hooks';
+import { useContentSave, useNodeNavigation, useAddClass } from '@/hooks';
 import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
@@ -61,6 +61,12 @@ export function NodeContent({
   // Debounced content save - batches rapid edits to reduce API calls
   // saveImmediate bypasses debounce for operations like asset uploads
   const { handleContentChange: handleBlockChange, saveImmediate } = useContentSave();
+
+  // Add class mutation
+  const addClass = useAddClass();
+  const handleAddClass = useCallback((blockId: number, classId: number) => {
+    addClass.mutate({ nodeId: blockId, classId });
+  }, [addClass]);
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
@@ -138,6 +144,7 @@ export function NodeContent({
             showClasses={true}
             pageId={node.id}
             pageUuid={node.uuid}
+            onAddClass={handleAddClass}
           />
         </section>
       )}

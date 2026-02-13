@@ -97,6 +97,8 @@ export interface BlockEditorProps {
 
   /** Called when any block's content changes (for API persistence) */
   onContentChange?: (blockId: string, content: string) => void;
+  /** Called when a class should be added to a block via @ menu (plain Enter) */
+  onAddClass?: (blockId: number, classId: number) => void;
   /** Custom class name */
   className?: string;
   /** Placeholder text */
@@ -149,6 +151,7 @@ export function BlockEditor({
   onEscape,
   onSelectionChange,
   onContentChange: onContentChangeCallback,
+  onAddClass,
   className,
   placeholder = 'Type / for commands…',
   includeRoot,
@@ -381,6 +384,7 @@ export function BlockEditor({
         {/* Triggers (/, [[, @, #) */}
         <TriggerPlugin
           onLinkSelect={handlePillClick}
+          onAddClass={onAddClass}
         />
 
         {/* Floating toolbar */}

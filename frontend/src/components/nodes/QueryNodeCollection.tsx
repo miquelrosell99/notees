@@ -19,7 +19,7 @@ import {
   useDeleteNodeView,
   batchEnsureDefaults,
 } from '@/hooks/useNodeViews';
-import { useCreateNode, usePageClass } from '@/hooks/useNodes';
+import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
 import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
@@ -247,6 +247,12 @@ export function QueryNodeCollection({
   }, [nodeId, viewType]);
 
   const isInitializing = !hasInitialized;
+
+  // Add class mutation
+  const addClass = useAddClass();
+  const handleAddClass = useCallback((blockId: number, classId: number) => {
+    addClass.mutate({ nodeId: blockId, classId });
+  }, [addClass]);
 
   // Fetch views for this node and view type
   const { 
@@ -717,6 +723,7 @@ export function QueryNodeCollection({
           autoCollapse={true}
           containerCard={viewType !== 'all_pages'}
           activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
+          onAddClass={handleAddClass}
         />
       )}
 

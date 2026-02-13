@@ -5,8 +5,8 @@
  * - **Normal mode**: Thin vertical line caret (2px wide, rounded corners)
  * - **Insert mode**: Block caret covering the character (Insert key toggle)
  * - **Pill surround**: When navigating onto a node link, caret smoothly wraps it
- * - **Breathing blink**: Sine-eased opacity 1→0.15→1 with subtle width pulse
- * - **Idle fade**: After 4s of inactivity, caret fades to low opacity; restores on keypress
+ * - **Breathing blink**: Sine-eased opacity pulse
+ * - **Active block tracking**: Adds class to focused block for bullet pulse
  * - Theme-aware styling via --color-caret token
  *
  * The native caret is hidden via CSS (`caret-color: transparent`).
@@ -27,9 +27,6 @@ import {
 } from 'lexical';
 import { $isPillNode } from '../nodes/PillNode';
 
-// Idle timeout (ms) before the caret starts to fade
-const IDLE_TIMEOUT = 4000;
-
 // ─── Component ──────────────────────────────────────────────────
 
 export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }): JSX.Element | null {
@@ -37,36 +34,36 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const [overwriteMode, setOverwriteMode] = useState(false);
   const caretRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number>(0);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isIdleRef = useRef(false);
   // Track whether we've set an initial position (skip transition on first placement)
   const hasPositionedRef = useRef(false);
   // Track previous Y position for elastic bounce on block jumps
   const prevTopRef = useRef<number | null>(null);
+  // Track the currently active block element for bullet pulse
+  const activeBlockRef = useRef<HTMLElement | null>(null);
 
-  // ─── Idle detection helpers ──────────────────────────────────
+  // ─── Track active block for bullet pulse ─────────────────────
 
-  const markActive = useCallback(() => {
-    const caret = caretRef.current;
-    if (!caret) return;
+  const updateActiveBlock = useCallback(() => {
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
 
-    if (isIdleRef.current) {
-      isIdleRef.current = false;
-      caret.classList.remove('notees-custom-caret--idle');
-      caret.classList.add('notees-custom-caret--active');
-      // Remove the --active class after the snap-in transition
-      setTimeout(() => caret.classList.remove('notees-custom-caret--active'), 150);
+    const domSelection = window.getSelection();
+    let newBlock: HTMLElement | null = null;
+
+    if (domSelection && domSelection.rangeCount > 0) {
+      const anchorNode = domSelection.anchorNode;
+      if (anchorNode) {
+        const el = anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode as Element;
+        newBlock = el?.closest('.node-block') as HTMLElement | null;
+      }
     }
 
-    // Reset idle timer
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    idleTimerRef.current = setTimeout(() => {
-      isIdleRef.current = true;
-      if (caretRef.current) {
-        caretRef.current.classList.add('notees-custom-caret--idle');
-      }
-    }, IDLE_TIMEOUT);
-  }, []);
+    if (newBlock !== activeBlockRef.current) {
+      activeBlockRef.current?.classList.remove('node-block--editing');
+      newBlock?.classList.add('node-block--editing');
+      activeBlockRef.current = newBlock;
+    }
+  }, [editor]);
 
   // ─── Toggle Insert/Overwrite mode with Insert key ───────────
 
@@ -425,6 +422,21 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       }
     }
 
+    // ─── Empty-block left-position fix ───
+    // When a block contains only a ZWS (empty), range.getBoundingClientRect()
+    // can report the left edge of the .node-block flex container (before the
+    // bullet) instead of the .node-block-content wrapper. Clamp to content left.
+    const anchorEl = startContainer.nodeType === Node.TEXT_NODE
+      ? startContainer.parentElement
+      : startContainer as Element;
+    const contentWrapper = anchorEl?.closest('.node-block-content') as HTMLElement | null;
+    if (contentWrapper) {
+      const contentLeft = contentWrapper.getBoundingClientRect().left;
+      if (rect.left < contentLeft) {
+        rect = new DOMRect(contentLeft, rect.top, rect.width, rect.height);
+      }
+    }
+
     const top = rect.top - editorRect.top;
     const left = rect.left - editorRect.left;
     const height = rect.height > 1 ? rect.height : 20;
@@ -480,29 +492,36 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     const unregisterSelection = editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
-        markActive();
         cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(updateCaretPosition);
+        rafRef.current = requestAnimationFrame(() => {
+          updateCaretPosition();
+          updateActiveBlock();
+        });
         return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
 
     const unregisterUpdate = editor.registerUpdateListener(() => {
-      markActive();
       cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateCaretPosition);
+      rafRef.current = requestAnimationFrame(() => {
+        updateCaretPosition();
+        updateActiveBlock();
+      });
     });
 
     // Initial position
-    requestAnimationFrame(updateCaretPosition);
+    requestAnimationFrame(() => {
+      updateCaretPosition();
+      updateActiveBlock();
+    });
 
     return () => {
       unregisterSelection();
       unregisterUpdate();
       cancelAnimationFrame(rafRef.current);
     };
-  }, [editor, updateCaretPosition, markActive]);
+  }, [editor, updateCaretPosition, updateActiveBlock]);
 
   // ─── Mark active on any keypress ────────────────────────────
 
@@ -512,12 +531,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     return editor.registerCommand(
       KEY_DOWN_COMMAND,
       () => {
-        markActive();
         return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly, markActive]);
+  }, [editor, readOnly]);
 
   // ─── Listen for focus/blur events ────────────────────────────
 
@@ -526,17 +544,21 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     if (!rootElement) return;
 
     const onFocus = () => {
-      markActive();
       hasPositionedRef.current = false;
-      prevTopRef.current = null; // Reset so re-focus doesn't trigger bounce
+      prevTopRef.current = null;
       cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateCaretPosition);
+      rafRef.current = requestAnimationFrame(() => {
+        updateCaretPosition();
+        updateActiveBlock();
+      });
     };
 
     const onBlur = () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(updateCaretPosition);
+      // Remove active block class on blur
+      activeBlockRef.current?.classList.remove('node-block--editing');
+      activeBlockRef.current = null;
     };
 
     rootElement.addEventListener('focus', onFocus, true);
@@ -546,7 +568,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       rootElement.removeEventListener('focus', onFocus, true);
       rootElement.removeEventListener('blur', onBlur, true);
     };
-  }, [editor, updateCaretPosition, markActive]);
+  }, [editor, updateCaretPosition, updateActiveBlock]);
 
   // ─── Listen for DOM mutations (indent/outdent, style changes) ───
 
@@ -625,11 +647,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     };
   }, [editor, updateCaretPosition]);
 
-  // ─── Cleanup idle timer on unmount ───────────────────────────
+  // ─── Cleanup on unmount ──────────────────────────────────────
 
   useEffect(() => {
     return () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      activeBlockRef.current?.classList.remove('node-block--editing');
     };
   }, []);
 

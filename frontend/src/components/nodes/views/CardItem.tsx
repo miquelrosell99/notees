@@ -45,6 +45,7 @@ import {
   useSetNodeProperty,
   useCreateNode,
   useRemoveClass,
+  useAddClass,
   useUpdateNode,
   useResolvedClassDetails,
 } from '@/hooks';
@@ -117,6 +118,7 @@ interface CardChildrenEditorProps {
   onContentChange?: (blockId: string, content: string) => void;
   onNavigateToNode?: (linkId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
+  onAddClass?: (blockId: number, classId: number) => void;
 }
 
 /**
@@ -129,6 +131,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
   onContentChange,
   onNavigateToNode,
   onOpenInSidebar,
+  onAddClass,
 }: CardChildrenEditorProps): JSX.Element {
   const editorId = `card-children-${rootBlockId}`;
 
@@ -206,6 +209,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
         <DragDropPlugin editorId={editorId} readOnly={readOnly} />
         <TriggerPlugin
           onLinkSelect={handlePillClick}
+          onAddClass={onAddClass}
         />
         <FloatingToolbarPlugin />
         <ContextMenuPlugin
@@ -272,6 +276,7 @@ export const NodeCard = memo(function NodeCard({
 
   // Mutations
   const removeClass = useRemoveClass();
+  const addClass = useAddClass();
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
 
@@ -511,6 +516,11 @@ export const NodeCard = memo(function NodeCard({
     }
   }, [onNodeShiftClick, addSidebarCard]);
 
+  // Add class to block (uses API mutation)
+  const handleAddClass = useCallback((blockId: number, classId: number) => {
+    addClass.mutate({ nodeId: blockId, classId });
+  }, [addClass]);
+
   // ─── Style & className ─────────────────────────────────────
 
   const cardStyle = useMemo(() => {
@@ -709,6 +719,7 @@ export const NodeCard = memo(function NodeCard({
                 onContentChange={handleLexicalContentChange}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenBlockInSidebar}
+                onAddClass={handleAddClass}
               />
             )}
             {editable && (

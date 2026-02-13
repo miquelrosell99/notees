@@ -65,13 +65,15 @@
 .bullet-interactive {
   cursor: pointer;
   border-radius: 50%;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-standard);
   /* Prevent text cursor from showing */
   pointer-events: auto;
 }
 
 .bullet-interactive:hover {
-  background-color: var(--color-hover-overlay);
+  background-color: color-mix(in srgb, var(--color-hover-overlay) 60%, transparent);
+  transform: scale(1.06);
 }
 
 .bullet-interactive[draggable="true"] {

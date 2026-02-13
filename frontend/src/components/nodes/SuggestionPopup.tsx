@@ -159,7 +159,7 @@ export function SuggestionPopup({
       case 'Enter':
         e.preventDefault();
         e.stopPropagation();
-        const keepInline = e.ctrlKey;
+        const keepInline = e.shiftKey;
         
         // Date suggestion at the very top
         if (hasDateSuggestion && selectedIndex === 0) {
