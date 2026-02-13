@@ -15,6 +15,7 @@ import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../BlockEditor';
+import { useNodeByUuid } from '../../hooks/useNodeQueries';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import type { Node } from '../../types/api';
 
@@ -29,6 +30,8 @@ interface ContextMenuState {
   position: { x: number; y: number };
   blockId: string;
   isPage: boolean;
+  /** When set, the menu targets a linked node (pill) rather than the block itself */
+  pillLinkId?: string;
 }
 
 export function ContextMenuPlugin({
@@ -143,7 +146,24 @@ export function ContextMenuPlugin({
     const handleRightClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       
-      // Only handle right-click on bullet area
+      // Handle right-click on pill (node link)
+      const pillWrapper = target.closest('.node-pill-wrapper') as HTMLElement | null;
+      if (pillWrapper) {
+        const linkId = pillWrapper.getAttribute('data-link-id');
+        if (linkId) {
+          event.preventDefault();
+          event.stopPropagation();
+          setContextMenu({
+            position: { x: event.clientX, y: event.clientY },
+            blockId: linkId,
+            isPage: false, // will be resolved from fetched data
+            pillLinkId: linkId,
+          });
+        }
+        return;
+      }
+
+      // Handle right-click on bullet area
       if (target.closest('.bullet-wrapper')) {
         event.preventDefault();
         event.stopPropagation();
@@ -183,10 +203,33 @@ export function ContextMenuPlugin({
     };
   }, [contextMenu]);
 
+  // Fetch linked node data when showing a pill context menu
+  const pillLinkId = contextMenu?.pillLinkId ?? null;
+  const { data: pillNode } = useNodeByUuid(pillLinkId);
+
   // Render context menu
   if (!contextMenu) return null;
 
-  // Get node data for context menu
+  // For pill context menus, use the fetched node data
+  if (contextMenu.pillLinkId) {
+    if (!pillNode) return null; // still loading
+
+    return pillNode.is_page ? (
+      <PageContextMenu
+        node={pillNode}
+        position={contextMenu.position}
+        onClose={handleCloseContextMenu}
+      />
+    ) : (
+      <BlockContextMenu
+        node={pillNode}
+        position={contextMenu.position}
+        onClose={handleCloseContextMenu}
+      />
+    );
+  }
+
+  // For block context menus, use the runtime data
   const runtime = getNodeGraphRuntime();
   const graphNode = runtime.getNode(contextMenu.blockId);
   

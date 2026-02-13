@@ -118,11 +118,9 @@
   transform: translateY(-50%) scale(var(--tactile-press-scale));
 }
 
-/* Lexical inserts paragraph/text nodes directly as children of .node-block.
-   Make them fill the remaining flex space after the bullet. */
-.node-block > p,
-.node-block > span,
-.node-block > .notees-editor-paragraph {
+/* Content wrapper — fills the remaining flex space after the bullet.
+   Lexical-managed children (text spans, pills, etc.) flow inline inside it. */
+.node-block-content {
   flex: 1;
   min-width: 2em;
   min-height: 1.6em;
@@ -136,19 +134,21 @@
   -moz-user-select: text;
 }
 
-/* Ensure empty text nodes have space for cursor */
-.node-block > span:empty::before,
-.node-block > p:empty::before {
+/* Ensure empty content wrapper has space for cursor */
+.node-block-content:empty::before {
   content: '\200B';
   display: inline;
 }
 
 /* Text content shows text cursor in editable mode */
-.notees-editor:not(.notees-editor--readonly) .node-block > p,
-.notees-editor:not(.notees-editor--readonly) .node-block > span:not(.bullet-wrapper),
-.notees-editor:not(.notees-editor--readonly) .node-block > .notees-editor-paragraph {
+.notees-editor:not(.notees-editor--readonly) .node-block-content {
   cursor: text;
   caret-color: var(--color-on-surface);
+}
+
+/* Pill nodes inside the content wrapper keep pointer cursor */
+.node-block-content .node-pill-wrapper {
+  cursor: pointer;
 }
 
 /* Editor root shows default cursor - clicks on margins should not enter edit mode */
@@ -253,9 +253,7 @@
 }
 
 /* Faint background for colored blocks (not for headings) */
-.node-block[style*="--node-block-color"]:not(.node-block-heading) > p,
-.node-block[style*="--node-block-color"]:not(.node-block-heading) > span,
-.node-block[style*="--node-block-color"]:not(.node-block-heading) > .notees-editor-paragraph {
+.node-block[style*="--node-block-color"]:not(.node-block-heading) > .node-block-content {
   background-color: rgba(var(--node-color-rgb, 128, 128, 128), 0.08);
   padding: 2px 8px;
   border-radius: var(--shape-small);

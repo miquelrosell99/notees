@@ -483,12 +483,21 @@ export const NodeCard = memo(function NodeCard({
   }, [handleContentChange]);
 
   // Navigate via pills
-  const handleNavigateToNode = useCallback((linkId: string) => {
+  const handleNavigateToNode = useCallback(async (linkId: string) => {
     const runtime = getNodeGraphRuntime();
     const graphNode = runtime.getNode(linkId);
-    if (!graphNode?.serverId) return;
-    const targetNode = { id: graphNode.serverId, is_page: graphNode.isPage } as Node;
-    onNodeClick?.(targetNode);
+    if (graphNode?.serverId) {
+      onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+      return;
+    }
+    // Node not in runtime — fetch by UUID
+    try {
+      const { getNodeByUuid } = await import('@/api/nodes');
+      const node = await getNodeByUuid(linkId);
+      onNodeClick?.(node);
+    } catch {
+      // Node not found
+    }
   }, [onNodeClick]);
 
   const handleOpenBlockInSidebar = useCallback((blockId: string) => {

@@ -112,6 +112,7 @@ export function FloatingToolbarPlugin({
   const toolbar = (
     <div
       className="floating-toolbar"
+      data-editor-companion="true"
       style={{
         position: 'absolute',
         top: position.top,
