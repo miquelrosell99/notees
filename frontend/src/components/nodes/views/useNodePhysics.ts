@@ -50,6 +50,8 @@ import {
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
+  TERRAIN_BASE_SLOPE_RADIUS,
+  TERRAIN_PEAK_SLOPE_BONUS,
   LINK_TYPE_PRIORITY,
   // Helpers
   getMaxSimulationFrames,
@@ -895,15 +897,24 @@ export function useNodePhysics({
     const nodes = nodesRef.current.filter(n => n.visible);
     if (nodes.length === 0) return;
     
+    const isTerrain = viewModeRef.current === 'terrain';
+    const terrainPeakRadii = isTerrain ? frameDataRef.current.terrainPeakRadii : null;
+    
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const node of nodes) {
-      minX = Math.min(minX, node.x);
-      maxX = Math.max(maxX, node.x);
-      minY = Math.min(minY, node.y);
-      maxY = Math.max(maxY, node.y);
+      // In terrain mode, each node has a slope radius extending beyond its center
+      let footprint = 0;
+      if (isTerrain && terrainPeakRadii) {
+        const peakSize = terrainPeakRadii.get(node.id) ?? 0;
+        footprint = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize;
+      }
+      minX = Math.min(minX, node.x - footprint);
+      maxX = Math.max(maxX, node.x + footprint);
+      minY = Math.min(minY, node.y - footprint);
+      maxY = Math.max(maxY, node.y + footprint);
     }
     
-    const padding = 60;
+    const padding = isTerrain ? 20 : 60;
     minX -= padding;
     maxX += padding;
     minY -= padding;
