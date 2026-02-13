@@ -15,6 +15,7 @@ export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
 export type ConstraintMode = 'physics' | 'equidistant';
 export type LinkDirection = 'in' | 'out' | 'all';
 export type HeightMode = 'hierarchy' | 'references';
+export type PeakSizeMode = 'links' | 'pageSize';
 
 /**
  * Graph layout mode (for NodeGraphRenderer only)
@@ -91,6 +92,7 @@ export interface GraphSettings {
   linkCountAttraction: boolean;
   nodeSizeMode: NodeSizeMode;
   heightMode: HeightMode;
+  peakSizeMode: PeakSizeMode;
   constraintMode: ConstraintMode;
   linkDirection: LinkDirection;
 }
@@ -162,6 +164,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   linkCountAttraction: false,
   nodeSizeMode: 'uniform',
   heightMode: 'hierarchy',
+  peakSizeMode: 'links',
   constraintMode: 'physics',
   linkDirection: 'all',
 };

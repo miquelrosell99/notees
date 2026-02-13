@@ -207,6 +207,8 @@ export function useNodePhysics({
   const frameNodeMapRef = useRef<Map<number, GraphNode>>(new Map());
   const frameVisibleLinksRef = useRef<GraphLink[]>([]);
   
+  // Terrain data dirty flag — only recompute heights/radii when topology or settings change
+  const terrainDataDirtyRef = useRef(true);  
   // Canvas context and render function (set by renderer)
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const renderRef = useRef<((ctx: CanvasRenderingContext2D) => void) | null>(null);
@@ -717,6 +719,7 @@ export function useNodePhysics({
     outReferenceLinkCountsRef.current = outReferenceLinkCounts;
     allReferenceLinkCountsRef.current = allReferenceLinkCounts;
     topologyDirtyRef.current = false;
+    terrainDataDirtyRef.current = true; // Recompute terrain heights/radii on topology change
   }, []);
   
   // ==================== Barnes-Hut Quadtree ====================
@@ -1550,13 +1553,14 @@ export function useNodePhysics({
         frameDataRef.current.maxConnections = maxConnections;
         frameDataRef.current.maxMass = maxMass;
         
-        // Compute terrain heights
-        if (isTerrainModeNow) {
+        // Compute terrain heights and peak radii — only when topology or settings changed
+        if (isTerrainModeNow && terrainDataDirtyRef.current) {
           const terrainHeights = frameDataRef.current.terrainHeights;
           const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
           terrainHeights.clear();
           terrainPeakRadii.clear();
           
+          // --- Heights ---
           let maxHeightRaw = 0;
           const rawHeights = new Map<number, number>();
           const heightMode = currentSettings.heightMode;
@@ -1571,35 +1575,48 @@ export function useNodePhysics({
             rawHeights.set(node.id, h);
             if (h > maxHeightRaw) maxHeightRaw = h;
           }
-          // Use log compression so leaf nodes still have visible mountains
-          // sqrt was too weak: leaf=sqrt(1)/sqrt(378)=0.05, invisible
-          // log: leaf=log(2)/log(379)=0.12, and MIN_HEIGHT clamps up to 0.35
+          // Log compression so leaf nodes still have visible mountains
           const logMax = Math.log(1 + maxHeightRaw);
           for (const [id, h] of rawHeights) {
             terrainHeights.set(id, logMax > 0 ? Math.log(1 + h) / logMax : 0);
           }
           
-          const ld = currentSettings.linkDirection;
-          const inCounts = inReferenceLinkCountsRef.current;
-          const outCounts = outReferenceLinkCountsRef.current;
-          const allCounts = allReferenceLinkCountsRef.current;
-          let maxLinkCount = 0;
+          // --- Peak radii (size) ---
+          const peakSizeMode = currentSettings.peakSizeMode;
+          let maxRawSize = 0;
           const rawRadii = new Map<number, number>();
-          for (const node of nodes) {
-            let count: number;
-            if (ld === 'in') {
-              count = inCounts.get(node.id) || 0;
-            } else if (ld === 'out') {
-              count = outCounts.get(node.id) || 0;
-            } else {
-              count = allCounts.get(node.id) || 0;
+          
+          if (peakSizeMode === 'pageSize') {
+            // Use page content length (displayName chars) as peak size
+            for (const node of nodes) {
+              const size = node.displayName.length;
+              rawRadii.set(node.id, size);
+              if (size > maxRawSize) maxRawSize = size;
             }
-            rawRadii.set(node.id, count);
-            if (count > maxLinkCount) maxLinkCount = count;
+          } else {
+            // 'links' mode — use reference link counts based on linkDirection
+            const ld = currentSettings.linkDirection;
+            const inCounts = inReferenceLinkCountsRef.current;
+            const outCounts = outReferenceLinkCountsRef.current;
+            const allCounts = allReferenceLinkCountsRef.current;
+            for (const node of nodes) {
+              let count: number;
+              if (ld === 'in') {
+                count = inCounts.get(node.id) || 0;
+              } else if (ld === 'out') {
+                count = outCounts.get(node.id) || 0;
+              } else {
+                count = allCounts.get(node.id) || 0;
+              }
+              rawRadii.set(node.id, count);
+              if (count > maxRawSize) maxRawSize = count;
+            }
           }
           for (const [id, c] of rawRadii) {
-            terrainPeakRadii.set(id, maxLinkCount > 0 ? c / maxLinkCount : 0);
+            terrainPeakRadii.set(id, maxRawSize > 0 ? c / maxRawSize : 0);
           }
+          
+          terrainDataDirtyRef.current = false;
         }
         
         if (ctxRef.current && renderRef.current) {
@@ -1650,6 +1667,7 @@ export function useNodePhysics({
     const prevNodeSizeMode = settingsRef.current.nodeSizeMode;
     settingsRef.current = settings;
     topologyDirtyRef.current = true;
+    terrainDataDirtyRef.current = true; // Terrain heights/radii may depend on settings
     const modeChanged = settings.constraintMode !== prevConstraintMode || settings.nodeSizeMode !== prevNodeSizeMode;
     if (modeChanged && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') && nodesRef.current.length > 0) {
       calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settings.constraintMode, settings.nodeSizeMode);
