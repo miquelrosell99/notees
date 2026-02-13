@@ -56,20 +56,16 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      console.log('[ContextMenu] handleClickOutside, target:', (e.target as HTMLElement)?.className);
       // Don't close if clicking inside submenu
       const submenuEl = document.querySelector('.context-menu-submenu');
       if (submenuEl && submenuEl.contains(e.target as Node)) {
-        console.log('[ContextMenu] Click inside submenu, ignoring');
         return;
       }
       // Don't close if clicking inside container (e.g., color picker row)
       if (containerRef?.current && containerRef.current.contains(e.target as Node)) {
-        console.log('[ContextMenu] Click inside containerRef, ignoring');
         return;
       }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        console.log('[ContextMenu] Click outside menu, closing');
         onClose();
       }
     };

@@ -11,6 +11,7 @@
 
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { clearBlockSelection } from '../utils/selectionUtils';
 
 export interface BlurOnClickOutsidePluginProps {
   /** Whether the editor is in read-only mode */
@@ -44,7 +45,8 @@ export function BlurOnClickOutsidePlugin({
       
       // Blur editor and clear block selection
       editor.blur();
-      (editor as any).__clearBlockSelection?.();
+      const rootEl = editor.getRootElement();
+      if (rootEl) clearBlockSelection(rootEl);
     };
 
     document.addEventListener('mousedown', handleClickOutside, true);

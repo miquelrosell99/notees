@@ -87,9 +87,6 @@ export function NodePill({
   // Prefer fetched node (has latest cache data) over provided node
   const node = fetchedNode ?? providedNode;
   
-  // Debug log for color updates
-  console.log('[NodePill] nodeId:', effectiveNodeId, 'color:', node?.color);
-  
   // Get effective icon (considers inherited icons from classes)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
@@ -240,7 +237,6 @@ export function NodePill({
 
   // Handler for color change from context menu
   const handleColorChangeFromMenu = useCallback((color: string | null) => {
-    console.log('[NodePill] handleColorChangeFromMenu called:', { color, hasOnColorChange: !!onColorChange });
     onColorChange?.(color);
     handleCloseContextMenu();
   }, [onColorChange, handleCloseContextMenu]);
@@ -304,7 +300,6 @@ export function NodePill({
       {/* Context menu (for link variant) */}
       {contextMenu && (
         <>
-          {console.log('[NodePill] Context menu rendering, onColorChange:', !!onColorChange, 'readOnly:', readOnly)}
           {onColorChange && !readOnly && (
             <>
               {/* Backdrop to catch clicks outside */}

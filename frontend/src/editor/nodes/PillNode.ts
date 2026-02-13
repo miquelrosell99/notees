@@ -17,7 +17,8 @@ import {
   $applyNodeReplacement,
   type DOMConversionMap,
 } from 'lexical';
-import type { JSX } from 'react';
+import { createElement, type JSX } from 'react';
+import { PillDecorator } from '../components/PillDecorator';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
@@ -121,14 +122,13 @@ export class PillNode extends DecoratorNode<JSX.Element> {
   }
 
   /**
-   * Decorator render — returns a React element.
-   * The actual React component is provided by the PillComponent.
+   * Decorator render — returns a React element portaled into the pill wrapper.
    */
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
-    // This will be overridden by the PillPlugin which registers
-    // a decorator component. For now, return a placeholder.
-    // The actual rendering is handled by PillPlugin.
-    return null as unknown as JSX.Element;
+    return createElement(PillDecorator, {
+      linkId: this.__linkId,
+      refType: this.__refType,
+    });
   }
 }
 
