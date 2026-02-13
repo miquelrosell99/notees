@@ -489,21 +489,31 @@ export function useUpdateNode() {
       // IMPORTANT: The PUT endpoint returns classes/tags as [] (it doesn't fetch them),
       // so we must exclude them from the spread to avoid wiping out cached values
       // that were set by addClass/addTag mutations.
+      const mergeUpdate = (oldNode: Node | undefined): Node => {
+        if (!oldNode) return updatedNode;
+        const { children, backlinks, linked_references, properties, classes, tags, ...rest } = updatedNode;
+        return {
+          ...oldNode,
+          ...rest,
+          ...(children !== null && children !== undefined ? { children } : {}),
+          ...(backlinks !== null && backlinks !== undefined ? { backlinks } : {}),
+          ...(linked_references !== null && linked_references !== undefined ? { linked_references } : {}),
+          ...(properties !== null && properties !== undefined && Object.keys(properties).length > 0 ? { properties } : {}),
+        };
+      };
+
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(updatedNode.id) },
-        (oldNode) => {
-          if (!oldNode) return updatedNode;
-          const { children, backlinks, linked_references, properties, classes, tags, ...rest } = updatedNode;
-          return {
-            ...oldNode,
-            ...rest,
-            ...(children !== null && children !== undefined ? { children } : {}),
-            ...(backlinks !== null && backlinks !== undefined ? { backlinks } : {}),
-            ...(linked_references !== null && linked_references !== undefined ? { linked_references } : {}),
-            ...(properties !== null && properties !== undefined && Object.keys(properties).length > 0 ? { properties } : {}),
-          };
-        }
+        mergeUpdate
       );
+
+      // Also update byUuid cache so editor PillDecorators reflect changes (e.g. color)
+      if (updatedNode.uuid) {
+        queryClient.setQueryData<Node>(
+          nodeKeys.byUuid(updatedNode.uuid),
+          (oldNode) => oldNode ? mergeUpdate(oldNode) : undefined
+        );
+      }
       
       // Only invalidate lists/pages if fields that affect display changed
       // (icon, color, is_page, etc.) - not for simple content/sequence updates
