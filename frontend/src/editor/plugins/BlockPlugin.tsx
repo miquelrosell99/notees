@@ -158,6 +158,10 @@ export function BlockPlugin({
           if (existing.getColor() !== (projected.color ?? null)) existing.setColor(projected.color ?? null);
           if (existing.getBlockName() !== (projected.name ?? '')) existing.setBlockName(projected.name ?? '');
           if (existing.getIsProjectionRoot() !== projected.isProjectionRoot) existing.setIsProjectionRoot(projected.isProjectionRoot);
+          // Sync classIds (compare as joined string to avoid reference inequality)
+          const existingClassStr = existing.getClassIds().join(',');
+          const projectedClassStr = (projected.classIds ?? []).join(',');
+          if (existingClassStr !== projectedClassStr) existing.setClassIds(projected.classIds ?? []);
           
           // Check if content has changed (e.g., from split_block or merge_blocks operation)
           // Compare serialized content to detect changes
@@ -236,6 +240,7 @@ export function BlockPlugin({
             projected.color ?? null,
             projected.name ?? '',
             projected.isProjectionRoot,
+            projected.classIds ?? [],
           );
 
           // Populate inline content from contentAST
