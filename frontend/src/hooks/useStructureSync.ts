@@ -100,10 +100,12 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
       recentlySynced.set(graphNode.serverId, now);
 
       // Convert parent blockId to serverId
+      // Use resolveParentServerId which checks both full GraphNodes AND the
+      // lightweight parentServerIds map (for pages that aren't full nodes
+      // in the runtime but are registered via registerParentServerId).
       let parentServerId: number | null = null;
       if (graphNode.parentId) {
-        const parentNode = runtime.getNode(graphNode.parentId);
-        parentServerId = parentNode?.serverId ?? null;
+        parentServerId = runtime.resolveParentServerId(graphNode.parentId);
       }
 
       // Collect cache update data
