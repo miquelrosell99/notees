@@ -705,6 +705,8 @@ export function QueryNodeCollection({
           can_delete={can_delete}
           pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
           showClasses={showClasses}
+          pageId={viewType === 'child_pages' ? nodeId : undefined}
+          pageUuid={viewType === 'child_pages' ? nodeUuid : undefined}
           selectedPropertyUuids={selectedPropertyUuids}
           onPropertyColumnsChange={handlePropertyColumnsChange}
           onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
