@@ -400,8 +400,6 @@ export function PropertiesSection({
     
     // Then add any additional properties that have values on this node
     // but aren't from classes
-    console.log('[PropertiesSection] node.properties:', node?.properties);
-    console.log('[PropertiesSection] allProperties IDs:', allProperties?.map(p => p.id));
     if (node?.properties) {
       for (const prop of allProperties) {
         if (addedPropertyIds.has(prop.id)) continue;
@@ -414,7 +412,6 @@ export function PropertiesSection({
         
         const hasProperty = String(prop.id) in (node.properties as Record<string, unknown>);
         if (hasProperty) {
-          console.log(`[PropertiesSection] Found prop ${prop.id} (${prop.name}) in node.properties`);
           entries.push({
             property: prop,
             value: (node.properties as Record<string, unknown>)[String(prop.id)],

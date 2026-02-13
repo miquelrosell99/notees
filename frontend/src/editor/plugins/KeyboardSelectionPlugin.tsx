@@ -10,6 +10,7 @@
 import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   $setSelection,
@@ -20,6 +21,7 @@ import {
   KEY_ARROW_RIGHT_COMMAND,
   COMMAND_PRIORITY_HIGH,
 } from 'lexical';
+import { $isBlockNode } from '../nodes/BlockNode';
 import { selectBlockWithChildren, clearBlockSelection, findParentNodeBlock } from '../utils/selectionUtils';
 
 export interface KeyboardSelectionPluginProps {
@@ -299,25 +301,13 @@ export function KeyboardSelectionPlugin({
 
       // Focus at start of anchor block
       editor.update(() => {
-        const root = editor.getRootElement();
-        if (!root) return;
+        // Find the block node via public API
+        const blockNode = $getRoot().getChildren().find(
+          node => $isBlockNode(node) && node.getBlockId() === blockIdToFocus
+        );
         
-        const blockEl = root.querySelector(`[data-block-id="${blockIdToFocus}"]`);
-        if (!blockEl) return;
-        
-        const lexicalKey = blockEl.getAttribute('data-lexical-editor');
-        if (!lexicalKey) return;
-        
-        // Find the block node in Lexical
-        const allBlocks = editor.getEditorState().read(() => {
-          const root = editor.getEditorState()._nodeMap;
-          return Array.from(root.values()).filter((node: any) => 
-            node.__type === 'node-block' && node.__blockId === blockIdToFocus
-          );
-        });
-        
-        if (allBlocks.length > 0) {
-          const firstChild = (allBlocks[0] as any).getFirstDescendant();
+        if (blockNode) {
+          const firstChild = blockNode.getFirstDescendant();
           if (firstChild) {
             firstChild.selectStart();
           }
@@ -345,22 +335,13 @@ export function KeyboardSelectionPlugin({
 
       // Focus at end of anchor block
       editor.update(() => {
-        const root = editor.getRootElement();
-        if (!root) return;
+        // Find the block node via public API
+        const blockNode = $getRoot().getChildren().find(
+          node => $isBlockNode(node) && node.getBlockId() === blockIdToFocus
+        );
         
-        const blockEl = root.querySelector(`[data-block-id="${blockIdToFocus}"]`);
-        if (!blockEl) return;
-        
-        // Find the block node in Lexical
-        const allBlocks = editor.getEditorState().read(() => {
-          const root = editor.getEditorState()._nodeMap;
-          return Array.from(root.values()).filter((node: any) => 
-            node.__type === 'node-block' && node.__blockId === blockIdToFocus
-          );
-        });
-        
-        if (allBlocks.length > 0) {
-          const lastChild = (allBlocks[0] as any).getLastDescendant();
+        if (blockNode) {
+          const lastChild = blockNode.getLastDescendant();
           if (lastChild) {
             lastChild.selectEnd();
           }

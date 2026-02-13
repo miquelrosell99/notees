@@ -158,11 +158,9 @@ export function GraphView({
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
             // Convert raw AST class names to text
-            console.log('[GraphView] Loading class colors, raw:', JSON.stringify(parsed));
             const migrated = parsed.map((cc: Record<string, unknown>) => {
               const rawName = (cc.className ?? '') as string;
               const converted = nodeNameToText(rawName);
-              console.log('[GraphView] Migrate class color:', { rawName, converted, type: typeof rawName });
               return {
                 ...cc,
                 className: nodeNameToText(rawName) || rawName || 'Untitled',
