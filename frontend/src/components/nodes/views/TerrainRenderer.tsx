@@ -500,15 +500,21 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     const DIM_OPACITY_FACTOR = 0.25;
     const GRADIENT_BLUR = `blur(${gs * 1.5}px)`;
+    const MIN_CHAIN_LEN = gs * 4; // filter contour loops shorter than 4 grid cells
     
-    // Helper: emit segment into target context's current path
-    const emitSeg = (tgt: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) => {
-      tgt.moveTo(x1, y1); tgt.lineTo(x2, y2);
+    // ---- Pre-compute filtered contour chains for all levels ----
+    // Collect segments, chain by shared endpoints, discard short islands.
+    type Pt = [number, number];
+    type Chain = Pt[];
+    
+    const ptKey = (x: number, y: number) => ((x * 100 + 0.5) | 0) + ',' + ((y * 100 + 0.5) | 0);
+    
+    const addSeg = (segs: Array<[number, number, number, number]>, x1: number, y1: number, x2: number, y2: number) => {
+      segs.push([x1, y1, x2, y2]);
     };
     
-    // Helper: traverse marching squares grid and stroke one contour level
-    const traceContourLevel = (tgt: CanvasRenderingContext2D, level: number) => {
-      tgt.beginPath();
+    const collectSegments = (level: number): Array<[number, number, number, number]> => {
+      const segs: Array<[number, number, number, number]> = [];
       for (let gy = 0; gy < gridH - 1; gy++) {
         const rowOff = gy * gridW;
         const nextRowOff = rowOff + gridW;
@@ -535,32 +541,123 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const bottomX = px + bottomT * gs, bottomY = py + gs;
           const leftX = px, leftY = py + leftT * gs;
           switch (code) {
-            case 1: emitSeg(tgt, leftX, leftY, bottomX, bottomY); break;
-            case 2: emitSeg(tgt, bottomX, bottomY, rightX, rightY); break;
-            case 3: emitSeg(tgt, leftX, leftY, rightX, rightY); break;
-            case 4: emitSeg(tgt, topX, topY, rightX, rightY); break;
-            case 5: emitSeg(tgt, leftX, leftY, topX, topY); emitSeg(tgt, bottomX, bottomY, rightX, rightY); break;
-            case 6: emitSeg(tgt, topX, topY, bottomX, bottomY); break;
-            case 7: emitSeg(tgt, leftX, leftY, topX, topY); break;
-            case 8: emitSeg(tgt, topX, topY, leftX, leftY); break;
-            case 9: emitSeg(tgt, topX, topY, bottomX, bottomY); break;
-            case 10: emitSeg(tgt, topX, topY, rightX, rightY); emitSeg(tgt, leftX, leftY, bottomX, bottomY); break;
-            case 11: emitSeg(tgt, topX, topY, rightX, rightY); break;
-            case 12: emitSeg(tgt, leftX, leftY, rightX, rightY); break;
-            case 13: emitSeg(tgt, bottomX, bottomY, rightX, rightY); break;
-            case 14: emitSeg(tgt, leftX, leftY, bottomX, bottomY); break;
+            case 1: addSeg(segs, leftX, leftY, bottomX, bottomY); break;
+            case 2: addSeg(segs, bottomX, bottomY, rightX, rightY); break;
+            case 3: addSeg(segs, leftX, leftY, rightX, rightY); break;
+            case 4: addSeg(segs, topX, topY, rightX, rightY); break;
+            case 5: addSeg(segs, leftX, leftY, topX, topY); addSeg(segs, bottomX, bottomY, rightX, rightY); break;
+            case 6: addSeg(segs, topX, topY, bottomX, bottomY); break;
+            case 7: addSeg(segs, leftX, leftY, topX, topY); break;
+            case 8: addSeg(segs, topX, topY, leftX, leftY); break;
+            case 9: addSeg(segs, topX, topY, bottomX, bottomY); break;
+            case 10: addSeg(segs, topX, topY, rightX, rightY); addSeg(segs, leftX, leftY, bottomX, bottomY); break;
+            case 11: addSeg(segs, topX, topY, rightX, rightY); break;
+            case 12: addSeg(segs, leftX, leftY, rightX, rightY); break;
+            case 13: addSeg(segs, bottomX, bottomY, rightX, rightY); break;
+            case 14: addSeg(segs, leftX, leftY, bottomX, bottomY); break;
           }
         }
       }
-      tgt.stroke();
+      return segs;
     };
     
-    // Helper: draw ALL contour levels with given style onto a target context
+    const buildChains = (segs: Array<[number, number, number, number]>): Chain[] => {
+      if (segs.length === 0) return [];
+      // Adjacency: endpoint key → list of { segIdx, end: 0|1 }
+      const adj = new Map<string, Array<{ si: number; end: number }>>();
+      const addAdj = (key: string, si: number, end: number) => {
+        let list = adj.get(key);
+        if (!list) { list = []; adj.set(key, list); }
+        list.push({ si, end });
+      };
+      for (let i = 0; i < segs.length; i++) {
+        const [x1, y1, x2, y2] = segs[i];
+        addAdj(ptKey(x1, y1), i, 0);
+        addAdj(ptKey(x2, y2), i, 1);
+      }
+      const visited = new Uint8Array(segs.length);
+      const chains: Chain[] = [];
+      for (let si = 0; si < segs.length; si++) {
+        if (visited[si]) continue;
+        visited[si] = 1;
+        const [x1, y1, x2, y2] = segs[si];
+        const chain: Pt[] = [[x1, y1], [x2, y2]];
+        // Extend forward from x2,y2
+        let curKey = ptKey(x2, y2);
+        for (;;) {
+          const neighbors = adj.get(curKey);
+          if (!neighbors) break;
+          let found = false;
+          for (const nb of neighbors) {
+            if (visited[nb.si]) continue;
+            visited[nb.si] = 1;
+            const s = segs[nb.si];
+            // nb.end is the end that matched curKey; the OTHER end extends the chain
+            const nx = nb.end === 0 ? s[2] : s[0];
+            const ny = nb.end === 0 ? s[3] : s[1];
+            chain.push([nx, ny]);
+            curKey = ptKey(nx, ny);
+            found = true;
+            break;
+          }
+          if (!found) break;
+        }
+        // Extend backward from x1,y1
+        curKey = ptKey(x1, y1);
+        for (;;) {
+          const neighbors = adj.get(curKey);
+          if (!neighbors) break;
+          let found = false;
+          for (const nb of neighbors) {
+            if (visited[nb.si]) continue;
+            visited[nb.si] = 1;
+            const s = segs[nb.si];
+            const nx = nb.end === 0 ? s[2] : s[0];
+            const ny = nb.end === 0 ? s[3] : s[1];
+            chain.unshift([nx, ny]);
+            curKey = ptKey(nx, ny);
+            found = true;
+            break;
+          }
+          if (!found) break;
+        }
+        chains.push(chain);
+      }
+      return chains;
+    };
+    
+    const chainLength = (chain: Chain): number => {
+      let len = 0;
+      for (let i = 1; i < chain.length; i++) {
+        const dx = chain[i][0] - chain[i - 1][0];
+        const dy = chain[i][1] - chain[i - 1][1];
+        len += Math.sqrt(dx * dx + dy * dy);
+      }
+      return len;
+    };
+    
+    // Pre-compute chains per level (reused across dim/bright passes)
+    const allChains: Chain[][] = new Array(CONTOUR_LEVELS.length);
+    for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
+      const segs = collectSegments(CONTOUR_LEVELS[li]);
+      const chains = buildChains(segs);
+      allChains[li] = chains.filter(c => chainLength(c) >= MIN_CHAIN_LEN);
+    }
+    
+    // Draw pre-computed chains for all contour levels onto a target context
     const drawAllContours = (tgt: CanvasRenderingContext2D, styleFn: (level: number, isMajor: boolean, isHovered: boolean) => void) => {
       for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
-        const level = CONTOUR_LEVELS[li];
-        styleFn(level, (li + 1) % 5 === 0, li === hoveredContourLevelRef.current);
-        traceContourLevel(tgt, level);
+        const chains = allChains[li];
+        if (chains.length === 0) continue;
+        styleFn(CONTOUR_LEVELS[li], (li + 1) % 5 === 0, li === hoveredContourLevelRef.current);
+        tgt.beginPath();
+        for (const chain of chains) {
+          tgt.moveTo(chain[0][0], chain[0][1]);
+          for (let i = 1; i < chain.length; i++) {
+            tgt.lineTo(chain[i][0], chain[i][1]);
+          }
+        }
+        tgt.stroke();
       }
     };
     
