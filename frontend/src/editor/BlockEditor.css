@@ -178,10 +178,8 @@
   pointer-events: none;
   z-index: 10;
   background: var(--color-caret);
-  opacity: 0.85;
-  animation: notees-caret-blink 1s step-end infinite;
   display: none; /* Hidden by default, shown when positioned */
-  /* Smooth transition between line and block modes */
+  /* Only transition width (line↔block morph), not position */
   transition: width 0.15s var(--motion-easing-standard),
               border-radius 0.15s var(--motion-easing-standard),
               opacity 0.15s var(--motion-easing-standard);
@@ -190,7 +188,8 @@
 /* Line caret (normal typing mode) — thin vertical line with rounded ends */
 .notees-custom-caret--line {
   border-radius: 2px;
-  width: 2px;
+  opacity: 0.85;
+  animation: notees-line-caret-blink 1s step-end infinite;
 }
 
 /* Block caret (overwrite mode) — covers the character */
@@ -198,16 +197,16 @@
   border-radius: 1px;
   mix-blend-mode: difference;
   opacity: 0.72;
+  animation: notees-block-caret-blink 1s step-end infinite;
 }
 
-@keyframes notees-caret-blink {
+@keyframes notees-line-caret-blink {
   0%, 100% { opacity: 0.85; }
   50%      { opacity: 0; }
 }
 
-/* Block caret has different opacity */
-@keyframes notees-caret-blink {
-  0%, 100% { opacity: inherit; }
+@keyframes notees-block-caret-blink {
+  0%, 100% { opacity: 0.72; }
   50%      { opacity: 0; }
 }
 
@@ -216,10 +215,6 @@
   .notees-custom-caret {
     animation: none !important;
     transition: none !important;
-    opacity: 0.85;
-  }
-  .notees-custom-caret--block {
-    opacity: 0.72;
   }
 }
 

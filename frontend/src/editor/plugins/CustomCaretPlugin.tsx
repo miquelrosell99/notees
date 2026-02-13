@@ -95,6 +95,87 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     );
   }, [editor, readOnly, overwriteMode]);
 
+  // ─── Skip format boundaries on arrow keys ───────────────────
+  // Lexical places two cursor positions at text format boundaries
+  // (e.g. between normal and bold text). This causes a double-press
+  // to visually advance one character. We detect when the caret
+  // didn't move visually and trigger an extra move.
+
+  const lastVisualPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event: KeyboardEvent) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return false;
+        if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
+
+        // Capture the visual position before the move
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+        const beforeRect = sel.getRangeAt(0).getBoundingClientRect();
+        lastVisualPosRef.current = { x: Math.round(beforeRect.left), y: Math.round(beforeRect.top) };
+
+        return false; // Don't consume — let Lexical handle the move
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, readOnly]);
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    return editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        const prev = lastVisualPosRef.current;
+        if (!prev) return false;
+        lastVisualPosRef.current = null;
+
+        // Check if the visual position actually changed
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+        const afterRect = sel.getRangeAt(0).getBoundingClientRect();
+        const dx = Math.abs(Math.round(afterRect.left) - prev.x);
+        const dy = Math.abs(Math.round(afterRect.top) - prev.y);
+
+        // If the cursor didn't visually move (same pixel position), we're at
+        // a format boundary — read the Lexical selection and move once more
+        if (dx < 1 && dy < 1) {
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection) || !selection.isCollapsed()) return;
+
+            const anchor = selection.anchor;
+            const node = anchor.getNode();
+
+            // Determine direction from which edge we're at
+            if ($isTextNode(node)) {
+              if (anchor.offset === 0) {
+                // At start of text node — we came from the left, try to move left into prev node
+                const prev = node.getPreviousSibling();
+                if (prev && $isTextNode(prev)) {
+                  prev.select(prev.getTextContentSize(), prev.getTextContentSize());
+                }
+              } else if (anchor.offset === node.getTextContentSize()) {
+                // At end of text node — we came from the right, try to move right into next node
+                const next = node.getNextSibling();
+                if (next && $isTextNode(next)) {
+                  next.select(0, 0);
+                }
+              }
+            }
+          });
+        }
+
+        return false;
+      },
+      COMMAND_PRIORITY_CRITICAL,
+    );
+  }, [editor, readOnly]);
+
   // ─── Custom caret positioning ────────────────────────────────
 
   const updateCaretPosition = useCallback(() => {
