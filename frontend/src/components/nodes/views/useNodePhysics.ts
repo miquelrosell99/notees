@@ -54,6 +54,7 @@ import {
   // Helpers
   getMaxSimulationFrames,
   getRenderSkip,
+  getTerrainRenderSkip,
   pairKey,
   getGlareRadius,
   getNodeRadius,
@@ -229,17 +230,26 @@ export function useNodePhysics({
   
   // ==================== Transform Helpers ====================
   
+  // Debounce timer for React state update (avoids re-render on every frame during pan)
+  const transformDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   const setTransformDirect = useCallback((t: Transform) => {
     transformRef.current = t;
+    // Render canvas immediately via rAF (no React re-render)
     if (!transformRafRef.current) {
       transformRafRef.current = requestAnimationFrame(() => {
         transformRafRef.current = 0;
-        setTransform(transformRef.current);
         if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
           renderRef.current(ctxRef.current);
         }
       });
     }
+    // Debounce React state sync — only fires when panning stops (150ms idle)
+    if (transformDebounceRef.current) clearTimeout(transformDebounceRef.current);
+    transformDebounceRef.current = setTimeout(() => {
+      transformDebounceRef.current = null;
+      setTransform(transformRef.current);
+    }, 150);
   }, []);
   
   const requestRender = useCallback(() => {
@@ -1535,8 +1545,8 @@ export function useNodePhysics({
         }
       }
       
-      // Render skip
-      const renderSkip = getRenderSkip(nodes.length);
+      // Render skip — terrain mode always renders every tick (cached contours are cheap)
+      const renderSkip = isTerrainModeNow ? getTerrainRenderSkip(nodes.length) : getRenderSkip(nodes.length);
       const isDragging = !!dragNodeRef.current;
       if (isDragging || totalFrames % renderSkip === 0) {
         const currentFilters = visibilityFiltersRef.current;
