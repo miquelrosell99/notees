@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { Card } from '../../core/Card';
 import type {
   GraphNode,
   GraphLink,
@@ -566,8 +567,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   
   // ==================== Profile Drawing ====================
   
-  const PROFILE_SIZE = 48; // height of bottom card / width of right card
-  
   const drawProfiles = useCallback(() => {
     const heightMap = heightMapBufRef.current;
     const { gridW: gW, gridH: gH, gs: pGs } = plateauGridRef.current;
@@ -577,62 +576,74 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const my = mouseScreenRef.current.y;
     const { width: w, height: h } = dimensions;
     
+    // Card inset constants (must match CSS)
+    const INSET = 12;
+    const CROSS_INSET = 68; // space reserved for the perpendicular card + gap
+    
     // --- Bottom profile (X axis): sample heightMap along row at cursor Y ---
     const xCanvas = profileXCanvasRef.current;
     if (xCanvas) {
       const xCtx = xCanvas.getContext('2d');
-      if (xCtx) {
-        xCanvas.width = w;
-        xCanvas.height = PROFILE_SIZE;
-        xCtx.clearRect(0, 0, w, PROFILE_SIZE);
+      const xParent = xCanvas.parentElement;
+      if (xCtx && xParent) {
+        const cw = xParent.clientWidth;
+        const ch = xParent.clientHeight;
+        xCanvas.width = cw;
+        xCanvas.height = ch;
+        xCtx.clearRect(0, 0, cw, ch);
         
         if (mx >= 0 && my >= 0) {
           const gy = Math.floor(my / pGs);
           if (gy >= 0 && gy < gH) {
+            // Card spans terrain x=[INSET, w - CROSS_INSET]
+            const tLeft = INSET;
+            const tRight = w - CROSS_INSET;
+            const tSpan = tRight - tLeft;
+            
             xCtx.beginPath();
-            xCtx.moveTo(0, PROFILE_SIZE);
-            for (let sx = 0; sx < w; sx++) {
-              const gx = Math.floor(sx / pGs);
-              const clampedGx = Math.min(gx, gW - 1);
-              const val = heightMap[gy * gW + clampedGx];
-              const py = PROFILE_SIZE - val * (PROFILE_SIZE - 4);
-              if (sx === 0) xCtx.lineTo(0, py);
-              else xCtx.lineTo(sx, py);
+            xCtx.moveTo(0, ch);
+            for (let px = 0; px < cw; px++) {
+              const terrainX = tLeft + (px / cw) * tSpan;
+              const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
+              const val = heightMap[gy * gW + gx];
+              const py = ch - val * (ch - 4);
+              if (px === 0) xCtx.lineTo(0, py);
+              else xCtx.lineTo(px, py);
             }
-            xCtx.lineTo(w, PROFILE_SIZE);
+            xCtx.lineTo(cw, ch);
             xCtx.closePath();
             xCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
             xCtx.fill();
             xCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
             xCtx.lineWidth = 1;
-            // Redraw just the top edge
             xCtx.beginPath();
-            for (let sx = 0; sx < w; sx++) {
-              const gx = Math.floor(sx / pGs);
-              const clampedGx = Math.min(gx, gW - 1);
-              const val = heightMap[gy * gW + clampedGx];
-              const py = PROFILE_SIZE - val * (PROFILE_SIZE - 4);
-              if (sx === 0) xCtx.moveTo(0, py);
-              else xCtx.lineTo(sx, py);
+            for (let px = 0; px < cw; px++) {
+              const terrainX = tLeft + (px / cw) * tSpan;
+              const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
+              const val = heightMap[gy * gW + gx];
+              const py = ch - val * (ch - 4);
+              if (px === 0) xCtx.moveTo(0, py);
+              else xCtx.lineTo(px, py);
             }
             xCtx.stroke();
             
-            // Cursor marker
+            // Cursor marker line (aligned to terrain position)
+            const cardMx = (mx - tLeft) / tSpan * cw;
             xCtx.setLineDash([4, 3]);
             xCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             xCtx.beginPath();
-            xCtx.moveTo(mx, 0);
-            xCtx.lineTo(mx, PROFILE_SIZE);
+            xCtx.moveTo(cardMx, 0);
+            xCtx.lineTo(cardMx, ch);
             xCtx.stroke();
             
             // Dot at cursor position on the profile outline
-            const curGx = Math.min(Math.floor(mx / pGs), gW - 1);
+            const curGx = Math.min(Math.max(Math.floor(mx / pGs), 0), gW - 1);
             const curVal = heightMap[gy * gW + curGx];
-            const dotY = PROFILE_SIZE - curVal * (PROFILE_SIZE - 4);
+            const dotY = ch - curVal * (ch - 4);
             xCtx.setLineDash([]);
             xCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             xCtx.beginPath();
-            xCtx.arc(mx, dotY, 3, 0, Math.PI * 2);
+            xCtx.arc(cardMx, dotY, 3, 0, Math.PI * 2);
             xCtx.fill();
           }
         }
@@ -640,61 +651,71 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     
     // --- Right profile (Y axis): sample heightMap along column at cursor X ---
+    // Inverted: height grows right-to-left (profile faces toward the terrain)
     const yCanvas = profileYCanvasRef.current;
     if (yCanvas) {
       const yCtx = yCanvas.getContext('2d');
-      if (yCtx) {
-        yCanvas.width = PROFILE_SIZE;
-        yCanvas.height = h;
-        yCtx.clearRect(0, 0, PROFILE_SIZE, h);
+      const yParent = yCanvas.parentElement;
+      if (yCtx && yParent) {
+        const cw = yParent.clientWidth;
+        const ch = yParent.clientHeight;
+        yCanvas.width = cw;
+        yCanvas.height = ch;
+        yCtx.clearRect(0, 0, cw, ch);
         
         if (mx >= 0 && my >= 0) {
-          const gx = Math.floor(mx / pGs);
+          const gx = Math.min(Math.max(Math.floor(mx / pGs), 0), gW - 1);
           if (gx >= 0 && gx < gW) {
+            // Card spans terrain y=[INSET, h - CROSS_INSET]
+            const tTop = INSET;
+            const tBottom = h - CROSS_INSET;
+            const tSpan = tBottom - tTop;
+            
+            // Inverted: fill from right edge, profile line goes left
             yCtx.beginPath();
-            yCtx.moveTo(0, 0);
-            for (let sy = 0; sy < h; sy++) {
-              const gy = Math.floor(sy / pGs);
-              const clampedGy = Math.min(gy, gH - 1);
-              const val = heightMap[clampedGy * gW + gx];
-              const px = val * (PROFILE_SIZE - 4);
-              if (sy === 0) yCtx.lineTo(px, 0);
-              else yCtx.lineTo(px, sy);
+            yCtx.moveTo(cw, 0);
+            for (let py = 0; py < ch; py++) {
+              const terrainY = tTop + (py / ch) * tSpan;
+              const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
+              const val = heightMap[gy * gW + gx];
+              const px = cw - val * (cw - 4);
+              if (py === 0) yCtx.lineTo(px, 0);
+              else yCtx.lineTo(px, py);
             }
-            yCtx.lineTo(0, h);
+            yCtx.lineTo(cw, ch);
             yCtx.closePath();
             yCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
             yCtx.fill();
             yCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
             yCtx.lineWidth = 1;
-            // Redraw just the profile edge
             yCtx.beginPath();
-            for (let sy = 0; sy < h; sy++) {
-              const gy = Math.floor(sy / pGs);
-              const clampedGy = Math.min(gy, gH - 1);
-              const val = heightMap[clampedGy * gW + gx];
-              const px = val * (PROFILE_SIZE - 4);
-              if (sy === 0) yCtx.moveTo(px, 0);
-              else yCtx.lineTo(px, sy);
+            for (let py = 0; py < ch; py++) {
+              const terrainY = tTop + (py / ch) * tSpan;
+              const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
+              const val = heightMap[gy * gW + gx];
+              const px = cw - val * (cw - 4);
+              if (py === 0) yCtx.moveTo(px, 0);
+              else yCtx.lineTo(px, py);
             }
             yCtx.stroke();
             
-            // Cursor marker
+            // Cursor marker line (aligned to terrain position)
+            const cardMy = (my - tTop) / tSpan * ch;
             yCtx.setLineDash([4, 3]);
             yCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             yCtx.beginPath();
-            yCtx.moveTo(0, my);
-            yCtx.lineTo(PROFILE_SIZE, my);
+            yCtx.moveTo(0, cardMy);
+            yCtx.lineTo(cw, cardMy);
             yCtx.stroke();
             
             // Dot at cursor position on the profile outline
-            const curGy = Math.min(Math.floor(my / pGs), gH - 1);
+            const curGy = Math.min(Math.max(Math.floor(my / pGs), 0), gH - 1);
             const curValY = heightMap[curGy * gW + gx];
-            const dotX = curValY * (PROFILE_SIZE - 4);
+            const dotX = cw - curValY * (cw - 4);
             yCtx.setLineDash([]);
             yCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             yCtx.beginPath();
-            yCtx.arc(dotX, my, 3, 0, Math.PI * 2);
+            yCtx.arc(dotX, cardMy, 3, 0, Math.PI * 2);
             yCtx.fill();
           }
         }
@@ -960,12 +981,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // ==================== Render ====================
   
   return (
-    <div className={`node-graph-renderer terrain-with-profiles ${className}`} ref={containerRef}>
+    <div className={`node-graph-renderer ${className}`} ref={containerRef}>
       <canvas
         ref={canvasRef}
         width={dimensions.width}
         height={dimensions.height}
-        className="node-graph-renderer__canvas terrain-main-canvas"
+        className="node-graph-renderer__canvas"
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
@@ -974,14 +995,24 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         onContextMenu={handleContextMenu}
         style={{ cursor: hoveredNode ? 'pointer' : isPanningRef.current ? 'grabbing' : 'grab' }}
       />
-      <canvas
-        ref={profileYCanvasRef}
-        className="terrain-profile terrain-profile--y"
-      />
-      <canvas
-        ref={profileXCanvasRef}
-        className="terrain-profile terrain-profile--x"
-      />
+      <Card
+        variant="outlined"
+        elevation="none"
+        padding={false}
+        radius="sm"
+        className="terrain-profile-card terrain-profile-card--right"
+      >
+        <canvas ref={profileYCanvasRef} className="terrain-profile-canvas" />
+      </Card>
+      <Card
+        variant="outlined"
+        elevation="none"
+        padding={false}
+        radius="sm"
+        className="terrain-profile-card terrain-profile-card--bottom"
+      >
+        <canvas ref={profileXCanvasRef} className="terrain-profile-canvas" />
+      </Card>
     </div>
   );
 });
